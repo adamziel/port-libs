@@ -79,6 +79,69 @@ final class SQLiteWalExclusiveModePlan
         ];
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function journalModeExitRows(int $count = 1000): array
+    {
+        if ($count < 1) {
+            throw new \InvalidArgumentException('SQLite WAL journal-mode exit rows require a positive count');
+        }
+
+        $pageSizes = [512, 1024, 2048, 4096, 8192, 16384, 32768, 65536];
+        $rows = [];
+
+        foreach (range(1, $count) as $case) {
+            $pageSize = $pageSizes[($case - 1) % count($pageSizes)];
+            $insertedRowCount = 1 + (($case - 1) % 17);
+            $databasePageCount = 2 + (($case + intdiv($case, 13)) % 7);
+            $walFrameCount = $insertedRowCount + 1 + (($case + intdiv($case, 11)) % 5);
+            $walBytesBeforeExit = 32 + ($walFrameCount * (24 + $pageSize));
+
+            $rows[] = [
+                'upstream' => sprintf('e_wal.test 4.2.3..4.3 WAL exit header reversion dynamic case %04d', $case),
+                'script' => 'e_wal.test',
+                'case' => $case,
+                'section' => 'e_wal-4.2.3..4.3',
+                'evidence' => ['R-02535-05811', 'R-60175-02388'],
+                'database_header_offset' => 18,
+                'database_header_length' => 2,
+                'pre_wal_header_hex' => '0101',
+                'wal_header_hex' => '0202',
+                'post_exit_header_hex' => '0101',
+                'pre_wal_read_version' => 1,
+                'pre_wal_write_version' => 1,
+                'wal_read_version' => 2,
+                'wal_write_version' => 2,
+                'post_exit_read_version' => 1,
+                'post_exit_write_version' => 1,
+                'journal_mode_before_exit' => 'wal',
+                'journal_mode_request' => 'delete',
+                'journal_mode_result' => 'delete',
+                'wal_sidecar_exists_before_exit' => true,
+                'wal_sidecar_exists_after_exit' => false,
+                'checkpoint_required_before_unlink' => true,
+                'checkpointed_frame_count_on_exit' => $walFrameCount,
+                'wal_frame_count_before_exit' => $walFrameCount,
+                'wal_bytes_before_exit' => $walBytesBeforeExit,
+                'wal_bytes_after_exit' => 0,
+                'page_size' => $pageSize,
+                'database_page_count' => $databasePageCount,
+                'inserted_row_count_before_exit' => $insertedRowCount,
+                'legacy_reader_can_access_after_exit' => true,
+                'format_reversion_reason' => 'deliberate_exit_from_wal_mode',
+                'dependencies' => [
+                    'real-upstream-corpus-e-wal',
+                    'sqlite-wal-journal-mode-exit',
+                    'sqlite-wal-header-version-reversion',
+                    'sqlite-wal-sidecar-delete',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
     private static function upstreamSection(string $section): string
     {
         return match ($section) {

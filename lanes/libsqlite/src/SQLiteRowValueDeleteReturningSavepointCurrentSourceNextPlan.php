@@ -34,6 +34,7 @@ final class SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan
         }
 
         $outerImage = self::normalizeTables($tables);
+        $rowIdColumn = SQLiteRowIdColumn::resolveTables($outerImage, $rowIdColumn, $uniqueConstraints);
         $current = $outerImage;
 
         [$current, $releasedExecuted, $releasedStreams, $releasedDeleted] = self::runDeleteStatements(

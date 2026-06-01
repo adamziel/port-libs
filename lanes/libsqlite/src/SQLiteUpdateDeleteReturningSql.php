@@ -12,13 +12,14 @@ final class SQLiteUpdateDeleteReturningSql
      * @param array<int|string,mixed> $parameters
      * @return array{action:string,table:string,conflict_action:string,plan:SQLiteUpdateDeleteLimitPlan,tables:array<string,list<array<string,mixed>>>,returning:list<array<string,mixed>>,ignored_rows:list<array<string,mixed>>,deleted_conflict_rows:list<array<string,mixed>>,conflicts:list<array{row_id:int|string,columns:list<string>,key:string,conflicting_row_ids:list<int|string>}>,failed_conflict?:array{row_id:int|string,columns:list<string>,key:string,conflicting_row_ids:list<int|string>}}
      */
-    public static function execute(string $sql, array $tables, string $rowIdColumn = 'option_id', array $uniqueConstraints = [], bool $preserveFailChanges = false, array $parameters = []): array
+    public static function execute(string $sql, array $tables, string $rowIdColumn = 'setting_id', array $uniqueConstraints = [], bool $preserveFailChanges = false, array $parameters = []): array
     {
         $parsed = self::parse($sql, $parameters);
         $table = $parsed['table'];
         if (!isset($tables[$table]) || !is_array($tables[$table]) || !array_is_list($tables[$table])) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE RETURNING table {$table} is missing");
         }
+        $rowIdColumn = SQLiteRowIdColumn::resolveRows($tables[$table], $rowIdColumn, $uniqueConstraints);
 
         $where = self::wherePredicate($parsed['where'], $tables);
         if ($parsed['action'] === 'delete') {

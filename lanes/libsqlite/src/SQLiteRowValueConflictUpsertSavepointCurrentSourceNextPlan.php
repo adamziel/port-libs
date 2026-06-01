@@ -19,12 +19,13 @@ final class SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan
         array $uniqueConstraints,
         array $conflictKeyColumns,
         string $savepoint = 'app_settings_rowvalue_conflict',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         self::validateColumns($conflictKeyColumns, 'conflict key');
         if (trim($savepoint) === '') {
             throw new \InvalidArgumentException('SQLite row-value conflict UPSERT savepoint name must not be empty');
         }
+        $rowIdColumn = SQLiteRowIdColumn::resolveTables($tables, $rowIdColumn, $uniqueConstraints);
 
         $plan = SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute(
             $tables,

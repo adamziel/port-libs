@@ -209,6 +209,21 @@ $write($repo . '/symlink-icase.config', <<<CFG
 symlinkIcase = matched
 CFG);
 
+$write($repo . '/environment-branch.config', <<<CFG
+[wordpress]
+environmentBranch = matched
+CFG);
+
+$write($repo . '/environment-branch-boundary.config', <<<CFG
+[wordpress]
+environmentBranchBoundary = should-not-load
+CFG);
+
+$write($repo . '/environment-remote.config', <<<CFG
+[wordpress]
+environmentRemote = matched
+CFG);
+
 $backslashRepo = $root . '/legacy\\checkout';
 $backslashGitDir = $backslashRepo . '/.git';
 mkdir($backslashGitDir, 0777, true);
@@ -353,6 +368,20 @@ $dotSlashConfig = GitConfig::fromFile($root . '/.gitconfig', [
     'homeDir' => $root,
 ]);
 
+$environmentConfig = GitConfig::fromEnvironmentPairs([
+    ['key' => 'includeIf.onbranch:deploy/*.path', 'value' => $repo . '/environment-branch.config'],
+    ['key' => 'includeIf.onbranch:deploy*.path', 'value' => $repo . '/environment-branch-boundary.config'],
+    ['key' => 'remote.origin.url', 'value' => 'https://git.example.test/wp-content.git'],
+    [
+        'key' => 'includeIf.hasconfig:remote.*.url:https://git.example.test/**.path',
+        'value' => $repo . '/environment-remote.config',
+    ],
+], [
+    'gitDir' => $gitDir,
+    'homeDir' => $root,
+    'branchName' => 'refs/heads/deploy/site-a',
+]);
+
 $drivePrefixSupported = false;
 $drivePrefixGitdirPolicy = null;
 if (DIRECTORY_SEPARATOR !== '\\') {
@@ -442,6 +471,9 @@ return [
     'symlinkRealpathPolicy' => $symlinkConfig?->value('wordpress', null, 'symlinkRealpath'),
     'symlinkLiteralPolicy' => $symlinkConfig?->value('wordpress', null, 'symlinkLiteral'),
     'symlinkIcasePolicy' => $symlinkConfig?->value('wordpress', null, 'symlinkIcase'),
+    'environmentBranchPolicy' => $environmentConfig->value('wordpress', null, 'environmentBranch'),
+    'environmentBranchBoundaryPolicy' => $environmentConfig->value('wordpress', null, 'environmentBranchBoundary'),
+    'environmentRemotePolicy' => $environmentConfig->value('wordpress', null, 'environmentRemote'),
     'sectionsLoaded' => array_map(
         static fn (array $section): string => $section['subsection'] === null
             ? $section['name']

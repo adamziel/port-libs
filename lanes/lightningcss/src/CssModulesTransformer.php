@@ -2275,6 +2275,24 @@ final class CssModulesTransformer
                 continue;
             }
 
+            $compoundSelectorFunction = $bracketDepth === 0 ? $this->compoundSelectorArgumentFunctionAt($selector, $i) : null;
+            if ($compoundSelectorFunction !== null) {
+                $inner = substr(
+                    $selector,
+                    $compoundSelectorFunction['open'] + 1,
+                    $compoundSelectorFunction['close'] - $compoundSelectorFunction['open'] - 1
+                );
+                $this->assertCssModulesCompoundSelectorArgument($inner);
+
+                $output .= $compoundSelectorFunction['prefix']
+                    . $compoundSelectorFunction['name']
+                    . '('
+                    . $this->rewriteSelectorFragment($inner, $mode, $locals)
+                    . ')';
+                $i = $compoundSelectorFunction['close'];
+                continue;
+            }
+
             $globalPseudo = $bracketDepth === 0 ? $this->cssModulesPseudoFunctionAt($selector, $i, 'global') : null;
             if ($globalPseudo !== null) {
                 $open = $globalPseudo['open'];
@@ -2637,6 +2655,126 @@ final class CssModulesTransformer
             '-webkit-any' => '-webkit-any',
             default => $decodedName,
         };
+    }
+
+    /**
+     * @return array{prefix:string,name:string,open:int,close:int}|null
+     */
+    private function compoundSelectorArgumentFunctionAt(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset] ?? '') !== ':') {
+            return null;
+        }
+
+        $prefixLength = ($selector[$offset + 1] ?? '') === ':' ? 2 : 1;
+        $token = $this->readCssIdentifierToken($selector, $offset + $prefixLength);
+        if ($token === null || ($selector[$token['end']] ?? '') !== '(') {
+            return null;
+        }
+
+        $name = strtolower($token['decoded']);
+        if (!(($prefixLength === 1 && $name === 'host') || ($prefixLength === 2 && $name === 'slotted'))) {
+            return null;
+        }
+
+        return [
+            'prefix' => $prefixLength === 2 ? '::' : ':',
+            'name' => $name,
+            'open' => $token['end'],
+            'close' => $this->findMatchingParen($selector, $token['end']),
+        ];
+    }
+
+    private function assertCssModulesCompoundSelectorArgument(string $selector): void
+    {
+        $selector = trim($selector);
+        if ($selector === '') {
+            throw new \InvalidArgumentException('Invalid empty selector');
+        }
+
+        if ($this->findNextTopLevel($selector, ',', 0) !== null) {
+            throw new \InvalidArgumentException('Unexpected token Comma');
+        }
+
+        $invalidCombinator = $this->invalidTopLevelCompoundSelectorCombinator($selector);
+        if ($invalidCombinator === '|') {
+            throw new \InvalidArgumentException("Unexpected token Delim('|')");
+        }
+
+        if ($invalidCombinator !== null) {
+            throw new \InvalidArgumentException('Invalid state');
+        }
+    }
+
+    private function invalidTopLevelCompoundSelectorCombinator(string $selector): ?string
+    {
+        $quote = null;
+        $bracketDepth = 0;
+        $parenDepth = 0;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '\\') {
+                $escapeEnd = $this->cssEscapeEnd($selector, $i);
+                if ($escapeEnd !== null) {
+                    $i = $escapeEnd;
+                    continue;
+                }
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+
+            if ($bracketDepth !== 0 || $parenDepth !== 0) {
+                continue;
+            }
+
+            if (ctype_space($char) || $char === '>' || $char === '+' || $char === '~') {
+                return 'combinator';
+            }
+
+            if ($char === '|' && ($selector[$i + 1] ?? '') === '|') {
+                return '|';
+            }
+        }
+
+        return null;
     }
 
     /**

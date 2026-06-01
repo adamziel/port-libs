@@ -375,7 +375,7 @@ final class GitAttributes
     private static function parseAssignments(string $input, bool $strictValues): ?array
     {
         $assignments = [];
-        foreach (preg_split('/[ \t\r\n\f\v]+/', trim($input)) ?: [] as $field) {
+        foreach (preg_split('/[ \t\r\n\f\v]+/', trim($input, " \t\r\n\f\v")) ?: [] as $field) {
             if ($field === '') {
                 continue;
             }

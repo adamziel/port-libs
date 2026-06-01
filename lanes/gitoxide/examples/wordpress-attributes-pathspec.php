@@ -69,6 +69,11 @@ $asciiWhitespaceOnlyAttributes = GitAttributes::fromString(
     . "\"wp-content/uploads/slot\\fhero.jpg\" embedded-formfeed\n",
     withBuiltInMacros: false,
 );
+$nulBoundaryAttributes = GitAttributes::fromString(
+    "wp-content/plugins/nul/** deploy\0\n"
+    . "wp-content/uploads/nul/** deploy=media\0\n",
+    withBuiltInMacros: false,
+);
 $recursiveMacroAttributes = GitAttributes::fromString(
     "[attr]my-text text\n"
     . "[attr]my-binary binary\n"
@@ -135,6 +140,18 @@ try {
     PathspecMatcher::fromSpecs([":(attr:deploy=plugin\vreview=yes)wp-content/plugins/**"]);
 } catch (InvalidArgumentException) {
     $verticalValueRequirementRejected = true;
+}
+$nulStateRequirementRejected = false;
+try {
+    PathspecSearch::fromSpecs([":(attr:deploy\0)wp-content/plugins/nul/**"]);
+} catch (InvalidArgumentException) {
+    $nulStateRequirementRejected = true;
+}
+$nulValueRequirementRejected = false;
+try {
+    PathspecSearch::fromSpecs([":(attr:deploy=media\0)wp-content/uploads/nul/**"]);
+} catch (InvalidArgumentException) {
+    $nulValueRequirementRejected = true;
 }
 $emptyLongMagicComponentRejected = false;
 try {
@@ -391,6 +408,16 @@ return [
     'embeddedFormFeedPathspecMatches' => PathspecSearch::fromSpecs([
         ':(attr:embedded-formfeed)wp-content/uploads/**',
     ])->isIncluded($embeddedFormFeedPath, false, $asciiWhitespaceOnlyAttributes),
+    'nulTerminatedAssignmentSkipped' => $nulBoundaryAttributes->attributesForPath(
+        'wp-content/plugins/nul/editor.php',
+        ['deploy'],
+    ),
+    'nulPreservedAttributeValue' => $nulBoundaryAttributes->attributesForPath(
+        'wp-content/uploads/nul/banner.png',
+        ['deploy'],
+    ),
+    'nulStateRequirementRejected' => $nulStateRequirementRejected,
+    'nulValueRequirementRejected' => $nulValueRequirementRejected,
     'valueTabRequirementRejected' => $valueTabRequirementRejected,
     'verticalValueRequirementRejected' => $verticalValueRequirementRejected,
     'emptyLongMagicComponentRejected' => $emptyLongMagicComponentRejected,

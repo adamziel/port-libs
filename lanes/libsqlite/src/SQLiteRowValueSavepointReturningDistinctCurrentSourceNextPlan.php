@@ -23,7 +23,7 @@ final class SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan
         array $uniqueConstraints,
         array $distinctColumns,
         string $savepoint = 'app_settings_rowvalue_distinct_current_source',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($releasedStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING current-source savepoint needs released statements');
@@ -40,6 +40,7 @@ final class SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan
         self::validateDistinctColumns($distinctColumns);
 
         $outerImage = self::normalizeTables($tables);
+        $rowIdColumn = SQLiteRowIdColumn::resolveTables($outerImage, $rowIdColumn, $uniqueConstraints);
         [$releasedCurrent, $releasedExecuted, $releasedStreams] = self::runStatements(
             $outerImage,
             $releasedStatements,

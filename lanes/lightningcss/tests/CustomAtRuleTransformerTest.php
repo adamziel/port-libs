@@ -1541,6 +1541,83 @@ CSS;
         $t->same('length', $seenRule['preludeAst']['value'][0]['type'] ?? null);
         $t->same(['unit' => 'rem', 'value' => 2.0], $seenRule['preludeAst']['value'][0]['value'] ?? null);
     },
+    'custom at-rules expose upstream percentage tokens in universal preludes and function exits' => static function (TestRunner $t): void {
+        $events = [];
+        $seenRule = null;
+        $css = <<<'CSS'
+@plugin 25% theme(50%);
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'percentage' => static function (array $token) use (&$events): array {
+                        $events[] = 'token:' . $token['raw'] . ':' . $token['value'];
+
+                        return [
+                            'type' => 'length',
+                            'unit' => 'px',
+                            'value' => $token['value'] * 100,
+                        ];
+                    },
+                ],
+                'FunctionExit' => [
+                    'theme' => static function (array $function) use (&$events): array {
+                        $argument = $function['arguments'][0] ?? [];
+                        $token = is_array($argument['value'] ?? null) ? $argument['value'] : [];
+                        $events[] = 'function:' . ($token['type'] ?? '') . ':' . ($token['value'] ?? '');
+
+                        return $argument;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'plugin' => static function (array $rule) use (&$events, &$seenRule): array {
+                            $events[] = 'rule:' . $rule['prelude'];
+                            $seenRule = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'plugin' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'token:25%:0.25',
+            'function:percentage:0.5',
+            'token:50%:0.5',
+            'rule:25px 50px',
+        ], $events);
+        $t->same('25px 50px', $seenRule['prelude']);
+        $t->same(['length', 'length'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seenRule['preludeAst']['value'] ?? []
+        ));
+        $t->same([
+            ['unit' => 'px', 'value' => 25.0],
+            ['unit' => 'px', 'value' => 50.0],
+        ], array_map(
+            static fn (array $component): array => $component['value'],
+            $seenRule['preludeAst']['value'] ?? []
+        ));
+    },
     'custom at-rules map upstream bundler mixin visitor after import resolution' => static function (TestRunner $t) use ($customDefinitions, $mixinVisitor): void {
         $mixins = [];
         $result = (new CustomAtRuleTransformer())->bundle('/apply.css', [

@@ -12,11 +12,22 @@ $libsqliteRoot = dirname(__DIR__);
 $sourceRoot = $libsqliteRoot . '/src';
 
 $sourceFiles = [
+    $sourceRoot . '/SQLiteRowIdColumn.php',
+    $sourceRoot . '/SQLiteUpdateDeleteReturningSql.php',
+    $sourceRoot . '/SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteRowValueConflictReturningSavepointCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteRowValueConflictSavepointReturningCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteRowValueSavepointUpsertCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteRowValueUpdateReturningConflictCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan.php',
 ];
 
 $legacyRowValueDefaultMatches = static function () use ($sourceFiles, $libsqliteRoot): array {
@@ -106,6 +117,12 @@ $deleteDefaults = static fn (): array => SQLiteRowValueDeleteReturningSavepointC
     [['tenant_id', 'key_name']],
 );
 
+$sharedExecutorDefault = static fn (): array => \PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql::execute(
+    "UPDATE app_settings SET status = 'shared-default' WHERE setting_id = 2 RETURNING setting_id, key_name, status",
+    $tables,
+    'setting_id',
+);
+
 return [
     'source-neutral row-value savepoint defaults contain no legacy domain strings' => static fn (TestRunner $t) => $t->same([], $legacyRowValueDefaultMatches()),
     'row-value update delete savepoint defaults use application settings' => static function (TestRunner $t) use ($updateDeleteDefaults): void {
@@ -153,6 +170,13 @@ return [
         $t->same('rollback-savepoint-rolled-back', $plan['status']);
         $t->same([3], array_column($plan['yielded_returning'][0]['rows'], 'setting_id'));
         $t->same([1, 2, 4], array_column($plan['current_source_tables']['app_settings'], 'setting_id'));
+    },
+    'shared update delete returning default uses generic setting id' => static function (TestRunner $t) use ($sharedExecutorDefault): void {
+        $result = $sharedExecutorDefault();
+
+        $t->same([2], $result['plan']->selectedIds);
+        $t->same([2], $result['plan']->mutationIds);
+        $t->same('shared-default', $result['returning'][0]['status']);
     },
     'source-neutral row-value savepoint dependency closure' => static fn (TestRunner $t) => $t->same(
         'no new support component needed; reuses native row-value UPDATE/DELETE RETURNING, UPSERT, conflict handling, and savepoint current-source helpers with generic setting identifiers',

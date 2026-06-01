@@ -21,7 +21,7 @@ final class SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_yield',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($yieldStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value yield savepoint needs yield statements');
@@ -40,6 +40,7 @@ final class SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan
         }
 
         $savepointImage = self::normalizeTables($tables);
+        $rowIdColumn = SQLiteRowIdColumn::resolveTables($savepointImage, $rowIdColumn, $uniqueConstraints);
         [$yieldCurrent, $yieldExecuted, $yieldedReturning] = self::runStatements(
             $savepointImage,
             $yieldStatements,

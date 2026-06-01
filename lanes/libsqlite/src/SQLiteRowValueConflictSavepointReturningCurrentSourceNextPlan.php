@@ -19,7 +19,7 @@ final class SQLiteRowValueConflictSavepointReturningCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_retry_batch',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($statements === []) {
             throw new \InvalidArgumentException('SQLite row-value conflict savepoint RETURNING needs statements');
@@ -32,6 +32,7 @@ final class SQLiteRowValueConflictSavepointReturningCurrentSourceNextPlan
         }
 
         $savepointImage = self::normalizeTables($tables);
+        $rowIdColumn = SQLiteRowIdColumn::resolveTables($savepointImage, $rowIdColumn, $uniqueConstraints);
         $current = $savepointImage;
         $executed = [];
         $yielded = [];

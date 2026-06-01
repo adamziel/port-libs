@@ -221,6 +221,42 @@ return [
             $prefixer->prefixForTargets('a:dir(rtl) div { color: red; }', ['safari' => 14])
         );
     },
+    'transition prefixer isolates upstream unsupported focus selector lists by target boundary' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            ':hover{color:red}:focus-visible{color:red}',
+            $prefixer->prefixForTargets(':hover, :focus-visible { color: red; }', ['safari' => 13])
+        );
+        $t->same(
+            ':is(:hover,:focus-visible){color:red}',
+            $prefixer->prefixForTargets(':hover, :focus-visible { color: red; }', ['safari' => 14])
+        );
+        $t->same(
+            ':hover,:focus-visible{color:red}',
+            $prefixer->prefixForTargets(':hover, :focus-visible { color: red; }', ['safari' => '15.1'])
+        );
+        $t->same(
+            ':focus-within{color:red}:focus-visible{color:red}',
+            $prefixer->prefixForTargets(':focus-within, :focus-visible { color: red; }', ['safari' => 9])
+        );
+        $t->same(
+            ':is(a:not(:hover),a:not(:focus-visible)){color:red}',
+            $prefixer->prefixForTargets('a:not(:hover), a:not(:focus-visible) { color: red; }', ['safari' => 14])
+        );
+        $t->same(
+            ':is(a:has(:hover),a:has(:focus-visible)){color:red}',
+            $prefixer->prefixForTargets('a:has(:hover), a:has(:focus-visible) { color: red; }', ['safari' => 14])
+        );
+        $t->same(
+            '.foo.foo:hover{color:red}.bar:focus-visible{color:red}',
+            $prefixer->prefixForTargets('.foo.foo:hover, .bar:focus-visible { color: red; }', ['safari' => 14])
+        );
+        $t->same(
+            'a:after:hover{color:red}a:after:focus-visible{color:red}',
+            $prefixer->prefixForTargets('a::after:hover, a::after:focus-visible { color: red; }', ['safari' => 14])
+        );
+    },
     'transition prefixer maps upstream selector pseudo browser boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

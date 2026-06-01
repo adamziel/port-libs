@@ -18,7 +18,7 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
         array $statements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_delete_update',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($statements === []) {
             throw new \InvalidArgumentException('SQLite row-value DELETE/UPDATE savepoint needs statements');
@@ -28,6 +28,7 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
         }
 
         $savepointImage = self::normalizeTables($tables);
+        $rowIdColumn = SQLiteRowIdColumn::resolveTables($savepointImage, $rowIdColumn, $uniqueConstraints);
         $attempted = $savepointImage;
         $executed = [];
         $yielded = [];
@@ -193,7 +194,7 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
         array $statements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_between_cleanup',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($statements === []) {
             throw new \InvalidArgumentException('SQLite row-value DELETE/UPDATE savepoint needs statements');
@@ -203,6 +204,7 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
         }
 
         $savepointImage = self::normalizeTables($tables);
+        $rowIdColumn = SQLiteRowIdColumn::resolveTables($savepointImage, $rowIdColumn, $uniqueConstraints);
         $attempted = $savepointImage;
         $executed = [];
         $yielded = [];

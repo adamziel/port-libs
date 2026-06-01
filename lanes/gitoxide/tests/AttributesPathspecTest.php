@@ -409,6 +409,32 @@ return [
             ":(attr:deploy=plugin\freview=yes)wp-content/plugins/**",
         ]));
     },
+    'attribute and pathspec assignment parsing preserves nul bytes like gix fields' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString(
+            "wp-content/plugins/** deploy\0\n"
+            . "wp-content/themes/** \0review\n"
+            . "wp-content/uploads/** deploy=media\0\n"
+            . "wp-content/mu-plugins/** deploy review\n",
+            withBuiltInMacros: false,
+        );
+
+        $t->same(['deploy' => null], $attributes->attributesForPath('wp-content/plugins/editor/block.json', ['deploy']));
+        $t->same(['review' => null], $attributes->attributesForPath('wp-content/themes/classic/style.css', ['review']));
+        $t->same(['deploy' => "media\0"], $attributes->attributesForPath('wp-content/uploads/banner.png', ['deploy']));
+        $t->same([
+            'deploy' => true,
+            'review' => true,
+        ], $attributes->attributesForPath('wp-content/mu-plugins/loader.php', ['deploy', 'review']));
+
+        foreach ([
+            ":(attr:deploy\0)wp-content/plugins/**",
+            ":(attr:\0deploy)wp-content/plugins/**",
+            ":(attr:deploy=plugin\0)wp-content/plugins/**",
+        ] as $spec) {
+            $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([$spec]));
+            $t->throws(InvalidArgumentException::class, static fn () => PathspecSearch::fromSpecs([$spec]));
+        }
+    },
     'attribute pathspec filters skip all ascii whitespace patterns like gix glob parse' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString(
             "\f formfeed-only\n"
@@ -731,6 +757,10 @@ return [
         $t->same(true, $example['quotedSpacedFormFeedPathspecSkipped']);
         $t->same(['embedded-formfeed' => true], $example['embeddedFormFeedAttributeMatches']);
         $t->same(true, $example['embeddedFormFeedPathspecMatches']);
+        $t->same(['deploy' => null], $example['nulTerminatedAssignmentSkipped']);
+        $t->same(['deploy' => "media\0"], $example['nulPreservedAttributeValue']);
+        $t->same(true, $example['nulStateRequirementRejected']);
+        $t->same(true, $example['nulValueRequirementRejected']);
         $t->same(true, $example['valueTabRequirementRejected']);
         $t->same(true, $example['verticalValueRequirementRejected']);
         $t->same(true, $example['emptyLongMagicComponentRejected']);

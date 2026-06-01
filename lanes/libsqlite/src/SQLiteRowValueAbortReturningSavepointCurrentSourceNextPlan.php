@@ -17,7 +17,7 @@ final class SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan
         array $statements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_abort_batch',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($statements === []) {
             throw new \InvalidArgumentException('SQLite row-value ABORT RETURNING savepoint needs statements');
@@ -27,6 +27,7 @@ final class SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan
         }
 
         $savepointImage = self::normalizeTables($tables);
+        $rowIdColumn = SQLiteRowIdColumn::resolveTables($savepointImage, $rowIdColumn, $uniqueConstraints);
         $current = $savepointImage;
         $attempted = $savepointImage;
         $executed = [];

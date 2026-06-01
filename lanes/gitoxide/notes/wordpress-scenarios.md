@@ -227,6 +227,12 @@ The config include example now records escaped `gitdir` policy and literal
 wildcard matching for `hasconfig:remote.*.url` conditional includes, matching
 the upstream backslash escape boundary.
 
+It also covers caller-supplied environment-style config entries such as
+`includeIf.onbranch:deploy/*.path` and
+`includeIf.hasconfig:remote.*.url:...path`, so WordPress deployment tools can
+layer per-request config overrides without reading the real process
+environment or invoking `git config`.
+
 ## WordPress Attributes Pathspec Example
 
 `examples/wordpress-attributes-pathspec.php` combines `.gitattributes` parsing

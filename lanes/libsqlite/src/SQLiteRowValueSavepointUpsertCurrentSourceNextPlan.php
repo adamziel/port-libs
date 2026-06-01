@@ -27,6 +27,7 @@ final class SQLiteRowValueSavepointUpsertCurrentSourceNextPlan
         }
 
         $current = self::normalizeTables($tables);
+        $rowIdColumn = SQLiteRowIdColumn::resolveTables($current, $rowIdColumn, $uniqueConstraints);
         $attempted = $current;
         $executed = [];
         $yielded = [];

@@ -5598,7 +5598,18 @@ final class CustomAtRuleTransformer
             ];
         }
 
-        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z%]+)$/', $token, $matches) === 1) {
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
+            return [
+                'type' => 'token',
+                'raw' => $token,
+                'value' => [
+                    'type' => 'percentage',
+                    'value' => (float) $matches[1] / 100,
+                ],
+            ];
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z]+)$/', $token, $matches) === 1) {
             return [
                 'type' => 'length',
                 'value' => [
@@ -7905,7 +7916,18 @@ final class CustomAtRuleTransformer
             }
         }
 
-        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z%]+)$/', $argument, $matches) === 1) {
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $argument, $matches) === 1) {
+            return [
+                'type' => 'token',
+                'raw' => $argument,
+                'value' => [
+                    'type' => 'percentage',
+                    'value' => (float) $matches[1] / 100,
+                ],
+            ];
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z]+)$/', $argument, $matches) === 1) {
             return $this->applyValueVisitors([
                 'type' => 'length',
                 'unit' => strtolower($matches[2]),

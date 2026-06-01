@@ -56,6 +56,32 @@ final class GitConfig
     }
 
     /**
+     * Build a config from caller-supplied `GIT_CONFIG_KEY_N` /
+     * `GIT_CONFIG_VALUE_N` style entries without reading the real process
+     * environment.
+     *
+     * @param array<int|string, array{key?:string,value?:string,0?:string,1?:string}|string> $entries
+     * @param array{
+     *     gitDir?: ?string,
+     *     branchName?: ?string,
+     *     homeDir?: ?string,
+     *     installPrefix?: ?string,
+     *     maxDepth?: int,
+     *     errOnMaxDepthExceeded?: bool,
+     *     errOnMissingConfigPath?: bool,
+     *     errOnInterpolationFailure?: bool
+     * } $options
+     */
+    public static function fromEnvironmentPairs(array $entries, array $options = []): self
+    {
+        $normalized = self::normalizeOptions($options);
+        $config = self::parseEnvironmentPairs($entries);
+        self::resolveIncludes($config, null, 0, $normalized);
+
+        return new self($config['sections']);
+    }
+
+    /**
      * @return list<string>
      */
     public function values(string $section, ?string $subsection, string $key): array
@@ -185,6 +211,96 @@ final class GitConfig
         }
 
         return ['sections' => $sections, 'path' => $path];
+    }
+
+    /**
+     * @param array<int|string, array{key?:string,value?:string,0?:string,1?:string}|string> $entries
+     * @return array{sections:list<array{name:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}>,path:?string}
+     */
+    private static function parseEnvironmentPairs(array $entries): array
+    {
+        $sections = [];
+
+        foreach ($entries as $entryKey => $entry) {
+            if (is_array($entry)) {
+                $key = (string) ($entry['key'] ?? $entry[0] ?? '');
+                $value = (string) ($entry['value'] ?? $entry[1] ?? '');
+            } elseif (is_string($entryKey)) {
+                $key = $entryKey;
+                $value = (string) $entry;
+            } else {
+                throw new \InvalidArgumentException('Git config environment pair must provide a key and value');
+            }
+
+            $parsed = self::parseEnvironmentKey($key);
+            if ($parsed === null) {
+                throw new \InvalidArgumentException("Invalid Git config environment key: {$key}");
+            }
+
+            $sectionIndex = null;
+            foreach ($sections as $index => $section) {
+                if ($section['name'] === $parsed['name'] && $section['subsection'] === $parsed['subsection']) {
+                    $sectionIndex = $index;
+                    break;
+                }
+            }
+
+            if ($sectionIndex === null) {
+                $sections[] = [
+                    'name' => $parsed['name'],
+                    'subsection' => $parsed['subsection'],
+                    'entries' => [],
+                    'path' => null,
+                ];
+                $sectionIndex = array_key_last($sections);
+            }
+
+            $sections[$sectionIndex]['entries'][] = [
+                'key' => $parsed['key'],
+                'value' => $value,
+            ];
+        }
+
+        return ['sections' => $sections, 'path' => null];
+    }
+
+    /**
+     * @return array{name:string,subsection:?string,key:string}|null
+     */
+    private static function parseEnvironmentKey(string $key): ?array
+    {
+        $lastDot = strrpos($key, '.');
+        if ($lastDot === false || $lastDot === 0 || $lastDot === strlen($key) - 1) {
+            return null;
+        }
+
+        $sectionAndSubsection = substr($key, 0, $lastDot);
+        $valueName = substr($key, $lastDot + 1);
+        if (preg_match('/^[A-Za-z][A-Za-z0-9-]*$/', $valueName) !== 1) {
+            return null;
+        }
+
+        $firstDot = strpos($sectionAndSubsection, '.');
+        if ($firstDot === false) {
+            $sectionName = $sectionAndSubsection;
+            $subsection = null;
+        } else {
+            $sectionName = substr($sectionAndSubsection, 0, $firstDot);
+            $subsection = substr($sectionAndSubsection, $firstDot + 1);
+            if ($subsection === '') {
+                return null;
+            }
+        }
+
+        if (preg_match('/^[A-Za-z0-9-]+$/', $sectionName) !== 1) {
+            return null;
+        }
+
+        return [
+            'name' => strtolower($sectionName),
+            'subsection' => $subsection,
+            'key' => strtolower($valueName),
+        ];
     }
 
     /**

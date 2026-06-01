@@ -15,12 +15,13 @@ final class SQLiteRowValueUpdateReturningConflictCurrentSourceNextPlan
         array $tables,
         string $sql,
         array $uniqueConstraints,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($uniqueConstraints === []) {
             throw new \InvalidArgumentException('SQLite row-value UPDATE RETURNING current-source conflict needs unique constraints');
         }
 
+        $rowIdColumn = SQLiteRowIdColumn::resolveTables($tables, $rowIdColumn, $uniqueConstraints);
         $result = SQLiteUpdateDeleteReturningSql::execute($sql, $tables, $rowIdColumn, $uniqueConstraints);
         if ($result['action'] !== 'update') {
             throw new \InvalidArgumentException('SQLite row-value UPDATE RETURNING current-source conflict needs UPDATE SQL');

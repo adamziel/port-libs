@@ -542,6 +542,54 @@ return [
             $block->removeProperty('direction: RTL; unicode-bidi: Isolate; marker-side: Match-Self', 'direction')
         );
     },
+    'declaration block canonicalizes upstream text spacing and tab size cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'tab-size: +004; -moz-tab-size: 4PX; -o-tab-size: 0px; word-spacing: NORMAL; letter-spacing: 0.500EM; text-indent: each-line hanging 3.00em; --Text-Indent: each-line hanging 3.00em';
+
+        $t->same(
+            [
+                'tab-size' => '4',
+                '-moz-tab-size' => '4px',
+                '-o-tab-size' => '0',
+                'word-spacing' => 'normal',
+                'letter-spacing' => '.5em',
+                'text-indent' => '3em hanging each-line',
+                '--Text-Indent' => 'each-line hanging 3.00em',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => '4', 'important' => false], $block->getProperty($declarations, 'tab-size'));
+        $t->same(['value' => '4px', 'important' => false], $block->getProperty($declarations, '-moz-tab-size'));
+        $t->same(['value' => '0', 'important' => false], $block->getProperty($declarations, '-o-tab-size'));
+        $t->same(['value' => 'normal', 'important' => false], $block->getProperty($declarations, 'word-spacing'));
+        $t->same(['value' => '.5em', 'important' => false], $block->getProperty($declarations, 'letter-spacing'));
+        $t->same(['value' => '3em hanging each-line', 'important' => false], $block->getProperty($declarations, 'text-indent'));
+        $t->same(['value' => 'each-line hanging 3.00em', 'important' => false], $block->getProperty($declarations, '--Text-Indent'));
+        $t->same(
+            'tab-size: 2; color: red',
+            $block->setProperty('tab-size: +004; color: red', 'tab-size', '+002')
+        );
+        $t->same(
+            'tab-size: 4; color: red; -moz-tab-size: 8px !important',
+            $block->setProperty('tab-size: +004; -moz-tab-size: 4PX; color: red', '-moz-tab-size', '8PX', true)
+        );
+        $t->same(
+            'color: red; word-spacing: 3px !important',
+            $block->setProperty('word-spacing: 0px; color: red', 'word-spacing', '+3.00PX', true)
+        );
+        $t->same(
+            'letter-spacing: normal; color: red',
+            $block->setProperty('letter-spacing: 0.500EM; color: red', 'letter-spacing', 'Normal')
+        );
+        $t->same(
+            'text-indent: 2.5em hanging each-line; color: red',
+            $block->setProperty('text-indent: each-line hanging 3.00em; color: red', 'text-indent', 'hanging 2.500em each-line')
+        );
+        $t->same(
+            'tab-size: 4; -moz-tab-size: 4px; -o-tab-size: 0; word-spacing: normal; letter-spacing: .5em; --Text-Indent: each-line hanging 3.00em',
+            $block->removeProperty($declarations, 'text-indent')
+        );
+    },
     'declaration block canonicalizes upstream border spacing cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

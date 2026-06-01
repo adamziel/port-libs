@@ -321,6 +321,15 @@ final class DeclarationBlock
         '-webkit-box-decoration-break' => ['slice', 'clone'],
         'marker-side' => ['match-self', 'match-parent'],
     ];
+    private const TAB_SIZE_PROPERTIES = [
+        'tab-size',
+        '-moz-tab-size',
+        '-o-tab-size',
+    ];
+    private const TEXT_SPACING_PROPERTIES = [
+        'word-spacing',
+        'letter-spacing',
+    ];
     private const TEXT_SIZE_ADJUST_PROPERTIES = [
         'text-size-adjust',
         '-webkit-text-size-adjust',
@@ -13871,6 +13880,18 @@ final class DeclarationBlock
             return $this->normalizeKeywordDeclarationValue($value, self::TEXT_DIRECT_ENUM_KEYWORDS[$property]);
         }
 
+        if (in_array($property, self::TAB_SIZE_PROPERTIES, true)) {
+            return $this->normalizeTabSizeDeclarationValue($value);
+        }
+
+        if (in_array($property, self::TEXT_SPACING_PROPERTIES, true)) {
+            return $this->normalizeTextSpacingDeclarationValue($value);
+        }
+
+        if ($property === 'text-indent') {
+            return $this->normalizeTextIndentDeclarationValue($value);
+        }
+
         if (in_array($property, self::TEXT_SIZE_ADJUST_PROPERTIES, true)) {
             return $this->normalizeTextSizeAdjustDeclarationValue($value);
         }
@@ -14337,6 +14358,82 @@ final class DeclarationBlock
         return $trimmed;
     }
 
+    private function normalizeTabSizeDeclarationValue(string $value): string
+    {
+        $trimmed = trim($value);
+        $normalized = $this->normalizeLengthOrNumberDeclarationToken($trimmed);
+
+        return $normalized ?? $trimmed;
+    }
+
+    private function normalizeTextSpacingDeclarationValue(string $value): string
+    {
+        $trimmed = trim($value);
+        if (strcasecmp($trimmed, 'normal') === 0) {
+            return 'normal';
+        }
+
+        $normalized = $this->normalizeLengthDeclarationToken($trimmed);
+
+        return $normalized ?? $trimmed;
+    }
+
+    private function normalizeTextIndentDeclarationValue(string $value): string
+    {
+        $trimmed = trim($value);
+        $tokens = $this->splitWhitespaceTopLevel($trimmed);
+        if ($tokens === []) {
+            return $trimmed;
+        }
+
+        $indent = null;
+        $hanging = false;
+        $eachLine = false;
+        foreach ($tokens as $token) {
+            $keyword = strtolower($token);
+            if ($keyword === 'hanging') {
+                if ($hanging) {
+                    return $trimmed;
+                }
+
+                $hanging = true;
+                continue;
+            }
+
+            if ($keyword === 'each-line') {
+                if ($eachLine) {
+                    return $trimmed;
+                }
+
+                $eachLine = true;
+                continue;
+            }
+
+            if ($indent !== null) {
+                return $trimmed;
+            }
+
+            $indent = $this->normalizeLengthPercentageDeclarationToken($token);
+            if ($indent === null) {
+                return $trimmed;
+            }
+        }
+
+        if ($indent === null) {
+            return $trimmed;
+        }
+
+        $parts = [$indent];
+        if ($hanging) {
+            $parts[] = 'hanging';
+        }
+        if ($eachLine) {
+            $parts[] = 'each-line';
+        }
+
+        return implode(' ', $parts);
+    }
+
     private function normalizeSvgPaintValue(string $value): string
     {
         $tokens = $this->splitWhitespaceTopLevel($value);
@@ -14461,6 +14558,47 @@ final class DeclarationBlock
             ' ',
             array_map(fn (string $token): string => $this->normalizeLengthPercentageOrAutoToken($token), $tokens)
         );
+    }
+
+    private function normalizeLengthOrNumberDeclarationToken(string $token): ?string
+    {
+        $token = trim($token);
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) === 1) {
+            return $this->normalizeCssNumericLiteral($token);
+        }
+
+        return $this->normalizeLengthDeclarationToken($token);
+    }
+
+    private function normalizeLengthPercentageDeclarationToken(string $token): ?string
+    {
+        $token = trim($token);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
+            return $this->normalizeCssNumericLiteral($matches[1]) . '%';
+        }
+
+        return $this->normalizeLengthDeclarationToken($token);
+    }
+
+    private function normalizeLengthDeclarationToken(string $token): ?string
+    {
+        $token = trim($token);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-z]+)$/i', $token, $matches) === 1) {
+            $number = $this->normalizeCssNumericLiteral($matches[1]);
+            if ($number === '0') {
+                return '0';
+            }
+
+            return $number . strtolower($matches[2]);
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) === 1) {
+            $number = $this->normalizeCssNumericLiteral($token);
+
+            return $number === '0' ? '0' : null;
+        }
+
+        return null;
     }
 
     private function normalizeLengthPercentageOrAutoToken(string $token): string
@@ -14784,6 +14922,40 @@ final class DeclarationBlock
             $number = rtrim(rtrim($number, '0'), '.');
             if (str_starts_with($number, '0.')) {
                 $number = substr($number, 1);
+            }
+        }
+
+        return ($negative ? '-' : '') . $number;
+    }
+
+    private function normalizeCssNumericLiteral(string $number): string
+    {
+        $number = trim($number);
+        if ((float) $number == 0.0) {
+            return '0';
+        }
+
+        $negative = str_starts_with($number, '-');
+        if ($number !== '' && ($number[0] === '+' || $number[0] === '-')) {
+            $number = substr($number, 1);
+        }
+
+        if (str_contains($number, '.')) {
+            [$integer, $fraction] = explode('.', $number, 2);
+            $integer = ltrim($integer, '0');
+            $fraction = rtrim($fraction, '0');
+            if ($fraction === '') {
+                $number = $integer === '' ? '0' : $integer;
+            } else {
+                $number = ($integer === '' ? '0' : $integer) . '.' . $fraction;
+                if (str_starts_with($number, '0.')) {
+                    $number = substr($number, 1);
+                }
+            }
+        } else {
+            $number = ltrim($number, '0');
+            if ($number === '') {
+                $number = '0';
             }
         }
 

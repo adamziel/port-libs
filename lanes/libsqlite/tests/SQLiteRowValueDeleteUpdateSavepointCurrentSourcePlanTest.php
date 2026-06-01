@@ -97,7 +97,7 @@ $cases = [
     'malformed empty statement list rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeDistinctReturningSavepoint($tables, [], $unique), InvalidArgumentException::class],
     'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeDistinctReturningSavepoint($tables, $commitStatements, []), InvalidArgumentException::class],
     'malformed missing table rolls back savepoint' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeDistinctReturningSavepoint($tables, ["DELETE FROM missing WHERE option_id = 1 RETURNING option_id"], $unique)['rollback_reason'], 'SQLite UPDATE/DELETE RETURNING table missing is missing'],
-    'malformed bad rowid rolls back savepoint' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeDistinctReturningSavepoint(['wp_options' => [['option_name' => 'siteurl']]], ["DELETE FROM wp_options WHERE option_name = 'siteurl' RETURNING option_name"], $unique)['rollback_reason'], 'SQLite UPDATE/DELETE LIMIT row is missing rowid column option_id'],
+    'malformed bad rowid rolls back savepoint' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeDistinctReturningSavepoint(['wp_options' => [['option_name' => 'siteurl']]], ["DELETE FROM wp_options WHERE option_name = 'siteurl' RETURNING option_name"], $unique)['rollback_reason'], 'SQLite UPDATE/DELETE LIMIT row is missing rowid column setting_id'],
 ];
 
 $tests = [];

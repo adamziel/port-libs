@@ -169,6 +169,12 @@ CSS
     'css minifier maps upstream basic color value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
+        $t->same('.foo{color:#ff0}', $minifier->minify('.foo { color: rgb(255, 255, 0) }'));
+        $t->same('.foo{color:#ff0}', $minifier->minify('.foo { color: rgba(255, 255, 0, 1) }'));
+        $t->same('.foo{color:#ff0c}', $minifier->minify('.foo { color: rgba(255, 255, 0, 0.8) }'));
+        $t->same('.foo{color:gray}', $minifier->minify('.foo { color: rgb(128, 128, 128) }'));
+        $t->same('.foo{color:#7bffff}', $minifier->minify('.foo { color: rgb(123, 255, 255) }'));
+        $t->same('.foo{color:#7bffff}', $minifier->minify('.foo { color: rgb(123 255 255) }'));
         $t->same('.foo{color:#7bffff80}', $minifier->minify('.foo { color: rgb(123 255 255 / 50%) }'));
         $t->same('.foo{color:#7affff80}', $minifier->minify('.foo { color: rgb(48% 100% 100% / 50%) }'));
         $t->same('.foo{color:#5f0}', $minifier->minify('.foo { color: hsl(100deg, 100%, 50%) }'));

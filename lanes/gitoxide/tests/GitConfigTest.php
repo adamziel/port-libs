@@ -1147,6 +1147,71 @@ return [
         $t->same('works', $config->value('user', null, 'name'));
     },
 
+    'environment-style includeIf keys resolve dotted conditional subsections like gix-config' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $root = $tmpDir();
+        $worktree = $root . '/sites/wp-content';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($root . '/gitdir.config', "[env]\ngitdir = matched\n");
+        $write($root . '/branch.config', "[env]\nbranch = matched\n");
+        $write($root . '/branch-boundary.config', "[env]\nbranchBoundary = should-not-load\n");
+        $write($root . '/remote.config', "[env]\nremote = matched\n");
+
+        $config = GitConfig::fromEnvironmentPairs([
+            ['key' => 'includeIf.gitdir:' . $gitDir . '.path', 'value' => $root . '/gitdir.config'],
+            ['key' => 'includeIf.onbranch:deploy/*.path', 'value' => $root . '/branch.config'],
+            ['key' => 'includeIf.onbranch:deploy*.path', 'value' => $root . '/branch-boundary.config'],
+            ['key' => 'remote.origin.url', 'value' => 'https://git.example.test/wp-content/site-a.git'],
+            [
+                'key' => 'includeIf.hasconfig:remote.*.url:https://git.example.test/wp-content/*.git.path',
+                'value' => $root . '/remote.config',
+            ],
+        ], [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+            'branchName' => 'refs/heads/deploy/site-a',
+        ]);
+
+        $t->same('matched', $config->value('env', null, 'gitdir'));
+        $t->same('matched', $config->value('env', null, 'branch'));
+        $t->same(null, $config->value('env', null, 'branchBoundary'));
+        $t->same('matched', $config->value('env', null, 'remote'));
+        $t->same('https://git.example.test/wp-content/site-a.git', $config->value('remote', 'origin', 'url'));
+    },
+
+    'environment-style includeIf keys keep missing config-path errors bounded like gix-config' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $root = $tmpDir();
+        $worktree = $root . '/worktree';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($root . '/absolute.config', "[env]\nabsolute = should-not-load\n");
+
+        $t->throws(RuntimeException::class, static fn () => GitConfig::fromEnvironmentPairs([
+            ['key' => 'includeIf.gitdir:' . $gitDir . '.path', 'value' => './relative.config'],
+        ], [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+        ]));
+
+        $t->throws(RuntimeException::class, static fn () => GitConfig::fromEnvironmentPairs([
+            ['key' => 'includeIf.gitdir:./worktree/.git.path', 'value' => $root . '/absolute.config'],
+        ], [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+        ]));
+
+        $config = GitConfig::fromEnvironmentPairs([
+            ['key' => 'includeIf.gitdir:' . $gitDir . '.path', 'value' => './relative.config'],
+            ['key' => 'includeIf.gitdir:./worktree/.git.path', 'value' => $root . '/absolute.config'],
+        ], [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+            'errOnMissingConfigPath' => false,
+        ]);
+
+        $t->same(null, $config->value('env', null, 'absolute'));
+    },
+
     'wordpress fixture resolves branch and remote conditional deployment config without git process' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-config-include-conditional.php';
         $summary = require dirname(__DIR__) . '/examples/wordpress-config-include-conditional.php';
@@ -1196,6 +1261,9 @@ return [
         $t->same('matched', $fixture['symlinkRealpathPolicy']);
         $t->same('matched', $fixture['symlinkLiteralPolicy']);
         $t->same('matched', $fixture['symlinkIcasePolicy']);
+        $t->same('matched', $fixture['environmentBranchPolicy']);
+        $t->same(null, $fixture['environmentBranchBoundaryPolicy']);
+        $t->same('matched', $fixture['environmentRemotePolicy']);
         $t->same($fixture['preview'], $summary['preview']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
         $t->same($fixture['escapedGitdirPolicy'], $summary['escapedGitdirPolicy']);
@@ -1237,6 +1305,9 @@ return [
         $t->same($fixture['symlinkRealpathPolicy'], $summary['symlinkRealpathPolicy']);
         $t->same($fixture['symlinkLiteralPolicy'], $summary['symlinkLiteralPolicy']);
         $t->same($fixture['symlinkIcasePolicy'], $summary['symlinkIcasePolicy']);
+        $t->same($fixture['environmentBranchPolicy'], $summary['environmentBranchPolicy']);
+        $t->same($fixture['environmentBranchBoundaryPolicy'], $summary['environmentBranchBoundaryPolicy']);
+        $t->same($fixture['environmentRemotePolicy'], $summary['environmentRemotePolicy']);
         $t->same($fixture['sectionsLoaded'], $summary['sectionsLoaded']);
     },
 ];

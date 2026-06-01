@@ -52,5 +52,8 @@ return [
     'symlinkRealpathPolicy' => $fixture['symlinkRealpathPolicy'],
     'symlinkLiteralPolicy' => $fixture['symlinkLiteralPolicy'],
     'symlinkIcasePolicy' => $fixture['symlinkIcasePolicy'],
+    'environmentBranchPolicy' => $fixture['environmentBranchPolicy'],
+    'environmentBranchBoundaryPolicy' => $fixture['environmentBranchBoundaryPolicy'],
+    'environmentRemotePolicy' => $fixture['environmentRemotePolicy'],
     'sectionsLoaded' => $fixture['sectionsLoaded'],
 ];

@@ -1729,6 +1729,36 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'opera', [0], [74, 255, 255])
                 || $this->targetInRange($normalized, 'safari', [0], [8, 255, 255])
                 || $this->targetInRange($normalized, 'samsung', [0], [14, 255, 255]),
+            'isSelectorSupported' => $this->targetsAllAtLeast($normalized, [
+                'android' => [145],
+                'chrome' => [88],
+                'edge' => [88],
+                'firefox' => [78],
+                'ios_saf' => [14],
+                'opera' => [75],
+                'safari' => [14],
+                'samsung' => [15],
+            ]),
+            'focusWithinNeedsSelectorListFallback' => $this->targetsNeedFeatureFallback($normalized, [
+                'android' => [145],
+                'chrome' => [60],
+                'edge' => [79],
+                'firefox' => [52],
+                'ios_saf' => [10, 2],
+                'opera' => [47],
+                'safari' => [10, 1],
+                'samsung' => [8, 2],
+            ]),
+            'focusVisibleNeedsSelectorListFallback' => $this->targetsNeedFeatureFallback($normalized, [
+                'android' => [145],
+                'chrome' => [86],
+                'edge' => [86],
+                'firefox' => [85],
+                'ios_saf' => [15, 1],
+                'opera' => [72],
+                'safari' => [15, 1],
+                'samsung' => [14],
+            ]),
             'placeholderNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [56])
                 || $this->targetInRange($normalized, 'ios_saf', [4, 3], [10])
@@ -2693,6 +2723,11 @@ final class TransitionPrefixer
                 return $grouped;
             }
 
+            $unsupportedPseudoFallback = $this->selectorListUnsupportedPseudoVariants($selectorList, $targetOptions);
+            if ($unsupportedPseudoFallback !== null) {
+                return $unsupportedPseudoFallback;
+            }
+
             $variants = [];
             foreach ($selectorList as $selector) {
                 array_push($variants, ...($this->singleSelectorPrefixVariants($selector, $targetOptions) ?? [$selector]));
@@ -2735,6 +2770,78 @@ final class TransitionPrefixer
             ':-webkit-any(' . implode(',', $prefixed) . ')',
             ':is(' . implode(',', $selectorList) . ')',
         ];
+    }
+
+    /**
+     * @param list<string> $selectorList
+     * @param array<string, bool> $targetOptions
+     * @return list<string>|null
+     */
+    private function selectorListUnsupportedPseudoVariants(array $selectorList, array $targetOptions): ?array
+    {
+        $hasUnsupportedPseudo = false;
+        foreach ($selectorList as $selector) {
+            if ($this->selectorContainsUnsupportedTargetPseudo($selector, $targetOptions)) {
+                $hasUnsupportedPseudo = true;
+                break;
+            }
+        }
+
+        if (!$hasUnsupportedPseudo) {
+            return null;
+        }
+
+        if (($targetOptions['isSelectorSupported'] ?? false) && $this->selectorListCanUseForgivingIsWrapper($selectorList)) {
+            return [':is(' . implode(',', $selectorList) . ')'];
+        }
+
+        $variants = [];
+        foreach ($selectorList as $selector) {
+            array_push($variants, ...($this->singleSelectorPrefixVariants($selector, $targetOptions) ?? [$selector]));
+        }
+
+        return array_values(array_unique($variants));
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function selectorContainsUnsupportedTargetPseudo(string $selector, array $targetOptions): bool
+    {
+        return (($targetOptions['focusVisibleNeedsSelectorListFallback'] ?? false)
+                && preg_match($this->pseudoClassPattern('focus-visible'), $selector) === 1)
+            || (($targetOptions['focusWithinNeedsSelectorListFallback'] ?? false)
+                && preg_match($this->pseudoClassPattern('focus-within'), $selector) === 1);
+    }
+
+    /**
+     * @param list<string> $selectorList
+     */
+    private function selectorListCanUseForgivingIsWrapper(array $selectorList): bool
+    {
+        $specificity = null;
+        foreach ($selectorList as $selector) {
+            if ($this->selectorContainsPseudoElement($selector)) {
+                return false;
+            }
+
+            $selectorSpecificity = SelectorSpecificity::packed($selector);
+            if ($specificity === null) {
+                $specificity = $selectorSpecificity;
+                continue;
+            }
+
+            if ($selectorSpecificity !== $specificity) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function selectorContainsPseudoElement(string $selector): bool
+    {
+        return preg_match('/::[-_a-z0-9]+|:(?:before|after|first-line|first-letter)(?![-_a-z0-9])/i', $selector) === 1;
     }
 
     /**

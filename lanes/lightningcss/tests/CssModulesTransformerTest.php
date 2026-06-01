@@ -761,6 +761,75 @@ CSS);
         ], $pure['exports']);
         $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform(':host-context(.public-theme) { color: red }', ['pure' => true]));
     },
+    'css modules validates upstream host and slotted compound selector arguments while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+:host(:global(.wp-block).card) .button {
+  color: red;
+}
+
+::slotted(:local(.media).thumb) {
+  color: yellow;
+}
+
+.button {
+  composes: base;
+  color: white;
+}
+
+.base {
+  color: blue;
+}
+CSS);
+
+        $t->same(':host(.wp-block.EgL3uq_card) .EgL3uq_button{color:red}::slotted(.EgL3uq_media.EgL3uq_thumb){color:#ff0}.EgL3uq_button{color:#fff}.EgL3uq_base{color:#00f}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_base')]),
+            'media' => $export('EgL3uq_media'),
+            'thumb' => $export('EgL3uq_thumb'),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_base', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+
+        $descendantViaModePseudo = (new CssModulesTransformer())->transform(<<<'CSS'
+:host(:global(.wp-block .is-selected)) .button {
+  color: red;
+}
+
+::slotted(:local(.media .thumb)) {
+  color: yellow;
+}
+CSS);
+
+        $t->same(':host(.wp-block .is-selected) .EgL3uq_button{color:red}::slotted(.EgL3uq_media .EgL3uq_thumb){color:#ff0}', $descendantViaModePseudo['code']);
+        $t->same([
+            'button' => $export('EgL3uq_button'),
+            'media' => $export('EgL3uq_media'),
+            'thumb' => $export('EgL3uq_thumb'),
+        ], $descendantViaModePseudo['exports']);
+
+        $invalid = [
+            ':host() { color: red }' => 'Invalid empty selector',
+            '::slotted() { color: red }' => 'Invalid empty selector',
+            ':host(.card, .legacy) { color: red }' => 'Unexpected token Comma',
+            '::slotted(.media, .thumb) { color: red }' => 'Unexpected token Comma',
+            ':host(.card .legacy) { color: red }' => 'Invalid state',
+            '::slotted(.media > .thumb) { color: red }' => 'Invalid state',
+            ':host(.card||.legacy) { color: red }' => "Unexpected token Delim('|')",
+        ];
+
+        foreach ($invalid as $css => $expectedMessage) {
+            try {
+                (new CssModulesTransformer())->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same($expectedMessage, $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream host/slotted compound selector exception');
+        }
+    },
     'css modules preserves raw host-context local global descendant selectors while composing exports' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 :host-context(.public-theme :global(.legacy-scope)) .card {

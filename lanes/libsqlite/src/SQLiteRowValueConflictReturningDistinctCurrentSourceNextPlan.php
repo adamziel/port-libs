@@ -16,7 +16,7 @@ final class SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan
         array $tables,
         array $statements,
         array $uniqueConstraints,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($statements === []) {
             throw new \InvalidArgumentException('SQLite row-value conflict DISTINCT RETURNING needs statements');
@@ -26,6 +26,7 @@ final class SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan
         }
 
         $current = self::normalizeTables($tables);
+        $rowIdColumn = SQLiteRowIdColumn::resolveTables($current, $rowIdColumn, $uniqueConstraints);
         $executed = [];
         $yielded = [];
         $ignoredRows = [];
