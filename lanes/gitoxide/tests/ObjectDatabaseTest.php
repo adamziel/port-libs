@@ -964,6 +964,55 @@ return [
             $t->contains("Expected '<type> <size>'", $exception->getMessage());
         }
     },
+    'object database loose integrity preserves NUL-before-space unknown-kind ordering across stores' => static function (TestRunner $t) use ($writeCompressedLooseBytes, $looseObjectPath): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-nul-before-space-kind-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateGitDir = $root . '/shared-cache/.git';
+        $alternateObjectsDir = $alternateGitDir . '/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+
+        $primaryOid = str_repeat('d', 40);
+        $alternateOid = str_repeat('e', 40);
+        $writeCompressedLooseBytes($gitDir, $primaryOid, "blob\0 17primary block body");
+        $writeCompressedLooseBytes($alternateGitDir, $alternateOid, "commit\0 20alternate object body");
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $database = new ObjectDatabase($gitDir);
+        foreach ([
+            'primary header' => static fn () => $database->readHeader($primaryOid),
+            'primary body' => static fn () => $database->read($primaryOid),
+            'alternate header' => static fn () => $database->readHeader($alternateOid),
+            'alternate body' => static fn () => $database->read($alternateOid),
+        ] as $operation => $callback) {
+            try {
+                $callback();
+                throw new RuntimeException("Expected NUL-before-space loose object {$operation} to fail as unknown kind");
+            } catch (InvalidArgumentException $exception) {
+                $t->contains('Unknown object kind: ', $exception->getMessage());
+                $t->same(false, $exception->getMessage() === "Expected '<type> <size>'");
+            }
+        }
+
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected primary NUL-before-space loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$primaryOid} could not be read exactly", $exception->getMessage());
+            $t->contains("Unknown object kind: blob\0", $exception->getMessage());
+        }
+
+        unlink($looseObjectPath($gitDir, $primaryOid));
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected alternate NUL-before-space loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$alternateOid} could not be read exactly", $exception->getMessage());
+            $t->contains("Unknown object kind: commit\0", $exception->getMessage());
+        }
+    },
     'object database loose integrity canonicalizes zero-padded size headers across alternates' => static function (TestRunner $t) use ($writeCompressedLooseBytes): void {
         $root = sys_get_temp_dir() . '/port-libs-git-odb-zero-padded-size-' . bin2hex(random_bytes(4));
         $gitDir = $root . '/site/.git';

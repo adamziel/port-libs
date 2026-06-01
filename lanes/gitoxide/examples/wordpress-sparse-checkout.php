@@ -220,6 +220,11 @@ $environmentIcasePathspec = SparseCheckoutSpec::fromPathspecsWithEnvironment(
     ['GIT_ICASE_PATHSPECS' => '-1'],
     prefix: 'WP-CONTENT',
 );
+$commonPrefixPathspec = SparseCheckoutSpec::fromPathspecs([
+    'plugins/gutenberg/src/',
+    'plugins/gutenberg/build/',
+    ':!plugins/gutenberg/build/private/**',
+], prefix: 'wp-content');
 $environmentConflictRejected = false;
 try {
     SparseCheckoutSpec::fromPathspecsWithEnvironment(
@@ -418,6 +423,10 @@ return [
     'environmentFalseNoGlobPluginSkipped' => $environmentFalseNoGlobPathspec->skipWorktree('wp-content/plugins/gutenberg.php', false),
     'environmentIcaseUpperPrefixIncluded' => $environmentIcasePathspec->includesPath('WP-CONTENT/plugins/Loader.PHP', false),
     'environmentIcaseLowerPrefixSkipped' => $environmentIcasePathspec->skipWorktree('wp-content/plugins/Loader.PHP', false),
+    'pathspecCommonPrefix' => $commonPrefixPathspec->pathspecCommonPrefix(),
+    'pathspecPrefixDirectory' => $commonPrefixPathspec->pathspecPrefixDirectory(),
+    'pathspecLongestCommonDirectory' => $commonPrefixPathspec->pathspecLongestCommonDirectory(),
+    'pathspecCommonPrefixPrivateBuildSkipped' => $commonPrefixPathspec->skipWorktree('wp-content/plugins/gutenberg/build/private/cache.php', false),
     'environmentGlobNoGlobConflictRejected' => $environmentConflictRejected,
     'directoryOnlyUnknownExactSkipped' => $directoryOnlyUnknownPathspec->skipWorktree('wp-content/cache', null),
     'directoryOnlyUnknownDescendantIncluded' => $directoryOnlyUnknownPathspec->includesPath('wp-content/cache/page.html', null),

@@ -21,12 +21,19 @@ $sourceFiles = [
     $sourceRoot . '/SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerReturningUpsertViewCurrentNextPlan.php',
     $sourceRoot . '/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteUpsertTriggerForeignKeyYieldPlan.php',
+];
+$fixtureFiles = [
+    $libsqliteRoot . '/examples/application-trigger-returning-upsert-view-current-next52.php',
+    $libsqliteRoot . '/examples/application-trigger-upsert-returning-view-unique-current-source-next140.php',
+    $libsqliteRoot . '/tests/SQLiteTriggerReturningUpsertViewCurrentNext52Test.php',
+    $libsqliteRoot . '/tests/SQLiteTriggerUpsertReturningViewUniqueCurrentSourceNext140Test.php',
 ];
 
 $legacyTriggerViewDefaultMatches = static function () use ($sourceFiles, $libsqliteRoot): array {
@@ -45,6 +52,38 @@ $legacyTriggerViewDefaultMatches = static function () use ($sourceFiles, $libsql
     $matches = [];
 
     foreach ($sourceFiles as $file) {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read {$file}");
+        }
+        if (preg_match_all($pattern, $contents, $fileMatches) < 1) {
+            continue;
+        }
+        $relative = str_replace($libsqliteRoot . '/', '', $file);
+        foreach ($fileMatches[0] as $match) {
+            $matches[] = "{$relative}: {$match}";
+        }
+    }
+
+    return $matches;
+};
+
+$legacyTriggerViewFixtureMatches = static function () use ($fixtureFiles, $libsqliteRoot): array {
+    $terms = [
+        'wp' . '_',
+        'wp' . '_options',
+        'opt' . 'ion_id',
+        'opt' . 'ion_name',
+        'opt' . 'ion_value',
+        'auto' . 'load',
+        'site' . 'url',
+        'blog' . 'name',
+        'plug' . 'in',
+    ];
+    $pattern = '/(?:\bhome\b|' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
+    $matches = [];
+
+    foreach ($fixtureFiles as $file) {
         $contents = file_get_contents($file);
         if ($contents === false) {
             throw new RuntimeException("Unable to read {$file}");
@@ -239,6 +278,7 @@ $upsertDeferredDefaults = static fn (): array => SQLiteTriggerUpsertDeferredRetu
 
 return [
     'source-neutral trigger view defaults contain no legacy domain strings' => static fn (TestRunner $t) => $t->same([], $legacyTriggerViewDefaultMatches()),
+    'source-neutral trigger current-next view fixtures contain no legacy domain strings' => static fn (TestRunner $t) => $t->same([], $legacyTriggerViewFixtureMatches()),
     'trigger upsert returning view defaults are application settings' => static function (TestRunner $t) use ($upsertDefaults): void {
         $plan = $upsertDefaults();
 

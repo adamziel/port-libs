@@ -461,6 +461,13 @@ final class LooseObjectStore
                 $window = substr($inflated, 0, self::HEADER_MAX_SIZE);
                 $nul = strpos($window, "\0");
                 if ($nul !== false) {
+                    $space = strpos($window, ' ');
+                    if ($space === false || $space > $nul) {
+                        // gix decodes the first inflated window, so a NUL before
+                        // the first space remains part of the object kind.
+                        return $window;
+                    }
+
                     return substr($window, 0, $nul + 1);
                 }
 
@@ -516,6 +523,16 @@ final class LooseObjectStore
                     if ($status === ZLIB_STREAM_END) {
                         self::throwNoTypeSizeDelimiterUnknownKindOrMissingNul($inflated);
                     }
+                    continue;
+                }
+                $space = strpos($inflated, ' ');
+                if ($space === false || $space > $nul) {
+                    if ($status === ZLIB_STREAM_END || strlen($inflated) >= self::HEADER_MAX_SIZE) {
+                        // Preserve upstream loose-header decode ordering for
+                        // headers whose NUL appears before the type delimiter.
+                        GitObject::decodeLooseHeader(substr($inflated, 0, self::HEADER_MAX_SIZE));
+                    }
+
                     continue;
                 }
                 if ($nul + 1 > self::HEADER_MAX_SIZE) {

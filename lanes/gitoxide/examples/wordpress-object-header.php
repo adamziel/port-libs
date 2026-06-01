@@ -39,6 +39,11 @@ $noTypeSizeDelimiterHeaderMessage = null;
 $noTypeSizeDelimiterReadRejected = false;
 $noTypeSizeDelimiterIntegrityRejected = false;
 $noTypeSizeDelimiterIntegrityMessage = null;
+$nulBeforeSpaceUnknownKindHeaderRejected = false;
+$nulBeforeSpaceUnknownKindHeaderMessage = null;
+$nulBeforeSpaceUnknownKindReadRejected = false;
+$nulBeforeSpaceUnknownKindIntegrityRejected = false;
+$nulBeforeSpaceUnknownKindIntegrityMessage = null;
 $unknownKindHeaderRejected = false;
 $unknownKindHeaderMessage = null;
 $unknownKindReadRejected = false;
@@ -212,6 +217,35 @@ try {
 } catch (RuntimeException $exception) {
     $noTypeSizeDelimiterIntegrityRejected = true;
     $noTypeSizeDelimiterIntegrityMessage = $exception->getMessage();
+}
+
+$nulBeforeSpaceUnknownKindDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-nul-before-space-' . bin2hex(random_bytes(4)) . '/objects';
+$nulBeforeSpaceUnknownKindPath = $nulBeforeSpaceUnknownKindDirectory . '/' . substr($fixture['nulBeforeSpaceUnknownKindOid'], 0, 2) . '/' . substr($fixture['nulBeforeSpaceUnknownKindOid'], 2);
+if (!is_dir(dirname($nulBeforeSpaceUnknownKindPath)) && !mkdir(dirname($nulBeforeSpaceUnknownKindPath), 0777, true) && !is_dir(dirname($nulBeforeSpaceUnknownKindPath))) {
+    throw new RuntimeException('Unable to create object-header NUL-before-space fixture directory');
+}
+$nulBeforeSpaceUnknownKindCompressed = gzcompress($fixture['nulBeforeSpaceUnknownKindStorage']);
+if ($nulBeforeSpaceUnknownKindCompressed === false) {
+    throw new RuntimeException('Unable to compress object-header NUL-before-space fixture');
+}
+file_put_contents($nulBeforeSpaceUnknownKindPath, $nulBeforeSpaceUnknownKindCompressed);
+$nulBeforeSpaceUnknownKindStore = LooseObjectStore::fromObjectsDirectory($nulBeforeSpaceUnknownKindDirectory);
+try {
+    $nulBeforeSpaceUnknownKindStore->readHeader($fixture['nulBeforeSpaceUnknownKindOid']);
+} catch (InvalidArgumentException $exception) {
+    $nulBeforeSpaceUnknownKindHeaderRejected = true;
+    $nulBeforeSpaceUnknownKindHeaderMessage = $exception->getMessage();
+}
+try {
+    $nulBeforeSpaceUnknownKindStore->read($fixture['nulBeforeSpaceUnknownKindOid']);
+} catch (InvalidArgumentException $exception) {
+    $nulBeforeSpaceUnknownKindReadRejected = $exception->getMessage() === "Unknown object kind: blob\0";
+}
+try {
+    $nulBeforeSpaceUnknownKindStore->verifyIntegrity();
+} catch (RuntimeException $exception) {
+    $nulBeforeSpaceUnknownKindIntegrityRejected = true;
+    $nulBeforeSpaceUnknownKindIntegrityMessage = $exception->getMessage();
 }
 
 $unknownKindDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-unknown-kind-' . bin2hex(random_bytes(4)) . '/objects';
@@ -396,6 +430,11 @@ return [
     'noTypeSizeDelimiterReadRejected' => $noTypeSizeDelimiterReadRejected,
     'noTypeSizeDelimiterIntegrityRejected' => $noTypeSizeDelimiterIntegrityRejected,
     'noTypeSizeDelimiterIntegrityMessage' => $noTypeSizeDelimiterIntegrityMessage,
+    'nulBeforeSpaceUnknownKindHeaderRejected' => $nulBeforeSpaceUnknownKindHeaderRejected,
+    'nulBeforeSpaceUnknownKindHeaderMessage' => $nulBeforeSpaceUnknownKindHeaderMessage,
+    'nulBeforeSpaceUnknownKindReadRejected' => $nulBeforeSpaceUnknownKindReadRejected,
+    'nulBeforeSpaceUnknownKindIntegrityRejected' => $nulBeforeSpaceUnknownKindIntegrityRejected,
+    'nulBeforeSpaceUnknownKindIntegrityMessage' => $nulBeforeSpaceUnknownKindIntegrityMessage,
     'unknownKindHeaderRejected' => $unknownKindHeaderRejected,
     'unknownKindHeaderMessage' => $unknownKindHeaderMessage,
     'unknownKindReadRejected' => $unknownKindReadRejected,

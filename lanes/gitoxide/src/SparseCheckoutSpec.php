@@ -312,6 +312,75 @@ final class SparseCheckoutSpec
         return !$this->includesPath($path, $isDirectory);
     }
 
+    public function pathspecCommonPrefix(): string
+    {
+        $positive = $this->positivePathspecPatterns();
+        if ($positive === []) {
+            return '';
+        }
+
+        $maxLength = null;
+        foreach ($positive as $rule) {
+            $length = ($rule['ignoreCase'] ?? $this->ignoreCase)
+                ? strlen($rule['caseSensitivePrefix'] ?? '')
+                : (self::firstWildcardPosition($rule['pattern']) ?? strlen($rule['pattern']));
+            $maxLength = $maxLength === null ? $length : min($maxLength, $length);
+        }
+
+        if ($maxLength === null || $maxLength === 0) {
+            return '';
+        }
+
+        $prefix = substr($positive[0]['pattern'], 0, $maxLength);
+        if (count($positive) === 1) {
+            return $prefix;
+        }
+
+        foreach (array_slice($positive, 1) as $rule) {
+            for ($i = 0; $i < strlen($prefix); $i++) {
+                if (($rule['pattern'][$i] ?? null) === $prefix[$i]) {
+                    continue;
+                }
+
+                $prefix = substr($prefix, 0, $i);
+                break;
+            }
+        }
+
+        return $prefix;
+    }
+
+    public function pathspecPrefixDirectory(): string
+    {
+        $positive = $this->positivePathspecPatterns();
+
+        return $positive[0]['caseSensitivePrefix'] ?? '';
+    }
+
+    public function pathspecLongestCommonDirectory(): ?string
+    {
+        $positive = $this->positivePathspecPatterns();
+        if ($positive === []) {
+            return null;
+        }
+
+        $commonPrefix = $this->pathspecCommonPrefix();
+        if ($commonPrefix === '') {
+            return null;
+        }
+
+        if ($positive[0]['directoryOnly']) {
+            return $commonPrefix;
+        }
+
+        $slash = strrpos($commonPrefix, '/');
+        if ($slash === false) {
+            return null;
+        }
+
+        return substr($commonPrefix, 0, $slash);
+    }
+
     /**
      * @return list<TreeEntry>
      */
@@ -1059,9 +1128,33 @@ final class SparseCheckoutSpec
         return $slash === false ? $literalPrefix : substr($literalPrefix, 0, $slash);
     }
 
+    /**
+     * @return list<array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal?:bool,matchSlash?:bool,ignoreCase?:bool,pathspec?:bool,always?:bool,caseSensitivePrefix?:string}>
+     */
+    private function positivePathspecPatterns(): array
+    {
+        return array_values(array_filter(
+            $this->patterns,
+            static fn (array $rule): bool => ($rule['pathspec'] ?? false) && !$rule['negative'],
+        ));
+    }
+
     private static function patternHasWildcard(string $pattern): bool
     {
         return strpbrk($pattern, '*?[') !== false || str_contains($pattern, '\\');
+    }
+
+    private static function firstWildcardPosition(string $pattern): ?int
+    {
+        $length = strlen($pattern);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $pattern[$i];
+            if ($char === '*' || $char === '?' || $char === '[' || $char === '\\') {
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     /**

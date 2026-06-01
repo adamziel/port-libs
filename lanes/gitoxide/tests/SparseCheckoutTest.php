@@ -460,6 +460,77 @@ return [
             ),
         );
     },
+    'pathspec sparse checkout exposes gix search common-prefix pruning directories' => static function (TestRunner $t): void {
+        $noPrefix = SparseCheckoutSpec::fromPathspecs([
+            'tests/a/',
+            'tests/b/',
+            ':!*.sh',
+        ]);
+        $withPrefix = SparseCheckoutSpec::fromPathspecs([
+            'tests/a/',
+            'tests/b/',
+            ':!*.sh',
+        ], prefix: 'wp-content/plugins/gutenberg');
+        $caseFolded = SparseCheckoutSpec::fromPathspecs([
+            ':(icase)bar',
+            ':(icase)bart',
+        ], prefix: 'FOO');
+        $mixedCaseFolded = SparseCheckoutSpec::fromPathspecs([
+            'foo/bar',
+            ':(icase)foo/bar',
+        ]);
+        $singleLiteral = SparseCheckoutSpec::fromPathspecs([
+            'wp-content/plugins/gutenberg/block.json',
+        ]);
+        $singleDirectory = SparseCheckoutSpec::fromPathspecs([
+            'wp-content/plugins/gutenberg/',
+        ]);
+        $wildcard = SparseCheckoutSpec::fromPathspecs([
+            'wp-content/plugins/*.php',
+            'wp-content/plugins/*.json',
+        ]);
+        $escaped = SparseCheckoutSpec::fromPathspecs([
+            'wp-content/plugins/f\\oo/block.json',
+            'wp-content/plugins/f\\oo/readme.md',
+        ]);
+        $excludeOnly = SparseCheckoutSpec::fromPathspecs([
+            ':!wp-content/cache/**',
+            ':!wp-content/uploads/private/**',
+        ]);
+        $emptyWithPrefix = SparseCheckoutSpec::fromPathspecs([], prefix: 'wp-content/themes');
+
+        $t->same('tests/', $noPrefix->pathspecCommonPrefix());
+        $t->same('', $noPrefix->pathspecPrefixDirectory());
+        $t->same('tests/', $noPrefix->pathspecLongestCommonDirectory());
+
+        $t->same('wp-content/plugins/gutenberg/tests/', $withPrefix->pathspecCommonPrefix());
+        $t->same('wp-content/plugins/gutenberg', $withPrefix->pathspecPrefixDirectory());
+        $t->same('wp-content/plugins/gutenberg/tests/', $withPrefix->pathspecLongestCommonDirectory());
+
+        $t->same('FOO', $caseFolded->pathspecCommonPrefix());
+        $t->same('FOO', $caseFolded->pathspecPrefixDirectory());
+        $t->same(null, $caseFolded->pathspecLongestCommonDirectory());
+        $t->same('', $mixedCaseFolded->pathspecCommonPrefix());
+        $t->same('', $mixedCaseFolded->pathspecPrefixDirectory());
+        $t->same(null, $mixedCaseFolded->pathspecLongestCommonDirectory());
+
+        $t->same('wp-content/plugins/gutenberg/block.json', $singleLiteral->pathspecCommonPrefix());
+        $t->same('', $singleLiteral->pathspecPrefixDirectory());
+        $t->same('wp-content/plugins/gutenberg', $singleLiteral->pathspecLongestCommonDirectory());
+        $t->same('wp-content/plugins/gutenberg', $singleDirectory->pathspecCommonPrefix());
+        $t->same('wp-content/plugins/gutenberg', $singleDirectory->pathspecLongestCommonDirectory());
+
+        $t->same('wp-content/plugins/', $wildcard->pathspecCommonPrefix());
+        $t->same('wp-content/plugins', $wildcard->pathspecLongestCommonDirectory());
+        $t->same('wp-content/plugins/f', $escaped->pathspecCommonPrefix());
+        $t->same('wp-content/plugins', $escaped->pathspecLongestCommonDirectory());
+        $t->same('', $excludeOnly->pathspecCommonPrefix());
+        $t->same('', $excludeOnly->pathspecPrefixDirectory());
+        $t->same(null, $excludeOnly->pathspecLongestCommonDirectory());
+        $t->same('wp-content/themes', $emptyWithPrefix->pathspecCommonPrefix());
+        $t->same('wp-content/themes', $emptyWithPrefix->pathspecPrefixDirectory());
+        $t->same('wp-content/themes', $emptyWithPrefix->pathspecLongestCommonDirectory());
+    },
     'pathspec sparse checkout treats unknown exact directory only matches as files' => static function (TestRunner $t): void {
         $directory = SparseCheckoutSpec::fromPathspecs(['wp-content/cache/']);
 

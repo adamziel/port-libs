@@ -417,6 +417,35 @@ return [
             $t->same('Invalid Git object header: blob nope', $exception->getMessage());
         }
     },
+    'loose object integrity preserves NUL-before-space unknown-kind ordering' => static function (TestRunner $t) use ($writeLooseStorage): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-nul-before-space-loose-kind-' . bin2hex(random_bytes(4)) . '/objects';
+        $oid = str_repeat('4', 40);
+        $storage = "blob\0 3abc";
+        $writeLooseStorage($objectsDirectory, $oid, $storage);
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+
+        foreach ([
+            'decodeLooseHeader' => static fn () => GitObject::decodeLooseHeader($storage),
+            'readHeader' => static fn () => $store->readHeader($oid),
+            'tryReadHeader' => static fn () => $store->tryReadHeader($oid),
+            'read' => static fn () => $store->read($oid),
+        ] as $operation => $callback) {
+            try {
+                $callback();
+                throw new RuntimeException("Expected NUL-before-space loose object {$operation} to fail as unknown kind");
+            } catch (InvalidArgumentException $exception) {
+                $t->same("Unknown object kind: blob\0", $exception->getMessage());
+            }
+        }
+
+        try {
+            $store->verifyIntegrity();
+            throw new RuntimeException('Expected NUL-before-space loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$oid} could not be read exactly", $exception->getMessage());
+            $t->contains("Unknown object kind: blob\0", $exception->getMessage());
+        }
+    },
     'loose object header rejects truncated first inflate windows before trusting size' => static function (TestRunner $t) use ($writeLooseCompressed, $truncatedBeforeHeaderWindowCompletes): void {
         $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-truncated-header-window-' . bin2hex(random_bytes(4)) . '/objects';
         $oid = str_repeat('7', 40);
@@ -1051,6 +1080,11 @@ return [
         $t->same(true, $summary['noTypeSizeDelimiterReadRejected']);
         $t->same(true, $summary['noTypeSizeDelimiterIntegrityRejected']);
         $t->contains("Expected '<type> <size>'", $summary['noTypeSizeDelimiterIntegrityMessage']);
+        $t->same(true, $summary['nulBeforeSpaceUnknownKindHeaderRejected']);
+        $t->same("Unknown object kind: blob\0", $summary['nulBeforeSpaceUnknownKindHeaderMessage']);
+        $t->same(true, $summary['nulBeforeSpaceUnknownKindReadRejected']);
+        $t->same(true, $summary['nulBeforeSpaceUnknownKindIntegrityRejected']);
+        $t->contains("Unknown object kind: blob\0", $summary['nulBeforeSpaceUnknownKindIntegrityMessage']);
         $t->same(true, $summary['unknownKindHeaderRejected']);
         $t->same('Unknown object kind: wordpress', $summary['unknownKindHeaderMessage']);
         $t->same(true, $summary['unknownKindReadRejected']);
