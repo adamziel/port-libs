@@ -2106,6 +2106,47 @@ return [
         $t->same([], $child->getNames());
         $t->same('', $child->writeVlq());
     },
+    'source map replaces parent gaps between skipped and kept child mappings' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $parentSource = $parent->addSource('parent.css');
+        foreach ([0, 1, 2, 3, 4] as $line) {
+            $parent->addMapping($line, 0, $parentSource, $line, 0, 'parent' . $line);
+        }
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('interior-child.css');
+        $child->setSourceContent($childSource, ".skip{}\n\n.keep{}\n");
+        $child->addMapping(0, 2, $childSource, 0, 0, 'skippedChild');
+        $child->addMapping(2, 4, $childSource, 2, 1, 'keptChild');
+
+        $t->same(
+            '{"version":3,"mappings":"EAAAA;;IAECC","sources":["interior-child.css"],"sourcesContent":[".skip{}\n\n.keep{}\n"],"names":["skippedChild","keptChild"]}',
+            $child->toJson(null, false)
+        );
+
+        $parent->addSourceMap($child, -1);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $roundTrip = SourceMap::fromBuffer('/', $parent->toBuffer());
+        $data = $parent->toArray(null, false);
+
+        $t->same(';ICECM;ADADJ;AACAC;AACAC', $parent->writeVlq());
+        $t->same([1, 2, 3, 4], array_column($decoded, 'generatedLine'));
+        $t->same([4, 0, 0, 0], array_column($decoded, 'generatedColumn'));
+        $t->same([1, 0, 0, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([2, 2, 3, 4], array_column($decoded, 'originalLine'));
+        $t->same([1, 0, 0, 0], array_column($decoded, 'originalColumn'));
+        $t->same([6, 2, 3, 4], array_column($decoded, 'nameIndex'));
+        $t->same(['parent.css', 'interior-child.css'], $data['sources']);
+        $t->same(['', ".skip{}\n\n.keep{}\n"], $data['sourcesContent']);
+        $t->same(['parent0', 'parent1', 'parent2', 'parent3', 'parent4', 'skippedChild', 'keptChild'], $data['names']);
+        $t->same(null, $parent->findClosestMapping(0, 0));
+        $t->same(2, $parent->findClosestMapping(1, 4)['originalLine'] ?? null);
+        $t->same(6, $parent->findClosestMapping(1, 4)['nameIndex'] ?? null);
+        $t->same(';ICECM;ADADJ;AACAC;AACAC', $roundTrip->writeVlq());
+        $t->same([], $child->getSources());
+        $t->same([], $child->getNames());
+        $t->same('', $child->writeVlq());
+    },
     'source map preserves partial skipped child tables during upstream offset merge' => static function (TestRunner $t): void {
         $parent = new SourceMap();
 

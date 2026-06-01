@@ -123,6 +123,20 @@ return [
         $t->same(0x12345678, $first->crc32);
         $t->same([12, 96, 8589934597], $index->sortedOffsets());
     },
+    'honors pack index large-offset threshold boundaries like gix-pack' => static function (TestRunner $t) use ($buildIndex, $packChecksum): void {
+        $boundaryEntries = [
+            ['oid' => '1000111111111111111111111111111111111111', 'offset' => 0x7fffffff, 'crc32' => 1],
+            ['oid' => '2000222222222222222222222222222222222222', 'offset' => 0x80000000, 'crc32' => 2],
+            ['oid' => '3000333333333333333333333333333333333333', 'offset' => 0xffffffff, 'crc32' => 3],
+        ];
+        $index = PackIndex::fromBytes($buildIndex($boundaryEntries, $packChecksum));
+
+        $t->same(0x7fffffff, $index->lookup('1000111111111111111111111111111111111111')?->packOffset);
+        $t->same(0x80000000, $index->lookup('2000222222222222222222222222222222222222')?->packOffset);
+        $t->same(0xffffffff, $index->lookup('3000333333333333333333333333333333333333')?->packOffset);
+        $t->same([0x7fffffff, 0x80000000, 0xffffffff], $index->sortedOffsets());
+        $t->same('found', $index->lookupPrefix('2000')['status']);
+    },
     'looks up full object ids and prefixes like gix-pack index access' => static function (TestRunner $t) use ($buildIndex, $entries, $packChecksum): void {
         $index = PackIndex::fromBytes($buildIndex($entries, $packChecksum));
         $entry = $index->lookup('3B18E512DBA79E4C8300DD08AEB37F8E728B8DAD');

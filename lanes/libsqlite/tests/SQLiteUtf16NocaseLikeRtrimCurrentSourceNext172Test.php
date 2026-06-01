@@ -15,31 +15,31 @@ $code = static fn (string $encoding): int => match ($encoding) {
 };
 $row = static function (int $id, string $name, string $encoding) use ($enc, $code): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => $enc($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => $enc($name, $encoding),
         'text_encoding' => $code($encoding),
     ];
 };
 
 $currentRows = [
-    $row(1, 'plugin_cache', 'UTF-16LE'),
-    $row(2, 'plugin_cache_alpha', 'UTF-16BE'),
-    $row(3, 'plugin_cache_beta', 'UTF-16LE'),
-    $row(4, 'plugin_cache_delta', 'UTF-16BE'),
-    $row(5, 'plugin_cache_zeta', 'UTF-16LE'),
+    $row(1, 'module_cache', 'UTF-16LE'),
+    $row(2, 'module_cache_alpha', 'UTF-16BE'),
+    $row(3, 'module_cache_beta', 'UTF-16LE'),
+    $row(4, 'module_cache_delta', 'UTF-16BE'),
+    $row(5, 'module_cache_zeta', 'UTF-16LE'),
 ];
 $nextRows = [
-    $row(1, 'plugin_cache', 'UTF-16BE'),
-    $row(2, 'plugin_cache_zulu', 'UTF-16LE'),
-    $row(3, 'plugin_cache_beta', 'UTF-16LE'),
-    $row(4, 'plugin_cache_delta', 'UTF-16BE'),
-    $row(6, 'plugin_cache_gamma', 'UTF-16BE'),
+    $row(1, 'module_cache', 'UTF-16BE'),
+    $row(2, 'module_cache_zulu', 'UTF-16LE'),
+    $row(3, 'module_cache_beta', 'UTF-16LE'),
+    $row(4, 'module_cache_delta', 'UTF-16BE'),
+    $row(6, 'module_cache_gamma', 'UTF-16BE'),
 ];
 
 $plan = static function (
     ?array $current = null,
     ?array $next = null,
-    ?array $token = ['key' => 'plugin_cache_alpha', 'rowid' => 2],
+    ?array $token = ['key' => 'module_cache_alpha', 'rowid' => 2],
     string $currentSource = 'stable',
     string $nextSource = 'stable',
     int $currentCookie = 12,
@@ -48,9 +48,9 @@ $plan = static function (
     return SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyYieldTokenPlan(
         $current ?? $currentRows,
         $next ?? $nextRows,
-        $enc('plugin\\_cache%', 'UTF-16LE'),
+        $enc('module\\_cache%', 'UTF-16LE'),
         $code('UTF-16LE'),
-        $enc('plugin\\_cache%', 'UTF-16BE'),
+        $enc('module\\_cache%', 'UTF-16BE'),
         $code('UTF-16BE'),
         $enc('\\', 'UTF-16LE'),
         $code('UTF-16LE'),
@@ -78,16 +78,16 @@ $valueAt = static function (array $value, string $path): mixed {
 $cases = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSevenTwo'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE'],
     'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneSixFive'],
     'current source' => ['currentSource', 'stable'],
     'next source' => ['nextSource', 'stable'],
     'current cookie' => ['currentSchemaCookie', 12],
     'next cookie' => ['nextSchemaCookie', 12],
-    'token key' => ['lastYielded.key', 'plugin_cache_alpha'],
+    'token key' => ['lastYielded.key', 'module_cache_alpha'],
     'token rowid' => ['lastYielded.rowid', 2],
-    'current token key' => ['currentTokenRow.key', 'plugin_cache_alpha'],
-    'next token key moved' => ['nextTokenRow.key', 'plugin_cache_zulu'],
+    'current token key' => ['currentTokenRow.key', 'module_cache_alpha'],
+    'next token key moved' => ['nextTokenRow.key', 'module_cache_zulu'],
     'current matches' => ['currentMatchedRowids', [1, 2, 3, 4, 5]],
     'next matches' => ['nextMatchedRowids', [1, 3, 4, 6, 2]],
     'current after token' => ['currentAfterTokenRowids', [3, 4, 5]],
@@ -119,9 +119,9 @@ foreach ($cases as $name => [$path, $expected]) {
 
 $tests['utf16 nocase like rtrim current source nextOneSevenTwo stable token does not reprepare'] = static function (TestRunner $t) use ($plan, $row): void {
     $rows = [
-        $row(1, 'plugin_cache', 'UTF-16LE'),
-        $row(2, 'plugin_cache_alpha  ', 'UTF-16BE'),
-        $row(3, 'plugin_cache_beta', 'UTF-16LE'),
+        $row(1, 'module_cache', 'UTF-16LE'),
+        $row(2, 'module_cache_alpha  ', 'UTF-16BE'),
+        $row(3, 'module_cache_beta', 'UTF-16LE'),
     ];
     $result = $plan($rows, $rows);
     $t->same(false, $result['yieldedReenteredAfterToken']);
@@ -133,17 +133,17 @@ $tests['utf16 nocase like rtrim current source nextOneSevenTwo stable token does
 
 $tests['utf16 nocase like rtrim current source nextOneSevenTwo same key case and space mutation remains after token safe'] = static function (TestRunner $t) use ($plan, $row): void {
     $current = [
-        $row(1, 'plugin_cache', 'UTF-16LE'),
-        $row(2, 'plugin_cache_alpha  ', 'UTF-16BE'),
-        $row(3, 'plugin_cache_beta', 'UTF-16LE'),
+        $row(1, 'module_cache', 'UTF-16LE'),
+        $row(2, 'module_cache_alpha  ', 'UTF-16BE'),
+        $row(3, 'module_cache_beta', 'UTF-16LE'),
     ];
     $next = [
-        $row(1, 'plugin_cache', 'UTF-16BE'),
-        $row(2, 'PLUGIN_CACHE_ALPHA', 'UTF-16LE'),
-        $row(3, 'plugin_cache_beta', 'UTF-16LE'),
+        $row(1, 'module_cache', 'UTF-16BE'),
+        $row(2, 'MODULE_CACHE_ALPHA', 'UTF-16LE'),
+        $row(3, 'module_cache_beta', 'UTF-16LE'),
     ];
     $result = $plan($current, $next);
-    $t->same('plugin_cache_alpha', $result['nextTokenRow']['key']);
+    $t->same('module_cache_alpha', $result['nextTokenRow']['key']);
     $t->same(false, $result['yieldedReenteredAfterToken']);
     $t->same([], $result['yieldTokenReasons']);
     $t->same(false, $result['mustReprepareBeforeResume']);
@@ -151,7 +151,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenTwo same key case and
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSevenTwo row before token forces base reprepare'] = static function (TestRunner $t) use ($plan, $nextRows, $row): void {
-    $next = array_merge($nextRows, [$row(7, 'plugin_cache_aaa', 'UTF-16LE')]);
+    $next = array_merge($nextRows, [$row(7, 'module_cache_aaa', 'UTF-16LE')]);
     $result = $plan(next: $next);
     $t->same([1, 7], $result['nextBeforeOrAtTokenRowids']);
     $t->same(['entered-before-token', 'yielded-token-reentered-after-token'], $result['resumeReasons']);
@@ -160,9 +160,9 @@ $tests['utf16 nocase like rtrim current source nextOneSevenTwo row before token 
 
 $tests['utf16 nocase like rtrim current source nextOneSevenTwo yielded row exiting is recorded but can continue'] = static function (TestRunner $t) use ($plan, $currentRows, $row): void {
     $next = [
-        $row(1, 'plugin_cache', 'UTF-16BE'),
-        $row(3, 'plugin_cache_beta', 'UTF-16LE'),
-        $row(4, 'plugin_cache_delta', 'UTF-16BE'),
+        $row(1, 'module_cache', 'UTF-16BE'),
+        $row(3, 'module_cache_beta', 'UTF-16LE'),
+        $row(4, 'module_cache_delta', 'UTF-16BE'),
     ];
     $result = $plan($currentRows, $next);
     $t->same(true, $result['yieldedMissingInNext']);

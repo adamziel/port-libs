@@ -9,8 +9,8 @@ $tests = [];
 
 $enc167 = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row167 = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc167($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc167($name, $encoding),
     'text_encoding' => $encoding,
 ];
 
@@ -19,18 +19,18 @@ $current167 = [
     $row167(2, 'Éclair_Cache', 3),
     $row167(3, 'eclair_cache', 2),
     $row167(4, 'éclair_shadow  ', 1),
-    $row167(5, 'plugin_éclair_cache', 2),
+    $row167(5, 'module_éclair_cache', 2),
     $row167(6, 'élan_cache', 3),
-    ['option_id' => 7, 'option_name_bytes' => "\x00\xd8", 'text_encoding' => 2],
+    ['setting_id' => 7, 'key_name_bytes' => "\x00\xd8", 'text_encoding' => 2],
 ];
 $nextOneSixSeven = [
     $row167(1, 'éclair_cache', 3),
     $row167(2, 'Éclair_Cache  ', 3),
     $row167(4, 'éclair_shadow', 1),
-    $row167(5, 'plugin_éclair_cache', 2),
+    $row167(5, 'module_éclair_cache', 2),
     $row167(8, 'éclair_new  ', 2),
     $row167(9, 'ÉCLAIR_ADMIN', 3),
-    ['option_id' => 10, 'option_name_bytes' => "x\0y", 'text_encoding' => 2],
+    ['setting_id' => 10, 'key_name_bytes' => "x\0y", 'text_encoding' => 2],
 ];
 
 $plan167 = static fn (?array $current = null, ?array $next = null, string $pattern = 'éclair%', ?string $escape = null): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyFallbackPlan(
@@ -51,7 +51,7 @@ $valueAt167 = static function (array $value, string $path): mixed {
 $cases167 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSixSeven'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'éclair%'],
     'escape' => ['escape', null],
     'collation' => ['collation', 'NOCASE'],
@@ -158,14 +158,14 @@ $tests['utf16 nocase like rtrim current source nextOneSixSeven escaped wildcard 
 
 $tests['utf16 nocase like rtrim current source nextOneSixSeven ascii prefix still uses nocase range'] = static function (TestRunner $t) use ($row167): void {
     $rows = [
-        $row167(1, 'plugin_cache  ', 2),
-        $row167(2, 'Plugin_Cache', 3),
+        $row167(1, 'module_cache  ', 2),
+        $row167(2, 'Module_Cache', 3),
         $row167(3, 'theme_cache', 2),
     ];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyFallbackPlan(
         $rows,
         $rows,
-        'plugin%',
+        'module%',
         null,
         'stable',
         'stable',
@@ -173,7 +173,7 @@ $tests['utf16 nocase like rtrim current source nextOneSixSeven ascii prefix stil
         167,
     );
     $t->same('nocase-range', $result['scanMode']);
-    $t->same(['lowerInclusive' => 'plugin', 'upperBound' => 'plugio'], $result['range']);
+    $t->same(['lowerInclusive' => 'module', 'upperBound' => 'modulf'], $result['range']);
     $t->same([1, 2], $result['currentCandidateRowids']);
     $t->same([1, 2], $result['currentMatchedRowids']);
     $t->same([], $result['invalidationReasons']);
@@ -181,7 +181,7 @@ $tests['utf16 nocase like rtrim current source nextOneSixSeven ascii prefix stil
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSixSeven rejects missing bytes'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyFallbackPlan([['option_id' => 1, 'text_encoding' => 2]], [], 'éclair%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyFallbackPlan([['setting_id' => 1, 'text_encoding' => 2]], [], 'éclair%'));
 };
 
 return $tests;

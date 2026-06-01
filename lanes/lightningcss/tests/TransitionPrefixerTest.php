@@ -2896,7 +2896,7 @@ CSS;
             (new TransitionPrefixer())->prefixLegacySafari('.foo { --foo: color(display-p3 0 1 0); }')
         );
         $t->same(
-            '@supports (color:lab(0% 0 0)){.foo{--foo:oklab(59.686% 0.1009 0.1192)}}',
+            '@supports (color:lab(0% 0 0)){.foo{--foo:oklab(59.686% .1009 .1192)}}',
             (new TransitionPrefixer())->prefixLegacySafari('@supports (color: lab(0% 0 0)) { .foo { --foo: oklab(59.686% 0.1009 0.1192); } }')
         );
     },

@@ -332,6 +332,35 @@ if (
 
 echo 'surrogate-import-escape: resolved' . PHP_EOL;
 
+$nullByte = "\0";
+$nullByteResolved = [];
+$nullByteImportBundle = (new CssBundler())->bundle('/null-byte-import.css', [
+    '/null-byte-import.css' => '@import "pkg:theme' . $nullByte . '-tokens.css"; @import url(pkg:icon' . $nullByte . '.css); .wp-site-blocks { color: red; }',
+    '/vendor/theme-tokens.css' => ':root { --wp--preset--spacing--block-gap: 1rem; }',
+    '/vendor/icon.css' => '.wp-block-icon { color: blue; }',
+], static function (string $specifier, string $originatingFile) use (&$nullByteResolved, $replacementCharacter): string {
+    $nullByteResolved[] = [$specifier, $originatingFile];
+
+    return match ($specifier) {
+        'pkg:theme' . $replacementCharacter . '-tokens.css' => '/vendor/theme-tokens.css',
+        'pkg:icon' . $replacementCharacter . '.css' => '/vendor/icon.css',
+        default => throw new RuntimeException("Unexpected null-byte import specifier {$specifier}"),
+    };
+});
+
+if (
+    $nullByteImportBundle !== ':root{--wp--preset--spacing--block-gap:1rem}.wp-block-icon{color:#00f}.wp-site-blocks{color:red}'
+    || $nullByteResolved !== [
+        ['pkg:theme' . $replacementCharacter . '-tokens.css', '/null-byte-import.css'],
+        ['pkg:icon' . $replacementCharacter . '.css', '/null-byte-import.css'],
+    ]
+) {
+    fwrite(STDERR, "Expected literal null bytes in import sources to resolve with replacement characters\n");
+    exit(1);
+}
+
+echo 'null-byte-import-source: resolved' . PHP_EOL;
+
 $escapedImportKeywordBundle = (new CssBundler())->bundle('/escaped-import-keywords.css', [
     '/escaped-import-keywords.css' => <<<'CSS'
 @import u\72l(pkg:card.css) l\61yer(theme.blocks) s\75pports(display: grid) screen;

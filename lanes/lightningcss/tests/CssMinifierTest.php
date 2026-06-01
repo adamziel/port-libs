@@ -754,6 +754,16 @@ CSS
         $t->same('.foo{--d:color(display-p3 .43313 .50108 .3)}', $minifier->minify('.foo { --d: color(display-p3 0.43313 0.50108 calc(0.1 + 0.2)); }'));
         $t->same('.foo{--e:gray}', $minifier->minify('.foo { --e: rgb(calc(255 / 2), calc(255 / 2), calc(255 / 2)); }'));
     },
+    'css minifier maps upstream custom property color token minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{--wp--preset--color--accent:#ff0}', $minifier->minify('.foo { --wp--preset--color--accent: rgb(255, 255, 0); }'));
+        $t->same('.foo{--wp--preset--color--overlay:#00c4ff80}', $minifier->minify('.foo { --wp--preset--color--overlay: hwb(194 0% 0% / 50%); }'));
+        $t->same('.foo{--wp--preset--color--panel:lab(29.2345% 49.2281 25.083)}', $minifier->minify('.foo { --wp--preset--color--panel: lab(29.2345% 39.3825% 20.0664%); }'));
+        $t->same('.foo{--wp--preset--color--gamut:color(display-p3 1 .5 0/.2)}', $minifier->minify('.foo { --wp--preset--color--gamut: color(display-p3 100% 50% 0 / 20%); }'));
+        $t->same('.foo{--wp--preset--color--hex:#0f08}', $minifier->minify('.foo { --wp--preset--color--hex: #00ff0088; }'));
+        $t->same('.foo{--wp--preset--color--quoted:"rgb(255, 255, 0)";--wp--preset--color--asset:url(theme.svg#ffff00)}', $minifier->minify('.foo { --wp--preset--color--quoted: "rgb(255, 255, 0)"; --wp--preset--color--asset: url(theme.svg#ffff00); }'));
+    },
     'css minifier maps upstream aspect-ratio value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

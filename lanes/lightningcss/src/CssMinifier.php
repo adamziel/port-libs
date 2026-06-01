@@ -3024,7 +3024,6 @@ final class CssMinifier
 
     private function minifyDeclarationValue(string $property, string $value): string
     {
-        $customPropertyColorCalc = str_starts_with($property, '--') && $this->containsColorFunctionCalc($value);
         $value = $this->minifyMathFunctions($this->normalizeMathFunctionOperators($value));
         $value = $this->minifyTransformValue($property, $value);
         $value = $this->minifyAnimationLonghandValue($property, $value);
@@ -3047,9 +3046,7 @@ final class CssMinifier
         $value = $this->minifyBorderSpacingValue($property, $value);
         $value = $this->minifyVerticalAlignValue($property, $value);
         if (str_starts_with($property, '--')) {
-            if ($customPropertyColorCalc) {
-                $value = $this->minifyColorFunctionsAndHex($value);
-            }
+            $value = $this->minifyColorFunctionsAndHex($value);
             $value = $this->minifySrgbColorMixFunctions($value, true);
         } elseif (!$this->isFontFamilySensitiveProperty($property)) {
             $value = $this->minifyColorKeywords($value);
@@ -3154,11 +3151,6 @@ final class CssMinifier
     private function minifyAttrFallbackArgument(string $argument): string
     {
         return $this->minifyAttrFunctions(trim($argument));
-    }
-
-    private function containsColorFunctionCalc(string $value): bool
-    {
-        return preg_match('/\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\([^;{}]*\bcalc\(/i', $value) === 1;
     }
 
     private function minifyBorderRadiusValue(string $property, string $value): string

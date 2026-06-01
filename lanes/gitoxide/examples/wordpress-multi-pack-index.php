@@ -23,6 +23,7 @@ try {
 } catch (RuntimeException) {
     $emptyIntegrityStatus = 'empty-rejected';
 }
+$largeOffsetThreshold = 0x7fffffff;
 
 return [
     'version' => $index->version(),
@@ -36,6 +37,9 @@ return [
     'contentOffset' => $content?->packOffset,
     'largeMediaPack' => $media === null ? null : $index->packNames()[$media->packIndex],
     'largeMediaOffset' => $media?->packOffset,
+    'largeOffsetThreshold' => $largeOffsetThreshold,
+    'firstLargeOffset' => $largeOffsetThreshold + 1,
+    'largeMediaUsesLargeOffsetChunk' => $media !== null && $media->packOffset > $largeOffsetThreshold,
     'templatePrefixStatus' => $templatePrefix['status'],
     'templatePrefixRange' => $templatePrefix['candidateRange'],
     'templateShortestPrefix' => $index->disambiguatePrefix($templateObject['oid'], 4),

@@ -23,36 +23,36 @@ $code = static fn (string $encoding): int => match ($encoding) {
 };
 $row = static function (int $id, string $name, string $encoding) use ($enc, $code): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => $enc($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => $enc($name, $encoding),
         'text_encoding' => $code($encoding),
     ];
 };
 
 $currentRows = [
-    $row(1, 'plugin_cache', 'UTF-16LE'),
-    $row(2, 'plugin_cache_alpha', 'UTF-16BE'),
-    $row(3, 'plugin_cache_beta', 'UTF-16LE'),
+    $row(1, 'module_cache', 'UTF-16LE'),
+    $row(2, 'module_cache_alpha', 'UTF-16BE'),
+    $row(3, 'module_cache_beta', 'UTF-16LE'),
 ];
 $nextRows = [
-    $row(1, 'plugin_cache', 'UTF-16BE'),
-    $row(2, 'plugin_cache_zulu', 'UTF-16LE'),
-    $row(3, 'plugin_cache_beta', 'UTF-16LE'),
-    $row(4, 'plugin_cache_gamma', 'UTF-16BE'),
+    $row(1, 'module_cache', 'UTF-16BE'),
+    $row(2, 'module_cache_zulu', 'UTF-16LE'),
+    $row(3, 'module_cache_beta', 'UTF-16LE'),
+    $row(4, 'module_cache_gamma', 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameYieldTokenPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyYieldTokenPlan(
     $currentRows,
     $nextRows,
-    $enc('plugin\\_cache%', 'UTF-16LE'),
+    $enc('module\\_cache%', 'UTF-16LE'),
     $code('UTF-16LE'),
-    $enc('plugin\\_cache%', 'UTF-16BE'),
+    $enc('module\\_cache%', 'UTF-16BE'),
     $code('UTF-16BE'),
     $enc('\\', 'UTF-16LE'),
     $code('UTF-16LE'),
     $enc('\\', 'UTF-16BE'),
     $code('UTF-16BE'),
-    ['key' => 'plugin_cache_alpha', 'rowid' => 2],
+    ['key' => 'module_cache_alpha', 'rowid' => 2],
     'stable',
     'stable',
     172,
@@ -66,7 +66,7 @@ $summary = [
     'safeToResumeFromToken' => $plan['safeToResumeFromToken'],
     'resumePlanMode' => $plan['resumePlanMode'],
     'resumePlanRowids' => $plan['resumePlanRowids'],
-    'applicationUse' => 'Copied wp_options scans can avoid yielding an already returned option row twice when a UTF-16 RTRIM/NOCASE LIKE key moves after the saved cursor token between current and next sources.',
+    'applicationUse' => 'Application app_settings scans can avoid yielding an already returned setting row twice when a UTF-16 RTRIM/NOCASE LIKE key moves after the saved cursor token between current and next sources.',
     'dependencyClosure' => $plan['dependency_closure'],
 ];
 

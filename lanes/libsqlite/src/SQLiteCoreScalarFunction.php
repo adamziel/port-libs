@@ -64,6 +64,7 @@ final class SQLiteCoreScalarFunction
             'sqrt', 'exp', 'ln', 'log', 'log10', 'log2', 'pow', 'power', 'mod' => self::numericMath($normalized, $arguments),
             'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'pi' => self::trigonometricMath($normalized, $arguments),
             'typeof' => self::typeof($arguments),
+            'subtype' => self::subtype($arguments),
             'quote' => self::quote($arguments),
             'coalesce' => self::coalesce($arguments),
             'ifnull' => self::ifnull($arguments),
@@ -436,11 +437,22 @@ final class SQLiteCoreScalarFunction
         return match (true) {
             $arguments[0] === null => 'null',
             $arguments[0] instanceof SQLiteBlobValue => 'blob',
+            $arguments[0] instanceof SQLiteJsonSubtypeValue => 'text',
             is_int($arguments[0]) || is_bool($arguments[0]) => 'integer',
             is_float($arguments[0]) => 'real',
             is_string($arguments[0]) => 'text',
-            default => throw new \InvalidArgumentException('SQLite typeof() argument must be scalar, BLOB, or NULL'),
+            default => throw new \InvalidArgumentException('SQLite typeof() argument must be scalar, JSON subtype, BLOB, or NULL'),
         };
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function subtype(array $arguments): int
+    {
+        self::assertArity('subtype', $arguments, 1, 1);
+
+        return $arguments[0] instanceof SQLiteJsonSubtypeValue ? 74 : 0;
     }
 
     /**

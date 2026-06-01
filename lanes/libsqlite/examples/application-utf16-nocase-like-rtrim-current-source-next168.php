@@ -12,32 +12,32 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $encoding,
 ];
 
 $currentRows = [
-    $row(1, 'Plugin_Cache  ', 2),
-    $row(2, 'plugin_cache', 3),
-    $row(3, 'PLUGIN_CACHE_TRANSIENT  ', 2),
-    $row(4, 'plugin_cache_shadow', 1),
+    $row(1, 'Module_Cache  ', 2),
+    $row(2, 'module_cache', 3),
+    $row(3, 'MODULE_CACHE_TRANSIENT  ', 2),
+    $row(4, 'module_cache_shadow', 1),
 ];
 $nextRows = [
-    $row(1, 'Plugin_Cache  ', 2),
-    $row(2, 'plugin_cache', 3),
-    $row(3, 'PLUGIN_CACHE_TRANSIENT  ', 2),
-    $row(4, 'plugin_cache_shadow', 1),
-    $row(5, 'plugin_cache_new  ', 3),
+    $row(1, 'Module_Cache  ', 2),
+    $row(2, 'module_cache', 3),
+    $row(3, 'MODULE_CACHE_TRANSIENT  ', 2),
+    $row(4, 'module_cache_shadow', 1),
+    $row(5, 'module_cache_new  ', 3),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCaseSensitiveLikePlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCaseSensitiveLikePlan(
     $currentRows,
     $nextRows,
-    'plugin!_cache%',
+    'module!_cache%',
     '!',
-    'main.wp_options@before-case-sensitive-like',
-    'main.wp_options@after-case-sensitive-like',
+    'main.app_settings@before-case-sensitive-like',
+    'main.app_settings@after-case-sensitive-like',
     167,
     168,
     false,
@@ -56,7 +56,7 @@ if (($argv[1] ?? null) === '--self-test') {
 
 echo json_encode([
     'scenario' => 'application-utf16-nocase-like-rtrim-current-source-next168',
-    'applicationUse' => 'Copied wp_options prefix scans must not resume a UTF-16 NOCASE/RTRIM LIKE cursor after case_sensitive_like changes residual matching.',
+    'applicationUse' => 'Application app_settings prefix scans must not resume a UTF-16 NOCASE/RTRIM LIKE cursor after case_sensitive_like changes residual matching.',
     'currentMatchedRowids' => $plan['currentMatchedRowids'],
     'nextMatchedRowids' => $plan['nextMatchedRowids'],
     'caseSensitiveDroppedRowids' => $plan['caseSensitiveDroppedRowids'],

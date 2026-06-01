@@ -509,12 +509,16 @@ final class CssModulesTransformer
     {
         $trimmed = trim($statement);
         if ($trimmed === '') {
-            return $statement;
+            return '';
         }
 
         $this->assertNoDeprecatedValueRule($trimmed);
 
         $withoutSemicolon = rtrim($trimmed, ';');
+        if (trim($withoutSemicolon) === '') {
+            return '';
+        }
+
         $colon = $this->findNextTopLevel($withoutSemicolon, ':', 0);
         if ($colon === null) {
             return $statement;

@@ -9,8 +9,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -20,28 +20,28 @@ $row = static function (int $id, string $name, string $encoding): array {
 };
 
 $current = [
-    $row(1, 'Plugin_Cache  ', 'UTF-16LE'),
-    $row(2, 'plugin_cache', 'UTF-16BE'),
-    $row(3, 'plugin_cache_extra', 'UTF-8'),
+    $row(1, 'Module_Cache  ', 'UTF-16LE'),
+    $row(2, 'module_cache', 'UTF-16BE'),
+    $row(3, 'module_cache_extra', 'UTF-8'),
 ];
 $next = [
-    $row(1, 'Plugin_Cache', 'UTF-16BE'),
-    $row(2, 'plugin_cache  ', 'UTF-16BE'),
-    $row(3, 'plugin_cache_extra', 'UTF-8'),
-    $row(4, 'PLUGIN_CACHE', 'UTF-16LE'),
+    $row(1, 'Module_Cache', 'UTF-16BE'),
+    $row(2, 'module_cache  ', 'UTF-16BE'),
+    $row(3, 'module_cache_extra', 'UTF-8'),
+    $row(4, 'MODULE_CACHE', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicateKeyReplayPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDuplicateKeyReplayPlan(
     $current,
     $next,
-    'plugin!_cache%',
+    'module!_cache%',
     '!',
-    ['key' => 'plugin_cache', 'rowid' => 2],
+    ['key' => 'module_cache', 'rowid' => 2],
 );
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-next171');
-    assert($plan['duplicateRtrimNocaseKeys']['plugin_cache'] === [1, 2, 4]);
+    assert($plan['duplicateRtrimNocaseKeys']['module_cache'] === [1, 2, 4]);
     assert($plan['changedEncodingRowids'] === [1]);
     assert($plan['changedBytesRowids'] === [1, 2]);
     assert($plan['mustReprepareBeforeReplay'] === true);

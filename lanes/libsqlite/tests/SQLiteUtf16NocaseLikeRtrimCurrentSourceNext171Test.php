@@ -14,41 +14,41 @@ $code = static fn (string $encoding): int => match ($encoding) {
     'UTF-16BE' => 3,
 };
 $row = static fn (int $id, string $name, string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $code($encoding),
 ];
 $bad = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
 $currentRows = [
-    $row(1, 'Plugin_Cache  ', 'UTF-16LE'),
-    $row(2, 'plugin_cache', 'UTF-16BE'),
-    $row(3, 'plugin_cache  ', 'UTF-8'),
-    $row(4, 'plugin_cache_extra', 'UTF-16LE'),
-    $row(5, 'plugin_cache_tab' . "\t", 'UTF-16BE'),
-    $row(6, 'plugin_other', 'UTF-16LE'),
+    $row(1, 'Module_Cache  ', 'UTF-16LE'),
+    $row(2, 'module_cache', 'UTF-16BE'),
+    $row(3, 'module_cache  ', 'UTF-8'),
+    $row(4, 'module_cache_extra', 'UTF-16LE'),
+    $row(5, 'module_cache_tab' . "\t", 'UTF-16BE'),
+    $row(6, 'module_other', 'UTF-16LE'),
     $bad(7, "\x00\xd8", 2),
 ];
 $nextRows = [
-    $row(1, 'Plugin_Cache', 'UTF-16BE'),
-    $row(2, 'plugin_cache  ', 'UTF-16BE'),
-    $row(3, 'plugin_cache', 'UTF-8'),
-    $row(4, 'plugin_cache_extra', 'UTF-16LE'),
-    $row(5, 'plugin_cache_tab' . "\t", 'UTF-16BE'),
-    $row(8, 'PLUGIN_CACHE', 'UTF-16LE'),
-    $row(9, 'plugin_cache_alpha', 'UTF-16BE'),
+    $row(1, 'Module_Cache', 'UTF-16BE'),
+    $row(2, 'module_cache  ', 'UTF-16BE'),
+    $row(3, 'module_cache', 'UTF-8'),
+    $row(4, 'module_cache_extra', 'UTF-16LE'),
+    $row(5, 'module_cache_tab' . "\t", 'UTF-16BE'),
+    $row(8, 'MODULE_CACHE', 'UTF-16LE'),
+    $row(9, 'module_cache_alpha', 'UTF-16BE'),
     $bad(10, "\xd8\x00", 3),
 ];
 
 $plan = static fn (
     ?array $current = null,
     ?array $next = null,
-    ?array $token = ['key' => 'plugin_cache', 'rowid' => 2],
-    string $pattern = 'plugin!_cache%',
+    ?array $token = ['key' => 'module_cache', 'rowid' => 2],
+    string $pattern = 'module!_cache%',
     ?string $escape = '!',
     string $currentSource = 'main.app_settings@170',
     string $nextSource = 'main.app_settings@171',
@@ -80,8 +80,8 @@ $valueAt = static function (array $value, string $path): mixed {
 $cases = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSevenOne'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
-    'pattern' => ['pattern', 'plugin!_cache%'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE'],
+    'pattern' => ['pattern', 'module!_cache%'],
     'escape' => ['escape', '!'],
     'case sensitive flag' => ['caseSensitiveLike', false],
     'ascii nocase' => ['asciiNocaseOnly', true],
@@ -90,24 +90,24 @@ $cases = [
     'next source' => ['nextSource', 'main.app_settings@171'],
     'current cookie' => ['currentSchemaCookie', 170],
     'next cookie' => ['nextSchemaCookie', 171],
-    'prefix' => ['prefix', 'plugin_cache'],
+    'prefix' => ['prefix', 'module_cache'],
     'prefix ascii' => ['prefixIsAscii', true],
     'index usable' => ['indexUsable', true],
-    'range lower' => ['range.lowerInclusive', 'plugin_cache'],
-    'range upper' => ['range.upperBound', 'plugin_cachf'],
-    'token key' => ['lastYielded.key', 'plugin_cache'],
+    'range lower' => ['range.lowerInclusive', 'module_cache'],
+    'range upper' => ['range.upperBound', 'module_cachf'],
+    'token key' => ['lastYielded.key', 'module_cache'],
     'token rowid' => ['lastYielded.rowid', 2],
     'current matches sorted by duplicate key rowid' => ['currentMatchedRowids', [1, 2, 3, 4, 5]],
     'next matches sorted by duplicate key rowid' => ['nextMatchedRowids', [1, 2, 3, 8, 9, 4, 5]],
-    'current key one' => ['currentMatchedKeys.1', 'plugin_cache'],
-    'current key five keeps tab' => ['currentMatchedKeys.5', "plugin_cache_tab\t"],
-    'next key eight folds ascii only' => ['nextMatchedKeys.8', 'plugin_cache'],
+    'current key one' => ['currentMatchedKeys.1', 'module_cache'],
+    'current key five keeps tab' => ['currentMatchedKeys.5', "module_cache_tab\t"],
+    'next key eight folds ascii only' => ['nextMatchedKeys.8', 'module_cache'],
     'row one current encoding' => ['currentMatchedEncodings.1', 'UTF-16LE'],
     'row one next encoding' => ['nextMatchedEncodings.1', 'UTF-16BE'],
     'current after token uses rowid tiebreaker' => ['currentAfterTokenRowids', [3, 4, 5]],
     'next after token uses rowid tiebreaker' => ['nextAfterTokenRowids', [3, 8, 9, 4, 5]],
     'next before token includes duplicate rowids through token' => ['nextBeforeOrAtTokenRowids', [1, 2]],
-    'duplicate key rowids' => ['duplicateRtrimNocaseKeys.plugin_cache', [1, 2, 3, 8]],
+    'duplicate key rowids' => ['duplicateRtrimNocaseKeys.module_cache', [1, 2, 3, 8]],
     'changed key rows' => ['changedKeyRowids', []],
     'changed encoding rows' => ['changedEncodingRowids', [1]],
     'changed bytes rows' => ['changedBytesRowids', [1, 2, 3]],
@@ -140,23 +140,23 @@ foreach ($cases as $name => [$path, $expected]) {
 
 $tests['utf16 nocase like rtrim current source nextOneSevenOne stable duplicate keys can continue after key rowid token'] = static function (TestRunner $t) use ($row): void {
     $rows = [
-        $row(1, 'Plugin_Cache', 'UTF-16LE'),
-        $row(2, 'plugin_cache  ', 'UTF-16BE'),
-        $row(3, 'PLUGIN_CACHE', 'UTF-8'),
-        $row(4, 'plugin_cache_extra', 'UTF-16LE'),
+        $row(1, 'Module_Cache', 'UTF-16LE'),
+        $row(2, 'module_cache  ', 'UTF-16BE'),
+        $row(3, 'MODULE_CACHE', 'UTF-8'),
+        $row(4, 'module_cache_extra', 'UTF-16LE'),
     ];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDuplicateKeyReplayPlan(
         $rows,
         $rows,
-        'plugin!_cache%',
+        'module!_cache%',
         '!',
-        ['key' => 'plugin_cache', 'rowid' => 2],
+        ['key' => 'module_cache', 'rowid' => 2],
         'stable',
         'stable',
         171,
         171,
     );
-    $t->same(['plugin_cache' => [1, 2, 3]], $result['duplicateRtrimNocaseKeys']);
+    $t->same(['module_cache' => [1, 2, 3]], $result['duplicateRtrimNocaseKeys']);
     $t->same([], $result['changedEncodingRowids']);
     $t->same(['duplicate-rtrim-nocase-key'], $result['replayInvalidationReasons']);
     $t->same(true, $result['mustReprepareBeforeReplay']);
@@ -165,16 +165,16 @@ $tests['utf16 nocase like rtrim current source nextOneSevenOne stable duplicate 
 
 $tests['utf16 nocase like rtrim current source nextOneSevenOne unique keys can safely replay after token'] = static function (TestRunner $t) use ($row): void {
     $rows = [
-        $row(1, 'plugin_cache_alpha', 'UTF-16LE'),
-        $row(2, 'plugin_cache_beta', 'UTF-16BE'),
-        $row(3, 'plugin_cache_gamma', 'UTF-8'),
+        $row(1, 'module_cache_alpha', 'UTF-16LE'),
+        $row(2, 'module_cache_beta', 'UTF-16BE'),
+        $row(3, 'module_cache_gamma', 'UTF-8'),
     ];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDuplicateKeyReplayPlan(
         $rows,
         $rows,
-        'plugin!_cache%',
+        'module!_cache%',
         '!',
-        ['key' => 'plugin_cache_alpha', 'rowid' => 1],
+        ['key' => 'module_cache_alpha', 'rowid' => 1],
         'stable',
         'stable',
         171,
@@ -196,7 +196,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenOne leading wildcard 
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSevenOne entered before token is unsafe'] = static function (TestRunner $t) use ($plan, $nextRows, $row): void {
-    $next = array_merge($nextRows, [$row(0, 'plugin_cache', 'UTF-16LE')]);
+    $next = array_merge($nextRows, [$row(0, 'module_cache', 'UTF-16LE')]);
     $result = $plan(next: $next);
     $t->same([0, 1, 2], $result['nextBeforeOrAtTokenRowids']);
     $t->true(in_array('entered-before-token', $result['replayInvalidationReasons'], true));
@@ -213,9 +213,9 @@ $tests['utf16 nocase like rtrim current source nextOneSevenOne rejects invalid t
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDuplicateKeyReplayPlan(
         $currentRows,
         $nextRows,
-        'plugin%',
+        'module%',
         null,
-        ['key' => 'plugin_cache'],
+        ['key' => 'module_cache'],
     ));
 };
 

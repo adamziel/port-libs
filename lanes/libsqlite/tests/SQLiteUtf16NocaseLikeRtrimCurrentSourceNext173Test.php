@@ -9,41 +9,41 @@ $tests = [];
 
 $enc173 = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row173 = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc173($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc173($name, $encoding),
     'text_encoding' => $encoding,
 ];
 $bad173 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
 $current173 = [
-    $row173(1, 'Plugin_Cache  ', 2),
-    $row173(2, 'plugin_cache', 3),
-    $row173(3, "plugin_cache\t", 2),
-    $row173(4, 'plugin_cache' . "\xc2\xa0", 3),
-    $row173(5, 'plugin_cache_extra', 2),
-    $row173(6, 'plugin_admin', 2),
+    $row173(1, 'Module_Cache  ', 2),
+    $row173(2, 'module_cache', 3),
+    $row173(3, "module_cache\t", 2),
+    $row173(4, 'module_cache' . "\xc2\xa0", 3),
+    $row173(5, 'module_cache_extra', 2),
+    $row173(6, 'module_admin', 2),
     $row173(7, 'theme_cache', 2),
     $bad173(12, "\x00\xd8", 2),
 ];
 $nextOneSevenThree = [
-    $row173(1, 'Plugin_Cache', 3),
-    $row173(2, 'plugin_cache   ', 3),
-    $row173(3, "plugin_cache\t", 2),
-    $row173(4, 'plugin_cache' . "\xc2\xa0", 3),
-    $row173(5, 'plugin_cache_extra_v2', 2),
-    $row173(6, 'plugin_admin', 2),
-    $row173(8, 'PLUGIN_CACHE_NEW  ', 3),
+    $row173(1, 'Module_Cache', 3),
+    $row173(2, 'module_cache   ', 3),
+    $row173(3, "module_cache\t", 2),
+    $row173(4, 'module_cache' . "\xc2\xa0", 3),
+    $row173(5, 'module_cache_extra_v2', 2),
+    $row173(6, 'module_admin', 2),
+    $row173(8, 'MODULE_CACHE_NEW  ', 3),
     $bad173(13, "x\0y", 2),
 ];
 
 $plan173 = static fn (
     ?array $current = null,
     ?array $next = null,
-    string $pattern = 'plugin!_cache',
+    string $pattern = 'module!_cache',
     ?string $escape = '!',
     string $currentSource = 'stable',
     string $nextSource = 'stable',
@@ -71,8 +71,8 @@ $valueAt173 = static function (array $value, string $path): mixed {
 $cases173 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSevenThree'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
-    'pattern' => ['pattern', 'plugin!_cache'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE'],
+    'pattern' => ['pattern', 'module!_cache'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
     'case sensitive false' => ['caseSensitiveLike', false],
@@ -82,10 +82,10 @@ $cases173 = [
     'next source stable' => ['nextSource', 'stable'],
     'current cookie stable' => ['currentSchemaCookie', 173],
     'next cookie stable' => ['nextSchemaCookie', 173],
-    'prefix' => ['prefix', 'plugin_cache'],
+    'prefix' => ['prefix', 'module_cache'],
     'prefix ascii' => ['prefixIsAscii', true],
-    'range lower' => ['range.lowerInclusive', 'plugin_cache'],
-    'range upper' => ['range.upperBound', 'plugin_cachf'],
+    'range lower' => ['range.lowerInclusive', 'module_cache'],
+    'range upper' => ['range.upperBound', 'module_cachf'],
     'index usable' => ['indexUsable', true],
     'scan mode' => ['scanMode', 'nocase-rtrim-range'],
     'current order' => ['currentOrderRowids', [6, 1, 2, 3, 5, 4, 7]],
@@ -99,12 +99,12 @@ $cases173 = [
     'retained matched' => ['retainedMatchedRowids', [1, 2]],
     'entered matched' => ['enteredMatchedRowids', []],
     'exited matched' => ['exitedMatchedRowids', []],
-    'row one current rtrim' => ['currentRtrimKeys.1', 'Plugin_Cache'],
-    'row two next rtrim' => ['nextRtrimKeys.2', 'plugin_cache'],
-    'tab is not trimmed' => ['currentRtrimKeys.3', "plugin_cache\t"],
-    'nbsp is not trimmed' => ['currentRtrimKeys.4', 'plugin_cache' . "\xc2\xa0"],
-    'row one nocase' => ['currentNocaseKeys.1', 'plugin_cache'],
-    'row eight nocase' => ['nextNocaseKeys.8', 'plugin_cache_new'],
+    'row one current rtrim' => ['currentRtrimKeys.1', 'Module_Cache'],
+    'row two next rtrim' => ['nextRtrimKeys.2', 'module_cache'],
+    'tab is not trimmed' => ['currentRtrimKeys.3', "module_cache\t"],
+    'nbsp is not trimmed' => ['currentRtrimKeys.4', 'module_cache' . "\xc2\xa0"],
+    'row one nocase' => ['currentNocaseKeys.1', 'module_cache'],
+    'row eight nocase' => ['nextNocaseKeys.8', 'module_cache_new'],
     'row one current encoding' => ['currentEncodings.1', 'UTF-16LE'],
     'row one next encoding' => ['nextEncodings.1', 'UTF-16BE'],
     'changed text' => ['changedTextRowids', [1, 2, 5]],
@@ -140,14 +140,14 @@ foreach ($cases173 as $name => [$path, $expected]) {
 
 $tests['utf16 nocase like rtrim current source nextOneSevenThree byte only trailing spaces can keep cursor'] = static function (TestRunner $t) use ($row173): void {
     $current = [
-        $row173(1, 'Plugin_Cache  ', 2),
-        $row173(2, 'plugin_cache', 3),
+        $row173(1, 'Module_Cache  ', 2),
+        $row173(2, 'module_cache', 3),
     ];
     $next = [
-        $row173(1, 'Plugin_Cache', 3),
-        $row173(2, 'plugin_cache   ', 3),
+        $row173(1, 'Module_Cache', 3),
+        $row173(2, 'module_cache   ', 3),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourcePlan($current, $next, 'plugin!_cache', '!', 'stable', 'stable', 5, 5);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourcePlan($current, $next, 'module!_cache', '!', 'stable', 'stable', 5, 5);
     $t->same(['decoded-text', 'trailing-space-bytes', 'text-encoding', 'encoded-bytes'], $result['byteReprepareReasons']);
     $t->same([], $result['semanticInvalidationReasons']);
     $t->same(true, $result['byteOnlyReprepare']);
@@ -157,9 +157,9 @@ $tests['utf16 nocase like rtrim current source nextOneSevenThree byte only trail
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSevenThree source change remains semantic even when bytes only'] = static function (TestRunner $t) use ($row173): void {
-    $current = [$row173(1, 'Plugin_Cache  ', 2)];
-    $next = [$row173(1, 'Plugin_Cache', 3)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourcePlan($current, $next, 'plugin!_cache', '!', 'main.app_settings@172', 'main.app_settings@173', 172, 173);
+    $current = [$row173(1, 'Module_Cache  ', 2)];
+    $next = [$row173(1, 'Module_Cache', 3)];
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourcePlan($current, $next, 'module!_cache', '!', 'main.app_settings@172', 'main.app_settings@173', 172, 173);
     $t->same(['decoded-text', 'trailing-space-bytes', 'text-encoding', 'encoded-bytes'], $result['byteReprepareReasons']);
     $t->same(['source-name', 'schema-cookie'], $result['semanticInvalidationReasons']);
     $t->same(false, $result['byteOnlyReprepare']);
@@ -170,7 +170,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenThree unicode prefix 
     $rows = [
         $row173(1, 'éclair_cache  ', 2),
         $row173(2, 'Éclair_Cache', 3),
-        $row173(3, 'plugin_cache', 2),
+        $row173(3, 'module_cache', 2),
     ];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourcePlan($rows, $rows, 'éclair%', null, 'stable', 'stable', 9, 9);
     $t->same(false, $result['indexUsable']);
@@ -180,11 +180,11 @@ $tests['utf16 nocase like rtrim current source nextOneSevenThree unicode prefix 
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source nextOneSevenThree rejects missing option bytes'] = static function (TestRunner $t): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenThree rejects missing key bytes'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourcePlan(
-        [['option_id' => 1, 'text_encoding' => 2]],
+        [['setting_id' => 1, 'text_encoding' => 2]],
         [],
-        'plugin%',
+        'module%',
     ));
 };
 

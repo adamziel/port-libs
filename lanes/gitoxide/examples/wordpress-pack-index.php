@@ -11,6 +11,7 @@ $index = PackIndex::fromBytes($fixture['indexBytes'], $fixture['objectHash']);
 $blob = $index->lookup('3b18e512dba79e4c8300dd08aeb37f8e728b8dad');
 $large = $index->lookup('a98ad44f7f0d6eae901abe9c6f10b4d9be2a190f');
 $blobPrefix = $index->lookupPrefix(substr($fixture['objects'][1]['oid'], 0, 7));
+$largeOffsetThreshold = 0x7fffffff;
 
 return [
     'version' => $index->version(),
@@ -23,6 +24,9 @@ return [
     'wordpressBlobPrefixStatus' => $blobPrefix['status'],
     'wordpressBlobPrefixRange' => $blobPrefix['candidateRange'],
     'wordpressBlobShortestPrefix' => $index->disambiguatePrefix($fixture['objects'][1]['oid'], 4),
+    'largeOffsetThreshold' => $largeOffsetThreshold,
+    'firstLargeOffset' => $largeOffsetThreshold + 1,
     'largeMediaOffset' => $large?->packOffset,
+    'largeMediaUses64BitOffsetTable' => $large !== null && $large->packOffset > $largeOffsetThreshold,
     'sortedOffsets' => $index->sortedOffsets(),
 ];

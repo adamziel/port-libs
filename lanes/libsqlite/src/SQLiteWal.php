@@ -806,6 +806,139 @@ final class SQLiteWal
     }
 
     /**
+     * @return array{status:string,mode:string,busy:int,reason:string,wal_mode:bool,reader_end_frame:int|null,backfilled_frame_count_before:int,log_frame_count:int,checkpoint_target_frame:int,checkpointed_frame_count:int,remaining_frame_count:int,can_reset:bool,can_truncate:bool,wal_action:string,result:array{0:int,1:int,2:int},database_page_count:int,page_size:int,dependencies:list<string>}
+     */
+    public function checkpointBoundaryResult(
+        string $databaseBytes,
+        string $mode = 'passive',
+        ?int $readerEndFrame = null,
+        int $backfilledFrameCount = 0,
+        bool $walMode = true
+    ): array {
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['passive', 'full', 'restart', 'truncate', 'noop'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite WAL checkpoint boundary mode: {$mode}");
+        }
+        if ($readerEndFrame !== null && $readerEndFrame < 0) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint boundary reader end frame must be non-negative');
+        }
+        if ($backfilledFrameCount < 0) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint boundary backfilled frame count must be non-negative');
+        }
+
+        $pageSize = $this->header->pageSize;
+        if ($pageSize === 0) {
+            $pageSize = SQLiteHeader::parse($databaseBytes)->pageSize;
+        }
+        if ($pageSize < 512 || strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint boundary requires a database image aligned to the page size');
+        }
+
+        if (!$walMode) {
+            return [
+                'status' => 'not-wal',
+                'mode' => $mode,
+                'busy' => 0,
+                'reason' => 'database_not_in_wal_mode',
+                'wal_mode' => false,
+                'reader_end_frame' => $readerEndFrame,
+                'backfilled_frame_count_before' => 0,
+                'log_frame_count' => -1,
+                'checkpoint_target_frame' => -1,
+                'checkpointed_frame_count' => -1,
+                'remaining_frame_count' => -1,
+                'can_reset' => false,
+                'can_truncate' => false,
+                'wal_action' => 'not_wal',
+                'result' => [0, -1, -1],
+                'database_page_count' => intdiv(strlen($databaseBytes), $pageSize),
+                'page_size' => $pageSize,
+                'dependencies' => ['sqlite-wal-checkpoint-boundary-result', 'real-upstream-wal-checkpoint-boundaries'],
+            ];
+        }
+
+        $lastCommitFrame = $this->lastCommitFrame();
+        $logFrameCount = $lastCommitFrame?->index ?? 0;
+        $backfilledBefore = min($backfilledFrameCount, $logFrameCount);
+        $readerLimit = $readerEndFrame === null ? $logFrameCount : min($readerEndFrame, $logFrameCount);
+
+        if ($mode === 'noop') {
+            $targetFrame = $backfilledBefore;
+        } elseif ($mode === 'passive') {
+            $targetFrame = max($backfilledBefore, $readerLimit);
+        } elseif ($readerEndFrame !== null && $readerEndFrame < $logFrameCount) {
+            $targetFrame = max($backfilledBefore, $readerLimit);
+        } else {
+            $targetFrame = $logFrameCount;
+        }
+
+        $checkpointedFrameCount = min($targetFrame, $logFrameCount);
+        $remainingFrameCount = max(0, $logFrameCount - $checkpointedFrameCount);
+        $readerBlocksCompletion = $readerEndFrame !== null && $readerEndFrame < $logFrameCount;
+        $readerBlocksReset = $readerEndFrame !== null && in_array($mode, ['restart', 'truncate'], true);
+        $busy = 0;
+        if ($mode !== 'passive' && $mode !== 'noop' && $readerBlocksCompletion) {
+            $busy = 1;
+        }
+        if ($readerBlocksReset && $remainingFrameCount === 0) {
+            $busy = 1;
+        }
+
+        $canReset = $busy === 0
+            && $remainingFrameCount === 0
+            && in_array($mode, ['restart', 'truncate'], true);
+        $canTruncate = $canReset && $mode === 'truncate';
+
+        if ($mode === 'noop') {
+            $reason = 'noop_checkpoint_does_not_backfill';
+        } elseif ($logFrameCount === 0) {
+            $reason = 'wal_has_no_committed_frames';
+        } elseif ($readerBlocksCompletion) {
+            $reason = $mode === 'passive' ? 'reader_limited_passive_checkpoint' : 'reader_blocks_checkpoint_completion';
+        } elseif ($readerBlocksReset) {
+            $reason = 'reader_blocks_wal_reset';
+        } else {
+            $reason = match ($mode) {
+                'passive' => 'passive_checkpoint_complete',
+                'full' => 'full_checkpoint_complete',
+                'restart' => 'restart_checkpoint_can_reset_wal',
+                'truncate' => 'truncate_checkpoint_can_reset_and_truncate_wal',
+            };
+        }
+
+        $walAction = 'preserve_wal';
+        if ($canTruncate) {
+            $walAction = 'truncate_wal';
+        } elseif ($canReset) {
+            $walAction = 'restart_wal';
+        }
+
+        $resultLogFrameCount = $canTruncate ? 0 : $logFrameCount;
+        $resultCheckpointedFrameCount = $canTruncate ? 0 : $checkpointedFrameCount;
+
+        return [
+            'status' => $busy === 1 ? 'busy' : 'ok',
+            'mode' => $mode,
+            'busy' => $busy,
+            'reason' => $reason,
+            'wal_mode' => true,
+            'reader_end_frame' => $readerEndFrame,
+            'backfilled_frame_count_before' => $backfilledBefore,
+            'log_frame_count' => $resultLogFrameCount,
+            'checkpoint_target_frame' => $targetFrame,
+            'checkpointed_frame_count' => $resultCheckpointedFrameCount,
+            'remaining_frame_count' => $remainingFrameCount,
+            'can_reset' => $canReset,
+            'can_truncate' => $canTruncate,
+            'wal_action' => $walAction,
+            'result' => [$busy, $resultLogFrameCount, $resultCheckpointedFrameCount],
+            'database_page_count' => $lastCommitFrame?->databasePageCountAfterCommit ?? intdiv(strlen($databaseBytes), $pageSize),
+            'page_size' => $pageSize,
+            'dependencies' => ['sqlite-wal-checkpoint-boundary-result', 'real-upstream-wal-checkpoint-boundaries'],
+        ];
+    }
+
+    /**
      * @return array{mode:string,busy:bool,reason:string,reader_end_frame:int|null,database_bytes:string,database_page_count:int,final_database_bytes:int,checkpointed_frame_count:int,total_committable_frame_count:int,remaining_committed_frame_count:int,uncommitted_frame_count:int,can_reset:bool,can_truncate:bool,wal_action:string,wal_bytes:string,wal_bytes_length:int,wal_header:array<string, int|string>|null,next_wal_header_salt:array{0:int,1:int},dependencies:list<string>}
      */
     public function durableCheckpointResult(string $databaseBytes, string $mode = 'passive', ?int $readerEndFrame = null): array

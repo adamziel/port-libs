@@ -3818,7 +3818,6 @@ final class CssBundler
                 || $char === '"'
                 || $char === "'"
                 || $char === '('
-                || $byte === 0
                 || ($byte >= 1 && $byte <= 8)
                 || $byte === 11
                 || ($byte >= 14 && $byte <= 31)
@@ -3882,6 +3881,11 @@ final class CssBundler
         for ($i = 0; $i < $length; $i++) {
             $char = $token[$i];
             if ($char !== '\\') {
+                if ($char === "\0") {
+                    $output .= "\xEF\xBF\xBD";
+                    continue;
+                }
+
                 $output .= $char;
                 continue;
             }

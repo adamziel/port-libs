@@ -9,16 +9,16 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $encoding,
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameFallbackPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyFallbackPlan(
     [
         $row(1, 'éclair_cache  ', 2),
         $row(2, 'Éclair_Cache', 3),
-        $row(3, 'plugin_éclair_cache', 2),
+        $row(3, 'module_éclair_cache', 2),
     ],
     [
         $row(1, 'éclair_cache', 3),

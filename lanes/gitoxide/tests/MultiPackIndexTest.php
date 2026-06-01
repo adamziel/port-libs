@@ -341,6 +341,30 @@ return [
 
         $t->same(0x80000005, $index->entryAt(0)->packOffset);
     },
+    'honors multi-pack-index large-offset chunk threshold boundaries like gix-pack' => static function (TestRunner $t) use ($buildMultiIndex, $indexNames): void {
+        $rawHighBit = MultiPackIndex::fromBytes($buildMultiIndex([
+            ['oid' => '1000111111111111111111111111111111111111', 'packIndex' => 0, 'offset' => 0x80000000],
+            ['oid' => '2000222222222222222222222222222222222222', 'packIndex' => 1, 'offset' => 0xffffffff],
+        ], $indexNames));
+
+        $t->same(0x80000000, $rawHighBit->lookup('1000111111111111111111111111111111111111')?->packOffset);
+        $t->same(0xffffffff, $rawHighBit->lookup('2000222222222222222222222222222222222222')?->packOffset);
+        $t->same('found', $rawHighBit->lookupPrefix('2000')['status']);
+
+        $withLargeOffsetChunk = MultiPackIndex::fromBytes($buildMultiIndex([
+            ['oid' => '1000111111111111111111111111111111111111', 'packIndex' => 0, 'offset' => 0x7fffffff],
+            ['oid' => '2000222222222222222222222222222222222222', 'packIndex' => 0, 'offset' => 0x80000000],
+            ['oid' => '3000333333333333333333333333333333333333', 'packIndex' => 1, 'offset' => 0xffffffff],
+            ['oid' => '4000444444444444444444444444444444444444', 'packIndex' => 1, 'offset' => 0x100000000],
+        ], $indexNames));
+
+        $t->same(['packIndex' => 0, 'packOffset' => 0x7fffffff], $withLargeOffsetChunk->packIdAndPackOffsetAtIndex(0));
+        $t->same(['packIndex' => 0, 'packOffset' => 0x80000000], $withLargeOffsetChunk->packIdAndPackOffsetAtIndex(1));
+        $t->same(['packIndex' => 1, 'packOffset' => 0xffffffff], $withLargeOffsetChunk->packIdAndPackOffsetAtIndex(2));
+        $t->same(['packIndex' => 1, 'packOffset' => 0x100000000], $withLargeOffsetChunk->packIdAndPackOffsetAtIndex(3));
+        $t->same('found', $withLargeOffsetChunk->lookupPrefix('4000')['status']);
+        $t->same($withLargeOffsetChunk->checksum(), $withLargeOffsetChunk->verifyIntegrityFast());
+    },
     'rejects corrupt multi-pack-index headers chunks names and checksums' => static function (TestRunner $t) use ($buildMultiIndex, $entries, $indexNames): void {
         $valid = $buildMultiIndex($entries, $indexNames);
         $t->throws(InvalidArgumentException::class, static fn () => MultiPackIndex::fromBytes('not a midx'));

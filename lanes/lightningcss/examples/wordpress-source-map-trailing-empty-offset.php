@@ -37,6 +37,21 @@ $positiveChild->offsetLines(2, 2);
 $positiveChildBeforeMerge = $positiveChild->toJson(null, false);
 $positiveParent->addSourceMap($positiveChild, 1);
 
+$interiorParent = new SourceMap();
+$interiorParentSource = $interiorParent->addSource('wp-content/themes/example/source-map-interior-parent.css');
+for ($line = 0; $line < 5; $line++) {
+    $interiorParent->addMapping($line, 0, $interiorParentSource, $line, 0, 'interior-parent-' . $line);
+}
+
+$interiorChild = new SourceMap();
+$interiorChildSource = $interiorChild->addSource('wp-content/themes/example/blocks/interior-child.css');
+$interiorChild->setSourceContent($interiorChildSource, ".wp-block-skip-interior{}\n\n.wp-block-keep-interior{}\n");
+$interiorChild->addMapping(0, 2, $interiorChildSource, 0, 0, 'interior-skipped-child');
+$interiorChild->addMapping(2, 4, $interiorChildSource, 2, 1, 'interior-kept-child');
+
+$interiorChildBeforeMerge = $interiorChild->toJson(null, false);
+$interiorParent->addSourceMap($interiorChild, -1);
+
 $actual = [
     'childBeforeMerge' => $childBeforeMerge,
     'parentMap' => $parent->toJson(null, false),
@@ -48,6 +63,12 @@ $actual = [
     'positiveParentMappings' => $positiveParent->getMappings(),
     'positiveClearedMiddleLine' => $positiveParent->findClosestMapping(3, 0),
     'positiveChildConsumed' => $positiveChild->toJson(null, false),
+    'interiorChildBeforeMerge' => $interiorChildBeforeMerge,
+    'interiorParentMap' => $interiorParent->toJson(null, false),
+    'interiorParentMappings' => $interiorParent->getMappings(),
+    'interiorClearedGapLine' => $interiorParent->findClosestMapping(0, 0),
+    'interiorKeptChildMapping' => $interiorParent->findClosestMapping(1, 4),
+    'interiorChildConsumed' => $interiorChild->toJson(null, false),
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -70,6 +91,17 @@ if (($argv[1] ?? null) === '--self-test') {
         ],
         'positiveClearedMiddleLine' => null,
         'positiveChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'interiorChildBeforeMerge' => '{"version":3,"mappings":"EAAAA;;IAECC","sources":["wp-content/themes/example/blocks/interior-child.css"],"sourcesContent":[".wp-block-skip-interior{}\n\n.wp-block-keep-interior{}\n"],"names":["interior-skipped-child","interior-kept-child"]}',
+        'interiorParentMap' => '{"version":3,"mappings":";ICECM;ADADJ;AACAC;AACAC","sources":["wp-content/themes/example/source-map-interior-parent.css","wp-content/themes/example/blocks/interior-child.css"],"sourcesContent":["",".wp-block-skip-interior{}\n\n.wp-block-keep-interior{}\n"],"names":["interior-parent-0","interior-parent-1","interior-parent-2","interior-parent-3","interior-parent-4","interior-skipped-child","interior-kept-child"]}',
+        'interiorParentMappings' => [
+            ['generatedLine' => 1, 'generatedColumn' => 4, 'sourceIndex' => 1, 'originalLine' => 2, 'originalColumn' => 1, 'nameIndex' => 6],
+            ['generatedLine' => 2, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 2, 'originalColumn' => 0, 'nameIndex' => 2],
+            ['generatedLine' => 3, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 3, 'originalColumn' => 0, 'nameIndex' => 3],
+            ['generatedLine' => 4, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 4, 'originalColumn' => 0, 'nameIndex' => 4],
+        ],
+        'interiorClearedGapLine' => null,
+        'interiorKeptChildMapping' => ['generatedLine' => 1, 'generatedColumn' => 4, 'sourceIndex' => 1, 'originalLine' => 2, 'originalColumn' => 1, 'nameIndex' => 6],
+        'interiorChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
     ];
 
     if ($actual !== $expected) {
