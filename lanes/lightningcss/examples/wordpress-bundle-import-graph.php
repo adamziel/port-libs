@@ -1749,6 +1749,40 @@ CSS,
 
 echo 'css-modules-missing-dependency-location: rejected' . PHP_EOL;
 
+$nestedComposesResolverCalled = false;
+try {
+    (new CssBundler())->bundleCssModules('/modules/nested-card.css', [
+        '/modules/nested-card.css' => <<<'CSS'
+@supports (composes: token from "../missing-tokens.css") {
+  .wp-block-card {
+    composes: token from "../missing-tokens.css";
+    color: red;
+  }
+}
+CSS,
+    ], static function (string $specifier, string $originatingFile) use (&$nestedComposesResolverCalled): string {
+        $nestedComposesResolverCalled = true;
+        throw new RuntimeException("Unexpected nested CSS Modules resolution for {$specifier} from {$originatingFile}");
+    });
+
+    fwrite(STDERR, "Expected nested CSS Modules composes to stop before dependency resolution\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== 'The `composes` property cannot be used within nested rules'
+        || $exception->sourceFile !== '/modules/nested-card.css'
+        || $exception->sourceLine !== 3
+        || $exception->sourceColumn !== 14
+        || $nestedComposesResolverCalled
+    ) {
+        fwrite(STDERR, 'Unexpected nested CSS Modules composes diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+}
+
+echo 'css-modules-nested-composes-before-resolve: rejected' . PHP_EOL;
+
 $escapedFromResolverTrace = [];
 try {
     (new CssBundler())->bundleCssModules('/modules/escaped-from-card.css', [

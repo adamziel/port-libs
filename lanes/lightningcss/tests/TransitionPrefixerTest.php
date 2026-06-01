@@ -1704,6 +1704,56 @@ CSS;
             $prefixer->prefixForTargets('.foo { position: sticky; }', ['safari' => 13])
         );
     },
+    'transition prefixer maps upstream text spacing and overscroll MS browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{text-spacing:trim-start}',
+            $prefixer->prefixForTargets('.foo { text-spacing: trim-start; }', ['ie' => 7])
+        );
+        $t->same(
+            '.foo{-ms-text-spacing:trim-start;text-spacing:trim-start}',
+            $prefixer->prefixForTargets('.foo { text-spacing: trim-start; }', ['ie' => 8])
+        );
+        $t->same(
+            '.foo{-ms-text-spacing:trim-start;text-spacing:trim-start}',
+            $prefixer->prefixForTargets('.foo { text-spacing: trim-start; }', ['edge' => 18])
+        );
+        $t->same(
+            '.foo{text-spacing:trim-start}',
+            $prefixer->prefixForTargets('.foo { text-spacing: trim-start; }', ['edge' => 19])
+        );
+
+        $t->same(
+            '.foo{overscroll-behavior:contain}',
+            $prefixer->prefixForTargets('.foo { overscroll-behavior: contain; }', ['ie' => 9])
+        );
+        $t->same(
+            '.foo{-ms-overscroll-behavior:contain;overscroll-behavior:contain}',
+            $prefixer->prefixForTargets('.foo { overscroll-behavior: contain; }', ['ie' => 10])
+        );
+        $t->same(
+            '.foo{-ms-overscroll-behavior:contain;overscroll-behavior:contain}',
+            $prefixer->prefixForTargets('.foo { overscroll-behavior: contain; }', ['edge' => 17])
+        );
+        $t->same(
+            '.foo{overscroll-behavior:contain}',
+            $prefixer->prefixForTargets('.foo { overscroll-behavior: contain; }', ['edge' => 18])
+        );
+
+        $t->same(
+            '.foo{text-spacing:trim-start;overscroll-behavior:contain}',
+            $prefixer->prefixForTargets('.foo { -ms-text-spacing: trim-start; text-spacing: trim-start; -ms-overscroll-behavior: contain; overscroll-behavior: contain; }', ['edge' => 19])
+        );
+        $t->same(
+            '@supports ((-ms-text-spacing:trim-start) or (text-spacing:trim-start)){.foo{-ms-text-spacing:trim-start;text-spacing:trim-start}}',
+            $prefixer->prefixForTargets('@supports (text-spacing: trim-start) { .foo { text-spacing: trim-start; } }', ['ie' => 8])
+        );
+        $t->same(
+            '@supports (overscroll-behavior:contain){.foo{overscroll-behavior:contain}}',
+            $prefixer->prefixForTargets('@supports ((-ms-overscroll-behavior: contain) or (overscroll-behavior: contain)) { .foo { -ms-overscroll-behavior: contain; overscroll-behavior: contain; } }', ['edge' => 18])
+        );
+    },
     'transition prefixer maps upstream writing-mode browser boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $css = '.foo { writing-mode: vertical-rl; }';
@@ -2904,6 +2954,7 @@ CSS;
         );
     },
     'transition prefixer maps upstream custom property advanced color supports' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
         $css = <<<'CSS'
 .foo {
   --foo: oklab(59.686% 0.1009 0.1192);
@@ -2913,15 +2964,35 @@ CSS;
 
         $t->same(
             '.foo{--foo:#c65d07;--bar:#b32323}@supports (color:color(display-p3 0 0 0)){.foo{--foo:color(display-p3 .724144 .386777 .148795);--bar:color(display-p3 .643308 .192455 .167712)}}@supports (color:lab(0% 0 0)){.foo{--foo:lab(52.2319% 40.1449 59.9171);--bar:lab(40% 56.6 39)}}',
-            (new TransitionPrefixer())->prefixLegacySafari($css)
+            $prefixer->prefixLegacySafari($css)
         );
         $t->same(
             '.foo{--foo:#00f942}@supports (color:color(display-p3 0 0 0)){.foo{--foo:color(display-p3 0 1 0)}}',
-            (new TransitionPrefixer())->prefixLegacySafari('.foo { --foo: color(display-p3 0 1 0); }')
+            $prefixer->prefixLegacySafari('.foo { --foo: color(display-p3 0 1 0); }')
         );
         $t->same(
             '@supports (color:lab(0% 0 0)){.foo{--foo:oklab(59.686% .1009 .1192)}}',
-            (new TransitionPrefixer())->prefixLegacySafari('@supports (color: lab(0% 0 0)) { .foo { --foo: oklab(59.686% 0.1009 0.1192); } }')
+            $prefixer->prefixLegacySafari('@supports (color: lab(0% 0 0)) { .foo { --foo: oklab(59.686% 0.1009 0.1192); } }')
+        );
+        $t->same(
+            '.foo{--custom:#b32323!important}@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)!important}}',
+            $prefixer->prefixForTargets('.foo { --custom: lab(40% 56.6 39) !important; }', ['chrome' => 90])
+        );
+        $t->same(
+            '.foo{--custom:color(display-p3 .643308 .192455 .167712)}@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)}}',
+            $prefixer->prefixForTargets('.foo { --custom: lab(40% 56.6 39); }', ['safari' => 14])
+        );
+        $t->same(
+            '.foo{--custom:color(display-p3 .724144 .386777 .148795)}@supports (color:lab(0% 0 0)){.foo{--custom:lab(52.2319% 40.1449 59.9171)}}',
+            $prefixer->prefixForTargets('.foo { --custom: oklab(59.686% 0.1009 0.1192); }', ['safari' => 14])
+        );
+        $t->same(
+            '.foo{--custom:lab(52.2319% 40.1449 59.9171)}',
+            $prefixer->prefixForTargets('.foo { --custom: oklab(59.686% 0.1009 0.1192); }', ['safari' => 15])
+        );
+        $t->same(
+            '.foo{--custom:lab(52.2319% 40.1449 59.9171)}',
+            $prefixer->prefixForTargets('.foo { --custom: oklab(59.686% 0.1009 0.1192); }', ['chrome' => 111, 'safari' => 15])
         );
     },
     'transition prefixer maps upstream font palette values advanced color fallbacks' => static function (TestRunner $t): void {

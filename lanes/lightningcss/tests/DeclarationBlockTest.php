@@ -914,6 +914,39 @@ return [
             $block->removeProperty($declarations, '-moz-transform-origin')
         );
     },
+    'declaration block canonicalizes upstream perspective origin cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'perspective-origin: LEFT top; -webkit-perspective-origin: right bottom !important; -moz-perspective-origin: center 0px; --Perspective-Origin: LEFT top';
+
+        $t->same(
+            [
+                'perspective-origin' => '0 0',
+                '-webkit-perspective-origin' => '100% 100% !important',
+                '-moz-perspective-origin' => '50% 0',
+                '--Perspective-Origin' => 'LEFT top',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => '0 0', 'important' => false], $block->getProperty($declarations, 'perspective-origin'));
+        $t->same(
+            ['value' => '100% 100%', 'important' => true],
+            $block->getProperty($declarations, '-webkit-perspective-origin')
+        );
+        $t->same(['value' => '50% 0', 'important' => false], $block->getProperty($declarations, '-moz-perspective-origin'));
+        $t->same(['value' => 'LEFT top', 'important' => false], $block->getProperty($declarations, '--Perspective-Origin'));
+        $t->same(
+            'perspective-origin: 50% 100%; -moz-perspective-origin: 50% 0; --Perspective-Origin: LEFT top; -webkit-perspective-origin: 100% 100% !important',
+            $block->setProperty($declarations, 'perspective-origin', 'bottom')
+        );
+        $t->same(
+            'perspective-origin: 0 0; -moz-perspective-origin: 50% 0; --Perspective-Origin: LEFT top; -webkit-perspective-origin: 0 50% !important',
+            $block->setProperty($declarations, '-webkit-perspective-origin', 'left', true)
+        );
+        $t->same(
+            'perspective-origin: 0 0; --Perspective-Origin: LEFT top; -webkit-perspective-origin: 100% 100% !important',
+            $block->removeProperty($declarations, '-moz-perspective-origin')
+        );
+    },
     'declaration block enumerates upstream cssom length and item order' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'color: red !important; background: white; --Block-Accent: blue; margin: 1rem !important; color: green';

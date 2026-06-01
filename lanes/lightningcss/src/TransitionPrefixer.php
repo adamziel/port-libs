@@ -1103,6 +1103,12 @@ final class TransitionPrefixer
             'shape-image-threshold' => [
                 '-webkit-' => $targetOptions['shapeNeedsWebkit'] ?? false,
             ],
+            'text-spacing' => [
+                '-ms-' => $targetOptions['textSpacingNeedsMs'] ?? false,
+            ],
+            'overscroll-behavior' => [
+                '-ms-' => $targetOptions['overscrollBehaviorNeedsMs'] ?? false,
+            ],
             'text-size-adjust' => [
                 '-webkit-' => $targetOptions['textSizeAdjustNeedsWebkit'] ?? false,
                 '-moz-' => $targetOptions['textSizeAdjustNeedsMoz'] ?? false,
@@ -1558,6 +1564,7 @@ final class TransitionPrefixer
             || $this->targetAtLeast($normalized, 'edge', [111])
             || $this->targetAtLeast($normalized, 'safari', [16]);
         $usesP3Fallback = $this->targetInRange($normalized, 'safari', [10], [14, 255, 255]);
+        $needsLabFallback = $this->targetInRange($normalized, 'safari', [15], [15, 255, 255]);
         $needsSrgbFallback = ($chrome !== null && !$this->targetAtLeast($normalized, 'chrome', [111]))
             || ($safari !== null && !$this->targetAtLeast($normalized, 'safari', [10]))
             || ($chrome === null && $safari === null);
@@ -1676,6 +1683,7 @@ final class TransitionPrefixer
             'advancedColorSupportsNative' => $supportsAdvancedColor,
             'advancedColorNeedsSrgbFallback' => $needsSrgbFallback,
             'advancedColorUsesP3Fallback' => $usesP3Fallback,
+            'advancedColorNeedsLabFallback' => $needsLabFallback,
             'alphaHexNeedsRgbaFallback' => $alphaHexNeedsRgbaFallback,
             'modernColorNeedsLegacySyntax' => $modernColorNeedsLegacySyntax,
             'modernColorNeedsCanonicalization' => $modernColorNeedsCanonicalization,
@@ -1802,6 +1810,10 @@ final class TransitionPrefixer
             'tabSizeNeedsO' => $this->targetInRange($normalized, 'opera', [10, 6], [12, 1]),
             'textAlignLastNeedsMoz' => $this->targetInRange($normalized, 'firefox', [12], [48]),
             'textOverflowNeedsO' => $this->targetInRange($normalized, 'opera', [9], [12]),
+            'textSpacingNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [18])
+                || $this->targetAtLeast($normalized, 'ie', [8]),
+            'overscrollBehaviorNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [17])
+                || $this->targetAtLeast($normalized, 'ie', [10]),
             'textOrientationNeedsWebkit' => $this->targetInRange($normalized, 'safari', [10, 1], [13, 1]),
             'touchActionNeedsMs' => $this->targetInRange($normalized, 'ie', [10], [10]),
             'textDecorationSkipInkNeedsWebkit' => $this->targetAtLeast($normalized, 'ios_saf', [8])
@@ -6086,6 +6098,12 @@ final class TransitionPrefixer
         $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'text-overflow', [
             '-o-' => $targetOptions['textOverflowNeedsO'] ?? false,
         ]) || $changed;
+        $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'text-spacing', [
+            '-ms-' => $targetOptions['textSpacingNeedsMs'] ?? false,
+        ]) || $changed;
+        $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'overscroll-behavior', [
+            '-ms-' => $targetOptions['overscrollBehaviorNeedsMs'] ?? false,
+        ]) || $changed;
         $changed = $this->rewriteWritingModePrefixEntries($entries, $targetOptions) || $changed;
         $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'text-orientation', [
             '-webkit-' => $targetOptions['textOrientationNeedsWebkit'] ?? false,
@@ -9386,7 +9404,8 @@ final class TransitionPrefixer
         $needsSrgbFallback = $targetOptions['advancedColorNeedsSrgbFallback'] ?? false;
         $usesP3Fallback = $targetOptions['advancedColorUsesP3Fallback'] ?? false;
         $supportsNative = $targetOptions['advancedColorSupportsNative'] ?? false;
-        if (!$needsSrgbFallback && !$usesP3Fallback && !$supportsNative) {
+        $needsLabFallback = $targetOptions['advancedColorNeedsLabFallback'] ?? false;
+        if (!$needsSrgbFallback && !$usesP3Fallback && !$supportsNative && !$needsLabFallback) {
             return false;
         }
 
@@ -9401,7 +9420,9 @@ final class TransitionPrefixer
                 ? $entry['value']
                 : $this->normalizeBackgroundFallbackValue($entry['value']);
 
-            if ($entry['important'] || (!$isCustomProperty && !$this->propertySupportsAdvancedColorFallback($entry['property'], $normalized))) {
+            if ((!$isCustomProperty && $entry['important'])
+                || (!$isCustomProperty && !$this->propertySupportsAdvancedColorFallback($entry['property'], $normalized))
+            ) {
                 $rewritten[] = $entry;
                 continue;
             }
@@ -9413,18 +9434,20 @@ final class TransitionPrefixer
             }
 
             $hasCustomPropertyReference = $this->containsCustomPropertyReference($normalized);
-            if ($supportsNative && !$needsSrgbFallback) {
+            if ($supportsNative && !$needsSrgbFallback && !$usesP3Fallback && !$needsLabFallback) {
                 [$rewritten, $dropped] = $this->dropPreviousSamePropertyFallbacks($rewritten, $entry['property']);
                 $rewritten[] = $entry;
                 $changed = $changed || $dropped;
                 continue;
             }
 
-            $p3Fallback = $usesP3Fallback ? $this->advancedColorP3FallbackValue($normalized, $isCustomProperty) : null;
-            $labFallback = $this->advancedColorLabFallbackValue($normalized, $isCustomProperty || $hasCustomPropertyReference);
+            $supportsCustomPropertyOverride = $isCustomProperty || $hasCustomPropertyReference;
+            $p3Fallback = $usesP3Fallback ? $this->advancedColorP3FallbackValue($normalized, $supportsCustomPropertyOverride) : null;
+            $labFallback = $this->advancedColorLabFallbackValue($normalized, $supportsCustomPropertyOverride);
+            $labTargetFallback = $needsLabFallback ? $this->advancedColorLabTargetValue($normalized) : null;
 
             if (!$needsSrgbFallback) {
-                if ($hasCustomPropertyReference && $p3Fallback !== null) {
+                if ($supportsCustomPropertyOverride && $p3Fallback !== null) {
                     [$rewritten, $dropped] = $this->dropPreviousSamePropertyFallbacks($rewritten, $entry['property']);
                     $rewritten[] = $this->entryWithValue($entry, $p3Fallback);
                     $changed = true;
@@ -9432,6 +9455,13 @@ final class TransitionPrefixer
                         $labSupportEntries[] = $this->entryWithValue($entry, $labFallback);
                     }
                     $changed = $changed || $dropped;
+                    continue;
+                }
+
+                if ($labTargetFallback !== null && $labTargetFallback !== $normalized) {
+                    [$rewritten] = $this->dropPreviousSamePropertyFallbacks($rewritten, $entry['property']);
+                    $rewritten[] = $this->entryWithValue($entry, $labTargetFallback);
+                    $changed = true;
                     continue;
                 }
 

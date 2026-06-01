@@ -164,7 +164,7 @@ final class PathspecPattern
         );
     }
 
-    public function withPath(string $path, ?int $prefixLength = null): self
+    public function withPath(string $path, ?int $prefixLength = null, ?bool $nil = null): self
     {
         return new self(
             $path,
@@ -173,7 +173,7 @@ final class PathspecPattern
             ignoreCase: $this->ignoreCase,
             mustBeDirectory: $this->mustBeDirectory,
             searchMode: $this->searchMode,
-            nil: $this->nil,
+            nil: $nil ?? $this->nil,
             sequenceNumber: $this->sequenceNumber,
             prefixLength: $prefixLength ?? $this->prefixLength,
             attributes: $this->attributes,

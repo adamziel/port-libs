@@ -116,6 +116,23 @@ return [
         'refs/heads/wp-content',
         ':',
     ],
+    'pushInstructionIdentityRefspecs' => [
+        'refs/heads/wp-content',
+        'refs/heads/wp-content:refs/heads/wp-content',
+        ':refs/heads/old-preview',
+        '+:refs/heads/old-preview',
+        ':',
+        '+:',
+    ],
+    'fetchInstructionIdentityRefspecs' => [
+        '@',
+        '+@',
+    ],
+    'expectedPushInstructionIdentityUniqueCount' => 4,
+    'expectedSameNamedPushEquivalent' => true,
+    'expectedDeleteForceEquivalent' => true,
+    'expectedAllMatchingForceEquivalent' => false,
+    'expectedFetchOnlyForceEquivalent' => true,
     'expectedFetchInstructions' => [
         'fetch-and-update',
         'fetch-exclude',

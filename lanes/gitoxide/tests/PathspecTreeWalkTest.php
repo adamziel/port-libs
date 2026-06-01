@@ -889,6 +889,72 @@ return [
         $t->same(['wp-content/plugins/safe.php'], $walkPaths($records));
         $t->same(['wp-content', 'wp-content/plugins'], $readPaths);
     },
+    'root-normalized dot pathspecs prune tree walks like upstream search' => static function (TestRunner $t) use ($makeTreeStore, $walkPaths): void {
+        [$root, $read] = $makeTreeStore();
+
+        $rootDot = PathspecSearch::fromSpecs(['.']);
+        $t->same('.', $rootDot->patterns()[0]->path);
+        $t->same(true, $rootDot->patterns()[0]->nil);
+        $t->same('.', $rootDot->commonPrefix());
+        $t->same(null, $rootDot->match('index.php', false));
+        $t->same(false, $rootDot->canMatch('wp-content', true));
+        $t->same(false, $rootDot->directoryMatchesPrefix('wp-content', true));
+
+        $readPaths = [];
+        $t->same([], $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $rootDot,
+            static function (TreeEntry $entry, string $path) use ($read, &$readPaths): GitObject {
+                $readPaths[] = $path;
+
+                return $read($entry, $path);
+            },
+            includeTrees: false,
+        )));
+        $t->same([], $readPaths);
+
+        $topDot = PathspecSearch::fromSpecs([':(top).'], 'wp-content/plugins');
+        $t->same('.', $topDot->patterns()[0]->path);
+        $t->same(true, $topDot->patterns()[0]->nil);
+        $t->same('.', $topDot->commonPrefix());
+        $t->same([], $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $topDot,
+            $read,
+            includeTrees: false,
+        )));
+
+        $prefixConsumesToRoot = PathspecSearch::fromSpecs(['../..'], 'wp-content/plugins');
+        $t->same('.', $prefixConsumesToRoot->patterns()[0]->path);
+        $t->same(true, $prefixConsumesToRoot->patterns()[0]->nil);
+        $t->same('.', $prefixConsumesToRoot->commonPrefix());
+        $t->same(null, $prefixConsumesToRoot->match('index.php', false));
+        $t->same([], $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $prefixConsumesToRoot,
+            $read,
+            includeTrees: false,
+        )));
+
+        $prefixedDot = PathspecSearch::fromSpecs(['.'], 'wp-content/plugins');
+        $t->same('wp-content/plugins', $prefixedDot->patterns()[0]->path);
+        $t->same(false, $prefixedDot->patterns()[0]->nil);
+        $t->same('wp-content/plugins', $prefixedDot->commonPrefix());
+        $t->same('wp-content', $prefixedDot->prefixDirectory());
+        $t->same('wp-content', $prefixedDot->longestCommonDirectory());
+        $t->same([
+            'wp-content/plugins/akismet/akismet.php',
+            'wp-content/plugins/gutenberg/block.json',
+            'wp-content/plugins/gutenberg/readme.txt',
+            'wp-content/plugins/gutenberg/build/index.js',
+            'wp-content/plugins/gutenberg/src/editor.js',
+        ], $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $prefixedDot,
+            $read,
+            includeTrees: false,
+        )));
+    },
     'walks trees breadth first with pathspec matches and subtree pruning' => static function (TestRunner $t) use ($makeTreeStore, $walkPaths): void {
         [$root, $read] = $makeTreeStore();
         $readPaths = [];
@@ -1214,6 +1280,29 @@ return [
         $t->same(['wp-content', 'wp-content/plugins'], $example['rawComponentGuardReadPaths']);
         $t->same(true, $example['rawParentComponentSkipped']);
         $t->same(true, $example['rawBackslashComponentSkipped']);
+        $t->same('.', $example['rootDotCommonPrefix']);
+        $t->same([], $example['rootDotContentPaths']);
+        $t->same([], $example['rootDotReadPaths']);
+        $t->same([], $example['topDotContentPaths']);
+        $t->same([], $example['parentToRootDotContentPaths']);
+        $t->same('.', $example['parentToRootDotCommonPrefix']);
+        $t->same('wp-content', $example['prefixedDotPrefixDirectory']);
+        $t->same([
+            'wp-content/plugins/safe.php',
+            'wp-content/plugins/weird\\name.php',
+            'wp-content/plugins/dangling\\',
+            'wp-content/plugins/dang*\\',
+            'wp-content/plugins/dangx\\',
+            'wp-content/plugins/../secret.php',
+            'wp-content/plugins/akismet/akismet.php',
+            'wp-content/plugins/akismet/block.json',
+            'wp-content/plugins/gutenberg/block.json',
+            'wp-content/plugins/gutenberg/block.gson',
+            "wp-content/plugins/new\nline/block.json",
+            'wp-content/plugins/[literal]/block.?son',
+            'wp-content/plugins/gutenberg/build/index.js',
+            'wp-content/plugins/gutenberg/src/editor.js',
+        ], $example['prefixedDotContentPaths']);
         $t->same([
             "wp-content/plugins/new\nline/block.json",
         ], $example['shellGlobNewlineContentPaths']);

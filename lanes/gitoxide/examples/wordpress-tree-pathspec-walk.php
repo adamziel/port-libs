@@ -140,6 +140,10 @@ $rawComponentGuardPathspecs = PathspecSearch::fromSpecs([
     'wp-content/plugins/safe.php',
     'wp-content/plugins/weird/name.php',
 ]);
+$rootDotPathspecs = PathspecSearch::fromSpecs(['.']);
+$topDotPathspecs = PathspecSearch::fromSpecs([':(top).'], 'wp-content/plugins');
+$parentToRootPathspecs = PathspecSearch::fromSpecs(['../..'], 'wp-content/plugins');
+$prefixedDotPathspecs = PathspecSearch::fromSpecs(['.'], 'wp-content/plugins');
 $shellNewlinePathspecs = PathspecSearch::fromSpecs([
     'wp-content/plugins/new?line/block.json',
 ]);
@@ -381,6 +385,56 @@ $rawComponentGuardRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$rootDotReadPaths = [];
+$rootDotRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $rootDotPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects, &$rootDotReadPaths): GitObject {
+        $rootDotReadPaths[] = $path;
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
+$topDotRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $topDotPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
+$parentToRootRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $parentToRootPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
+$prefixedDotRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $prefixedDotPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 $shellNewlineRecords = TreePathspecWalk::breadthFirst(
     $root,
     $shellNewlinePathspecs,
@@ -481,6 +535,14 @@ return [
     'rawComponentGuardReadPaths' => $rawComponentReadPaths,
     'rawParentComponentSkipped' => $rawComponentGuardPathspecs->match('wp-content/plugins/../secret.php', false) === null,
     'rawBackslashComponentSkipped' => $rawComponentGuardPathspecs->match('wp-content/plugins/weird\\name.php', false) === null,
+    'rootDotCommonPrefix' => $rootDotPathspecs->commonPrefix(),
+    'rootDotContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $rootDotRecords),
+    'rootDotReadPaths' => $rootDotReadPaths,
+    'topDotContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $topDotRecords),
+    'parentToRootDotContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $parentToRootRecords),
+    'parentToRootDotCommonPrefix' => $parentToRootPathspecs->commonPrefix(),
+    'prefixedDotPrefixDirectory' => $prefixedDotPathspecs->prefixDirectory(),
+    'prefixedDotContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $prefixedDotRecords),
     'shellGlobNewlineContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $shellNewlineRecords),
     'shellGlobNewlineIncluded' => $shellNewlinePathspecs->isIncluded("wp-content/plugins/new\nline/block.json", false),
     'danglingBackslashContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $danglingBackslashRecords),

@@ -3701,6 +3701,7 @@ CSS,
             $t->same(15, $exception->sourceColumn);
         }
 
+        $nestedResolverCalled = false;
         try {
             $bundleModules([
                 '/entry.css' => <<<'CSS'
@@ -3711,18 +3712,81 @@ CSS,
   }
 }
 CSS,
-            ], '/entry.css', static function (string $specifier, string $originatingFile): string {
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$nestedResolverCalled): string {
+                $nestedResolverCalled = true;
                 throw new RuntimeException("Cannot resolve {$specifier} from {$originatingFile}");
             });
 
-            throw new RuntimeException('Expected escaped from dependency resolver diagnostic');
+            throw new RuntimeException('Expected nested escaped from parser diagnostic');
         } catch (CssBundleException $exception) {
-            $t->same('resolver-error', $exception->kind);
-            $t->same('Cannot resolve pkg:tokens.css from /entry.css', $exception->getMessage());
+            $t->same('parser-error', $exception->kind);
+            $t->same('The `composes` property cannot be used within nested rules', $exception->getMessage());
             $t->same('/entry.css', $exception->sourceFile);
-            $t->same(2, $exception->sourceLine);
-            $t->same(3, $exception->sourceColumn);
+            $t->same(3, $exception->sourceLine);
+            $t->same(14, $exception->sourceColumn);
         }
+        $t->same(false, $nestedResolverCalled);
+
+        $supportsConditionResolverCalled = false;
+        try {
+            $bundleModules([
+                '/entry.css' => <<<'CSS'
+@supports (composes: token from "./missing.css") {
+  .card {
+    composes: token from "./missing.css";
+    color: blue;
+  }
+}
+CSS,
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$supportsConditionResolverCalled): string {
+                $supportsConditionResolverCalled = true;
+                throw new RuntimeException("Cannot resolve {$specifier} from {$originatingFile}");
+            });
+
+            throw new RuntimeException('Expected nested @supports composes parser diagnostic');
+        } catch (CssBundleException $exception) {
+            $t->same('parser-error', $exception->kind);
+            $t->same('The `composes` property cannot be used within nested rules', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(3, $exception->sourceLine);
+            $t->same(14, $exception->sourceColumn);
+        }
+        $t->same(false, $supportsConditionResolverCalled);
+
+        $topLevelThenNestedResolverCalled = false;
+        try {
+            $bundleModules([
+                '/entry.css' => <<<'CSS'
+.intro {
+  composes: local;
+  color: red;
+}
+
+@media screen {
+  .card {
+    composes: token from "./missing.css";
+    color: blue;
+  }
+}
+
+.local {
+  color: green;
+}
+CSS,
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$topLevelThenNestedResolverCalled): string {
+                $topLevelThenNestedResolverCalled = true;
+                throw new RuntimeException("Cannot resolve {$specifier} from {$originatingFile}");
+            });
+
+            throw new RuntimeException('Expected later nested composes parser diagnostic');
+        } catch (CssBundleException $exception) {
+            $t->same('parser-error', $exception->kind);
+            $t->same('The `composes` property cannot be used within nested rules', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(8, $exception->sourceLine);
+            $t->same(14, $exception->sourceColumn);
+        }
+        $t->same(false, $topLevelThenNestedResolverCalled);
 
         try {
             $bundleModules([

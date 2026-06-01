@@ -13,7 +13,7 @@ use PortLibs\LibSqlite\SQLiteTableLeafPage;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $pageSize = 512;
-$optionName = $argv[1] ?? str_repeat('z', 70);
+$settingName = $argv[1] ?? str_repeat('z', 70);
 $replacementValue = $argv[2] ?? 'fixed-cache';
 
 $firstPage = str_repeat("\0", $pageSize);
@@ -31,29 +31,29 @@ $firstPage = substr_replace($firstPage, pack('N', 1), 56, 4);
 $schemaPage = SQLiteTableLeafPage::assemble([
     SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
         'table',
-        'wp_options',
-        'wp_options',
+        'app_settings',
+        'app_settings',
         2,
-        'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+        'CREATE TABLE app_settings(setting_id integer primary key, key_name text, key_value text, load_policy text)',
     ])),
     SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
         'index',
-        'wp_options_autoload_name',
-        'wp_options',
+        'app_settings_load_policy_key_name',
+        'app_settings',
         3,
-        'CREATE INDEX wp_options_autoload_name ON wp_options(autoload, option_name)',
+        'CREATE INDEX app_settings_load_policy_key_name ON app_settings(load_policy, key_name)',
     ])),
 ], $pageSize, 100, $firstPage);
 
 $tablePage = SQLiteTableLeafPage::assemble([
-    SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'cron_lock', '1', 'no'])),
-    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes'])),
-    SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, $optionName, 'stale-cache', 'yes'])),
-    SQLiteTableLeafCell::encode(4, SQLiteRecord::encode([null, 'stylesheet', 'twentytwentyfive', 'yes'])),
+    SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'cache_lock', '1', 'no'])),
+    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'landing_url', 'https://example.test/dashboard', 'yes'])),
+    SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, $settingName, 'stale-cache', 'yes'])),
+    SQLiteTableLeafCell::encode(4, SQLiteRecord::encode([null, 'style_profile', 'twentytwentyfive', 'yes'])),
 ], $pageSize);
 
 $indexRootPage = SQLiteIndexInteriorPage::assemble([
-    SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'home', 2]), $pageSize, null, 4),
+    SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'landing_url', 2]), $pageSize, null, 4),
 ], 5, $pageSize);
 
 $leftIndexEntries = [];
@@ -63,8 +63,8 @@ foreach (['a', 'b', 'c', 'd', 'e', 'f'] as $index => $prefix) {
 
 $leftIndexLeafPage = SQLiteIndexLeafPage::assemble($leftIndexEntries, $pageSize);
 $rightIndexLeafPage = SQLiteIndexLeafPage::assemble([
-    SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'stylesheet', 4])),
-    SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', $optionName, 3])),
+    SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'style_profile', 4])),
+    SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', $settingName, 3])),
 ], $pageSize);
 
 $database = SQLiteDatabase::fromBytes(
@@ -75,7 +75,7 @@ $database = SQLiteDatabase::fromBytes(
     . $rightIndexLeafPage,
 );
 
-$plan = $database->planKeyValueRowReplace($optionName, $replacementValue, 'no');
+$plan = $database->planKeyValueRowReplace($settingName, $replacementValue, 'no');
 
 $pages = [];
 for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
@@ -94,7 +94,7 @@ $indexRecords = array_map(
 );
 
 echo json_encode([
-    'applicationUse' => 'Plan a wp_options replacement that changes autoload and splits a full same-depth composite secondary-index leaf, without the SQLite extension.',
+    'applicationUse' => 'Plan an app_settings replacement that changes load_policy and splits a full same-depth composite secondary-index leaf, without the SQLite extension.',
     'plan' => $plan->toArray(),
     'indexRootPageType' => $postDatabase->pageHeader(3)->pageType,
     'indexRootCellCount' => $postDatabase->pageHeader(3)->cellCount,
@@ -104,5 +104,5 @@ echo json_encode([
         6 => $postDatabase->pageHeader(6)->cellCount,
     ],
     'indexRecords' => $indexRecords,
-    'replacedOption' => $postDatabase->keyValueRowByIndexedLoadPolicyAndName('no', $optionName)?->toArray(),
+    'replacedSetting' => $postDatabase->keyValueRowByIndexedLoadPolicyAndName('no', $settingName)?->toArray(),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

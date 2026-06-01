@@ -15114,6 +15114,9 @@ final class DeclarationBlock
                 '-moz-transform-origin',
                 '-ms-transform-origin',
                 '-o-transform-origin',
+                'perspective-origin',
+                '-webkit-perspective-origin',
+                '-moz-perspective-origin',
             ],
             true
         );

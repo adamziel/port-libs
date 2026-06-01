@@ -168,6 +168,91 @@ final class RefSpec
         ];
     }
 
+    /**
+     * Return the upstream instruction identity used for equality, ordering, and
+     * hash keys. This differs from the parse shape for source-only push specs
+     * because their destination is implicit.
+     *
+     * @return array{operation: string, instruction: string, source: ?string, destination: ?string, allowNonFastForward?: bool}
+     */
+    public function instructionIdentity(): array
+    {
+        if ($this->operation === self::OP_FETCH) {
+            if ($this->mode === self::MODE_NEGATIVE) {
+                return [
+                    'operation' => self::OP_FETCH,
+                    'instruction' => self::INSTRUCTION_FETCH_EXCLUDE,
+                    'source' => $this->source,
+                    'destination' => null,
+                ];
+            }
+
+            if ($this->destination === null) {
+                return [
+                    'operation' => self::OP_FETCH,
+                    'instruction' => self::INSTRUCTION_FETCH_ONLY,
+                    'source' => $this->source,
+                    'destination' => null,
+                ];
+            }
+
+            return [
+                'operation' => self::OP_FETCH,
+                'instruction' => self::INSTRUCTION_FETCH_AND_UPDATE,
+                'source' => $this->source,
+                'destination' => $this->destination,
+                'allowNonFastForward' => $this->mode === self::MODE_FORCE,
+            ];
+        }
+
+        if ($this->mode === self::MODE_NEGATIVE) {
+            return [
+                'operation' => self::OP_PUSH,
+                'instruction' => self::INSTRUCTION_PUSH_EXCLUDE,
+                'source' => $this->source,
+                'destination' => null,
+            ];
+        }
+        if ($this->source === null && $this->destination === null) {
+            return [
+                'operation' => self::OP_PUSH,
+                'instruction' => self::INSTRUCTION_PUSH_ALL_MATCHING_BRANCHES,
+                'source' => null,
+                'destination' => null,
+                'allowNonFastForward' => $this->mode === self::MODE_FORCE,
+            ];
+        }
+        if ($this->source === null) {
+            return [
+                'operation' => self::OP_PUSH,
+                'instruction' => self::INSTRUCTION_PUSH_DELETE,
+                'source' => null,
+                'destination' => $this->destination,
+            ];
+        }
+
+        return [
+            'operation' => self::OP_PUSH,
+            'instruction' => self::INSTRUCTION_PUSH_MATCHING,
+            'source' => $this->source,
+            'destination' => $this->destination ?? $this->source,
+            'allowNonFastForward' => $this->mode === self::MODE_FORCE,
+        ];
+    }
+
+    public function instructionKey(): string
+    {
+        return json_encode(
+            $this->instructionIdentity(),
+            JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        );
+    }
+
+    public function equivalentTo(self $other): bool
+    {
+        return $this->instructionIdentity() === $other->instructionIdentity();
+    }
+
     public function prefix(): ?string
     {
         if ($this->mode === self::MODE_NEGATIVE) {

@@ -325,7 +325,16 @@ final class CssBundler
                 $cssModuleResult = (new CssModulesTransformer())->transform($source, $this->cssModuleTransformOptions($file));
             } catch (\InvalidArgumentException $exception) {
                 if ($exception->getMessage() === 'The `composes` property cannot be used within nested rules') {
-                    $this->throwFirstCssModuleDependencyDiagnostic($file, $rule, $cssModuleDependencyLocations);
+                    $loc = $this->firstNestedCssModuleComposesLocation($source)
+                        ?? $this->firstCssModuleComposesLocation($source)
+                        ?? ['line' => 1, 'column' => 1];
+                    throw new CssBundleException(
+                        'parser-error',
+                        $exception->getMessage(),
+                        $file,
+                        $loc['line'],
+                        $loc['column'],
+                    );
                 }
 
                 throw $exception;
@@ -449,39 +458,6 @@ final class CssBundler
                     (int) $loc['column'],
                 );
             }
-        }
-    }
-
-    /**
-     * @param array{layer:?string,supports:?string,media:string,loc:array{line:int,column:int},file:string} $rule
-     * @param array<string, array{read:array{line:int,column:int},resolve:array{line:int,column:int}}> $dependencyLocations
-     */
-    private function throwFirstCssModuleDependencyDiagnostic(string $file, array $rule, array $dependencyLocations): void
-    {
-        foreach ($dependencyLocations as $specifier => $locations) {
-            $dependencyLoc = $locations['read'];
-            $resolveLoc = $locations['resolve'];
-            $resolved = $this->resolveImport($specifier, $file, $resolveLoc);
-            if (isset($resolved['external'])) {
-                throw new CssBundleException(
-                    'referenced-external-module-with-css-module-from',
-                    'Referenced external module with CSS module "from" clause',
-                    $file,
-                    $resolveLoc['line'],
-                    $resolveLoc['column'],
-                );
-            }
-
-            $this->readFile(
-                $resolved['file'],
-                [
-                    'layer' => $rule['layer'],
-                    'supports' => $rule['supports'],
-                    'media' => $rule['media'],
-                    'loc' => $dependencyLoc,
-                    'file' => $file,
-                ]
-            );
         }
     }
 
@@ -3005,6 +2981,33 @@ final class CssBundler
             }
 
             if (!$this->isCssModuleDeclarationBoundaryBefore($source, $property['start'])) {
+                continue;
+            }
+
+            return $this->sourceLocation($source, $colon + 1);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{line:int,column:int}|null
+     */
+    private function firstNestedCssModuleComposesLocation(string $source): ?array
+    {
+        $offset = 0;
+        while (($property = $this->findNextCssIdentifierInSet($source, ['composes'], $offset)) !== null) {
+            $offset = $property['end'];
+            $colon = $this->skipWhitespaceAndComments($source, $property['end']);
+            if (($source[$colon] ?? null) !== ':') {
+                continue;
+            }
+
+            if (!$this->isCssModuleDeclarationBoundaryBefore($source, $property['start'])) {
+                continue;
+            }
+
+            if (count($this->cssBlockOpenStackBeforeOffset($source, $property['start'])) < 2) {
                 continue;
             }
 

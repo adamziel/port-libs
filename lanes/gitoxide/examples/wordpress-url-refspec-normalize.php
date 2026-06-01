@@ -72,6 +72,18 @@ $push = array_map(
     static fn (string $spec): array => RefSpec::parsePush($spec)->toArray(),
     $fixture['pushRefspecs']
 );
+$pushInstructionIdentitySpecs = array_map(
+    static fn (string $spec): RefSpec => RefSpec::parsePush($spec),
+    $fixture['pushInstructionIdentityRefspecs']
+);
+$pushInstructionIdentityKeys = array_map(
+    static fn (RefSpec $spec): string => $spec->instructionKey(),
+    $pushInstructionIdentitySpecs
+);
+$fetchInstructionIdentitySpecs = array_map(
+    static fn (string $spec): RefSpec => RefSpec::parseFetch($spec),
+    $fixture['fetchInstructionIdentityRefspecs']
+);
 $oversizedRemoteRejected = false;
 try {
     GitUrl::parse($fixture['oversizedRemoteUrl']);
@@ -138,6 +150,11 @@ $summary = [
     'partsSshPassword' => $partsSshPassword->toArray(),
     'fetch' => $fetch,
     'push' => $push,
+    'pushInstructionIdentityUniqueCount' => count(array_unique($pushInstructionIdentityKeys)),
+    'sameNamedPushEquivalent' => $pushInstructionIdentitySpecs[0]->equivalentTo($pushInstructionIdentitySpecs[1]),
+    'deleteForceEquivalent' => $pushInstructionIdentitySpecs[2]->equivalentTo($pushInstructionIdentitySpecs[3]),
+    'allMatchingForceEquivalent' => $pushInstructionIdentitySpecs[4]->equivalentTo($pushInstructionIdentitySpecs[5]),
+    'fetchOnlyForceEquivalent' => $fetchInstructionIdentitySpecs[0]->equivalentTo($fetchInstructionIdentitySpecs[1]),
     'oversizedRemoteRejected' => $oversizedRemoteRejected,
     'malformedBracketedRemoteRejected' => $malformedBracketedRemoteRejected,
     'invalidUtf8RemoteRejected' => $invalidUtf8RemoteRejected,
@@ -301,6 +318,21 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if (array_column($summary['push'], 'normalized') !== $fixture['expectedPushNormalized']) {
         throw new RuntimeException('Unexpected normalized push refspecs');
+    }
+    if ($summary['pushInstructionIdentityUniqueCount'] !== $fixture['expectedPushInstructionIdentityUniqueCount']) {
+        throw new RuntimeException('Unexpected push instruction identity unique count');
+    }
+    if ($summary['sameNamedPushEquivalent'] !== $fixture['expectedSameNamedPushEquivalent']) {
+        throw new RuntimeException('Unexpected same-name push instruction equivalence');
+    }
+    if ($summary['deleteForceEquivalent'] !== $fixture['expectedDeleteForceEquivalent']) {
+        throw new RuntimeException('Unexpected delete force instruction equivalence');
+    }
+    if ($summary['allMatchingForceEquivalent'] !== $fixture['expectedAllMatchingForceEquivalent']) {
+        throw new RuntimeException('Unexpected all-matching force instruction equivalence');
+    }
+    if ($summary['fetchOnlyForceEquivalent'] !== $fixture['expectedFetchOnlyForceEquivalent']) {
+        throw new RuntimeException('Unexpected fetch-only force instruction equivalence');
     }
     if ($summary['oversizedRemoteRejected'] !== $fixture['expectedOversizedRemoteRejected']) {
         throw new RuntimeException('Unexpected oversized remote URL preflight result');

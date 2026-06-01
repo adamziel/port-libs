@@ -950,6 +950,53 @@ return [
         $t->same(null, $oneSidedPattern->prefix(), 'prefix still follows the parsed destination side for pushes');
         $t->same([], $oneSidedPattern->expandPrefixes());
     },
+    'refspec instruction identity matches upstream equality and hash normalization' => static function (TestRunner $t): void {
+        $sourceOnly = RefSpec::parsePush('refs/heads/foo');
+        $explicit = RefSpec::parsePush('refs/heads/foo:refs/heads/foo');
+
+        $t->same(null, $sourceOnly->destination(), 'parse shape keeps the implicit destination absent');
+        $t->same('refs/heads/foo:refs/heads/foo', $sourceOnly->toString());
+        $t->same($explicit->instructionIdentity(), $sourceOnly->instructionIdentity());
+        $t->same($explicit->instructionKey(), $sourceOnly->instructionKey());
+        $t->true($sourceOnly->equivalentTo($explicit));
+        $t->true($explicit->equivalentTo($sourceOnly));
+
+        $identity = $sourceOnly->instructionIdentity();
+        $t->same(RefSpec::OP_PUSH, $identity['operation']);
+        $t->same(RefSpec::INSTRUCTION_PUSH_MATCHING, $identity['instruction']);
+        $t->same('refs/heads/foo', $identity['source']);
+        $t->same('refs/heads/foo', $identity['destination'], 'instruction identity materializes the implicit destination');
+        $t->same(false, $identity['allowNonFastForward']);
+
+        $dedup = [];
+        foreach ([$sourceOnly, $explicit] as $spec) {
+            $dedup[$spec->instructionKey()] = $spec->toString();
+        }
+        $t->same(1, count($dedup), 'instruction hash key deduplicates source-only and explicit same-name pushes');
+        $t->same('refs/heads/foo:refs/heads/foo', array_values($dedup)[0]);
+
+        $forcedSourceOnly = RefSpec::parsePush('+refs/heads/foo');
+        $t->same(false, $sourceOnly->equivalentTo($forcedSourceOnly), 'matching push force mode is part of the instruction identity');
+        $t->same(true, $forcedSourceOnly->instructionIdentity()['allowNonFastForward']);
+        $t->same($forcedSourceOnly->instructionKey(), RefSpec::parsePush('+refs/heads/foo:refs/heads/foo')->instructionKey());
+
+        $delete = RefSpec::parsePush(':refs/heads/old');
+        $forcedDelete = RefSpec::parsePush('+:refs/heads/old');
+        $t->same($delete->instructionIdentity(), $forcedDelete->instructionIdentity(), 'push-delete instructions ignore a leading force marker');
+        $t->true($delete->equivalentTo($forcedDelete));
+
+        $fetchOnly = RefSpec::parseFetch('@');
+        $forcedFetchOnly = RefSpec::parseFetch('+@');
+        $t->same($fetchOnly->instructionIdentity(), $forcedFetchOnly->instructionIdentity(), 'fetch-only instructions ignore a leading force marker');
+        $t->true($fetchOnly->equivalentTo($forcedFetchOnly));
+        $t->same('HEAD', $fetchOnly->instructionIdentity()['source']);
+
+        $allMatching = RefSpec::parsePush(':');
+        $forcedAllMatching = RefSpec::parsePush('+:');
+        $t->same(false, $allMatching->equivalentTo($forcedAllMatching), 'push-all-matching branches retain force mode');
+        $t->same(false, $allMatching->instructionIdentity()['allowNonFastForward']);
+        $t->same(true, $forcedAllMatching->instructionIdentity()['allowNonFastForward']);
+    },
     'refspec prefix expansion treats short hex names as partial refs and full object ids as objects' => static function (TestRunner $t): void {
         $shortHexFetch = RefSpec::parseFetch('dead');
         $t->same(null, $shortHexFetch->prefix());
@@ -1052,6 +1099,11 @@ return [
         $t->same($fixture['expectedPushInstructions'], array_column($summary['push'], 'instruction'));
         $t->same($fixture['expectedFetchNormalized'], array_column($summary['fetch'], 'normalized'));
         $t->same($fixture['expectedPushNormalized'], array_column($summary['push'], 'normalized'));
+        $t->same($fixture['expectedPushInstructionIdentityUniqueCount'], $summary['pushInstructionIdentityUniqueCount']);
+        $t->same($fixture['expectedSameNamedPushEquivalent'], $summary['sameNamedPushEquivalent']);
+        $t->same($fixture['expectedDeleteForceEquivalent'], $summary['deleteForceEquivalent']);
+        $t->same($fixture['expectedAllMatchingForceEquivalent'], $summary['allMatchingForceEquivalent']);
+        $t->same($fixture['expectedFetchOnlyForceEquivalent'], $summary['fetchOnlyForceEquivalent']);
         $t->same($fixture['expectedOversizedRemoteRejected'], $summary['oversizedRemoteRejected']);
         $t->same($fixture['expectedMalformedBracketedRemoteRejected'], $summary['malformedBracketedRemoteRejected']);
         $t->same($fixture['expectedInvalidUtf8RemoteRejected'], $summary['invalidUtf8RemoteRejected']);

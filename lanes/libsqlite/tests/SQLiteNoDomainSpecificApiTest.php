@@ -46,6 +46,8 @@ $keyValueSourceFiles = [
 ];
 $keyValueFixtureFiles = [
     $libsqliteRoot . '/examples/application-current-smoke-key-value-import.php',
+    $libsqliteRoot . '/examples/application-composite-indexed-generated-option-insert-plan.php',
+    $libsqliteRoot . '/examples/application-index-split-option-replacement-plan.php',
     $libsqliteRoot . '/examples/application-json-upsert-migration-current-next27.php',
     $libsqliteRoot . '/examples/application-malformed-text-current-next70.php',
     $libsqliteRoot . '/examples/application-savepoint-key-value-import-diagnostics.php',
