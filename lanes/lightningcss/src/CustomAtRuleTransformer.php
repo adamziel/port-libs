@@ -1630,6 +1630,15 @@ final class CustomAtRuleTransformer
                 continue;
             }
 
+            if ($char === '[') {
+                $attribute = $this->parseAttributeSelectorComponent($selector, $cursor);
+                if ($attribute !== null) {
+                    $components[] = $attribute['component'];
+                    $cursor = $attribute['end'];
+                    continue;
+                }
+            }
+
             if ($char === ':' && ($selector[$cursor + 1] ?? '') === ':' && preg_match('/\:\:([-_a-zA-Z0-9]+)/A', substr($selector, $cursor), $matches) === 1) {
                 $kind = $matches[1];
                 $cursor += strlen($matches[0]);
@@ -4953,14 +4962,67 @@ final class CustomAtRuleTransformer
      */
     private function serializeAttributeSelectorComponent(array $component): string
     {
-        $css = '[' . (string) ($component['name'] ?? '');
+        $css = '[' . $this->serializeAttributeSelectorNamespace($component['namespace'] ?? null) . (string) ($component['name'] ?? '');
         $operation = $component['operation'] ?? null;
         if (is_array($operation) && isset($operation['operator'], $operation['value'])) {
-            $operator = $operation['operator'] === 'equal' ? '=' : (string) $operation['operator'];
-            $css .= $operator . (string) $operation['value'];
+            $operator = $this->attributeSelectorOperatorToCss((string) $operation['operator']);
+            $css .= $operator . $this->serializeAttributeSelectorValue((string) $operation['value']);
+            $caseSensitivity = $this->attributeSelectorCaseSensitivityToCss($operation['caseSensitivity'] ?? null);
+            if ($caseSensitivity !== '') {
+                $css .= ' ' . $caseSensitivity;
+            }
         }
 
         return $css . ']';
+    }
+
+    private function serializeAttributeSelectorNamespace(mixed $namespace): string
+    {
+        if (!is_array($namespace)) {
+            return '';
+        }
+
+        return match ($namespace['kind'] ?? null) {
+            'any' => '*|',
+            'none' => '|',
+            'named' => $this->escapeSelectorIdentifier((string) ($namespace['prefix'] ?? '')) . '|',
+            default => '',
+        };
+    }
+
+    private function attributeSelectorOperatorToCss(string $operator): string
+    {
+        return match ($operator) {
+            'equal' => '=',
+            'includes' => '~=',
+            'dash-match' => '|=',
+            'prefix' => '^=',
+            'substring' => '*=',
+            'suffix' => '$=',
+            default => $operator,
+        };
+    }
+
+    private function serializeAttributeSelectorValue(string $value): string
+    {
+        if ($this->isCssIdentifierToken($value)) {
+            return $this->escapeSelectorIdentifier($value);
+        }
+
+        if ($value !== '' && preg_match('/^[^\s"\'\]\[]+$/u', $value) === 1) {
+            return $this->escapeSelectorIdentifier($value);
+        }
+
+        return '"' . addcslashes($value, "\\\"") . '"';
+    }
+
+    private function attributeSelectorCaseSensitivityToCss(mixed $caseSensitivity): string
+    {
+        return match ($caseSensitivity) {
+            'ascii-case-insensitive', 'i', 'I' => 'i',
+            'explicit-case-sensitive', 's', 'S' => 's',
+            default => '',
+        };
     }
 
     private function escapeSelectorIdentifier(string $identifier): string
@@ -9510,28 +9572,7 @@ final class CustomAtRuleTransformer
      */
     private function parseReturnedSelector(string $selector): array
     {
-        $selector = trim($selector);
-        if ($selector === '*') {
-            return [['type' => 'universal']];
-        }
-
-        $components = [];
-        foreach (preg_split('/(\s+|[>+~])/', $selector, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [] as $part) {
-            if (trim($part) === '') {
-                $components[] = ['type' => 'combinator', 'value' => 'descendant'];
-                continue;
-            }
-            if (in_array($part, ['>', '+', '~'], true)) {
-                $components[] = ['type' => 'combinator', 'value' => $part];
-                continue;
-            }
-
-            foreach ($this->parseCompoundReturnedSelector($part) as $component) {
-                $components[] = $component;
-            }
-        }
-
-        return $components;
+        return $this->selectorComponentsFromString($selector);
     }
 
     /**
@@ -9580,6 +9621,14 @@ final class CustomAtRuleTransformer
                 $offset += strlen($name) + 1;
                 continue;
             }
+            if ($char === '[') {
+                $attribute = $this->parseAttributeSelectorComponent($selector, $offset);
+                if ($attribute !== null) {
+                    $components[] = $attribute['component'];
+                    $offset = $attribute['end'];
+                    continue;
+                }
+            }
             if ($char === '*') {
                 $components[] = ['type' => 'universal'];
                 $offset++;
@@ -9614,6 +9663,108 @@ final class CustomAtRuleTransformer
         }
 
         return $identifier;
+    }
+
+    /**
+     * @return array{component:array<string, mixed>,end:int}|null
+     */
+    private function parseAttributeSelectorComponent(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset] ?? null) !== '[') {
+            return null;
+        }
+
+        $close = $this->findAttributeSelectorEnd($selector, $offset);
+        if ($close === null) {
+            return null;
+        }
+
+        $content = trim(substr($selector, $offset + 1, $close - $offset - 1));
+        if ($content === '') {
+            return null;
+        }
+
+        $identifier = '(?:\\\\[0-9a-fA-F]{1,6}\s?|\\\\[^\r\n\f]|[-_a-zA-Z0-9\x{0080}-\x{10FFFF}])+';
+        $pattern = '/^(?:(\*|' . $identifier . ')?\|)?(' . $identifier . ')(?:\s*(~=|\|=|\^=|\$=|\*=|=)\s*(?:"((?:\\\\.|[^"\\\\])*)"|\'((?:\\\\.|[^\'\\\\])*)\'|([^\s\]]+))\s*(?:([iIsS])\s*)?)?$/u';
+        if (preg_match($pattern, $content, $matches) !== 1) {
+            return null;
+        }
+
+        $component = [
+            'type' => 'attribute',
+            'name' => $this->decodeCssEscapes($matches[2]),
+        ];
+
+        if (array_key_exists(1, $matches) && $matches[1] !== '') {
+            $component['namespace'] = $matches[1] === '*'
+                ? ['type' => 'namespace', 'kind' => 'any']
+                : ['type' => 'namespace', 'kind' => 'named', 'prefix' => $this->decodeCssEscapes($matches[1])];
+        } elseif (str_starts_with($content, '|')) {
+            $component['namespace'] = ['type' => 'namespace', 'kind' => 'none'];
+        }
+
+        $operator = $matches[3] ?? '';
+        if ($operator !== '') {
+            $value = $matches[4] ?? $matches[5] ?? $matches[6] ?? '';
+            $operation = [
+                'operator' => $this->attributeSelectorOperatorFromCss($operator),
+                'value' => $this->decodeCssEscapes($value),
+            ];
+            $caseFlag = $matches[7] ?? '';
+            if ($caseFlag !== '') {
+                $operation['caseSensitivity'] = strtolower($caseFlag) === 'i'
+                    ? 'ascii-case-insensitive'
+                    : 'explicit-case-sensitive';
+            }
+            $component['operation'] = $operation;
+        }
+
+        return [
+            'component' => $component,
+            'end' => $close + 1,
+        ];
+    }
+
+    private function findAttributeSelectorEnd(string $selector, int $offset): ?int
+    {
+        $quote = null;
+        $length = strlen($selector);
+        for ($i = $offset + 1; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === ']') {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
+    private function attributeSelectorOperatorFromCss(string $operator): string
+    {
+        return match ($operator) {
+            '=' => 'equal',
+            '~=' => 'includes',
+            '|=' => 'dash-match',
+            '^=' => 'prefix',
+            '*=' => 'substring',
+            '$=' => 'suffix',
+            default => $operator,
+        };
     }
 
     private function unescapeSelectorIdentifier(string $identifier): string

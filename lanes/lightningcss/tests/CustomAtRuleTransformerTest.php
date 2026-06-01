@@ -6148,4 +6148,73 @@ CSS;
         $t->same('--theme-wp-gap', $seen['rule']['preludeAst']['value'][0]['value']['arguments'][1]['value']);
         $t->same('live', $seen['rule']['preludeAst']['value'][0]['value']['arguments'][2]['value']['value']);
     },
+    'custom at-rules expose upstream attribute selectors to parser bodies and Selector visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'customAttribute' => null,
+            'sourceAttribute' => null,
+        ];
+        $css = <<<'CSS'
+@variant block {
+  .wp-block-card[data-state="draft" i] > a[href^="/shop"] {
+    color: red;
+  }
+}
+
+.wp-block-card[data-state="published" s] {
+  color: yellow;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'variant' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Selector' => static function (array $selector) use (&$seen): array {
+                foreach ($selector as &$component) {
+                    if (($component['type'] ?? null) !== 'attribute' || ($component['name'] ?? null) !== 'data-state') {
+                        continue;
+                    }
+
+                    $seen['sourceAttribute'] = $component;
+                    $component['operation']['value'] = 'public';
+                    $component['operation']['caseSensitivity'] = 'ascii-case-insensitive';
+                }
+                unset($component);
+
+                return $selector;
+            },
+            'Rule' => [
+                'custom' => [
+                    'variant' => static function (array $rule) use (&$seen): array {
+                        $seen['customAttribute'] = $rule['bodyRules'][0]['value']['selectors'][0][1] ?? null;
+                        $rule['bodyRules'][0]['value']['selectors'][0][1]['operation']['value'] = 'live';
+
+                        return $rule['bodyRules'];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card[data-state=live i]>a[href^=\/shop]{color:red}.wp-block-card[data-state=public i]{color:#ff0}', $result);
+        $t->same([
+            'type' => 'attribute',
+            'name' => 'data-state',
+            'operation' => [
+                'operator' => 'equal',
+                'value' => 'draft',
+                'caseSensitivity' => 'ascii-case-insensitive',
+            ],
+        ], $seen['customAttribute']);
+        $t->same([
+            'type' => 'attribute',
+            'name' => 'data-state',
+            'operation' => [
+                'operator' => 'equal',
+                'value' => 'published',
+                'caseSensitivity' => 'explicit-case-sensitive',
+            ],
+        ], $seen['sourceAttribute']);
+    },
 ];

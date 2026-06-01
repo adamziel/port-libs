@@ -2809,6 +2809,37 @@ CSS);
             ],
         ], $quoted['exports']);
     },
+    'css modules leaves upstream transition property ids public while preserving local global composes' => static function (TestRunner $t) use ($export, $local, $dashed): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+test {
+  transition-property: opacity;
+}
+
+.card {
+  transition-property: op\61 city, transform, --card-motion;
+  composes: base;
+  color: var(--card-motion);
+}
+
+:global(.wp-block:hover) .card {
+  transition-property: COLOR;
+}
+
+.base {
+  color: blue;
+}
+CSS, [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('test{transition-property:opacity}.EgL3uq_card{transition-property:opacity,transform,--card-motion;color:var(--EgL3uq_card-motion)}.wp-block:hover .EgL3uq_card{transition-property:color}.EgL3uq_base{color:#00f}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            '--card-motion' => $dashed('--EgL3uq_card-motion', true),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
     'css modules scopes upstream counter styles and list-style references with composes exports' => static function (TestRunner $t) use ($export, $referenced, $dependency): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 @counter-style circles {

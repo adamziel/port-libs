@@ -1058,4 +1058,49 @@ return [
         $t->same(false, $ordinaryAbsoluteWildcard->includesPath('wp-content/README.md', false));
         $t->same(true, $ordinaryAbsoluteWildcard->includesPath('wp-content', true));
     },
+    'pathspec sparse checkout falls back verbatim on dangling escapes' => static function (TestRunner $t) use ($entryNames): void {
+        $exactDanglingGlob = SparseCheckoutSpec::fromPathspecs([
+            ':(glob)wp-content/plugins/dangling\\',
+        ]);
+        $wildcardDanglingGlob = SparseCheckoutSpec::fromPathspecs([
+            ':(glob)wp-content/plugins/dang*\\',
+        ]);
+        $wildcardDanglingShell = SparseCheckoutSpec::fromPathspecs([
+            'wp-content/plugins/dang*\\',
+        ]);
+        $combined = SparseCheckoutSpec::fromPathspecs([
+            ':(glob)wp-content/plugins/dangling\\',
+            ':(glob)wp-content/plugins/dang*\\',
+        ]);
+
+        $t->same(true, $exactDanglingGlob->includesPath('wp-content/plugins/dangling\\', false));
+        $t->same(false, $exactDanglingGlob->includesPath('wp-content/plugins/dangling', false));
+        $t->same(false, $exactDanglingGlob->includesPath('wp-content/plugins/danglingx\\', false));
+        $t->same(true, $exactDanglingGlob->skipWorktree('wp-content/plugins/dangling', false));
+        $t->same(true, $exactDanglingGlob->includesPath('wp-content', true));
+        $t->same(true, $exactDanglingGlob->includesPath('wp-content/plugins', true));
+
+        $t->same(false, $wildcardDanglingGlob->includesPath('wp-content/plugins/dangling\\', false));
+        $t->same(false, $wildcardDanglingGlob->includesPath('wp-content/plugins/dangx\\', false));
+        $t->same(true, $wildcardDanglingGlob->includesPath('wp-content/plugins/dang*\\', false));
+        $t->same(true, $wildcardDanglingGlob->skipWorktree('wp-content/plugins/dangling\\', false));
+        $t->same(true, $wildcardDanglingGlob->includesPath('wp-content', true));
+        $t->same(true, $wildcardDanglingGlob->includesPath('wp-content/plugins', true));
+
+        $t->same(false, $wildcardDanglingShell->includesPath('wp-content/plugins/dangling\\', false));
+        $t->same(true, $wildcardDanglingShell->includesPath('wp-content/plugins/dang*\\', false));
+
+        $blob = str_repeat('1', 40);
+        $plugins = new Tree([
+            new TreeEntry('100644', 'dangling\\', $blob),
+            new TreeEntry('100644', 'dang*\\', $blob),
+            new TreeEntry('100644', 'dangx\\', $blob),
+            new TreeEntry('100644', 'dangling', $blob),
+        ]);
+
+        $t->same(['dangling\\'], $entryNames($exactDanglingGlob->includedTreeEntries($plugins, 'wp-content/plugins')));
+        $t->same(['dang*\\'], $entryNames($wildcardDanglingGlob->includedTreeEntries($plugins, 'wp-content/plugins')));
+        $t->same(['dang*\\'], $entryNames($wildcardDanglingShell->includedTreeEntries($plugins, 'wp-content/plugins')));
+        $t->same(['dangling\\', 'dang*\\'], $entryNames($combined->includedTreeEntries($plugins, 'wp-content/plugins')));
+    },
 ];

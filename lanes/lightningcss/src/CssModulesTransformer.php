@@ -900,6 +900,7 @@ final class CssModulesTransformer
             'animation-name' => $this->animation ? $this->rewriteAnimationNameValue($value) : null,
             'list-style' => $this->rewriteListStyleValue($value),
             'list-style-type' => $this->rewriteListStyleTypeValue($value),
+            'transition-property' => $this->rewriteTransitionPropertyValue($value),
             'grid', 'grid-template', 'grid-template-rows', 'grid-template-columns',
             'grid-template-areas', 'grid-area', 'grid-row', 'grid-row-start',
             'grid-row-end', 'grid-column', 'grid-column-start', 'grid-column-end' => $this->rewriteGridValue($property, $value),
@@ -910,6 +911,42 @@ final class CssModulesTransformer
             'font-palette' => $this->dashedIdents ? $this->rewriteFontPaletteValue($value) : null,
             default => null,
         };
+    }
+
+    private function rewriteTransitionPropertyValue(string $value): ?string
+    {
+        if (preg_match('/(^|,)\s*(,|$)/', $value) === 1) {
+            return null;
+        }
+
+        $parts = $this->splitTopLevel($value, ',');
+        if ($parts === []) {
+            return null;
+        }
+
+        $rewritten = [];
+        $changed = false;
+
+        foreach ($parts as $part) {
+            $token = $this->readCssIdentifierToken($part, 0);
+            if ($token === null || $token['end'] !== strlen($part)) {
+                return null;
+            }
+
+            $decoded = $token['decoded'];
+            $serialized = str_starts_with($decoded, '--')
+                ? $this->escapeCssIdentifier($decoded)
+                : strtolower($this->escapeCssIdentifier($decoded));
+
+            $rewritten[] = $serialized;
+            $changed = $changed || $serialized !== $part;
+        }
+
+        if (!$changed && strpbrk($value, " \t\n\r\f") === false) {
+            return null;
+        }
+
+        return implode(',', $rewritten);
     }
 
     private function rewritePositionTryFallbacksValue(string $value): string

@@ -127,6 +127,16 @@ $escapedByteTraversalPathspec = SparseCheckoutSpec::fromPathspecs([
 $escapedSlashTraversalPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)wp-content/plugins/foo\\/block.json',
 ]);
+$danglingBackslashExactPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content/plugins/dangling\\',
+]);
+$danglingBackslashWildcardPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content/plugins/dang*\\',
+]);
+$danglingBackslashCombinedPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content/plugins/dangling\\',
+    ':(glob)wp-content/plugins/dang*\\',
+]);
 $newlineByteShellStarPathspec = SparseCheckoutSpec::fromPathspecs([
     'wp-content*',
 ]);
@@ -223,6 +233,12 @@ $plugins = new Tree([
     new TreeEntry('100644', 'plugin-loader.php', $blob),
     new TreeEntry('040000', 'akismet', $tree),
     new TreeEntry('040000', 'gutenberg', $tree),
+]);
+$danglingPlugins = new Tree([
+    new TreeEntry('100644', 'dangling\\', $blob),
+    new TreeEntry('100644', 'dang*\\', $blob),
+    new TreeEntry('100644', 'dangx\\', $blob),
+    new TreeEntry('100644', 'dangling', $blob),
 ]);
 $gutenberg = new Tree([
     new TreeEntry('100644', 'block.json', $blob),
@@ -339,6 +355,11 @@ return [
     'pathspecEscapedByteVerbatimFileIncluded' => $escapedByteTraversalPathspec->includesPath('wp-content/plugins/f\\oo/block.json', false),
     'pathspecEscapedSlashDirectoryTraversable' => $escapedSlashTraversalPathspec->includesPath('wp-content/plugins/foo', true),
     'pathspecEscapedSlashFileIncluded' => $escapedSlashTraversalPathspec->includesPath('wp-content/plugins/foo/block.json', false),
+    'pathspecDanglingBackslashExactIncluded' => $danglingBackslashExactPathspec->includesPath('wp-content/plugins/dangling\\', false),
+    'pathspecDanglingBackslashPlainSkipped' => $danglingBackslashExactPathspec->skipWorktree('wp-content/plugins/dangling', false),
+    'pathspecDanglingBackslashWildcardSkipped' => $danglingBackslashWildcardPathspec->skipWorktree('wp-content/plugins/dangling\\', false),
+    'pathspecDanglingBackslashLiteralStarIncluded' => $danglingBackslashWildcardPathspec->includesPath('wp-content/plugins/dang*\\', false),
+    'pathspecDanglingBackslashContentEntries' => $entryNames($danglingBackslashCombinedPathspec->includedTreeEntries($danglingPlugins, 'wp-content/plugins')),
     'pathspecLfByteShellStarIncluded' => $newlineByteShellStarPathspec->includesPath("wp-content\n/plugins/gutenberg/block.json", false),
     'pathspecLfByteShellQuestionIncluded' => $newlineByteShellQuestionPathspec->includesPath("wp-content\n/plugins/gutenberg/block.json", false),
     'pathspecLfBytePathAwareQuestionIncluded' => $newlineBytePathAwareQuestionPathspec->includesPath("wp-content\n/plugins/gutenberg/block.json", false),

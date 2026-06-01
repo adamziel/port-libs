@@ -66,6 +66,12 @@ $css = <<<'CSS'
   grid-template-columns: [media-start] 96px [content-start] 1fr [content-end];
 }
 
+.cardMotion {
+  transition-property: op\61 city, transform, --card-motion;
+  composes: card;
+  color: var(--card-motion);
+}
+
 .cardMedia {
   grid-area: media;
 }
@@ -421,6 +427,7 @@ $actual = [
         'cardTitle' => CssModulesTransformer::exportClassList($result['exports'], 'cardTitle', $dependencyClassName),
         'card:featured' => CssModulesTransformer::exportClassList($result['exports'], 'card:featured', $dependencyClassName),
         'cardGrid' => CssModulesTransformer::exportClassList($result['exports'], 'cardGrid', $dependencyClassName),
+        'cardMotion' => CssModulesTransformer::exportClassList($result['exports'], 'cardMotion', $dependencyClassName),
     ],
     'bareGlobal' => $bareGlobal,
     'invalidComposes' => $invalidComposes,
@@ -453,7 +460,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '.BlockA_card{background:#fff;view-transition-name:BlockA_card-enter;view-transition-class:BlockA_card BlockA_page;animation:.24s ease-out BlockA_card-pop}.BlockA_card .BlockA_cardIcon{color:#ff0}.wp-block-button .BlockA_card{border-radius:4px}.BlockA_cardTitle{color:#ff0}.BlockA_card\:featured{outline:1px solid #ff0}.BlockA_card\,legacy{color:red}.wp-block-button .legacyButton .BlockA_cardTitle{text-decoration:none}.wp-block-button\,legacy .BlockA_card\,legacy{border-color:#ff0}@counter-style BlockA_card-steps{system:cyclic;symbols:A B C;suffix:". "}.BlockA_cardSteps{list-style:inside BlockA_card-steps}.BlockA_cardGrid{grid-template-areas:"BlockA_media BlockA_content";grid-template-columns:[BlockA_media-start]96px[BlockA_content-start]1fr[BlockA_content-end]}.BlockA_cardMedia{grid-area:BlockA_media}.BlockA_cardContent{grid-column:BlockA_content-start/BlockA_content-end}@container BlockA_card-layout (width>=320px){.BlockA_cardCompact{padding:12px}}@media (width>=600px){.BlockA_cardCompact{gap:8px}}@scope(.BlockA_cardScope) to (.wp-block-buttons){:scope .BlockA_cardScoped{color:#ff0}}@view-transition{types:BlockA_card-enter BlockA_page}@keyframes BlockA_card-pop{0%{opacity:0}to{opacity:1}}',
+    'code' => '.BlockA_card{background:#fff;view-transition-name:BlockA_card-enter;view-transition-class:BlockA_card BlockA_page;animation:.24s ease-out BlockA_card-pop}.BlockA_card .BlockA_cardIcon{color:#ff0}.wp-block-button .BlockA_card{border-radius:4px}.BlockA_cardTitle{color:#ff0}.BlockA_card\:featured{outline:1px solid #ff0}.BlockA_card\,legacy{color:red}.wp-block-button .legacyButton .BlockA_cardTitle{text-decoration:none}.wp-block-button\,legacy .BlockA_card\,legacy{border-color:#ff0}@counter-style BlockA_card-steps{system:cyclic;symbols:A B C;suffix:". "}.BlockA_cardSteps{list-style:inside BlockA_card-steps}.BlockA_cardGrid{grid-template-areas:"BlockA_media BlockA_content";grid-template-columns:[BlockA_media-start]96px[BlockA_content-start]1fr[BlockA_content-end]}.BlockA_cardMotion{transition-property:opacity,transform,--card-motion;color:var(--card-motion)}.BlockA_cardMedia{grid-area:BlockA_media}.BlockA_cardContent{grid-column:BlockA_content-start/BlockA_content-end}@container BlockA_card-layout (width>=320px){.BlockA_cardCompact{padding:12px}}@media (width>=600px){.BlockA_cardCompact{gap:8px}}@scope(.BlockA_cardScope) to (.wp-block-buttons){:scope .BlockA_cardScoped{color:#ff0}}@view-transition{types:BlockA_card-enter BlockA_page}@keyframes BlockA_card-pop{0%{opacity:0}to{opacity:1}}',
     'exports' => [
         'card' => [
             'name' => 'BlockA_card',
@@ -575,6 +582,16 @@ $expected = [
             'composes' => [],
             'isReferenced' => false,
         ],
+        'cardMotion' => [
+            'name' => 'BlockA_cardMotion',
+            'composes' => [
+                [
+                    'type' => 'local',
+                    'name' => 'BlockA_card',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
         'cardMedia' => [
             'name' => 'BlockA_cardMedia',
             'composes' => [],
@@ -611,6 +628,7 @@ $expected = [
         'cardTitle' => 'BlockA_cardTitle Type_heading',
         'card:featured' => 'BlockA_card:featured BlockA_card Core_reset has-spacing wp:alignwide',
         'cardGrid' => 'BlockA_cardGrid BlockA_card Core_reset has-spacing',
+        'cardMotion' => 'BlockA_cardMotion BlockA_card Core_reset has-spacing',
     ],
     'bareGlobal' => 'rejected',
     'invalidComposes' => 'accepted',

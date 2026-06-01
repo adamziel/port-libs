@@ -4819,7 +4819,7 @@ final class CssMinifier
                 return implode(' ', $tokens);
             }
 
-            return $this->isDefaultFontStyleObliqueAngle($angle) ? 'oblique' : 'oblique ' . $angle;
+            return $this->isDefaultFontStyleObliqueAngle($tokens[1]) ? 'oblique' : 'oblique ' . $angle;
         }
 
         if (count($tokens) === 3) {
@@ -4829,8 +4829,8 @@ final class CssMinifier
                 return implode(' ', $tokens);
             }
 
-            if ($this->fontStyleObliqueAnglesEquivalent($start, $end)) {
-                return $this->isDefaultFontStyleObliqueAngle($start) ? 'oblique' : 'oblique ' . $start;
+            if ($this->fontStyleObliqueAnglesEquivalent($tokens[1], $tokens[2])) {
+                return $this->isDefaultFontStyleObliqueAngle($tokens[1]) ? 'oblique' : 'oblique ' . $start;
             }
 
             return 'oblique ' . $start . ' ' . $end;
@@ -4860,19 +4860,40 @@ final class CssMinifier
 
     private function isDefaultFontStyleObliqueAngle(string $token): bool
     {
-        $degrees = $this->fontStyleObliqueAngleDegrees($token);
+        $identity = $this->fontStyleObliqueAngleIdentity($token);
 
-        return $degrees !== null && abs($degrees - 14.0) < 0.00001;
+        return $identity !== null
+            && $identity['unit'] === 'deg'
+            && abs($identity['value'] - 14.0) < 0.00001;
     }
 
     private function fontStyleObliqueAnglesEquivalent(string $first, string $second): bool
     {
-        $firstDegrees = $this->fontStyleObliqueAngleDegrees($first);
-        $secondDegrees = $this->fontStyleObliqueAngleDegrees($second);
+        $firstIdentity = $this->fontStyleObliqueAngleIdentity($first);
+        $secondIdentity = $this->fontStyleObliqueAngleIdentity($second);
 
-        return $firstDegrees !== null
-            && $secondDegrees !== null
-            && abs($firstDegrees - $secondDegrees) < 0.00001;
+        return $firstIdentity !== null
+            && $secondIdentity !== null
+            && $firstIdentity['unit'] === $secondIdentity['unit']
+            && abs($firstIdentity['value'] - $secondIdentity['value']) < 0.00001;
+    }
+
+    /**
+     * @return array{value:float,unit:string}|null
+     */
+    private function fontStyleObliqueAngleIdentity(string $token): ?array
+    {
+        $token = strtolower(trim($token));
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(deg|grad|rad|turn)$/', $token, $matches) !== 1) {
+            return null;
+        }
+
+        $value = (float) $matches[1];
+
+        return [
+            'value' => $value == 0.0 ? 0.0 : $value,
+            'unit' => $matches[2],
+        ];
     }
 
     private function fontStyleObliqueAngleDegrees(string $token): ?float
