@@ -8,30 +8,30 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 $tests = [];
 
 $current242 = [
-    ['option_id' => 1, 'option_name' => 'nul_cache_exact', 'option_value' => "plugin\0cache_suffix"],
-    ['option_id' => 2, 'option_name' => 'nul_cache_upper', 'option_value' => "Plugin\0Cache_suffix"],
-    ['option_id' => 3, 'option_name' => 'nul_cache_literal', 'option_value' => "plugin\0cache_"],
-    ['option_id' => 4, 'option_name' => 'nul_cache_false_missing_underscore', 'option_value' => "plugin\0cacheXsuffix"],
-    ['option_id' => 5, 'option_name' => 'plain_cache', 'option_value' => 'plugin_cache_suffix'],
-    ['option_id' => 6, 'option_name' => 'numeric_value', 'option_value' => 10],
-    ['option_id' => 7, 'option_name' => 'blob_value', 'option_value' => new SQLiteBlobValue("plugin\0cache_blob")],
-    ['option_id' => 8, 'option_name' => 'null_value', 'option_value' => null],
-    ['option_id' => 9, 'option_name' => 'bool_value', 'option_value' => true],
-    ['option_id' => 10, 'option_name' => 'nul_other_prefix', 'option_value' => "theme\0cache_suffix"],
+    ['setting_id' => 1, 'key_name' => 'nul_cache_exact', 'key_value' => "plugin\0cache_suffix"],
+    ['setting_id' => 2, 'key_name' => 'nul_cache_upper', 'key_value' => "Plugin\0Cache_suffix"],
+    ['setting_id' => 3, 'key_name' => 'nul_cache_literal', 'key_value' => "plugin\0cache_"],
+    ['setting_id' => 4, 'key_name' => 'nul_cache_false_missing_underscore', 'key_value' => "plugin\0cacheXsuffix"],
+    ['setting_id' => 5, 'key_name' => 'plain_cache', 'key_value' => 'plugin_cache_suffix'],
+    ['setting_id' => 6, 'key_name' => 'numeric_value', 'key_value' => 10],
+    ['setting_id' => 7, 'key_name' => 'blob_value', 'key_value' => new SQLiteBlobValue("plugin\0cache_blob")],
+    ['setting_id' => 8, 'key_name' => 'null_value', 'key_value' => null],
+    ['setting_id' => 9, 'key_name' => 'bool_value', 'key_value' => true],
+    ['setting_id' => 10, 'key_name' => 'nul_other_prefix', 'key_value' => "theme\0cache_suffix"],
 ];
 
 $nextTwoFourTwo = [
-    ['option_id' => 1, 'option_name' => 'nul_cache_exact', 'option_value' => "plugin\0cache_suffix2"],
-    ['option_id' => 2, 'option_name' => 'nul_cache_upper', 'option_value' => "Plugin\0Cache_suffix"],
-    ['option_id' => 3, 'option_name' => 'nul_cache_literal', 'option_value' => "plugin\0cache_"],
-    ['option_id' => 4, 'option_name' => 'nul_cache_now_literal', 'option_value' => "plugin\0cache_suffix"],
-    ['option_id' => 5, 'option_name' => 'plain_cache', 'option_value' => 'plugin_cache_suffix'],
-    ['option_id' => 6, 'option_name' => 'numeric_value', 'option_value' => '10'],
-    ['option_id' => 7, 'option_name' => 'blob_value', 'option_value' => new SQLiteBlobValue("plugin\0cache_blob")],
-    ['option_id' => 8, 'option_name' => 'null_value', 'option_value' => null],
-    ['option_id' => 9, 'option_name' => 'bool_value', 'option_value' => false],
-    ['option_id' => 11, 'option_name' => 'nul_cache_new', 'option_value' => "PLUGIN\0CACHE_new"],
-    ['option_id' => 12, 'option_name' => 'nul_cache_late', 'option_value' => "plugin\0cache_later"],
+    ['setting_id' => 1, 'key_name' => 'nul_cache_exact', 'key_value' => "plugin\0cache_suffix2"],
+    ['setting_id' => 2, 'key_name' => 'nul_cache_upper', 'key_value' => "Plugin\0Cache_suffix"],
+    ['setting_id' => 3, 'key_name' => 'nul_cache_literal', 'key_value' => "plugin\0cache_"],
+    ['setting_id' => 4, 'key_name' => 'nul_cache_now_literal', 'key_value' => "plugin\0cache_suffix"],
+    ['setting_id' => 5, 'key_name' => 'plain_cache', 'key_value' => 'plugin_cache_suffix'],
+    ['setting_id' => 6, 'key_name' => 'numeric_value', 'key_value' => '10'],
+    ['setting_id' => 7, 'key_name' => 'blob_value', 'key_value' => new SQLiteBlobValue("plugin\0cache_blob")],
+    ['setting_id' => 8, 'key_name' => 'null_value', 'key_value' => null],
+    ['setting_id' => 9, 'key_name' => 'bool_value', 'key_value' => false],
+    ['setting_id' => 11, 'key_name' => 'nul_cache_new', 'key_value' => "PLUGIN\0CACHE_new"],
+    ['setting_id' => 12, 'key_name' => 'nul_cache_late', 'key_value' => "plugin\0cache_later"],
 ];
 
 $plan242 = static fn (
@@ -70,7 +70,7 @@ $valueAt242 = static function (array $value, string $path): mixed {
 $cases242 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFourTwo'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'CAST(option_value AS TEXT) COLLATE NOCASE LIKE ? ESCAPE ? /* embedded-NUL literal prefix */'],
+    'expression' => ['expression', 'CAST(key_value AS TEXT) COLLATE NOCASE LIKE ? ESCAPE ? /* embedded-NUL literal prefix */'],
     'pattern hex' => ['patternHex', '706c7567696e006361636865215f25'],
     'pattern tokens' => ['patternTokenHex', ['70', '6c', '75', '67', '69', '6e', '00', '63', '61', '63', '68', '65', '21', '5f', '25']],
     'pattern chars' => ['patternCharacterCount', 15],
@@ -157,8 +157,8 @@ $tests['encoding collation affinity like current source nextTwoFourTwo case sens
 
 $tests['encoding collation affinity like current source nextTwoFourTwo escaped underscore differs from wildcard underscore'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => "plugin\0cache_suffix"],
-        ['option_id' => 2, 'option_value' => "plugin\0cacheXsuffix"],
+        ['setting_id' => 1, 'key_value' => "plugin\0cache_suffix"],
+        ['setting_id' => 2, 'key_value' => "plugin\0cacheXsuffix"],
     ];
     $escaped = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan($rows, $rows, "plugin\0cache!_%", '!', false, 'same', 'same', 1, 1);
     $wild = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan($rows, $rows, "plugin\0cache_%", null, false, 'same', 'same', 1, 1);
@@ -168,8 +168,8 @@ $tests['encoding collation affinity like current source nextTwoFourTwo escaped u
 
 $tests['encoding collation affinity like current source nextTwoFourTwo percent after nul can match empty suffix'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => "plugin\0cache_"],
-        ['option_id' => 2, 'option_value' => "plugin\0cache"],
+        ['setting_id' => 1, 'key_value' => "plugin\0cache_"],
+        ['setting_id' => 2, 'key_value' => "plugin\0cache"],
     ];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan($rows, $rows, "plugin\0cache!_%", '!', false, 'same', 'same', 1, 1);
     $t->same([1], $plan['currentMatchedRowids']);
@@ -177,9 +177,9 @@ $tests['encoding collation affinity like current source nextTwoFourTwo percent a
 
 $tests['encoding collation affinity like current source nextTwoFourTwo numeric bool and plain text stay non matches'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 10],
-        ['option_id' => 2, 'option_value' => true],
-        ['option_id' => 3, 'option_value' => 'plugin_cache_suffix'],
+        ['setting_id' => 1, 'key_value' => 10],
+        ['setting_id' => 2, 'key_value' => true],
+        ['setting_id' => 3, 'key_value' => 'plugin_cache_suffix'],
     ];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan($rows, $rows, "plugin\0cache!_%", '!', false, 'same', 'same', 1, 1);
     $t->same([], $plan['currentMatchedRowids']);
@@ -188,9 +188,9 @@ $tests['encoding collation affinity like current source nextTwoFourTwo numeric b
 
 $tests['encoding collation affinity like current source nextTwoFourTwo blob and null remain unknown'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => new SQLiteBlobValue("plugin\0cache_blob")],
-        ['option_id' => 2, 'option_value' => null],
-        ['option_id' => 3, 'option_value' => "plugin\0cache_blob"],
+        ['setting_id' => 1, 'key_value' => new SQLiteBlobValue("plugin\0cache_blob")],
+        ['setting_id' => 2, 'key_value' => null],
+        ['setting_id' => 3, 'key_value' => "plugin\0cache_blob"],
     ];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan($rows, $rows, "plugin\0cache!_%", '!', false, 'same', 'same', 1, 1);
     $t->same([3], $plan['currentMatchedRowids']);
@@ -201,12 +201,12 @@ $tests['encoding collation affinity like current source nextTwoFourTwo rejects m
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan($current242, $nextTwoFourTwo, "plugin\0cache!!_%", '!!'));
 };
 
-$tests['encoding collation affinity like current source nextTwoFourTwo rejects missing option value'] = static function (TestRunner $t) use ($nextTwoFourTwo): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan([['option_id' => 1]], $nextTwoFourTwo));
+$tests['encoding collation affinity like current source nextTwoFourTwo rejects missing key value'] = static function (TestRunner $t) use ($nextTwoFourTwo): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan([['setting_id' => 1]], $nextTwoFourTwo));
 };
 
-$tests['encoding collation affinity like current source nextTwoFourTwo rejects non scalar option value'] = static function (TestRunner $t) use ($nextTwoFourTwo): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan([['option_id' => 1, 'option_value' => ['plugin']]], $nextTwoFourTwo));
+$tests['encoding collation affinity like current source nextTwoFourTwo rejects non scalar key value'] = static function (TestRunner $t) use ($nextTwoFourTwo): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan([['setting_id' => 1, 'key_value' => ['plugin']]], $nextTwoFourTwo));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourTwo note fields stay explicit'] = static function (TestRunner $t) use ($plan242): void {

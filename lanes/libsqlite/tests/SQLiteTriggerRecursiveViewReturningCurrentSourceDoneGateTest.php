@@ -5,16 +5,16 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rowsdone_gate = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing_url.test', 'load_policy' => 'yes'],
 ];
 $currentViewdone_gate = [
-    'name' => 'wp_recursive_option_import',
+    'name' => 'app_recursive_setting_import',
     'source' => 'main@view-cookie-done_gate-current',
-    'trigger' => 'wp_recursive_option_import_io_insert',
+    'trigger' => 'app_recursive_setting_import_io_insert',
     'trigger_source' => 'main@trigger-cookie-done_gate-current',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'spawn_child'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'spawn_child'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy'],
     'audit_label' => 'current-recursive-view-trigger-done_gate',
 ];
 $nextViewdone_gate = $currentViewdone_gate;
@@ -22,15 +22,15 @@ $nextViewdone_gate['source'] = 'main@view-cookie-done_gate-next';
 $nextViewdone_gate['trigger_source'] = 'main@trigger-cookie-done_gate-next';
 $nextViewdone_gate['audit_label'] = 'next-recursive-view-trigger-done_gate';
 $currentInputdone_gate = [
-    ['import_id' => 10, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 11, 'name' => 'current_plugin', 'value' => 'enabled', 'autoload_flag' => 'no', 'spawn_child' => true],
+    ['import_id' => 10, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 11, 'name' => 'current_module', 'value' => 'enabled', 'load_policy_flag' => 'no', 'spawn_child' => true],
 ];
 $nextInputdone_gate = [
-    ['import_id' => 20, 'name' => 'home', 'value' => 'https://next.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 21, 'name' => 'next_plugin', 'value' => 'active', 'autoload_flag' => 'no', 'spawn_child' => false],
+    ['import_id' => 20, 'name' => 'landing_url', 'value' => 'https://next.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 21, 'name' => 'next_module', 'value' => 'active', 'load_policy_flag' => 'no', 'spawn_child' => false],
 ];
 $returningdone_gate = [
-    ['expr' => 'new.option_name', 'as' => 'name'],
+    ['expr' => 'new.key_name', 'as' => 'name'],
     ['expr' => 'event', 'as' => 'event_name'],
     ['expr' => 'depth', 'as' => 'depth_value'],
     ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
@@ -44,12 +44,12 @@ $rundone_gate = static fn (array $options = []): array => SQLiteTriggerRecursive
     $nextViewdone_gate,
     $returningdone_gate,
     $options + [
-        'key' => 'option_name',
-        'savepoint' => 'wp_recursive_view_done_gate',
-        'cursor_name' => 'wp_recursive_view_returning_cursor_done_gate',
-        'current_generation' => 'wp-current-returning-done_gate',
-        'next_generation' => 'wp-next-returning-done_gate',
-        'checkpoint_name' => 'wp_recursive_view_checkpoint_done_gate',
+        'key' => 'key_name',
+        'savepoint' => 'app_recursive_view_done_gate',
+        'cursor_name' => 'app_recursive_view_returning_cursor_done_gate',
+        'current_generation' => 'app-current-returning-done_gate',
+        'next_generation' => 'app-next-returning-done_gate',
+        'checkpoint_name' => 'app_recursive_view_checkpoint_done_gate',
         'page_size' => 3,
     ],
 );
@@ -59,7 +59,7 @@ $rowHelddone_gate = static fn (): array => $rundone_gate(['current_result_code' 
 $busyHelddone_gate = static fn (): array => $rundone_gate(['current_result_code' => 'SQLITE_BUSY']);
 $cookieHelddone_gate = static fn (): array => $rundone_gate(['current_source_cookie' => 'cookiedone_gate:stale']);
 $epochHelddone_gate = static fn (): array => $rundone_gate(['current_step_epoch' => 'epochdone_gate:stale']);
-$resumeHelddone_gate = static fn (): array => $rundone_gate(['resume_source_token' => 'wp.returning.current.source.resume.done_gate:stale']);
+$resumeHelddone_gate = static fn (): array => $rundone_gate(['resume_source_token' => 'app.returning.current.source.resume.done_gate:stale']);
 $nonRecursivedone_gate = static fn (): array => $rundone_gate(['recursive_triggers' => false]);
 
 $casesdone_gate = [
@@ -98,10 +98,10 @@ $casesdone_gate = [
     'held rows busy result count' => [static fn (): mixed => count($busyHelddone_gate()['held_rows']), 4],
     'held rows cookie count' => [static fn (): mixed => count($cookieHelddone_gate()['held_rows']), 4],
     'held rows epoch count' => [static fn (): mixed => count($epochHelddone_gate()['held_rows']), 4],
-    'visible names exposed' => [static fn (): mixed => array_column($exposeddone_gate()['visible_returning_rows'], 'name'), ['siteurl', 'current_plugin', 'siteurl:child', 'current_plugin:child', 'siteurl:child:child', 'current_plugin:child:child', 'home', 'next_plugin', 'home:child', 'home:child:child']],
-    'visible names row held' => [static fn (): mixed => array_column($rowHelddone_gate()['visible_returning_rows'], 'name'), ['siteurl', 'current_plugin', 'siteurl:child', 'current_plugin:child', 'siteurl:child:child', 'current_plugin:child:child']],
-    'held names row result' => [static fn (): mixed => array_column($rowHelddone_gate()['held_returning_rows'], 'name'), ['home', 'next_plugin', 'home:child', 'home:child:child']],
-    'held names cookie result' => [static fn (): mixed => array_column($cookieHelddone_gate()['held_returning_rows'], 'name'), ['home', 'next_plugin', 'home:child', 'home:child:child']],
+    'visible names exposed' => [static fn (): mixed => array_column($exposeddone_gate()['visible_returning_rows'], 'name'), ['base_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child', 'landing_url', 'next_module', 'landing_url:child', 'landing_url:child:child']],
+    'visible names row held' => [static fn (): mixed => array_column($rowHelddone_gate()['visible_returning_rows'], 'name'), ['base_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child']],
+    'held names row result' => [static fn (): mixed => array_column($rowHelddone_gate()['held_returning_rows'], 'name'), ['landing_url', 'next_module', 'landing_url:child', 'landing_url:child:child']],
+    'held names cookie result' => [static fn (): mixed => array_column($cookieHelddone_gate()['held_returning_rows'], 'name'), ['landing_url', 'next_module', 'landing_url:child', 'landing_url:child:child']],
     'current visible unique' => [static fn (): mixed => array_values(array_unique(array_column($exposeddone_gate()['current_source_rows'], 'visible_after_current_done_done_gate'))), [true]],
     'next visible exposed unique' => [static fn (): mixed => array_values(array_unique(array_column($exposeddone_gate()['attempted_next_source_rows'], 'visible_after_current_done_done_gate'))), [true]],
     'next visible row held unique' => [static fn (): mixed => array_values(array_unique(array_column($rowHelddone_gate()['attempted_next_source_rows'], 'visible_after_current_done_done_gate'))), [false]],
@@ -123,7 +123,7 @@ $casesdone_gate = [
     'plan decision exposed' => [static fn (): mixed => $exposeddone_gate()['current_done_plan_done_gate']['decision'], 'admit-next-source-after-current-done'],
     'plan decision held' => [static fn (): mixed => $rowHelddone_gate()['current_done_plan_done_gate']['decision'], 'hold-next-source-until-current-done'],
     'plan blocked token exposed' => [static fn (): mixed => $exposeddone_gate()['current_done_plan_done_gate']['blocked_at_resume_token'], null],
-    'plan blocked token row' => [static fn (): mixed => $rowHelddone_gate()['current_done_plan_done_gate']['blocked_at_resume_token'], 'wp_recursive_view_returning_cursor_done_gate:wp-next-returning-done_gate:6'],
+    'plan blocked token row' => [static fn (): mixed => $rowHelddone_gate()['current_done_plan_done_gate']['blocked_at_resume_token'], 'app_recursive_view_returning_cursor_done_gate:app-next-returning-done_gate:6'],
     'counts current rows' => [static fn (): mixed => $exposeddone_gate()['counts_done_gate']['current_rows'], 6],
     'counts next rows' => [static fn (): mixed => $exposeddone_gate()['counts_done_gate']['attempted_next_rows'], 4],
     'counts visible exposed' => [static fn (): mixed => $exposeddone_gate()['counts_done_gate']['visible_rows'], 10],
@@ -136,7 +136,7 @@ $casesdone_gate = [
     'dependency next190 retained' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next190', $exposeddone_gate()['dependencies_done_gate'], true), true],
     'dependency closure note' => [static fn (): mixed => $exposeddone_gate()['dependency_closure_done_gate'], 'no new support component needed; reuses recursive view trigger RETURNING resume rows and adds current-source SQLITE_DONE/source-cookie gating'],
     'non overlap mentions next190' => [static fn (): mixed => str_contains($exposeddone_gate()['non_overlap_done_gate'], 'next190'), true],
-    'non recursive visible names' => [static fn (): mixed => array_column($nonRecursivedone_gate()['visible_returning_rows'], 'name'), ['siteurl', 'current_plugin', 'home', 'next_plugin']],
+    'non recursive visible names' => [static fn (): mixed => array_column($nonRecursivedone_gate()['visible_returning_rows'], 'name'), ['base_url', 'current_module', 'landing_url', 'next_module']],
     'non recursive current row count' => [static fn (): mixed => count($nonRecursivedone_gate()['current_source_rows']), 2],
     'non recursive next row count' => [static fn (): mixed => count($nonRecursivedone_gate()['attempted_next_source_rows']), 2],
     'explicit expected cookie accepted' => [static fn (): mixed => $rundone_gate(['expected_current_source_cookie' => $exposeddone_gate()['current_source_cookie_done_gate']])['current_source_cookie_matches_done_gate'], true],

@@ -22,7 +22,8 @@ $read = static function (string $oid) use (&$objects): GitObject {
 
     return $objects[$oid];
 };
-$blob = static fn (string $filename, string $content): TreeEntry => new TreeEntry('100644', $filename, $write(new GitObject('blob', $content)));
+$blob = static fn (string $filename, string $content, string $mode = '100644'): TreeEntry => new TreeEntry($mode, $filename, $write(new GitObject('blob', $content)));
+$tree = static fn (string $filename, Tree $tree): TreeEntry => new TreeEntry('40000', $filename, $write($tree->toObject()));
 
 return [
     'clean' => [
@@ -75,5 +76,21 @@ return [
             $blob('review-widget.php', "Plugin: Review Widget\nStatus: review build\n"),
         ]),
         'theirs' => new Tree([$blob('review-widget.php', "Plugin: Legacy Widget\nStable tag: trunk\nRequires PHP: 8.1\nVersion: 1.2\n")]),
+    ],
+    'sameRenameMode' => [
+        'read' => $read,
+        'write' => $write,
+        'base' => new Tree([$tree('acme-tools', new Tree([
+            $blob('cli.php', ''),
+            $blob('plugin.php', "original\nVersion: 1.0\nRequires: 6.5\n"),
+        ]))]),
+        'ours' => new Tree([$tree('acme-suite', new Tree([
+            $blob('cli.php', '', '100755'),
+            $blob('plugin.php', "Version: 1.0\nRequires: 6.5\n", '100755'),
+        ]))]),
+        'theirs' => new Tree([$tree('acme-suite', new Tree([
+            $blob('cli.php', ''),
+            $blob('plugin.php', "original\nVersion: 1.0\nRequires: 6.5\nNetwork: true\n"),
+        ]))]),
     ],
 ];

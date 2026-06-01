@@ -9,31 +9,31 @@ require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan.php';
 
 $current = [
-    ['option_id' => 1, 'option_name' => "wp_cache\0timeout"],
-    ['option_id' => 2, 'option_name' => "WP_CACHE\0TIMEOUT"],
-    ['option_id' => 3, 'option_name' => "wp_cache\0timeout_old"],
-    ['option_id' => 4, 'option_name' => "wp_cache_timeout"],
-    ['option_id' => 5, 'option_name' => "wp_cache\xc3timeout"],
+    ['setting_id' => 1, 'key_name' => "app_cache\0timeout"],
+    ['setting_id' => 2, 'key_name' => "APP_CACHE\0TIMEOUT"],
+    ['setting_id' => 3, 'key_name' => "app_cache\0timeout_old"],
+    ['setting_id' => 4, 'key_name' => "app_cache_timeout"],
+    ['setting_id' => 5, 'key_name' => "app_cache\xc3timeout"],
 ];
 
 $next = [
-    ['option_id' => 1, 'option_name' => "wp_cache\0timeout_v2"],
-    ['option_id' => 2, 'option_name' => "WP_CACHE\0TIMEOUT"],
-    ['option_id' => 3, 'option_name' => "wp_cache\0timeout_old"],
-    ['option_id' => 5, 'option_name' => "wp_cache\xc3timeout"],
-    ['option_id' => 6, 'option_name' => "wp_cache\0timeout_new"],
+    ['setting_id' => 1, 'key_name' => "app_cache\0timeout_v2"],
+    ['setting_id' => 2, 'key_name' => "APP_CACHE\0TIMEOUT"],
+    ['setting_id' => 3, 'key_name' => "app_cache\0timeout_old"],
+    ['setting_id' => 5, 'key_name' => "app_cache\xc3timeout"],
+    ['setting_id' => 6, 'key_name' => "app_cache\0timeout_new"],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameByteAwareLikePlan(
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowKeyByteAwareLikePlan(
     $current,
     $next,
-    "wp!_cache\0timeout%",
+    "app!_cache\0timeout%",
     '!',
 );
 
 $summary = [
     'scenario' => 'application-encoding-collation-affinity-like-current-source-next241',
-    'applicationUse' => 'Copied wp_options scans can keep embedded-NUL option_name bytes visible to LIKE residual matching while invalidating current-source cursors when byte-identical rows enter or change.',
+    'applicationUse' => 'Copied app_settings scans can keep embedded-NUL key_name bytes visible to LIKE residual matching while invalidating current-source cursors when byte-identical rows enter or change.',
     'currentMatchedRowids' => $plan['currentMatchedRowids'],
     'nextMatchedRowids' => $plan['nextMatchedRowids'],
     'enteredRowids' => $plan['enteredRowids'],

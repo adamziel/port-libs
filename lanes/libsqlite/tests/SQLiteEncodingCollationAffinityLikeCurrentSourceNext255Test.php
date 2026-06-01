@@ -10,10 +10,10 @@ $tests = [];
 
 $enc255 = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row255 = static fn (int $id, string $name, int $encoding, mixed $value): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc255($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc255($name, $encoding),
     'text_encoding' => $encoding,
-    'option_value' => $value,
+    'key_value' => $value,
 ];
 
 $current255 = [
@@ -23,9 +23,9 @@ $current255 = [
     $row255(4, 'Äplugin_cache', 2, 'umlaut'),
     $row255(5, 'Ωplugin_cache', 3, 'omega'),
     $row255(6, 'aplain', 1, 'ascii'),
-    ['option_id' => 7, 'option_name' => 7, 'option_value' => 'integer-name'],
-    ['option_id' => 8, 'option_name' => null, 'option_value' => 'null-name'],
-    ['option_id' => 9, 'option_name' => new SQLiteBlobValue('plugin'), 'option_value' => 'blob-name'],
+    ['setting_id' => 7, 'key_name' => 7, 'key_value' => 'integer-name'],
+    ['setting_id' => 8, 'key_name' => null, 'key_value' => 'null-name'],
+    ['setting_id' => 9, 'key_name' => new SQLiteBlobValue('plugin'), 'key_value' => 'blob-name'],
 ];
 
 $nextTwoFiveFive = [
@@ -35,7 +35,7 @@ $nextTwoFiveFive = [
     $row255(4, 'äplugin_cache', 2, 'lower-umlaut'),
     $row255(5, 'Ωplugin_cache', 3, 'omega'),
     $row255(6, 'aplain', 1, 'ascii'),
-    ['option_id' => 7, 'option_name' => 7, 'option_value' => 'integer-name'],
+    ['setting_id' => 7, 'key_name' => 7, 'key_value' => 'integer-name'],
     $row255(10, 'Éplugin_cache', 3, 'accented-new'),
 ];
 
@@ -71,7 +71,7 @@ $valueAt255 = static function (array $value, string $path): mixed {
 $cases255 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFiveFive'],
     'operator' => ['operator', 'GLOB'],
-    'expression' => ['expression', 'option_name GLOB ? /* bracket class has no prefix range */'],
+    'expression' => ['expression', 'key_name GLOB ? /* bracket class has no prefix range */'],
     'pattern' => ['pattern', '[^A-Za-z]plugin*'],
     'pattern hex' => ['patternHex', '5b5e412d5a612d7a5d706c7567696e2a'],
     'range null' => ['range', null],
@@ -103,8 +103,8 @@ $cases255 = [
     'next row10 encoding' => ['nextTextEncodings.10', 'UTF-16BE'],
     'current row3 storage' => ['currentStorageClasses.3', 'text'],
     'next row10 storage' => ['nextStorageClasses.10', 'text'],
-    'current option value row5' => ['currentOptionValues.5', 'omega'],
-    'next option value row10' => ['nextOptionValues.10', 'accented-new'],
+    'current key value row5' => ['currentKeyValues.5', 'omega'],
+    'next key value row10' => ['nextKeyValues.10', 'accented-new'],
     'cursor invalidated' => ['cursorInvalidated', true],
     'cursor reusable false' => ['cursorReusable', false],
     'reason source' => ['invalidationReasons.0', 'source-name'],
@@ -156,7 +156,7 @@ $tests['encoding collation affinity like current source nextTwoFiveFive negated 
     $t->same('_site_transient_update_plugins', $plan['currentText'][1]);
 };
 
-$tests['encoding collation affinity like current source nextTwoFiveFive integer option name uses text affinity'] = static function (TestRunner $t) use ($plan255): void {
+$tests['encoding collation affinity like current source nextTwoFiveFive integer key name uses text affinity'] = static function (TestRunner $t) use ($plan255): void {
     $plan = $plan255('[0-9]');
     $t->same([7], $plan['currentRowids']);
     $t->same('7', $plan['currentText'][7]);
@@ -169,17 +169,17 @@ $tests['encoding collation affinity like current source nextTwoFiveFive null and
     $t->same(false, in_array(9, $plan['currentRowids'], true));
 };
 
-$tests['encoding collation affinity like current source nextTwoFiveFive rejects missing option name'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationGlobClassFallbackPlan([['option_id' => 1]], [], '*'));
+$tests['encoding collation affinity like current source nextTwoFiveFive rejects missing key name'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationGlobClassFallbackPlan([['setting_id' => 1]], [], '*'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFiveFive rejects malformed utf8 scalar'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationGlobClassFallbackPlan([['option_id' => 1, 'option_name' => "plugin_\xc3"]], [], '*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationGlobClassFallbackPlan([['setting_id' => 1, 'key_name' => "plugin_\xc3"]], [], '*'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFiveFive rejects bad byte row'] = static function (TestRunner $t) use ($enc255): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationGlobClassFallbackPlan([
-        ['option_id' => 1, 'option_name_bytes' => $enc255('plugin', 1), 'text_encoding' => 4],
+        ['setting_id' => 1, 'key_name_bytes' => $enc255('plugin', 1), 'text_encoding' => 4],
     ], [], '*'));
 };
 

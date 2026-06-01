@@ -7,20 +7,20 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $current = [
-    ['option_id' => 1, 'option_name' => 'rewrite_rules_version', 'option_value' => 404],
-    ['option_id' => 2, 'option_name' => 'rewrite_rules_preview', 'option_value' => 405.5],
-    ['option_id' => 3, 'option_name' => 'rewrite_rules_text', 'option_value' => '0404'],
-    ['option_id' => 4, 'option_name' => 'cache_enabled', 'option_value' => true],
+    ['setting_id' => 1, 'key_name' => 'rewrite_rules_version', 'key_value' => 404],
+    ['setting_id' => 2, 'key_name' => 'rewrite_rules_preview', 'key_value' => 405.5],
+    ['setting_id' => 3, 'key_name' => 'rewrite_rules_text', 'key_value' => '0404'],
+    ['setting_id' => 4, 'key_name' => 'cache_enabled', 'key_value' => true],
 ];
 
 $next = [
-    ['option_id' => 1, 'option_name' => 'rewrite_rules_version', 'option_value' => '404'],
-    ['option_id' => 2, 'option_name' => 'rewrite_rules_preview', 'option_value' => 405.5],
-    ['option_id' => 3, 'option_name' => 'rewrite_rules_text', 'option_value' => 404],
-    ['option_id' => 5, 'option_name' => 'rewrite_rules_new', 'option_value' => 409],
+    ['setting_id' => 1, 'key_name' => 'rewrite_rules_version', 'key_value' => '404'],
+    ['setting_id' => 2, 'key_name' => 'rewrite_rules_preview', 'key_value' => 405.5],
+    ['setting_id' => 3, 'key_name' => 'rewrite_rules_text', 'key_value' => 404],
+    ['setting_id' => 5, 'key_name' => 'rewrite_rules_new', 'key_value' => 409],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueNumericLikePlan(
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueNumericLikePlan(
     $current,
     $next,
     '40%',
@@ -32,7 +32,7 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['changedStorageClassRowids'] === [1, 3]);
     assert($plan['changedFormattedRowids'] === [3]);
     assert($plan['cursorInvalidated'] === true);
-    echo "application-option-value-numeric-like-current-source-next240 self-test passed\n";
+    echo "application-key-value-numeric-like-current-source-next240 self-test passed\n";
     return;
 }
 

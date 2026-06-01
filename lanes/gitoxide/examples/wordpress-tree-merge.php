@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Gitoxide\TreeEntry;
+use PortLibs\Gitoxide\Tree;
 use PortLibs\Gitoxide\TreeMerge;
 use PortLibs\Gitoxide\TreeMergeResult;
 
@@ -50,6 +51,23 @@ $renameAddMerge = TreeMerge::mergeRecursive(
     $renameAdd['write'],
 );
 $renameAddEntry = $renameAddMerge->tree->entryNamed('review-widget.php');
+$sameRenameMode = $fixture['sameRenameMode'];
+$sameRenameModeMerge = TreeMerge::mergeRecursive(
+    $sameRenameMode['base'],
+    $sameRenameMode['ours'],
+    $sameRenameMode['theirs'],
+    $sameRenameMode['read'],
+    $sameRenameMode['write'],
+);
+$sameRenameModeReverseMerge = TreeMerge::mergeRecursive(
+    $sameRenameMode['base'],
+    $sameRenameMode['theirs'],
+    $sameRenameMode['ours'],
+    $sameRenameMode['read'],
+    $sameRenameMode['write'],
+);
+$sameRenameModeTree = Tree::fromObject($sameRenameMode['read']($sameRenameModeMerge->tree->entryNamed('acme-suite', true)?->oid ?? ''));
+$sameRenameModeReverseTree = Tree::fromObject($sameRenameMode['read']($sameRenameModeReverseMerge->tree->entryNamed('acme-suite', true)?->oid ?? ''));
 
 echo 'clean=' . ($clean->isClean() ? 'yes' : 'no') . "\n";
 echo 'entries=' . implode(',', array_map(static fn (TreeEntry $entry): string => $entry->filename, $clean->tree->entries)) . "\n";
@@ -62,3 +80,6 @@ echo 'rename-add-delete-ancestor=' . $renameAddDelete['read']($renameAddDeleteRe
 echo 'rename-add-conflicts=' . count($renameAddMerge->conflicts) . "\n";
 echo 'rename-add-entry=' . ($renameAddEntry?->filename ?? '') . "\n";
 echo 'rename-add-body=' . $renameAdd['read']($renameAddEntry?->oid ?? '')->body;
+echo 'same-rename-mode-conflicts=' . count($sameRenameModeMerge->conflicts) . "\n";
+echo 'same-rename-mode-cli-mode=' . ($sameRenameModeTree->entryNamed('cli.php')?->mode ?? '') . "\n";
+echo 'same-rename-mode-reverse-cli-mode=' . ($sameRenameModeReverseTree->entryNamed('cli.php')?->mode ?? '') . "\n";

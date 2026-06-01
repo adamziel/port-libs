@@ -8,25 +8,25 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 $tests = [];
 
 $current254 = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache', 'option_value' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'plugin_literal', 'option_value' => 'plugin_%literal'],
-    ['option_id' => 3, 'option_name' => 'plugin_upper', 'option_value' => 'PLUGIN_cache'],
-    ['option_id' => 4, 'option_name' => 'plugin_number', 'option_value' => 40],
-    ['option_id' => 5, 'option_name' => 'plugin_real', 'option_value' => 40.5],
-    ['option_id' => 6, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin_blob')],
-    ['option_id' => 7, 'option_name' => 'plugin_null', 'option_value' => null],
-    ['option_id' => 8, 'option_name' => 'siteurl', 'option_value' => 'https://example.test'],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache', 'key_value' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'plugin_literal', 'key_value' => 'plugin_%literal'],
+    ['setting_id' => 3, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN_cache'],
+    ['setting_id' => 4, 'key_name' => 'plugin_number', 'key_value' => 40],
+    ['setting_id' => 5, 'key_name' => 'plugin_real', 'key_value' => 40.5],
+    ['setting_id' => 6, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin_blob')],
+    ['setting_id' => 7, 'key_name' => 'plugin_null', 'key_value' => null],
+    ['setting_id' => 8, 'key_name' => 'siteurl', 'key_value' => 'https://example.test'],
 ];
 
 $nextTwoFiveFour = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache', 'option_value' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'plugin_literal', 'option_value' => 'plugin_%literal'],
-    ['option_id' => 3, 'option_name' => 'plugin_upper', 'option_value' => 'PLUGIN_cache'],
-    ['option_id' => 4, 'option_name' => 'plugin_number', 'option_value' => '40'],
-    ['option_id' => 5, 'option_name' => 'plugin_real', 'option_value' => 40.5],
-    ['option_id' => 6, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin_blob')],
-    ['option_id' => 7, 'option_name' => 'plugin_null', 'option_value' => null],
-    ['option_id' => 9, 'option_name' => 'plugin_new', 'option_value' => 'plugin_new'],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache', 'key_value' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'plugin_literal', 'key_value' => 'plugin_%literal'],
+    ['setting_id' => 3, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN_cache'],
+    ['setting_id' => 4, 'key_name' => 'plugin_number', 'key_value' => '40'],
+    ['setting_id' => 5, 'key_name' => 'plugin_real', 'key_value' => 40.5],
+    ['setting_id' => 6, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin_blob')],
+    ['setting_id' => 7, 'key_name' => 'plugin_null', 'key_value' => null],
+    ['setting_id' => 9, 'key_name' => 'plugin_new', 'key_value' => 'plugin_new'],
 ];
 
 $plan254 = static fn (
@@ -71,7 +71,7 @@ $valueAt254 = static function (array $value, string $path): mixed {
 $cases254 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFiveFour'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'option_value LIKE ? ESCAPE ? /* explicit SQL NULL ESCAPE is UNKNOWN, not omitted ESCAPE */'],
+    'expression' => ['expression', 'key_value LIKE ? ESCAPE ? /* explicit SQL NULL ESCAPE is UNKNOWN, not omitted ESCAPE */'],
     'pattern' => ['pattern', 'plugin!_%'],
     'pattern hex' => ['patternHex', '706c7567696e215f25'],
     'case flag' => ['caseSensitiveLike', false],
@@ -162,8 +162,8 @@ $tests['encoding collation affinity like current source nextTwoFiveFour stable e
 
 $tests['encoding collation affinity like current source nextTwoFiveFour numeric escape uses text affinity'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 'plugin_%'],
-        ['option_id' => 2, 'option_value' => 'plugin_123'],
+        ['setting_id' => 1, 'key_value' => 'plugin_%'],
+        ['setting_id' => 2, 'key_value' => 'plugin_123'],
     ];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNullableEscapeLikePlan($rows, $rows, 'plugin1_%', 1, true, '1', true, false, 'same', 'same', 1, 1);
     $t->same('1', $plan['currentEscapeText']);
@@ -187,12 +187,12 @@ $tests['encoding collation affinity like current source nextTwoFiveFour rejects 
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNullableEscapeLikePlan($current254, $nextTwoFiveFour, 'plugin!!_%', '!!', true));
 };
 
-$tests['encoding collation affinity like current source nextTwoFiveFour rejects missing option value'] = static function (TestRunner $t) use ($nextTwoFiveFour): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNullableEscapeLikePlan([['option_id' => 1]], $nextTwoFiveFour));
+$tests['encoding collation affinity like current source nextTwoFiveFour rejects missing key value'] = static function (TestRunner $t) use ($nextTwoFiveFour): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNullableEscapeLikePlan([['setting_id' => 1]], $nextTwoFiveFour));
 };
 
-$tests['encoding collation affinity like current source nextTwoFiveFour rejects array option value'] = static function (TestRunner $t) use ($nextTwoFiveFour): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNullableEscapeLikePlan([['option_id' => 1, 'option_value' => ['plugin']]], $nextTwoFiveFour));
+$tests['encoding collation affinity like current source nextTwoFiveFour rejects array key value'] = static function (TestRunner $t) use ($nextTwoFiveFour): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNullableEscapeLikePlan([['setting_id' => 1, 'key_value' => ['plugin']]], $nextTwoFiveFour));
 };
 
 return $tests;

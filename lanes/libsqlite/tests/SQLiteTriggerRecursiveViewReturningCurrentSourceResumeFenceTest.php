@@ -5,16 +5,16 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows190 = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing_url.test', 'load_policy' => 'yes'],
 ];
 $currentView190 = [
-    'name' => 'wp_recursive_option_import',
+    'name' => 'app_recursive_setting_import',
     'source' => 'main@view-cookie-190-current',
-    'trigger' => 'wp_recursive_option_import_io_insert',
+    'trigger' => 'app_recursive_setting_import_io_insert',
     'trigger_source' => 'main@trigger-cookie-190-current',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'spawn_child'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'spawn_child'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy'],
     'audit_label' => 'current-recursive-view-trigger-190',
 ];
 $nextView190 = $currentView190;
@@ -22,15 +22,15 @@ $nextView190['source'] = 'main@view-cookie-190-next';
 $nextView190['trigger_source'] = 'main@trigger-cookie-190-next';
 $nextView190['audit_label'] = 'next-recursive-view-trigger-190';
 $currentInput190 = [
-    ['import_id' => 10, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 11, 'name' => 'current_plugin', 'value' => 'enabled', 'autoload_flag' => 'no', 'spawn_child' => true],
+    ['import_id' => 10, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 11, 'name' => 'current_module', 'value' => 'enabled', 'load_policy_flag' => 'no', 'spawn_child' => true],
 ];
 $nextInput190 = [
-    ['import_id' => 20, 'name' => 'home', 'value' => 'https://next.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 21, 'name' => 'next_plugin', 'value' => 'active', 'autoload_flag' => 'no', 'spawn_child' => false],
+    ['import_id' => 20, 'name' => 'landing_url', 'value' => 'https://next.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 21, 'name' => 'next_module', 'value' => 'active', 'load_policy_flag' => 'no', 'spawn_child' => false],
 ];
 $returning190 = [
-    ['expr' => 'new.option_name', 'as' => 'name'],
+    ['expr' => 'new.key_name', 'as' => 'name'],
     ['expr' => 'event', 'as' => 'event_name'],
     ['expr' => 'depth', 'as' => 'depth_value'],
     ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
@@ -44,21 +44,21 @@ $run190 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewRe
     $nextView190,
     $returning190,
     $options + [
-        'key' => 'option_name',
-        'savepoint' => 'wp_recursive_view_190',
-        'cursor_name' => 'wp_recursive_view_returning_cursor_190',
-        'current_generation' => 'wp-current-returning-190',
-        'next_generation' => 'wp-next-returning-190',
-        'checkpoint_name' => 'wp_recursive_view_checkpoint_190',
+        'key' => 'key_name',
+        'savepoint' => 'app_recursive_view_190',
+        'cursor_name' => 'app_recursive_view_returning_cursor_190',
+        'current_generation' => 'app-current-returning-190',
+        'next_generation' => 'app-next-returning-190',
+        'checkpoint_name' => 'app_recursive_view_checkpoint_190',
         'page_size' => 3,
     ],
 );
 $held190 = static fn (): array => $run190();
 $exposed190 = static fn (): array => $run190(['admit_next_source' => true, 'auto_ack_current' => true]);
-$resumeHeld190 = static fn (): array => $run190(['admit_next_source' => true, 'auto_ack_current' => true, 'resume_source_token' => 'wp.returning.current.source.resume.190:stale']);
-$nextResumeHeld190 = static fn (): array => $run190(['admit_next_source' => true, 'auto_ack_current' => true, 'next_source_resume_token' => 'wp_recursive_view_returning_cursor_190:wp-next-returning-190:stale']);
+$resumeHeld190 = static fn (): array => $run190(['admit_next_source' => true, 'auto_ack_current' => true, 'resume_source_token' => 'app.returning.current.source.resume.190:stale']);
+$nextResumeHeld190 = static fn (): array => $run190(['admit_next_source' => true, 'auto_ack_current' => true, 'next_source_resume_token' => 'app_recursive_view_returning_cursor_190:app-next-returning-190:stale']);
 $signatureHeld190 = static fn (): array => $run190(['admit_next_source' => true, 'auto_ack_current' => true, 'source_signature' => 'sig190:stale']);
-$ticketHeld190 = static fn (): array => $run190(['admit_next_source' => true, 'auto_ack_current' => true, 'drain_ticket' => 'wp.returning.current.source.drain.190:bad']);
+$ticketHeld190 = static fn (): array => $run190(['admit_next_source' => true, 'auto_ack_current' => true, 'drain_ticket' => 'app.returning.current.source.drain.190:bad']);
 $nonRecursive190 = static fn (): array => $run190(['admit_next_source' => true, 'auto_ack_current' => true, 'recursive_triggers' => false]);
 
 $cases190 = [
@@ -70,7 +70,7 @@ $cases190 = [
     'ticket held status' => [static fn (): mixed => $ticketHeld190()['status'], 'trigger-recursive-view-returning-current-source-next190-drain-ticket-held'],
     'base next187 retained' => [static fn (): mixed => $exposed190()['base']['status'], 'trigger-recursive-view-returning-current-source-next187-next-exposed'],
     'base ticket mismatch retained' => [static fn (): mixed => $ticketHeld190()['base']['status'], 'trigger-recursive-view-returning-current-source-next187-drain-ticket-held'],
-    'resume prefix retained' => [static fn (): mixed => $exposed190()['resume_source_prefix'], 'wp.returning.current.source.resume.190'],
+    'resume prefix retained' => [static fn (): mixed => $exposed190()['resume_source_prefix'], 'app.returning.current.source.resume.190'],
     'resume token matches exposed' => [static fn (): mixed => $exposed190()['resume_source_matches'], true],
     'resume token mismatch recorded' => [static fn (): mixed => $resumeHeld190()['resume_source_matches'], false],
     'next resume matches exposed' => [static fn (): mixed => $exposed190()['next_source_resume_matches'], true],
@@ -81,8 +81,8 @@ $cases190 = [
     'expected resume differs stale' => [static fn (): mixed => $resumeHeld190()['expected_resume_source_token'] === $resumeHeld190()['resume_source_token'], false],
     'expected next resume equals actual exposed' => [static fn (): mixed => $exposed190()['expected_next_source_resume_token'], $exposed190()['next_source_resume_token']],
     'expected source signature equals actual exposed' => [static fn (): mixed => $exposed190()['expected_source_signature'], $exposed190()['source_signature']],
-    'last current resume token' => [static fn (): mixed => $exposed190()['last_current_resume_token'], 'wp_recursive_view_returning_cursor_190:wp-current-returning-190:5'],
-    'first next resume token' => [static fn (): mixed => $exposed190()['first_next_resume_token'], 'wp_recursive_view_returning_cursor_190:wp-next-returning-190:6'],
+    'last current resume token' => [static fn (): mixed => $exposed190()['last_current_resume_token'], 'app_recursive_view_returning_cursor_190:app-current-returning-190:5'],
+    'first next resume token' => [static fn (): mixed => $exposed190()['first_next_resume_token'], 'app_recursive_view_returning_cursor_190:app-next-returning-190:6'],
     'base next exposed before resume' => [static fn (): mixed => $exposed190()['base_next_exposed_before_resume_source'], true],
     'base next held before resume' => [static fn (): mixed => $held190()['base_next_exposed_before_resume_source'], false],
     'next exposed after resume' => [static fn (): mixed => $exposed190()['next_source_exposed_after_resume_source'], true],
@@ -96,9 +96,9 @@ $cases190 = [
     'held rows resume mismatch count' => [static fn (): mixed => count($resumeHeld190()['held_rows']), 4],
     'held rows next mismatch count' => [static fn (): mixed => count($nextResumeHeld190()['held_rows']), 4],
     'held rows signature mismatch count' => [static fn (): mixed => count($signatureHeld190()['held_rows']), 4],
-    'visible names held' => [static fn (): mixed => array_column($held190()['visible_returning_rows'], 'name'), ['siteurl', 'current_plugin', 'siteurl:child', 'current_plugin:child', 'siteurl:child:child', 'current_plugin:child:child']],
-    'visible names exposed' => [static fn (): mixed => array_column($exposed190()['visible_returning_rows'], 'name'), ['siteurl', 'current_plugin', 'siteurl:child', 'current_plugin:child', 'siteurl:child:child', 'current_plugin:child:child', 'home', 'next_plugin', 'home:child', 'home:child:child']],
-    'held names resume mismatch' => [static fn (): mixed => array_column($resumeHeld190()['held_returning_rows'], 'name'), ['home', 'next_plugin', 'home:child', 'home:child:child']],
+    'visible names held' => [static fn (): mixed => array_column($held190()['visible_returning_rows'], 'name'), ['base_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child']],
+    'visible names exposed' => [static fn (): mixed => array_column($exposed190()['visible_returning_rows'], 'name'), ['base_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child', 'landing_url', 'next_module', 'landing_url:child', 'landing_url:child:child']],
+    'held names resume mismatch' => [static fn (): mixed => array_column($resumeHeld190()['held_returning_rows'], 'name'), ['landing_url', 'next_module', 'landing_url:child', 'landing_url:child:child']],
     'current visible unique' => [static fn (): mixed => array_values(array_unique(array_column($exposed190()['current_source_rows'], 'visible_after_resume_source'))), [true]],
     'next visible exposed unique' => [static fn (): mixed => array_values(array_unique(array_column($exposed190()['attempted_next_source_rows'], 'visible_after_resume_source'))), [true]],
     'next visible held unique' => [static fn (): mixed => array_values(array_unique(array_column($resumeHeld190()['attempted_next_source_rows'], 'visible_after_resume_source'))), [false]],
@@ -118,7 +118,7 @@ $cases190 = [
     'resume plan decision exposed' => [static fn (): mixed => $exposed190()['resume_plan']['decision'], 'admit-next-source-returning'],
     'resume plan decision held' => [static fn (): mixed => $resumeHeld190()['resume_plan']['decision'], 'hold-next-source-returning'],
     'resume plan blocked token exposed' => [static fn (): mixed => $exposed190()['resume_plan']['blocked_at_token'], null],
-    'resume plan blocked token mismatch' => [static fn (): mixed => $resumeHeld190()['resume_plan']['blocked_at_token'], 'wp_recursive_view_returning_cursor_190:wp-next-returning-190:6'],
+    'resume plan blocked token mismatch' => [static fn (): mixed => $resumeHeld190()['resume_plan']['blocked_at_token'], 'app_recursive_view_returning_cursor_190:app-next-returning-190:6'],
     'counts current rows' => [static fn (): mixed => $exposed190()['counts']['current_rows'], 6],
     'counts next rows' => [static fn (): mixed => $exposed190()['counts']['attempted_next_rows'], 4],
     'counts visible exposed' => [static fn (): mixed => $exposed190()['counts']['visible_rows'], 10],
@@ -130,9 +130,9 @@ $cases190 = [
     'dependency next187 retained' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next187', $exposed190()['dependencies'], true), true],
     'dependency closure note' => [static fn (): mixed => $exposed190()['dependency_closure'], 'no new support component needed; reuses recursive view trigger RETURNING drain-ticket rows and adds current-source resume token validation'],
     'non overlap mentions next187' => [static fn (): mixed => str_contains($exposed190()['non_overlap'], 'next187'), true],
-    'non recursive visible names' => [static fn (): mixed => array_column($nonRecursive190()['visible_returning_rows'], 'name'), ['siteurl', 'current_plugin', 'home', 'next_plugin']],
-    'non recursive last current resume' => [static fn (): mixed => $nonRecursive190()['last_current_resume_token'], 'wp_recursive_view_returning_cursor_190:wp-current-returning-190:1'],
-    'custom prefix accepted' => [static fn (): mixed => $run190(['admit_next_source' => true, 'auto_ack_current' => true, 'resume_source_prefix' => 'wp.custom.resume.190'])['resume_source_prefix'], 'wp.custom.resume.190'],
+    'non recursive visible names' => [static fn (): mixed => array_column($nonRecursive190()['visible_returning_rows'], 'name'), ['base_url', 'current_module', 'landing_url', 'next_module']],
+    'non recursive last current resume' => [static fn (): mixed => $nonRecursive190()['last_current_resume_token'], 'app_recursive_view_returning_cursor_190:app-current-returning-190:1'],
+    'custom prefix accepted' => [static fn (): mixed => $run190(['admit_next_source' => true, 'auto_ack_current' => true, 'resume_source_prefix' => 'app.custom.resume.190'])['resume_source_prefix'], 'app.custom.resume.190'],
     'explicit expected resume accepted' => [static fn (): mixed => $run190(['admit_next_source' => true, 'auto_ack_current' => true, 'expected_resume_source_token' => $exposed190()['resume_source_token']])['resume_source_matches'], true],
     'bad resume token rejected' => [static fn (): mixed => $run190(['resume_source_token' => 'bad token']), InvalidArgumentException::class],
     'bad expected resume token rejected' => [static fn (): mixed => $run190(['expected_resume_source_token' => 'bad token']), InvalidArgumentException::class],

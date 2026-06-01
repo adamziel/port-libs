@@ -5,16 +5,16 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows187 = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing_url.test', 'load_policy' => 'yes'],
 ];
 $currentView187 = [
-    'name' => 'wp_recursive_option_import',
+    'name' => 'app_recursive_setting_import',
     'source' => 'main@view-cookie-187-current',
-    'trigger' => 'wp_recursive_option_import_io_insert',
+    'trigger' => 'app_recursive_setting_import_io_insert',
     'trigger_source' => 'main@trigger-cookie-187-current',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'spawn_child'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'spawn_child'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy'],
     'audit_label' => 'current-recursive-view-trigger-187',
 ];
 $nextView187 = $currentView187;
@@ -22,15 +22,15 @@ $nextView187['source'] = 'main@view-cookie-187-next';
 $nextView187['trigger_source'] = 'main@trigger-cookie-187-next';
 $nextView187['audit_label'] = 'next-recursive-view-trigger-187';
 $currentInput187 = [
-    ['import_id' => 10, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 11, 'name' => 'current_plugin', 'value' => 'enabled', 'autoload_flag' => 'no', 'spawn_child' => true],
+    ['import_id' => 10, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 11, 'name' => 'current_module', 'value' => 'enabled', 'load_policy_flag' => 'no', 'spawn_child' => true],
 ];
 $nextInput187 = [
-    ['import_id' => 20, 'name' => 'home', 'value' => 'https://next.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 21, 'name' => 'next_plugin', 'value' => 'active', 'autoload_flag' => 'no', 'spawn_child' => false],
+    ['import_id' => 20, 'name' => 'landing_url', 'value' => 'https://next.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 21, 'name' => 'next_module', 'value' => 'active', 'load_policy_flag' => 'no', 'spawn_child' => false],
 ];
 $returning187 = [
-    ['expr' => 'new.option_name', 'as' => 'name'],
+    ['expr' => 'new.key_name', 'as' => 'name'],
     ['expr' => 'event', 'as' => 'event_name'],
     ['expr' => 'depth', 'as' => 'depth_value'],
     ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
@@ -44,21 +44,21 @@ $run187 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewRe
     $nextView187,
     $returning187,
     $options + [
-        'key' => 'option_name',
-        'savepoint' => 'wp_recursive_view_187',
-        'cursor_name' => 'wp_recursive_view_returning_cursor_187',
-        'current_generation' => 'wp-current-returning-187',
-        'next_generation' => 'wp-next-returning-187',
-        'checkpoint_name' => 'wp_recursive_view_checkpoint_187',
+        'key' => 'key_name',
+        'savepoint' => 'app_recursive_view_187',
+        'cursor_name' => 'app_recursive_view_returning_cursor_187',
+        'current_generation' => 'app-current-returning-187',
+        'next_generation' => 'app-next-returning-187',
+        'checkpoint_name' => 'app_recursive_view_checkpoint_187',
         'page_size' => 3,
     ],
 );
 $held187 = static fn (): array => $run187();
 $exposed187 = static fn (): array => $run187(['admit_next_source' => true, 'auto_ack_current' => true]);
-$ticketHeld187 = static fn (): array => $run187(['admit_next_source' => true, 'auto_ack_current' => true, 'drain_ticket' => 'wp.returning.current.source.drain.187:bad']);
+$ticketHeld187 = static fn (): array => $run187(['admit_next_source' => true, 'auto_ack_current' => true, 'drain_ticket' => 'app.returning.current.source.drain.187:bad']);
 $missingAck187 = static fn (): array => $run187([
     'admit_next_source' => true,
-    'acknowledged_current_checkpoints' => ['wp_recursive_view_checkpoint_187:wp-current-returning-187:0'],
+    'acknowledged_current_checkpoints' => ['app_recursive_view_checkpoint_187:app-current-returning-187:0'],
 ]);
 $nonRecursive187 = static fn (): array => $run187(['admit_next_source' => true, 'auto_ack_current' => true, 'recursive_triggers' => false]);
 
@@ -69,7 +69,7 @@ $cases187 = [
     'missing ack status' => [static fn (): mixed => $missingAck187()['status'], 'trigger-recursive-view-returning-current-source-next187-checkpoint-handoff-held'],
     'base held retained' => [static fn (): mixed => $held187()['base']['status'], 'trigger-recursive-view-returning-current-source-next184-current-ack-held'],
     'base exposed retained' => [static fn (): mixed => $exposed187()['base']['status'], 'trigger-recursive-view-returning-current-source-next184-next-exposed'],
-    'ticket prefix retained' => [static fn (): mixed => $exposed187()['drain_ticket_prefix'], 'wp.returning.current.source.drain.187'],
+    'ticket prefix retained' => [static fn (): mixed => $exposed187()['drain_ticket_prefix'], 'app.returning.current.source.drain.187'],
     'ticket matches exposed' => [static fn (): mixed => $exposed187()['drain_ticket_matches'], true],
     'ticket mismatch recorded' => [static fn (): mixed => $ticketHeld187()['drain_ticket_matches'], false],
     'expected ticket equals actual exposed' => [static fn (): mixed => $exposed187()['expected_drain_ticket'], $exposed187()['drain_ticket']],
@@ -84,9 +84,9 @@ $cases187 = [
     'visible exposed all rows count' => [static fn (): mixed => count($exposed187()['visible_rows']), 10],
     'held rows exposed empty' => [static fn (): mixed => $exposed187()['held_rows'], []],
     'held rows ticket mismatch count' => [static fn (): mixed => count($ticketHeld187()['held_rows']), 4],
-    'visible names held' => [static fn (): mixed => array_column($held187()['visible_returning_rows'], 'name'), ['siteurl', 'current_plugin', 'siteurl:child', 'current_plugin:child', 'siteurl:child:child', 'current_plugin:child:child']],
-    'visible names exposed' => [static fn (): mixed => array_column($exposed187()['visible_returning_rows'], 'name'), ['siteurl', 'current_plugin', 'siteurl:child', 'current_plugin:child', 'siteurl:child:child', 'current_plugin:child:child', 'home', 'next_plugin', 'home:child', 'home:child:child']],
-    'held names mismatch' => [static fn (): mixed => array_column($ticketHeld187()['held_returning_rows'], 'name'), ['home', 'next_plugin', 'home:child', 'home:child:child']],
+    'visible names held' => [static fn (): mixed => array_column($held187()['visible_returning_rows'], 'name'), ['base_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child']],
+    'visible names exposed' => [static fn (): mixed => array_column($exposed187()['visible_returning_rows'], 'name'), ['base_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child', 'landing_url', 'next_module', 'landing_url:child', 'landing_url:child:child']],
+    'held names mismatch' => [static fn (): mixed => array_column($ticketHeld187()['held_returning_rows'], 'name'), ['landing_url', 'next_module', 'landing_url:child', 'landing_url:child:child']],
     'current rows visible unique' => [static fn (): mixed => array_values(array_unique(array_column($exposed187()['current_source_rows'], 'visible_after_drain_ticket'))), [true]],
     'next rows visible exposed unique' => [static fn (): mixed => array_values(array_unique(array_column($exposed187()['attempted_next_source_rows'], 'visible_after_drain_ticket'))), [true]],
     'next rows held mismatch unique' => [static fn (): mixed => array_values(array_unique(array_column($ticketHeld187()['attempted_next_source_rows'], 'visible_after_drain_ticket'))), [false]],
@@ -101,8 +101,8 @@ $cases187 = [
     'ticket plan held acknowledged count' => [static fn (): mixed => $held187()['ticket_plan']['acknowledged_checkpoint_count'], 0],
     'ticket plan held next count' => [static fn (): mixed => $held187()['ticket_plan']['held_next_row_count'], 4],
     'ticket plan exposed held next zero' => [static fn (): mixed => $exposed187()['ticket_plan']['held_next_row_count'], 0],
-    'ticket plan resume token' => [static fn (): mixed => $exposed187()['ticket_plan']['resume_after_token'], 'wp_recursive_view_returning_cursor_187:wp-current-returning-187:5'],
-    'ticket plan blocked token mismatch' => [static fn (): mixed => $ticketHeld187()['ticket_plan']['blocked_at_token'], 'wp_recursive_view_returning_cursor_187:wp-next-returning-187:6'],
+    'ticket plan resume token' => [static fn (): mixed => $exposed187()['ticket_plan']['resume_after_token'], 'app_recursive_view_returning_cursor_187:app-current-returning-187:5'],
+    'ticket plan blocked token mismatch' => [static fn (): mixed => $ticketHeld187()['ticket_plan']['blocked_at_token'], 'app_recursive_view_returning_cursor_187:app-next-returning-187:6'],
     'ticket plan blocked exposed null' => [static fn (): mixed => $exposed187()['ticket_plan']['blocked_at_token'], null],
     'counts current rows' => [static fn (): mixed => $exposed187()['counts']['current_rows'], 6],
     'counts next rows' => [static fn (): mixed => $exposed187()['counts']['attempted_next_rows'], 4],
@@ -115,9 +115,9 @@ $cases187 = [
     'dependency next184 retained' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next184', $exposed187()['dependencies'], true), true],
     'dependency closure note' => [static fn (): mixed => $exposed187()['dependency_closure'], 'no new support component needed; reuses recursive view trigger RETURNING checkpoint handoff and adds current-source drain ticket validation'],
     'non overlap mentions next184' => [static fn (): mixed => str_contains($exposed187()['non_overlap'], 'next184'), true],
-    'non recursive visible names' => [static fn (): mixed => array_column($nonRecursive187()['visible_returning_rows'], 'name'), ['siteurl', 'current_plugin', 'home', 'next_plugin']],
+    'non recursive visible names' => [static fn (): mixed => array_column($nonRecursive187()['visible_returning_rows'], 'name'), ['base_url', 'current_module', 'landing_url', 'next_module']],
     'non recursive required checkpoint count' => [static fn (): mixed => $nonRecursive187()['ticket_plan']['required_checkpoint_count'], 1],
-    'custom prefix accepted' => [static fn (): mixed => $run187(['admit_next_source' => true, 'auto_ack_current' => true, 'drain_ticket_prefix' => 'wp.custom.drain.187'])['drain_ticket_prefix'], 'wp.custom.drain.187'],
+    'custom prefix accepted' => [static fn (): mixed => $run187(['admit_next_source' => true, 'auto_ack_current' => true, 'drain_ticket_prefix' => 'app.custom.drain.187'])['drain_ticket_prefix'], 'app.custom.drain.187'],
     'bad drain ticket rejected' => [static fn (): mixed => $run187(['drain_ticket' => 'bad token']), InvalidArgumentException::class],
     'bad expected drain ticket rejected' => [static fn (): mixed => $run187(['expected_drain_ticket' => 'bad token']), InvalidArgumentException::class],
     'bad drain prefix rejected' => [static fn (): mixed => $run187(['drain_ticket_prefix' => 'bad token']), InvalidArgumentException::class],

@@ -399,43 +399,77 @@ final class SourceMap
                 }
             }
 
+            $childMaxLine = null;
+            $mappingsByChildLine = [];
             foreach ($sourceMap->mappings as $mapping) {
-                $generatedLine = $mapping['generatedLine'] + $lineOffset;
+                $childMaxLine = $childMaxLine === null
+                    ? $mapping['generatedLine']
+                    : max($childMaxLine, $mapping['generatedLine']);
+                $mappingsByChildLine[$mapping['generatedLine']][] = $mapping;
+            }
+
+            $childLineCount = max(
+                $sourceMap->generatedLineCount,
+                $childMaxLine === null ? 0 : $childMaxLine + 1
+            );
+
+            for ($line = 0; $line < $childLineCount; $line++) {
+                $generatedLine = $line + $lineOffset;
                 if ($generatedLine < 0) {
                     continue;
                 }
 
-                $sourceIndex = null;
-                if ($mapping['sourceIndex'] !== null) {
-                    if (!array_key_exists($mapping['sourceIndex'], $sourceMap->sources)) {
-                        throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $mapping['sourceIndex']);
+                $lineMappings = [];
+                foreach ($mappingsByChildLine[$line] ?? [] as $mapping) {
+                    $sourceIndex = null;
+                    if ($mapping['sourceIndex'] !== null) {
+                        if (!array_key_exists($mapping['sourceIndex'], $sourceMap->sources)) {
+                            throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $mapping['sourceIndex']);
+                        }
+
+                        $sourceIndex = $sourceIndexes[$mapping['sourceIndex']] ??= $this->addSource($sourceMap->sources[$mapping['sourceIndex']]);
+
+                        if (!$preserveUnusedTables && array_key_exists($mapping['sourceIndex'], $sourceMap->sourcesContent)) {
+                            $this->setSourceContent($sourceIndex, $sourceMap->sourcesContent[$mapping['sourceIndex']]);
+                        }
                     }
 
-                    $sourceIndex = $sourceIndexes[$mapping['sourceIndex']] ??= $this->addSource($sourceMap->sources[$mapping['sourceIndex']]);
+                    $name = null;
+                    if ($mapping['nameIndex'] !== null) {
+                        if (!array_key_exists($mapping['nameIndex'], $sourceMap->names)) {
+                            throw new InvalidArgumentException('Source map mapping references unknown name index: ' . $mapping['nameIndex']);
+                        }
 
-                    if (!$preserveUnusedTables && array_key_exists($mapping['sourceIndex'], $sourceMap->sourcesContent)) {
-                        $this->setSourceContent($sourceIndex, $sourceMap->sourcesContent[$mapping['sourceIndex']]);
+                        $name = $sourceMap->names[$mapping['nameIndex']];
+                        $nameIndexes[$mapping['nameIndex']] ??= $this->addName($name);
                     }
+
+                    $lineMappings[] = [
+                        'generatedLine' => $generatedLine,
+                        'generatedColumn' => self::offsetUnsigned32(
+                            $mapping['generatedColumn'],
+                            $mapping['generatedLine'] === 0 ? $columnOffset : 0,
+                            'generated column + column offset'
+                        ),
+                        'sourceIndex' => $sourceIndex,
+                        'originalLine' => $mapping['originalLine'],
+                        'originalColumn' => $mapping['originalColumn'],
+                        'name' => $name,
+                    ];
                 }
 
-                $name = null;
-                if ($mapping['nameIndex'] !== null) {
-                    if (!array_key_exists($mapping['nameIndex'], $sourceMap->names)) {
-                        throw new InvalidArgumentException('Source map mapping references unknown name index: ' . $mapping['nameIndex']);
-                    }
-
-                    $name = $sourceMap->names[$mapping['nameIndex']];
-                    $nameIndexes[$mapping['nameIndex']] ??= $this->addName($name);
+                foreach ($lineMappings as $lineMapping) {
+                    $this->addRawMapping(
+                        $lineMapping['generatedLine'],
+                        $lineMapping['generatedColumn'],
+                        $lineMapping['sourceIndex'],
+                        $lineMapping['originalLine'],
+                        $lineMapping['originalColumn'],
+                        $lineMapping['name']
+                    );
                 }
 
-                $this->addRawMapping(
-                    $generatedLine,
-                    $mapping['generatedColumn'] + ($mapping['generatedLine'] === 0 ? $columnOffset : 0),
-                    $sourceIndex,
-                    $mapping['originalLine'],
-                    $mapping['originalColumn'],
-                    $name
-                );
+                $this->generatedLineCount = max($this->generatedLineCount, $generatedLine + 1);
             }
         } finally {
             $this->drainSourceMap($sourceMap);

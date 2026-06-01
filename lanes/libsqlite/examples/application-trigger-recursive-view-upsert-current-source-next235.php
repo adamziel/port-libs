@@ -34,11 +34,11 @@ $summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrent
     ],
     [
         'savepoint' => 'app_view_recursive_235',
-        'current_upsert_source_next232' => 'wp.current.upsert.source.235',
+        'current_upsert_source_next232' => 'app.current.upsert.source.235',
         'current_view_source_next232' => 'main@cookie235-current',
-        'current_trigger_program_next232' => 'wp.current.recursive.trigger.program.235',
-        'current_yield_ticket_source_next235' => 'wp.current.yield.ticket.source.235',
-        'current_yield_resume_cursor_next235' => 'wp.current.yield.cursor.235',
+        'current_trigger_program_next232' => 'app.current.recursive.trigger.program.235',
+        'current_yield_ticket_source_next235' => 'app.current.yield.ticket.source.235',
+        'current_yield_resume_cursor_next235' => 'app.current.yield.cursor.235',
         'auto_ack_current_yield_tickets_next235' => true,
     ],
 );

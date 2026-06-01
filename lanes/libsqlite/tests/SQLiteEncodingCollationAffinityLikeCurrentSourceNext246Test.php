@@ -8,31 +8,31 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 $tests = [];
 
 $current246 = [
-    ['option_id' => 1, 'option_name' => 'plugin_literal_percent', 'option_value' => 'plugin_%enabled'],
-    ['option_id' => 2, 'option_name' => 'plugin_wild_percent', 'option_value' => 'plugin_cacheenabled'],
-    ['option_id' => 3, 'option_name' => 'plugin_literal_hash', 'option_value' => 'plugin#_enabled'],
-    ['option_id' => 4, 'option_name' => 'plugin_literal_bang', 'option_value' => 'plugin!_enabled'],
-    ['option_id' => 5, 'option_name' => 'plugin_upper', 'option_value' => 'PLUGIN_%ENABLED'],
-    ['option_id' => 6, 'option_name' => 'plugin_spaces', 'option_value' => 'plugin_%enabled  '],
-    ['option_id' => 7, 'option_name' => 'plugin_int_escape', 'option_value' => 1],
-    ['option_id' => 8, 'option_name' => 'plugin_null', 'option_value' => null],
-    ['option_id' => 9, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin_%enabled')],
-    ['option_id' => 10, 'option_name' => 'plugin_bad_text', 'option_value' => "plugin_\xffenabled"],
+    ['setting_id' => 1, 'key_name' => 'plugin_literal_percent', 'key_value' => 'plugin_%enabled'],
+    ['setting_id' => 2, 'key_name' => 'plugin_wild_percent', 'key_value' => 'plugin_cacheenabled'],
+    ['setting_id' => 3, 'key_name' => 'plugin_literal_hash', 'key_value' => 'plugin#_enabled'],
+    ['setting_id' => 4, 'key_name' => 'plugin_literal_bang', 'key_value' => 'plugin!_enabled'],
+    ['setting_id' => 5, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN_%ENABLED'],
+    ['setting_id' => 6, 'key_name' => 'plugin_spaces', 'key_value' => 'plugin_%enabled  '],
+    ['setting_id' => 7, 'key_name' => 'plugin_int_escape', 'key_value' => 1],
+    ['setting_id' => 8, 'key_name' => 'plugin_null', 'key_value' => null],
+    ['setting_id' => 9, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin_%enabled')],
+    ['setting_id' => 10, 'key_name' => 'plugin_bad_text', 'key_value' => "plugin_\xffenabled"],
 ];
 
 $nextTwoFourSix = [
-    ['option_id' => 1, 'option_name' => 'plugin_literal_percent', 'option_value' => 'plugin_%enabled'],
-    ['option_id' => 2, 'option_name' => 'plugin_wild_percent', 'option_value' => 'plugin_cacheenabled'],
-    ['option_id' => 3, 'option_name' => 'plugin_literal_hash', 'option_value' => 'plugin#_enabled'],
-    ['option_id' => 4, 'option_name' => 'plugin_literal_bang', 'option_value' => 'plugin!_enabled'],
-    ['option_id' => 5, 'option_name' => 'plugin_upper', 'option_value' => 'PLUGIN_%ENABLED'],
-    ['option_id' => 6, 'option_name' => 'plugin_spaces', 'option_value' => 'plugin_%enabled'],
-    ['option_id' => 7, 'option_name' => 'plugin_int_escape', 'option_value' => '1'],
-    ['option_id' => 8, 'option_name' => 'plugin_null', 'option_value' => null],
-    ['option_id' => 9, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin_%enabled')],
-    ['option_id' => 10, 'option_name' => 'plugin_bad_text', 'option_value' => "plugin_\xffenabled"],
-    ['option_id' => 11, 'option_name' => 'plugin_new_literal', 'option_value' => 'plugin_%enabled_extra'],
-    ['option_id' => 12, 'option_name' => 'plugin_new_upper', 'option_value' => 'Plugin_%Enabled_extra'],
+    ['setting_id' => 1, 'key_name' => 'plugin_literal_percent', 'key_value' => 'plugin_%enabled'],
+    ['setting_id' => 2, 'key_name' => 'plugin_wild_percent', 'key_value' => 'plugin_cacheenabled'],
+    ['setting_id' => 3, 'key_name' => 'plugin_literal_hash', 'key_value' => 'plugin#_enabled'],
+    ['setting_id' => 4, 'key_name' => 'plugin_literal_bang', 'key_value' => 'plugin!_enabled'],
+    ['setting_id' => 5, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN_%ENABLED'],
+    ['setting_id' => 6, 'key_name' => 'plugin_spaces', 'key_value' => 'plugin_%enabled'],
+    ['setting_id' => 7, 'key_name' => 'plugin_int_escape', 'key_value' => '1'],
+    ['setting_id' => 8, 'key_name' => 'plugin_null', 'key_value' => null],
+    ['setting_id' => 9, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin_%enabled')],
+    ['setting_id' => 10, 'key_name' => 'plugin_bad_text', 'key_value' => "plugin_\xffenabled"],
+    ['setting_id' => 11, 'key_name' => 'plugin_new_literal', 'key_value' => 'plugin_%enabled_extra'],
+    ['setting_id' => 12, 'key_name' => 'plugin_new_upper', 'key_value' => 'Plugin_%Enabled_extra'],
 ];
 
 $plan246 = static fn (
@@ -75,7 +75,7 @@ $valueAt246 = static function (array $value, string $path): mixed {
 $cases246 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFourSix'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'option_value COLLATE NOCASE LIKE ? ESCAPE dynamic_escape /* ESCAPE text affinity current-source fence */'],
+    'expression' => ['expression', 'key_value COLLATE NOCASE LIKE ? ESCAPE dynamic_escape /* ESCAPE text affinity current-source fence */'],
     'pattern' => ['pattern', 'plugin!_%'],
     'pattern hex' => ['patternHex', '706C7567696E215F25'],
     'collation' => ['collation', 'NOCASE'],
@@ -109,8 +109,8 @@ $cases246 = [
     'trace literal text' => ['currentTrace.3.likeText', 'plugin_%enabled'],
     'trace spaces text' => ['currentTrace.5.likeText', 'plugin_%enabled  '],
     'trace spaces next text' => ['nextTrace.3.likeText', 'plugin_%enabled'],
-    'current error malformed' => ['currentErrors.10', 'SQLite dynamic ESCAPE LIKE nextTwoFourSix option_value text is malformed UTF-8'],
-    'next error malformed' => ['nextErrors.10', 'SQLite dynamic ESCAPE LIKE nextTwoFourSix option_value text is malformed UTF-8'],
+    'current error malformed' => ['currentErrors.10', 'SQLite dynamic ESCAPE LIKE nextTwoFourSix key_value text is malformed UTF-8'],
+    'next error malformed' => ['nextErrors.10', 'SQLite dynamic ESCAPE LIKE nextTwoFourSix key_value text is malformed UTF-8'],
     'affinity flag' => ['dynamicEscapeUsesTextAffinity', true],
     'escape length flag' => ['escapeMustBeOneSqlCharacter', true],
     'rebind flag' => ['escapeRebindInvalidatesCursor', true],
@@ -141,7 +141,7 @@ foreach ($cases246 as $name => [$path, $expected]) {
 }
 
 $tests['encoding collation affinity like current source nextTwoFourSix stable cursor reusable'] = static function (TestRunner $t) use ($current246, $plan246): void {
-    $rows = array_values(array_filter($current246, static fn (array $row): bool => ($row['option_id'] ?? null) !== 10));
+    $rows = array_values(array_filter($current246, static fn (array $row): bool => ($row['setting_id'] ?? null) !== 10));
     $stable = $plan246(current: $rows, next: $rows, currentEscape: '!', nextEscape: '!', currentSource: 'same', nextSource: 'same', currentCookie: 246, nextCookie: 246);
     $t->same(false, $stable['cursorInvalidated']);
     $t->same(true, $stable['cursorReusable']);
@@ -151,9 +151,9 @@ $tests['encoding collation affinity like current source nextTwoFourSix stable cu
 
 $tests['encoding collation affinity like current source nextTwoFourSix numeric escape is text affinity'] = static function (TestRunner $t) use ($plan246): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 'cache_%hit'],
-        ['option_id' => 2, 'option_value' => 'cache1_hit'],
-        ['option_id' => 3, 'option_value' => 'cache__hit'],
+        ['setting_id' => 1, 'key_value' => 'cache_%hit'],
+        ['setting_id' => 2, 'key_value' => 'cache1_hit'],
+        ['setting_id' => 3, 'key_value' => 'cache__hit'],
     ];
     $plan = $plan246(current: $rows, next: $rows, pattern: 'cache1_%', currentEscape: 1, nextEscape: 1, currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $t->same('integer', $plan['currentEscape']['storage']);
@@ -163,8 +163,8 @@ $tests['encoding collation affinity like current source nextTwoFourSix numeric e
 
 $tests['encoding collation affinity like current source nextTwoFourSix boolean escape can quote percent'] = static function (TestRunner $t) use ($plan246): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 'cache%hit'],
-        ['option_id' => 2, 'option_value' => 'cacheXhit'],
+        ['setting_id' => 1, 'key_value' => 'cache%hit'],
+        ['setting_id' => 2, 'key_value' => 'cacheXhit'],
     ];
     $plan = $plan246(current: $rows, next: $rows, pattern: 'cache1%%', currentEscape: true, nextEscape: true, currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $t->same('integer', $plan['currentEscape']['storage']);
@@ -173,8 +173,8 @@ $tests['encoding collation affinity like current source nextTwoFourSix boolean e
 
 $tests['encoding collation affinity like current source nextTwoFourSix null escape makes all rows unknown'] = static function (TestRunner $t) use ($plan246): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 'plugin_%enabled'],
-        ['option_id' => 2, 'option_value' => 'plugin_cacheenabled'],
+        ['setting_id' => 1, 'key_value' => 'plugin_%enabled'],
+        ['setting_id' => 2, 'key_value' => 'plugin_cacheenabled'],
     ];
     $plan = $plan246(current: $rows, next: $rows, currentEscape: null, nextEscape: null, currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $t->same([1, 2], $plan['currentUnknownRowids']);
@@ -199,8 +199,8 @@ $tests['encoding collation affinity like current source nextTwoFourSix multi cha
 
 $tests['encoding collation affinity like current source nextTwoFourSix multibyte escape is one sqlite character'] = static function (TestRunner $t) use ($plan246): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 'plugin_%enabled'],
-        ['option_id' => 2, 'option_value' => 'pluginé_enabled'],
+        ['setting_id' => 1, 'key_value' => 'plugin_%enabled'],
+        ['setting_id' => 2, 'key_value' => 'pluginé_enabled'],
     ];
     $plan = $plan246(current: $rows, next: $rows, pattern: 'pluginé_%', currentEscape: 'é', nextEscape: 'é', currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $t->same('C3A9', $plan['currentEscape']['escapeHex']);
@@ -223,14 +223,14 @@ $tests['encoding collation affinity like current source nextTwoFourSix rejects i
     $t->throws(InvalidArgumentException::class, static fn () => $plan246(collation: 'UNICODE'));
 };
 
-$tests['encoding collation affinity like current source nextTwoFourSix rejects missing option value'] = static function (TestRunner $t) use ($plan246): void {
-    $t->throws(InvalidArgumentException::class, static fn () => $plan246(current: [['option_id' => 1]], next: []));
+$tests['encoding collation affinity like current source nextTwoFourSix rejects missing key value'] = static function (TestRunner $t) use ($plan246): void {
+    $t->throws(InvalidArgumentException::class, static fn () => $plan246(current: [['setting_id' => 1]], next: []));
 };
 
-$tests['encoding collation affinity like current source nextTwoFourSix rejects nonscalar option value'] = static function (TestRunner $t) use ($plan246): void {
-    $plan = $plan246(current: [['option_id' => 1, 'option_value' => ['bad']]], next: []);
+$tests['encoding collation affinity like current source nextTwoFourSix rejects nonscalar key value'] = static function (TestRunner $t) use ($plan246): void {
+    $plan = $plan246(current: [['setting_id' => 1, 'key_value' => ['bad']]], next: []);
     $t->same([1], $plan['currentMalformedRowids']);
-    $t->same('SQLite dynamic ESCAPE LIKE nextTwoFourSix option_value must be scalar text-affinity input', $plan['currentErrors'][1]);
+    $t->same('SQLite dynamic ESCAPE LIKE nextTwoFourSix key_value must be scalar text-affinity input', $plan['currentErrors'][1]);
 };
 
 return $tests;

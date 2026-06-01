@@ -5,45 +5,45 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows173 = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'source' => 'seed'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes', 'source' => 'seed'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'source' => 'seed'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing_url.test', 'load_policy' => 'yes', 'source' => 'seed'],
 ];
 $currentView173 = [
-    'name' => 'wp_option_import_view',
+    'name' => 'app_setting_import_view',
     'source' => 'main@view-cookie-173-current',
-    'trigger' => 'wp_option_import_view_io_insert',
+    'trigger' => 'app_setting_import_view_io_insert',
     'trigger_source' => 'main@trigger-cookie-173-current',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy'],
     'recursive_column' => 'name',
     'recursive_suffix' => '_retry',
     'audit_label' => 'current-recursive-trigger-drain-173',
 ];
 $nextView173 = [
-    'name' => 'wp_option_import_view',
+    'name' => 'app_setting_import_view',
     'source' => 'main@view-cookie-173-next',
-    'trigger' => 'wp_option_import_view_io_insert',
+    'trigger' => 'app_setting_import_view_io_insert',
     'trigger_source' => 'main@trigger-cookie-173-next',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'origin'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload', 'origin' => 'source'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'origin'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy', 'origin' => 'source'],
     'recursive_column' => 'name',
     'recursive_suffix' => '_next_retry',
     'audit_label' => 'next-recursive-trigger-drain-173',
 ];
 $currentInput173 = [
-    ['import_id' => 10, 'name' => 'plugin_seed', 'value' => 'enabled', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 11, 'name' => 'skip_me', 'value' => 'disabled', 'autoload_flag' => 'skip', 'spawn_child' => true],
-    ['import_id' => 12, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => false],
+    ['import_id' => 10, 'name' => 'module_seed', 'value' => 'enabled', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 11, 'name' => 'skip_me', 'value' => 'disabled', 'load_policy_flag' => 'skip', 'spawn_child' => true],
+    ['import_id' => 12, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes', 'spawn_child' => false],
 ];
 $nextInput173 = [
-    ['import_id' => 20, 'name' => 'rewrite_rules', 'value' => 'cached', 'autoload_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => true],
-    ['import_id' => 21, 'name' => 'home', 'value' => 'https://next-home.test', 'autoload_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => false],
-    ['import_id' => 22, 'name' => 'next_skip', 'value' => 'ignored', 'autoload_flag' => 'skip', 'origin' => 'next-import', 'spawn_child' => true],
+    ['import_id' => 20, 'name' => 'routing_rules', 'value' => 'cached', 'load_policy_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => true],
+    ['import_id' => 21, 'name' => 'landing_url', 'value' => 'https://next-landing_url.test', 'load_policy_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => false],
+    ['import_id' => 22, 'name' => 'next_skip', 'value' => 'ignored', 'load_policy_flag' => 'skip', 'origin' => 'next-import', 'spawn_child' => true],
 ];
 $returning173 = [
-    'new.option_name',
-    ['expr' => 'new.option_value', 'as' => 'value'],
-    ['expr' => 'old.option_value', 'as' => 'old_value'],
+    'new.key_name',
+    ['expr' => 'new.key_value', 'as' => 'value'],
+    ['expr' => 'old.key_value', 'as' => 'old_value'],
     ['expr' => 'view.name', 'as' => 'view_name'],
     ['expr' => 'event', 'as' => 'event_name'],
     ['expr' => 'ordinal', 'as' => 'ordinal_value'],
@@ -58,7 +58,7 @@ $plan173 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewR
     $currentView173,
     $nextView173,
     $returning173,
-    $options + ['key' => 'option_name', 'savepoint' => 'wp_recursive_view_173', 'max_depth' => 2, 'page_size' => 2],
+    $options + ['key' => 'key_name', 'savepoint' => 'app_recursive_view_173', 'max_depth' => 2, 'page_size' => 2],
 );
 
 $partial173 = static fn (): array => $plan173(['admit_next_source' => true, 'drained_current_pages' => 1]);
@@ -76,18 +76,18 @@ $cases173 = [
     'partial current cursor is not exhausted' => [static fn (): mixed => $partial173()['current_cursor_exhausted'], false],
     'partial drained count' => [static fn (): mixed => $partial173()['current_pages_drained_count'], 1],
     'partial total current page count' => [static fn (): mixed => $partial173()['current_pages_total_count'], 2],
-    'partial drained page names' => [static fn (): mixed => $partial173()['drained_current_pages'][0]['names'], ['plugin_seed', 'siteurl']],
-    'partial pending page names' => [static fn (): mixed => $partial173()['pending_current_pages'][0]['names'], ['plugin_seed_retry', 'plugin_seed_retry_retry']],
+    'partial drained page names' => [static fn (): mixed => $partial173()['drained_current_pages'][0]['names'], ['module_seed', 'base_url']],
+    'partial pending page names' => [static fn (): mixed => $partial173()['pending_current_pages'][0]['names'], ['module_seed_retry', 'module_seed_retry_retry']],
     'partial visible pages are drained current only' => [static fn (): mixed => array_column($partial173()['visible_returning_pages_next173'], 'phase'), ['current']],
     'partial next pages remain blocked' => [static fn (): mixed => array_column($partial173()['blocked_next_source_pages_next173'], 'phase'), ['next', 'next']],
-    'partial blocked next names zero' => [static fn (): mixed => $partial173()['blocked_next_source_pages_next173'][0]['names'], ['rewrite_rules', 'home']],
+    'partial blocked next names zero' => [static fn (): mixed => $partial173()['blocked_next_source_pages_next173'][0]['names'], ['routing_rules', 'landing_url']],
     'partial block reason is current cursor' => [static fn (): mixed => $partial173()['next_source_block_reasons_next173'], ['current-returning-cursor-not-exhausted']],
     'partial cursor state pending count' => [static fn (): mixed => $partial173()['returning_cursor_state_next173']['pending_current_pages'], 1],
     'partial cursor state visible page count' => [static fn (): mixed => $partial173()['returning_cursor_state_next173']['visible_pages'], 1],
     'partial cursor state blocked next count' => [static fn (): mixed => $partial173()['returning_cursor_state_next173']['blocked_next_pages'], 2],
     'partial boundary' => [static fn (): mixed => $partial173()['yield_boundary_next173'], 'recursive-view-returning-next173-next-source-held-by-current-cursor-or-token'],
     'partial preserves next167 admitted preparation' => [static fn (): mixed => $partial173()['status_next167'], 'trigger-recursive-view-returning-next-source-admitted-after-current-drain-next167'],
-    'partial keeps prepared next rows available' => [static fn (): mixed => array_column(array_column($partial173()['next_returning_rows'], 'returning'), 'option_name'), ['rewrite_rules', 'home', 'rewrite_rules_next_retry', 'rewrite_rules_next_retry_next_retry']],
+    'partial keeps prepared next rows available' => [static fn (): mixed => array_column(array_column($partial173()['next_returning_rows'], 'returning'), 'key_name'), ['routing_rules', 'landing_url', 'routing_rules_next_retry', 'routing_rules_next_retry_next_retry']],
 
     'exhausted status admits next source' => [static fn (): mixed => $exhausted173()['status_next173'], 'trigger-recursive-view-returning-next-source-admitted-after-exhausted-current-cursor-next173'],
     'exhausted cursor is exhausted' => [static fn (): mixed => $exhausted173()['current_cursor_exhausted'], true],
@@ -96,8 +96,8 @@ $cases173 = [
     'exhausted no blocked next pages' => [static fn (): mixed => $exhausted173()['blocked_next_source_pages_next173'], []],
     'exhausted no block reasons' => [static fn (): mixed => $exhausted173()['next_source_block_reasons_next173'], []],
     'exhausted visible phases include next after current' => [static fn (): mixed => array_column($exhausted173()['visible_returning_pages_next173'], 'phase'), ['current', 'current', 'next', 'next']],
-    'exhausted next page names one' => [static fn (): mixed => $exhausted173()['visible_returning_pages_next173'][2]['names'], ['rewrite_rules', 'home']],
-    'exhausted next page names two' => [static fn (): mixed => $exhausted173()['visible_returning_pages_next173'][3]['names'], ['rewrite_rules_next_retry', 'rewrite_rules_next_retry_next_retry']],
+    'exhausted next page names one' => [static fn (): mixed => $exhausted173()['visible_returning_pages_next173'][2]['names'], ['routing_rules', 'landing_url']],
+    'exhausted next page names two' => [static fn (): mixed => $exhausted173()['visible_returning_pages_next173'][3]['names'], ['routing_rules_next_retry', 'routing_rules_next_retry_next_retry']],
     'exhausted cursor visible page count' => [static fn (): mixed => $exhausted173()['returning_cursor_state_next173']['visible_pages'], 4],
     'exhausted cursor blocked page count' => [static fn (): mixed => $exhausted173()['returning_cursor_state_next173']['blocked_next_pages'], 0],
     'exhausted boundary' => [static fn (): mixed => $exhausted173()['yield_boundary_next173'], 'recursive-view-returning-next173-current-cursor-exhausted-source-token-matched'],
@@ -124,8 +124,8 @@ $cases173 = [
     'zero drain cursor state pending count' => [static fn (): mixed => $zero173()['returning_cursor_state_next173']['pending_current_pages'], 2],
 
     'wide partial total current page count' => [static fn (): mixed => $wide173()['current_pages_total_count'], 2],
-    'wide partial drained names' => [static fn (): mixed => $wide173()['drained_current_pages'][0]['names'], ['plugin_seed', 'siteurl', 'plugin_seed_retry']],
-    'wide partial pending names' => [static fn (): mixed => $wide173()['pending_current_pages'][0]['names'], ['plugin_seed_retry_retry']],
+    'wide partial drained names' => [static fn (): mixed => $wide173()['drained_current_pages'][0]['names'], ['module_seed', 'base_url', 'module_seed_retry']],
+    'wide partial pending names' => [static fn (): mixed => $wide173()['pending_current_pages'][0]['names'], ['module_seed_retry_retry']],
 
     'negative drained count throws' => [static fn (): mixed => $plan173(['drained_current_pages' => -1]), InvalidArgumentException::class],
     'too many drained pages throws' => [static fn (): mixed => $plan173(['drained_current_pages' => 3]), InvalidArgumentException::class],

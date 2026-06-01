@@ -6,6 +6,8 @@ namespace PortLibs\LibSqlite;
 
 final class SQLitePDO extends \PDO
 {
+    private const MAX_VARIABLE_NUMBER = 32766;
+
     /** @var array<string,list<array<string,mixed>>> */
     private array $tables = [];
 
@@ -374,6 +376,9 @@ final class SQLitePDO extends \PDO
         if (preg_match('/^SQLite SELECT (?:expression|predicate) row is missing column (.+)$/', $message, $match) === 1) {
             return 'no such column: ' . $match[1];
         }
+        if (preg_match('/^SQLite SELECT SQL (variable number must be between \?1 and \?' . self::MAX_VARIABLE_NUMBER . ')$/', $message, $match) === 1) {
+            return $match[1];
+        }
 
         return $message;
     }
@@ -410,7 +415,7 @@ final class SQLitePDO extends \PDO
                 }
             } catch (\Throwable $exception) {
                 $message = $this->pdoSqliteMessage($exception);
-                if ($this->isColumnResolutionError($message)) {
+                if ($this->isColumnResolutionError($message) || $this->isParameterResolutionError($message)) {
                     throw $this->failure($message, $exception);
                 }
             }
@@ -571,6 +576,11 @@ final class SQLitePDO extends \PDO
     private function assertPrepareScalarReferences(string $expression, array $knownColumns): void
     {
         $expression = trim($expression);
+        if (preg_match('/^\?[0-9]+$/', $expression) === 1) {
+            $this->explicitParameterIndex($expression);
+
+            return;
+        }
         if ($expression === ''
             || preg_match('/^\?(?:\d+)?$/', $expression) === 1
             || preg_match('/^[:@$][A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)?(?:\([^)]*\))?$/', $expression) === 1
@@ -602,6 +612,88 @@ final class SQLitePDO extends \PDO
             || preg_match('/^table [A-Za-z_][A-Za-z0-9_]* has no column named [A-Za-z_][A-Za-z0-9_]*$/', $message) === 1;
     }
 
+    private function isParameterResolutionError(string $message): bool
+    {
+        return $message === 'column index out of range'
+            || $message === 'variable number must be between ?1 and ?' . self::MAX_VARIABLE_NUMBER;
+    }
+
+    /**
+     * @param array<int|string,mixed> $parameters
+     */
+    public function assertExecuteParameterArrayMatches(string $sql, array $parameters): void
+    {
+        $usedKeys = [];
+        $positionalIndex = 1;
+        $parameterCount = 0;
+        $namedParameterIndexes = [];
+        $quote = false;
+        $length = strlen($sql);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($quote) {
+                if ($char === "'" && ($sql[$i + 1] ?? null) === "'") {
+                    $i++;
+                } elseif ($char === "'") {
+                    $quote = false;
+                }
+                continue;
+            }
+            if ($char === "'") {
+                $quote = true;
+                continue;
+            }
+            if ($char === '?') {
+                $end = $i + 1;
+                while ($end < $length && ctype_digit($sql[$end])) {
+                    $end++;
+                }
+                $token = substr($sql, $i, $end - $i);
+                $index = $token === '?' ? $positionalIndex++ : $this->explicitParameterIndex($token);
+                if ($token !== '?') {
+                    $positionalIndex = max($positionalIndex, $index + 1);
+                }
+                $parameterCount = max($parameterCount, $index);
+                $zeroBased = $index - 1;
+                if (!array_key_exists($zeroBased, $parameters)) {
+                    throw $this->failure("SQLitePDO missing positional parameter {$token}");
+                }
+                $i = $end - 1;
+                continue;
+            }
+            if ($char === ':') {
+                $token = $this->namedParameterToken($sql, $i);
+                if ($token === null) {
+                    continue;
+                }
+                if (!array_key_exists($token, $namedParameterIndexes)) {
+                    $namedParameterIndexes[$token] = $positionalIndex++;
+                }
+                $parameterCount = max($parameterCount, $namedParameterIndexes[$token]);
+                $bare = substr($token, 1);
+                if (!array_key_exists($token, $parameters) && !array_key_exists($bare, $parameters)) {
+                    throw $this->failure("SQLitePDO missing named parameter {$token}");
+                }
+                if (array_key_exists($token, $parameters)) {
+                    $usedKeys[$token] = true;
+                }
+                if (array_key_exists($bare, $parameters)) {
+                    $usedKeys[$bare] = true;
+                }
+                $i += strlen($token) - 1;
+            }
+        }
+
+        foreach (array_keys($parameters) as $key) {
+            if (is_int($key) && $key >= 0 && $key < $parameterCount) {
+                continue;
+            }
+            if (!array_key_exists((string) $key, $usedKeys)) {
+                throw $this->failure('column index out of range');
+            }
+        }
+    }
+
     /** @param array<int|string,mixed> $parameters */
     private function assertBoundParametersPresent(string $sql, array $parameters): void
     {
@@ -631,7 +723,7 @@ final class SQLitePDO extends \PDO
                 if ($token === '?') {
                     $index = $positionalIndex++;
                 } else {
-                    $index = (int) substr($token, 1);
+                    $index = $this->explicitParameterIndex($token);
                     $positionalIndex = max($positionalIndex, $index + 1);
                 }
                 if (!array_key_exists($index, $parameters)) {
@@ -672,6 +764,22 @@ final class SQLitePDO extends \PDO
         }
 
         return substr($sql, $offset, $end - $offset);
+    }
+
+    private function explicitParameterIndex(string $token): int
+    {
+        $digits = substr($token, 1);
+        $normalized = ltrim($digits, '0');
+        if ($normalized === '') {
+            throw $this->failure('variable number must be between ?1 and ?' . self::MAX_VARIABLE_NUMBER);
+        }
+
+        $max = (string) self::MAX_VARIABLE_NUMBER;
+        if (strlen($normalized) > strlen($max) || (strlen($normalized) === strlen($max) && strcmp($normalized, $max) > 0)) {
+            throw $this->failure('variable number must be between ?1 and ?' . self::MAX_VARIABLE_NUMBER);
+        }
+
+        return (int) $normalized;
     }
 
     private function persistIfNeeded(bool $force = false): void
@@ -792,7 +900,7 @@ final class SQLitePDO extends \PDO
         $columns = $statement['columns'] ?? $this->columns[$table];
         $this->assertColumns($table, $columns, 'insert');
         $changes = 0;
-        $parameterCursor = $parameters;
+        $parameterCursor = $this->parameterCursor($parameters);
         foreach ($statement['tuples'] as $values) {
             if (count($values) !== count($columns)) {
                 throw new \PDOException('SQLitePDO INSERT column count does not match value count');
@@ -834,7 +942,7 @@ final class SQLitePDO extends \PDO
         $this->assertColumns($table, array_keys($assignments), 'update');
         $indexes = $this->matchingIndexes($table, $match[3] ?? null, $parameters);
         foreach ($indexes as $index) {
-            $parameterCursor = $parameters;
+            $parameterCursor = $this->parameterCursor($parameters);
             foreach ($assignments as $column => $expression) {
                 $this->tables[$table][$index][$column] = $this->value($expression, $parameterCursor, $this->tables[$table][$index]);
             }
@@ -907,15 +1015,30 @@ final class SQLitePDO extends \PDO
         return $max + 1;
     }
 
-    /** @param array<int|string,mixed> $parameters @param array<string,mixed> $row */
+    /**
+     * @param array<int|string,mixed> $parameters
+     * @return array{parameters:array<int|string,mixed>,anonymous:int}
+     */
+    private function parameterCursor(array $parameters): array
+    {
+        return ['parameters' => $parameters, 'anonymous' => 1];
+    }
+
+    /** @param array{parameters:array<int|string,mixed>,anonymous:int} $parameters @param array<string,mixed> $row */
     private function value(string $expression, array &$parameters, array $row = []): mixed
     {
         $expression = trim($expression);
         if ($expression === '?') {
-            return array_shift($parameters);
+            return $this->parameterValue($parameters, $parameters['anonymous']++);
+        }
+        if (preg_match('/^\?[0-9]+$/', $expression) === 1) {
+            $index = $this->explicitParameterIndex($expression);
+            $parameters['anonymous'] = max($parameters['anonymous'], $index + 1);
+
+            return $this->parameterValue($parameters, $index);
         }
         if (preg_match('/^:([A-Za-z_][A-Za-z0-9_]*)$/', $expression, $match) === 1) {
-            return $parameters[':' . $match[1]] ?? $parameters[$match[1]] ?? null;
+            return $this->parameterValue($parameters, ':' . $match[1]);
         }
         if (array_key_exists($expression, $row)) {
             return $row[$expression];
@@ -945,6 +1068,19 @@ final class SQLitePDO extends \PDO
         }
 
         throw new \PDOException("SQLitePDO unsupported scalar expression: {$expression}");
+    }
+
+    /** @param array{parameters:array<int|string,mixed>,anonymous:int} $cursor */
+    private function parameterValue(array $cursor, int|string $key): mixed
+    {
+        $parameters = $cursor['parameters'];
+        if (is_int($key)) {
+            return $parameters[$key] ?? null;
+        }
+
+        $bare = substr($key, 1);
+
+        return $parameters[$key] ?? $parameters[$bare] ?? null;
     }
 
     /** @return list<string> */

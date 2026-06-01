@@ -12,33 +12,33 @@ $tests = [];
 $enc250 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 
 $current250 = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'plugin_cache  '],
-    ['option_id' => 3, 'option_name' => "plugin_cache\t"],
-    ['option_id' => 4, 'option_name_bytes' => $enc250('Plugin_Cache', 'UTF-16LE'), 'text_encoding' => 2],
-    ['option_id' => 5, 'option_name_bytes' => $enc250('Plugin_Cache  ', 'UTF-16BE'), 'text_encoding' => 3],
-    ['option_id' => 6, 'option_name' => 'plugin_cache_extra'],
-    ['option_id' => 7, 'option_name' => 'theme_cache'],
-    ['option_id' => 8, 'option_name' => 404],
-    ['option_id' => 9, 'option_name' => 404.0],
-    ['option_id' => 10, 'option_name' => true],
-    ['option_id' => 11, 'option_name' => new SQLiteBlobValue('plugin_cache')],
-    ['option_id' => 12, 'option_name' => null],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'plugin_cache  '],
+    ['setting_id' => 3, 'key_name' => "plugin_cache\t"],
+    ['setting_id' => 4, 'key_name_bytes' => $enc250('Plugin_Cache', 'UTF-16LE'), 'text_encoding' => 2],
+    ['setting_id' => 5, 'key_name_bytes' => $enc250('Plugin_Cache  ', 'UTF-16BE'), 'text_encoding' => 3],
+    ['setting_id' => 6, 'key_name' => 'plugin_cache_extra'],
+    ['setting_id' => 7, 'key_name' => 'theme_cache'],
+    ['setting_id' => 8, 'key_name' => 404],
+    ['setting_id' => 9, 'key_name' => 404.0],
+    ['setting_id' => 10, 'key_name' => true],
+    ['setting_id' => 11, 'key_name' => new SQLiteBlobValue('plugin_cache')],
+    ['setting_id' => 12, 'key_name' => null],
 ];
 
 $nextTwoFiveZero = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache  '],
-    ['option_id' => 2, 'option_name' => 'plugin_cache'],
-    ['option_id' => 3, 'option_name' => "plugin_cache\t"],
-    ['option_id' => 4, 'option_name_bytes' => $enc250('Plugin_Cache', 'UTF-16BE'), 'text_encoding' => 3],
-    ['option_id' => 5, 'option_name_bytes' => $enc250('Plugin_Cache', 'UTF-16LE'), 'text_encoding' => 2],
-    ['option_id' => 6, 'option_name' => 'plugin_cache_extra'],
-    ['option_id' => 7, 'option_name' => 'theme_cache'],
-    ['option_id' => 8, 'option_name' => '404'],
-    ['option_id' => 9, 'option_name' => 404.0],
-    ['option_id' => 10, 'option_name' => false],
-    ['option_id' => 13, 'option_name' => 'plugin_cache_new'],
-    ['option_id' => 14, 'option_name' => 'plugin_cache_new  '],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache  '],
+    ['setting_id' => 2, 'key_name' => 'plugin_cache'],
+    ['setting_id' => 3, 'key_name' => "plugin_cache\t"],
+    ['setting_id' => 4, 'key_name_bytes' => $enc250('Plugin_Cache', 'UTF-16BE'), 'text_encoding' => 3],
+    ['setting_id' => 5, 'key_name_bytes' => $enc250('Plugin_Cache', 'UTF-16LE'), 'text_encoding' => 2],
+    ['setting_id' => 6, 'key_name' => 'plugin_cache_extra'],
+    ['setting_id' => 7, 'key_name' => 'theme_cache'],
+    ['setting_id' => 8, 'key_name' => '404'],
+    ['setting_id' => 9, 'key_name' => 404.0],
+    ['setting_id' => 10, 'key_name' => false],
+    ['setting_id' => 13, 'key_name' => 'plugin_cache_new'],
+    ['setting_id' => 14, 'key_name' => 'plugin_cache_new  '],
 ];
 
 $plan250 = static fn (
@@ -77,7 +77,7 @@ $valueAt250 = static function (array $value, string $path): mixed {
 $cases250 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFiveZero'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'option_name COLLATE RTRIM LIKE ? ESCAPE ? /* RTRIM key never trims LIKE residual */'],
+    'expression' => ['expression', 'key_name COLLATE RTRIM LIKE ? ESCAPE ? /* RTRIM key never trims LIKE residual */'],
     'pattern' => ['pattern', 'plugin!_cache'],
     'pattern hex' => ['patternHex', '706c7567696e215f6361636865'],
     'escape' => ['escape', '!'],
@@ -185,9 +185,9 @@ $tests['encoding collation affinity like current source nextTwoFiveZero case sen
 
 $tests['encoding collation affinity like current source nextTwoFiveZero numeric text affinity participates'] = static function (TestRunner $t) use ($plan250): void {
     $rows = [
-        ['option_id' => 1, 'option_name' => 404],
-        ['option_id' => 2, 'option_name' => 404.0],
-        ['option_id' => 3, 'option_name' => false],
+        ['setting_id' => 1, 'key_name' => 404],
+        ['setting_id' => 2, 'key_name' => 404.0],
+        ['setting_id' => 3, 'key_name' => false],
     ];
     $plan = $plan250(current: $rows, next: $rows, pattern: '404', escape: null, currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $t->same([1, 2], $plan['currentMatchedRowids']);
@@ -197,8 +197,8 @@ $tests['encoding collation affinity like current source nextTwoFiveZero numeric 
 
 $tests['encoding collation affinity like current source nextTwoFiveZero blob and null stay outside candidates'] = static function (TestRunner $t) use ($plan250): void {
     $rows = [
-        ['option_id' => 1, 'option_name' => new SQLiteBlobValue('plugin_cache')],
-        ['option_id' => 2, 'option_name' => null],
+        ['setting_id' => 1, 'key_name' => new SQLiteBlobValue('plugin_cache')],
+        ['setting_id' => 2, 'key_name' => null],
     ];
     $plan = $plan250(current: $rows, next: $rows, currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $t->same([], $plan['currentCandidateRowids']);
@@ -206,19 +206,19 @@ $tests['encoding collation affinity like current source nextTwoFiveZero blob and
 };
 
 $tests['encoding collation affinity like current source nextTwoFiveZero rejects malformed utf8 string'] = static function (TestRunner $t) use ($nextTwoFiveZero): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualSourcePlan([['option_id' => 1, 'option_name' => "plugin_cache\xc3"]], $nextTwoFiveZero, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualSourcePlan([['setting_id' => 1, 'key_name' => "plugin_cache\xc3"]], $nextTwoFiveZero, 'plugin%'));
 };
 
-$tests['encoding collation affinity like current source nextTwoFiveZero rejects missing option name'] = static function (TestRunner $t) use ($nextTwoFiveZero): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualSourcePlan([['option_id' => 1]], $nextTwoFiveZero, 'plugin%'));
+$tests['encoding collation affinity like current source nextTwoFiveZero rejects missing key name'] = static function (TestRunner $t) use ($nextTwoFiveZero): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualSourcePlan([['setting_id' => 1]], $nextTwoFiveZero, 'plugin%'));
 };
 
-$tests['encoding collation affinity like current source nextTwoFiveZero rejects array option name'] = static function (TestRunner $t) use ($nextTwoFiveZero): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualSourcePlan([['option_id' => 1, 'option_name' => ['plugin']]], $nextTwoFiveZero, 'plugin%'));
+$tests['encoding collation affinity like current source nextTwoFiveZero rejects array key name'] = static function (TestRunner $t) use ($nextTwoFiveZero): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualSourcePlan([['setting_id' => 1, 'key_name' => ['plugin']]], $nextTwoFiveZero, 'plugin%'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFiveZero rejects invalid byte encoding'] = static function (TestRunner $t) use ($nextTwoFiveZero): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualSourcePlan([['option_id' => 1, 'option_name_bytes' => 'plugin', 'text_encoding' => 9]], $nextTwoFiveZero, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualSourcePlan([['setting_id' => 1, 'key_name_bytes' => 'plugin', 'text_encoding' => 9]], $nextTwoFiveZero, 'plugin%'));
 };
 
 return $tests;

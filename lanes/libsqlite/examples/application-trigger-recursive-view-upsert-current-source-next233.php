@@ -21,12 +21,12 @@ require_once dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewUpsertCurrentSou
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $view = [
-    'name' => 'wp_recursive_option_import',
+    'name' => 'app_recursive_setting_import',
     'source' => 'main@view-cookie-233-current',
-    'trigger' => 'wp_recursive_option_import_io_insert',
+    'trigger' => 'app_recursive_setting_import_io_insert',
     'trigger_source' => 'main@trigger-cookie-233-current',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'spawn_child'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload', 'spawn_child' => 'spawn_child'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'spawn_child'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy', 'spawn_child' => 'spawn_child'],
     'audit_label' => 'current-recursive-view-upsert-trigger-233',
 ];
 $nextView = $view;
@@ -41,76 +41,76 @@ $followingView['trigger_source'] = 'main@trigger-cookie-233-following';
 
 $summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentUpsertConflictTarget(
     [
-        ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
-        ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
+        ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes'],
+        ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing_url.test', 'load_policy' => 'yes'],
     ],
     [
-        ['import_id' => 10, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-        ['import_id' => 11, 'name' => 'current_plugin', 'value' => 'enabled', 'autoload_flag' => 'no', 'spawn_child' => true],
+        ['import_id' => 10, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+        ['import_id' => 11, 'name' => 'current_module', 'value' => 'enabled', 'load_policy_flag' => 'no', 'spawn_child' => true],
     ],
     [
-        ['import_id' => 20, 'name' => 'home', 'value' => 'https://next.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-        ['import_id' => 21, 'name' => 'next_plugin', 'value' => 'active', 'autoload_flag' => 'no', 'spawn_child' => false],
+        ['import_id' => 20, 'name' => 'landing_url', 'value' => 'https://next.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+        ['import_id' => 21, 'name' => 'next_module', 'value' => 'active', 'load_policy_flag' => 'no', 'spawn_child' => false],
     ],
     $view,
     $nextView,
     [
-        ['expr' => 'new.option_name', 'as' => 'name'],
-        ['expr' => 'new.option_value', 'as' => 'value'],
+        ['expr' => 'new.key_name', 'as' => 'name'],
+        ['expr' => 'new.key_value', 'as' => 'value'],
         ['expr' => 'event', 'as' => 'event_name'],
         ['expr' => 'depth', 'as' => 'depth_value'],
         ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
         ['expr' => 'spawn_child', 'as' => 'spawn_child'],
     ],
     [
-        'savepoint' => 'wp_recursive_view_233',
-        'cursor_name' => 'wp_recursive_view_returning_cursor_233',
+        'savepoint' => 'app_recursive_view_233',
+        'cursor_name' => 'app_recursive_view_returning_cursor_233',
         'admit_next_source' => true,
-        'rollback_token' => 'wp.rollback.current.233',
+        'rollback_token' => 'app.rollback.current.233',
         'post_reset_view' => $postResetView,
         'post_reset_input' => [
-            ['import_id' => 30, 'name' => 'siteurl', 'value' => 'https://fresh.test', 'autoload_flag' => 'yes', 'spawn_child' => false],
-            ['import_id' => 31, 'name' => 'rewrite_rules', 'value' => 'fresh-rules', 'autoload_flag' => 'no', 'spawn_child' => false],
+            ['import_id' => 30, 'name' => 'base_url', 'value' => 'https://fresh.test', 'load_policy_flag' => 'yes', 'spawn_child' => false],
+            ['import_id' => 31, 'name' => 'routing_rules', 'value' => 'fresh-rules', 'load_policy_flag' => 'no', 'spawn_child' => false],
         ],
         'fresh_acknowledged_ordinals' => [0, 1],
-        'next_source_token' => 'wp.next.source.233',
-        'next_cursor' => 'wp.returning.next.cursor.233',
+        'next_source_token' => 'app.next.source.233',
+        'next_cursor' => 'app.returning.next.cursor.233',
         'next_acknowledged_ordinals' => [0, 1],
-        'close_next_cursor' => 'wp.returning.next.cursor.233',
-        'following_current_source_token' => 'wp.current.source.following.233',
-        'following_cursor' => 'wp.returning.following.cursor.233',
+        'close_next_cursor' => 'app.returning.next.cursor.233',
+        'following_current_source_token' => 'app.current.source.following.233',
+        'following_cursor' => 'app.returning.following.cursor.233',
         'following_current_view' => $followingView,
         'following_current_input' => [
-            ['import_id' => 40, 'name' => 'blogdescription', 'value' => 'after-next', 'autoload_flag' => 'yes', 'spawn_child' => true],
-            ['import_id' => 41, 'name' => 'stylesheet', 'value' => 'twentytwentyfive', 'autoload_flag' => 'yes', 'spawn_child' => false],
-            ['import_id' => 42, 'name' => 'template', 'value' => 'twentytwentyfive', 'autoload_flag' => 'yes', 'spawn_child' => true],
+            ['import_id' => 40, 'name' => 'app_summary', 'value' => 'after-next', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+            ['import_id' => 41, 'name' => 'theme_style_key', 'value' => 'modern_theme', 'load_policy_flag' => 'yes', 'spawn_child' => false],
+            ['import_id' => 42, 'name' => 'template', 'value' => 'modern_theme', 'load_policy_flag' => 'yes', 'spawn_child' => true],
         ],
         'recursive_child_acknowledged_ordinals' => [0, 1],
-        'recursive_child_source_token' => 'wp.current.source.recursive.child.233',
-        'recursive_child_cursor' => 'wp.returning.recursive.child.cursor.233',
-        'recursive_child_generation' => 'wp-recursive-child-current-233',
-        'current_generation_next203' => 'wp.current.recursive.returning.generation.233',
-        'expected_current_generation_next203' => 'wp.current.recursive.returning.generation.233',
-        'current_handoff_cursor_next203' => 'wp.returning.current.handoff.cursor.233',
-        'current_generation_commit_marker_next203' => 'wp.current.recursive.returning.commit.233',
+        'recursive_child_source_token' => 'app.current.source.recursive.child.233',
+        'recursive_child_cursor' => 'app.returning.recursive.child.cursor.233',
+        'recursive_child_generation' => 'app-recursive-child-current-233',
+        'current_generation_next203' => 'app.current.recursive.returning.generation.233',
+        'expected_current_generation_next203' => 'app.current.recursive.returning.generation.233',
+        'current_handoff_cursor_next203' => 'app.returning.current.handoff.cursor.233',
+        'current_generation_commit_marker_next203' => 'app.current.recursive.returning.commit.233',
         'auto_ack_current_generation_receipts_next203' => true,
-        'current_source_drain_token_next209' => 'wp.current.source.drain.233',
+        'current_source_drain_token_next209' => 'app.current.source.drain.233',
         'current_view_cookie_next209' => 'main@view-cookie-233-current',
         'current_trigger_cookie_next209' => 'main@trigger-cookie-233-current',
         'auto_ack_current_source_watermarks_next209' => true,
         'auto_ack_current_source_yields_next212' => true,
-        'current_source_epoch_next218' => 'wp.current.source.epoch.233',
+        'current_source_epoch_next218' => 'app.current.source.epoch.233',
         'auto_ack_current_source_epochs_next218' => true,
         'auto_ack_current_returning_source_seals_next224' => true,
-        'current_returning_source_generation_next229' => 'wp.current.returning.source.generation.233',
+        'current_returning_source_generation_next229' => 'app.current.returning.source.generation.233',
         'current_returning_view_generation_next229' => 'main@view-cookie-233-current',
         'current_returning_trigger_generation_next229' => 'main@trigger-cookie-233-current',
         'auto_ack_current_returning_generation_seals_next229' => true,
-        'current_upsert_source_token_next233' => 'wp.current.upsert.source.233',
+        'current_upsert_source_token_next233' => 'app.current.upsert.source.233',
         'current_upsert_view_source_next233' => 'main@view-cookie-233-current',
         'current_upsert_trigger_source_next233' => 'main@trigger-cookie-233-current',
-        'current_upsert_conflict_target_next233' => ['option_name'],
-        'current_upsert_update_columns_next233' => ['option_value', 'autoload'],
+        'current_upsert_conflict_target_next233' => ['key_name'],
+        'current_upsert_update_columns_next233' => ['key_value', 'load_policy'],
         'auto_ack_current_upsert_seals_next233' => true,
     ],
 );
@@ -118,9 +118,9 @@ $summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrent
 if (
     $summary['status_next233'] !== 'trigger-recursive-view-upsert-current-source-next233-upsert-sealed'
     || $summary['current_upsert_source_plan_next233']['decision'] !== 'publish-next-source-after-current-view-upsert-seal'
-    || $summary['current_upsert_conflict_target_next233'] !== ['option_name']
-    || $summary['current_upsert_update_columns_next233'] !== ['option_value', 'autoload']
-    || array_column($summary['visible_returning_payloads_next233'], 'name') !== ['blogdescription_child', 'template_child', 'home', 'next_plugin']
+    || $summary['current_upsert_conflict_target_next233'] !== ['key_name']
+    || $summary['current_upsert_update_columns_next233'] !== ['key_value', 'load_policy']
+    || array_column($summary['visible_returning_payloads_next233'], 'name') !== ['app_summary_child', 'template_child', 'landing_url', 'next_module']
     || $summary['held_next_source_rows_next233'] !== []
 ) {
     fwrite(STDERR, "application-trigger-recursive-view-upsert-current-source-next233 self-test failed\n");

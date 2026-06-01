@@ -8,30 +8,30 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 $tests = [];
 
 $current238 = [
-    ['option_id' => 1, 'option_name' => 'retry_timeout_real', 'option_value' => 100.0],
-    ['option_id' => 2, 'option_name' => 'retry_timeout_integer', 'option_value' => 100],
-    ['option_id' => 3, 'option_name' => 'retry_timeout_text', 'option_value' => '100.0'],
-    ['option_id' => 4, 'option_name' => 'retry_timeout_real_long', 'option_value' => 100000.0],
-    ['option_id' => 5, 'option_name' => 'retry_timeout_fraction', 'option_value' => 120.5],
-    ['option_id' => 6, 'option_name' => 'retry_timeout_exponent', 'option_value' => 1.0e-5],
-    ['option_id' => 7, 'option_name' => 'retry_timeout_bool', 'option_value' => true],
-    ['option_id' => 8, 'option_name' => 'retry_timeout_blob', 'option_value' => new SQLiteBlobValue('100.0')],
-    ['option_id' => 9, 'option_name' => 'retry_timeout_null', 'option_value' => null],
-    ['option_id' => 10, 'option_name' => 'retry_timeout_case', 'option_value' => 'CACHE100.0'],
+    ['setting_id' => 1, 'key_name' => 'retry_timeout_real', 'key_value' => 100.0],
+    ['setting_id' => 2, 'key_name' => 'retry_timeout_integer', 'key_value' => 100],
+    ['setting_id' => 3, 'key_name' => 'retry_timeout_text', 'key_value' => '100.0'],
+    ['setting_id' => 4, 'key_name' => 'retry_timeout_real_long', 'key_value' => 100000.0],
+    ['setting_id' => 5, 'key_name' => 'retry_timeout_fraction', 'key_value' => 120.5],
+    ['setting_id' => 6, 'key_name' => 'retry_timeout_exponent', 'key_value' => 1.0e-5],
+    ['setting_id' => 7, 'key_name' => 'retry_timeout_bool', 'key_value' => true],
+    ['setting_id' => 8, 'key_name' => 'retry_timeout_blob', 'key_value' => new SQLiteBlobValue('100.0')],
+    ['setting_id' => 9, 'key_name' => 'retry_timeout_null', 'key_value' => null],
+    ['setting_id' => 10, 'key_name' => 'retry_timeout_case', 'key_value' => 'CACHE100.0'],
 ];
 
 $nextTwoThreeEight = [
-    ['option_id' => 1, 'option_name' => 'retry_timeout_real', 'option_value' => 100.0],
-    ['option_id' => 2, 'option_name' => 'retry_timeout_integer_promoted', 'option_value' => 100.0],
-    ['option_id' => 3, 'option_name' => 'retry_timeout_text_changed', 'option_value' => '100'],
-    ['option_id' => 4, 'option_name' => 'retry_timeout_real_long', 'option_value' => 100000.0],
-    ['option_id' => 5, 'option_name' => 'retry_timeout_fraction', 'option_value' => 120.5],
-    ['option_id' => 6, 'option_name' => 'retry_timeout_exponent', 'option_value' => 1.0e-5],
-    ['option_id' => 7, 'option_name' => 'retry_timeout_bool', 'option_value' => false],
-    ['option_id' => 8, 'option_name' => 'retry_timeout_blob', 'option_value' => new SQLiteBlobValue('100.0')],
-    ['option_id' => 9, 'option_name' => 'retry_timeout_null', 'option_value' => null],
-    ['option_id' => 10, 'option_name' => 'retry_timeout_case', 'option_value' => 'cache100.0'],
-    ['option_id' => 11, 'option_name' => 'retry_timeout_new_real', 'option_value' => 100.25],
+    ['setting_id' => 1, 'key_name' => 'retry_timeout_real', 'key_value' => 100.0],
+    ['setting_id' => 2, 'key_name' => 'retry_timeout_integer_promoted', 'key_value' => 100.0],
+    ['setting_id' => 3, 'key_name' => 'retry_timeout_text_changed', 'key_value' => '100'],
+    ['setting_id' => 4, 'key_name' => 'retry_timeout_real_long', 'key_value' => 100000.0],
+    ['setting_id' => 5, 'key_name' => 'retry_timeout_fraction', 'key_value' => 120.5],
+    ['setting_id' => 6, 'key_name' => 'retry_timeout_exponent', 'key_value' => 1.0e-5],
+    ['setting_id' => 7, 'key_name' => 'retry_timeout_bool', 'key_value' => false],
+    ['setting_id' => 8, 'key_name' => 'retry_timeout_blob', 'key_value' => new SQLiteBlobValue('100.0')],
+    ['setting_id' => 9, 'key_name' => 'retry_timeout_null', 'key_value' => null],
+    ['setting_id' => 10, 'key_name' => 'retry_timeout_case', 'key_value' => 'cache100.0'],
+    ['setting_id' => 11, 'key_name' => 'retry_timeout_new_real', 'key_value' => 100.25],
 ];
 
 $plan238 = static fn (
@@ -70,7 +70,7 @@ $valueAt238 = static function (array $value, string $path): mixed {
 $cases238 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoThreeEight'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'CAST(option_value AS TEXT) COLLATE BINARY LIKE ? /* REAL text-affinity decimal/exponent preservation */'],
+    'expression' => ['expression', 'CAST(key_value AS TEXT) COLLATE BINARY LIKE ? /* REAL text-affinity decimal/exponent preservation */'],
     'pattern' => ['pattern', '100.%'],
     'pattern hex' => ['patternBytesHex', '3130302e25'],
     'pattern characters' => ['patternCharacterCount', 5],
@@ -151,9 +151,9 @@ $tests['encoding collation affinity like current source nextTwoThreeEight stable
 
 $tests['encoding collation affinity like current source nextTwoThreeEight escaped decimal prefix matches real text'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 100.0],
-        ['option_id' => 2, 'option_value' => 100],
-        ['option_id' => 3, 'option_value' => '100x0'],
+        ['setting_id' => 1, 'key_value' => 100.0],
+        ['setting_id' => 2, 'key_value' => 100],
+        ['setting_id' => 3, 'key_value' => '100x0'],
     ];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRealTextAffinityLikePlan($rows, $rows, '100!.%', '!', true, 'same', 'same', 1, 1);
     $t->same([1], $plan['currentMatchedRowids']);
@@ -176,9 +176,9 @@ $tests['encoding collation affinity like current source nextTwoThreeEight expone
 
 $tests['encoding collation affinity like current source nextTwoThreeEight null and blob stay outside like rowset'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => new SQLiteBlobValue('100.0')],
-        ['option_id' => 2, 'option_value' => null],
-        ['option_id' => 3, 'option_value' => 100.0],
+        ['setting_id' => 1, 'key_value' => new SQLiteBlobValue('100.0')],
+        ['setting_id' => 2, 'key_value' => null],
+        ['setting_id' => 3, 'key_value' => 100.0],
     ];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRealTextAffinityLikePlan($rows, $rows, '100.%', null, true, 'same', 'same', 1, 1);
     $t->same([3], $plan['currentMatchedRowids']);
@@ -189,12 +189,12 @@ $tests['encoding collation affinity like current source nextTwoThreeEight reject
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRealTextAffinityLikePlan($current238, $nextTwoThreeEight, '100!.%', '!!'));
 };
 
-$tests['encoding collation affinity like current source nextTwoThreeEight rejects missing option value'] = static function (TestRunner $t) use ($nextTwoThreeEight): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRealTextAffinityLikePlan([['option_id' => 1]], $nextTwoThreeEight));
+$tests['encoding collation affinity like current source nextTwoThreeEight rejects missing key value'] = static function (TestRunner $t) use ($nextTwoThreeEight): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRealTextAffinityLikePlan([['setting_id' => 1]], $nextTwoThreeEight));
 };
 
 $tests['encoding collation affinity like current source nextTwoThreeEight rejects non scalar value'] = static function (TestRunner $t) use ($nextTwoThreeEight): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRealTextAffinityLikePlan([['option_id' => 1, 'option_value' => ['100.0']]], $nextTwoThreeEight));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRealTextAffinityLikePlan([['setting_id' => 1, 'key_value' => ['100.0']]], $nextTwoThreeEight));
 };
 
 return $tests;

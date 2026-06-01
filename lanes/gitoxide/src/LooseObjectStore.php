@@ -241,7 +241,7 @@ final class LooseObjectStore
      *
      * @return list<string>
      */
-    public function prefixObjectIds(string $prefix): array
+    public function prefixObjectIds(string $prefix, bool $deduplicate = true): array
     {
         $prefix = strtolower($prefix);
         $length = self::hashHexLength($this->algorithm);
@@ -272,11 +272,17 @@ final class LooseObjectStore
 
             $oid = strtolower($directoryPrefix . $entry);
             if (str_starts_with($oid, $prefix)) {
-                $ids[$oid] = true;
+                if ($deduplicate) {
+                    $ids[$oid] = true;
+                } else {
+                    $ids[] = $oid;
+                }
             }
         }
 
-        $ids = array_keys($ids);
+        if ($deduplicate) {
+            $ids = array_keys($ids);
+        }
         sort($ids, SORT_STRING);
 
         return $ids;

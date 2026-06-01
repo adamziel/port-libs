@@ -12,27 +12,27 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $current = [
-    ['option_id' => 1, 'option_name' => 'plugin_literal', 'option_value' => 'plugin_%alpha', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'plugin_upper', 'option_value' => 'Plugin_%Beta', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'plugin_false_percent', 'option_value' => 'pluginX%gamma', 'autoload' => 'yes'],
-    ['option_id' => 4, 'option_name' => 'plugin_number', 'option_value' => 12.5, 'autoload' => 'no'],
-    ['option_id' => 5, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin_%blob'), 'autoload' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'plugin_literal', 'key_value' => 'plugin_%alpha', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'plugin_upper', 'key_value' => 'Plugin_%Beta', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'plugin_false_percent', 'key_value' => 'pluginX%gamma', 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'plugin_number', 'key_value' => 12.5, 'load_policy' => 'no'],
+    ['setting_id' => 5, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin_%blob'), 'load_policy' => 'no'],
 ];
 
 $next = [
-    ['option_id' => 1, 'option_name' => 'plugin_literal', 'option_value' => 'plugin_%alpha', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'plugin_upper', 'option_value' => 'Plugin_%Beta', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'plugin_false_percent', 'option_value' => 'plugin_%gamma', 'autoload' => 'yes'],
-    ['option_id' => 4, 'option_name' => 'plugin_number', 'option_value' => 'plugin_%12.5', 'autoload' => 'yes'],
-    ['option_id' => 5, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin_%blob'), 'autoload' => 'no'],
-    ['option_id' => 6, 'option_name' => 'plugin_added', 'option_value' => 'plugin_%added', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'plugin_literal', 'key_value' => 'plugin_%alpha', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'plugin_upper', 'key_value' => 'Plugin_%Beta', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'plugin_false_percent', 'key_value' => 'plugin_%gamma', 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'plugin_number', 'key_value' => 'plugin_%12.5', 'load_policy' => 'yes'],
+    ['setting_id' => 5, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin_%blob'), 'load_policy' => 'no'],
+    ['setting_id' => 6, 'key_name' => 'plugin_added', 'key_value' => 'plugin_%added', 'load_policy' => 'yes'],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueEscapePlan($current, $next);
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueEscapePlan($current, $next);
 
 $summary = [
-    'scenario' => 'application-option-value-like-escape-affinity-current-source-next237',
-    'applicationUse' => 'Copied wp_options import checks can preserve SQLite LIKE ESCAPE semantics for literal underscore/percent option values while applying text affinity and NOCASE range invalidation between current and next sources without ext/sqlite.',
+    'scenario' => 'application-key-value-like-escape-affinity-current-source-next237',
+    'applicationUse' => 'Copied app_settings import checks can preserve SQLite LIKE ESCAPE semantics for literal underscore/percent key values while applying text affinity and NOCASE range invalidation between current and next sources without ext/sqlite.',
     'pattern' => $plan['pattern'],
     'escape' => $plan['escape'],
     'range' => [$plan['rangeLowerInclusive'], $plan['rangeUpperBound']],
@@ -56,7 +56,7 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     ) {
         throw new RuntimeException('Unexpected next237 LIKE ESCAPE affinity summary');
     }
-    echo "application-option-value-like-escape-affinity-current-source-next237 self-test passed\n";
+    echo "application-key-value-like-escape-affinity-current-source-next237 self-test passed\n";
     return;
 }
 

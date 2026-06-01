@@ -8,28 +8,28 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 $tests = [];
 
 $current240 = [
-    ['option_id' => 1, 'option_name' => 'rewrite_rules_version', 'option_value' => 404],
-    ['option_id' => 2, 'option_name' => 'rewrite_rules_preview', 'option_value' => 405.5],
-    ['option_id' => 3, 'option_name' => 'rewrite_rules_text', 'option_value' => '0404'],
-    ['option_id' => 4, 'option_name' => 'cache_enabled', 'option_value' => true],
-    ['option_id' => 5, 'option_name' => 'cache_disabled', 'option_value' => false],
-    ['option_id' => 6, 'option_name' => 'ratio', 'option_value' => 4.2500],
-    ['option_id' => 7, 'option_name' => 'blob', 'option_value' => new SQLiteBlobValue('404')],
-    ['option_id' => 8, 'option_name' => 'null_value', 'option_value' => null],
-    ['option_id' => 9, 'option_name' => 'negative', 'option_value' => -40.5],
-    ['option_id' => 10, 'option_name' => 'scientific', 'option_value' => 4000000000000000.0],
+    ['setting_id' => 1, 'key_name' => 'rewrite_rules_version', 'key_value' => 404],
+    ['setting_id' => 2, 'key_name' => 'rewrite_rules_preview', 'key_value' => 405.5],
+    ['setting_id' => 3, 'key_name' => 'rewrite_rules_text', 'key_value' => '0404'],
+    ['setting_id' => 4, 'key_name' => 'cache_enabled', 'key_value' => true],
+    ['setting_id' => 5, 'key_name' => 'cache_disabled', 'key_value' => false],
+    ['setting_id' => 6, 'key_name' => 'ratio', 'key_value' => 4.2500],
+    ['setting_id' => 7, 'key_name' => 'blob', 'key_value' => new SQLiteBlobValue('404')],
+    ['setting_id' => 8, 'key_name' => 'null_value', 'key_value' => null],
+    ['setting_id' => 9, 'key_name' => 'negative', 'key_value' => -40.5],
+    ['setting_id' => 10, 'key_name' => 'scientific', 'key_value' => 4000000000000000.0],
 ];
 
 $nextTwoFourZero = [
-    ['option_id' => 1, 'option_name' => 'rewrite_rules_version', 'option_value' => '404'],
-    ['option_id' => 2, 'option_name' => 'rewrite_rules_preview', 'option_value' => 405.50],
-    ['option_id' => 3, 'option_name' => 'rewrite_rules_text', 'option_value' => 404],
-    ['option_id' => 4, 'option_name' => 'cache_enabled', 'option_value' => true],
-    ['option_id' => 5, 'option_name' => 'cache_disabled', 'option_value' => false],
-    ['option_id' => 6, 'option_name' => 'ratio', 'option_value' => 4.25],
-    ['option_id' => 9, 'option_name' => 'negative', 'option_value' => -40.5],
-    ['option_id' => 10, 'option_name' => 'scientific', 'option_value' => 4000000000000000.0],
-    ['option_id' => 11, 'option_name' => 'rewrite_rules_new', 'option_value' => 409],
+    ['setting_id' => 1, 'key_name' => 'rewrite_rules_version', 'key_value' => '404'],
+    ['setting_id' => 2, 'key_name' => 'rewrite_rules_preview', 'key_value' => 405.50],
+    ['setting_id' => 3, 'key_name' => 'rewrite_rules_text', 'key_value' => 404],
+    ['setting_id' => 4, 'key_name' => 'cache_enabled', 'key_value' => true],
+    ['setting_id' => 5, 'key_name' => 'cache_disabled', 'key_value' => false],
+    ['setting_id' => 6, 'key_name' => 'ratio', 'key_value' => 4.25],
+    ['setting_id' => 9, 'key_name' => 'negative', 'key_value' => -40.5],
+    ['setting_id' => 10, 'key_name' => 'scientific', 'key_value' => 4000000000000000.0],
+    ['setting_id' => 11, 'key_name' => 'rewrite_rules_new', 'key_value' => 409],
 ];
 
 $plan240 = static fn (
@@ -68,7 +68,7 @@ $valueAt240 = static function (array $value, string $path): mixed {
 $cases240 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFourZero'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'CAST(option_value AS NUMERIC) LIKE ? ESCAPE ? /* numeric affinity current-source fence */'],
+    'expression' => ['expression', 'CAST(key_value AS NUMERIC) LIKE ? ESCAPE ? /* numeric affinity current-source fence */'],
     'pattern' => ['pattern', '40%'],
     'pattern hex' => ['patternHex', '343025'],
     'escape null' => ['escape', null],
@@ -108,8 +108,8 @@ $cases240 = [
     'current storage real' => ['currentStorageClasses.2', 'real'],
     'next storage text' => ['nextStorageClasses.1', 'text'],
     'next storage integer' => ['nextStorageClasses.3', 'integer'],
-    'current option name' => ['currentOptionNames.1', 'rewrite_rules_version'],
-    'next option name' => ['nextOptionNames.11', 'rewrite_rules_new'],
+    'current key name' => ['currentKeyNames.1', 'rewrite_rules_version'],
+    'next key name' => ['nextKeyNames.11', 'rewrite_rules_new'],
     'cursor invalidated' => ['cursorInvalidated', true],
     'cursor not reusable' => ['cursorReusable', false],
     'reason source' => ['invalidationReasons.0', 'source-name'],
@@ -166,8 +166,8 @@ $tests['encoding collation affinity like current source nextTwoFourZero blob and
 
 $tests['encoding collation affinity like current source nextTwoFourZero escaped literal percent in numeric text'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_name' => 'literal', 'option_value' => '40%'],
-        ['option_id' => 2, 'option_name' => 'numeric', 'option_value' => 404],
+        ['setting_id' => 1, 'key_name' => 'literal', 'key_value' => '40%'],
+        ['setting_id' => 2, 'key_name' => 'numeric', 'key_value' => 404],
     ];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueNumericLikePlan($rows, $rows, '40!%', '!', false, 'same', 'same', 1, 1);
     $t->same([1], $plan['currentRowids']);
@@ -181,20 +181,20 @@ $tests['encoding collation affinity like current source nextTwoFourZero case sen
 };
 
 $tests['encoding collation affinity like current source nextTwoFourZero storage-only change invalidates'] = static function (TestRunner $t): void {
-    $current = [['option_id' => 1, 'option_name' => 'same_text', 'option_value' => 404]];
-    $next = [['option_id' => 1, 'option_name' => 'same_text', 'option_value' => '404']];
+    $current = [['setting_id' => 1, 'key_name' => 'same_text', 'key_value' => 404]];
+    $next = [['setting_id' => 1, 'key_name' => 'same_text', 'key_value' => '404']];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueNumericLikePlan($current, $next, '404', null, false, 'same', 'same', 1, 1);
     $t->same([], $plan['changedFormattedRowids']);
     $t->same([1], $plan['changedStorageClassRowids']);
     $t->same(['storage-class'], $plan['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source nextTwoFourZero rejects missing option value'] = static function (TestRunner $t) use ($nextTwoFourZero): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueNumericLikePlan([['option_id' => 1]], $nextTwoFourZero, '40%'));
+$tests['encoding collation affinity like current source nextTwoFourZero rejects missing key value'] = static function (TestRunner $t) use ($nextTwoFourZero): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueNumericLikePlan([['setting_id' => 1]], $nextTwoFourZero, '40%'));
 };
 
-$tests['encoding collation affinity like current source nextTwoFourZero rejects array option value'] = static function (TestRunner $t) use ($nextTwoFourZero): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueNumericLikePlan([['option_id' => 1, 'option_value' => ['404']]], $nextTwoFourZero, '40%'));
+$tests['encoding collation affinity like current source nextTwoFourZero rejects array key value'] = static function (TestRunner $t) use ($nextTwoFourZero): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueNumericLikePlan([['setting_id' => 1, 'key_value' => ['404']]], $nextTwoFourZero, '40%'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourZero rejects invalid escape'] = static function (TestRunner $t) use ($current240, $nextTwoFourZero): void {

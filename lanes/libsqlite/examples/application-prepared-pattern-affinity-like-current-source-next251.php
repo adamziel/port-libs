@@ -7,15 +7,15 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $current = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache_limit', 'option_value' => 40],
-    ['option_id' => 2, 'option_name' => 'plugin_cache_ratio', 'option_value' => 40.5],
-    ['option_id' => 3, 'option_name' => 'plugin_cache_text', 'option_value' => '40'],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache_limit', 'key_value' => 40],
+    ['setting_id' => 2, 'key_name' => 'plugin_cache_ratio', 'key_value' => 40.5],
+    ['setting_id' => 3, 'key_name' => 'plugin_cache_text', 'key_value' => '40'],
 ];
 
 $next = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache_limit', 'option_value' => '40'],
-    ['option_id' => 2, 'option_name' => 'plugin_cache_ratio', 'option_value' => 40.5],
-    ['option_id' => 4, 'option_name' => 'plugin_cache_new', 'option_value' => 409],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache_limit', 'key_value' => '40'],
+    ['setting_id' => 2, 'key_name' => 'plugin_cache_ratio', 'key_value' => 40.5],
+    ['setting_id' => 4, 'key_name' => 'plugin_cache_new', 'key_value' => 409],
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationPreparedPatternAffinityPlan(

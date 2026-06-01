@@ -7,21 +7,21 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $current = [
-    ['option_id' => 1, 'option_name' => 'nul_cache_exact', 'option_value' => "plugin\0cache_suffix"],
-    ['option_id' => 2, 'option_name' => 'nul_cache_upper', 'option_value' => "Plugin\0Cache_suffix"],
-    ['option_id' => 3, 'option_name' => 'plain_cache', 'option_value' => 'plugin_cache_suffix'],
+    ['setting_id' => 1, 'key_name' => 'nul_cache_exact', 'key_value' => "plugin\0cache_suffix"],
+    ['setting_id' => 2, 'key_name' => 'nul_cache_upper', 'key_value' => "Plugin\0Cache_suffix"],
+    ['setting_id' => 3, 'key_name' => 'plain_cache', 'key_value' => 'plugin_cache_suffix'],
 ];
 
 $next = [
-    ['option_id' => 1, 'option_name' => 'nul_cache_exact', 'option_value' => "plugin\0cache_suffix2"],
-    ['option_id' => 2, 'option_name' => 'nul_cache_upper', 'option_value' => "Plugin\0Cache_suffix"],
-    ['option_id' => 4, 'option_name' => 'nul_cache_added', 'option_value' => "PLUGIN\0CACHE_added"],
+    ['setting_id' => 1, 'key_name' => 'nul_cache_exact', 'key_value' => "plugin\0cache_suffix2"],
+    ['setting_id' => 2, 'key_name' => 'nul_cache_upper', 'key_value' => "Plugin\0Cache_suffix"],
+    ['setting_id' => 4, 'key_name' => 'nul_cache_added', 'key_value' => "PLUGIN\0CACHE_added"],
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan($current, $next);
 
 if (
-    $plan['status'] !== 'encoding-collation-affinity-like-current-source-next242'
+    $plan['status'] !== 'encoding-collation-affinity-like-current-source-nexttwoFourTwo'
     || $plan['currentMatchedRowids'] !== [2, 1]
     || $plan['nextMatchedRowids'] !== [4, 2, 1]
     || $plan['enteredMatchedRowids'] !== [4]

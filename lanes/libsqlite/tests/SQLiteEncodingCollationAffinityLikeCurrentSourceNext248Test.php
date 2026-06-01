@@ -16,13 +16,13 @@ $code248 = static fn (int|string $encoding): int => match ($encoding) {
     'UTF-16BE', 3 => 3,
 };
 $row248 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc248($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc248($name, $encoding),
     'text_encoding' => $code248($encoding),
 ];
 $bad248 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -36,8 +36,8 @@ $current248 = [
     $row248(7, 'plugin_cache%', 'UTF-16LE'),
     $row248(8, 'plugin_cache%Éclair', 'UTF-16BE'),
     $bad248(9, "\x00\xd8", 2),
-    ['option_id' => 10, 'option_name_bytes' => null, 'text_encoding' => 1],
-    ['option_id' => 11, 'option_name_bytes' => new SQLiteBlobValue('plugin_cache%blob'), 'text_encoding' => 1],
+    ['setting_id' => 10, 'key_name_bytes' => null, 'text_encoding' => 1],
+    ['setting_id' => 11, 'key_name_bytes' => new SQLiteBlobValue('plugin_cache%blob'), 'text_encoding' => 1],
 ];
 $nextTwoFourEight = [
     $row248(1, 'plugin_cache%enabled', 'UTF-16BE'),
@@ -87,7 +87,7 @@ $valueAt248 = static function (array $value, string $path): mixed {
 $cases248 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFourEight'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'option_name COLLATE NOCASE LIKE ? ESCAPE ? /* non-ASCII ESCAPE */'],
+    'expression' => ['expression', 'key_name COLLATE NOCASE LIKE ? ESCAPE ? /* non-ASCII ESCAPE */'],
     'pattern' => ['pattern', 'pluginé_cacheé%%'],
     'pattern hex' => ['patternHex', '706c7567696ec3a95f6361636865c3a92525'],
     'pattern tokens' => ['patternTokenHex', ['70', '6c', '75', '67', '69', '6e', 'c3a9', '5f', '63', '61', '63', '68', '65', 'c3a9', '25', '25']],
@@ -212,15 +212,15 @@ $tests['encoding collation affinity like current source nextTwoFourEight rejects
 };
 
 $tests['encoding collation affinity like current source nextTwoFourEight rejects missing option bytes'] = static function (TestRunner $t) use ($nextTwoFourEight): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNonAsciiEscapeLikePlan([['option_id' => 1, 'text_encoding' => 1]], $nextTwoFourEight));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNonAsciiEscapeLikePlan([['setting_id' => 1, 'text_encoding' => 1]], $nextTwoFourEight));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourEight rejects non string bytes'] = static function (TestRunner $t) use ($nextTwoFourEight): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNonAsciiEscapeLikePlan([['option_id' => 1, 'option_name_bytes' => ['plugin'], 'text_encoding' => 1]], $nextTwoFourEight));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNonAsciiEscapeLikePlan([['setting_id' => 1, 'key_name_bytes' => ['plugin'], 'text_encoding' => 1]], $nextTwoFourEight));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourEight rejects invalid encoding id'] = static function (TestRunner $t) use ($nextTwoFourEight): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNonAsciiEscapeLikePlan([['option_id' => 1, 'option_name_bytes' => 'plugin_cache%ok', 'text_encoding' => 9]], $nextTwoFourEight));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNonAsciiEscapeLikePlan([['setting_id' => 1, 'key_name_bytes' => 'plugin_cache%ok', 'text_encoding' => 9]], $nextTwoFourEight));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourEight note fields stay explicit'] = static function (TestRunner $t) use ($plan248): void {

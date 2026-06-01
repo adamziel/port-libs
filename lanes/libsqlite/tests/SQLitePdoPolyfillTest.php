@@ -167,6 +167,161 @@ return [
         $t->same([['name' => 'first', 'qty' => 4]], $pdo->query('SELECT name, qty FROM items ORDER BY id')->fetchAll(PDO::FETCH_ASSOC));
     },
 
+    'SQLitePDO exec and prepared parameter arrays support numbered binds and reject surplus values before file writes' => static function (TestRunner $t) use ($sqlitePdoNativeAvailable): void {
+        $scratchRoot = __DIR__ . '/.sqlite-pdo-tmp';
+        if (!is_dir($scratchRoot) && !mkdir($scratchRoot)) {
+            throw new RuntimeException("Unable to create temporary test root: {$scratchRoot}");
+        }
+        chmod($scratchRoot, 0700);
+        $dir = $scratchRoot . '/sqlite-pdo-exec-params-' . bin2hex(random_bytes(6));
+        if (!mkdir($dir) && !is_dir($dir)) {
+            throw new RuntimeException("Unable to create temporary test directory: {$dir}");
+        }
+        chmod($dir, 0700);
+
+        $exercise = static function (string $class, string $path, bool $includeExecParams): array {
+            $pdo = new $class('sqlite:' . $path, null, null, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+            $pdo->exec('CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, qty INTEGER)');
+            $pdo->exec("INSERT INTO items (name, qty) VALUES ('first', 4)");
+
+            $numbered = $pdo->prepare('INSERT INTO items (name, qty) VALUES (?2, ?1)');
+            $numbered->execute([7, 'prepared-numbered']);
+            $mixed = $pdo->prepare('INSERT INTO items (name, qty) VALUES (?2, ?)');
+            $mixed->execute([70, 'prepared-mixed', 9]);
+            if ($includeExecParams) {
+                $pdo->exec('INSERT INTO items (name, qty) VALUES (?2, ?1)', [8, 'exec-numbered']);
+                $pdo->exec('INSERT INTO items (name, qty) VALUES (?2, ?)', [80, 'exec-mixed', 10]);
+            }
+
+            $beforeErrors = (string) file_get_contents($path);
+            $errors = [];
+            $preparedCases = [
+                'prepared surplus positional' => ['INSERT INTO items (name) VALUES (?)', ['ignored', 'extra']],
+                'prepared surplus named' => ['INSERT INTO items (name) VALUES (:name)', ['name' => 'ignored', 'extra' => 'value']],
+                'prepared invalid numbered parameter' => ['INSERT INTO items (name) VALUES (?0)', ['ignored']],
+            ];
+
+            foreach ($preparedCases as $name => [$sql, $parameters]) {
+                $statement = null;
+                $phase = 'prepare';
+                try {
+                    $statement = $pdo->prepare($sql);
+                    $phase = 'execute';
+                    $statement->execute($parameters);
+                    throw new RuntimeException("Expected PDOException for {$name}");
+                } catch (PDOException $exception) {
+                    $errors[$name] = [
+                        'phase' => $phase,
+                        'message' => $exception->getMessage(),
+                        'error_info' => $phase === 'execute' && $statement instanceof PDOStatement
+                            ? $statement->errorInfo()
+                            : $pdo->errorInfo(),
+                        'file_unchanged' => hash('sha256', $beforeErrors) === hash('sha256', (string) file_get_contents($path)),
+                    ];
+                }
+            }
+
+            if ($includeExecParams) {
+                $execCases = [
+                    'exec surplus positional' => ['INSERT INTO items (name) VALUES (?)', ['ignored', 'extra']],
+                    'exec surplus named' => ['INSERT INTO items (name) VALUES (:name)', ['name' => 'ignored', 'extra' => 'value']],
+                ];
+
+                foreach ($execCases as $name => [$sql, $parameters]) {
+                    try {
+                        $pdo->exec($sql, $parameters);
+                        throw new RuntimeException("Expected PDOException for {$name}");
+                    } catch (PDOException $exception) {
+                        $errors[$name] = [
+                            'phase' => 'exec',
+                            'message' => $exception->getMessage(),
+                            'error_info' => $pdo->errorInfo(),
+                            'file_unchanged' => hash('sha256', $beforeErrors) === hash('sha256', (string) file_get_contents($path)),
+                        ];
+                    }
+                }
+            }
+
+            $reopened = new $class('sqlite:' . $path, null, null, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+
+            return [
+                'errors' => $errors,
+                'rows' => $reopened->query('SELECT name, qty FROM items ORDER BY id')->fetchAll(PDO::FETCH_ASSOC),
+                'file_unchanged_after_errors' => hash('sha256', $beforeErrors) === hash('sha256', (string) file_get_contents($path)),
+            ];
+        };
+
+        $polyfillPath = $dir . '/polyfill.sqlite';
+        $nativePath = $dir . '/native.sqlite';
+
+        try {
+            $polyfill = $exercise(SQLitePDO::class, $polyfillPath, true);
+            $native = $sqlitePdoNativeAvailable() ? $exercise(PDO::class, $nativePath, false) : null;
+
+            $t->same(
+                [
+                    ['name' => 'first', 'qty' => 4],
+                    ['name' => 'prepared-numbered', 'qty' => 7],
+                    ['name' => 'prepared-mixed', 'qty' => 9],
+                    ['name' => 'exec-numbered', 'qty' => 8],
+                    ['name' => 'exec-mixed', 'qty' => 10],
+                ],
+                $polyfill['rows'],
+            );
+            $t->same(true, $polyfill['file_unchanged_after_errors']);
+
+            $expected = [
+                'prepared surplus positional' => ['execute', 'column index out of range'],
+                'prepared surplus named' => ['execute', 'column index out of range'],
+                'prepared invalid numbered parameter' => ['prepare', 'variable number must be between ?1 and ?32766'],
+                'exec surplus positional' => ['exec', 'column index out of range'],
+                'exec surplus named' => ['exec', 'column index out of range'],
+            ];
+
+            foreach ($expected as $name => [$phase, $message]) {
+                $t->same($phase, $polyfill['errors'][$name]['phase']);
+                $t->contains($message, $polyfill['errors'][$name]['message']);
+                $t->same('HY000', $polyfill['errors'][$name]['error_info'][0]);
+                $t->same($message, $polyfill['errors'][$name]['error_info'][2]);
+                $t->same(true, $polyfill['errors'][$name]['file_unchanged']);
+
+                if ($native !== null && str_starts_with($name, 'prepared ')) {
+                    $t->same($native['errors'][$name]['phase'], $polyfill['errors'][$name]['phase']);
+                    $t->same($native['errors'][$name]['error_info'][2], $polyfill['errors'][$name]['error_info'][2]);
+                }
+            }
+
+            if ($native !== null) {
+                $t->same(
+                    [
+                        ['name' => 'first', 'qty' => 4],
+                        ['name' => 'prepared-numbered', 'qty' => 7],
+                        ['name' => 'prepared-mixed', 'qty' => 9],
+                    ],
+                    $native['rows'],
+                );
+            }
+        } finally {
+            foreach ([$polyfillPath, $nativePath] as $path) {
+                if (is_file($path)) {
+                    unlink($path);
+                }
+            }
+            if (is_dir($dir)) {
+                rmdir($dir);
+            }
+            if (is_dir($scratchRoot) && (scandir($scratchRoot) ?: ['.', '..']) === ['.', '..']) {
+                rmdir($scratchRoot);
+            }
+        }
+    },
+
     'SQLitePDO transaction rollback restores in-memory tables' => static function (TestRunner $t): void {
         $pdo = new SQLitePDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE logs (id INTEGER PRIMARY KEY, body TEXT)');

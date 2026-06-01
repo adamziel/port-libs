@@ -41,10 +41,10 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $baseOptions,
         );
 
-        $upsertSource = self::tokenCurrentUpsertConflictSeal((string) ($options['current_upsert_source_next232'] ?? 'wp.current.upsert.source.232'), 'current upsert source');
+        $upsertSource = self::tokenCurrentUpsertConflictSeal((string) ($options['current_upsert_source_next232'] ?? 'app.current.upsert.source.232'), 'current upsert source');
         $viewSource = self::tokenCurrentUpsertConflictSeal((string) ($options['current_view_source_next232'] ?? (string) ($base['current_source'] ?? 'main@cookie232-current')), 'current view source');
         $expectedViewSource = self::tokenCurrentUpsertConflictSeal((string) ($options['expected_current_view_source_next232'] ?? $viewSource), 'expected current view source');
-        $triggerProgram = self::tokenCurrentUpsertConflictSeal((string) ($options['current_trigger_program_next232'] ?? 'wp.current.recursive.trigger.program.232'), 'current trigger program');
+        $triggerProgram = self::tokenCurrentUpsertConflictSeal((string) ($options['current_trigger_program_next232'] ?? 'app.current.recursive.trigger.program.232'), 'current trigger program');
         $expectedTriggerProgram = self::tokenCurrentUpsertConflictSeal((string) ($options['expected_current_trigger_program_next232'] ?? $triggerProgram), 'expected current trigger program');
         $requireOrder = (bool) ($options['require_current_upsert_conflict_order_next232'] ?? true);
 
@@ -160,9 +160,9 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
                 (string) ($row['depth'] ?? $returning['depth'] ?? ''),
                 (string) ($row['ordinal'] ?? $returning['ordinal'] ?? $index),
                 (string) ($row['trigger'] ?? $returning['trigger'] ?? ''),
-                (string) ($returning['option_name'] ?? ''),
+                (string) ($returning['key_name'] ?? ''),
                 (string) ($returning['old_value'] ?? ''),
-                (string) ($returning['option_value'] ?? ''),
+                (string) ($returning['key_value'] ?? ''),
             ];
             $seals[] = substr(hash('sha256', implode('|', $parts)), 0, 46);
         }
@@ -317,14 +317,14 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $currentRows = self::rowsCurrentUpsertConflictTarget($base['current_source_rows_next229'] ?? [], 'current source rows');
         $nextRows = self::rowsCurrentUpsertConflictTarget($base['attempted_next_source_rows_next229'] ?? [], 'attempted next source rows');
         $baseVisible = (bool) ($base['next_source_visible_after_current_returning_generation_next229'] ?? false);
-        $upsertToken = self::tokenCurrentUpsertConflictTarget((string) ($options['current_upsert_source_token_next233'] ?? 'wp.current.upsert.source.233'), 'current upsert source token');
+        $upsertToken = self::tokenCurrentUpsertConflictTarget((string) ($options['current_upsert_source_token_next233'] ?? 'app.current.upsert.source.233'), 'current upsert source token');
         $expectedUpsertToken = self::tokenCurrentUpsertConflictTarget((string) ($options['expected_current_upsert_source_token_next233'] ?? $upsertToken), 'expected current upsert source token');
         $viewSource = self::tokenCurrentUpsertConflictTarget((string) ($options['current_upsert_view_source_next233'] ?? ($currentView['source'] ?? 'main@view-upsert-233-current')), 'current upsert view source');
         $expectedViewSource = self::tokenCurrentUpsertConflictTarget((string) ($options['expected_current_upsert_view_source_next233'] ?? $viewSource), 'expected current upsert view source');
         $triggerSource = self::tokenCurrentUpsertConflictTarget((string) ($options['current_upsert_trigger_source_next233'] ?? ($currentView['trigger_source'] ?? 'main@trigger-upsert-233-current')), 'current upsert trigger source');
         $expectedTriggerSource = self::tokenCurrentUpsertConflictTarget((string) ($options['expected_current_upsert_trigger_source_next233'] ?? $triggerSource), 'expected current upsert trigger source');
-        $conflictTarget = self::identifierListCurrentUpsertConflictTarget($options['current_upsert_conflict_target_next233'] ?? ['option_name'], 'conflict target');
-        $updateColumns = self::identifierListCurrentUpsertConflictTarget($options['current_upsert_update_columns_next233'] ?? ['option_value', 'autoload'], 'update columns');
+        $conflictTarget = self::identifierListCurrentUpsertConflictTarget($options['current_upsert_conflict_target_next233'] ?? ['key_name'], 'conflict target');
+        $updateColumns = self::identifierListCurrentUpsertConflictTarget($options['current_upsert_update_columns_next233'] ?? ['key_value', 'load_policy'], 'update columns');
         $requireOrder = (bool) ($options['require_current_upsert_order_next233'] ?? true);
 
         $requiredSeals = self::upsertSealsCurrentUpsertConflictTarget($currentRows, $upsertToken, $viewSource, $triggerSource, $conflictTarget, $updateColumns);
@@ -738,8 +738,8 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_close_source_close'] ?? false);
         $currentRows = self::rowsCurrentSourceUpsertReceipt($base['current_source_rows_source_close'] ?? [], 'current source rows');
         $nextRows = self::rowsCurrentSourceUpsertReceipt($base['attempted_next_source_rows_source_close'] ?? [], 'attempted next source rows');
-        $conflictColumns = self::columnsCurrentSourceUpsertReceipt($options['upsert_conflict_columns_next234'] ?? ['option_name']);
-        $upsertToken = self::tokenCurrentSourceUpsertReceipt((string) ($options['current_source_upsert_token_next234'] ?? 'wp.current.source.upsert.234'), 'upsert token');
+        $conflictColumns = self::columnsCurrentSourceUpsertReceipt($options['upsert_conflict_columns_next234'] ?? ['key_name']);
+        $upsertToken = self::tokenCurrentSourceUpsertReceipt((string) ($options['current_source_upsert_token_next234'] ?? 'app.current.source.upsert.234'), 'upsert token');
         $expectedUpsertToken = self::tokenCurrentSourceUpsertReceipt((string) ($options['expected_current_source_upsert_token_next234'] ?? $upsertToken), 'expected upsert token');
         $viewCookie = self::tokenCurrentSourceUpsertReceipt((string) ($options['current_upsert_view_cookie_next234'] ?? (string) ($currentView['source'] ?? 'main@view-cookie-234-current')), 'view cookie');
         $triggerCookie = self::tokenCurrentSourceUpsertReceipt((string) ($options['current_upsert_trigger_cookie_next234'] ?? (string) ($currentView['trigger_source'] ?? 'main@trigger-cookie-234-current')), 'trigger cookie');
@@ -1047,9 +1047,9 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $baseOptions,
         );
 
-        $currentTicketSource = self::tokenCurrentYieldTicket((string) ($options['current_yield_ticket_source_next235'] ?? 'wp.current.yield.ticket.source.235'), 'current yield ticket source');
+        $currentTicketSource = self::tokenCurrentYieldTicket((string) ($options['current_yield_ticket_source_next235'] ?? 'app.current.yield.ticket.source.235'), 'current yield ticket source');
         $expectedTicketSource = self::tokenCurrentYieldTicket((string) ($options['expected_current_yield_ticket_source_next235'] ?? $currentTicketSource), 'expected current yield ticket source');
-        $resumeCursor = self::tokenCurrentYieldTicket((string) ($options['current_yield_resume_cursor_next235'] ?? 'wp.current.yield.cursor.235'), 'current yield resume cursor');
+        $resumeCursor = self::tokenCurrentYieldTicket((string) ($options['current_yield_resume_cursor_next235'] ?? 'app.current.yield.cursor.235'), 'current yield resume cursor');
         $expectedResumeCursor = self::tokenCurrentYieldTicket((string) ($options['expected_current_yield_resume_cursor_next235'] ?? $resumeCursor), 'expected current yield resume cursor');
         $requireOrder = (bool) ($options['require_current_yield_ticket_order_next235'] ?? true);
 
@@ -1152,8 +1152,8 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
                 (string) ($row['depth'] ?? $returning['depth'] ?? ''),
                 (string) ($row['ordinal'] ?? $returning['ordinal'] ?? $index),
                 (string) ($row['trigger'] ?? $returning['trigger'] ?? ''),
-                (string) ($returning['option_name'] ?? ''),
-                (string) ($returning['option_value'] ?? ''),
+                (string) ($returning['key_name'] ?? ''),
+                (string) ($returning['key_value'] ?? ''),
             ];
             $tickets[] = substr(hash('sha256', implode('|', $parts)), 0, 50);
         }
@@ -1313,7 +1313,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $currentRows = self::rowsCurrentRowImageReceipt($base['current_source_rows_next233'] ?? [], 'current source rows');
         $nextRows = self::rowsCurrentRowImageReceipt($base['attempted_next_source_rows_next233'] ?? [], 'attempted next source rows');
         $baseVisible = (bool) ($base['next_source_visible_after_current_upsert_source_next233'] ?? false);
-        $imageToken = self::tokenCurrentRowImageReceipt((string) ($options['current_upsert_row_image_token_next236'] ?? 'wp.current.upsert.row.image.236'), 'current upsert row-image token');
+        $imageToken = self::tokenCurrentRowImageReceipt((string) ($options['current_upsert_row_image_token_next236'] ?? 'app.current.upsert.row.image.236'), 'current upsert row-image token');
         $expectedImageToken = self::tokenCurrentRowImageReceipt((string) ($options['expected_current_upsert_row_image_token_next236'] ?? $imageToken), 'expected current upsert row-image token');
         $viewSource = self::tokenCurrentRowImageReceipt((string) ($options['current_upsert_row_image_view_source_next236'] ?? ($base['current_upsert_view_source_next233'] ?? ($currentView['source'] ?? 'main@view-upsert-236-current'))), 'current upsert row-image view source');
         $expectedViewSource = self::tokenCurrentRowImageReceipt((string) ($options['expected_current_upsert_row_image_view_source_next236'] ?? $viewSource), 'expected current upsert row-image view source');
@@ -1678,7 +1678,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_next234'] ?? false);
         $currentRows = self::rowsCurrentActionReceipt($base['current_source_rows_next234'] ?? [], 'current source rows');
         $nextRows = self::rowsCurrentActionReceipt($base['attempted_next_source_rows_next234'] ?? [], 'attempted next source rows');
-        $actionToken = self::tokenCurrentActionReceipt((string) ($options['current_source_upsert_action_token_next237'] ?? 'wp.current.source.upsert.action.237'), 'action token');
+        $actionToken = self::tokenCurrentActionReceipt((string) ($options['current_source_upsert_action_token_next237'] ?? 'app.current.source.upsert.action.237'), 'action token');
         $expectedActionToken = self::tokenCurrentActionReceipt((string) ($options['expected_current_source_upsert_action_token_next237'] ?? $actionToken), 'expected action token');
         $viewCookie = self::tokenCurrentActionReceipt((string) ($options['current_upsert_action_view_cookie_next237'] ?? ($base['current_upsert_view_cookie_next234'] ?? 'main@view-cookie-237-current')), 'view cookie');
         $triggerCookie = self::tokenCurrentActionReceipt((string) ($options['current_upsert_action_trigger_cookie_next237'] ?? ($base['current_upsert_trigger_cookie_next234'] ?? 'main@trigger-cookie-237-current')), 'trigger cookie');
@@ -1781,15 +1781,15 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     {
         $existing = [];
         foreach ($baseRows as $row) {
-            if (is_array($row) && isset($row['option_name']) && is_scalar($row['option_name'])) {
-                $existing[(string) $row['option_name']] = true;
+            if (is_array($row) && isset($row['key_name']) && is_scalar($row['key_name'])) {
+                $existing[(string) $row['key_name']] = true;
             }
         }
 
         $actions = [];
         foreach ($rows as $row) {
             $returning = $row['returning'];
-            $name = (string) ($returning['name'] ?? $returning['option_name'] ?? '');
+            $name = (string) ($returning['name'] ?? $returning['key_name'] ?? '');
             if ($name === '') {
                 throw new InvalidArgumentException('SQLite recursive view UPSERT next237 current rows require a RETURNING name');
             }
@@ -2031,11 +2031,11 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $baseOptions,
         );
 
-        $resumeSource = self::tokenCurrentUpsertReceipt((string) ($options['current_resume_source_next238'] ?? 'wp.current.resume.source.238'), 'current resume source');
+        $resumeSource = self::tokenCurrentUpsertReceipt((string) ($options['current_resume_source_next238'] ?? 'app.current.resume.source.238'), 'current resume source');
         $expectedResumeSource = self::tokenCurrentUpsertReceipt((string) ($options['expected_current_resume_source_next238'] ?? $resumeSource), 'expected current resume source');
-        $resumeCursor = self::tokenCurrentUpsertReceipt((string) ($options['current_resume_cursor_next238'] ?? 'wp.current.resume.cursor.238'), 'current resume cursor');
+        $resumeCursor = self::tokenCurrentUpsertReceipt((string) ($options['current_resume_cursor_next238'] ?? 'app.current.resume.cursor.238'), 'current resume cursor');
         $expectedResumeCursor = self::tokenCurrentUpsertReceipt((string) ($options['expected_current_resume_cursor_next238'] ?? $resumeCursor), 'expected current resume cursor');
-        $resumeEpoch = self::tokenCurrentUpsertReceipt((string) ($options['current_resume_epoch_next238'] ?? 'wp.current.resume.epoch.238'), 'current resume epoch');
+        $resumeEpoch = self::tokenCurrentUpsertReceipt((string) ($options['current_resume_epoch_next238'] ?? 'app.current.resume.epoch.238'), 'current resume epoch');
         $expectedResumeEpoch = self::tokenCurrentUpsertReceipt((string) ($options['expected_current_resume_epoch_next238'] ?? $resumeEpoch), 'expected current resume epoch');
         $requireOrder = (bool) ($options['require_current_resume_receipt_order_next238'] ?? true);
 
@@ -2148,9 +2148,9 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
                 (string) ($row['depth'] ?? $returning['depth'] ?? ''),
                 (string) ($row['ordinal'] ?? $returning['ordinal'] ?? $index),
                 (string) ($row['trigger'] ?? $returning['trigger'] ?? ''),
-                (string) ($nextRow['option_name'] ?? $returning['option_name'] ?? ''),
-                (string) ($currentRow['option_value'] ?? $returning['old_value'] ?? ''),
-                (string) ($nextRow['option_value'] ?? $returning['option_value'] ?? ''),
+                (string) ($nextRow['key_name'] ?? $returning['key_name'] ?? ''),
+                (string) ($currentRow['key_value'] ?? $returning['old_value'] ?? ''),
+                (string) ($nextRow['key_value'] ?? $returning['key_value'] ?? ''),
             ];
             $receipts[] = substr(hash('sha256', implode('|', $parts)), 0, 52);
         }
@@ -2317,10 +2317,10 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_close_source_close'] ?? false);
         $currentRows = self::rowsCurrentTargetReceipt($base['current_source_rows_source_close'] ?? [], 'current source rows');
         $nextRows = self::rowsCurrentTargetReceipt($base['attempted_next_source_rows_source_close'] ?? [], 'attempted next source rows');
-        $target = self::tokenCurrentTargetReceipt((string) ($options['current_source_upsert_target_next239'] ?? 'option_name'), 'upsert target');
+        $target = self::tokenCurrentTargetReceipt((string) ($options['current_source_upsert_target_next239'] ?? 'key_name'), 'upsert target');
         $policy = self::tokenCurrentTargetReceipt((string) ($options['current_source_upsert_policy_next239'] ?? 'do-update-returning'), 'upsert policy');
-        $cursor = self::tokenCurrentTargetReceipt((string) ($options['current_source_upsert_cursor_next239'] ?? 'wp.returning.upsert.cursor.239'), 'upsert cursor');
-        $generation = self::tokenCurrentTargetReceipt((string) ($options['current_source_upsert_generation_next239'] ?? 'wp.current.source.upsert.generation.239'), 'upsert generation');
+        $cursor = self::tokenCurrentTargetReceipt((string) ($options['current_source_upsert_cursor_next239'] ?? 'app.returning.upsert.cursor.239'), 'upsert cursor');
+        $generation = self::tokenCurrentTargetReceipt((string) ($options['current_source_upsert_generation_next239'] ?? 'app.current.source.upsert.generation.239'), 'upsert generation');
         $expectedGeneration = self::tokenCurrentTargetReceipt((string) ($options['expected_current_source_upsert_generation_next239'] ?? $generation), 'expected upsert generation');
         $requireOrder = (bool) ($options['require_current_source_upsert_order_next239'] ?? true);
         $generationMatches = hash_equals($generation, $expectedGeneration);
@@ -2637,7 +2637,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $options,
         );
 
-        $cursor = self::tokenCurrentCompositeKeyReceipt((string) ($options['current_source_upsert_cursor_next240'] ?? 'wp.upsert.current.cursor.240'), 'current source upsert cursor');
+        $cursor = self::tokenCurrentCompositeKeyReceipt((string) ($options['current_source_upsert_cursor_next240'] ?? 'app.upsert.current.cursor.240'), 'current source upsert cursor');
         $viewCookie = self::tokenCurrentCompositeKeyReceipt((string) ($options['current_view_upsert_cookie_next240'] ?? (string) ($currentView['source'] ?? 'main@view-upsert-cookie-240-current')), 'current view upsert cookie');
         $triggerCookie = self::tokenCurrentCompositeKeyReceipt((string) ($options['current_trigger_upsert_cookie_next240'] ?? (string) ($currentView['trigger_source'] ?? 'main@trigger-upsert-cookie-240-current')), 'current trigger upsert cookie');
         $conflictColumns = self::columnsCurrentCompositeKeyReceipt($options['upsert_conflict_columns_next240'] ?? ['name'], 'conflict columns');
@@ -3034,7 +3034,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_action_next237'] ?? false);
         $currentRows = self::rowsCurrentCloseReceipt($base['current_source_rows_next237'] ?? [], 'current source rows');
         $nextRows = self::rowsCurrentCloseReceipt($base['attempted_next_source_rows_next237'] ?? [], 'attempted next source rows');
-        $closeToken = self::tokenCurrentCloseReceipt((string) ($options['current_source_upsert_close_token_next241'] ?? 'wp.current.source.upsert.close.241'), 'close token');
+        $closeToken = self::tokenCurrentCloseReceipt((string) ($options['current_source_upsert_close_token_next241'] ?? 'app.current.source.upsert.close.241'), 'close token');
         $expectedCloseToken = self::tokenCurrentCloseReceipt((string) ($options['expected_current_source_upsert_close_token_next241'] ?? $closeToken), 'expected close token');
         $sourceGeneration = self::tokenCurrentCloseReceipt((string) ($options['current_source_upsert_generation_next241'] ?? 'main@source-generation-241-current'), 'source generation');
         $expectedSourceGeneration = self::tokenCurrentCloseReceipt((string) ($options['expected_current_source_upsert_generation_next241'] ?? $sourceGeneration), 'expected source generation');
@@ -3362,7 +3362,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_next239'] ?? false);
         $currentRows = self::rowsCurrentStatementEpochReceipt($base['current_source_rows_next239'] ?? [], 'current source rows');
         $nextRows = self::rowsCurrentStatementEpochReceipt($base['attempted_next_source_rows_next239'] ?? [], 'attempted next source rows');
-        $statementEpoch = self::tokenCurrentStatementEpochReceipt((string) ($options['current_source_statement_epoch_next242'] ?? 'wp.current.source.statement.epoch.242'), 'statement epoch');
+        $statementEpoch = self::tokenCurrentStatementEpochReceipt((string) ($options['current_source_statement_epoch_next242'] ?? 'app.current.source.statement.epoch.242'), 'statement epoch');
         $expectedStatementEpoch = self::tokenCurrentStatementEpochReceipt((string) ($options['expected_current_source_statement_epoch_next242'] ?? $statementEpoch), 'expected statement epoch');
         $viewProgram = self::tokenCurrentStatementEpochReceipt((string) ($options['current_source_view_program_next242'] ?? ($currentView['source'] ?? 'main@view-cookie-242-current')), 'view program');
         $triggerProgram = self::tokenCurrentStatementEpochReceipt((string) ($options['current_source_trigger_program_next242'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-242-current')), 'trigger program');
@@ -3688,7 +3688,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $currentTrigger = self::tokenCurrentSourceReady((string) ($options['current_source_trigger_cookie_next243'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-243-current')), 'current source trigger cookie');
         $expectedCurrentTrigger = self::tokenCurrentSourceReady((string) ($options['expected_current_source_trigger_cookie_next243'] ?? $currentTrigger), 'expected current source trigger cookie');
         $nextCookie = self::tokenCurrentSourceReady((string) ($options['next_source_view_cookie_next243'] ?? ($nextView['source'] ?? 'main@view-cookie-243-next')), 'next source view cookie');
-        $cursor = self::tokenCurrentSourceReady((string) ($options['upsert_source_cursor_next243'] ?? 'wp.upsert.source.cursor.243'), 'upsert source cursor');
+        $cursor = self::tokenCurrentSourceReady((string) ($options['upsert_source_cursor_next243'] ?? 'app.upsert.source.cursor.243'), 'upsert source cursor');
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_next240'] ?? false);
         $viewMatches = hash_equals($currentCookie, $expectedCurrentCookie);
         $triggerMatches = hash_equals($currentTrigger, $expectedCurrentTrigger);
@@ -3875,9 +3875,9 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_close_next241'] ?? false);
         $currentRows = self::rowsCurrentCommitReceipt($base['current_source_rows_next241'] ?? [], 'current source rows');
         $nextRows = self::rowsCurrentCommitReceipt($base['attempted_next_source_rows_next241'] ?? [], 'attempted next source rows');
-        $statementId = self::tokenCurrentCommitReceipt((string) ($options['current_source_upsert_statement_id_next244'] ?? 'wp.current.source.upsert.statement.244'), 'statement id');
+        $statementId = self::tokenCurrentCommitReceipt((string) ($options['current_source_upsert_statement_id_next244'] ?? 'app.current.source.upsert.statement.244'), 'statement id');
         $expectedStatementId = self::tokenCurrentCommitReceipt((string) ($options['expected_current_source_upsert_statement_id_next244'] ?? $statementId), 'expected statement id');
-        $watermark = self::tokenCurrentCommitReceipt((string) ($options['current_source_upsert_commit_watermark_next244'] ?? 'wp.current.source.upsert.commit.244'), 'commit watermark');
+        $watermark = self::tokenCurrentCommitReceipt((string) ($options['current_source_upsert_commit_watermark_next244'] ?? 'app.current.source.upsert.commit.244'), 'commit watermark');
         $expectedWatermark = self::tokenCurrentCommitReceipt((string) ($options['expected_current_source_upsert_commit_watermark_next244'] ?? $watermark), 'expected commit watermark');
         $viewCookie = self::tokenCurrentCommitReceipt((string) ($options['current_upsert_commit_view_cookie_next244'] ?? ($base['current_upsert_close_view_cookie_next241'] ?? 'main@view-cookie-244-current')), 'view cookie');
         $expectedViewCookie = self::tokenCurrentCommitReceipt((string) ($options['expected_current_upsert_commit_view_cookie_next244'] ?? $viewCookie), 'expected view cookie');
@@ -4202,11 +4202,11 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_close_next241'] ?? false);
         $currentRows = self::rowsCurrentTargetReasonReceipt($base['current_source_rows_next241'] ?? [], 'current source rows');
         $nextRows = self::rowsCurrentTargetReasonReceipt($base['attempted_next_source_rows_next241'] ?? [], 'attempted next source rows');
-        $target = self::identifierListCurrentTargetReasonReceipt($options['current_source_upsert_conflict_target_next245'] ?? ['option_name'], 'conflict target');
+        $target = self::identifierListCurrentTargetReasonReceipt($options['current_source_upsert_conflict_target_next245'] ?? ['key_name'], 'conflict target');
         $expectedTarget = self::identifierListCurrentTargetReasonReceipt($options['expected_current_source_upsert_conflict_target_next245'] ?? $target, 'expected conflict target');
-        $excludedColumns = self::identifierListCurrentTargetReasonReceipt($options['current_source_upsert_excluded_columns_next245'] ?? ['option_value', 'autoload'], 'excluded columns');
+        $excludedColumns = self::identifierListCurrentTargetReasonReceipt($options['current_source_upsert_excluded_columns_next245'] ?? ['key_value', 'load_policy'], 'excluded columns');
         $expectedExcludedColumns = self::identifierListCurrentTargetReasonReceipt($options['expected_current_source_upsert_excluded_columns_next245'] ?? $excludedColumns, 'expected excluded columns');
-        $sourceToken = self::tokenCurrentTargetReasonReceipt((string) ($options['current_source_upsert_target_token_next245'] ?? 'wp.current.source.upsert.target.245'), 'target token');
+        $sourceToken = self::tokenCurrentTargetReasonReceipt((string) ($options['current_source_upsert_target_token_next245'] ?? 'app.current.source.upsert.target.245'), 'target token');
         $expectedSourceToken = self::tokenCurrentTargetReasonReceipt((string) ($options['expected_current_source_upsert_target_token_next245'] ?? $sourceToken), 'expected target token');
         $viewCookie = self::tokenCurrentTargetReasonReceipt((string) ($options['current_upsert_target_view_cookie_next245'] ?? ($base['current_upsert_close_view_cookie_next241'] ?? 'main@view-cookie-245-current')), 'view cookie');
         $expectedViewCookie = self::tokenCurrentTargetReasonReceipt((string) ($options['expected_current_upsert_target_view_cookie_next245'] ?? $viewCookie), 'expected view cookie');
@@ -4608,9 +4608,9 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $currentRows = self::rowsCurrentConflictImageReceipt($base['current_source_rows_next243'] ?? [], 'current rows');
         $nextRows = self::rowsCurrentConflictImageReceipt($base['attempted_next_source_rows_next243'] ?? [], 'next rows');
         $conflictColumns = self::columnsCurrentConflictImageReceipt($options['upsert_conflict_columns_next246'] ?? ['name'], 'conflict columns');
-        $excludedColumns = self::columnsCurrentConflictImageReceipt($options['upsert_excluded_columns_next246'] ?? ['value', 'autoload_flag'], 'excluded columns');
-        $oldRows = self::oldRowsCurrentConflictImageReceipt($baseRows, (string) ($options['key'] ?? 'option_name'));
-        $sourceToken = self::tokenCurrentConflictImageReceipt((string) ($options['current_source_conflict_image_token_next246'] ?? 'wp.current.source.conflict.image.246'), 'conflict image token');
+        $excludedColumns = self::columnsCurrentConflictImageReceipt($options['upsert_excluded_columns_next246'] ?? ['value', 'load_policy_flag'], 'excluded columns');
+        $oldRows = self::oldRowsCurrentConflictImageReceipt($baseRows, (string) ($options['key'] ?? 'key_name'));
+        $sourceToken = self::tokenCurrentConflictImageReceipt((string) ($options['current_source_conflict_image_token_next246'] ?? 'app.current.source.conflict.image.246'), 'conflict image token');
         $expectedSourceToken = self::tokenCurrentConflictImageReceipt((string) ($options['expected_current_source_conflict_image_token_next246'] ?? $sourceToken), 'expected conflict image token');
         $requireOrder = (bool) ($options['require_current_source_conflict_image_order_next246'] ?? true);
         $sourceMatches = hash_equals($sourceToken, $expectedSourceToken);
@@ -4805,9 +4805,9 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     private static function inputAliasCurrentConflictImageReceipt(string $column): string
     {
         return match ($column) {
-            'name' => 'option_name',
-            'value' => 'option_value',
-            'autoload_flag' => 'autoload',
+            'name' => 'key_name',
+            'value' => 'key_value',
+            'load_policy_flag' => 'load_policy',
             default => $column,
         };
     }
@@ -5030,7 +5030,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $nextSequence = self::sequenceCurrentSequenceReceipt($options['next_source_statement_sequence_next247'] ?? ($sequence + 1), 'next source statement sequence');
         $viewCookie = self::tokenCurrentSequenceReceipt((string) ($options['current_source_sequence_view_cookie_next247'] ?? ($base['current_upsert_commit_view_cookie_next244'] ?? ($currentView['source'] ?? 'main@view-cookie-247-current'))), 'view cookie');
         $triggerCookie = self::tokenCurrentSequenceReceipt((string) ($options['current_source_sequence_trigger_cookie_next247'] ?? ($base['current_upsert_commit_trigger_cookie_next244'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-247-current'))), 'trigger cookie');
-        $cursor = self::tokenCurrentSequenceReceipt((string) ($options['current_source_sequence_cursor_next247'] ?? 'wp.returning.current.sequence.cursor.247'), 'sequence cursor');
+        $cursor = self::tokenCurrentSequenceReceipt((string) ($options['current_source_sequence_cursor_next247'] ?? 'app.returning.current.sequence.cursor.247'), 'sequence cursor');
         $requireMonotonic = (bool) ($options['require_monotonic_statement_sequence_next247'] ?? true);
 
         $sequenceMatches = $sequence === $expectedSequence;
@@ -5331,9 +5331,9 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_target_next245'] ?? false);
         $currentRows = self::rowsCurrentWhereOutcomeReceipt($base['current_source_rows_next245'] ?? [], 'current source rows');
         $nextRows = self::rowsCurrentWhereOutcomeReceipt($base['attempted_next_source_rows_next245'] ?? [], 'attempted next source rows');
-        $guardToken = self::tokenCurrentWhereOutcomeReceipt((string) ($options['current_source_upsert_where_token_next248'] ?? 'wp.current.source.upsert.where.248'), 'where token');
+        $guardToken = self::tokenCurrentWhereOutcomeReceipt((string) ($options['current_source_upsert_where_token_next248'] ?? 'app.current.source.upsert.where.248'), 'where token');
         $expectedGuardToken = self::tokenCurrentWhereOutcomeReceipt((string) ($options['expected_current_source_upsert_where_token_next248'] ?? $guardToken), 'expected where token');
-        $whereColumns = self::identifierListCurrentWhereOutcomeReceipt($options['current_source_upsert_where_columns_next248'] ?? ['option_value', 'autoload'], 'where columns');
+        $whereColumns = self::identifierListCurrentWhereOutcomeReceipt($options['current_source_upsert_where_columns_next248'] ?? ['key_value', 'load_policy'], 'where columns');
         $expectedWhereColumns = self::identifierListCurrentWhereOutcomeReceipt($options['expected_current_source_upsert_where_columns_next248'] ?? $whereColumns, 'expected where columns');
         $expectedOutcomes = self::boolListCurrentWhereOutcomeReceipt($options['expected_current_source_upsert_where_outcomes_next248'] ?? self::outcomesCurrentWhereOutcomeReceipt($currentRows), 'expected where outcomes');
         $requireOrder = (bool) ($options['require_current_source_upsert_where_order_next248'] ?? true);
@@ -5477,7 +5477,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $returning = $row['returning'];
 
         return (string) ($returning['value'] ?? '') !== ''
-            && ($returning['autoload'] ?? $returning['autoload_flag'] ?? 'yes') !== 'skip';
+            && ($returning['load_policy'] ?? $returning['load_policy_flag'] ?? 'yes') !== 'skip';
     }
 
     /**
@@ -5714,7 +5714,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $currentRows = self::rowsCurrentAssignmentImageReceipt($base['current_source_rows_next246'] ?? [], 'current rows');
         $nextRows = self::rowsCurrentAssignmentImageReceipt($base['attempted_next_source_rows_next246'] ?? [], 'next rows');
         $assignmentColumns = self::columnsCurrentAssignmentImageReceipt($options['upsert_assignment_columns_next249'] ?? ($base['upsert_excluded_columns_next246'] ?? ['value']), 'assignment columns');
-        $sourceToken = self::tokenCurrentAssignmentImageReceipt((string) ($options['current_source_assignment_token_next249'] ?? 'wp.current.source.assignment.249'), 'assignment token');
+        $sourceToken = self::tokenCurrentAssignmentImageReceipt((string) ($options['current_source_assignment_token_next249'] ?? 'app.current.source.assignment.249'), 'assignment token');
         $expectedSourceToken = self::tokenCurrentAssignmentImageReceipt((string) ($options['expected_current_source_assignment_token_next249'] ?? $sourceToken), 'expected assignment token');
         $sourceMatches = hash_equals($sourceToken, $expectedSourceToken);
         $requireOrder = (bool) ($options['require_current_source_assignment_order_next249'] ?? true);
@@ -6047,10 +6047,10 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_statement_sequence_next247'] ?? false);
         $currentRows = self::rowsCurrentRowidProvenanceReceipt($base['current_source_rows_next247'] ?? [], 'current source rows');
         $nextRows = self::rowsCurrentRowidProvenanceReceipt($base['attempted_next_source_rows_next247'] ?? [], 'attempted next source rows');
-        $rowidToken = self::tokenCurrentRowidProvenanceReceipt((string) ($options['current_source_rowid_provenance_token_next250'] ?? 'wp.current.source.rowid.provenance.250'), 'rowid provenance token');
+        $rowidToken = self::tokenCurrentRowidProvenanceReceipt((string) ($options['current_source_rowid_provenance_token_next250'] ?? 'app.current.source.rowid.provenance.250'), 'rowid provenance token');
         $expectedToken = self::tokenCurrentRowidProvenanceReceipt((string) ($options['expected_current_source_rowid_provenance_token_next250'] ?? $rowidToken), 'expected rowid provenance token');
-        $rowidColumn = self::columnCurrentRowidProvenanceReceipt((string) ($options['rowid_column_next250'] ?? 'option_id'), 'rowid column');
-        $conflictKey = self::columnCurrentRowidProvenanceReceipt((string) ($options['conflict_key_column_next250'] ?? 'option_name'), 'conflict key column');
+        $rowidColumn = self::columnCurrentRowidProvenanceReceipt((string) ($options['rowid_column_next250'] ?? 'setting_id'), 'rowid column');
+        $conflictKey = self::columnCurrentRowidProvenanceReceipt((string) ($options['conflict_key_column_next250'] ?? 'key_name'), 'conflict key column');
         $requireExisting = (bool) ($options['require_existing_rowid_for_update_next250'] ?? false);
         $tokenMatches = hash_equals($rowidToken, $expectedToken);
         $oldRows = self::oldRowsCurrentRowidProvenanceReceipt($baseRows, $conflictKey);
@@ -6405,7 +6405,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $minimumTotal = self::counterCurrentChangeReceipt($options['minimum_current_source_total_changes_next251'] ?? $statementChanges, 'minimum total changes');
         $viewCookie = self::tokenCurrentChangeReceipt((string) ($options['current_source_change_view_cookie_next251'] ?? ($base['current_source_sequence_view_cookie_next247'] ?? ($currentView['source'] ?? 'main@view-cookie-251-current'))), 'view cookie');
         $triggerCookie = self::tokenCurrentChangeReceipt((string) ($options['current_source_change_trigger_cookie_next251'] ?? ($base['current_source_sequence_trigger_cookie_next247'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-251-current'))), 'trigger cookie');
-        $counterCursor = self::tokenCurrentChangeReceipt((string) ($options['current_source_change_counter_cursor_next251'] ?? 'wp.returning.current.change.counter.251'), 'change counter cursor');
+        $counterCursor = self::tokenCurrentChangeReceipt((string) ($options['current_source_change_counter_cursor_next251'] ?? 'app.returning.current.change.counter.251'), 'change counter cursor');
         $requireTotal = (bool) ($options['require_total_changes_monotonic_next251'] ?? true);
 
         $changesMatch = $statementChanges === $expectedChanges;
@@ -6715,7 +6715,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $currentRows = self::rowsCurrentPredicateDecisionReceipt($base['current_source_rows_next249'] ?? [], 'current source rows');
         $nextRows = self::rowsCurrentPredicateDecisionReceipt($base['attempted_next_source_rows_next249'] ?? [], 'attempted next source rows');
         $assignments = self::assignmentsCurrentPredicateDecisionReceipt($base['current_source_assignment_images_next249'] ?? []);
-        $predicateToken = self::tokenCurrentPredicateDecisionReceipt((string) ($options['current_source_upsert_where_token_next252'] ?? 'wp.current.source.upsert.where.252'), 'where token');
+        $predicateToken = self::tokenCurrentPredicateDecisionReceipt((string) ($options['current_source_upsert_where_token_next252'] ?? 'app.current.source.upsert.where.252'), 'where token');
         $expectedPredicateToken = self::tokenCurrentPredicateDecisionReceipt((string) ($options['expected_current_source_upsert_where_token_next252'] ?? $predicateToken), 'expected where token');
         $tokenMatches = hash_equals($predicateToken, $expectedPredicateToken);
         $decisions = self::predicateDecisionsCurrentPredicateDecisionReceipt($options['current_source_upsert_where_decisions_next252'] ?? null, $assignments);
@@ -7030,11 +7030,11 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_rowid_provenance_next250'] ?? false);
         $currentRows = self::rowsCurrentViewMaterializationReceipt($base['current_source_rows_next250'] ?? [], 'current source rows');
         $nextRows = self::rowsCurrentViewMaterializationReceipt($base['attempted_next_source_rows_next250'] ?? [], 'attempted next source rows');
-        $materializationToken = self::tokenCurrentViewMaterializationReceipt((string) ($options['current_source_view_materialization_token_next253'] ?? 'wp.current.source.view.materialization.253'), 'view materialization token');
+        $materializationToken = self::tokenCurrentViewMaterializationReceipt((string) ($options['current_source_view_materialization_token_next253'] ?? 'app.current.source.view.materialization.253'), 'view materialization token');
         $expectedToken = self::tokenCurrentViewMaterializationReceipt((string) ($options['expected_current_source_view_materialization_token_next253'] ?? $materializationToken), 'expected view materialization token');
         $viewCookie = self::tokenCurrentViewMaterializationReceipt((string) ($options['current_source_view_cookie_next253'] ?? ($base['base']['current_source_sequence_view_cookie_next247'] ?? ($currentView['source'] ?? 'main@view-cookie-253-current'))), 'view cookie');
         $triggerCookie = self::tokenCurrentViewMaterializationReceipt((string) ($options['current_source_trigger_cookie_next253'] ?? ($base['base']['current_source_sequence_trigger_cookie_next247'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-253-current'))), 'trigger cookie');
-        $cursor = self::tokenCurrentViewMaterializationReceipt((string) ($options['current_source_materialization_cursor_next253'] ?? 'wp.returning.materialized.cursor.253'), 'materialization cursor');
+        $cursor = self::tokenCurrentViewMaterializationReceipt((string) ($options['current_source_materialization_cursor_next253'] ?? 'app.returning.materialized.cursor.253'), 'materialization cursor');
         $projectionColumns = self::columnsCurrentViewMaterializationReceipt($options['materialized_returning_columns_next253'] ?? ['name', 'value', 'event_name', 'depth_value', 'ordinal_value'], 'materialized returning columns');
         $tokenMatches = hash_equals($materializationToken, $expectedToken);
 
@@ -7376,7 +7376,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $triggerToken = self::tokenCurrentViewMappingReceipt((string) ($options['current_view_mapping_trigger_token_next254'] ?? ($currentView['trigger_source'] ?? 'main@trigger-mapping-current-254')), 'view mapping trigger token');
         $expectedTriggerToken = self::tokenCurrentViewMappingReceipt((string) ($options['expected_current_view_mapping_trigger_token_next254'] ?? $triggerToken), 'expected view mapping trigger token');
         $triggerMatches = hash_equals($triggerToken, $expectedTriggerToken);
-        $requiredColumns = self::columnListCurrentViewMappingReceipt($options['required_current_view_mapping_columns_next254'] ?? ['import_id', 'name', 'value', 'autoload_flag'], 'required mapping columns');
+        $requiredColumns = self::columnListCurrentViewMappingReceipt($options['required_current_view_mapping_columns_next254'] ?? ['import_id', 'name', 'value', 'load_policy_flag'], 'required mapping columns');
         $missingColumns = array_values(array_filter($requiredColumns, static fn (string $column): bool => !array_key_exists($column, $mapping)));
         $mappingRows = self::mappingRowsCurrentViewMappingReceipt($currentRows, $mapping, $sourceToken, $triggerToken, $requiredColumns);
         $required = self::mappingReceiptsCurrentViewMappingReceipt($mappingRows, $sourceToken, $triggerToken);
@@ -7577,17 +7577,17 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
 
     private static function returningAliasCurrentViewMappingReceipt(string $sourceColumn, string $targetColumn): string
     {
-        if ($sourceColumn === 'name' && $targetColumn === 'option_name') {
+        if ($sourceColumn === 'name' && $targetColumn === 'key_name') {
             return 'name';
         }
-        if ($sourceColumn === 'value' && $targetColumn === 'option_value') {
+        if ($sourceColumn === 'value' && $targetColumn === 'key_value') {
             return 'value';
         }
-        if ($sourceColumn === 'import_id' && $targetColumn === 'option_id') {
+        if ($sourceColumn === 'import_id' && $targetColumn === 'setting_id') {
             return 'import_id';
         }
-        if ($sourceColumn === 'autoload_flag' && $targetColumn === 'autoload') {
-            return 'autoload_flag';
+        if ($sourceColumn === 'load_policy_flag' && $targetColumn === 'load_policy') {
+            return 'load_policy_flag';
         }
 
         return $targetColumn;
@@ -7770,7 +7770,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_where_next252'] ?? false);
         $currentRows = self::currentSourceReturningDrainRows($base['current_source_rows_next252'] ?? [], 'current rows');
         $nextRows = self::currentSourceReturningDrainRows($base['attempted_next_source_rows_next252'] ?? [], 'next rows');
-        $cursor = self::currentSourceReturningToken((string) ($options['current_source_returning_cursor_next255'] ?? 'wp.returning.current.upsert.cursor.255'), 'returning cursor');
+        $cursor = self::currentSourceReturningToken((string) ($options['current_source_returning_cursor_next255'] ?? 'app.returning.current.upsert.cursor.255'), 'returning cursor');
         $expectedCursor = self::currentSourceReturningToken((string) ($options['expected_current_source_returning_cursor_next255'] ?? $cursor), 'expected returning cursor');
         $cursorMatches = hash_equals($cursor, $expectedCursor);
         $payloads = self::currentSourceReturningPayloads($currentRows);
@@ -8141,7 +8141,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $materialized = self::rowsForCurrentSourceViewUpsertHandoff($base['current_source_view_materialization_rows_next253'] ?? [], 'materialized rows');
         $currentRows = self::rowsForCurrentSourceViewUpsertHandoff($base['current_source_rows_next253'] ?? [], 'current source rows');
         $nextRows = self::rowsForCurrentSourceViewUpsertHandoff($base['attempted_next_source_rows_next253'] ?? [], 'attempted next source rows');
-        $handoffToken = self::currentSourceViewUpsertHandoffToken((string) ($options['current_source_view_upsert_handoff_token_next256'] ?? 'wp.current.source.view.upsert.handoff.256'), 'handoff token');
+        $handoffToken = self::currentSourceViewUpsertHandoffToken((string) ($options['current_source_view_upsert_handoff_token_next256'] ?? 'app.current.source.view.upsert.handoff.256'), 'handoff token');
         $expectedToken = self::currentSourceViewUpsertHandoffToken((string) ($options['expected_current_source_view_upsert_handoff_token_next256'] ?? $handoffToken), 'expected handoff token');
         $batchSize = self::positiveCurrentSourceViewUpsertHandoffInt($options['current_source_view_upsert_handoff_batch_size_next256'] ?? 1, 'handoff batch size');
         $requireOrder = (bool) ($options['require_current_source_view_upsert_handoff_order_next256'] ?? true);

@@ -5,45 +5,45 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows176 = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'source' => 'seed'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes', 'source' => 'seed'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'source' => 'seed'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing_url.test', 'load_policy' => 'yes', 'source' => 'seed'],
 ];
 $currentView176 = [
-    'name' => 'wp_option_import_view',
+    'name' => 'app_setting_import_view',
     'source' => 'main@view-cookie-176-current',
-    'trigger' => 'wp_option_import_view_io_insert',
+    'trigger' => 'app_setting_import_view_io_insert',
     'trigger_source' => 'main@trigger-cookie-176-current',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy'],
     'recursive_column' => 'name',
     'recursive_suffix' => '_retry',
     'audit_label' => 'current-recursive-trigger-page-acks-176',
 ];
 $nextView176 = [
-    'name' => 'wp_option_import_view',
+    'name' => 'app_setting_import_view',
     'source' => 'main@view-cookie-176-next',
-    'trigger' => 'wp_option_import_view_io_insert',
+    'trigger' => 'app_setting_import_view_io_insert',
     'trigger_source' => 'main@trigger-cookie-176-next',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'origin'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload', 'origin' => 'source'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'origin'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy', 'origin' => 'source'],
     'recursive_column' => 'name',
     'recursive_suffix' => '_next_retry',
     'audit_label' => 'next-recursive-trigger-page-acks-176',
 ];
 $currentInput176 = [
-    ['import_id' => 10, 'name' => 'plugin_seed', 'value' => 'enabled', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 11, 'name' => 'skip_me', 'value' => 'disabled', 'autoload_flag' => 'skip', 'spawn_child' => true],
-    ['import_id' => 12, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => false],
+    ['import_id' => 10, 'name' => 'module_seed', 'value' => 'enabled', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 11, 'name' => 'skip_me', 'value' => 'disabled', 'load_policy_flag' => 'skip', 'spawn_child' => true],
+    ['import_id' => 12, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes', 'spawn_child' => false],
 ];
 $nextInput176 = [
-    ['import_id' => 20, 'name' => 'rewrite_rules', 'value' => 'cached', 'autoload_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => true],
-    ['import_id' => 21, 'name' => 'home', 'value' => 'https://next-home.test', 'autoload_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => false],
-    ['import_id' => 22, 'name' => 'next_skip', 'value' => 'ignored', 'autoload_flag' => 'skip', 'origin' => 'next-import', 'spawn_child' => true],
+    ['import_id' => 20, 'name' => 'routing_rules', 'value' => 'cached', 'load_policy_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => true],
+    ['import_id' => 21, 'name' => 'landing_url', 'value' => 'https://next-landing_url.test', 'load_policy_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => false],
+    ['import_id' => 22, 'name' => 'next_skip', 'value' => 'ignored', 'load_policy_flag' => 'skip', 'origin' => 'next-import', 'spawn_child' => true],
 ];
 $returning176 = [
-    'new.option_name',
-    ['expr' => 'new.option_value', 'as' => 'value'],
-    ['expr' => 'old.option_value', 'as' => 'old_value'],
+    'new.key_name',
+    ['expr' => 'new.key_value', 'as' => 'value'],
+    ['expr' => 'old.key_value', 'as' => 'old_value'],
     ['expr' => 'view.name', 'as' => 'view_name'],
     ['expr' => 'event', 'as' => 'event_name'],
     ['expr' => 'ordinal', 'as' => 'ordinal_value'],
@@ -58,7 +58,7 @@ $plan176 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewR
     $currentView176,
     $nextView176,
     $returning176,
-    $options + ['key' => 'option_name', 'savepoint' => 'wp_recursive_view_176', 'max_depth' => 2, 'page_size' => 2],
+    $options + ['key' => 'key_name', 'savepoint' => 'app_recursive_view_176', 'max_depth' => 2, 'page_size' => 2],
 );
 
 $all176 = static fn (): array => $plan176(['admit_next_source' => true, 'acknowledged_current_page_indexes' => [0, 1]]);
@@ -80,7 +80,7 @@ $cases176 = [
     'all admits next source' => [static fn (): mixed => $all176()['next_source_admitted_next176'], true],
     'all next173 also admits' => [static fn (): mixed => $all176()['next_source_admitted_next173'], true],
     'all visible phases include next' => [static fn (): mixed => array_column($all176()['visible_returning_pages_next173'], 'phase'), ['current', 'current', 'next', 'next']],
-    'all next page names' => [static fn (): mixed => $all176()['visible_returning_pages_next173'][2]['names'], ['rewrite_rules', 'home']],
+    'all next page names' => [static fn (): mixed => $all176()['visible_returning_pages_next173'][2]['names'], ['routing_rules', 'landing_url']],
     'all cursor state total current pages' => [static fn (): mixed => $all176()['returning_cursor_state_next176']['total_current_pages'], 2],
     'all cursor state drained current pages' => [static fn (): mixed => $all176()['returning_cursor_state_next176']['drained_current_pages'], 2],
     'all cursor state admits' => [static fn (): mixed => $all176()['returning_cursor_state_next176']['next_source_admitted'], true],
@@ -96,7 +96,7 @@ $cases176 = [
     'partial next not admitted' => [static fn (): mixed => $partial176()['next_source_admitted_next176'], false],
     'partial next173 block reason' => [static fn (): mixed => $partial176()['next_source_block_reasons_next176'], ['current-returning-cursor-not-exhausted']],
     'partial visible pages current only' => [static fn (): mixed => array_column($partial176()['visible_returning_pages_next173'], 'phase'), ['current']],
-    'partial pending page names' => [static fn (): mixed => $partial176()['pending_current_pages'][0]['names'], ['plugin_seed_retry', 'plugin_seed_retry_retry']],
+    'partial pending page names' => [static fn (): mixed => $partial176()['pending_current_pages'][0]['names'], ['module_seed_retry', 'module_seed_retry_retry']],
     'partial cursor state drained pages' => [static fn (): mixed => $partial176()['returning_cursor_state_next176']['drained_current_pages'], 1],
 
     'gap status fences next source' => [static fn (): mixed => $gap176()['status_next176'], 'trigger-recursive-view-returning-current-page-acknowledgement-fences-next-source-next176'],
@@ -135,8 +135,8 @@ $cases176 = [
 
     'wide current pages still two' => [static fn (): mixed => $wide176()['returning_cursor_state_next176']['total_current_pages'], 2],
     'wide admitted with contiguous indexes' => [static fn (): mixed => $wide176()['next_source_admitted_next176'], true],
-    'wide first current page names' => [static fn (): mixed => $wide176()['drained_current_pages'][0]['names'], ['plugin_seed', 'siteurl', 'plugin_seed_retry']],
-    'wide second current page names' => [static fn (): mixed => $wide176()['drained_current_pages'][1]['names'], ['plugin_seed_retry_retry']],
+    'wide first current page names' => [static fn (): mixed => $wide176()['drained_current_pages'][0]['names'], ['module_seed', 'base_url', 'module_seed_retry']],
+    'wide second current page names' => [static fn (): mixed => $wide176()['drained_current_pages'][1]['names'], ['module_seed_retry_retry']],
 
     'negative acknowledged index throws' => [static fn (): mixed => $plan176(['acknowledged_current_page_indexes' => [-1]]), InvalidArgumentException::class],
     'out of range acknowledged index throws' => [static fn (): mixed => $plan176(['acknowledged_current_page_indexes' => [2]]), InvalidArgumentException::class],

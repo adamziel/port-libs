@@ -14,8 +14,8 @@ $code = static fn (int|string $encoding): int => match ($encoding) {
     'UTF-16BE', 3 => 3,
 };
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $code($encoding),
 ];
 
@@ -36,7 +36,7 @@ $next = [
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNonAsciiEscapeLikePlan($current, $next);
 
 if (
-    $plan['status'] !== 'encoding-collation-affinity-like-current-source-next248'
+    $plan['status'] !== 'encoding-collation-affinity-like-current-source-nexttwoFourEight'
     || $plan['prefix'] !== 'plugin_cache%'
     || $plan['escape'] !== 'é'
     || $plan['currentMatchedRowids'] !== [4, 1, 2]

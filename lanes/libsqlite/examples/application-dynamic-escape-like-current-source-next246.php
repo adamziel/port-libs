@@ -10,16 +10,16 @@ foreach (glob(__DIR__ . '/../src/*.php') ?: [] as $file) {
 use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $current = [
-    ['option_id' => 1, 'option_name' => 'plugin_literal', 'option_value' => 'plugin_%enabled'],
-    ['option_id' => 2, 'option_name' => 'plugin_wild', 'option_value' => 'plugin_cacheenabled'],
-    ['option_id' => 3, 'option_name' => 'plugin_upper', 'option_value' => 'PLUGIN_%ENABLED'],
+    ['setting_id' => 1, 'key_name' => 'plugin_literal', 'key_value' => 'plugin_%enabled'],
+    ['setting_id' => 2, 'key_name' => 'plugin_wild', 'key_value' => 'plugin_cacheenabled'],
+    ['setting_id' => 3, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN_%ENABLED'],
 ];
 
 $next = [
-    ['option_id' => 1, 'option_name' => 'plugin_literal', 'option_value' => 'plugin_%enabled'],
-    ['option_id' => 2, 'option_name' => 'plugin_wild', 'option_value' => 'plugin_cacheenabled'],
-    ['option_id' => 3, 'option_name' => 'plugin_upper', 'option_value' => 'PLUGIN_%ENABLED'],
-    ['option_id' => 4, 'option_name' => 'plugin_new', 'option_value' => 'plugin_%enabled_extra'],
+    ['setting_id' => 1, 'key_name' => 'plugin_literal', 'key_value' => 'plugin_%enabled'],
+    ['setting_id' => 2, 'key_name' => 'plugin_wild', 'key_value' => 'plugin_cacheenabled'],
+    ['setting_id' => 3, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN_%ENABLED'],
+    ['setting_id' => 4, 'key_name' => 'plugin_new', 'key_value' => 'plugin_%enabled_extra'],
 ];
 
 $summary = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationDynamicEscapeLikePlan(

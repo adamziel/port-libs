@@ -5,16 +5,16 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows200 = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing_url.test', 'load_policy' => 'yes'],
 ];
 $currentView200 = [
-    'name' => 'wp_recursive_option_import',
+    'name' => 'app_recursive_setting_import',
     'source' => 'main@view-cookie-200-current',
-    'trigger' => 'wp_recursive_option_import_io_insert',
+    'trigger' => 'app_recursive_setting_import_io_insert',
     'trigger_source' => 'main@trigger-cookie-200-current',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'spawn_child'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'spawn_child'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy'],
     'audit_label' => 'current-recursive-view-trigger-200',
 ];
 $nextView200 = $currentView200;
@@ -22,15 +22,15 @@ $nextView200['source'] = 'main@view-cookie-200-next';
 $nextView200['trigger_source'] = 'main@trigger-cookie-200-next';
 $nextView200['audit_label'] = 'next-recursive-view-trigger-200';
 $currentInput200 = [
-    ['import_id' => 10, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 11, 'name' => 'current_plugin', 'value' => 'enabled', 'autoload_flag' => 'no', 'spawn_child' => true],
+    ['import_id' => 10, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 11, 'name' => 'current_module', 'value' => 'enabled', 'load_policy_flag' => 'no', 'spawn_child' => true],
 ];
 $nextInput200 = [
-    ['import_id' => 20, 'name' => 'home', 'value' => 'https://next.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 21, 'name' => 'next_plugin', 'value' => 'active', 'autoload_flag' => 'no', 'spawn_child' => false],
+    ['import_id' => 20, 'name' => 'landing_url', 'value' => 'https://next.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 21, 'name' => 'next_module', 'value' => 'active', 'load_policy_flag' => 'no', 'spawn_child' => false],
 ];
 $returning200 = [
-    ['expr' => 'new.option_name', 'as' => 'name'],
+    ['expr' => 'new.key_name', 'as' => 'name'],
     ['expr' => 'event', 'as' => 'event_name'],
     ['expr' => 'depth', 'as' => 'depth_value'],
     ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
@@ -44,19 +44,19 @@ $run200 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewRe
     $nextView200,
     $returning200,
     $options + [
-        'key' => 'option_name',
-        'savepoint' => 'wp_recursive_view_200',
-        'cursor_name' => 'wp_recursive_view_returning_cursor_200',
-        'current_generation' => 'wp-current-returning-200',
-        'next_generation' => 'wp-next-returning-200',
-        'checkpoint_name' => 'wp_recursive_view_checkpoint_200',
+        'key' => 'key_name',
+        'savepoint' => 'app_recursive_view_200',
+        'cursor_name' => 'app_recursive_view_returning_cursor_200',
+        'current_generation' => 'app-current-returning-200',
+        'next_generation' => 'app-next-returning-200',
+        'checkpoint_name' => 'app_recursive_view_checkpoint_200',
         'page_size' => 3,
     ],
 );
 
 $exposed200 = static fn (): array => $run200();
 $shortDrain200 = static fn (): array => $run200(['expected_current_drain_count_next200' => 5]);
-$staleHighWater200 = static fn (): array => $run200(['expected_current_highwater_token_next200' => 'wp_recursive_view_returning_cursor_200:wp-current-returning-200:4']);
+$staleHighWater200 = static fn (): array => $run200(['expected_current_highwater_token_next200' => 'app_recursive_view_returning_cursor_200:app-current-returning-200:4']);
 $staleGeneration200 = static fn (): array => $run200(['expected_current_generation_epoch_next200' => 'epoch200:stale']);
 $doneHeld200 = static fn (): array => $run200(['current_result_code' => 'SQLITE_ROW']);
 $nonRecursive200 = static fn (): array => $run200(['recursive_triggers' => false]);
@@ -73,8 +73,8 @@ $cases200 = [
     'expected current drain count' => [static fn (): mixed => $exposed200()['expected_current_drain_count_next200'], 6],
     'drain count matches exposed' => [static fn (): mixed => $exposed200()['current_drain_count_matches_next200'], true],
     'drain count mismatch' => [static fn (): mixed => $shortDrain200()['current_drain_count_matches_next200'], false],
-    'highwater token exposed' => [static fn (): mixed => $exposed200()['current_highwater_token_next200'], 'wp_recursive_view_returning_cursor_200:wp-current-returning-200:5'],
-    'expected highwater token exposed' => [static fn (): mixed => $exposed200()['expected_current_highwater_token_next200'], 'wp_recursive_view_returning_cursor_200:wp-current-returning-200:5'],
+    'highwater token exposed' => [static fn (): mixed => $exposed200()['current_highwater_token_next200'], 'app_recursive_view_returning_cursor_200:app-current-returning-200:5'],
+    'expected highwater token exposed' => [static fn (): mixed => $exposed200()['expected_current_highwater_token_next200'], 'app_recursive_view_returning_cursor_200:app-current-returning-200:5'],
     'highwater matches exposed' => [static fn (): mixed => $exposed200()['current_highwater_token_matches_next200'], true],
     'highwater mismatch' => [static fn (): mixed => $staleHighWater200()['current_highwater_token_matches_next200'], false],
     'generation matches exposed' => [static fn (): mixed => $exposed200()['current_generation_epoch_matches_next200'], true],
@@ -96,9 +96,9 @@ $cases200 = [
     'held short drain count' => [static fn (): mixed => count($shortDrain200()['held_rows_next200']), 4],
     'held highwater count' => [static fn (): mixed => count($staleHighWater200()['held_rows_next200']), 4],
     'held generation count' => [static fn (): mixed => count($staleGeneration200()['held_rows_next200']), 4],
-    'visible names exposed' => [static fn (): mixed => array_column($exposed200()['visible_returning_rows_next200'], 'name'), ['siteurl', 'current_plugin', 'siteurl:child', 'current_plugin:child', 'siteurl:child:child', 'current_plugin:child:child', 'home', 'next_plugin', 'home:child', 'home:child:child']],
-    'visible names held' => [static fn (): mixed => array_column($shortDrain200()['visible_returning_rows_next200'], 'name'), ['siteurl', 'current_plugin', 'siteurl:child', 'current_plugin:child', 'siteurl:child:child', 'current_plugin:child:child']],
-    'held names short drain' => [static fn (): mixed => array_column($shortDrain200()['held_returning_rows_next200'], 'name'), ['home', 'next_plugin', 'home:child', 'home:child:child']],
+    'visible names exposed' => [static fn (): mixed => array_column($exposed200()['visible_returning_rows_next200'], 'name'), ['base_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child', 'landing_url', 'next_module', 'landing_url:child', 'landing_url:child:child']],
+    'visible names held' => [static fn (): mixed => array_column($shortDrain200()['visible_returning_rows_next200'], 'name'), ['base_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child']],
+    'held names short drain' => [static fn (): mixed => array_column($shortDrain200()['held_returning_rows_next200'], 'name'), ['landing_url', 'next_module', 'landing_url:child', 'landing_url:child:child']],
     'current visible unique' => [static fn (): mixed => array_values(array_unique(array_column($exposed200()['current_source_rows_next200'], 'visible_after_current_highwater_next200'))), [true]],
     'next visible exposed unique' => [static fn (): mixed => array_values(array_unique(array_column($exposed200()['attempted_next_source_rows_next200'], 'visible_after_current_highwater_next200'))), [true]],
     'next visible held unique' => [static fn (): mixed => array_values(array_unique(array_column($shortDrain200()['attempted_next_source_rows_next200'], 'visible_after_current_highwater_next200'))), [false]],
@@ -116,11 +116,11 @@ $cases200 = [
     'plan visible rows' => [static fn (): mixed => $exposed200()['current_highwater_plan_next200']['visible_rows'], 10],
     'plan held rows exposed' => [static fn (): mixed => $exposed200()['current_highwater_plan_next200']['held_next_rows'], 0],
     'plan held rows short drain' => [static fn (): mixed => $shortDrain200()['current_highwater_plan_next200']['held_next_rows'], 4],
-    'plan highwater token' => [static fn (): mixed => $exposed200()['current_highwater_plan_next200']['current_highwater_token'], 'wp_recursive_view_returning_cursor_200:wp-current-returning-200:5'],
+    'plan highwater token' => [static fn (): mixed => $exposed200()['current_highwater_plan_next200']['current_highwater_token'], 'app_recursive_view_returning_cursor_200:app-current-returning-200:5'],
     'plan decision exposed' => [static fn (): mixed => $exposed200()['current_highwater_plan_next200']['decision'], 'admit-next-source-after-current-highwater'],
     'plan decision held' => [static fn (): mixed => $shortDrain200()['current_highwater_plan_next200']['decision'], 'hold-next-source-until-current-highwater'],
     'plan blocked token exposed' => [static fn (): mixed => $exposed200()['current_highwater_plan_next200']['blocked_at_resume_token'], null],
-    'plan blocked token held' => [static fn (): mixed => $shortDrain200()['current_highwater_plan_next200']['blocked_at_resume_token'], 'wp_recursive_view_returning_cursor_200:wp-next-returning-200:6'],
+    'plan blocked token held' => [static fn (): mixed => $shortDrain200()['current_highwater_plan_next200']['blocked_at_resume_token'], 'app_recursive_view_returning_cursor_200:app-next-returning-200:6'],
     'counts current rows' => [static fn (): mixed => $exposed200()['counts_next200']['current_rows'], 6],
     'counts next rows' => [static fn (): mixed => $exposed200()['counts_next200']['attempted_next_rows'], 4],
     'counts visible exposed' => [static fn (): mixed => $exposed200()['counts_next200']['visible_rows'], 10],
@@ -134,8 +134,8 @@ $cases200 = [
     'dependency closure note' => [static fn (): mixed => $exposed200()['dependency_closure_next200'], 'no new support component needed; reuses recursive view trigger RETURNING resume rows and adds current-source drain high-water gating'],
     'non overlap mentions next194' => [static fn (): mixed => str_contains($exposed200()['non_overlap_next200'], 'next194'), true],
     'non recursive drain count' => [static fn (): mixed => $nonRecursive200()['current_drain_count_next200'], 2],
-    'non recursive highwater token' => [static fn (): mixed => $nonRecursive200()['current_highwater_token_next200'], 'wp_recursive_view_returning_cursor_200:wp-current-returning-200:1'],
-    'non recursive visible names' => [static fn (): mixed => array_column($nonRecursive200()['visible_returning_rows_next200'], 'name'), ['siteurl', 'current_plugin', 'home', 'next_plugin']],
+    'non recursive highwater token' => [static fn (): mixed => $nonRecursive200()['current_highwater_token_next200'], 'app_recursive_view_returning_cursor_200:app-current-returning-200:1'],
+    'non recursive visible names' => [static fn (): mixed => array_column($nonRecursive200()['visible_returning_rows_next200'], 'name'), ['base_url', 'current_module', 'landing_url', 'next_module']],
     'explicit expected drain accepted' => [static fn (): mixed => $run200(['expected_current_drain_count_next200' => 6])['current_drain_count_matches_next200'], true],
     'explicit expected highwater accepted' => [static fn (): mixed => $run200(['expected_current_highwater_token_next200' => $exposed200()['current_highwater_token_next200']])['current_highwater_token_matches_next200'], true],
     'explicit expected generation accepted' => [static fn (): mixed => $run200(['expected_current_generation_epoch_next200' => $exposed200()['current_generation_epoch_next200']])['current_generation_epoch_matches_next200'], true],

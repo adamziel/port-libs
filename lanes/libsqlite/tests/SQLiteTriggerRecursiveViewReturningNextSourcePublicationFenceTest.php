@@ -5,45 +5,45 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows178 = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'source' => 'seed'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes', 'source' => 'seed'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'source' => 'seed'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing_url.test', 'load_policy' => 'yes', 'source' => 'seed'],
 ];
 $currentView178 = [
-    'name' => 'wp_option_import_view',
+    'name' => 'app_setting_import_view',
     'source' => 'main@view-cookie-178-current',
-    'trigger' => 'wp_option_import_view_io_insert',
+    'trigger' => 'app_setting_import_view_io_insert',
     'trigger_source' => 'main@trigger-cookie-178-current',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy'],
     'recursive_column' => 'name',
     'recursive_suffix' => '_retry',
     'audit_label' => 'current-recursive-trigger-drain-178',
 ];
 $nextView178 = [
-    'name' => 'wp_option_import_view',
+    'name' => 'app_setting_import_view',
     'source' => 'main@view-cookie-178-next',
-    'trigger' => 'wp_option_import_view_io_insert',
+    'trigger' => 'app_setting_import_view_io_insert',
     'trigger_source' => 'main@trigger-cookie-178-next',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'origin'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload', 'origin' => 'source'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'origin'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy', 'origin' => 'source'],
     'recursive_column' => 'name',
     'recursive_suffix' => '_next_retry',
     'audit_label' => 'next-recursive-trigger-drain-178',
 ];
 $currentInput178 = [
-    ['import_id' => 10, 'name' => 'plugin_seed', 'value' => 'enabled', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 11, 'name' => 'skip_me', 'value' => 'disabled', 'autoload_flag' => 'skip', 'spawn_child' => true],
-    ['import_id' => 12, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => false],
+    ['import_id' => 10, 'name' => 'module_seed', 'value' => 'enabled', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 11, 'name' => 'skip_me', 'value' => 'disabled', 'load_policy_flag' => 'skip', 'spawn_child' => true],
+    ['import_id' => 12, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes', 'spawn_child' => false],
 ];
 $nextInput178 = [
-    ['import_id' => 20, 'name' => 'rewrite_rules', 'value' => 'cached', 'autoload_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => true],
-    ['import_id' => 21, 'name' => 'home', 'value' => 'https://next-home.test', 'autoload_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => false],
-    ['import_id' => 22, 'name' => 'next_skip', 'value' => 'ignored', 'autoload_flag' => 'skip', 'origin' => 'next-import', 'spawn_child' => true],
+    ['import_id' => 20, 'name' => 'routing_rules', 'value' => 'cached', 'load_policy_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => true],
+    ['import_id' => 21, 'name' => 'landing_url', 'value' => 'https://next-landing_url.test', 'load_policy_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => false],
+    ['import_id' => 22, 'name' => 'next_skip', 'value' => 'ignored', 'load_policy_flag' => 'skip', 'origin' => 'next-import', 'spawn_child' => true],
 ];
 $returning178 = [
-    'new.option_name',
-    ['expr' => 'new.option_value', 'as' => 'value'],
-    ['expr' => 'old.option_value', 'as' => 'old_value'],
+    'new.key_name',
+    ['expr' => 'new.key_value', 'as' => 'value'],
+    ['expr' => 'old.key_value', 'as' => 'old_value'],
     ['expr' => 'view.name', 'as' => 'view_name'],
     ['expr' => 'event', 'as' => 'event_name'],
     ['expr' => 'ordinal', 'as' => 'ordinal_value'],
@@ -59,16 +59,16 @@ $plan178 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewR
     $nextView178,
     $returning178,
     $options + [
-        'key' => 'option_name',
-        'savepoint' => 'wp_recursive_view_178',
+        'key' => 'key_name',
+        'savepoint' => 'app_recursive_view_178',
         'max_depth' => 2,
         'page_size' => 2,
         'drained_current_pages' => 2,
         'savepoint_action' => 'release',
         'current_source_epoch' => 8,
-        'restart_cursor' => 'wp-recursive-view-returning-restart-178',
-        'snapshot_token' => 'wp.recursive.view.returning.snapshot.178',
-        'expected_snapshot_token' => 'wp.recursive.view.returning.snapshot.178',
+        'restart_cursor' => 'app-recursive-view-returning-restart-178',
+        'snapshot_token' => 'app.recursive.view.returning.snapshot.178',
+        'expected_snapshot_token' => 'app.recursive.view.returning.snapshot.178',
         'current_schema_cookie' => 178,
         'expected_current_schema_cookie' => 178,
     ],
@@ -77,15 +77,15 @@ $plan178 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewR
 $release178 = static fn (): array => $plan178();
 $hold178 = static fn (): array => $plan178(['savepoint_action' => 'hold']);
 $partial178 = static fn (): array => $plan178(['drained_current_pages' => 1]);
-$staleToken178 = static fn (): array => $plan178(['expected_snapshot_token' => 'wp.recursive.view.returning.snapshot.stale']);
+$staleToken178 = static fn (): array => $plan178(['expected_snapshot_token' => 'app.recursive.view.returning.snapshot.stale']);
 $staleCookie178 = static fn (): array => $plan178(['expected_current_schema_cookie' => 179]);
 $wide178 = static fn (): array => $plan178(['page_size' => 3]);
 
 $cases178 = [
     'release status' => [static fn (): mixed => $release178()['status_next178'], 'trigger-recursive-view-returning-current-source-snapshot-released-next178'],
     'release keeps next175 status' => [static fn (): mixed => $release178()['status_next175'], 'trigger-recursive-view-returning-savepoint-released-next-source-next175'],
-    'snapshot token retained' => [static fn (): mixed => $release178()['snapshot_token_next178'], 'wp.recursive.view.returning.snapshot.178'],
-    'expected snapshot token retained' => [static fn (): mixed => $release178()['expected_snapshot_token_next178'], 'wp.recursive.view.returning.snapshot.178'],
+    'snapshot token retained' => [static fn (): mixed => $release178()['snapshot_token_next178'], 'app.recursive.view.returning.snapshot.178'],
+    'expected snapshot token retained' => [static fn (): mixed => $release178()['expected_snapshot_token_next178'], 'app.recursive.view.returning.snapshot.178'],
     'schema cookie retained' => [static fn (): mixed => $release178()['current_schema_cookie_next178'], 178],
     'expected schema cookie retained' => [static fn (): mixed => $release178()['expected_current_schema_cookie_next178'], 178],
     'snapshot token matches' => [static fn (): mixed => $release178()['snapshot_token_matches_next178'], true],
@@ -96,15 +96,15 @@ $cases178 = [
     'next row count' => [static fn (): mixed => $release178()['next_returning_row_count_next178'], 4],
     'queued next row count' => [static fn (): mixed => $release178()['queued_next_row_count_next178'], 0],
     'source order current then next' => [static fn (): mixed => $release178()['returning_source_order_next178'], ['current', 'next']],
-    'visible names order' => [static fn (): mixed => array_column($release178()['visible_returning_rows_next178'], 'returning_option_name'), ['plugin_seed', 'siteurl', 'plugin_seed_retry', 'plugin_seed_retry_retry', 'rewrite_rules', 'home', 'rewrite_rules_next_retry', 'rewrite_rules_next_retry_next_retry']],
+    'visible names order' => [static fn (): mixed => array_column($release178()['visible_returning_rows_next178'], 'returning_key_name'), ['module_seed', 'base_url', 'module_seed_retry', 'module_seed_retry_retry', 'routing_rules', 'landing_url', 'routing_rules_next_retry', 'routing_rules_next_retry_next_retry']],
     'visible phases order' => [static fn (): mixed => array_column($release178()['visible_returning_rows_next178'], 'statement_source'), ['current', 'current', 'current', 'current', 'next', 'next', 'next', 'next']],
     'visible page ordinals' => [static fn (): mixed => array_column($release178()['visible_returning_rows_next178'], 'returning_page'), [0, 0, 1, 1, 0, 0, 1, 1]],
     'visible row ordinals' => [static fn (): mixed => array_column($release178()['visible_returning_rows_next178'], 'returning_row_ordinal'), [0, 1, 2, 3, 4, 5, 6, 7]],
-    'visible snapshot tokens' => [static fn (): mixed => array_values(array_unique(array_column($release178()['visible_returning_rows_next178'], 'returning_snapshot_token'))), ['wp.recursive.view.returning.snapshot.178']],
+    'visible snapshot tokens' => [static fn (): mixed => array_values(array_unique(array_column($release178()['visible_returning_rows_next178'], 'returning_snapshot_token'))), ['app.recursive.view.returning.snapshot.178']],
     'visible schema cookies' => [static fn (): mixed => array_values(array_unique(array_column($release178()['visible_returning_rows_next178'], 'returning_schema_cookie'))), [178]],
     'first current old value preserved' => [static fn (): mixed => $release178()['current_source_returning_rows_next178'][0]['returning']['old_value'], null],
-    'siteurl old value preserved' => [static fn (): mixed => $release178()['current_source_returning_rows_next178'][1]['returning']['old_value'], 'https://old.test'],
-    'next home old value preserved' => [static fn (): mixed => $release178()['next_source_returning_rows_next178'][1]['returning']['old_value'], 'https://home.test'],
+    'base_url old value preserved' => [static fn (): mixed => $release178()['current_source_returning_rows_next178'][1]['returning']['old_value'], 'https://old.test'],
+    'next landing_url old value preserved' => [static fn (): mixed => $release178()['next_source_returning_rows_next178'][1]['returning']['old_value'], 'https://landing_url.test'],
     'next recursive trigger source retained' => [static fn (): mixed => $release178()['next_source_returning_rows_next178'][2]['returning']['trigger_source_alias'], 'main@trigger-cookie-178-next'],
     'release decision' => [static fn (): mixed => $release178()['returning_snapshot_plan_next178']['decision'], 'publish-current-then-next-returning'],
     'release restart not required' => [static fn (): mixed => $release178()['returning_snapshot_plan_next178']['restart_required'], false],
@@ -119,7 +119,7 @@ $cases178 = [
     'hold statement rows current only' => [static fn (): mixed => $hold178()['statement_returning_row_count_next178'], 4],
     'hold next rows hidden' => [static fn (): mixed => $hold178()['next_returning_row_count_next178'], 0],
     'hold queued next rows' => [static fn (): mixed => $hold178()['queued_next_row_count_next178'], 4],
-    'hold queued names' => [static fn (): mixed => array_column($hold178()['queued_next_source_rows_next178'], 'returning_option_name'), ['rewrite_rules', 'home', 'rewrite_rules_next_retry', 'rewrite_rules_next_retry_next_retry']],
+    'hold queued names' => [static fn (): mixed => array_column($hold178()['queued_next_source_rows_next178'], 'returning_key_name'), ['routing_rules', 'landing_url', 'routing_rules_next_retry', 'routing_rules_next_retry_next_retry']],
     'hold source order current only' => [static fn (): mixed => $hold178()['returning_source_order_next178'], ['current']],
     'hold blocked reason' => [static fn (): mixed => $hold178()['blocked_reasons_next178'], ['savepoint-release-not-requested']],
     'hold decision' => [static fn (): mixed => $hold178()['returning_snapshot_plan_next178']['decision'], 'hold-next-source-returning'],

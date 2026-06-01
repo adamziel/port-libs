@@ -5,45 +5,45 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows182 = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'source' => 'seed'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes', 'source' => 'seed'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'source' => 'seed'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing_url.test', 'load_policy' => 'yes', 'source' => 'seed'],
 ];
 $currentView182 = [
-    'name' => 'wp_option_import_view',
+    'name' => 'app_setting_import_view',
     'source' => 'main@view-cookie-182-current',
-    'trigger' => 'wp_option_import_view_io_insert',
+    'trigger' => 'app_setting_import_view_io_insert',
     'trigger_source' => 'main@trigger-cookie-182-current',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy'],
     'recursive_column' => 'name',
     'recursive_suffix' => '_retry',
     'audit_label' => 'current-recursive-trigger-drain-182',
 ];
 $nextView182 = [
-    'name' => 'wp_option_import_view',
+    'name' => 'app_setting_import_view',
     'source' => 'main@view-cookie-182-next',
-    'trigger' => 'wp_option_import_view_io_insert',
+    'trigger' => 'app_setting_import_view_io_insert',
     'trigger_source' => 'main@trigger-cookie-182-next',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'origin'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload', 'origin' => 'source'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'origin'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy', 'origin' => 'source'],
     'recursive_column' => 'name',
     'recursive_suffix' => '_next_retry',
     'audit_label' => 'next-recursive-trigger-drain-182',
 ];
 $currentInput182 = [
-    ['import_id' => 10, 'name' => 'plugin_seed', 'value' => 'enabled', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 11, 'name' => 'skip_me', 'value' => 'disabled', 'autoload_flag' => 'skip', 'spawn_child' => true],
-    ['import_id' => 12, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => false],
+    ['import_id' => 10, 'name' => 'module_seed', 'value' => 'enabled', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 11, 'name' => 'skip_me', 'value' => 'disabled', 'load_policy_flag' => 'skip', 'spawn_child' => true],
+    ['import_id' => 12, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes', 'spawn_child' => false],
 ];
 $nextInput182 = [
-    ['import_id' => 20, 'name' => 'rewrite_rules', 'value' => 'cached', 'autoload_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => true],
-    ['import_id' => 21, 'name' => 'home', 'value' => 'https://next-home.test', 'autoload_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => false],
-    ['import_id' => 22, 'name' => 'next_skip', 'value' => 'ignored', 'autoload_flag' => 'skip', 'origin' => 'next-import', 'spawn_child' => true],
+    ['import_id' => 20, 'name' => 'routing_rules', 'value' => 'cached', 'load_policy_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => true],
+    ['import_id' => 21, 'name' => 'landing_url', 'value' => 'https://next-landing_url.test', 'load_policy_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => false],
+    ['import_id' => 22, 'name' => 'next_skip', 'value' => 'ignored', 'load_policy_flag' => 'skip', 'origin' => 'next-import', 'spawn_child' => true],
 ];
 $returning182 = [
-    'new.option_name',
-    ['expr' => 'new.option_value', 'as' => 'value'],
-    ['expr' => 'old.option_value', 'as' => 'old_value'],
+    'new.key_name',
+    ['expr' => 'new.key_value', 'as' => 'value'],
+    ['expr' => 'old.key_value', 'as' => 'old_value'],
     ['expr' => 'view.name', 'as' => 'view_name'],
     ['expr' => 'event', 'as' => 'event_name'],
     ['expr' => 'ordinal', 'as' => 'ordinal_value'],
@@ -59,45 +59,45 @@ $plan182 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewR
     $nextView182,
     $returning182,
     $options + [
-        'key' => 'option_name',
-        'savepoint' => 'wp_recursive_view_182',
+        'key' => 'key_name',
+        'savepoint' => 'app_recursive_view_182',
         'max_depth' => 2,
         'page_size' => 2,
         'drained_current_pages' => 2,
         'savepoint_action' => 'release',
         'current_source_epoch' => 12,
-        'restart_cursor' => 'wp-recursive-view-returning-restart-182',
-        'snapshot_token' => 'wp.recursive.view.returning.snapshot.182',
-        'expected_snapshot_token' => 'wp.recursive.view.returning.snapshot.182',
+        'restart_cursor' => 'app-recursive-view-returning-restart-182',
+        'snapshot_token' => 'app.recursive.view.returning.snapshot.182',
+        'expected_snapshot_token' => 'app.recursive.view.returning.snapshot.182',
         'current_schema_cookie' => 182,
         'expected_current_schema_cookie' => 182,
-        'current_source_generation' => 'wp.recursive.view.current.182',
-        'expected_current_source_generation' => 'wp.recursive.view.current.182',
-        'trigger_source_generation' => 'wp.recursive.trigger.current.182',
-        'expected_trigger_source_generation' => 'wp.recursive.trigger.current.182',
-        'returning_cursor_generation' => 'wp.recursive.returning.cursor.182',
+        'current_source_generation' => 'app.recursive.view.current.182',
+        'expected_current_source_generation' => 'app.recursive.view.current.182',
+        'trigger_source_generation' => 'app.recursive.trigger.current.182',
+        'expected_trigger_source_generation' => 'app.recursive.trigger.current.182',
+        'returning_cursor_generation' => 'app.recursive.returning.cursor.182',
     ],
 );
 
 $release182 = static fn (): array => $plan182();
 $hold182 = static fn (): array => $plan182(['savepoint_action' => 'hold']);
-$staleView182 = static fn (): array => $plan182(['expected_current_source_generation' => 'wp.recursive.view.current.stale']);
-$staleTrigger182 = static fn (): array => $plan182(['expected_trigger_source_generation' => 'wp.recursive.trigger.current.stale']);
+$staleView182 = static fn (): array => $plan182(['expected_current_source_generation' => 'app.recursive.view.current.stale']);
+$staleTrigger182 = static fn (): array => $plan182(['expected_trigger_source_generation' => 'app.recursive.trigger.current.stale']);
 $staleBoth182 = static fn (): array => $plan182([
-    'expected_current_source_generation' => 'wp.recursive.view.current.stale',
-    'expected_trigger_source_generation' => 'wp.recursive.trigger.current.stale',
+    'expected_current_source_generation' => 'app.recursive.view.current.stale',
+    'expected_trigger_source_generation' => 'app.recursive.trigger.current.stale',
 ]);
-$staleSnapshot182 = static fn (): array => $plan182(['expected_snapshot_token' => 'wp.recursive.view.returning.snapshot.stale']);
+$staleSnapshot182 = static fn (): array => $plan182(['expected_snapshot_token' => 'app.recursive.view.returning.snapshot.stale']);
 $partial182 = static fn (): array => $plan182(['drained_current_pages' => 1]);
 
 $cases182 = [
     'release status' => [static fn (): mixed => $release182()['status_next182'], 'trigger-recursive-view-returning-current-source-generation-released-next182'],
     'release keeps next178 status' => [static fn (): mixed => $release182()['status_next178'], 'trigger-recursive-view-returning-current-source-snapshot-released-next178'],
-    'current generation retained' => [static fn (): mixed => $release182()['current_source_generation_next182'], 'wp.recursive.view.current.182'],
-    'expected current generation retained' => [static fn (): mixed => $release182()['expected_current_source_generation_next182'], 'wp.recursive.view.current.182'],
-    'trigger generation retained' => [static fn (): mixed => $release182()['trigger_source_generation_next182'], 'wp.recursive.trigger.current.182'],
-    'expected trigger generation retained' => [static fn (): mixed => $release182()['expected_trigger_source_generation_next182'], 'wp.recursive.trigger.current.182'],
-    'cursor generation retained' => [static fn (): mixed => $release182()['returning_cursor_generation_next182'], 'wp.recursive.returning.cursor.182'],
+    'current generation retained' => [static fn (): mixed => $release182()['current_source_generation_next182'], 'app.recursive.view.current.182'],
+    'expected current generation retained' => [static fn (): mixed => $release182()['expected_current_source_generation_next182'], 'app.recursive.view.current.182'],
+    'trigger generation retained' => [static fn (): mixed => $release182()['trigger_source_generation_next182'], 'app.recursive.trigger.current.182'],
+    'expected trigger generation retained' => [static fn (): mixed => $release182()['expected_trigger_source_generation_next182'], 'app.recursive.trigger.current.182'],
+    'cursor generation retained' => [static fn (): mixed => $release182()['returning_cursor_generation_next182'], 'app.recursive.returning.cursor.182'],
     'current generation matches' => [static fn (): mixed => $release182()['current_source_generation_matches_next182'], true],
     'trigger generation matches' => [static fn (): mixed => $release182()['trigger_source_generation_matches_next182'], true],
     'generation stable' => [static fn (): mixed => $release182()['current_source_generation_stable_next182'], true],
@@ -107,12 +107,12 @@ $cases182 = [
     'next row count' => [static fn (): mixed => $release182()['next_returning_row_count_next182'], 4],
     'quarantined row count' => [static fn (): mixed => $release182()['quarantined_next_row_count_next182'], 0],
     'source order current then next' => [static fn (): mixed => $release182()['returning_source_order_next182'], ['current', 'next']],
-    'visible names order' => [static fn (): mixed => array_column($release182()['visible_returning_rows_next182'], 'returning_option_name'), ['plugin_seed', 'siteurl', 'plugin_seed_retry', 'plugin_seed_retry_retry', 'rewrite_rules', 'home', 'rewrite_rules_next_retry', 'rewrite_rules_next_retry_next_retry']],
+    'visible names order' => [static fn (): mixed => array_column($release182()['visible_returning_rows_next182'], 'returning_key_name'), ['module_seed', 'base_url', 'module_seed_retry', 'module_seed_retry_retry', 'routing_rules', 'landing_url', 'routing_rules_next_retry', 'routing_rules_next_retry_next_retry']],
     'visible phases order' => [static fn (): mixed => array_column($release182()['visible_returning_rows_next182'], 'statement_source'), ['current', 'current', 'current', 'current', 'next', 'next', 'next', 'next']],
     'visible generation ordinals' => [static fn (): mixed => array_column($release182()['visible_returning_rows_next182'], 'returning_generation_ordinal'), [0, 1, 2, 3, 4, 5, 6, 7]],
-    'visible view generations' => [static fn (): mixed => array_values(array_unique(array_column($release182()['visible_returning_rows_next182'], 'returning_current_source_generation'))), ['wp.recursive.view.current.182']],
-    'visible trigger generations' => [static fn (): mixed => array_values(array_unique(array_column($release182()['visible_returning_rows_next182'], 'returning_trigger_source_generation'))), ['wp.recursive.trigger.current.182']],
-    'visible cursor generations' => [static fn (): mixed => array_values(array_unique(array_column($release182()['visible_returning_rows_next182'], 'returning_cursor_generation'))), ['wp.recursive.returning.cursor.182']],
+    'visible view generations' => [static fn (): mixed => array_values(array_unique(array_column($release182()['visible_returning_rows_next182'], 'returning_current_source_generation'))), ['app.recursive.view.current.182']],
+    'visible trigger generations' => [static fn (): mixed => array_values(array_unique(array_column($release182()['visible_returning_rows_next182'], 'returning_trigger_source_generation'))), ['app.recursive.trigger.current.182']],
+    'visible cursor generations' => [static fn (): mixed => array_values(array_unique(array_column($release182()['visible_returning_rows_next182'], 'returning_cursor_generation'))), ['app.recursive.returning.cursor.182']],
     'release decision' => [static fn (): mixed => $release182()['returning_generation_plan_next182']['decision'], 'publish-current-then-next-generation'],
     'release restart not required' => [static fn (): mixed => $release182()['returning_generation_plan_next182']['restart_required'], false],
     'release plan visible rows' => [static fn (): mixed => $release182()['returning_generation_plan_next182']['visible_rows'], 8],
@@ -127,7 +127,7 @@ $cases182 = [
     'hold statement rows current only' => [static fn (): mixed => $hold182()['statement_returning_row_count_next182'], 4],
     'hold next rows hidden' => [static fn (): mixed => $hold182()['next_returning_row_count_next182'], 0],
     'hold quarantined next rows' => [static fn (): mixed => $hold182()['quarantined_next_row_count_next182'], 4],
-    'hold quarantined names' => [static fn (): mixed => array_column($hold182()['quarantined_next_source_rows_next182'], 'returning_option_name'), ['rewrite_rules', 'home', 'rewrite_rules_next_retry', 'rewrite_rules_next_retry_next_retry']],
+    'hold quarantined names' => [static fn (): mixed => array_column($hold182()['quarantined_next_source_rows_next182'], 'returning_key_name'), ['routing_rules', 'landing_url', 'routing_rules_next_retry', 'routing_rules_next_retry_next_retry']],
     'hold source order current only' => [static fn (): mixed => $hold182()['returning_source_order_next182'], ['current']],
     'hold blocked reason' => [static fn (): mixed => $hold182()['blocked_reasons_next182'], ['savepoint-release-not-requested']],
     'hold decision' => [static fn (): mixed => $hold182()['returning_generation_plan_next182']['decision'], 'hold-next-source-generation'],

@@ -5,33 +5,33 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows166 = [
-    ['option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'parent_name' => null, 'priority' => 0],
-    ['option_name' => 'plugin_alpha', 'option_value' => 'enabled', 'autoload' => 'yes', 'parent_name' => 'siteurl', 'priority' => 10],
-    ['option_name' => 'plugin_beta', 'option_value' => 'disabled', 'autoload' => 'yes', 'parent_name' => 'siteurl', 'priority' => 20],
-    ['option_name' => 'plugin_alpha_child', 'option_value' => 'child', 'autoload' => 'no', 'parent_name' => 'plugin_alpha', 'priority' => 30],
-    ['option_name' => 'plugin_beta_child', 'option_value' => 'queued', 'autoload' => 'no', 'parent_name' => 'plugin_beta', 'priority' => 40],
+    ['key_name' => 'base_url', 'key_value' => 'https://example.test', 'load_policy' => 'yes', 'parent_name' => null, 'priority' => 0],
+    ['key_name' => 'module_alpha', 'key_value' => 'enabled', 'load_policy' => 'yes', 'parent_name' => 'base_url', 'priority' => 10],
+    ['key_name' => 'module_beta', 'key_value' => 'disabled', 'load_policy' => 'yes', 'parent_name' => 'base_url', 'priority' => 20],
+    ['key_name' => 'module_alpha_child', 'key_value' => 'child', 'load_policy' => 'no', 'parent_name' => 'module_alpha', 'priority' => 30],
+    ['key_name' => 'module_beta_child', 'key_value' => 'queued', 'load_policy' => 'no', 'parent_name' => 'module_beta', 'priority' => 40],
 ];
 
 $currentView166 = [
-    'name' => 'wp_recursive_autoload_view',
+    'name' => 'app_recursive_load_policy_view',
     'source' => 'main@view-cookie-166-current',
-    'trigger' => 'wp_recursive_autoload_view_io_insert',
+    'trigger' => 'app_recursive_load_policy_view_io_insert',
     'trigger_source' => 'main@trigger-cookie-166-current',
     'root_key' => 'root_name',
     'parent_key' => 'parent_name',
-    'columns' => ['option_name', 'option_value', 'autoload', 'parent_name', 'priority'],
-    'where' => static fn (array $row, string $root, int $depth): bool => $depth <= 2 && str_starts_with((string) $row['option_name'], 'plugin_'),
+    'columns' => ['key_name', 'key_value', 'load_policy', 'parent_name', 'priority'],
+    'where' => static fn (array $row, string $root, int $depth): bool => $depth <= 2 && str_starts_with((string) $row['key_name'], 'module_'),
     'order_by' => 'priority',
 ];
 $nextView166 = $currentView166;
 $nextView166['source'] = 'main@view-cookie-166-next';
 $nextView166['trigger_source'] = 'main@trigger-cookie-166-next';
-$nextView166['where'] = static fn (array $row, string $root, int $depth): bool => $depth <= 1 && str_starts_with((string) $row['option_name'], 'plugin_');
+$nextView166['where'] = static fn (array $row, string $root, int $depth): bool => $depth <= 1 && str_starts_with((string) $row['key_name'], 'module_');
 
 $returning166 = [
-    'option_name',
-    'autoload',
-    ['expr' => 'option_value', 'as' => 'value'],
+    'key_name',
+    'load_policy',
+    ['expr' => 'key_value', 'as' => 'value'],
     ['expr' => 'root', 'as' => 'root_name'],
     ['expr' => 'depth', 'as' => 'depth'],
     ['expr' => 'trigger_source', 'as' => 'trigger_cookie'],
@@ -39,16 +39,16 @@ $returning166 = [
 
 $run166 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeStagedSourceReleaseAfterDrain(
     $rows166,
-    [['root_name' => 'siteurl']],
-    [['root_name' => 'audit:current:siteurl:plugin_alpha']],
+    [['root_name' => 'base_url']],
+    [['root_name' => 'audit:current:base_url:module_alpha']],
     $currentView166,
     $nextView166,
     $returning166,
     $options + [
-        'savepoint' => 'wp_recursive_view_next166',
-        'current_generation' => 'wp-import-current-166',
-        'next_generation' => 'wp-import-next-166',
-        'trigger_child_prefix' => 'plugin_generated',
+        'savepoint' => 'app_recursive_view_next166',
+        'current_generation' => 'app-import-current-166',
+        'next_generation' => 'app-import-next-166',
+        'trigger_child_prefix' => 'module_generated',
     ],
 );
 
@@ -57,21 +57,21 @@ $held166 = static fn (): array => $run166(['release_next_source' => false]);
 $limited166 = static fn (): array => $run166(['release_next_source' => true, 'max_depth' => 1]);
 
 $currentKeys166 = [
-    'wp-import-current-166:audit:current:siteurl:plugin_alpha',
-    'wp-import-current-166:audit:current:siteurl:plugin_beta',
-    'wp-import-current-166:audit:current:siteurl:plugin_alpha_child',
-    'wp-import-current-166:audit:current:siteurl:plugin_beta_child',
+    'app-import-current-166:audit:current:base_url:module_alpha',
+    'app-import-current-166:audit:current:base_url:module_beta',
+    'app-import-current-166:audit:current:base_url:module_alpha_child',
+    'app-import-current-166:audit:current:base_url:module_beta_child',
 ];
-$nextKey166 = 'wp-import-next-166:audit:next:audit:current:siteurl:plugin_alpha:plugin_generated:audit:current:siteurl:plugin_alpha';
+$nextKey166 = 'app-import-next-166:audit:next:audit:current:base_url:module_alpha:module_generated:audit:current:base_url:module_alpha';
 
 $cases166 = [
     'release status' => [static fn (): mixed => $release166()['status'], 'trigger-recursive-view-returning-current-drain-before-next-source-next166'],
     'held status' => [static fn (): mixed => $held166()['status'], 'trigger-recursive-view-returning-current-drain-holds-next-source-next166'],
     'release yield boundary' => [static fn (): mixed => $release166()['yield_boundary'], 'current-returning-drain-then-trigger-generated-next-source-next166'],
     'held yield boundary' => [static fn (): mixed => $held166()['yield_boundary'], 'current-returning-drain-with-next-source-held-next166'],
-    'savepoint retained' => [static fn (): mixed => $release166()['savepoint'], 'wp_recursive_view_next166'],
-    'current generation retained' => [static fn (): mixed => $release166()['returning_drain']['current_generation'], 'wp-import-current-166'],
-    'next generation retained' => [static fn (): mixed => $release166()['returning_drain']['next_generation'], 'wp-import-next-166'],
+    'savepoint retained' => [static fn (): mixed => $release166()['savepoint'], 'app_recursive_view_next166'],
+    'current generation retained' => [static fn (): mixed => $release166()['returning_drain']['current_generation'], 'app-import-current-166'],
+    'next generation retained' => [static fn (): mixed => $release166()['returning_drain']['next_generation'], 'app-import-next-166'],
     'current source retained' => [static fn (): mixed => $release166()['returning_drain']['current_source'], 'main@view-cookie-166-current'],
     'next source retained' => [static fn (): mixed => $release166()['returning_drain']['next_source'], 'main@view-cookie-166-next'],
     'current visible count' => [static fn (): mixed => $release166()['returning_drain']['current_visible_count'], 4],
@@ -100,12 +100,12 @@ $cases166 = [
         'next-source-held-until-current-drain',
     ]],
     'release timeline ordinals' => [static fn (): mixed => array_column($release166()['returning_drain']['timeline'], 'ordinal'), [0, 1, 2, 3, 4]],
-    'release timeline generations' => [static fn (): mixed => array_values(array_unique(array_column($release166()['returning_drain']['timeline'], 'generation'))), ['wp-import-current-166', 'wp-import-next-166']],
+    'release timeline generations' => [static fn (): mixed => array_values(array_unique(array_column($release166()['returning_drain']['timeline'], 'generation'))), ['app-import-current-166', 'app-import-next-166']],
     'release current trigger cookie' => [static fn (): mixed => $release166()['returning_drain']['timeline'][0]['trigger_cookie'], 'main@trigger-cookie-166-current'],
     'release next trigger cookie' => [static fn (): mixed => $release166()['returning_drain']['timeline'][4]['trigger_cookie'], 'main@trigger-cookie-166-next'],
-    'release current root' => [static fn (): mixed => $release166()['returning_drain']['timeline'][0]['root_name'], 'siteurl'],
-    'release next root' => [static fn (): mixed => $release166()['returning_drain']['timeline'][4]['root_name'], 'audit:current:siteurl:plugin_alpha'],
-    'release seeded by generated rows' => [static fn (): mixed => $release166()['next_source_admission']['seeded_by_trigger_generated_rows'], ['plugin_generated:audit:current:siteurl:plugin_alpha']],
+    'release current root' => [static fn (): mixed => $release166()['returning_drain']['timeline'][0]['root_name'], 'base_url'],
+    'release next root' => [static fn (): mixed => $release166()['returning_drain']['timeline'][4]['root_name'], 'audit:current:base_url:module_alpha'],
+    'release seeded by generated rows' => [static fn (): mixed => $release166()['next_source_admission']['seeded_by_trigger_generated_rows'], ['module_generated:audit:current:base_url:module_alpha']],
     'held seeded rows empty' => [static fn (): mixed => $held166()['next_source_admission']['seeded_by_trigger_generated_rows'], []],
     'held probe seeded rows empty' => [static fn (): mixed => $release166()['next_source_admission']['held_probe_seeded_names'], []],
     'held probe visible keys empty' => [static fn (): mixed => $release166()['next_source_admission']['held_probe_visible_keys'], []],
@@ -121,14 +121,14 @@ $cases166 = [
     'limited current last ordinal' => [static fn (): mixed => $limited166()['returning_drain']['current_last_ordinal'], 1],
     'limited next first ordinal' => [static fn (): mixed => $limited166()['returning_drain']['next_first_ordinal'], 2],
     'limited visible keys' => [static fn (): mixed => $limited166()['returning_drain']['visible_keys'], [
-        'wp-import-current-166:audit:current:siteurl:plugin_alpha',
-        'wp-import-current-166:audit:current:siteurl:plugin_beta',
+        'app-import-current-166:audit:current:base_url:module_alpha',
+        'app-import-current-166:audit:current:base_url:module_beta',
         $nextKey166,
     ]],
     'generated rows stay hidden from current snapshot' => [static fn (): mixed => $release166()['current_snapshot_guard']['reentrant_suppressed'], true],
     'generated row count' => [static fn (): mixed => $release166()['current_snapshot_guard']['generated_rows'], 4],
-    'current recursive names original only' => [static fn (): mixed => $release166()['current_snapshot_guard']['current_recursive_names'], ['plugin_alpha', 'plugin_beta', 'plugin_alpha_child', 'plugin_beta_child']],
-    'next seed names' => [static fn (): mixed => $release166()['next_source_seed']['seeded_names'], ['plugin_generated:audit:current:siteurl:plugin_alpha']],
+    'current recursive names original only' => [static fn (): mixed => $release166()['current_snapshot_guard']['current_recursive_names'], ['module_alpha', 'module_beta', 'module_alpha_child', 'module_beta_child']],
+    'next seed names' => [static fn (): mixed => $release166()['next_source_seed']['seeded_names'], ['module_generated:audit:current:base_url:module_alpha']],
     'next seed returning keys' => [static fn (): mixed => $release166()['next_source_seed']['seeded_returning_keys'], [$nextKey166]],
     'dependency next166 marker' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next166', $release166()['dependencies'], true), true],
     'dependency drain marker' => [static fn (): mixed => in_array('sqlite-returning-current-source-drain-before-next-source-admission', $release166()['dependencies'], true), true],

@@ -9,25 +9,25 @@ $tests = [];
 
 $enc253 = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $text253 = static fn (int $id, string $value, int $encoding): array => [
-    'option_id' => $id,
+    'setting_id' => $id,
     'storage' => 'text',
-    'option_value_bytes' => $enc253($value, $encoding),
+    'key_value_bytes' => $enc253($value, $encoding),
     'value_encoding' => $encoding,
 ];
 $scalar253 = static fn (int $id, int|float|null $value, string $storage): array => [
-    'option_id' => $id,
+    'setting_id' => $id,
     'storage' => $storage,
-    'option_value' => $value,
+    'key_value' => $value,
 ];
 $blob253 = static fn (int $id, string $bytes): array => [
-    'option_id' => $id,
+    'setting_id' => $id,
     'storage' => 'blob',
-    'option_value_bytes' => $bytes,
+    'key_value_bytes' => $bytes,
 ];
 $bad253 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
+    'setting_id' => $id,
     'storage' => 'text',
-    'option_value_bytes' => $bytes,
+    'key_value_bytes' => $bytes,
     'value_encoding' => $encoding,
 ];
 
@@ -90,7 +90,7 @@ $valueAt253 = static function (array $value, string $path): mixed {
 $cases253 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFiveThree'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'option_value COLLATE NOCASE LIKE ? /* TEXT affinity cursor */'],
+    'expression' => ['expression', 'key_value COLLATE NOCASE LIKE ? /* TEXT affinity cursor */'],
     'pattern' => ['pattern', 'yes%'],
     'escape' => ['escape', null],
     'collation' => ['collation', 'NOCASE'],
@@ -115,7 +115,7 @@ $cases253 = [
     'next false positives' => ['nextFalsePositiveRowids', []],
     'current malformed' => ['currentMalformedRowids', [9, 10]],
     'next malformed' => ['nextMalformedRowids', [12]],
-    'blob error' => ['currentErrors.9', 'SQLite TEXT affinity LIKE does not coerce BLOB option_value bytes'],
+    'blob error' => ['currentErrors.9', 'SQLite TEXT affinity LIKE does not coerce BLOB key_value bytes'],
     'malformed utf16 error' => ['currentErrors.10', 'SQLite encoding source UTF-16 text payload ends with a high surrogate'],
     'next malformed utf16 error' => ['nextErrors.12', 'SQLite encoding source UTF-16 text payload ends with a high surrogate'],
     'row one current storage' => ['currentStorageClasses.1', 'text'],
@@ -206,7 +206,7 @@ $tests['encoding collation affinity like current source nextTwoFiveThree non asc
 };
 
 $tests['encoding collation affinity like current source nextTwoFiveThree rejects missing storage'] = static function (TestRunner $t): void {
-    $rows = [['option_id' => 1]];
+    $rows = [['setting_id' => 1]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationLoadPolicyValuePlan($rows, $rows));
 };
 

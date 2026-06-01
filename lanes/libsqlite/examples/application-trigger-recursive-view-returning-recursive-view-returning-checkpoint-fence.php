@@ -7,43 +7,43 @@ require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'source' => 'seed'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes', 'source' => 'seed'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'source' => 'seed'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing_url.test', 'load_policy' => 'yes', 'source' => 'seed'],
 ];
 $currentView = [
-    'name' => 'wp_option_import_view',
+    'name' => 'app_setting_import_view',
     'source' => 'main@view-cookie-176-current',
-    'trigger' => 'wp_option_import_view_io_insert',
+    'trigger' => 'app_setting_import_view_io_insert',
     'trigger_source' => 'main@trigger-cookie-176-current',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy'],
     'recursive_column' => 'name',
     'recursive_suffix' => '_retry',
     'audit_label' => 'current-recursive-trigger-page-acks-176',
 ];
 $nextView = [
-    'name' => 'wp_option_import_view',
+    'name' => 'app_setting_import_view',
     'source' => 'main@view-cookie-176-next',
-    'trigger' => 'wp_option_import_view_io_insert',
+    'trigger' => 'app_setting_import_view_io_insert',
     'trigger_source' => 'main@trigger-cookie-176-next',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'origin'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload', 'origin' => 'source'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'origin'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy', 'origin' => 'source'],
     'recursive_column' => 'name',
     'recursive_suffix' => '_next_retry',
     'audit_label' => 'next-recursive-trigger-page-acks-176',
 ];
 $currentInput = [
-    ['import_id' => 10, 'name' => 'plugin_seed', 'value' => 'enabled', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 12, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => false],
+    ['import_id' => 10, 'name' => 'module_seed', 'value' => 'enabled', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 12, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes', 'spawn_child' => false],
 ];
 $nextInput = [
-    ['import_id' => 20, 'name' => 'rewrite_rules', 'value' => 'cached', 'autoload_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => true],
-    ['import_id' => 21, 'name' => 'home', 'value' => 'https://next-home.test', 'autoload_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => false],
+    ['import_id' => 20, 'name' => 'routing_rules', 'value' => 'cached', 'load_policy_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => true],
+    ['import_id' => 21, 'name' => 'landing_url', 'value' => 'https://next-landing_url.test', 'load_policy_flag' => 'yes', 'origin' => 'next-import', 'spawn_child' => false],
 ];
 $returning = [
-    'new.option_name',
-    ['expr' => 'new.option_value', 'as' => 'value'],
-    ['expr' => 'old.option_value', 'as' => 'old_value'],
+    'new.key_name',
+    ['expr' => 'new.key_value', 'as' => 'value'],
+    ['expr' => 'old.key_value', 'as' => 'old_value'],
     ['expr' => 'view.name', 'as' => 'view_name'],
     ['expr' => 'event', 'as' => 'event_name'],
     ['expr' => 'depth', 'as' => 'depth_value'],
@@ -57,8 +57,8 @@ $plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeRecursi
     $nextView,
     $returning,
     [
-        'key' => 'option_name',
-        'savepoint' => 'wp_recursive_view_176',
+        'key' => 'key_name',
+        'savepoint' => 'app_recursive_view_176',
         'max_depth' => 2,
         'page_size' => 2,
         'admit_next_source' => true,

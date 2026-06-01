@@ -11,20 +11,20 @@ $trigger154 = [[
     'action' => 'insert',
     'when' => ['column' => 'depth', 'operator' => '<', 'value' => 2],
     'insert_row' => [
-        'option_id' => 'new_increment.option_id',
-        'option_name' => 'concat:new.option_name::child',
+        'setting_id' => 'new_increment.setting_id',
+        'key_name' => 'concat:new.key_name::child',
         'depth' => 'new_increment.depth',
-        'autoload' => 'new.autoload',
+        'load_policy' => 'new.load_policy',
     ],
 ]];
-$initial154 = [['option_id' => 1, 'option_name' => 'siteurl', 'depth' => 0, 'autoload' => 'yes']];
-$current154 = [['option_id' => 10, 'option_name' => 'current_plugin', 'depth' => 0, 'autoload' => 'yes']];
-$next154 = [['option_id' => 20, 'option_name' => 'next_plugin', 'depth' => 0, 'autoload' => 'no']];
+$initial154 = [['setting_id' => 1, 'key_name' => 'base_url', 'depth' => 0, 'load_policy' => 'yes']];
+$current154 = [['setting_id' => 10, 'key_name' => 'current_module', 'depth' => 0, 'load_policy' => 'yes']];
+$next154 = [['setting_id' => 20, 'key_name' => 'next_module', 'depth' => 0, 'load_policy' => 'no']];
 $returning154 = [
-    'new.option_id',
-    ['expr' => 'option_name', 'as' => 'name'],
+    'new.setting_id',
+    ['expr' => 'key_name', 'as' => 'name'],
     'depth',
-    static fn (array $row, int $statement, int $depth): string => $statement . ':' . $depth . ':' . $row['option_name'],
+    static fn (array $row, int $statement, int $depth): string => $statement . ':' . $depth . ':' . $row['key_name'],
 ];
 
 $plan154 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceDrainBeforeNextYield(
@@ -32,15 +32,15 @@ $plan154 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewR
     $current154,
     $next154,
     $trigger154,
-    ['option_name'],
+    ['key_name'],
     $returning154,
     $options + [
-        'view' => 'wp_recursive_option_view',
-        'savepoint' => 'wp_recursive_view_next154',
+        'view' => 'app_recursive_setting_view',
+        'savepoint' => 'app_recursive_view_next154',
         'current_source' => 'main@trigger154-current',
         'next_source' => 'main@trigger154-next',
-        'current_cursor' => 'wp_current_returning_cursor_154',
-        'next_cursor' => 'wp_next_returning_cursor_154',
+        'current_cursor' => 'app_current_returning_cursor_154',
+        'next_cursor' => 'app_next_returning_cursor_154',
     ],
 );
 $blocked154 = static fn (): array => $plan154(['acknowledged_current_rows' => 1]);
@@ -49,12 +49,12 @@ $overAck154 = static fn (): array => $plan154(['acknowledged_current_rows' => 99
 
 $cases154 = [
     'blocked status' => [static fn (): mixed => $blocked154()['status'], 'trigger-recursive-view-returning-current-source-drain-before-next-yield'],
-    'blocked view retained' => [static fn (): mixed => $blocked154()['view'], 'wp_recursive_option_view'],
-    'blocked savepoint retained' => [static fn (): mixed => $blocked154()['savepoint'], 'wp_recursive_view_next154'],
+    'blocked view retained' => [static fn (): mixed => $blocked154()['view'], 'app_recursive_setting_view'],
+    'blocked savepoint retained' => [static fn (): mixed => $blocked154()['savepoint'], 'app_recursive_view_next154'],
     'blocked current source retained' => [static fn (): mixed => $blocked154()['current_source'], 'main@trigger154-current'],
     'blocked next source retained' => [static fn (): mixed => $blocked154()['next_source'], 'main@trigger154-next'],
-    'blocked current cursor retained' => [static fn (): mixed => $blocked154()['current_cursor'], 'wp_current_returning_cursor_154'],
-    'blocked next cursor retained' => [static fn (): mixed => $blocked154()['next_cursor'], 'wp_next_returning_cursor_154'],
+    'blocked current cursor retained' => [static fn (): mixed => $blocked154()['current_cursor'], 'app_current_returning_cursor_154'],
+    'blocked next cursor retained' => [static fn (): mixed => $blocked154()['next_cursor'], 'app_next_returning_cursor_154'],
     'blocked current required count' => [static fn (): mixed => $blocked154()['current_returning_required'], 3],
     'blocked current acknowledged count' => [static fn (): mixed => $blocked154()['current_returning_acknowledged'], 1],
     'blocked current remaining count' => [static fn (): mixed => $blocked154()['current_returning_remaining'], 2],
@@ -62,15 +62,15 @@ $cases154 = [
     'blocked next yield flag' => [static fn (): mixed => $blocked154()['next_yield_blocked'], true],
     'blocked next yield blocker' => [static fn (): mixed => $blocked154()['next_yield_blocker'], 'current-returning-source-not-drained'],
     'blocked yield boundary' => [static fn (): mixed => $blocked154()['yield_boundary'], 'current-recursive-view-returning-must-drain-before-next-yield'],
-    'blocked current returning names' => [static fn (): mixed => array_column($blocked154()['current_returning_rows'], 'name'), ['current_plugin', 'current_plugin:child', 'current_plugin:child:child']],
-    'blocked next returning rows still staged' => [static fn (): mixed => array_column($blocked154()['blocked_next_returning_rows'], 'name'), ['next_plugin', 'next_plugin:child', 'next_plugin:child:child']],
+    'blocked current returning names' => [static fn (): mixed => array_column($blocked154()['current_returning_rows'], 'name'), ['current_module', 'current_module:child', 'current_module:child:child']],
+    'blocked next returning rows still staged' => [static fn (): mixed => array_column($blocked154()['blocked_next_returning_rows'], 'name'), ['next_module', 'next_module:child', 'next_module:child:child']],
     'blocked visible next empty' => [static fn (): mixed => $blocked154()['visible_next_returning_rows'], []],
-    'blocked admitted rows still preserve current then next' => [static fn (): mixed => array_column($blocked154()['returning_rows'], 'name'), ['current_plugin', 'current_plugin:child', 'current_plugin:child:child', 'next_plugin', 'next_plugin:child', 'next_plugin:child:child']],
-    'blocked final rows include both written phases' => [static fn (): mixed => array_column($blocked154()['final_rows'], 'option_name'), ['siteurl', 'current_plugin', 'current_plugin:child', 'current_plugin:child:child', 'next_plugin', 'next_plugin:child', 'next_plugin:child:child']],
+    'blocked admitted rows still preserve current then next' => [static fn (): mixed => array_column($blocked154()['returning_rows'], 'name'), ['current_module', 'current_module:child', 'current_module:child:child', 'next_module', 'next_module:child', 'next_module:child:child']],
+    'blocked final rows include both written phases' => [static fn (): mixed => array_column($blocked154()['final_rows'], 'key_name'), ['base_url', 'current_module', 'current_module:child', 'current_module:child:child', 'next_module', 'next_module:child', 'next_module:child:child']],
     'blocked current stream admitted' => [static fn (): mixed => array_column($blocked154()['current_source_stream'], 'admitted'), [true, true, true]],
     'blocked next stream admitted by storage plan' => [static fn (): mixed => array_column($blocked154()['next_source_stream'], 'admitted'), [true, true, true]],
-    'blocked cursor handoff from current' => [static fn (): mixed => $blocked154()['cursor_handoff']['from'], 'wp_current_returning_cursor_154'],
-    'blocked cursor handoff to next' => [static fn (): mixed => $blocked154()['cursor_handoff']['to'], 'wp_next_returning_cursor_154'],
+    'blocked cursor handoff from current' => [static fn (): mixed => $blocked154()['cursor_handoff']['from'], 'app_current_returning_cursor_154'],
+    'blocked cursor handoff to next' => [static fn (): mixed => $blocked154()['cursor_handoff']['to'], 'app_next_returning_cursor_154'],
     'blocked cursor required rows' => [static fn (): mixed => $blocked154()['cursor_handoff']['required_current_rows'], 3],
     'blocked cursor acknowledged rows' => [static fn (): mixed => $blocked154()['cursor_handoff']['acknowledged_current_rows'], 1],
     'blocked cursor blocked next rows' => [static fn (): mixed => $blocked154()['cursor_handoff']['blocked_next_rows'], 3],
@@ -87,10 +87,10 @@ $cases154 = [
     'released blocker null' => [static fn (): mixed => $released154()['next_yield_blocker'], null],
     'released boundary' => [static fn (): mixed => $released154()['yield_boundary'], 'current-recursive-view-returning-drained-before-next-yield-visible'],
     'released blocked next empty' => [static fn (): mixed => $released154()['blocked_next_returning_rows'], []],
-    'released visible next names' => [static fn (): mixed => array_column($released154()['visible_next_returning_rows'], 'name'), ['next_plugin', 'next_plugin:child', 'next_plugin:child:child']],
-    'released visible next ids' => [static fn (): mixed => array_column($released154()['visible_next_returning_rows'], 'option_id'), [20, 21, 22]],
+    'released visible next names' => [static fn (): mixed => array_column($released154()['visible_next_returning_rows'], 'name'), ['next_module', 'next_module:child', 'next_module:child:child']],
+    'released visible next ids' => [static fn (): mixed => array_column($released154()['visible_next_returning_rows'], 'setting_id'), [20, 21, 22]],
     'released visible next depths' => [static fn (): mixed => array_column($released154()['visible_next_returning_rows'], 'depth'), [0, 1, 2]],
-    'released callable trace' => [static fn (): mixed => array_column($released154()['visible_next_returning_rows'], 'expr3'), ['0:0:next_plugin', '1:1:next_plugin:child', '2:2:next_plugin:child:child']],
+    'released callable trace' => [static fn (): mixed => array_column($released154()['visible_next_returning_rows'], 'expr3'), ['0:0:next_module', '1:1:next_module:child', '2:2:next_module:child:child']],
     'released cursor blocked next zero' => [static fn (): mixed => $released154()['cursor_handoff']['blocked_next_rows'], 0],
     'released cursor visible next count' => [static fn (): mixed => $released154()['cursor_handoff']['visible_next_rows'], 3],
     'released source transition current output' => [static fn (): mixed => $released154()['source_transition']['next_input'], 'current-phase-output'],

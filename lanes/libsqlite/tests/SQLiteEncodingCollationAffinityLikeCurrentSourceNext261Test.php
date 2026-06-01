@@ -11,25 +11,25 @@ $tests = [];
 $enc261 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 
 $current261 = [
-    ['option_id' => 1, 'option_name_bytes' => $enc261('Plugin_cache', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => 'enabled:core'],
-    ['option_id' => 2, 'option_name_bytes' => $enc261('plugin_cache_timeout', 'UTF-16BE'), 'name_text_encoding' => 'UTF-16BE', 'option_value' => 'disabled:15'],
-    ['option_id' => 3, 'option_name_bytes' => $enc261('plugin-cache', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => 'enabled:dash'],
-    ['option_id' => 4, 'option_name_bytes' => $enc261('plugin_theme', 'UTF-8'), 'name_text_encoding' => 'UTF-8', 'option_value' => 'enabled:theme'],
-    ['option_id' => 5, 'option_name_bytes' => $enc261('plugin_über', 'UTF-16BE'), 'name_text_encoding' => 'UTF-16BE', 'option_value' => 'ENABLED:unicode'],
-    ['option_id' => 6, 'option_name_bytes' => $enc261('plugin_blob', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => new SQLiteBlobValue('enabled:blob')],
-    ['option_id' => 7, 'option_name_bytes' => $enc261('plugin_null', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => null],
-    ['option_id' => 8, 'option_name_bytes' => $enc261('theme_plugin', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => 'enabled:other'],
+    ['setting_id' => 1, 'key_name_bytes' => $enc261('Plugin_cache', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'key_value' => 'enabled:core'],
+    ['setting_id' => 2, 'key_name_bytes' => $enc261('plugin_cache_timeout', 'UTF-16BE'), 'name_text_encoding' => 'UTF-16BE', 'key_value' => 'disabled:15'],
+    ['setting_id' => 3, 'key_name_bytes' => $enc261('plugin-cache', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'key_value' => 'enabled:dash'],
+    ['setting_id' => 4, 'key_name_bytes' => $enc261('plugin_theme', 'UTF-8'), 'name_text_encoding' => 'UTF-8', 'key_value' => 'enabled:theme'],
+    ['setting_id' => 5, 'key_name_bytes' => $enc261('plugin_über', 'UTF-16BE'), 'name_text_encoding' => 'UTF-16BE', 'key_value' => 'ENABLED:unicode'],
+    ['setting_id' => 6, 'key_name_bytes' => $enc261('plugin_blob', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'key_value' => new SQLiteBlobValue('enabled:blob')],
+    ['setting_id' => 7, 'key_name_bytes' => $enc261('plugin_null', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'key_value' => null],
+    ['setting_id' => 8, 'key_name_bytes' => $enc261('theme_plugin', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'key_value' => 'enabled:other'],
 ];
 
 $nextTwoSixOne = [
-    ['option_id' => 1, 'option_name_bytes' => $enc261('Plugin_cache', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => 'enabled:core'],
-    ['option_id' => 2, 'option_name_bytes' => $enc261('plugin_cache_timeout', 'UTF-16BE'), 'name_text_encoding' => 'UTF-16BE', 'option_value' => 'enabled:15'],
-    ['option_id' => 3, 'option_name_bytes' => $enc261('plugin-cache', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => 'enabled:dash'],
-    ['option_id' => 4, 'option_name_bytes' => $enc261('plugin_theme', 'UTF-8'), 'name_text_encoding' => 'UTF-8', 'option_value' => 'disabled:theme'],
-    ['option_id' => 5, 'option_name_bytes' => $enc261('plugin_über', 'UTF-16BE'), 'name_text_encoding' => 'UTF-16BE', 'option_value' => 'ENABLED:unicode'],
-    ['option_id' => 6, 'option_name_bytes' => $enc261('plugin_blob', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => new SQLiteBlobValue('enabled:blob')],
-    ['option_id' => 7, 'option_name_bytes' => $enc261('plugin_null', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => null],
-    ['option_id' => 9, 'option_name_bytes' => $enc261('plugin_new', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => true],
+    ['setting_id' => 1, 'key_name_bytes' => $enc261('Plugin_cache', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'key_value' => 'enabled:core'],
+    ['setting_id' => 2, 'key_name_bytes' => $enc261('plugin_cache_timeout', 'UTF-16BE'), 'name_text_encoding' => 'UTF-16BE', 'key_value' => 'enabled:15'],
+    ['setting_id' => 3, 'key_name_bytes' => $enc261('plugin-cache', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'key_value' => 'enabled:dash'],
+    ['setting_id' => 4, 'key_name_bytes' => $enc261('plugin_theme', 'UTF-8'), 'name_text_encoding' => 'UTF-8', 'key_value' => 'disabled:theme'],
+    ['setting_id' => 5, 'key_name_bytes' => $enc261('plugin_über', 'UTF-16BE'), 'name_text_encoding' => 'UTF-16BE', 'key_value' => 'ENABLED:unicode'],
+    ['setting_id' => 6, 'key_name_bytes' => $enc261('plugin_blob', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'key_value' => new SQLiteBlobValue('enabled:blob')],
+    ['setting_id' => 7, 'key_name_bytes' => $enc261('plugin_null', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'key_value' => null],
+    ['setting_id' => 9, 'key_name_bytes' => $enc261('plugin_new', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'key_value' => true],
 ];
 
 $pattern261 = $enc261('plugin!_%', 'UTF-16LE');
@@ -72,7 +72,7 @@ $valueAt261 = static function (array $value, string $path): mixed {
 $cases261 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoSixOne'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'option_name LIKE utf16(?) ESCAPE ? AND option_value LIKE ? /* text affinity current-source fence */'],
+    'expression' => ['expression', 'key_name LIKE utf16(?) ESCAPE ? AND key_value LIKE ? /* text affinity current-source fence */'],
     'name pattern' => ['namePattern', 'plugin!_%'],
     'name pattern hex' => ['namePatternHex', '706c7567696e215f25'],
     'name pattern bytes' => ['namePatternBytesHex', '70006c007500670069006e0021005f002500'],
@@ -179,7 +179,7 @@ $tests['encoding collation affinity like current source nextTwoSixOne rejects mi
 
 $tests['encoding collation affinity like current source nextTwoSixOne rejects array value'] = static function (TestRunner $t) use ($current261, $nextTwoSixOne, $pattern261): void {
     $bad = $current261;
-    $bad[0]['option_value'] = ['enabled:core'];
+    $bad[0]['key_value'] = ['enabled:core'];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16NameAndValueLikePlan($bad, $nextTwoSixOne, $pattern261, 'UTF-16LE'));
 };
 

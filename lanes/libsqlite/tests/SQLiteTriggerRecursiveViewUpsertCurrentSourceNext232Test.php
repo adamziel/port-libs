@@ -5,26 +5,26 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $rows232 = [
-    ['option_name' => 'siteurl', 'option_value' => 'https://old.test'],
-    ['option_name' => 'home', 'option_value' => 'https://old-home.test'],
-    ['option_name' => 'rewrite_rules', 'option_value' => 'old-rules'],
+    ['key_name' => 'base_url', 'key_value' => 'https://old.test'],
+    ['key_name' => 'landing_url', 'key_value' => 'https://old-landing_url.test'],
+    ['key_name' => 'routing_rules', 'key_value' => 'old-rules'],
 ];
 $view232 = [
-    'name' => 'wp_option_import_view',
+    'name' => 'app_setting_import_view',
     'source' => 'main@cookie232-current',
-    'mapping' => ['name' => 'option_name', 'value' => 'option_value'],
+    'mapping' => ['name' => 'key_name', 'value' => 'key_value'],
 ];
 $triggers232 = [
-    ['name' => 'wp_options_au_home', 'when' => 'siteurl', 'target' => 'home', 'value' => '{value}/home'],
-    ['name' => 'wp_options_au_rewrite', 'when' => 'home', 'target' => 'rewrite_rules', 'value' => 'flushed:{value}'],
+    ['name' => 'app_settings_au_home', 'when' => 'base_url', 'target' => 'landing_url', 'value' => '{value}/landing_url'],
+    ['name' => 'app_settings_au_rewrite', 'when' => 'landing_url', 'target' => 'routing_rules', 'value' => 'flushed:{value}'],
 ];
 $current232 = [
-    ['name' => 'siteurl', 'value' => 'https://current.test'],
-    ['name' => 'blogname', 'value' => 'Current Blog'],
+    ['name' => 'base_url', 'value' => 'https://current.test'],
+    ['name' => 'app_title', 'value' => 'Current Blog'],
 ];
 $next232 = [
-    ['name' => 'siteurl', 'value' => 'https://next.test'],
-    ['name' => 'fresh_plugin', 'value' => 'enabled'],
+    ['name' => 'base_url', 'value' => 'https://next.test'],
+    ['name' => 'fresh_module', 'value' => 'enabled'],
 ];
 
 $plan232 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentUpsertConflictSeal(
@@ -32,13 +32,13 @@ $plan232 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewU
     $current232,
     $next232,
     $view232,
-    ['option_name'],
+    ['key_name'],
     $triggers232,
     $options + [
-        'savepoint' => 'wp_view_recursive_232',
-        'current_upsert_source_next232' => 'wp.current.upsert.source.232',
+        'savepoint' => 'app_view_recursive_232',
+        'current_upsert_source_next232' => 'app.current.upsert.source.232',
         'current_view_source_next232' => 'main@cookie232-current',
-        'current_trigger_program_next232' => 'wp.current.recursive.trigger.program.232',
+        'current_trigger_program_next232' => 'app.current.recursive.trigger.program.232',
     ],
 );
 
@@ -50,12 +50,12 @@ $unexpected232 = static fn (): array => $plan232(['acknowledged_current_upsert_c
 $reversed232 = static fn (): array => $plan232(['acknowledged_current_upsert_conflict_seals_next232' => array_reverse($seals232())]);
 $unordered232 = static fn (): array => $plan232(['require_current_upsert_conflict_order_next232' => false, 'acknowledged_current_upsert_conflict_seals_next232' => array_reverse($seals232())]);
 $viewHeld232 = static fn (): array => $plan232(['auto_ack_current_upsert_conflict_seals_next232' => true, 'expected_current_view_source_next232' => 'main@cookie232-stale']);
-$triggerHeld232 = static fn (): array => $plan232(['auto_ack_current_upsert_conflict_seals_next232' => true, 'expected_current_trigger_program_next232' => 'wp.current.recursive.trigger.program.stale.232']);
+$triggerHeld232 = static fn (): array => $plan232(['auto_ack_current_upsert_conflict_seals_next232' => true, 'expected_current_trigger_program_next232' => 'app.current.recursive.trigger.program.stale.232']);
 $custom232 = static fn (): array => $plan232([
     'auto_ack_current_upsert_conflict_seals_next232' => true,
-    'current_upsert_source_next232' => 'wp.current.upsert.source.custom.232',
+    'current_upsert_source_next232' => 'app.current.upsert.source.custom.232',
     'current_view_source_next232' => 'main@cookie232-custom',
-    'current_trigger_program_next232' => 'wp.current.recursive.trigger.program.custom.232',
+    'current_trigger_program_next232' => 'app.current.recursive.trigger.program.custom.232',
 ]);
 
 $cases232 = [
@@ -66,15 +66,15 @@ $cases232 = [
     'unordered reversed releases' => [static fn (): mixed => $unordered232()['status_next232'], 'trigger-recursive-view-upsert-current-source-next232-conflict-released'],
     'view held status' => [static fn (): mixed => $viewHeld232()['status_next232'], 'trigger-recursive-view-upsert-current-source-next232-view-source-held'],
     'trigger held status' => [static fn (): mixed => $triggerHeld232()['status_next232'], 'trigger-recursive-view-upsert-current-source-next232-trigger-program-held'],
-    'savepoint retained' => [static fn (): mixed => $released232()['savepoint'], 'wp_view_recursive_232'],
+    'savepoint retained' => [static fn (): mixed => $released232()['savepoint'], 'app_view_recursive_232'],
     'base retained status' => [static fn (): mixed => $released232()['base']['status'], 'trigger-upsert-recursive-view-current-source-retained-next148'],
     'released base status' => [static fn (): mixed => $released232()['released_base_next232']['status'], 'trigger-upsert-recursive-view-next-source-admitted-next148'],
-    'upsert source retained' => [static fn (): mixed => $released232()['current_upsert_source_next232'], 'wp.current.upsert.source.232'],
-    'custom upsert source retained' => [static fn (): mixed => $custom232()['current_upsert_source_next232'], 'wp.current.upsert.source.custom.232'],
+    'upsert source retained' => [static fn (): mixed => $released232()['current_upsert_source_next232'], 'app.current.upsert.source.232'],
+    'custom upsert source retained' => [static fn (): mixed => $custom232()['current_upsert_source_next232'], 'app.current.upsert.source.custom.232'],
     'view source retained' => [static fn (): mixed => $released232()['current_view_source_next232'], 'main@cookie232-current'],
     'custom view source retained' => [static fn (): mixed => $custom232()['current_view_source_next232'], 'main@cookie232-custom'],
-    'trigger program retained' => [static fn (): mixed => $released232()['current_trigger_program_next232'], 'wp.current.recursive.trigger.program.232'],
-    'custom trigger program retained' => [static fn (): mixed => $custom232()['current_trigger_program_next232'], 'wp.current.recursive.trigger.program.custom.232'],
+    'trigger program retained' => [static fn (): mixed => $released232()['current_trigger_program_next232'], 'app.current.recursive.trigger.program.232'],
+    'custom trigger program retained' => [static fn (): mixed => $custom232()['current_trigger_program_next232'], 'app.current.recursive.trigger.program.custom.232'],
     'view source matches released' => [static fn (): mixed => $released232()['current_view_source_matches_next232'], true],
     'view mismatch detected' => [static fn (): mixed => $viewHeld232()['current_view_source_matches_next232'], false],
     'trigger program matches released' => [static fn (): mixed => $released232()['current_trigger_program_matches_next232'], true],
@@ -113,16 +113,16 @@ $cases232 = [
     'next seals null' => [static fn (): mixed => array_values(array_unique(array_column($released232()['attempted_next_yield_stream_next232'], 'current_upsert_conflict_seal_next232'))), [null]],
     'yield events retained' => [static fn (): mixed => array_column($released232()['current_yield_stream_next232'], 'event'), ['update', 'update', 'update', 'insert']],
     'yield depths retained' => [static fn (): mixed => array_column($released232()['current_yield_stream_next232'], 'depth'), [0, 1, 2, 0]],
-    'yield trigger chain retained' => [static fn (): mixed => array_column($released232()['current_yield_stream_next232'], 'trigger'), [null, 'wp_options_au_home', 'wp_options_au_rewrite', null]],
-    'current returning names' => [static fn (): mixed => array_column($released232()['current_returning_rows_next232'], 'option_name'), ['siteurl', 'home', 'rewrite_rules', 'blogname']],
-    'visible returning released names' => [static fn (): mixed => array_column($released232()['visible_returning_rows_next232'], 'option_name'), ['siteurl', 'home', 'rewrite_rules', 'blogname', 'siteurl', 'home', 'rewrite_rules', 'fresh_plugin']],
-    'held returning missing names' => [static fn (): mixed => array_column($missing232()['held_next_returning_rows_next232'], 'option_name'), ['siteurl', 'home', 'rewrite_rules', 'fresh_plugin']],
+    'yield trigger chain retained' => [static fn (): mixed => array_column($released232()['current_yield_stream_next232'], 'trigger'), [null, 'app_settings_au_home', 'app_settings_au_rewrite', null]],
+    'current returning names' => [static fn (): mixed => array_column($released232()['current_returning_rows_next232'], 'key_name'), ['base_url', 'landing_url', 'routing_rules', 'app_title']],
+    'visible returning released names' => [static fn (): mixed => array_column($released232()['visible_returning_rows_next232'], 'key_name'), ['base_url', 'landing_url', 'routing_rules', 'app_title', 'base_url', 'landing_url', 'routing_rules', 'fresh_module']],
+    'held returning missing names' => [static fn (): mixed => array_column($missing232()['held_next_returning_rows_next232'], 'key_name'), ['base_url', 'landing_url', 'routing_rules', 'fresh_module']],
     'visible change count released' => [static fn (): mixed => $released232()['visible_change_count_next232'], 8],
     'visible change count held' => [static fn (): mixed => $missing232()['visible_change_count_next232'], 4],
-    'after savepoint released names' => [static fn (): mixed => array_column($released232()['after_savepoint_next232'], 'option_name'), ['siteurl', 'home', 'rewrite_rules', 'blogname', 'fresh_plugin']],
-    'after savepoint held restores base names' => [static fn (): mixed => array_column($missing232()['after_savepoint_next232'], 'option_name'), ['siteurl', 'home', 'rewrite_rules']],
-    'released final siteurl is next' => [static fn (): mixed => $released232()['after_savepoint_next232'][0]['option_value'], 'https://next.test'],
-    'held final siteurl is old' => [static fn (): mixed => $missing232()['after_savepoint_next232'][0]['option_value'], 'https://old.test'],
+    'after savepoint released names' => [static fn (): mixed => array_column($released232()['after_savepoint_next232'], 'key_name'), ['base_url', 'landing_url', 'routing_rules', 'app_title', 'fresh_module']],
+    'after savepoint held restores base names' => [static fn (): mixed => array_column($missing232()['after_savepoint_next232'], 'key_name'), ['base_url', 'landing_url', 'routing_rules']],
+    'released final base_url is next' => [static fn (): mixed => $released232()['after_savepoint_next232'][0]['key_value'], 'https://next.test'],
+    'held final base_url is old' => [static fn (): mixed => $missing232()['after_savepoint_next232'][0]['key_value'], 'https://old.test'],
     'blocked reasons missing' => [static fn (): mixed => $missing232()['blocked_reasons_next232'], ['current-upsert-conflict-seal-missing']],
     'blocked reasons unexpected' => [static fn (): mixed => $unexpected232()['blocked_reasons_next232'], ['current-upsert-conflict-seal-unexpected']],
     'blocked reasons reversed' => [static fn (): mixed => $reversed232()['blocked_reasons_next232'], ['current-upsert-conflict-seal-order-mismatch']],

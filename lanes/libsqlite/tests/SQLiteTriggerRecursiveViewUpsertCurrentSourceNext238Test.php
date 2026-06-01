@@ -5,26 +5,26 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $rows238 = [
-    ['option_name' => 'siteurl', 'option_value' => 'https://old.test'],
-    ['option_name' => 'home', 'option_value' => 'https://old-home.test'],
-    ['option_name' => 'rewrite_rules', 'option_value' => 'old-rules'],
+    ['key_name' => 'base_url', 'key_value' => 'https://old.test'],
+    ['key_name' => 'landing_url', 'key_value' => 'https://old-landing_url.test'],
+    ['key_name' => 'routing_rules', 'key_value' => 'old-rules'],
 ];
 $view238 = [
-    'name' => 'wp_option_import_view',
+    'name' => 'app_setting_import_view',
     'source' => 'main@cookie238-current',
-    'mapping' => ['name' => 'option_name', 'value' => 'option_value'],
+    'mapping' => ['name' => 'key_name', 'value' => 'key_value'],
 ];
 $triggers238 = [
-    ['name' => 'wp_options_au_home', 'when' => 'siteurl', 'target' => 'home', 'value' => '{value}/home'],
-    ['name' => 'wp_options_au_rewrite', 'when' => 'home', 'target' => 'rewrite_rules', 'value' => 'flushed:{value}'],
+    ['name' => 'app_settings_au_home', 'when' => 'base_url', 'target' => 'landing_url', 'value' => '{value}/landing_url'],
+    ['name' => 'app_settings_au_rewrite', 'when' => 'landing_url', 'target' => 'routing_rules', 'value' => 'flushed:{value}'],
 ];
 $current238 = [
-    ['name' => 'siteurl', 'value' => 'https://current.test'],
-    ['name' => 'blogname', 'value' => 'Current Blog'],
+    ['name' => 'base_url', 'value' => 'https://current.test'],
+    ['name' => 'app_title', 'value' => 'Current Blog'],
 ];
 $next238 = [
-    ['name' => 'siteurl', 'value' => 'https://next.test'],
-    ['name' => 'fresh_plugin', 'value' => 'enabled'],
+    ['name' => 'base_url', 'value' => 'https://next.test'],
+    ['name' => 'fresh_module', 'value' => 'enabled'],
 ];
 
 $plan238 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentUpsertReceipt(
@@ -32,18 +32,18 @@ $plan238 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewU
     $current238,
     $next238,
     $view238,
-    ['option_name'],
+    ['key_name'],
     $triggers238,
     $options + [
-        'savepoint' => 'wp_view_recursive_238',
-        'current_upsert_source_next232' => 'wp.current.upsert.source.238',
+        'savepoint' => 'app_view_recursive_238',
+        'current_upsert_source_next232' => 'app.current.upsert.source.238',
         'current_view_source_next232' => 'main@cookie238-current',
-        'current_trigger_program_next232' => 'wp.current.recursive.trigger.program.238',
-        'current_yield_ticket_source_next235' => 'wp.current.yield.ticket.source.238',
-        'current_yield_resume_cursor_next235' => 'wp.current.yield.cursor.238',
-        'current_resume_source_next238' => 'wp.current.resume.source.238',
-        'current_resume_cursor_next238' => 'wp.current.resume.cursor.238',
-        'current_resume_epoch_next238' => 'wp.current.resume.epoch.238',
+        'current_trigger_program_next232' => 'app.current.recursive.trigger.program.238',
+        'current_yield_ticket_source_next235' => 'app.current.yield.ticket.source.238',
+        'current_yield_resume_cursor_next235' => 'app.current.yield.cursor.238',
+        'current_resume_source_next238' => 'app.current.resume.source.238',
+        'current_resume_cursor_next238' => 'app.current.resume.cursor.238',
+        'current_resume_epoch_next238' => 'app.current.resume.epoch.238',
     ],
 );
 
@@ -54,15 +54,15 @@ $unexpectedReceipt238 = 'abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd';
 $unexpected238 = static fn (): array => $plan238(['acknowledged_current_resume_receipts_next238' => array_merge($receipts238(), [$unexpectedReceipt238])]);
 $reversed238 = static fn (): array => $plan238(['acknowledged_current_resume_receipts_next238' => array_reverse($receipts238())]);
 $unordered238 = static fn (): array => $plan238(['require_current_resume_receipt_order_next238' => false, 'acknowledged_current_resume_receipts_next238' => array_reverse($receipts238())]);
-$sourceHeld238 = static fn (): array => $plan238(['auto_ack_current_resume_receipts_next238' => true, 'expected_current_resume_source_next238' => 'wp.current.resume.source.stale.238']);
-$cursorHeld238 = static fn (): array => $plan238(['auto_ack_current_resume_receipts_next238' => true, 'expected_current_resume_cursor_next238' => 'wp.current.resume.cursor.stale.238']);
-$epochHeld238 = static fn (): array => $plan238(['auto_ack_current_resume_receipts_next238' => true, 'expected_current_resume_epoch_next238' => 'wp.current.resume.epoch.stale.238']);
-$baseHeld238 = static fn (): array => $plan238(['auto_ack_current_resume_receipts_next238' => true, 'expected_current_yield_ticket_source_next235' => 'wp.current.yield.ticket.source.stale.238']);
+$sourceHeld238 = static fn (): array => $plan238(['auto_ack_current_resume_receipts_next238' => true, 'expected_current_resume_source_next238' => 'app.current.resume.source.stale.238']);
+$cursorHeld238 = static fn (): array => $plan238(['auto_ack_current_resume_receipts_next238' => true, 'expected_current_resume_cursor_next238' => 'app.current.resume.cursor.stale.238']);
+$epochHeld238 = static fn (): array => $plan238(['auto_ack_current_resume_receipts_next238' => true, 'expected_current_resume_epoch_next238' => 'app.current.resume.epoch.stale.238']);
+$baseHeld238 = static fn (): array => $plan238(['auto_ack_current_resume_receipts_next238' => true, 'expected_current_yield_ticket_source_next235' => 'app.current.yield.ticket.source.stale.238']);
 $custom238 = static fn (): array => $plan238([
     'auto_ack_current_resume_receipts_next238' => true,
-    'current_resume_source_next238' => 'wp.current.resume.source.custom.238',
-    'current_resume_cursor_next238' => 'wp.current.resume.cursor.custom.238',
-    'current_resume_epoch_next238' => 'wp.current.resume.epoch.custom.238',
+    'current_resume_source_next238' => 'app.current.resume.source.custom.238',
+    'current_resume_cursor_next238' => 'app.current.resume.cursor.custom.238',
+    'current_resume_epoch_next238' => 'app.current.resume.epoch.custom.238',
 ]);
 
 $cases238 = [
@@ -75,16 +75,16 @@ $cases238 = [
     'cursor held status' => [static fn (): mixed => $cursorHeld238()['status_next238'], 'trigger-recursive-view-upsert-current-source-next238-resume-cursor-held'],
     'epoch held status' => [static fn (): mixed => $epochHeld238()['status_next238'], 'trigger-recursive-view-upsert-current-source-next238-resume-epoch-held'],
     'base held status' => [static fn (): mixed => $baseHeld238()['status_next238'], 'trigger-recursive-view-upsert-current-source-next238-base-yield-held'],
-    'savepoint retained' => [static fn (): mixed => $released238()['savepoint'], 'wp_view_recursive_238'],
+    'savepoint retained' => [static fn (): mixed => $released238()['savepoint'], 'app_view_recursive_238'],
     'base next235 released' => [static fn (): mixed => $released238()['base_yield_ticket_released_next238'], true],
     'base mismatch not released' => [static fn (): mixed => $baseHeld238()['base_yield_ticket_released_next238'], false],
     'base status retained' => [static fn (): mixed => $released238()['base_next238']['status_next235'], 'trigger-recursive-view-upsert-current-source-next235-yield-released'],
-    'resume source retained' => [static fn (): mixed => $released238()['current_resume_source_next238'], 'wp.current.resume.source.238'],
-    'custom resume source retained' => [static fn (): mixed => $custom238()['current_resume_source_next238'], 'wp.current.resume.source.custom.238'],
-    'resume cursor retained' => [static fn (): mixed => $released238()['current_resume_cursor_next238'], 'wp.current.resume.cursor.238'],
-    'custom resume cursor retained' => [static fn (): mixed => $custom238()['current_resume_cursor_next238'], 'wp.current.resume.cursor.custom.238'],
-    'resume epoch retained' => [static fn (): mixed => $released238()['current_resume_epoch_next238'], 'wp.current.resume.epoch.238'],
-    'custom resume epoch retained' => [static fn (): mixed => $custom238()['current_resume_epoch_next238'], 'wp.current.resume.epoch.custom.238'],
+    'resume source retained' => [static fn (): mixed => $released238()['current_resume_source_next238'], 'app.current.resume.source.238'],
+    'custom resume source retained' => [static fn (): mixed => $custom238()['current_resume_source_next238'], 'app.current.resume.source.custom.238'],
+    'resume cursor retained' => [static fn (): mixed => $released238()['current_resume_cursor_next238'], 'app.current.resume.cursor.238'],
+    'custom resume cursor retained' => [static fn (): mixed => $custom238()['current_resume_cursor_next238'], 'app.current.resume.cursor.custom.238'],
+    'resume epoch retained' => [static fn (): mixed => $released238()['current_resume_epoch_next238'], 'app.current.resume.epoch.238'],
+    'custom resume epoch retained' => [static fn (): mixed => $custom238()['current_resume_epoch_next238'], 'app.current.resume.epoch.custom.238'],
     'resume source matches released' => [static fn (): mixed => $released238()['current_resume_source_matches_next238'], true],
     'resume source mismatch detected' => [static fn (): mixed => $sourceHeld238()['current_resume_source_matches_next238'], false],
     'resume cursor matches released' => [static fn (): mixed => $released238()['current_resume_cursor_matches_next238'], true],
@@ -126,15 +126,15 @@ $cases238 = [
     'next receipts null' => [static fn (): mixed => array_values(array_unique(array_column($released238()['attempted_next_resume_stream_next238'], 'current_resume_receipt_next238'))), [null]],
     'resume events retained' => [static fn (): mixed => array_column($released238()['current_resume_stream_next238'], 'event'), ['update', 'update', 'update', 'insert']],
     'resume depths retained' => [static fn (): mixed => array_column($released238()['current_resume_stream_next238'], 'depth'), [0, 1, 2, 0]],
-    'resume trigger chain retained' => [static fn (): mixed => array_column($released238()['current_resume_stream_next238'], 'trigger'), [null, 'wp_options_au_home', 'wp_options_au_rewrite', null]],
-    'visible returning released names' => [static fn (): mixed => array_column($released238()['visible_returning_rows_next238'], 'option_name'), ['siteurl', 'home', 'rewrite_rules', 'blogname', 'siteurl', 'home', 'rewrite_rules', 'fresh_plugin']],
-    'held returning missing names' => [static fn (): mixed => array_column($missing238()['held_next_returning_rows_next238'], 'option_name'), ['siteurl', 'home', 'rewrite_rules', 'fresh_plugin']],
+    'resume trigger chain retained' => [static fn (): mixed => array_column($released238()['current_resume_stream_next238'], 'trigger'), [null, 'app_settings_au_home', 'app_settings_au_rewrite', null]],
+    'visible returning released names' => [static fn (): mixed => array_column($released238()['visible_returning_rows_next238'], 'key_name'), ['base_url', 'landing_url', 'routing_rules', 'app_title', 'base_url', 'landing_url', 'routing_rules', 'fresh_module']],
+    'held returning missing names' => [static fn (): mixed => array_column($missing238()['held_next_returning_rows_next238'], 'key_name'), ['base_url', 'landing_url', 'routing_rules', 'fresh_module']],
     'visible change count released' => [static fn (): mixed => $released238()['visible_change_count_next238'], 8],
     'visible change count held' => [static fn (): mixed => $missing238()['visible_change_count_next238'], 4],
-    'after savepoint released names' => [static fn (): mixed => array_column($released238()['after_savepoint_next238'], 'option_name'), ['siteurl', 'home', 'rewrite_rules', 'blogname', 'fresh_plugin']],
-    'after savepoint held restores base names' => [static fn (): mixed => array_column($missing238()['after_savepoint_next238'], 'option_name'), ['siteurl', 'home', 'rewrite_rules']],
-    'released final siteurl is next' => [static fn (): mixed => $released238()['after_savepoint_next238'][0]['option_value'], 'https://next.test'],
-    'held final siteurl is old' => [static fn (): mixed => $missing238()['after_savepoint_next238'][0]['option_value'], 'https://old.test'],
+    'after savepoint released names' => [static fn (): mixed => array_column($released238()['after_savepoint_next238'], 'key_name'), ['base_url', 'landing_url', 'routing_rules', 'app_title', 'fresh_module']],
+    'after savepoint held restores base names' => [static fn (): mixed => array_column($missing238()['after_savepoint_next238'], 'key_name'), ['base_url', 'landing_url', 'routing_rules']],
+    'released final base_url is next' => [static fn (): mixed => $released238()['after_savepoint_next238'][0]['key_value'], 'https://next.test'],
+    'held final base_url is old' => [static fn (): mixed => $missing238()['after_savepoint_next238'][0]['key_value'], 'https://old.test'],
     'blocked reasons missing' => [static fn (): mixed => $missing238()['blocked_reasons_next238'], ['current-resume-receipt-missing']],
     'blocked reasons unexpected' => [static fn (): mixed => $unexpected238()['blocked_reasons_next238'], ['current-resume-receipt-unexpected']],
     'blocked reasons reversed' => [static fn (): mixed => $reversed238()['blocked_reasons_next238'], ['current-resume-receipt-order-mismatch']],

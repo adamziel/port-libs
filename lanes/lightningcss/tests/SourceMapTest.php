@@ -1580,6 +1580,43 @@ return [
         $t->same(['entry.css', 'buffered.css'], $parent->getSources());
         $t->same(['entry', 'later', 'earlier'], $parent->getNames());
     },
+    'source map appends generated-offset child maps with trailing empty spans' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $parentSource = $parent->addSource('parent.css');
+        $parent->setSourceContent($parentSource, ".parent{}\n");
+        $parent->addMapping(0, 0, $parentSource, 0, 0, 'parentRule');
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('blocks/card.css');
+        $child->setSourceContent($childSource, ".card{}\n");
+        $child->addMapping(0, 0, $childSource, 0, 0, 'cardRule');
+        $child->offsetLines(1, 2);
+
+        $t->same(
+            '{"version":3,"mappings":"AAAAA;;","sources":["blocks/card.css"],"sourcesContent":[".card{}\n"],"names":["cardRule"]}',
+            $child->toJson(null, false)
+        );
+
+        $parent->appendSourceMapWithGeneratedOffset($child, 2, 4);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $roundTrip = SourceMap::fromBuffer('/', $parent->toBuffer());
+        $data = $parent->toArray(null, false);
+
+        $t->same('AAAAA;;ICAAC;;', $parent->writeVlq());
+        $t->same([0, 2], array_column($decoded, 'generatedLine'));
+        $t->same([0, 4], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 1], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 0], array_column($decoded, 'originalLine'));
+        $t->same([0, 1], array_column($decoded, 'nameIndex'));
+        $t->same(['parent.css', 'blocks/card.css'], $data['sources']);
+        $t->same([".parent{}\n", ".card{}\n"], $data['sourcesContent']);
+        $t->same(['parentRule', 'cardRule'], $data['names']);
+        $t->same(null, $parent->findClosestMapping(3, 0));
+        $t->same('AAAAA;;ICAAC;;', $roundTrip->writeVlq());
+        $t->same([], $child->getSources());
+        $t->same([], $child->getNames());
+        $t->same('', $child->writeVlq());
+    },
     'source map normalizes upstream project-root source paths' => static function (TestRunner $t): void {
         $map = new SourceMap('/srv/www/site/wp-content/themes/example');
         $style = $map->addSource('/srv/www/site/wp-content/themes/example/style.css');

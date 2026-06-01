@@ -7,25 +7,25 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $current = [
-    ['option_id' => 1, 'option_name' => 'wp_%_timeout'],
-    ['option_id' => 2, 'option_name' => 'WP_%_TIMEOUT'],
-    ['option_id' => 3, 'option_name' => 'wp_cache_timeout'],
-    ['option_id' => 4, 'option_name' => 'wp_%_timeout_extra'],
-    ['option_id' => 5, 'option_name' => 'wp_é_timeout'],
-    ['option_id' => 6, 'option_name' => 'wp_É_timeout'],
+    ['setting_id' => 1, 'key_name' => 'app_%_timeout'],
+    ['setting_id' => 2, 'key_name' => 'APP_%_TIMEOUT'],
+    ['setting_id' => 3, 'key_name' => 'app_cache_timeout'],
+    ['setting_id' => 4, 'key_name' => 'app_%_timeout_extra'],
+    ['setting_id' => 5, 'key_name' => 'app_é_timeout'],
+    ['setting_id' => 6, 'key_name' => 'app_É_timeout'],
 ];
 
 $next = [
-    ['option_id' => 1, 'option_name' => 'wp_%_timeout2'],
-    ['option_id' => 2, 'option_name' => 'WP_%_TIMEOUT'],
-    ['option_id' => 4, 'option_name' => 'wp_%_timeout_extra'],
-    ['option_id' => 7, 'option_name' => 'wp_%_timeout'],
+    ['setting_id' => 1, 'key_name' => 'app_%_timeout2'],
+    ['setting_id' => 2, 'key_name' => 'APP_%_TIMEOUT'],
+    ['setting_id' => 4, 'key_name' => 'app_%_timeout_extra'],
+    ['setting_id' => 7, 'key_name' => 'app_%_timeout'],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameEscapedLikePlan(
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowKeyEscapedLikePlan(
     $current,
     $next,
-    'wp!_!%!_timeout%',
+    'app!_!%!_timeout%',
     '!',
 );
 

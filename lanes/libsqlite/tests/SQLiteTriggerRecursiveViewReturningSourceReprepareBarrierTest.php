@@ -5,65 +5,65 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows170 = [
-    ['option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'parent_name' => null, 'priority' => 0],
-    ['option_name' => 'theme_root', 'option_value' => 'theme', 'autoload' => 'yes', 'parent_name' => 'siteurl', 'priority' => 10],
-    ['option_name' => 'theme_child', 'option_value' => 'theme-child', 'autoload' => 'no', 'parent_name' => 'theme_root', 'priority' => 20],
-    ['option_name' => 'plugin_root', 'option_value' => 'plugin', 'autoload' => 'yes', 'parent_name' => 'siteurl', 'priority' => 15],
-    ['option_name' => 'plugin_child', 'option_value' => 'plugin-child', 'autoload' => 'no', 'parent_name' => 'plugin_root', 'priority' => 30],
-    ['option_name' => 'network_root', 'option_value' => 'network', 'autoload' => 'yes', 'parent_name' => 'plugin_child', 'priority' => 40],
-    ['option_name' => 'network_child', 'option_value' => 'network-child', 'autoload' => 'no', 'parent_name' => 'network_root', 'priority' => 50],
+    ['key_name' => 'base_url', 'key_value' => 'https://example.test', 'load_policy' => 'yes', 'parent_name' => null, 'priority' => 0],
+    ['key_name' => 'theme_root', 'key_value' => 'theme', 'load_policy' => 'yes', 'parent_name' => 'base_url', 'priority' => 10],
+    ['key_name' => 'theme_child', 'key_value' => 'theme-child', 'load_policy' => 'no', 'parent_name' => 'theme_root', 'priority' => 20],
+    ['key_name' => 'module_root', 'key_value' => 'module', 'load_policy' => 'yes', 'parent_name' => 'base_url', 'priority' => 15],
+    ['key_name' => 'module_child', 'key_value' => 'module-child', 'load_policy' => 'no', 'parent_name' => 'module_root', 'priority' => 30],
+    ['key_name' => 'group_root', 'key_value' => 'group', 'load_policy' => 'yes', 'parent_name' => 'module_child', 'priority' => 40],
+    ['key_name' => 'group_child', 'key_value' => 'group-child', 'load_policy' => 'no', 'parent_name' => 'group_root', 'priority' => 50],
 ];
 
 $currentView170 = [
-    'name' => 'wp_recursive_autoload_view',
+    'name' => 'app_recursive_load_policy_view',
     'source' => 'main@view-cookie-170-current',
-    'trigger' => 'wp_recursive_autoload_view_io_insert',
+    'trigger' => 'app_recursive_load_policy_view_io_insert',
     'trigger_source' => 'main@trigger-cookie-170-current',
     'root_key' => 'root_name',
     'parent_key' => 'parent_name',
-    'columns' => ['option_name', 'option_value', 'autoload', 'parent_name', 'priority'],
-    'where' => static fn (array $row, string $root, int $depth): bool => $depth <= 2 && !str_starts_with((string) $row['option_name'], 'network_'),
+    'columns' => ['key_name', 'key_value', 'load_policy', 'parent_name', 'priority'],
+    'where' => static fn (array $row, string $root, int $depth): bool => $depth <= 2 && !str_starts_with((string) $row['key_name'], 'network_'),
     'order_by' => 'priority',
 ];
 $nextView170 = $currentView170;
 $nextView170['source'] = 'main@view-cookie-170-next';
 $nextView170['trigger_source'] = 'main@trigger-cookie-170-next';
-$nextView170['where'] = static fn (array $row, string $root, int $depth): bool => $depth <= 3 && str_contains((string) $row['option_name'], '_');
+$nextView170['where'] = static fn (array $row, string $root, int $depth): bool => $depth <= 3 && str_contains((string) $row['key_name'], '_');
 
 $returning170 = [
-    'option_name',
+    'key_name',
     ['expr' => 'root', 'as' => 'root_name'],
     ['expr' => 'depth', 'as' => 'depth'],
     ['expr' => 'trigger_source', 'as' => 'trigger_cookie'],
-    static fn (array $incoming, array $viewRow, string $triggerSource, int $ordinal): string => $triggerSource . ':' . $viewRow['_root'] . ':' . $ordinal . ':' . $incoming['option_name'],
+    static fn (array $incoming, array $viewRow, string $triggerSource, int $ordinal): string => $triggerSource . ':' . $viewRow['_root'] . ':' . $ordinal . ':' . $incoming['key_name'],
 ];
 
 $run170 = static fn (array $options = [], ?array $nextView = null): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeSourceReprepareBarrier(
     $rows170,
-    [['root_name' => 'siteurl']],
+    [['root_name' => 'base_url']],
     [['root_name' => 'theme_root']],
-    [['root_name' => 'plugin_root']],
+    [['root_name' => 'module_root']],
     $currentView170,
     $nextView ?? $nextView170,
     $returning170,
     $options + [
-        'savepoint' => 'wp_recursive_view_next170',
-        'cursor_name' => 'wp_recursive_view_returning_cursor_170',
-        'current_generation' => 'wp-import-current-170',
-        'first_next_generation' => 'wp-import-next-170-a',
-        'second_next_generation' => 'wp-import-next-170-b',
+        'savepoint' => 'app_recursive_view_next170',
+        'cursor_name' => 'app_recursive_view_returning_cursor_170',
+        'current_generation' => 'app-import-current-170',
+        'first_next_generation' => 'app-import-next-170-a',
+        'second_next_generation' => 'app-import-next-170-b',
         'current_schema_cookie' => 17,
         'next_schema_cookie' => 18,
-        'reprepare_token' => 'wp.reprepare.170',
-        'expected_reprepare_token' => 'wp.reprepare.170.expected',
+        'reprepare_token' => 'app.reprepare.170',
+        'expected_reprepare_token' => 'app.reprepare.170.expected',
     ],
 );
 
 $held170 = static fn (): array => $run170(['release_staged_sources' => 2]);
-$reprepared170 = static fn (): array => $run170(['release_staged_sources' => 2, 'expected_reprepare_token' => 'wp.reprepare.170']);
+$reprepared170 = static fn (): array => $run170(['release_staged_sources' => 2, 'expected_reprepare_token' => 'app.reprepare.170']);
 $drained170 = static function () use ($run170, $currentView170): array {
     $sameNext = $currentView170;
-    $sameNext['where'] = static fn (array $row, string $root, int $depth): bool => $depth <= 3 && str_contains((string) $row['option_name'], '_');
+    $sameNext['where'] = static fn (array $row, string $root, int $depth): bool => $depth <= 3 && str_contains((string) $row['key_name'], '_');
 
     return $run170(['release_staged_sources' => 0, 'next_schema_cookie' => 17], $sameNext);
 };
@@ -72,8 +72,8 @@ $cases170 = [
     'held status' => [static fn (): mixed => $held170()['status'], 'trigger-recursive-view-returning-current-source-reprepare-held-next170'],
     'reprepared status' => [static fn (): mixed => $reprepared170()['status'], 'trigger-recursive-view-returning-current-source-reprepared-next170'],
     'drained status' => [static fn (): mixed => $drained170()['status'], 'trigger-recursive-view-returning-current-source-drained-next170'],
-    'savepoint retained' => [static fn (): mixed => $held170()['savepoint'], 'wp_recursive_view_next170'],
-    'cursor retained' => [static fn (): mixed => $held170()['cursor'], 'wp_recursive_view_returning_cursor_170'],
+    'savepoint retained' => [static fn (): mixed => $held170()['savepoint'], 'app_recursive_view_next170'],
+    'cursor retained' => [static fn (): mixed => $held170()['cursor'], 'app_recursive_view_returning_cursor_170'],
     'source changed by view cookie' => [static fn (): mixed => $held170()['source_changed'], true],
     'reprepare required when source changed' => [static fn (): mixed => $held170()['reprepare_required'], true],
     'token mismatch held' => [static fn (): mixed => $held170()['reprepare_token_matches'], false],
@@ -104,20 +104,20 @@ $cases170 = [
     'current cookies first four' => [static fn (): mixed => array_values(array_unique(array_column(array_slice($held170()['barrier_steps'], 0, 4), 'schema_cookie'))), [17]],
     'staged cookies tail' => [static fn (): mixed => array_values(array_unique(array_column(array_slice($held170()['barrier_steps'], 4), 'schema_cookie'))), [18]],
     'current token null' => [static fn (): mixed => array_values(array_unique(array_column(array_slice($held170()['barrier_steps'], 0, 4), 'reprepare_token'))), [null]],
-    'staged token retained' => [static fn (): mixed => array_values(array_unique(array_column(array_slice($held170()['barrier_steps'], 4), 'reprepare_token'))), ['wp.reprepare.170']],
-    'staged expected token retained' => [static fn (): mixed => array_values(array_unique(array_column(array_slice($held170()['barrier_steps'], 4), 'expected_reprepare_token'))), ['wp.reprepare.170.expected']],
+    'staged token retained' => [static fn (): mixed => array_values(array_unique(array_column(array_slice($held170()['barrier_steps'], 4), 'reprepare_token'))), ['app.reprepare.170']],
+    'staged expected token retained' => [static fn (): mixed => array_values(array_unique(array_column(array_slice($held170()['barrier_steps'], 4), 'expected_reprepare_token'))), ['app.reprepare.170.expected']],
     'held flags staged true' => [static fn (): mixed => array_values(array_unique(array_column(array_slice($held170()['barrier_steps'], 4), 'held_by_reprepare_barrier'))), [true]],
     'reprepared flags staged false' => [static fn (): mixed => array_values(array_unique(array_column(array_slice($reprepared170()['barrier_steps'], 4), 'held_by_reprepare_barrier'))), [false]],
     'current flags visible' => [static fn (): mixed => array_values(array_unique(array_column(array_slice($held170()['barrier_steps'], 0, 4), 'visible_after_barrier'))), [true]],
     'held staged flags hidden' => [static fn (): mixed => array_values(array_unique(array_column(array_slice($held170()['barrier_steps'], 4), 'visible_after_barrier'))), [false]],
     'reprepared staged flags visible' => [static fn (): mixed => array_values(array_unique(array_column(array_slice($reprepared170()['barrier_steps'], 4), 'visible_after_barrier'))), [true]],
-    'held visible keys current generation' => [static fn (): mixed => array_values(array_unique(array_map(static fn (string $key): string => explode(':', $key, 2)[0], $held170()['visible_keys']))), ['wp-import-current-170']],
-    'held keys staged generations' => [static fn (): mixed => array_values(array_unique(array_map(static fn (string $key): string => explode(':', $key, 2)[0], $held170()['held_keys']))), ['wp-import-next-170-a', 'wp-import-next-170-b']],
-    'reprepared visible generations' => [static fn (): mixed => array_values(array_unique(array_map(static fn (string $key): string => explode(':', $key, 2)[0], $reprepared170()['visible_keys']))), ['wp-import-current-170', 'wp-import-next-170-a', 'wp-import-next-170-b']],
+    'held visible keys current generation' => [static fn (): mixed => array_values(array_unique(array_map(static fn (string $key): string => explode(':', $key, 2)[0], $held170()['visible_keys']))), ['app-import-current-170']],
+    'held keys staged generations' => [static fn (): mixed => array_values(array_unique(array_map(static fn (string $key): string => explode(':', $key, 2)[0], $held170()['held_keys']))), ['app-import-next-170-a', 'app-import-next-170-b']],
+    'reprepared visible generations' => [static fn (): mixed => array_values(array_unique(array_map(static fn (string $key): string => explode(':', $key, 2)[0], $reprepared170()['visible_keys']))), ['app-import-current-170', 'app-import-next-170-a', 'app-import-next-170-b']],
     'reprepared held keys empty' => [static fn (): mixed => $reprepared170()['held_keys'], []],
-    'current keys names' => [static fn (): mixed => array_map(static fn (string $key): string => substr($key, strrpos($key, ':') + 1), $held170()['current_keys']), ['theme_root', 'plugin_root', 'theme_child', 'plugin_child']],
-    'staged keys names' => [static fn (): mixed => array_map(static fn (string $key): string => substr($key, strrpos($key, ':') + 1), $held170()['staged_keys']), ['theme_child', 'plugin_child', 'network_root', 'network_child']],
-    'base visible generation held current' => [static fn (): mixed => $held170()['base']['source_next_plan']['visible_generation'], 'wp-import-next-170-b'],
+    'current keys names' => [static fn (): mixed => array_map(static fn (string $key): string => substr($key, strrpos($key, ':') + 1), $held170()['current_keys']), ['theme_root', 'module_root', 'theme_child', 'module_child']],
+    'staged keys names' => [static fn (): mixed => array_map(static fn (string $key): string => substr($key, strrpos($key, ':') + 1), $held170()['staged_keys']), ['theme_child', 'module_child', 'group_root', 'group_child']],
+    'base visible generation held current' => [static fn (): mixed => $held170()['base']['source_next_plan']['visible_generation'], 'app-import-next-170-b'],
     'barrier overrides base held count' => [static fn (): mixed => count($held170()['held_barrier_steps']), 4],
     'dependency marker next170' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next170', $held170()['dependencies'], true), true],
     'dependency marker reprepare barrier' => [static fn (): mixed => in_array('sqlite-recursive-view-returning-current-source-drain-reprepare-barrier', $held170()['dependencies'], true), true],

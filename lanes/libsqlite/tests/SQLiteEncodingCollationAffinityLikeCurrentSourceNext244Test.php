@@ -10,8 +10,8 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 $tests = [];
 
 $row244 = static fn (int $id, string $name, string $encoding = 'UTF-8'): array => [
-    'option_id' => $id,
-    'option_name' => $name,
+    'setting_id' => $id,
+    'key_name' => $name,
     'text_encoding' => $encoding,
 ];
 
@@ -23,9 +23,9 @@ $current244 = [
     $row244(5, 'plugin_café ', 'UTF-16BE'),
     $row244(6, 'plugin_café  ', 'UTF-8'),
     $row244(7, 'theme_café_main', 'UTF-16LE'),
-    ['option_id' => 8, 'option_name' => new SQLiteBlobValue('plugin_café_blob'), 'text_encoding' => 'UTF-8'],
-    ['option_id' => 9, 'option_name' => null, 'text_encoding' => 'UTF-8'],
-    ['option_id' => 10, 'option_name' => 42, 'text_encoding' => 'UTF-8'],
+    ['setting_id' => 8, 'key_name' => new SQLiteBlobValue('plugin_café_blob'), 'text_encoding' => 'UTF-8'],
+    ['setting_id' => 9, 'key_name' => null, 'text_encoding' => 'UTF-8'],
+    ['setting_id' => 10, 'key_name' => 42, 'text_encoding' => 'UTF-8'],
 ];
 
 $nextTwoFourFour = [
@@ -37,7 +37,7 @@ $nextTwoFourFour = [
     $row244(6, 'plugin_café   ', 'UTF-16BE'),
     $row244(11, 'PLUGIN_café_new', 'UTF-16LE'),
     $row244(12, 'plugin_café_archive', 'UTF-8'),
-    ['option_id' => 13, 'option_name' => false, 'text_encoding' => 'UTF-8'],
+    ['setting_id' => 13, 'key_name' => false, 'text_encoding' => 'UTF-8'],
 ];
 
 $plan244 = static fn (
@@ -78,7 +78,7 @@ $valueAt244 = static function (array $value, string $path): mixed {
 $cases244 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFourFour'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'option_name COLLATE NOCASE LIKE ? ESCAPE ? /* mixed UTF source cursor */'],
+    'expression' => ['expression', 'key_name COLLATE NOCASE LIKE ? ESCAPE ? /* mixed UTF source cursor */'],
     'pattern' => ['pattern', 'plugin!_%café%'],
     'pattern hex' => ['patternHex', '706c7567696e215f25636166c3a925'],
     'escape' => ['escape', '!'],
@@ -162,21 +162,21 @@ $tests['encoding collation affinity like current source nextTwoFourFour uppercas
 
 $tests['encoding collation affinity like current source nextTwoFourFour escaped underscore differs from wildcard underscore'] = static function (TestRunner $t) use ($plan244): void {
     $rows = [
-        $row = ['option_id' => 1, 'option_name' => 'plugin_café_main', 'text_encoding' => 'UTF-8'],
-        ['option_id' => 2, 'option_name' => 'plugin-café-main', 'text_encoding' => 'UTF-8'],
+        $row = ['setting_id' => 1, 'key_name' => 'plugin_café_main', 'text_encoding' => 'UTF-8'],
+        ['setting_id' => 2, 'key_name' => 'plugin-café-main', 'text_encoding' => 'UTF-8'],
     ];
     $literal = $plan244(current: $rows, next: $rows, pattern: 'plugin!_%café%', escape: '!', currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $wild = $plan244(current: $rows, next: $rows, pattern: 'plugin_%café%', escape: null, currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $t->same([1], $literal['currentMatchedRowids']);
     $t->same([2, 1], $wild['currentMatchedRowids']);
-    $t->same('plugin_café_main', $row['option_name']);
+    $t->same('plugin_café_main', $row['key_name']);
 };
 
 $tests['encoding collation affinity like current source nextTwoFourFour rtrim collation range still keeps like residual significant spaces'] = static function (TestRunner $t) use ($plan244): void {
     $rows = [
-        ['option_id' => 1, 'option_name' => 'plugin_café', 'text_encoding' => 'UTF-8'],
-        ['option_id' => 2, 'option_name' => 'plugin_café ', 'text_encoding' => 'UTF-8'],
-        ['option_id' => 3, 'option_name' => 'plugin_café  ', 'text_encoding' => 'UTF-8'],
+        ['setting_id' => 1, 'key_name' => 'plugin_café', 'text_encoding' => 'UTF-8'],
+        ['setting_id' => 2, 'key_name' => 'plugin_café ', 'text_encoding' => 'UTF-8'],
+        ['setting_id' => 3, 'key_name' => 'plugin_café  ', 'text_encoding' => 'UTF-8'],
     ];
     $plan = $plan244(current: $rows, next: $rows, pattern: 'plugin!_café ', escape: '!', collation: 'RTRIM', currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $t->same([], $plan['currentCandidateRowids']);
@@ -187,9 +187,9 @@ $tests['encoding collation affinity like current source nextTwoFourFour rtrim co
 
 $tests['encoding collation affinity like current source nextTwoFourFour scalar text affinity encodes integers and booleans'] = static function (TestRunner $t) use ($plan244): void {
     $rows = [
-        ['option_id' => 1, 'option_name' => 42, 'text_encoding' => 'UTF-16LE'],
-        ['option_id' => 2, 'option_name' => true, 'text_encoding' => 'UTF-16BE'],
-        ['option_id' => 3, 'option_name' => false, 'text_encoding' => 'UTF-8'],
+        ['setting_id' => 1, 'key_name' => 42, 'text_encoding' => 'UTF-16LE'],
+        ['setting_id' => 2, 'key_name' => true, 'text_encoding' => 'UTF-16BE'],
+        ['setting_id' => 3, 'key_name' => false, 'text_encoding' => 'UTF-8'],
     ];
     $num = $plan244(current: $rows, next: $rows, pattern: '4_', escape: null, currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $bool = $plan244(current: $rows, next: $rows, pattern: '1', escape: null, currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
@@ -200,8 +200,8 @@ $tests['encoding collation affinity like current source nextTwoFourFour scalar t
 
 $tests['encoding collation affinity like current source nextTwoFourFour blob and null stay outside scan'] = static function (TestRunner $t) use ($plan244): void {
     $rows = [
-        ['option_id' => 1, 'option_name' => new SQLiteBlobValue('plugin_café_blob'), 'text_encoding' => 'UTF-8'],
-        ['option_id' => 2, 'option_name' => null, 'text_encoding' => 'UTF-8'],
+        ['setting_id' => 1, 'key_name' => new SQLiteBlobValue('plugin_café_blob'), 'text_encoding' => 'UTF-8'],
+        ['setting_id' => 2, 'key_name' => null, 'text_encoding' => 'UTF-8'],
     ];
     $plan = $plan244(current: $rows, next: $rows, currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $t->same([], $plan['currentMatchedRowids']);
@@ -209,7 +209,7 @@ $tests['encoding collation affinity like current source nextTwoFourFour blob and
 
 $tests['encoding collation affinity like current source nextTwoFourFour explicit byte rows are decoded'] = static function (TestRunner $t) use ($plan244): void {
     $rows = [
-        ['option_id' => 1, 'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText('plugin_café_bytes', 'UTF-16BE'), 'text_encoding' => 3],
+        ['setting_id' => 1, 'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText('plugin_café_bytes', 'UTF-16BE'), 'text_encoding' => 3],
     ];
     $plan = $plan244(current: $rows, next: $rows, currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $t->same([1], $plan['currentMatchedRowids']);
@@ -221,16 +221,16 @@ $tests['encoding collation affinity like current source nextTwoFourFour direct l
     $t->same(false, SQLiteDatabase::likeMatches('PLUGIN_CAFÉ_MAIN', 'plugin!_%café%', '!'));
 };
 
-$tests['encoding collation affinity like current source nextTwoFourFour rejects missing option name'] = static function (TestRunner $t) use ($nextTwoFourFour): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16KeyNameLikePlan([['option_id' => 1]], $nextTwoFourFour, 'plugin%'));
+$tests['encoding collation affinity like current source nextTwoFourFour rejects missing key name'] = static function (TestRunner $t) use ($nextTwoFourFour): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16KeyNameLikePlan([['setting_id' => 1]], $nextTwoFourFour, 'plugin%'));
 };
 
-$tests['encoding collation affinity like current source nextTwoFourFour rejects array option name'] = static function (TestRunner $t) use ($nextTwoFourFour): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16KeyNameLikePlan([['option_id' => 1, 'option_name' => ['plugin']]], $nextTwoFourFour, 'plugin%'));
+$tests['encoding collation affinity like current source nextTwoFourFour rejects array key name'] = static function (TestRunner $t) use ($nextTwoFourFour): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16KeyNameLikePlan([['setting_id' => 1, 'key_name' => ['plugin']]], $nextTwoFourFour, 'plugin%'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourFour rejects invalid encoding'] = static function (TestRunner $t) use ($nextTwoFourFour): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16KeyNameLikePlan([['option_id' => 1, 'option_name' => 'plugin', 'text_encoding' => 'UTF-32']], $nextTwoFourFour, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16KeyNameLikePlan([['setting_id' => 1, 'key_name' => 'plugin', 'text_encoding' => 'UTF-32']], $nextTwoFourFour, 'plugin%'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourFour rejects invalid collation'] = static function (TestRunner $t) use ($current244, $nextTwoFourFour): void {

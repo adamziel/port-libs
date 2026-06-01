@@ -8,34 +8,34 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 $tests = [];
 
 $current243 = [
-    ['option_id' => 1, 'option_name' => 'cache_plain', 'option_value' => 'cache_hit'],
-    ['option_id' => 2, 'option_name' => 'cache_space', 'option_value' => 'cache_hit   '],
-    ['option_id' => 3, 'option_name' => 'cache_tab', 'option_value' => "cache_hit\t"],
-    ['option_id' => 4, 'option_name' => 'cache_upper', 'option_value' => 'CACHE_HIT'],
-    ['option_id' => 5, 'option_name' => 'cache_exact_prefix_spaces', 'option_value' => 'cache_   '],
-    ['option_id' => 6, 'option_name' => 'cache_numeric', 'option_value' => 404],
-    ['option_id' => 7, 'option_name' => 'cache_real', 'option_value' => 404.0],
-    ['option_id' => 8, 'option_name' => 'cache_bool', 'option_value' => true],
-    ['option_id' => 9, 'option_name' => 'cache_blob', 'option_value' => new SQLiteBlobValue('cache_hit')],
-    ['option_id' => 10, 'option_name' => 'cache_null', 'option_value' => null],
-    ['option_id' => 11, 'option_name' => 'cache_unicode_lower', 'option_value' => 'cache_é'],
-    ['option_id' => 12, 'option_name' => 'cache_unicode_upper', 'option_value' => 'CACHE_É'],
+    ['setting_id' => 1, 'key_name' => 'cache_plain', 'key_value' => 'cache_hit'],
+    ['setting_id' => 2, 'key_name' => 'cache_space', 'key_value' => 'cache_hit   '],
+    ['setting_id' => 3, 'key_name' => 'cache_tab', 'key_value' => "cache_hit\t"],
+    ['setting_id' => 4, 'key_name' => 'cache_upper', 'key_value' => 'CACHE_HIT'],
+    ['setting_id' => 5, 'key_name' => 'cache_exact_prefix_spaces', 'key_value' => 'cache_   '],
+    ['setting_id' => 6, 'key_name' => 'cache_numeric', 'key_value' => 404],
+    ['setting_id' => 7, 'key_name' => 'cache_real', 'key_value' => 404.0],
+    ['setting_id' => 8, 'key_name' => 'cache_bool', 'key_value' => true],
+    ['setting_id' => 9, 'key_name' => 'cache_blob', 'key_value' => new SQLiteBlobValue('cache_hit')],
+    ['setting_id' => 10, 'key_name' => 'cache_null', 'key_value' => null],
+    ['setting_id' => 11, 'key_name' => 'cache_unicode_lower', 'key_value' => 'cache_é'],
+    ['setting_id' => 12, 'key_name' => 'cache_unicode_upper', 'key_value' => 'CACHE_É'],
 ];
 
 $nextTwoFourThree = [
-    ['option_id' => 1, 'option_name' => 'cache_plain', 'option_value' => 'cache_hit'],
-    ['option_id' => 2, 'option_name' => 'cache_space_trimmed', 'option_value' => 'cache_hit'],
-    ['option_id' => 3, 'option_name' => 'cache_tab', 'option_value' => "cache_hit\t"],
-    ['option_id' => 4, 'option_name' => 'cache_upper_changed', 'option_value' => 'cache_hit'],
-    ['option_id' => 5, 'option_name' => 'cache_exact_prefix_spaces', 'option_value' => 'cache_   '],
-    ['option_id' => 6, 'option_name' => 'cache_numeric_promoted', 'option_value' => '404'],
-    ['option_id' => 7, 'option_name' => 'cache_real_changed', 'option_value' => 404.25],
-    ['option_id' => 8, 'option_name' => 'cache_bool', 'option_value' => false],
-    ['option_id' => 9, 'option_name' => 'cache_blob', 'option_value' => new SQLiteBlobValue('cache_hit')],
-    ['option_id' => 10, 'option_name' => 'cache_null', 'option_value' => null],
-    ['option_id' => 11, 'option_name' => 'cache_unicode_lower', 'option_value' => 'cache_é'],
-    ['option_id' => 12, 'option_name' => 'cache_unicode_upper', 'option_value' => 'CACHE_É'],
-    ['option_id' => 13, 'option_name' => 'cache_new_space', 'option_value' => 'cache_new   '],
+    ['setting_id' => 1, 'key_name' => 'cache_plain', 'key_value' => 'cache_hit'],
+    ['setting_id' => 2, 'key_name' => 'cache_space_trimmed', 'key_value' => 'cache_hit'],
+    ['setting_id' => 3, 'key_name' => 'cache_tab', 'key_value' => "cache_hit\t"],
+    ['setting_id' => 4, 'key_name' => 'cache_upper_changed', 'key_value' => 'cache_hit'],
+    ['setting_id' => 5, 'key_name' => 'cache_exact_prefix_spaces', 'key_value' => 'cache_   '],
+    ['setting_id' => 6, 'key_name' => 'cache_numeric_promoted', 'key_value' => '404'],
+    ['setting_id' => 7, 'key_name' => 'cache_real_changed', 'key_value' => 404.25],
+    ['setting_id' => 8, 'key_name' => 'cache_bool', 'key_value' => false],
+    ['setting_id' => 9, 'key_name' => 'cache_blob', 'key_value' => new SQLiteBlobValue('cache_hit')],
+    ['setting_id' => 10, 'key_name' => 'cache_null', 'key_value' => null],
+    ['setting_id' => 11, 'key_name' => 'cache_unicode_lower', 'key_value' => 'cache_é'],
+    ['setting_id' => 12, 'key_name' => 'cache_unicode_upper', 'key_value' => 'CACHE_É'],
+    ['setting_id' => 13, 'key_name' => 'cache_new_space', 'key_value' => 'cache_new   '],
 ];
 
 $plan243 = static fn (
@@ -76,7 +76,7 @@ $valueAt243 = static function (array $value, string $path): mixed {
 $cases243 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFourThree'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'option_value COLLATE RTRIM LIKE ? /* RTRIM collation does not trim LIKE residual */'],
+    'expression' => ['expression', 'key_value COLLATE RTRIM LIKE ? /* RTRIM collation does not trim LIKE residual */'],
     'pattern' => ['pattern', 'cache_%'],
     'escape' => ['escape', null],
     'collation' => ['collation', 'RTRIM'],
@@ -163,8 +163,8 @@ $tests['encoding collation affinity like current source nextTwoFourThree nocase 
 
 $tests['encoding collation affinity like current source nextTwoFourThree trailing spaces are visible to residual exact match'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 'cache_hit'],
-        ['option_id' => 2, 'option_value' => 'cache_hit   '],
+        ['setting_id' => 1, 'key_value' => 'cache_hit'],
+        ['setting_id' => 2, 'key_value' => 'cache_hit   '],
     ];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan($rows, $rows, 'cache_hit', null, 'RTRIM', false, 'same', 'same', 1, 1);
     $t->same([1], $plan['currentMatchedRowids']);
@@ -173,8 +173,8 @@ $tests['encoding collation affinity like current source nextTwoFourThree trailin
 
 $tests['encoding collation affinity like current source nextTwoFourThree tab is not trimmed by rtrim key'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 'cache_hit '],
-        ['option_id' => 2, 'option_value' => "cache_hit\t"],
+        ['setting_id' => 1, 'key_value' => 'cache_hit '],
+        ['setting_id' => 2, 'key_value' => "cache_hit\t"],
     ];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan($rows, $rows, 'cache_hit', null, 'RTRIM', false, 'same', 'same', 1, 1);
     $t->same([1, 2], $plan['currentRtrimPrefixCandidateRowids']);
@@ -183,9 +183,9 @@ $tests['encoding collation affinity like current source nextTwoFourThree tab is 
 
 $tests['encoding collation affinity like current source nextTwoFourThree numeric text affinity can be matched'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 404],
-        ['option_id' => 2, 'option_value' => 404.0],
-        ['option_id' => 3, 'option_value' => false],
+        ['setting_id' => 1, 'key_value' => 404],
+        ['setting_id' => 2, 'key_value' => 404.0],
+        ['setting_id' => 3, 'key_value' => false],
     ];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan($rows, $rows, '404%', null, 'NOCASE', false, 'same', 'same', 1, 1);
     $t->same([1, 2], $plan['currentMatchedRowids']);
@@ -193,21 +193,21 @@ $tests['encoding collation affinity like current source nextTwoFourThree numeric
 
 $tests['encoding collation affinity like current source nextTwoFourThree blob and null stay unknown'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => new SQLiteBlobValue('cache_hit')],
-        ['option_id' => 2, 'option_value' => null],
-        ['option_id' => 3, 'option_value' => 'cache_hit'],
+        ['setting_id' => 1, 'key_value' => new SQLiteBlobValue('cache_hit')],
+        ['setting_id' => 2, 'key_value' => null],
+        ['setting_id' => 3, 'key_value' => 'cache_hit'],
     ];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan($rows, $rows, 'cache_%', null, 'RTRIM', false, 'same', 'same', 1, 1);
     $t->same([3], $plan['currentMatchedRowids']);
     $t->same([1, 2], $plan['currentUnknownRowids']);
 };
 
-$tests['encoding collation affinity like current source nextTwoFourThree rejects missing option value'] = static function (TestRunner $t) use ($nextTwoFourThree): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan([['option_id' => 1]], $nextTwoFourThree));
+$tests['encoding collation affinity like current source nextTwoFourThree rejects missing key value'] = static function (TestRunner $t) use ($nextTwoFourThree): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan([['setting_id' => 1]], $nextTwoFourThree));
 };
 
-$tests['encoding collation affinity like current source nextTwoFourThree rejects array option value'] = static function (TestRunner $t) use ($nextTwoFourThree): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan([['option_id' => 1, 'option_value' => ['cache']]], $nextTwoFourThree));
+$tests['encoding collation affinity like current source nextTwoFourThree rejects array key value'] = static function (TestRunner $t) use ($nextTwoFourThree): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan([['setting_id' => 1, 'key_value' => ['cache']]], $nextTwoFourThree));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourThree rejects unsupported collation'] = static function (TestRunner $t) use ($current243, $nextTwoFourThree): void {

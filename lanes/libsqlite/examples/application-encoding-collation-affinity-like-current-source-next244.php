@@ -7,8 +7,8 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $row = static fn (int $id, string $name, string $encoding): array => [
-    'option_id' => $id,
-    'option_name' => $name,
+    'setting_id' => $id,
+    'key_name' => $name,
     'text_encoding' => $encoding,
 ];
 
@@ -25,7 +25,7 @@ $next = [
     $row(5, 'plugin_café_archive', 'UTF-8'),
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16OptionNameLikePlan(
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16KeyNameLikePlan(
     $current,
     $next,
     'plugin!_%café%',
@@ -34,7 +34,7 @@ $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf
 
 $summary = [
     'scenario' => 'application-encoding-collation-affinity-like-current-source-next244',
-    'applicationUse' => 'Copied wp_options migrations can resume mixed UTF-8/UTF-16 option_name LIKE scans while preserving SQLite ASCII-only NOCASE behavior for accented plugin slugs.',
+    'applicationUse' => 'Copied app_settings migrations can resume mixed UTF-8/UTF-16 key_name LIKE scans while preserving SQLite ASCII-only NOCASE behavior for accented plugin slugs.',
     'currentMatchedRowids' => $plan['currentMatchedRowids'],
     'nextMatchedRowids' => $plan['nextMatchedRowids'],
     'changedEncodingRowids' => $plan['changedEncodingRowids'],

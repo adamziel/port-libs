@@ -5,16 +5,16 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows177 = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing_url.test', 'load_policy' => 'yes'],
 ];
 $currentView177 = [
-    'name' => 'wp_recursive_option_import',
+    'name' => 'app_recursive_setting_import',
     'source' => 'main@view-cookie-177-current',
-    'trigger' => 'wp_recursive_option_import_io_insert',
+    'trigger' => 'app_recursive_setting_import_io_insert',
     'trigger_source' => 'main@trigger-cookie-177-current',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'spawn_child'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'spawn_child'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy'],
     'audit_label' => 'current-recursive-view-trigger-177',
 ];
 $nextView177 = $currentView177;
@@ -22,16 +22,16 @@ $nextView177['source'] = 'main@view-cookie-177-next';
 $nextView177['trigger_source'] = 'main@trigger-cookie-177-next';
 $nextView177['audit_label'] = 'next-recursive-view-trigger-177';
 $currentInput177 = [
-    ['import_id' => 10, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 11, 'name' => 'current_plugin', 'value' => 'enabled', 'autoload_flag' => 'no', 'spawn_child' => true],
+    ['import_id' => 10, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 11, 'name' => 'current_module', 'value' => 'enabled', 'load_policy_flag' => 'no', 'spawn_child' => true],
 ];
 $nextInput177 = [
-    ['import_id' => 20, 'name' => 'home', 'value' => 'https://next.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 21, 'name' => 'next_plugin', 'value' => 'active', 'autoload_flag' => 'no', 'spawn_child' => false],
+    ['import_id' => 20, 'name' => 'landing_url', 'value' => 'https://next.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 21, 'name' => 'next_module', 'value' => 'active', 'load_policy_flag' => 'no', 'spawn_child' => false],
 ];
 $returning177 = [
-    ['expr' => 'new.option_name', 'as' => 'name'],
-    ['expr' => 'old.option_value', 'as' => 'old_value'],
+    ['expr' => 'new.key_name', 'as' => 'name'],
+    ['expr' => 'old.key_value', 'as' => 'old_value'],
     ['expr' => 'event', 'as' => 'event_name'],
     ['expr' => 'depth', 'as' => 'depth_value'],
     ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
@@ -45,27 +45,27 @@ $run177 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewRe
     $nextView177,
     $returning177,
     $options + [
-        'key' => 'option_name',
-        'savepoint' => 'wp_recursive_view_177',
-        'cursor_name' => 'wp_recursive_view_returning_cursor_177',
-        'current_generation' => 'wp-current-returning-177',
-        'next_generation' => 'wp-next-returning-177',
+        'key' => 'key_name',
+        'savepoint' => 'app_recursive_view_177',
+        'cursor_name' => 'app_recursive_view_returning_cursor_177',
+        'current_generation' => 'app-current-returning-177',
+        'next_generation' => 'app-next-returning-177',
         'page_size' => 3,
     ],
 );
 $held177 = static fn (): array => $run177();
 $admitted177 = static fn (): array => $run177(['admit_next_source' => true]);
-$tokenHeld177 = static fn (): array => $run177(['admit_next_source' => true, 'expected_reprepare_token' => 'wp.reprepare.177.expected']);
+$tokenHeld177 = static fn (): array => $run177(['admit_next_source' => true, 'expected_reprepare_token' => 'app.reprepare.177.expected']);
 $nonRecursive177 = static fn (): array => $run177(['recursive_triggers' => false]);
 
 $cases177 = [
     'held status' => [static fn (): mixed => $held177()['status'], 'trigger-recursive-view-returning-current-source-next177-current-drained-next-held'],
     'admitted status' => [static fn (): mixed => $admitted177()['status'], 'trigger-recursive-view-returning-current-source-next177-next-admitted'],
     'token held status' => [static fn (): mixed => $tokenHeld177()['status'], 'trigger-recursive-view-returning-current-source-next177-reprepare-held'],
-    'savepoint retained' => [static fn (): mixed => $held177()['savepoint'], 'wp_recursive_view_177'],
-    'cursor retained' => [static fn (): mixed => $held177()['cursor'], 'wp_recursive_view_returning_cursor_177'],
-    'current generation retained' => [static fn (): mixed => $held177()['current_generation'], 'wp-current-returning-177'],
-    'next generation retained' => [static fn (): mixed => $held177()['next_generation'], 'wp-next-returning-177'],
+    'savepoint retained' => [static fn (): mixed => $held177()['savepoint'], 'app_recursive_view_177'],
+    'cursor retained' => [static fn (): mixed => $held177()['cursor'], 'app_recursive_view_returning_cursor_177'],
+    'current generation retained' => [static fn (): mixed => $held177()['current_generation'], 'app-current-returning-177'],
+    'next generation retained' => [static fn (): mixed => $held177()['next_generation'], 'app-next-returning-177'],
     'token matches held default' => [static fn (): mixed => $held177()['reprepare_token_matches'], true],
     'token mismatch recorded' => [static fn (): mixed => $tokenHeld177()['reprepare_token_matches'], false],
     'page size retained' => [static fn (): mixed => $held177()['page_size'], 3],
@@ -79,25 +79,25 @@ $cases177 = [
     'held count admitted' => [static fn (): mixed => count($admitted177()['held_rows']), 0],
     'token held visible count current only' => [static fn (): mixed => count($tokenHeld177()['visible_rows']), 6],
     'token held next rows held' => [static fn (): mixed => count($tokenHeld177()['held_rows']), 4],
-    'visible returning names held' => [static fn (): mixed => array_column($held177()['visible_returning_rows'], 'name'), ['siteurl', 'current_plugin', 'siteurl:child', 'current_plugin:child', 'siteurl:child:child', 'current_plugin:child:child']],
-    'held returning names' => [static fn (): mixed => array_column($held177()['held_returning_rows'], 'name'), ['home', 'next_plugin', 'home:child', 'home:child:child']],
-    'admitted visible returning names' => [static fn (): mixed => array_column($admitted177()['visible_returning_rows'], 'name'), ['siteurl', 'current_plugin', 'siteurl:child', 'current_plugin:child', 'siteurl:child:child', 'current_plugin:child:child', 'home', 'next_plugin', 'home:child', 'home:child:child']],
-    'current resume token first' => [static fn (): mixed => $held177()['current_resume_tokens'][0], 'wp_recursive_view_returning_cursor_177:wp-current-returning-177:0'],
-    'current resume token last' => [static fn (): mixed => $held177()['current_last_resume_token'], 'wp_recursive_view_returning_cursor_177:wp-current-returning-177:5'],
-    'next first token' => [static fn (): mixed => $held177()['next_first_resume_token'], 'wp_recursive_view_returning_cursor_177:wp-next-returning-177:6'],
+    'visible returning names held' => [static fn (): mixed => array_column($held177()['visible_returning_rows'], 'name'), ['base_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child']],
+    'held returning names' => [static fn (): mixed => array_column($held177()['held_returning_rows'], 'name'), ['landing_url', 'next_module', 'landing_url:child', 'landing_url:child:child']],
+    'admitted visible returning names' => [static fn (): mixed => array_column($admitted177()['visible_returning_rows'], 'name'), ['base_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child', 'landing_url', 'next_module', 'landing_url:child', 'landing_url:child:child']],
+    'current resume token first' => [static fn (): mixed => $held177()['current_resume_tokens'][0], 'app_recursive_view_returning_cursor_177:app-current-returning-177:0'],
+    'current resume token last' => [static fn (): mixed => $held177()['current_last_resume_token'], 'app_recursive_view_returning_cursor_177:app-current-returning-177:5'],
+    'next first token' => [static fn (): mixed => $held177()['next_first_resume_token'], 'app_recursive_view_returning_cursor_177:app-next-returning-177:6'],
     'attempted next tokens' => [static fn (): mixed => $held177()['attempted_next_resume_tokens'], [
-        'wp_recursive_view_returning_cursor_177:wp-next-returning-177:6',
-        'wp_recursive_view_returning_cursor_177:wp-next-returning-177:7',
-        'wp_recursive_view_returning_cursor_177:wp-next-returning-177:8',
-        'wp_recursive_view_returning_cursor_177:wp-next-returning-177:9',
+        'app_recursive_view_returning_cursor_177:app-next-returning-177:6',
+        'app_recursive_view_returning_cursor_177:app-next-returning-177:7',
+        'app_recursive_view_returning_cursor_177:app-next-returning-177:8',
+        'app_recursive_view_returning_cursor_177:app-next-returning-177:9',
     ]],
     'visible tokens held exclude next' => [static fn (): mixed => $held177()['visible_resume_tokens'], $held177()['current_resume_tokens']],
     'held tokens are next tokens' => [static fn (): mixed => $held177()['held_resume_tokens'], $held177()['attempted_next_resume_tokens']],
     'admitted visible tokens include all' => [static fn (): mixed => $admitted177()['visible_resume_tokens'], array_merge($admitted177()['current_resume_tokens'], $admitted177()['attempted_next_resume_tokens'])],
     'current source phases' => [static fn (): mixed => array_unique(array_column($held177()['current_source_rows'], 'phase')), ['current']],
     'next source phases' => [static fn (): mixed => array_unique(array_column($held177()['attempted_next_source_rows'], 'phase')), ['next']],
-    'current source generation unique' => [static fn (): mixed => array_unique(array_column($held177()['current_source_rows'], 'generation')), ['wp-current-returning-177']],
-    'next source generation unique' => [static fn (): mixed => array_unique(array_column($held177()['attempted_next_source_rows'], 'generation')), ['wp-next-returning-177']],
+    'current source generation unique' => [static fn (): mixed => array_unique(array_column($held177()['current_source_rows'], 'generation')), ['app-current-returning-177']],
+    'next source generation unique' => [static fn (): mixed => array_unique(array_column($held177()['attempted_next_source_rows'], 'generation')), ['app-next-returning-177']],
     'current trigger source unique' => [static fn (): mixed => array_unique(array_column($held177()['current_source_rows'], 'trigger_source')), ['main@trigger-cookie-177-current']],
     'next trigger source unique' => [static fn (): mixed => array_unique(array_column($held177()['attempted_next_source_rows'], 'trigger_source')), ['main@trigger-cookie-177-next']],
     'current pages' => [static fn (): mixed => array_column($held177()['current_source_rows'], 'resume_page'), [0, 0, 0, 1, 1, 1]],
@@ -126,11 +126,11 @@ $cases177 = [
     'dependency base next172 retained' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next172', $held177()['dependencies'], true), true],
     'dependency closure note' => [static fn (): mixed => $held177()['dependency_closure'], 'no new support component needed; reuses recursive view trigger RETURNING current-source cursor modeling'],
     'non overlap note mentions next172' => [static fn (): mixed => str_contains($held177()['non_overlap'], 'next172'), true],
-    'non recursive current rows' => [static fn (): mixed => array_column($nonRecursive177()['visible_returning_rows'], 'name'), ['siteurl', 'current_plugin']],
-    'non recursive held next rows' => [static fn (): mixed => array_column($nonRecursive177()['held_returning_rows'], 'name'), ['home', 'next_plugin']],
+    'non recursive current rows' => [static fn (): mixed => array_column($nonRecursive177()['visible_returning_rows'], 'name'), ['base_url', 'current_module']],
+    'non recursive held next rows' => [static fn (): mixed => array_column($nonRecursive177()['held_returning_rows'], 'name'), ['landing_url', 'next_module']],
     'custom page size pages' => [static fn (): mixed => $run177(['page_size' => 4])['counts']['pages'], 3],
     'custom page size next pages' => [static fn (): mixed => array_column($run177(['page_size' => 4])['attempted_next_source_rows'], 'resume_page'), [1, 1, 2, 2]],
-    'custom child suffix visible names' => [static fn (): mixed => array_column($run177(['child_suffix' => ':shadow'])['visible_returning_rows'], 'name'), ['siteurl', 'current_plugin', 'siteurl:shadow', 'current_plugin:shadow', 'siteurl:shadow:shadow', 'current_plugin:shadow:shadow']],
+    'custom child suffix visible names' => [static fn (): mixed => array_column($run177(['child_suffix' => ':shadow'])['visible_returning_rows'], 'name'), ['base_url', 'current_module', 'base_url:shadow', 'current_module:shadow', 'base_url:shadow:shadow', 'current_module:shadow:shadow']],
     'bad cursor rejected' => [static fn (): mixed => $run177(['cursor_name' => 'bad cursor']), InvalidArgumentException::class],
     'bad current generation rejected' => [static fn (): mixed => $run177(['current_generation' => 'bad generation']), InvalidArgumentException::class],
     'bad next generation rejected' => [static fn (): mixed => $run177(['next_generation' => 'bad generation']), InvalidArgumentException::class],

@@ -1530,6 +1530,31 @@ Tree-merge super-2 resolve-tree parity slice prepared on 2026-06-01:
   passed. Full Cargo workspace runner was not executed.
 - Expected mapped denominator movement: `1703 / 2886` to `1704 / 2886`.
 
+Tree-merge same-rename different-mode reversed fixture parity slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-tree-merge-conflict-fixture-parity-20260601T142514Z`
+  on accepted base `a5614704e60ea0cab87726a10629a257ac3e49fd` maps the
+  upstream `gix-merge` `tree-baseline.sh` `same-rename-different-mode`
+  reversed generated row.
+- Source truth: upstream Gitoxide
+  `gix-merge/tests/fixtures/tree-baseline.sh` and generated
+  `gix-merge/tests/fixtures/generated-archives/tree-baseline.tar` at commit
+  `87433ed33eee9ba974111d20b854f6acb07cd4a6`, specifically
+  `baseline.cases`, `same-rename-different-mode/A-B.merge-info`, and
+  `same-rename-different-mode/A-B-reversed.merge-info`.
+- Native PHP delta: `TreeMergeTest.php` now verifies the reversed side order
+  where the merged tree keeps the custom expected executable bit on
+  `a-renamed/w`, merges `a-renamed/x.f` to `1..6` with executable mode, and
+  swaps stage 2/3 mode entries in the conflict index. The WordPress tree-merge
+  fixture/example adds the same plugin-directory rename executable-mode
+  conflict smoke.
+- Verification: focused `TreeMergeTest.php` passed `1 file / 887 assertions /
+  0 failures`, full Gitoxide lane passed `40 files / 9716 assertions / 0
+  failures`, changed PHP lint passed, `wordpress-tree-merge.php` example smoke
+  passed, and `git diff --check -- lanes/gitoxide` passed. Full Cargo
+  workspace runner was not executed.
+- Expected mapped denominator movement: `1799 / 2886` to `1800 / 2886`.
+
 URL/refspec credential mutation parity slice prepared on 2026-06-01:
 
 - Worker slice `gitoxide-url-refspec-parse-normalize-parity-20260601T025320Z`

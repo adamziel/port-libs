@@ -33,9 +33,9 @@ $summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrent
     ],
     [
         'savepoint' => 'app_view_recursive_232',
-        'current_upsert_source_next232' => 'wp.current.upsert.source.232',
+        'current_upsert_source_next232' => 'app.current.upsert.source.232',
         'current_view_source_next232' => 'main@cookie232-current',
-        'current_trigger_program_next232' => 'wp.current.recursive.trigger.program.232',
+        'current_trigger_program_next232' => 'app.current.recursive.trigger.program.232',
         'auto_ack_current_upsert_conflict_seals_next232' => true,
     ],
 );

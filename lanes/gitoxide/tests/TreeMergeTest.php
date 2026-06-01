@@ -2523,6 +2523,32 @@ return [
             $result->indexEntries(),
         ));
         $t->same([], $result->worktreeConflictFiles($read));
+
+        $reverse = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write);
+        $reverseRenamed = Tree::fromObject($read($reverse->tree->entryNamed('a-renamed', true)?->oid ?? ''));
+        $reverseW = $reverseRenamed->entryNamed('w');
+        $reverseX = $reverseRenamed->entryNamed('x.f');
+
+        $t->same(false, $reverse->isClean());
+        $t->same(['a-renamed'], $names($reverse->tree));
+        $t->same(['w', 'x.f'], $names($reverseRenamed));
+        $t->same('100755', $reverseW?->mode);
+        $t->same('', $read($reverseW?->oid ?? '')->body);
+        $t->same('100755', $reverseX?->mode);
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($reverseX?->oid ?? '')->body);
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'a-renamed/w', 'mode' => '100644'],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'a-renamed/w', 'mode' => '100755'],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'mode' => $entry->mode,
+            ],
+            $reverse->indexEntries(),
+        ));
+        $t->same([], $reverse->worktreeConflictFiles($read));
     },
     'maps upstream gix-merge tree-baseline both-modify-union-attr fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();

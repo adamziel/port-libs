@@ -8,28 +8,28 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 $tests = [];
 
 $current258 = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'PLUGIN_cache'],
-    ['option_id' => 3, 'option_name' => 'Plugin_Cache'],
-    ['option_id' => 4, 'option_name' => 'plugin_%literal'],
-    ['option_id' => 5, 'option_name' => 'PLUGIN_%literal'],
-    ['option_id' => 6, 'option_name' => 'plugin_alpha'],
-    ['option_id' => 7, 'option_name' => 'PLUGIN_Ä'],
-    ['option_id' => 8, 'option_name' => null],
-    ['option_id' => 9, 'option_name' => new SQLiteBlobValue('PLUGIN_blob')],
-    ['option_id' => 10, 'option_name' => 123],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'PLUGIN_cache'],
+    ['setting_id' => 3, 'key_name' => 'Plugin_Cache'],
+    ['setting_id' => 4, 'key_name' => 'plugin_%literal'],
+    ['setting_id' => 5, 'key_name' => 'PLUGIN_%literal'],
+    ['setting_id' => 6, 'key_name' => 'plugin_alpha'],
+    ['setting_id' => 7, 'key_name' => 'PLUGIN_Ä'],
+    ['setting_id' => 8, 'key_name' => null],
+    ['setting_id' => 9, 'key_name' => new SQLiteBlobValue('PLUGIN_blob')],
+    ['setting_id' => 10, 'key_name' => 123],
 ];
 
 $nextTwoFiveEight = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'PLUGIN_cache'],
-    ['option_id' => 3, 'option_name' => 'Plugin_Cache'],
-    ['option_id' => 4, 'option_name' => 'plugin_%literal'],
-    ['option_id' => 5, 'option_name' => 'PLUGIN_%literal'],
-    ['option_id' => 6, 'option_name' => 'plugin_alpha'],
-    ['option_id' => 7, 'option_name' => 'PLUGIN_Ä'],
-    ['option_id' => 11, 'option_name' => 'PLUGIN_new'],
-    ['option_id' => 12, 'option_name' => true],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'PLUGIN_cache'],
+    ['setting_id' => 3, 'key_name' => 'Plugin_Cache'],
+    ['setting_id' => 4, 'key_name' => 'plugin_%literal'],
+    ['setting_id' => 5, 'key_name' => 'PLUGIN_%literal'],
+    ['setting_id' => 6, 'key_name' => 'plugin_alpha'],
+    ['setting_id' => 7, 'key_name' => 'PLUGIN_Ä'],
+    ['setting_id' => 11, 'key_name' => 'PLUGIN_new'],
+    ['setting_id' => 12, 'key_name' => true],
 ];
 
 $plan258 = static fn (
@@ -70,7 +70,7 @@ $valueAt258 = static function (array $value, string $path): mixed {
 $cases258 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFiveEight'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'option_name LIKE ? ESCAPE ? /* case_sensitive_like current-source fence */'],
+    'expression' => ['expression', 'key_name LIKE ? ESCAPE ? /* case_sensitive_like current-source fence */'],
     'pattern' => ['pattern', 'PLUGIN!_%'],
     'pattern hex' => ['patternHex', '504c5547494e215f25'],
     'escape' => ['escape', '!'],
@@ -164,11 +164,11 @@ $tests['encoding collation affinity like current source nextTwoFiveEight omitted
     $t->same(['case-sensitive-like', 'matched-rowset', 'predicate-truth'], $plan['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source nextTwoFiveEight numeric and boolean option names use text affinity'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFiveEight numeric and boolean key names use text affinity'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_name' => 123],
-        ['option_id' => 2, 'option_name' => true],
-        ['option_id' => 3, 'option_name' => false],
+        ['setting_id' => 1, 'key_name' => 123],
+        ['setting_id' => 2, 'key_name' => true],
+        ['setting_id' => 3, 'key_name' => false],
     ];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationCaseSensitiveLikeTransitionPlan($rows, $rows, '1%', null, false, true, 'same', 'same', 1, 1);
     $t->same([2, 1], $plan['currentMatchedRowids']);
@@ -181,12 +181,12 @@ $tests['encoding collation affinity like current source nextTwoFiveEight rejects
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationCaseSensitiveLikeTransitionPlan($current258, $nextTwoFiveEight, 'PLUGIN!!_%', '!!'));
 };
 
-$tests['encoding collation affinity like current source nextTwoFiveEight rejects missing option name'] = static function (TestRunner $t) use ($nextTwoFiveEight): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationCaseSensitiveLikeTransitionPlan([['option_id' => 1]], $nextTwoFiveEight));
+$tests['encoding collation affinity like current source nextTwoFiveEight rejects missing key name'] = static function (TestRunner $t) use ($nextTwoFiveEight): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationCaseSensitiveLikeTransitionPlan([['setting_id' => 1]], $nextTwoFiveEight));
 };
 
-$tests['encoding collation affinity like current source nextTwoFiveEight rejects array option name'] = static function (TestRunner $t) use ($nextTwoFiveEight): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationCaseSensitiveLikeTransitionPlan([['option_id' => 1, 'option_name' => ['PLUGIN']]], $nextTwoFiveEight));
+$tests['encoding collation affinity like current source nextTwoFiveEight rejects array key name'] = static function (TestRunner $t) use ($nextTwoFiveEight): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationCaseSensitiveLikeTransitionPlan([['setting_id' => 1, 'key_name' => ['PLUGIN']]], $nextTwoFiveEight));
 };
 
 return $tests;

@@ -10,16 +10,16 @@ require_once dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewReturningCurrent
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $base = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing_url.test', 'load_policy' => 'yes'],
 ];
 $currentView = [
-    'name' => 'wp_recursive_option_import',
+    'name' => 'app_recursive_setting_import',
     'source' => 'main@view-cookie-184-current',
-    'trigger' => 'wp_recursive_option_import_io_insert',
+    'trigger' => 'app_recursive_setting_import_io_insert',
     'trigger_source' => 'main@trigger-cookie-184-current',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'spawn_child'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'spawn_child'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy'],
     'audit_label' => 'current-recursive-view-trigger-184',
 ];
 $nextView = $currentView;
@@ -30,17 +30,17 @@ $nextView['audit_label'] = 'next-recursive-view-trigger-184';
 $summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentCheckpointHandoff(
     $base,
     [
-        ['import_id' => 10, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-        ['import_id' => 11, 'name' => 'current_plugin', 'value' => 'enabled', 'autoload_flag' => 'no', 'spawn_child' => true],
+        ['import_id' => 10, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+        ['import_id' => 11, 'name' => 'current_module', 'value' => 'enabled', 'load_policy_flag' => 'no', 'spawn_child' => true],
     ],
     [
-        ['import_id' => 20, 'name' => 'home', 'value' => 'https://next.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-        ['import_id' => 21, 'name' => 'next_plugin', 'value' => 'active', 'autoload_flag' => 'no', 'spawn_child' => false],
+        ['import_id' => 20, 'name' => 'landing_url', 'value' => 'https://next.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+        ['import_id' => 21, 'name' => 'next_module', 'value' => 'active', 'load_policy_flag' => 'no', 'spawn_child' => false],
     ],
     $currentView,
     $nextView,
     [
-        ['expr' => 'new.option_name', 'as' => 'name'],
+        ['expr' => 'new.key_name', 'as' => 'name'],
         ['expr' => 'event', 'as' => 'event_name'],
         ['expr' => 'depth', 'as' => 'depth_value'],
         ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
@@ -48,9 +48,9 @@ $summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurr
     [
         'admit_next_source' => true,
         'auto_ack_current' => true,
-        'savepoint' => 'wp_recursive_view_184',
-        'cursor_name' => 'wp_recursive_view_returning_cursor_184',
-        'checkpoint_name' => 'wp_recursive_view_checkpoint_184',
+        'savepoint' => 'app_recursive_view_184',
+        'cursor_name' => 'app_recursive_view_returning_cursor_184',
+        'checkpoint_name' => 'app_recursive_view_checkpoint_184',
         'page_size' => 3,
     ],
 );
@@ -60,8 +60,8 @@ if (
     || $summary['next_source_exposed_after_handoff'] !== true
     || $summary['counts']['visible_rows'] !== 10
     || $summary['counts']['held_rows'] !== 0
-    || $summary['handoff_plan']['resume_after_token'] !== 'wp_recursive_view_returning_cursor_184:wp-current-returning-184:5'
-    || array_column($summary['visible_returning_rows'], 'name') !== ['siteurl', 'current_plugin', 'siteurl:child', 'current_plugin:child', 'siteurl:child:child', 'current_plugin:child:child', 'home', 'next_plugin', 'home:child', 'home:child:child']
+    || $summary['handoff_plan']['resume_after_token'] !== 'app_recursive_view_returning_cursor_184:app-current-returning-184:5'
+    || array_column($summary['visible_returning_rows'], 'name') !== ['base_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child', 'landing_url', 'next_module', 'landing_url:child', 'landing_url:child:child']
 ) {
     fwrite(STDERR, "application-trigger-recursive-view-returning-current-source-next184 self-test failed\n");
     exit(1);

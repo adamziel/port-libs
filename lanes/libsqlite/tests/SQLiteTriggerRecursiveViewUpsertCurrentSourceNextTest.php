@@ -16,7 +16,7 @@ $plan256 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewU
     $returning253,
     $options + $baseOptions253 + [
         'auto_ack_current_source_view_materialization_next253' => true,
-        'current_source_view_upsert_handoff_token_next256' => 'wp.current.source.view.upsert.handoff.256',
+        'current_source_view_upsert_handoff_token_next256' => 'app.current.source.view.upsert.handoff.256',
     ],
 );
 
@@ -24,7 +24,7 @@ $receipts256 = static fn (array $options = []): array => $plan256($options)['req
 $released256 = static fn (array $options = []): array => $plan256($options + ['auto_ack_current_source_view_upsert_handoff_next256' => true]);
 $missing256 = static fn (): array => $plan256(['acknowledged_current_source_view_upsert_handoff_receipts_next256' => array_slice($receipts256(), 0, 1)]);
 $unexpected256 = static fn (): array => $plan256(['acknowledged_current_source_view_upsert_handoff_receipts_next256' => array_merge($receipts256(), ['abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd'])]);
-$tokenHeld256 = static fn (): array => $plan256(['auto_ack_current_source_view_upsert_handoff_next256' => true, 'expected_current_source_view_upsert_handoff_token_next256' => 'wp.current.source.view.upsert.handoff.stale.256']);
+$tokenHeld256 = static fn (): array => $plan256(['auto_ack_current_source_view_upsert_handoff_next256' => true, 'expected_current_source_view_upsert_handoff_token_next256' => 'app.current.source.view.upsert.handoff.stale.256']);
 $orderHeld256 = static fn (): array => $plan256(['acknowledged_current_source_view_upsert_handoff_receipts_next256' => array_reverse($receipts256())]);
 $orderIgnored256 = static fn (): array => $plan256(['acknowledged_current_source_view_upsert_handoff_receipts_next256' => array_reverse($receipts256()), 'require_current_source_view_upsert_handoff_order_next256' => false]);
 $baseHeld256 = static fn (): array => $plan256(['auto_ack_current_source_view_upsert_handoff_next256' => true, 'auto_ack_current_source_view_materialization_next253' => false]);
@@ -37,12 +37,12 @@ $cases256 = [
     'token held status' => [static fn (): mixed => $tokenHeld256()['status_next256'], 'trigger-recursive-view-upsert-current-source-next256-handoff-token-held'],
     'order held status' => [static fn (): mixed => $orderHeld256()['status_next256'], 'trigger-recursive-view-upsert-current-source-next256-handoff-order-held'],
     'base held status' => [static fn (): mixed => $baseHeld256()['status_next256'], 'trigger-recursive-view-upsert-current-source-next256-base-held'],
-    'savepoint retained' => [static fn (): mixed => $released256()['savepoint'], 'wp_recursive_view_253'],
+    'savepoint retained' => [static fn (): mixed => $released256()['savepoint'], 'app_recursive_view_253'],
     'base status retained' => [static fn (): mixed => $released256()['base']['status_next253'], 'trigger-recursive-view-upsert-current-source-next253-view-materialization-released'],
     'base visible released' => [static fn (): mixed => $released256()['base_next_source_visible_next256'], true],
     'base visible held' => [static fn (): mixed => $baseHeld256()['base_next_source_visible_next256'], false],
-    'token retained' => [static fn (): mixed => $released256()['current_source_view_upsert_handoff_token_next256'], 'wp.current.source.view.upsert.handoff.256'],
-    'expected token retained' => [static fn (): mixed => $released256()['expected_current_source_view_upsert_handoff_token_next256'], 'wp.current.source.view.upsert.handoff.256'],
+    'token retained' => [static fn (): mixed => $released256()['current_source_view_upsert_handoff_token_next256'], 'app.current.source.view.upsert.handoff.256'],
+    'expected token retained' => [static fn (): mixed => $released256()['expected_current_source_view_upsert_handoff_token_next256'], 'app.current.source.view.upsert.handoff.256'],
     'token matches released' => [static fn (): mixed => $released256()['current_source_view_upsert_handoff_token_matches_next256'], true],
     'token mismatch detected' => [static fn (): mixed => $tokenHeld256()['current_source_view_upsert_handoff_token_matches_next256'], false],
     'batch size default' => [static fn (): mixed => $released256()['current_source_view_upsert_handoff_batch_size_next256'], 1],
@@ -76,8 +76,8 @@ $cases256 = [
     'held missing next only' => [static fn (): mixed => $missing256()['held_next_row_count_next256'], 2],
     'current handoff receipts tagged' => [static fn (): mixed => array_column($released256()['current_source_rows_next256'], 'current_source_view_upsert_handoff_receipt_next256'), $receipts256()],
     'next handoff receipt null' => [static fn (): mixed => array_values(array_unique(array_column($released256()['attempted_next_source_rows_next256'], 'current_source_view_upsert_handoff_receipt_next256'))), [null]],
-    'visible payload names released' => [static fn (): mixed => array_column($released256()['visible_returning_payloads_next256'], 'name'), ['blogdescription_child', 'template_child', 'home', 'next_plugin']],
-    'held payload names missing' => [static fn (): mixed => array_column($missing256()['held_next_returning_payloads_next256'], 'name'), ['home', 'next_plugin']],
+    'visible payload names released' => [static fn (): mixed => array_column($released256()['visible_returning_payloads_next256'], 'name'), ['app_summary_child', 'template_child', 'landing_url', 'next_module']],
+    'held payload names missing' => [static fn (): mixed => array_column($missing256()['held_next_returning_payloads_next256'], 'name'), ['landing_url', 'next_module']],
     'blocked reasons released' => [static fn (): mixed => $released256()['blocked_reasons_next256'], []],
     'blocked reasons missing' => [static fn (): mixed => $missing256()['blocked_reasons_next256'], ['current-source-view-upsert-handoff-missing']],
     'blocked reasons token' => [static fn (): mixed => $tokenHeld256()['blocked_reasons_next256'], ['current-source-view-upsert-handoff-token-mismatch']],

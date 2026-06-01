@@ -12,10 +12,10 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding, mixed $value): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $encoding,
-    'option_value' => $value,
+    'key_value' => $value,
 ];
 
 $current = [
@@ -35,7 +35,7 @@ $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationGlo
 
 $summary = [
     'scenario' => 'application-encoding-glob-class-current-source-next255',
-    'applicationUse' => 'Copied wp_options option-name scans must fall back to residual GLOB matching for bracket classes with no fixed prefix while preserving UTF-8/UTF-16 decoded text, text-affinity coercion, and current-source invalidation.',
+    'applicationUse' => 'Copied app_settings key-name scans must fall back to residual GLOB matching for bracket classes with no fixed prefix while preserving UTF-8/UTF-16 decoded text, text-affinity coercion, and current-source invalidation.',
     'status' => $plan['status'],
     'rangeUsable' => $plan['rangeUsable'],
     'fullScanResidualRequired' => $plan['fullScanResidualRequired'],
@@ -47,7 +47,7 @@ $summary = [
 ];
 
 if (
-    $summary['status'] !== 'encoding-collation-affinity-like-current-source-next255'
+    $summary['status'] !== 'encoding-collation-affinity-like-current-source-nexttwoFiveFive'
     || $summary['rangeUsable'] !== false
     || $summary['fullScanResidualRequired'] !== true
     || $summary['currentRowids'] !== [2, 3]

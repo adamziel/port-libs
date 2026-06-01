@@ -8,19 +8,19 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $current = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache', 'option_value' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'plugin_upper', 'option_value' => 'PLUGIN_CACHE'],
-    ['option_id' => 3, 'option_name' => 'numeric_text', 'option_value' => '123'],
-    ['option_id' => 4, 'option_name' => 'numeric_int', 'option_value' => 123],
-    ['option_id' => 5, 'option_name' => 'blob_payload', 'option_value' => new SQLiteBlobValue('plugin_cache')],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache', 'key_value' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN_CACHE'],
+    ['setting_id' => 3, 'key_name' => 'numeric_text', 'key_value' => '123'],
+    ['setting_id' => 4, 'key_name' => 'numeric_int', 'key_value' => 123],
+    ['setting_id' => 5, 'key_name' => 'blob_payload', 'key_value' => new SQLiteBlobValue('plugin_cache')],
 ];
 $next = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache', 'option_value' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'plugin_upper', 'option_value' => 'PLUGIN_CACHE'],
-    ['option_id' => 3, 'option_name' => 'numeric_text', 'option_value' => '123'],
-    ['option_id' => 4, 'option_name' => 'numeric_int', 'option_value' => 123],
-    ['option_id' => 5, 'option_name' => 'blob_payload', 'option_value' => new SQLiteBlobValue('plugin_cache')],
-    ['option_id' => 6, 'option_name' => 'numeric_new', 'option_value' => '1234'],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache', 'key_value' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN_CACHE'],
+    ['setting_id' => 3, 'key_name' => 'numeric_text', 'key_value' => '123'],
+    ['setting_id' => 4, 'key_name' => 'numeric_int', 'key_value' => 123],
+    ['setting_id' => 5, 'key_name' => 'blob_payload', 'key_value' => new SQLiteBlobValue('plugin_cache')],
+    ['setting_id' => 6, 'key_name' => 'numeric_new', 'key_value' => '1234'],
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationPatternAffinityPlan(

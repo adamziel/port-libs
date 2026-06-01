@@ -8,23 +8,23 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 $tests = [];
 
 $current251 = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache_limit', 'option_value' => 40],
-    ['option_id' => 2, 'option_name' => 'plugin_cache_ratio', 'option_value' => 40.5],
-    ['option_id' => 3, 'option_name' => 'plugin_cache_text', 'option_value' => '40'],
-    ['option_id' => 4, 'option_name' => 'plugin_enabled', 'option_value' => true],
-    ['option_id' => 5, 'option_name' => 'plugin_disabled', 'option_value' => false],
-    ['option_id' => 6, 'option_name' => 'siteurl', 'option_value' => 'https://example.test'],
-    ['option_id' => 7, 'option_name' => 'negative_cache', 'option_value' => -40.5],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache_limit', 'key_value' => 40],
+    ['setting_id' => 2, 'key_name' => 'plugin_cache_ratio', 'key_value' => 40.5],
+    ['setting_id' => 3, 'key_name' => 'plugin_cache_text', 'key_value' => '40'],
+    ['setting_id' => 4, 'key_name' => 'plugin_enabled', 'key_value' => true],
+    ['setting_id' => 5, 'key_name' => 'plugin_disabled', 'key_value' => false],
+    ['setting_id' => 6, 'key_name' => 'siteurl', 'key_value' => 'https://example.test'],
+    ['setting_id' => 7, 'key_name' => 'negative_cache', 'key_value' => -40.5],
 ];
 
 $nextTwoFiveOne = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache_limit', 'option_value' => '40'],
-    ['option_id' => 2, 'option_name' => 'plugin_cache_ratio', 'option_value' => 40.50],
-    ['option_id' => 3, 'option_name' => 'plugin_cache_text', 'option_value' => 400],
-    ['option_id' => 4, 'option_name' => 'plugin_enabled', 'option_value' => true],
-    ['option_id' => 5, 'option_name' => 'plugin_disabled', 'option_value' => false],
-    ['option_id' => 6, 'option_name' => 'siteurl', 'option_value' => 'https://example.test'],
-    ['option_id' => 8, 'option_name' => 'plugin_cache_new', 'option_value' => 409],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache_limit', 'key_value' => '40'],
+    ['setting_id' => 2, 'key_name' => 'plugin_cache_ratio', 'key_value' => 40.50],
+    ['setting_id' => 3, 'key_name' => 'plugin_cache_text', 'key_value' => 400],
+    ['setting_id' => 4, 'key_name' => 'plugin_enabled', 'key_value' => true],
+    ['setting_id' => 5, 'key_name' => 'plugin_disabled', 'key_value' => false],
+    ['setting_id' => 6, 'key_name' => 'siteurl', 'key_value' => 'https://example.test'],
+    ['setting_id' => 8, 'key_name' => 'plugin_cache_new', 'key_value' => 409],
 ];
 
 $plan251 = static fn (
@@ -67,7 +67,7 @@ $valueAt251 = static function (array $value, string $path): mixed {
 $cases251 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFiveOne'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'option_value LIKE ? ESCAPE ? /* prepared pattern affinity current-source fence */'],
+    'expression' => ['expression', 'key_value LIKE ? ESCAPE ? /* prepared pattern affinity current-source fence */'],
     'case sensitive flag' => ['caseSensitiveLike', false],
     'collation' => ['collation', 'NOCASE'],
     'current pattern text' => ['currentPatternText', '40'],
@@ -100,8 +100,8 @@ $cases251 = [
     'next value text row1' => ['nextValueText.1', '40'],
     'current value storage row1' => ['currentValueStorageClasses.1', 'integer'],
     'next value storage row1' => ['nextValueStorageClasses.1', 'text'],
-    'current option name' => ['currentOptionNames.1', 'plugin_cache_limit'],
-    'next option name' => ['nextOptionNames.1', 'plugin_cache_limit'],
+    'current key name' => ['currentKeyNames.1', 'plugin_cache_limit'],
+    'next key name' => ['nextKeyNames.1', 'plugin_cache_limit'],
     'pattern storage flag' => ['patternStorageClassChangeInvalidatesEvenWhenTextMatches', true],
     'escape storage flag' => ['escapeStorageClassChangeInvalidatesEvenWhenTextMatches', true],
     'blob guard flag' => ['blobPatternAndBlobEscapeDoNotEnterLikeMatcher', true],
@@ -140,8 +140,8 @@ $tests['encoding collation affinity like current source nextTwoFiveOne pattern t
 
 $tests['encoding collation affinity like current source nextTwoFiveOne escaped numeric pattern storage change'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_name' => 'plain_40', 'option_value' => '40'],
-        ['option_id' => 2, 'option_name' => 'plain_402', 'option_value' => '402'],
+        ['setting_id' => 1, 'key_name' => 'plain_40', 'key_value' => '40'],
+        ['setting_id' => 2, 'key_name' => 'plain_402', 'key_value' => '402'],
     ];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationPreparedPatternAffinityPlan($rows, $rows, '40', '40', true, '1', false, 'same', 'same', 1, 1);
     $t->same([1], $plan['currentRowids']);
@@ -180,12 +180,12 @@ $tests['encoding collation affinity like current source nextTwoFiveOne rejects i
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationPreparedPatternAffinityPlan($current251, $nextTwoFiveOne, '40!!', '40!!', '!!'));
 };
 
-$tests['encoding collation affinity like current source nextTwoFiveOne rejects missing option value'] = static function (TestRunner $t) use ($nextTwoFiveOne): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationPreparedPatternAffinityPlan([['option_id' => 1]], $nextTwoFiveOne, '40', '40'));
+$tests['encoding collation affinity like current source nextTwoFiveOne rejects missing key value'] = static function (TestRunner $t) use ($nextTwoFiveOne): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationPreparedPatternAffinityPlan([['setting_id' => 1]], $nextTwoFiveOne, '40', '40'));
 };
 
-$tests['encoding collation affinity like current source nextTwoFiveOne rejects blob option value'] = static function (TestRunner $t) use ($nextTwoFiveOne): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationPreparedPatternAffinityPlan([['option_id' => 1, 'option_value' => new SQLiteBlobValue('40')]], $nextTwoFiveOne, '40', '40'));
+$tests['encoding collation affinity like current source nextTwoFiveOne rejects blob key value'] = static function (TestRunner $t) use ($nextTwoFiveOne): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationPreparedPatternAffinityPlan([['setting_id' => 1, 'key_value' => new SQLiteBlobValue('40')]], $nextTwoFiveOne, '40', '40'));
 };
 
 return $tests;

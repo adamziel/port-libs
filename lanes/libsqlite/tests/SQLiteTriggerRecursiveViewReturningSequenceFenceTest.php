@@ -5,16 +5,16 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows210 = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing_url.test', 'load_policy' => 'yes'],
 ];
 $currentView210 = [
-    'name' => 'wp_recursive_option_import',
+    'name' => 'app_recursive_setting_import',
     'source' => 'main@view-cookie-210-current',
-    'trigger' => 'wp_recursive_option_import_io_insert',
+    'trigger' => 'app_recursive_setting_import_io_insert',
     'trigger_source' => 'main@trigger-cookie-210-current',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'spawn_child'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload', 'spawn_child' => 'spawn_child'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'spawn_child'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy', 'spawn_child' => 'spawn_child'],
     'audit_label' => 'current-recursive-view-trigger-210',
 ];
 $nextView210 = $currentView210;
@@ -27,16 +27,16 @@ $followingView210 = $currentView210;
 $followingView210['source'] = 'main@view-cookie-210-following';
 $followingView210['trigger_source'] = 'main@trigger-cookie-210-following';
 $currentInput210 = [
-    ['import_id' => 10, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 11, 'name' => 'current_plugin', 'value' => 'enabled', 'autoload_flag' => 'no', 'spawn_child' => true],
+    ['import_id' => 10, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 11, 'name' => 'current_module', 'value' => 'enabled', 'load_policy_flag' => 'no', 'spawn_child' => true],
 ];
 $nextInput210 = [
-    ['import_id' => 20, 'name' => 'home', 'value' => 'https://next.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 21, 'name' => 'next_plugin', 'value' => 'active', 'autoload_flag' => 'no', 'spawn_child' => false],
+    ['import_id' => 20, 'name' => 'landing_url', 'value' => 'https://next.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 21, 'name' => 'next_module', 'value' => 'active', 'load_policy_flag' => 'no', 'spawn_child' => false],
 ];
 $returning210 = [
-    ['expr' => 'new.option_name', 'as' => 'name'],
-    ['expr' => 'new.option_value', 'as' => 'value'],
+    ['expr' => 'new.key_name', 'as' => 'name'],
+    ['expr' => 'new.key_value', 'as' => 'value'],
     ['expr' => 'event', 'as' => 'event_name'],
     ['expr' => 'depth', 'as' => 'depth_value'],
     ['expr' => 'ordinal', 'as' => 'ordinal_value'],
@@ -52,48 +52,48 @@ $plan210 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewR
     $nextView210,
     $returning210,
     $options + [
-        'key' => 'option_name',
-        'savepoint' => 'wp_recursive_view_210',
-        'cursor_name' => 'wp_recursive_view_returning_cursor_210',
+        'key' => 'key_name',
+        'savepoint' => 'app_recursive_view_210',
+        'cursor_name' => 'app_recursive_view_returning_cursor_210',
         'admit_next_source' => true,
-        'rollback_token' => 'wp.rollback.current.210',
-        'reset_generation' => 'wp-current-reset-210',
-        'post_reset_current_source_token' => 'wp.current.source.postreset.210',
-        'post_reset_cursor' => 'wp.returning.postreset.cursor.210',
+        'rollback_token' => 'app.rollback.current.210',
+        'reset_generation' => 'app-current-reset-210',
+        'post_reset_current_source_token' => 'app.current.source.postreset.210',
+        'post_reset_cursor' => 'app.returning.postreset.cursor.210',
         'post_reset_view' => $postResetView210,
         'post_reset_input' => [
-            ['import_id' => 30, 'name' => 'siteurl', 'value' => 'https://fresh.test', 'autoload_flag' => 'yes', 'spawn_child' => false],
-            ['import_id' => 31, 'name' => 'rewrite_rules', 'value' => 'fresh-rules', 'autoload_flag' => 'no', 'spawn_child' => false],
+            ['import_id' => 30, 'name' => 'base_url', 'value' => 'https://fresh.test', 'load_policy_flag' => 'yes', 'spawn_child' => false],
+            ['import_id' => 31, 'name' => 'routing_rules', 'value' => 'fresh-rules', 'load_policy_flag' => 'no', 'spawn_child' => false],
         ],
         'fresh_acknowledged_ordinals' => [0, 1],
-        'next_source_token' => 'wp.next.source.210',
-        'next_cursor' => 'wp.returning.next.cursor.210',
+        'next_source_token' => 'app.next.source.210',
+        'next_cursor' => 'app.returning.next.cursor.210',
         'next_acknowledged_ordinals' => [0, 1],
-        'close_next_cursor' => 'wp.returning.next.cursor.210',
-        'following_current_source_token' => 'wp.current.source.following.210',
-        'following_cursor' => 'wp.returning.following.cursor.210',
+        'close_next_cursor' => 'app.returning.next.cursor.210',
+        'following_current_source_token' => 'app.current.source.following.210',
+        'following_cursor' => 'app.returning.following.cursor.210',
         'following_current_view' => $followingView210,
         'following_current_input' => [
-            ['import_id' => 40, 'name' => 'blogdescription', 'value' => 'after-next', 'autoload_flag' => 'yes', 'spawn_child' => true],
-            ['import_id' => 41, 'name' => 'stylesheet', 'value' => 'twentytwentyfive', 'autoload_flag' => 'yes', 'spawn_child' => false],
-            ['import_id' => 42, 'name' => 'template', 'value' => 'twentytwentyfive', 'autoload_flag' => 'yes', 'spawn_child' => true],
+            ['import_id' => 40, 'name' => 'app_summary', 'value' => 'after-next', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+            ['import_id' => 41, 'name' => 'theme_style_key', 'value' => 'modern_theme', 'load_policy_flag' => 'yes', 'spawn_child' => false],
+            ['import_id' => 42, 'name' => 'template', 'value' => 'modern_theme', 'load_policy_flag' => 'yes', 'spawn_child' => true],
         ],
-        'following_generation' => 'wp-following-current-210',
+        'following_generation' => 'app-following-current-210',
         'recursive_child_acknowledged_ordinals' => [0, 1],
-        'recursive_child_source_token' => 'wp.current.source.recursive.child.210',
-        'recursive_child_cursor' => 'wp.returning.recursive.child.cursor.210',
-        'recursive_child_generation' => 'wp-recursive-child-current-210',
-        'current_generation_next203' => 'wp.current.recursive.returning.generation.210',
-        'expected_current_generation_next203' => 'wp.current.recursive.returning.generation.210',
-        'current_handoff_cursor_next203' => 'wp.returning.current.handoff.cursor.210',
-        'current_generation_commit_marker_next203' => 'wp.current.recursive.returning.commit.210',
+        'recursive_child_source_token' => 'app.current.source.recursive.child.210',
+        'recursive_child_cursor' => 'app.returning.recursive.child.cursor.210',
+        'recursive_child_generation' => 'app-recursive-child-current-210',
+        'current_generation_next203' => 'app.current.recursive.returning.generation.210',
+        'expected_current_generation_next203' => 'app.current.recursive.returning.generation.210',
+        'current_handoff_cursor_next203' => 'app.returning.current.handoff.cursor.210',
+        'current_generation_commit_marker_next203' => 'app.current.recursive.returning.commit.210',
         'auto_ack_current_generation_receipts_next203' => true,
-        'current_source_drain_token_next209' => 'wp.current.source.drain.210',
+        'current_source_drain_token_next209' => 'app.current.source.drain.210',
         'current_view_cookie_next209' => 'main@view-cookie-210-current',
         'current_trigger_cookie_next209' => 'main@trigger-cookie-210-current',
         'auto_ack_current_source_watermarks_next209' => true,
-        'current_source_sequence_token_next210' => 'wp.current.source.sequence.210',
-        'sequence_handoff_cursor_next210' => 'wp.returning.sequence.cursor.210',
+        'current_source_sequence_token_next210' => 'app.current.source.sequence.210',
+        'sequence_handoff_cursor_next210' => 'app.returning.sequence.cursor.210',
     ],
 );
 
@@ -104,14 +104,14 @@ $missing210 = static fn (): array => $plan210(['acknowledged_current_source_sequ
 $unexpected210 = static fn (): array => $plan210(['acknowledged_current_source_sequence_next210' => array_merge($sequence210(), ['abcdefabcdefabcdefabcdefabcdefabcd'])]);
 $reversed210 = static fn (): array => $plan210(['acknowledged_current_source_sequence_next210' => array_reverse($sequence210())]);
 $reversedAllowed210 = static fn (): array => $plan210(['acknowledged_current_source_sequence_next210' => array_reverse($sequence210()), 'require_current_source_sequence_order_next210' => false]);
-$cursorHeld210 = static fn (): array => $plan210(['auto_ack_current_source_sequence_next210' => true, 'expected_sequence_handoff_cursor_next210' => 'wp.returning.sequence.cursor.stale.210']);
+$cursorHeld210 = static fn (): array => $plan210(['auto_ack_current_source_sequence_next210' => true, 'expected_sequence_handoff_cursor_next210' => 'app.returning.sequence.cursor.stale.210']);
 $sourceHeld210 = static fn (): array => $plan210(['auto_ack_current_source_sequence_next210' => true, 'expected_current_source_signature_next210' => str_repeat('0', 34)]);
 $baseHeld210 = static fn (): array => $plan210(['auto_ack_current_source_sequence_next210' => true, 'auto_ack_current_source_watermarks_next209' => false]);
 $custom210 = static fn (): array => $plan210([
     'auto_ack_current_source_sequence_next210' => true,
-    'current_source_sequence_token_next210' => 'wp.current.source.sequence.custom.210',
-    'sequence_handoff_cursor_next210' => 'wp.returning.sequence.cursor.custom.210',
-    'expected_sequence_handoff_cursor_next210' => 'wp.returning.sequence.cursor.custom.210',
+    'current_source_sequence_token_next210' => 'app.current.source.sequence.custom.210',
+    'sequence_handoff_cursor_next210' => 'app.returning.sequence.cursor.custom.210',
+    'expected_sequence_handoff_cursor_next210' => 'app.returning.sequence.cursor.custom.210',
 ]);
 
 $cases210 = [
@@ -123,16 +123,16 @@ $cases210 = [
     'cursor held status' => [static fn (): mixed => $cursorHeld210()['status_next210'], 'trigger-recursive-view-returning-current-source-next210-cursor-held'],
     'source held status' => [static fn (): mixed => $sourceHeld210()['status_next210'], 'trigger-recursive-view-returning-current-source-next210-source-held'],
     'base held status' => [static fn (): mixed => $baseHeld210()['status_next210'], 'trigger-recursive-view-returning-current-source-next210-base-held'],
-    'savepoint retained' => [static fn (): mixed => $released210()['savepoint'], 'wp_recursive_view_210'],
+    'savepoint retained' => [static fn (): mixed => $released210()['savepoint'], 'app_recursive_view_210'],
     'base next209 released' => [static fn (): mixed => $released210()['base']['status_next209'], 'trigger-recursive-view-returning-current-source-next209-drain-released'],
     'base next209 held' => [static fn (): mixed => $baseHeld210()['base']['status_next209'], 'trigger-recursive-view-returning-current-source-next209-drain-held'],
     'base visible true' => [static fn (): mixed => $released210()['base_next_source_visible_next210'], true],
     'base visible false' => [static fn (): mixed => $baseHeld210()['base_next_source_visible_next210'], false],
-    'sequence token retained' => [static fn (): mixed => $released210()['current_source_sequence_token_next210'], 'wp.current.source.sequence.210'],
-    'custom sequence token retained' => [static fn (): mixed => $custom210()['current_source_sequence_token_next210'], 'wp.current.source.sequence.custom.210'],
-    'handoff cursor retained' => [static fn (): mixed => $released210()['sequence_handoff_cursor_next210'], 'wp.returning.sequence.cursor.210'],
-    'expected cursor retained' => [static fn (): mixed => $released210()['expected_sequence_handoff_cursor_next210'], 'wp.returning.sequence.cursor.210'],
-    'custom handoff cursor retained' => [static fn (): mixed => $custom210()['sequence_handoff_cursor_next210'], 'wp.returning.sequence.cursor.custom.210'],
+    'sequence token retained' => [static fn (): mixed => $released210()['current_source_sequence_token_next210'], 'app.current.source.sequence.210'],
+    'custom sequence token retained' => [static fn (): mixed => $custom210()['current_source_sequence_token_next210'], 'app.current.source.sequence.custom.210'],
+    'handoff cursor retained' => [static fn (): mixed => $released210()['sequence_handoff_cursor_next210'], 'app.returning.sequence.cursor.210'],
+    'expected cursor retained' => [static fn (): mixed => $released210()['expected_sequence_handoff_cursor_next210'], 'app.returning.sequence.cursor.210'],
+    'custom handoff cursor retained' => [static fn (): mixed => $custom210()['sequence_handoff_cursor_next210'], 'app.returning.sequence.cursor.custom.210'],
     'cursor matches released' => [static fn (): mixed => $released210()['sequence_handoff_cursor_matches_next210'], true],
     'cursor mismatch detected' => [static fn (): mixed => $cursorHeld210()['sequence_handoff_cursor_matches_next210'], false],
     'source signature hex' => [static fn (): mixed => preg_match('/^[a-f0-9]{34}$/', $released210()['current_source_signature_next210']), 1],
@@ -174,12 +174,12 @@ $cases210 = [
     'next held missing unique' => [static fn (): mixed => array_values(array_unique(array_column($missing210()['attempted_next_source_rows_next210'], 'visible_after_current_source_sequence_next210'))), [false]],
     'current sequence tagged' => [static fn (): mixed => array_column($released210()['current_source_rows_next210'], 'current_source_sequence_next210'), $sequence210()],
     'next sequence null' => [static fn (): mixed => array_values(array_unique(array_column($released210()['attempted_next_source_rows_next210'], 'current_source_sequence_next210'))), [null]],
-    'current sequence token stamped' => [static fn (): mixed => array_values(array_unique(array_column($released210()['current_source_rows_next210'], 'current_source_sequence_token_next210'))), ['wp.current.source.sequence.210']],
-    'next cursor stamped' => [static fn (): mixed => array_values(array_unique(array_column($released210()['attempted_next_source_rows_next210'], 'sequence_handoff_cursor_next210'))), ['wp.returning.sequence.cursor.210']],
+    'current sequence token stamped' => [static fn (): mixed => array_values(array_unique(array_column($released210()['current_source_rows_next210'], 'current_source_sequence_token_next210'))), ['app.current.source.sequence.210']],
+    'next cursor stamped' => [static fn (): mixed => array_values(array_unique(array_column($released210()['attempted_next_source_rows_next210'], 'sequence_handoff_cursor_next210'))), ['app.returning.sequence.cursor.210']],
     'current signature stamped' => [static fn (): mixed => array_values(array_unique(array_column($released210()['current_source_rows_next210'], 'current_source_signature_next210'))), [$signature210()]],
     'next signature stamped' => [static fn (): mixed => array_values(array_unique(array_column($released210()['attempted_next_source_rows_next210'], 'current_source_signature_next210'))), [$signature210()]],
-    'visible payload names released' => [static fn (): mixed => array_column($released210()['visible_returning_payloads_next210'], 'name'), ['blogdescription_child', 'template_child', 'home', 'next_plugin']],
-    'held payload names missing' => [static fn (): mixed => array_column($missing210()['held_next_returning_payloads_next210'], 'name'), ['home', 'next_plugin']],
+    'visible payload names released' => [static fn (): mixed => array_column($released210()['visible_returning_payloads_next210'], 'name'), ['app_summary_child', 'template_child', 'landing_url', 'next_module']],
+    'held payload names missing' => [static fn (): mixed => array_column($missing210()['held_next_returning_payloads_next210'], 'name'), ['landing_url', 'next_module']],
     'blocked reasons missing' => [static fn (): mixed => $missing210()['blocked_reasons_next210'], ['current-source-sequence-missing', 'current-source-sequence-order-mismatch']],
     'blocked reasons unexpected' => [static fn (): mixed => $unexpected210()['blocked_reasons_next210'], ['current-source-sequence-unexpected', 'current-source-sequence-order-mismatch']],
     'blocked reasons reversed' => [static fn (): mixed => $reversed210()['blocked_reasons_next210'], ['current-source-sequence-order-mismatch']],

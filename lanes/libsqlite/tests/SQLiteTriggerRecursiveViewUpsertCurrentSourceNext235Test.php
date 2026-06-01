@@ -5,26 +5,26 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $rows235 = [
-    ['option_name' => 'siteurl', 'option_value' => 'https://old.test'],
-    ['option_name' => 'home', 'option_value' => 'https://old-home.test'],
-    ['option_name' => 'rewrite_rules', 'option_value' => 'old-rules'],
+    ['key_name' => 'base_url', 'key_value' => 'https://old.test'],
+    ['key_name' => 'landing_url', 'key_value' => 'https://old-landing_url.test'],
+    ['key_name' => 'routing_rules', 'key_value' => 'old-rules'],
 ];
 $view235 = [
-    'name' => 'wp_option_import_view',
+    'name' => 'app_setting_import_view',
     'source' => 'main@cookie235-current',
-    'mapping' => ['name' => 'option_name', 'value' => 'option_value'],
+    'mapping' => ['name' => 'key_name', 'value' => 'key_value'],
 ];
 $triggers235 = [
-    ['name' => 'wp_options_au_home', 'when' => 'siteurl', 'target' => 'home', 'value' => '{value}/home'],
-    ['name' => 'wp_options_au_rewrite', 'when' => 'home', 'target' => 'rewrite_rules', 'value' => 'flushed:{value}'],
+    ['name' => 'app_settings_au_home', 'when' => 'base_url', 'target' => 'landing_url', 'value' => '{value}/landing_url'],
+    ['name' => 'app_settings_au_rewrite', 'when' => 'landing_url', 'target' => 'routing_rules', 'value' => 'flushed:{value}'],
 ];
 $current235 = [
-    ['name' => 'siteurl', 'value' => 'https://current.test'],
-    ['name' => 'blogname', 'value' => 'Current Blog'],
+    ['name' => 'base_url', 'value' => 'https://current.test'],
+    ['name' => 'app_title', 'value' => 'Current Blog'],
 ];
 $next235 = [
-    ['name' => 'siteurl', 'value' => 'https://next.test'],
-    ['name' => 'fresh_plugin', 'value' => 'enabled'],
+    ['name' => 'base_url', 'value' => 'https://next.test'],
+    ['name' => 'fresh_module', 'value' => 'enabled'],
 ];
 
 $plan235 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentYieldTicket(
@@ -32,15 +32,15 @@ $plan235 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewU
     $current235,
     $next235,
     $view235,
-    ['option_name'],
+    ['key_name'],
     $triggers235,
     $options + [
-        'savepoint' => 'wp_view_recursive_235',
-        'current_upsert_source_next232' => 'wp.current.upsert.source.235',
+        'savepoint' => 'app_view_recursive_235',
+        'current_upsert_source_next232' => 'app.current.upsert.source.235',
         'current_view_source_next232' => 'main@cookie235-current',
-        'current_trigger_program_next232' => 'wp.current.recursive.trigger.program.235',
-        'current_yield_ticket_source_next235' => 'wp.current.yield.ticket.source.235',
-        'current_yield_resume_cursor_next235' => 'wp.current.yield.cursor.235',
+        'current_trigger_program_next232' => 'app.current.recursive.trigger.program.235',
+        'current_yield_ticket_source_next235' => 'app.current.yield.ticket.source.235',
+        'current_yield_resume_cursor_next235' => 'app.current.yield.cursor.235',
     ],
 );
 
@@ -51,13 +51,13 @@ $unexpectedTicket235 = 'abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefab';
 $unexpected235 = static fn (): array => $plan235(['acknowledged_current_yield_tickets_next235' => array_merge($tickets235(), [$unexpectedTicket235])]);
 $reversed235 = static fn (): array => $plan235(['acknowledged_current_yield_tickets_next235' => array_reverse($tickets235())]);
 $unordered235 = static fn (): array => $plan235(['require_current_yield_ticket_order_next235' => false, 'acknowledged_current_yield_tickets_next235' => array_reverse($tickets235())]);
-$sourceHeld235 = static fn (): array => $plan235(['auto_ack_current_yield_tickets_next235' => true, 'expected_current_yield_ticket_source_next235' => 'wp.current.yield.ticket.source.stale.235']);
-$cursorHeld235 = static fn (): array => $plan235(['auto_ack_current_yield_tickets_next235' => true, 'expected_current_yield_resume_cursor_next235' => 'wp.current.yield.cursor.stale.235']);
+$sourceHeld235 = static fn (): array => $plan235(['auto_ack_current_yield_tickets_next235' => true, 'expected_current_yield_ticket_source_next235' => 'app.current.yield.ticket.source.stale.235']);
+$cursorHeld235 = static fn (): array => $plan235(['auto_ack_current_yield_tickets_next235' => true, 'expected_current_yield_resume_cursor_next235' => 'app.current.yield.cursor.stale.235']);
 $baseHeld235 = static fn (): array => $plan235(['auto_ack_current_yield_tickets_next235' => true, 'expected_current_view_source_next232' => 'main@cookie235-stale']);
 $custom235 = static fn (): array => $plan235([
     'auto_ack_current_yield_tickets_next235' => true,
-    'current_yield_ticket_source_next235' => 'wp.current.yield.ticket.source.custom.235',
-    'current_yield_resume_cursor_next235' => 'wp.current.yield.cursor.custom.235',
+    'current_yield_ticket_source_next235' => 'app.current.yield.ticket.source.custom.235',
+    'current_yield_resume_cursor_next235' => 'app.current.yield.cursor.custom.235',
 ]);
 
 $cases235 = [
@@ -69,13 +69,13 @@ $cases235 = [
     'source held status' => [static fn (): mixed => $sourceHeld235()['status_next235'], 'trigger-recursive-view-upsert-current-source-next235-ticket-source-held'],
     'cursor held status' => [static fn (): mixed => $cursorHeld235()['status_next235'], 'trigger-recursive-view-upsert-current-source-next235-resume-cursor-held'],
     'base held status' => [static fn (): mixed => $baseHeld235()['status_next235'], 'trigger-recursive-view-upsert-current-source-next235-base-conflict-held'],
-    'savepoint retained' => [static fn (): mixed => $released235()['savepoint'], 'wp_view_recursive_235'],
+    'savepoint retained' => [static fn (): mixed => $released235()['savepoint'], 'app_view_recursive_235'],
     'base next232 released' => [static fn (): mixed => $released235()['base_conflict_released_next235'], true],
     'base mismatch not released' => [static fn (): mixed => $baseHeld235()['base_conflict_released_next235'], false],
-    'ticket source retained' => [static fn (): mixed => $released235()['current_yield_ticket_source_next235'], 'wp.current.yield.ticket.source.235'],
-    'custom ticket source retained' => [static fn (): mixed => $custom235()['current_yield_ticket_source_next235'], 'wp.current.yield.ticket.source.custom.235'],
-    'resume cursor retained' => [static fn (): mixed => $released235()['current_yield_resume_cursor_next235'], 'wp.current.yield.cursor.235'],
-    'custom resume cursor retained' => [static fn (): mixed => $custom235()['current_yield_resume_cursor_next235'], 'wp.current.yield.cursor.custom.235'],
+    'ticket source retained' => [static fn (): mixed => $released235()['current_yield_ticket_source_next235'], 'app.current.yield.ticket.source.235'],
+    'custom ticket source retained' => [static fn (): mixed => $custom235()['current_yield_ticket_source_next235'], 'app.current.yield.ticket.source.custom.235'],
+    'resume cursor retained' => [static fn (): mixed => $released235()['current_yield_resume_cursor_next235'], 'app.current.yield.cursor.235'],
+    'custom resume cursor retained' => [static fn (): mixed => $custom235()['current_yield_resume_cursor_next235'], 'app.current.yield.cursor.custom.235'],
     'ticket source matches released' => [static fn (): mixed => $released235()['current_yield_ticket_source_matches_next235'], true],
     'ticket source mismatch detected' => [static fn (): mixed => $sourceHeld235()['current_yield_ticket_source_matches_next235'], false],
     'resume cursor matches released' => [static fn (): mixed => $released235()['current_yield_resume_cursor_matches_next235'], true],
@@ -114,16 +114,16 @@ $cases235 = [
     'next tickets null' => [static fn (): mixed => array_values(array_unique(array_column($released235()['attempted_next_yield_stream_next235'], 'current_yield_ticket_next235'))), [null]],
     'yield events retained' => [static fn (): mixed => array_column($released235()['current_yield_stream_next235'], 'event'), ['update', 'update', 'update', 'insert']],
     'yield depths retained' => [static fn (): mixed => array_column($released235()['current_yield_stream_next235'], 'depth'), [0, 1, 2, 0]],
-    'yield trigger chain retained' => [static fn (): mixed => array_column($released235()['current_yield_stream_next235'], 'trigger'), [null, 'wp_options_au_home', 'wp_options_au_rewrite', null]],
-    'current returning names' => [static fn (): mixed => array_column($released235()['current_returning_rows_next235'], 'option_name'), ['siteurl', 'home', 'rewrite_rules', 'blogname']],
-    'visible returning released names' => [static fn (): mixed => array_column($released235()['visible_returning_rows_next235'], 'option_name'), ['siteurl', 'home', 'rewrite_rules', 'blogname', 'siteurl', 'home', 'rewrite_rules', 'fresh_plugin']],
-    'held returning missing names' => [static fn (): mixed => array_column($missing235()['held_next_returning_rows_next235'], 'option_name'), ['siteurl', 'home', 'rewrite_rules', 'fresh_plugin']],
+    'yield trigger chain retained' => [static fn (): mixed => array_column($released235()['current_yield_stream_next235'], 'trigger'), [null, 'app_settings_au_home', 'app_settings_au_rewrite', null]],
+    'current returning names' => [static fn (): mixed => array_column($released235()['current_returning_rows_next235'], 'key_name'), ['base_url', 'landing_url', 'routing_rules', 'app_title']],
+    'visible returning released names' => [static fn (): mixed => array_column($released235()['visible_returning_rows_next235'], 'key_name'), ['base_url', 'landing_url', 'routing_rules', 'app_title', 'base_url', 'landing_url', 'routing_rules', 'fresh_module']],
+    'held returning missing names' => [static fn (): mixed => array_column($missing235()['held_next_returning_rows_next235'], 'key_name'), ['base_url', 'landing_url', 'routing_rules', 'fresh_module']],
     'visible change count released' => [static fn (): mixed => $released235()['visible_change_count_next235'], 8],
     'visible change count held' => [static fn (): mixed => $missing235()['visible_change_count_next235'], 4],
-    'after savepoint released names' => [static fn (): mixed => array_column($released235()['after_savepoint_next235'], 'option_name'), ['siteurl', 'home', 'rewrite_rules', 'blogname', 'fresh_plugin']],
-    'after savepoint held restores base names' => [static fn (): mixed => array_column($missing235()['after_savepoint_next235'], 'option_name'), ['siteurl', 'home', 'rewrite_rules']],
-    'released final siteurl is next' => [static fn (): mixed => $released235()['after_savepoint_next235'][0]['option_value'], 'https://next.test'],
-    'held final siteurl is old' => [static fn (): mixed => $missing235()['after_savepoint_next235'][0]['option_value'], 'https://old.test'],
+    'after savepoint released names' => [static fn (): mixed => array_column($released235()['after_savepoint_next235'], 'key_name'), ['base_url', 'landing_url', 'routing_rules', 'app_title', 'fresh_module']],
+    'after savepoint held restores base names' => [static fn (): mixed => array_column($missing235()['after_savepoint_next235'], 'key_name'), ['base_url', 'landing_url', 'routing_rules']],
+    'released final base_url is next' => [static fn (): mixed => $released235()['after_savepoint_next235'][0]['key_value'], 'https://next.test'],
+    'held final base_url is old' => [static fn (): mixed => $missing235()['after_savepoint_next235'][0]['key_value'], 'https://old.test'],
     'blocked reasons missing' => [static fn (): mixed => $missing235()['blocked_reasons_next235'], ['current-yield-ticket-missing']],
     'blocked reasons unexpected' => [static fn (): mixed => $unexpected235()['blocked_reasons_next235'], ['current-yield-ticket-unexpected']],
     'blocked reasons reversed' => [static fn (): mixed => $reversed235()['blocked_reasons_next235'], ['current-yield-ticket-order-mismatch']],

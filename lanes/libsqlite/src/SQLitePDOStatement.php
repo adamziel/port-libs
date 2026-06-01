@@ -63,12 +63,13 @@ final class SQLitePDOStatement extends \PDOStatement
             $parameters[$key] = $this->coerce($value, $this->boundReferenceTypes[$key] ?? \PDO::PARAM_STR);
         }
         unset($value);
-        if ($params !== null) {
-            foreach ($params as $key => $value) {
-                $parameters[is_int($key) ? $key + 1 : $key] = $value;
-            }
-        }
         try {
+            if ($params !== null) {
+                $this->connection->assertExecuteParameterArrayMatches($this->sql, $params);
+                foreach ($params as $key => $value) {
+                    $parameters[is_int($key) ? $key + 1 : $key] = $value;
+                }
+            }
             $result = $this->connection->executeSql($this->sql, $parameters, $requireBoundParameters);
         } catch (\PDOException $exception) {
             $this->errorCode = $this->connection->errorCode() ?? 'HY000';

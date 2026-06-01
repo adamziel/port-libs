@@ -8,17 +8,17 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $current = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache', 'option_value' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'plugin_literal', 'option_value' => 'plugin_%literal'],
-    ['option_id' => 3, 'option_name' => 'plugin_upper', 'option_value' => 'PLUGIN_cache'],
-    ['option_id' => 4, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin_blob')],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache', 'key_value' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'plugin_literal', 'key_value' => 'plugin_%literal'],
+    ['setting_id' => 3, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN_cache'],
+    ['setting_id' => 4, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin_blob')],
 ];
 
 $next = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache', 'option_value' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'plugin_literal', 'option_value' => 'plugin_%literal'],
-    ['option_id' => 3, 'option_name' => 'plugin_upper', 'option_value' => 'PLUGIN_cache'],
-    ['option_id' => 5, 'option_name' => 'plugin_new', 'option_value' => 'plugin_new'],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache', 'key_value' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'plugin_literal', 'key_value' => 'plugin_%literal'],
+    ['setting_id' => 3, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN_cache'],
+    ['setting_id' => 5, 'key_name' => 'plugin_new', 'key_value' => 'plugin_new'],
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNullableEscapeLikePlan($current, $next);

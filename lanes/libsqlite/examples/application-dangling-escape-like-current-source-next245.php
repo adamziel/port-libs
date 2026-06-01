@@ -8,23 +8,23 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $current = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'Plugin_Cache'],
-    ['option_id' => 3, 'option_name' => 'plugin_cache!'],
-    ['option_id' => 4, 'option_name' => new SQLiteBlobValue('plugin_cache')],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'Plugin_Cache'],
+    ['setting_id' => 3, 'key_name' => 'plugin_cache!'],
+    ['setting_id' => 4, 'key_name' => new SQLiteBlobValue('plugin_cache')],
 ];
 
 $next = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache2'],
-    ['option_id' => 2, 'option_name' => 'Plugin_Cache'],
-    ['option_id' => 3, 'option_name' => 'plugin_cache!'],
-    ['option_id' => 5, 'option_name' => 'PLUGIN_CACHE'],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache2'],
+    ['setting_id' => 2, 'key_name' => 'Plugin_Cache'],
+    ['setting_id' => 3, 'key_name' => 'plugin_cache!'],
+    ['setting_id' => 5, 'key_name' => 'PLUGIN_CACHE'],
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationDanglingEscapeLikePlan($current, $next);
 
 if (
-    $plan['status'] !== 'encoding-collation-affinity-like-current-source-next245'
+    $plan['status'] !== 'encoding-collation-affinity-like-current-source-nexttwoFourFive'
     || $plan['currentCandidateRowids'] !== [1, 2, 3]
     || $plan['nextCandidateRowids'] !== [2, 5, 3, 1]
     || $plan['currentMatchedRowids'] !== []

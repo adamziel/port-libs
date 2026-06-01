@@ -5,35 +5,35 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows180 = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing_url.test', 'load_policy' => 'yes'],
 ];
 $currentView180 = [
-    'name' => 'wp_recursive_option_import',
+    'name' => 'app_recursive_setting_import',
     'source' => 'main@view-cookie-180-current',
-    'trigger' => 'wp_recursive_option_import_io_insert',
+    'trigger' => 'app_recursive_setting_import_io_insert',
     'trigger_source' => 'main@trigger-cookie-180-current',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'spawn_child'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'spawn_child'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy'],
     'audit_label' => 'current-recursive-view-trigger-180',
 ];
 $nextView180 = $currentView180;
 $nextView180['source'] = 'main@view-cookie-180-next';
 $nextView180['trigger_source'] = 'main@trigger-cookie-180-next';
-$nextView180['columns'] = ['import_id', 'name', 'value', 'autoload_flag', 'spawn_child', 'import_source'];
+$nextView180['columns'] = ['import_id', 'name', 'value', 'load_policy_flag', 'spawn_child', 'import_source'];
 $nextView180['mapping']['import_source'] = 'source';
 $nextView180['audit_label'] = 'next-recursive-view-trigger-180';
 $currentInput180 = [
-    ['import_id' => 10, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-    ['import_id' => 11, 'name' => 'current_plugin', 'value' => 'enabled', 'autoload_flag' => 'no', 'spawn_child' => true],
+    ['import_id' => 10, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+    ['import_id' => 11, 'name' => 'current_module', 'value' => 'enabled', 'load_policy_flag' => 'no', 'spawn_child' => true],
 ];
 $nextInput180 = [
-    ['import_id' => 20, 'name' => 'home', 'value' => 'https://next.test', 'autoload_flag' => 'yes', 'spawn_child' => true, 'import_source' => 'next-cookie'],
-    ['import_id' => 21, 'name' => 'next_plugin', 'value' => 'active', 'autoload_flag' => 'no', 'spawn_child' => false, 'import_source' => 'next-cookie'],
+    ['import_id' => 20, 'name' => 'landing_url', 'value' => 'https://next.test', 'load_policy_flag' => 'yes', 'spawn_child' => true, 'import_source' => 'next-cookie'],
+    ['import_id' => 21, 'name' => 'next_module', 'value' => 'active', 'load_policy_flag' => 'no', 'spawn_child' => false, 'import_source' => 'next-cookie'],
 ];
 $returning180 = [
-    ['expr' => 'new.option_name', 'as' => 'name'],
-    ['expr' => 'old.option_value', 'as' => 'old_value'],
+    ['expr' => 'new.key_name', 'as' => 'name'],
+    ['expr' => 'old.key_value', 'as' => 'old_value'],
     ['expr' => 'event', 'as' => 'event_name'],
     ['expr' => 'depth', 'as' => 'depth_value'],
     ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
@@ -47,20 +47,20 @@ $plan180 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewR
     $nextView180,
     $returning180,
     $options + [
-        'key' => 'option_name',
-        'savepoint' => 'wp_recursive_view_180',
-        'cursor_name' => 'wp_recursive_view_returning_cursor_180',
-        'current_generation' => 'wp-current-returning-180',
-        'next_generation' => 'wp-next-returning-180',
+        'key' => 'key_name',
+        'savepoint' => 'app_recursive_view_180',
+        'cursor_name' => 'app_recursive_view_returning_cursor_180',
+        'current_generation' => 'app-current-returning-180',
+        'next_generation' => 'app-next-returning-180',
         'page_size' => 3,
     ],
 );
 
 $held180 = static fn (): array => $plan180();
 $admitted180 = static fn (): array => $plan180(['admit_next_source' => true]);
-$drainHeld180 = static fn (): array => $plan180(['admit_next_source' => true, 'expected_drain_ack_token' => 'wp.returning.drain.180.expected']);
-$sourceHeld180 = static fn (): array => $plan180(['admit_next_source' => true, 'expected_current_source_token' => 'wp.current.source.180.expected']);
-$reprepareHeld180 = static fn (): array => $plan180(['admit_next_source' => true, 'expected_reprepare_token' => 'wp.reprepare.180.expected']);
+$drainHeld180 = static fn (): array => $plan180(['admit_next_source' => true, 'expected_drain_ack_token' => 'app.returning.drain.180.expected']);
+$sourceHeld180 = static fn (): array => $plan180(['admit_next_source' => true, 'expected_current_source_token' => 'app.current.source.180.expected']);
+$reprepareHeld180 = static fn (): array => $plan180(['admit_next_source' => true, 'expected_reprepare_token' => 'app.reprepare.180.expected']);
 $noChangeView180 = $currentView180;
 $sameSource180 = static fn (): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeResetGenerationCurrentSourceFence(
     $rows180,
@@ -70,10 +70,10 @@ $sameSource180 = static fn (): array => SQLiteTriggerRecursiveViewReturningCurre
     $noChangeView180,
     $returning180,
     [
-        'key' => 'option_name',
-        'savepoint' => 'wp_recursive_view_180',
+        'key' => 'key_name',
+        'savepoint' => 'app_recursive_view_180',
         'admit_next_source' => true,
-        'cursor_name' => 'wp_recursive_view_returning_cursor_180',
+        'cursor_name' => 'app_recursive_view_returning_cursor_180',
     ],
 );
 
@@ -83,10 +83,10 @@ $cases180 = [
     'drain ack status' => [static fn (): mixed => $drainHeld180()['status_next180'], 'trigger-recursive-view-returning-current-source-next180-drain-ack-held'],
     'source token status' => [static fn (): mixed => $sourceHeld180()['status_next180'], 'trigger-recursive-view-returning-current-source-next180-current-source-token-held'],
     'reprepare status' => [static fn (): mixed => $reprepareHeld180()['status_next180'], 'trigger-recursive-view-returning-current-source-next180-reprepare-held'],
-    'savepoint retained' => [static fn (): mixed => $held180()['savepoint'], 'wp_recursive_view_180'],
-    'cursor retained' => [static fn (): mixed => $held180()['cursor'], 'wp_recursive_view_returning_cursor_180'],
-    'current token retained' => [static fn (): mixed => $held180()['current_source_token_next180'], 'wp.current.source.180'],
-    'drain ack retained' => [static fn (): mixed => $held180()['drain_ack_token_next180'], 'wp.returning.drain.180'],
+    'savepoint retained' => [static fn (): mixed => $held180()['savepoint'], 'app_recursive_view_180'],
+    'cursor retained' => [static fn (): mixed => $held180()['cursor'], 'app_recursive_view_returning_cursor_180'],
+    'current token retained' => [static fn (): mixed => $held180()['current_source_token_next180'], 'app.current.source.180'],
+    'drain ack retained' => [static fn (): mixed => $held180()['drain_ack_token_next180'], 'app.returning.drain.180'],
     'current token matches default' => [static fn (): mixed => $held180()['current_source_token_matches_next180'], true],
     'drain ack matches default' => [static fn (): mixed => $held180()['drain_ack_token_matches_next180'], true],
     'source token mismatch recorded' => [static fn (): mixed => $sourceHeld180()['current_source_token_matches_next180'], false],
@@ -99,9 +99,9 @@ $cases180 = [
     'next frame phase' => [static fn (): mixed => $held180()['next_source_frame_next180']['phase'], 'next'],
     'current frame source' => [static fn (): mixed => $held180()['current_source_frame_next180']['source'], 'main@view-cookie-180-current'],
     'next frame source' => [static fn (): mixed => $held180()['next_source_frame_next180']['source'], 'main@view-cookie-180-next'],
-    'current frame columns' => [static fn (): mixed => $held180()['current_source_frame_next180']['columns'], ['import_id', 'name', 'value', 'autoload_flag', 'spawn_child']],
-    'next frame extra column retained' => [static fn (): mixed => $held180()['next_source_frame_next180']['columns'], ['import_id', 'name', 'value', 'autoload_flag', 'spawn_child', 'import_source']],
-    'current mapping retained' => [static fn (): mixed => $held180()['current_source_frame_next180']['mapping']['name'], 'option_name'],
+    'current frame columns' => [static fn (): mixed => $held180()['current_source_frame_next180']['columns'], ['import_id', 'name', 'value', 'load_policy_flag', 'spawn_child']],
+    'next frame extra column retained' => [static fn (): mixed => $held180()['next_source_frame_next180']['columns'], ['import_id', 'name', 'value', 'load_policy_flag', 'spawn_child', 'import_source']],
+    'current mapping retained' => [static fn (): mixed => $held180()['current_source_frame_next180']['mapping']['name'], 'key_name'],
     'next mapping retained' => [static fn (): mixed => $held180()['next_source_frame_next180']['mapping']['import_source'], 'source'],
     'returning aliases retained' => [static fn (): mixed => $held180()['current_source_frame_next180']['returning_aliases'], ['name', 'old_value', 'event_name', 'depth_value', 'trigger_source_alias']],
     'frame signatures differ' => [static fn (): mixed => $held180()['current_source_frame_next180']['source_signature'] !== $held180()['next_source_frame_next180']['source_signature'], true],
@@ -112,9 +112,9 @@ $cases180 = [
     'held next count' => [static fn (): mixed => count($held180()['held_rows_next180']), 4],
     'admitted visible count' => [static fn (): mixed => count($admitted180()['visible_rows_next180']), 10],
     'admitted held empty' => [static fn (): mixed => $admitted180()['held_rows_next180'], []],
-    'visible returning names held' => [static fn (): mixed => array_column($held180()['visible_returning_rows_next180'], 'name'), ['siteurl', 'current_plugin', 'siteurl:child', 'current_plugin:child', 'siteurl:child:child', 'current_plugin:child:child']],
-    'held returning names' => [static fn (): mixed => array_column($held180()['held_returning_rows_next180'], 'name'), ['home', 'next_plugin', 'home:child', 'home:child:child']],
-    'admitted visible returning names' => [static fn (): mixed => array_column($admitted180()['visible_returning_rows_next180'], 'name'), ['siteurl', 'current_plugin', 'siteurl:child', 'current_plugin:child', 'siteurl:child:child', 'current_plugin:child:child', 'home', 'next_plugin', 'home:child', 'home:child:child']],
+    'visible returning names held' => [static fn (): mixed => array_column($held180()['visible_returning_rows_next180'], 'name'), ['base_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child']],
+    'held returning names' => [static fn (): mixed => array_column($held180()['held_returning_rows_next180'], 'name'), ['landing_url', 'next_module', 'landing_url:child', 'landing_url:child:child']],
+    'admitted visible returning names' => [static fn (): mixed => array_column($admitted180()['visible_returning_rows_next180'], 'name'), ['base_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child', 'landing_url', 'next_module', 'landing_url:child', 'landing_url:child:child']],
     'current rows visible after snapshot' => [static fn (): mixed => array_values(array_unique(array_column($held180()['current_source_rows_next180'], 'visible_after_source_snapshot'))), [true]],
     'held next rows invisible after snapshot' => [static fn (): mixed => array_values(array_unique(array_column($held180()['attempted_next_source_rows_next180'], 'visible_after_source_snapshot'))), [false]],
     'admitted next rows visible after snapshot' => [static fn (): mixed => array_values(array_unique(array_column($admitted180()['attempted_next_source_rows_next180'], 'visible_after_source_snapshot'))), [true]],

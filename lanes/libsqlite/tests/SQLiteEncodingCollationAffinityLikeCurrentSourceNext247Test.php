@@ -12,31 +12,31 @@ $tests = [];
 $enc247 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 
 $current247 = [
-    ['option_id' => 1, 'option_name_bytes' => $enc247('plugin_café_main', 'UTF-16LE'), 'text_encoding' => 2],
-    ['option_id' => 2, 'option_name_bytes' => $enc247('PLUGIN_CAFÉ_MAIN', 'UTF-16BE'), 'text_encoding' => 3],
-    ['option_id' => 3, 'option_name' => 'plugin_café_extra'],
-    ['option_id' => 4, 'option_name' => 'plugin_cafe_plain'],
-    ['option_id' => 5, 'option_name' => 'plugin_cafÉ_main'],
-    ['option_id' => 6, 'option_name' => 'PLUGIN_CAFÉ_AUX'],
-    ['option_id' => 7, 'option_name' => 404],
-    ['option_id' => 8, 'option_name' => 404.25],
-    ['option_id' => 9, 'option_name' => true],
-    ['option_id' => 10, 'option_name' => new SQLiteBlobValue('plugin_café_blob')],
-    ['option_id' => 11, 'option_name' => null],
+    ['setting_id' => 1, 'key_name_bytes' => $enc247('plugin_café_main', 'UTF-16LE'), 'text_encoding' => 2],
+    ['setting_id' => 2, 'key_name_bytes' => $enc247('PLUGIN_CAFÉ_MAIN', 'UTF-16BE'), 'text_encoding' => 3],
+    ['setting_id' => 3, 'key_name' => 'plugin_café_extra'],
+    ['setting_id' => 4, 'key_name' => 'plugin_cafe_plain'],
+    ['setting_id' => 5, 'key_name' => 'plugin_cafÉ_main'],
+    ['setting_id' => 6, 'key_name' => 'PLUGIN_CAFÉ_AUX'],
+    ['setting_id' => 7, 'key_name' => 404],
+    ['setting_id' => 8, 'key_name' => 404.25],
+    ['setting_id' => 9, 'key_name' => true],
+    ['setting_id' => 10, 'key_name' => new SQLiteBlobValue('plugin_café_blob')],
+    ['setting_id' => 11, 'key_name' => null],
 ];
 
 $nextTwoFourSeven = [
-    ['option_id' => 1, 'option_name_bytes' => $enc247('plugin_café_main_v2', 'UTF-16BE'), 'text_encoding' => 3],
-    ['option_id' => 2, 'option_name_bytes' => $enc247('PLUGIN_CAFÉ_MAIN', 'UTF-16BE'), 'text_encoding' => 3],
-    ['option_id' => 3, 'option_name_bytes' => $enc247('plugin_café_extra', 'UTF-16LE'), 'text_encoding' => 2],
-    ['option_id' => 4, 'option_name' => 'plugin_cafe_plain'],
-    ['option_id' => 5, 'option_name' => 'plugin_cafÉ_main'],
-    ['option_id' => 6, 'option_name' => 'PLUGIN_CAFÉ_AUX'],
-    ['option_id' => 12, 'option_name' => 'plugin_café_new'],
-    ['option_id' => 13, 'option_name' => 'PLUGIN_CAFÉ_NEW'],
-    ['option_id' => 7, 'option_name' => '404'],
-    ['option_id' => 8, 'option_name' => 404.25],
-    ['option_id' => 9, 'option_name' => false],
+    ['setting_id' => 1, 'key_name_bytes' => $enc247('plugin_café_main_v2', 'UTF-16BE'), 'text_encoding' => 3],
+    ['setting_id' => 2, 'key_name_bytes' => $enc247('PLUGIN_CAFÉ_MAIN', 'UTF-16BE'), 'text_encoding' => 3],
+    ['setting_id' => 3, 'key_name_bytes' => $enc247('plugin_café_extra', 'UTF-16LE'), 'text_encoding' => 2],
+    ['setting_id' => 4, 'key_name' => 'plugin_cafe_plain'],
+    ['setting_id' => 5, 'key_name' => 'plugin_cafÉ_main'],
+    ['setting_id' => 6, 'key_name' => 'PLUGIN_CAFÉ_AUX'],
+    ['setting_id' => 12, 'key_name' => 'plugin_café_new'],
+    ['setting_id' => 13, 'key_name' => 'PLUGIN_CAFÉ_NEW'],
+    ['setting_id' => 7, 'key_name' => '404'],
+    ['setting_id' => 8, 'key_name' => 404.25],
+    ['setting_id' => 9, 'key_name' => false],
 ];
 
 $plan247 = static fn (
@@ -77,7 +77,7 @@ $valueAt247 = static function (array $value, string $path): mixed {
 $cases247 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFourSeven'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'option_name COLLATE NOCASE LIKE ? ESCAPE ? /* non-ASCII prefix keeps residual authoritative */'],
+    'expression' => ['expression', 'key_name COLLATE NOCASE LIKE ? ESCAPE ? /* non-ASCII prefix keeps residual authoritative */'],
     'pattern' => ['pattern', 'plugin!_café%'],
     'pattern hex' => ['patternHex', '706c7567696e215f636166c3a925'],
     'escape' => ['escape', '!'],
@@ -190,8 +190,8 @@ $tests['encoding collation affinity like current source nextTwoFourSeven nocase 
 
 $tests['encoding collation affinity like current source nextTwoFourSeven escaped accent prefix is literal'] = static function (TestRunner $t) use ($plan247): void {
     $rows = [
-        ['option_id' => 1, 'option_name' => 'plugin_café_main'],
-        ['option_id' => 2, 'option_name' => 'plugin_caf%_main'],
+        ['setting_id' => 1, 'key_name' => 'plugin_café_main'],
+        ['setting_id' => 2, 'key_name' => 'plugin_caf%_main'],
     ];
     $plan = $plan247(current: $rows, next: $rows, pattern: 'plugin!_caf!%%', escape: '!', currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $t->same([2], $plan['currentMatchedRowids']);
@@ -200,9 +200,9 @@ $tests['encoding collation affinity like current source nextTwoFourSeven escaped
 
 $tests['encoding collation affinity like current source nextTwoFourSeven numeric text affinity participates in name scan'] = static function (TestRunner $t) use ($plan247): void {
     $rows = [
-        ['option_id' => 1, 'option_name' => 404],
-        ['option_id' => 2, 'option_name' => 404.25],
-        ['option_id' => 3, 'option_name' => false],
+        ['setting_id' => 1, 'key_name' => 404],
+        ['setting_id' => 2, 'key_name' => 404.25],
+        ['setting_id' => 3, 'key_name' => false],
     ];
     $plan = $plan247(current: $rows, next: $rows, pattern: '404%', currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $t->same([1, 2], $plan['currentMatchedRowids']);
@@ -212,8 +212,8 @@ $tests['encoding collation affinity like current source nextTwoFourSeven numeric
 
 $tests['encoding collation affinity like current source nextTwoFourSeven blob and null are not candidates'] = static function (TestRunner $t) use ($plan247): void {
     $rows = [
-        ['option_id' => 1, 'option_name' => new SQLiteBlobValue('plugin_café_main')],
-        ['option_id' => 2, 'option_name' => null],
+        ['setting_id' => 1, 'key_name' => new SQLiteBlobValue('plugin_café_main')],
+        ['setting_id' => 2, 'key_name' => null],
     ];
     $plan = $plan247(current: $rows, next: $rows, currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $t->same([], $plan['currentCandidateRowids']);
@@ -221,19 +221,19 @@ $tests['encoding collation affinity like current source nextTwoFourSeven blob an
 };
 
 $tests['encoding collation affinity like current source nextTwoFourSeven rejects malformed utf8 string'] = static function (TestRunner $t) use ($nextTwoFourSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUnicodeNoCaseLikePlan([['option_id' => 1, 'option_name' => "plugin_caf\xc3"]], $nextTwoFourSeven, 'plugin!_café%', '!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUnicodeNoCaseLikePlan([['setting_id' => 1, 'key_name' => "plugin_caf\xc3"]], $nextTwoFourSeven, 'plugin!_café%', '!'));
 };
 
-$tests['encoding collation affinity like current source nextTwoFourSeven rejects missing option name'] = static function (TestRunner $t) use ($nextTwoFourSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUnicodeNoCaseLikePlan([['option_id' => 1]], $nextTwoFourSeven, 'plugin_café%'));
+$tests['encoding collation affinity like current source nextTwoFourSeven rejects missing key name'] = static function (TestRunner $t) use ($nextTwoFourSeven): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUnicodeNoCaseLikePlan([['setting_id' => 1]], $nextTwoFourSeven, 'plugin_café%'));
 };
 
-$tests['encoding collation affinity like current source nextTwoFourSeven rejects array option name'] = static function (TestRunner $t) use ($nextTwoFourSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUnicodeNoCaseLikePlan([['option_id' => 1, 'option_name' => ['plugin']]], $nextTwoFourSeven, 'plugin_café%'));
+$tests['encoding collation affinity like current source nextTwoFourSeven rejects array key name'] = static function (TestRunner $t) use ($nextTwoFourSeven): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUnicodeNoCaseLikePlan([['setting_id' => 1, 'key_name' => ['plugin']]], $nextTwoFourSeven, 'plugin_café%'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourSeven rejects invalid byte encoding'] = static function (TestRunner $t) use ($nextTwoFourSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUnicodeNoCaseLikePlan([['option_id' => 1, 'option_name_bytes' => 'plugin', 'text_encoding' => 9]], $nextTwoFourSeven, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUnicodeNoCaseLikePlan([['setting_id' => 1, 'key_name_bytes' => 'plugin', 'text_encoding' => 9]], $nextTwoFourSeven, 'plugin%'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourSeven rejects unsupported collation'] = static function (TestRunner $t) use ($current247, $nextTwoFourSeven): void {

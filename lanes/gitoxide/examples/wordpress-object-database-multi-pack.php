@@ -53,6 +53,11 @@ $content = $database->read($fixture['objectsByRole']['content']['oid']);
 $media = $database->read($fixture['objectsByRole']['media']['oid']);
 $shared = $database->read($fixture['objectsByRole']['shared']['oid']);
 $duplicateLooseContentOid = (new LooseObjectStore($gitDir))->write(new GitObject('blob', $fixture['objectsByRole']['content']['body']));
+$contentCaseDuplicatePath = $gitDir . '/objects/' . substr($fixture['objectsByRole']['content']['oid'], 0, 2)
+    . '/' . strtoupper(substr($fixture['objectsByRole']['content']['oid'], 2));
+file_put_contents($contentCaseDuplicatePath, 'case-variant loose prefix path candidate');
+$contentCaseDuplicatePrefix = $database->lookupPrefix($fixture['objectsByRole']['content']['oid']);
+$contentCaseDuplicatePrefixWithCandidates = $database->lookupPrefix($fixture['objectsByRole']['content']['oid'], true);
 $contentDuplicatePrefix = $database->lookupPrefix(substr($fixture['objectsByRole']['content']['oid'], 0, 8), true);
 $loosePrefixCandidateOid = (new LooseObjectStore($gitDir))->write(new GitObject('blob', 'midx-prefix-candidate-128814'));
 $contentPrefixCandidates = $database->lookupPrefix(substr($fixture['objectsByRole']['content']['oid'], 0, 4), true);
@@ -90,6 +95,10 @@ return [
     'mediaPrefixStatus' => $database->lookupPrefix(substr($fixture['objectsByRole']['media']['oid'], 0, 8))['status'],
     'mediaShortestPrefix' => $database->disambiguatePrefix($fixture['objectsByRole']['media']['oid'], 4),
     'duplicateLooseContentOid' => $duplicateLooseContentOid,
+    'contentCaseDuplicatePrefixStatus' => $contentCaseDuplicatePrefix['status'],
+    'contentCaseDuplicatePrefixMatches' => $contentCaseDuplicatePrefix['matches'] ?? [],
+    'contentCaseDuplicateCandidateStatus' => $contentCaseDuplicatePrefixWithCandidates['status'],
+    'contentCaseDuplicateCandidates' => $contentCaseDuplicatePrefixWithCandidates['candidates'],
     'contentDuplicatePrefixStatus' => $contentDuplicatePrefix['status'],
     'contentDuplicatePrefixCandidates' => $contentDuplicatePrefix['candidates'],
     'loosePrefixCandidateOid' => $loosePrefixCandidateOid,

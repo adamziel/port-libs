@@ -9,15 +9,15 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $text = static fn (int $id, string $value, int $encoding): array => [
-    'option_id' => $id,
+    'setting_id' => $id,
     'storage' => 'text',
-    'option_value_bytes' => $enc($value, $encoding),
+    'key_value_bytes' => $enc($value, $encoding),
     'value_encoding' => $encoding,
 ];
 $scalar = static fn (int $id, int|float $value, string $storage): array => [
-    'option_id' => $id,
+    'setting_id' => $id,
     'storage' => $storage,
-    'option_value' => $value,
+    'key_value' => $value,
 ];
 
 $currentRows = [

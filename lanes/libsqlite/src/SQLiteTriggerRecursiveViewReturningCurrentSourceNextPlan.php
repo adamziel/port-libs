@@ -29,8 +29,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning = ['*'],
         array $options = [],
     ): array {
-        $view = self::recursiveViewReturningIdentifier((string) ($options['view'] ?? 'wp_option_import_view'), 'view');
-        $savepoint = self::recursiveViewReturningIdentifier((string) ($options['savepoint'] ?? 'wp_recursive_view_import'), 'savepoint');
+        $view = self::recursiveViewReturningIdentifier((string) ($options['view'] ?? 'app_setting_import_view'), 'view');
+        $savepoint = self::recursiveViewReturningIdentifier((string) ($options['savepoint'] ?? 'app_recursive_view_import'), 'savepoint');
         $currentSource = self::recursiveViewReturningSourceToken((string) ($options['current_source'] ?? 'current-recursive-view-returning'));
         $nextSource = self::recursiveViewReturningSourceToken((string) ($options['next_source'] ?? 'next-recursive-view-returning'));
         $currentRollback = (bool) ($options['current_rollback_to'] ?? true);
@@ -291,7 +291,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $currentView = self::normalizeRecursiveViewSource($currentView, 'current view');
         $nextView = self::normalizeRecursiveViewSource($nextView, 'next view');
         $maxDepth = self::positiveRecursiveViewSourceInt($options['max_depth'] ?? 8, 'max depth');
-        $savepoint = self::recursiveViewSourceToken((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_next157'), 'savepoint');
+        $savepoint = self::recursiveViewSourceToken((string) ($options['savepoint'] ?? 'app_recursive_view_returning_next157'), 'savepoint');
         $admitNext = (bool) ($options['admit_next_source'] ?? false);
 
         $current = self::runRecursiveViewSource($baseRows, $currentRoots, $currentView, $returning, $maxDepth, 'current');
@@ -355,12 +355,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
 
         $seen = [];
         foreach ($rows as $row) {
-            if (!is_array($row) || !array_key_exists('option_name', $row)) {
-                throw new InvalidArgumentException('SQLite trigger recursive view next157 row option_name is missing');
+            if (!is_array($row) || !array_key_exists('key_name', $row)) {
+                throw new InvalidArgumentException('SQLite trigger recursive view next157 row key_name is missing');
             }
-            $key = (string) $row['option_name'];
+            $key = (string) $row['key_name'];
             if (isset($seen[$key])) {
-                throw new InvalidArgumentException("SQLite trigger recursive view next157 duplicate option_name {$key}");
+                throw new InvalidArgumentException("SQLite trigger recursive view next157 duplicate key_name {$key}");
             }
             $seen[$key] = true;
         }
@@ -494,7 +494,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                     continue;
                 }
                 foreach ($byParent[$name] ?? [] as $row) {
-                    $child = (string) ($row['option_name'] ?? '');
+                    $child = (string) ($row['key_name'] ?? '');
                     $edge = $rootKey . '>' . $child;
                     if (isset($seen[$edge])) {
                         continue;
@@ -527,9 +527,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     private static function recursiveViewSourceTriggerRow(array $viewRow, array $view, string $phase): array
     {
         return [
-            'option_name' => 'audit:' . $phase . ':' . $viewRow['_root'] . ':' . $viewRow['option_name'],
-            'option_value' => ($viewRow['option_value'] ?? '') . '|depth=' . $viewRow['_depth'],
-            'autoload' => $viewRow['autoload'] ?? 'no',
+            'key_name' => 'audit:' . $phase . ':' . $viewRow['_root'] . ':' . $viewRow['key_name'],
+            'key_value' => ($viewRow['key_value'] ?? '') . '|depth=' . $viewRow['_depth'],
+            'load_policy' => $viewRow['load_policy'] ?? 'no',
             'parent_name' => $viewRow['_root'],
             'source' => $view['trigger_source'],
         ];
@@ -542,7 +542,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     private static function upsertRecursiveViewSourceRow(array $rows, array $incoming): array
     {
         foreach ($rows as $index => $row) {
-            if (($row['option_name'] ?? null) === $incoming['option_name']) {
+            if (($row['key_name'] ?? null) === $incoming['key_name']) {
                 $rows[$index] = array_replace($row, $incoming);
                 return $rows;
             }
@@ -657,7 +657,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         }
 
         $view = self::normalizeRecursiveViewReturningSourceAdmissionView($view);
-        $savepoint = self::recursiveViewReturningSourceAdmissionToken((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_source_admission'), 'savepoint');
+        $savepoint = self::recursiveViewReturningSourceAdmissionToken((string) ($options['savepoint'] ?? 'app_recursive_view_returning_source_admission'), 'savepoint');
         $recursive = (bool) ($options['recursive_triggers'] ?? true);
         $releaseCurrent = (bool) ($options['release_current'] ?? false);
         $rollbackNext = (bool) ($options['rollback_next'] ?? false);
@@ -826,7 +826,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
 
         foreach ($triggers as $rowTrigger) {
             self::validateRecursiveViewReturningSourceAdmissionTrigger($rowTrigger);
-            if (($rowTrigger['when'] ?? null) !== ($new['option_name'] ?? null)) {
+            if (($rowTrigger['when'] ?? null) !== ($new['key_name'] ?? null)) {
                 continue;
             }
             $effect = [
@@ -836,7 +836,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'view_ordinal' => $ordinal,
                 'depth' => $depth,
                 'trigger' => $rowTrigger['name'],
-                'source_option' => $new['option_name'] ?? null,
+                'source_key' => $new['key_name'] ?? null,
                 'target_option' => $rowTrigger['target'],
                 'result' => $recursive && (bool) ($rowTrigger['recursive'] ?? true) ? 'recursive-upsert' : 'recursive-suppressed',
             ];
@@ -849,7 +849,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             }
             [$rows, $subYield, $subReturning, $subEffects, $subChanges] = self::applyRecursiveViewReturningSourceAdmissionUpsert(
                 $rows,
-                ['option_name' => $rowTrigger['target'], 'option_value' => str_replace('{value}', (string) ($new['option_value'] ?? ''), $rowTrigger['value']), 'autoload' => $new['autoload'] ?? null],
+                ['key_name' => $rowTrigger['target'], 'key_value' => str_replace('{value}', (string) ($new['key_value'] ?? ''), $rowTrigger['value']), 'load_policy' => $new['load_policy'] ?? null],
                 $uniqueColumns,
                 $triggers,
                 $returning,
@@ -1099,7 +1099,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             [
                 'admit_next_source' => $releaseNext,
                 'max_depth' => $options['max_depth'] ?? 8,
-                'savepoint' => $options['savepoint'] ?? 'wp_recursive_view_returning_source-generation',
+                'savepoint' => $options['savepoint'] ?? 'app_recursive_view_returning_source-generation',
             ],
         );
 
@@ -1168,7 +1168,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             if (!is_array($returning)) {
                 throw new InvalidArgumentException('SQLite trigger recursive view source-generation returning row is malformed');
             }
-            $name = (string) ($returning['option_name'] ?? $row['ordinal'] ?? count($out));
+            $name = (string) ($returning['key_name'] ?? $row['ordinal'] ?? count($out));
             $row['source_generation'] = $generation;
             $row['visibility'] = $visibility;
             $row['visible_to_statement'] = $visible;
@@ -1209,8 +1209,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $key = self::recursiveViewBoundaryAdmissionIdentifier((string) ($options['key'] ?? 'option_name'), 'key');
-        $savepoint = self::recursiveViewBoundaryAdmissionToken((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_admission'), 'savepoint');
+        $key = self::recursiveViewBoundaryAdmissionIdentifier((string) ($options['key'] ?? 'key_name'), 'key');
+        $savepoint = self::recursiveViewBoundaryAdmissionToken((string) ($options['savepoint'] ?? 'app_recursive_view_returning_admission'), 'savepoint');
         $recursive = (bool) ($options['recursive_triggers'] ?? true);
         $maxDepth = (int) ($options['max_depth'] ?? 2);
         if ($maxDepth < 0) {
@@ -1615,10 +1615,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $options = [],
     ): array {
         $releaseCount = self::releaseCountStagedReturningSourceQueue($options['release_staged_sources'] ?? 0);
-        $currentGeneration = self::tokenStagedReturningSourceQueue((string) ($options['current_generation'] ?? 'wp-import-current-162'), 'current generation');
-        $firstNextGeneration = self::tokenStagedReturningSourceQueue((string) ($options['first_next_generation'] ?? 'wp-import-next-162-a'), 'first next generation');
-        $secondNextGeneration = self::tokenStagedReturningSourceQueue((string) ($options['second_next_generation'] ?? 'wp-import-next-162-b'), 'second next generation');
-        $savepoint = self::tokenStagedReturningSourceQueue((string) ($options['savepoint'] ?? 'wp_recursive_view_next162'), 'savepoint');
+        $currentGeneration = self::tokenStagedReturningSourceQueue((string) ($options['current_generation'] ?? 'app-import-current-162'), 'current generation');
+        $firstNextGeneration = self::tokenStagedReturningSourceQueue((string) ($options['first_next_generation'] ?? 'app-import-next-162-a'), 'first next generation');
+        $secondNextGeneration = self::tokenStagedReturningSourceQueue((string) ($options['second_next_generation'] ?? 'app-import-next-162-b'), 'second next generation');
+        $savepoint = self::tokenStagedReturningSourceQueue((string) ($options['savepoint'] ?? 'app_recursive_view_next162'), 'savepoint');
         $maxDepth = $options['max_depth'] ?? 8;
 
         $first = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeSourceGenerationBarrier(
@@ -1778,7 +1778,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             [
                 'release_next_source' => $releaseNext,
                 'max_depth' => $options['max_depth'] ?? 8,
-                'savepoint' => $options['savepoint'] ?? 'wp_recursive_view_returning_next163',
+                'savepoint' => $options['savepoint'] ?? 'app_recursive_view_returning_next163',
                 'current_generation' => $options['current_generation'] ?? 'current-source-next163',
                 'next_generation' => $options['next_generation'] ?? 'next-source-next163',
             ],
@@ -1843,8 +1843,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         }
 
         foreach ($rows as $row) {
-            if (!is_array($row) || !array_key_exists('option_name', $row)) {
-                throw new InvalidArgumentException('SQLite trigger recursive view next163 row option_name is missing');
+            if (!is_array($row) || !array_key_exists('key_name', $row)) {
+                throw new InvalidArgumentException('SQLite trigger recursive view next163 row key_name is missing');
             }
         }
 
@@ -1884,15 +1884,15 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $out = [];
         foreach ($returningRows as $ordinal => $row) {
             $returning = $row['returning'] ?? null;
-            if (!is_array($returning) || !array_key_exists('option_name', $returning)) {
-                throw new InvalidArgumentException('SQLite trigger recursive view next163 RETURNING row option_name is missing');
+            if (!is_array($returning) || !array_key_exists('key_name', $returning)) {
+                throw new InvalidArgumentException('SQLite trigger recursive view next163 RETURNING row key_name is missing');
             }
-            $parent = (string) $returning['option_name'];
+            $parent = (string) $returning['key_name'];
             $name = $prefix . ':' . $parent;
             $out[] = [
-                'option_name' => $name,
-                'option_value' => 'generated-from:' . $parent,
-                'autoload' => $returning['autoload'] ?? 'no',
+                'key_name' => $name,
+                'key_value' => 'generated-from:' . $parent,
+                'load_policy' => $returning['load_policy'] ?? 'no',
                 $view['parent_key'] => $parent,
                 'priority' => 1000 + $ordinal,
                 'source' => $view['trigger_source'],
@@ -1937,7 +1937,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $generated = array_flip(self::namesRecursiveChildSourceRelease($generatedRows));
         $recursiveRows = [];
         foreach ($probe['attempted_next_recursive_rows'] as $ordinal => $row) {
-            if (!isset($generated[(string) ($row['option_name'] ?? '')])) {
+            if (!isset($generated[(string) ($row['key_name'] ?? '')])) {
                 continue;
             }
             $row['_seed_ordinal'] = $ordinal;
@@ -1954,7 +1954,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $row['source_generation'] = $base['next_generation'];
             $row['visibility'] = 'next-returning-released-from-trigger-generated-seed';
             $row['visible_to_statement'] = true;
-            $row['visibility_key'] = (string) $base['next_generation'] . ':' . (string) ($returningRow['option_name'] ?? $recursiveRow['option_name']);
+            $row['visibility_key'] = (string) $base['next_generation'] . ':' . (string) ($returningRow['key_name'] ?? $recursiveRow['key_name']);
             $returningRows[] = $row;
         }
 
@@ -1970,7 +1970,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      */
     private static function namesRecursiveChildSourceRelease(array $rows): array
     {
-        return array_values(array_map(static fn (array $row): string => (string) ($row['option_name'] ?? ''), $rows));
+        return array_values(array_map(static fn (array $row): string => (string) ($row['key_name'] ?? ''), $rows));
     }
 
     private static function identifierRecursiveChildSourceRelease(string $value, string $label): string
@@ -2012,8 +2012,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $key = self::identifierRecursiveViewUpsertAdmission((string) ($options['key'] ?? 'option_name'), 'key');
-        $savepoint = self::tokenRecursiveViewUpsertAdmission((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_164'), 'savepoint');
+        $key = self::identifierRecursiveViewUpsertAdmission((string) ($options['key'] ?? 'key_name'), 'key');
+        $savepoint = self::tokenRecursiveViewUpsertAdmission((string) ($options['savepoint'] ?? 'app_recursive_view_returning_164'), 'savepoint');
         $recursive = (bool) ($options['recursive_triggers'] ?? true);
         $maxDepth = (int) ($options['max_depth'] ?? 2);
         if ($maxDepth < 0) {
@@ -2023,7 +2023,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             throw new InvalidArgumentException('SQLite recursive view RETURNING next164 projection cannot be empty');
         }
 
-        $skipColumn = self::identifierRecursiveViewUpsertAdmission((string) ($options['skip_column'] ?? 'autoload_flag'), 'skip column');
+        $skipColumn = self::identifierRecursiveViewUpsertAdmission((string) ($options['skip_column'] ?? 'load_policy_flag'), 'skip column');
         $skipValue = $options['skip_value'] ?? 'skip';
         $conflictAction = strtolower((string) ($options['conflict_action'] ?? 'replace'));
         if (!in_array($conflictAction, ['replace', 'ignore'], true)) {
@@ -2191,7 +2191,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 || (array_key_exists($skipColumn, $item['view_row']) && $item['view_row'][$skipColumn] === $skipValue);
             if ($skip) {
                 $envelope = self::returningEnvelopeRecursiveViewUpsertAdmission($phase, $view, (int) $item['ordinal'], (int) $item['depth'], $event, [
-                    'option_name' => $rowKey,
+                    'key_name' => $rowKey,
                     'skip_reason' => 'raise-ignore',
                 ]);
                 $skipped[] = $envelope + ['parent_key' => $item['parent'], 'view_row' => $item['view_row']];
@@ -2203,7 +2203,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $old = $oldIndex === null ? null : $rows[$oldIndex];
             if ($old !== null && $conflictAction === 'ignore') {
                 $envelope = self::returningEnvelopeRecursiveViewUpsertAdmission($phase, $view, (int) $item['ordinal'], (int) $item['depth'], 'conflict-ignore', [
-                    'option_name' => $rowKey,
+                    'key_name' => $rowKey,
                     'skip_reason' => 'conflict-ignore',
                 ]);
                 $skipped[] = $envelope + ['parent_key' => $item['parent'], 'view_row' => $item['view_row']];
@@ -2451,7 +2451,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $cursor = self::tokenCurrentDrainBeforeStagedSources((string) ($options['cursor_name'] ?? 'wp_recursive_view_returning_cursor_165'), 'cursor');
+        $cursor = self::tokenCurrentDrainBeforeStagedSources((string) ($options['cursor_name'] ?? 'app_recursive_view_returning_cursor_165'), 'cursor');
         $releaseCount = self::releaseCountCurrentDrainBeforeStagedSources($options['release_staged_sources'] ?? 0);
 
         $queue = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeStagedReturningSourceQueue(
@@ -2465,10 +2465,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             [
                 'release_staged_sources' => $releaseCount,
                 'max_depth' => $options['max_depth'] ?? 8,
-                'savepoint' => $options['savepoint'] ?? 'wp_recursive_view_next165',
-                'current_generation' => $options['current_generation'] ?? 'wp-import-current-165',
-                'first_next_generation' => $options['first_next_generation'] ?? 'wp-import-next-165-a',
-                'second_next_generation' => $options['second_next_generation'] ?? 'wp-import-next-165-b',
+                'savepoint' => $options['savepoint'] ?? 'app_recursive_view_next165',
+                'current_generation' => $options['current_generation'] ?? 'app-import-current-165',
+                'first_next_generation' => $options['first_next_generation'] ?? 'app-import-next-165-a',
+                'second_next_generation' => $options['second_next_generation'] ?? 'app-import-next-165-b',
             ],
         );
 
@@ -2676,7 +2676,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $releaseNext = (bool) ($options['release_next_source'] ?? true);
         $currentGeneration = self::tokenStagedSourceReleaseAfterDrain((string) ($options['current_generation'] ?? 'current-source-next166'), 'current generation');
         $nextGeneration = self::tokenStagedSourceReleaseAfterDrain((string) ($options['next_generation'] ?? 'next-source-next166'), 'next generation');
-        $savepoint = self::tokenStagedSourceReleaseAfterDrain((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_next166'), 'savepoint');
+        $savepoint = self::tokenStagedSourceReleaseAfterDrain((string) ($options['savepoint'] ?? 'app_recursive_view_returning_next166'), 'savepoint');
 
         $plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeRecursiveChildSourceRelease(
             $rows,
@@ -2795,8 +2795,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'phase' => $phase,
                 'generation' => $generation,
                 'visible' => $visible,
-                'visibility_key' => (string) ($row['visibility_key'] ?? ($generation . ':' . ($returning['option_name'] ?? $index))),
-                'option_name' => (string) ($returning['option_name'] ?? ''),
+                'visibility_key' => (string) ($row['visibility_key'] ?? ($generation . ':' . ($returning['key_name'] ?? $index))),
+                'key_name' => (string) ($returning['key_name'] ?? ''),
                 'root_name' => (string) ($returning['root_name'] ?? ''),
                 'trigger_cookie' => (string) ($returning['trigger_cookie'] ?? ''),
             ];
@@ -2905,7 +2905,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'last' => $last,
                 'sources' => array_values(array_unique(array_column($chunk, 'source'))),
                 'trigger_sources' => array_values(array_unique(array_column($chunk, 'trigger_source'))),
-                'names' => array_column(array_column($chunk, 'returning'), 'option_name'),
+                'names' => array_column(array_column($chunk, 'returning'), 'key_name'),
                 'rows' => $chunk,
             ];
         }
@@ -2976,12 +2976,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $options = [],
     ): array {
         $releaseCount = self::releaseCountNestedCurrentDrainBeforeStagedSources($options['release_staged_sources'] ?? 0);
-        $cursor = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['cursor_name'] ?? 'wp_recursive_view_returning_cursor_169'), 'cursor');
-        $savepoint = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['savepoint'] ?? 'wp_recursive_view_next169'), 'savepoint');
-        $currentGeneration = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['current_generation'] ?? 'wp-import-current-169'), 'current generation');
-        $nestedGeneration = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['nested_generation'] ?? 'wp-import-current-169-nested'), 'nested generation');
-        $firstNextGeneration = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['first_next_generation'] ?? 'wp-import-next-169-a'), 'first next generation');
-        $secondNextGeneration = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['second_next_generation'] ?? 'wp-import-next-169-b'), 'second next generation');
+        $cursor = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['cursor_name'] ?? 'app_recursive_view_returning_cursor_169'), 'cursor');
+        $savepoint = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['savepoint'] ?? 'app_recursive_view_next169'), 'savepoint');
+        $currentGeneration = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['current_generation'] ?? 'app-import-current-169'), 'current generation');
+        $nestedGeneration = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['nested_generation'] ?? 'app-import-current-169-nested'), 'nested generation');
+        $firstNextGeneration = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['first_next_generation'] ?? 'app-import-next-169-a'), 'first next generation');
+        $secondNextGeneration = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['second_next_generation'] ?? 'app-import-next-169-b'), 'second next generation');
         $maxDepth = (int) ($options['max_depth'] ?? 8);
         if ($maxDepth < 1) {
             throw new InvalidArgumentException('SQLite trigger recursive view next169 max depth must be positive');
@@ -3196,7 +3196,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     ): array {
         $currentCookie = self::nonNegativeIntSourceReprepareBarrier($options['current_schema_cookie'] ?? 1, 'current schema cookie');
         $nextCookie = self::nonNegativeIntSourceReprepareBarrier($options['next_schema_cookie'] ?? $currentCookie, 'next schema cookie');
-        $token = self::tokenSourceReprepareBarrier((string) ($options['reprepare_token'] ?? 'wp-recursive-view-returning-next170'), 'reprepare token');
+        $token = self::tokenSourceReprepareBarrier((string) ($options['reprepare_token'] ?? 'app-recursive-view-returning-next170'), 'reprepare token');
         $expectedToken = self::tokenSourceReprepareBarrier((string) ($options['expected_reprepare_token'] ?? $token), 'expected reprepare token');
 
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentDrainBeforeStagedSources(
@@ -3210,11 +3210,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             [
                 'release_staged_sources' => $options['release_staged_sources'] ?? 0,
                 'max_depth' => $options['max_depth'] ?? 8,
-                'savepoint' => $options['savepoint'] ?? 'wp_recursive_view_next170',
-                'current_generation' => $options['current_generation'] ?? 'wp-import-current-170',
-                'first_next_generation' => $options['first_next_generation'] ?? 'wp-import-next-170-a',
-                'second_next_generation' => $options['second_next_generation'] ?? 'wp-import-next-170-b',
-                'cursor_name' => $options['cursor_name'] ?? 'wp_recursive_view_returning_cursor_170',
+                'savepoint' => $options['savepoint'] ?? 'app_recursive_view_next170',
+                'current_generation' => $options['current_generation'] ?? 'app-import-current-170',
+                'first_next_generation' => $options['first_next_generation'] ?? 'app-import-next-170-a',
+                'second_next_generation' => $options['second_next_generation'] ?? 'app-import-next-170-b',
+                'cursor_name' => $options['cursor_name'] ?? 'app_recursive_view_returning_cursor_170',
             ],
         );
 
@@ -3475,8 +3475,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $key = self::identifierRecursiveChildYieldStream((string) ($options['key'] ?? 'option_name'), 'key column');
-        $savepoint = self::tokenRecursiveChildYieldStream((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_next172'), 'savepoint');
+        $key = self::identifierRecursiveChildYieldStream((string) ($options['key'] ?? 'key_name'), 'key column');
+        $savepoint = self::tokenRecursiveChildYieldStream((string) ($options['savepoint'] ?? 'app_recursive_view_returning_next172'), 'savepoint');
         $admitNext = (bool) ($options['admit_next_source'] ?? false);
         $recursive = (bool) ($options['recursive_triggers'] ?? true);
         $maxDepth = (int) ($options['max_depth'] ?? 2);
@@ -3610,9 +3610,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $yield[] = $envelope;
             $returningRows[] = $envelope;
             $effects[] = $envelope + [
-                'option_name' => $new[$key],
-                'old_value' => $old['option_value'] ?? null,
-                'new_value' => $new['option_value'] ?? null,
+                'key_name' => $new[$key],
+                'old_value' => $old['key_value'] ?? null,
+                'new_value' => $new['key_value'] ?? null,
             ];
             ++$changes;
             if ($origin === 'recursive') {
@@ -3622,7 +3622,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             if ($recursive && $depth < $maxDepth && (($incoming['spawn_child'] ?? true) !== false)) {
                 $child = $new;
                 $child[$key] = (string) $new[$key] . $childSuffix;
-                $child['option_value'] = (string) ($new['option_value'] ?? '') . $childSuffix;
+                $child['key_value'] = (string) ($new['key_value'] ?? '') . $childSuffix;
                 $child['parent_option'] = $new[$key];
                 $queue[] = [$child, $ordinal, $depth + 1, 'recursive'];
             }
@@ -3967,15 +3967,15 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             [
                 'release_staged_sources' => $options['release_staged_sources'] ?? 0,
                 'max_depth' => $options['max_depth'] ?? 8,
-                'savepoint' => $options['savepoint'] ?? 'wp_recursive_view_next174',
-                'current_generation' => $options['current_generation'] ?? 'wp-import-current-174',
-                'first_next_generation' => $options['first_next_generation'] ?? 'wp-import-next-174-a',
-                'second_next_generation' => $options['second_next_generation'] ?? 'wp-import-next-174-b',
-                'cursor_name' => $options['cursor_name'] ?? 'wp_recursive_view_returning_cursor_174',
+                'savepoint' => $options['savepoint'] ?? 'app_recursive_view_next174',
+                'current_generation' => $options['current_generation'] ?? 'app-import-current-174',
+                'first_next_generation' => $options['first_next_generation'] ?? 'app-import-next-174-a',
+                'second_next_generation' => $options['second_next_generation'] ?? 'app-import-next-174-b',
+                'cursor_name' => $options['cursor_name'] ?? 'app_recursive_view_returning_cursor_174',
                 'current_schema_cookie' => $options['current_schema_cookie'] ?? 174,
                 'next_schema_cookie' => $options['next_schema_cookie'] ?? 175,
-                'reprepare_token' => $options['reprepare_token'] ?? 'wp.reprepare.174',
-                'expected_reprepare_token' => $options['expected_reprepare_token'] ?? 'wp.reprepare.174.expected',
+                'reprepare_token' => $options['reprepare_token'] ?? 'app.reprepare.174',
+                'expected_reprepare_token' => $options['expected_reprepare_token'] ?? 'app.reprepare.174.expected',
             ],
         );
 
@@ -4115,7 +4115,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $options = [],
     ): array {
         $action = self::actionCurrentSourceCheckpointFence((string) ($options['savepoint_action'] ?? 'hold'));
-        $restartCursor = self::tokenCurrentSourceCheckpointFence((string) ($options['restart_cursor'] ?? 'wp-recursive-view-returning-restart-175'), 'restart cursor');
+        $restartCursor = self::tokenCurrentSourceCheckpointFence((string) ($options['restart_cursor'] ?? 'app-recursive-view-returning-restart-175'), 'restart cursor');
         $epoch = self::epochCurrentSourceCheckpointFence($options['current_source_epoch'] ?? 0);
 
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeVisibleSourceGenerationFence(
@@ -4426,10 +4426,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $cursor = self::tokenCurrentSourceDrainTicketFence((string) ($options['cursor_name'] ?? 'wp_recursive_view_returning_cursor_177'), 'cursor name');
-        $currentGeneration = self::tokenCurrentSourceDrainTicketFence((string) ($options['current_generation'] ?? 'wp-current-returning-177'), 'current generation');
-        $nextGeneration = self::tokenCurrentSourceDrainTicketFence((string) ($options['next_generation'] ?? 'wp-next-returning-177'), 'next generation');
-        $token = self::tokenCurrentSourceDrainTicketFence((string) ($options['reprepare_token'] ?? 'wp.reprepare.177'), 'reprepare token');
+        $cursor = self::tokenCurrentSourceDrainTicketFence((string) ($options['cursor_name'] ?? 'app_recursive_view_returning_cursor_177'), 'cursor name');
+        $currentGeneration = self::tokenCurrentSourceDrainTicketFence((string) ($options['current_generation'] ?? 'app-current-returning-177'), 'current generation');
+        $nextGeneration = self::tokenCurrentSourceDrainTicketFence((string) ($options['next_generation'] ?? 'app-next-returning-177'), 'next generation');
+        $token = self::tokenCurrentSourceDrainTicketFence((string) ($options['reprepare_token'] ?? 'app.reprepare.177'), 'reprepare token');
         $expectedToken = self::tokenCurrentSourceDrainTicketFence((string) ($options['expected_reprepare_token'] ?? $token), 'expected reprepare token');
         $pageSize = self::positiveIntCurrentSourceDrainTicketFence($options['page_size'] ?? 3, 'page size');
 
@@ -4441,8 +4441,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $nextView,
             $returning,
             [
-                'key' => $options['key'] ?? 'option_name',
-                'savepoint' => $options['savepoint'] ?? 'wp_recursive_view_returning_next177',
+                'key' => $options['key'] ?? 'key_name',
+                'savepoint' => $options['savepoint'] ?? 'app_recursive_view_returning_next177',
                 'admit_next_source' => $options['admit_next_source'] ?? false,
                 'recursive_triggers' => $options['recursive_triggers'] ?? true,
                 'max_depth' => $options['max_depth'] ?? 2,
@@ -4647,7 +4647,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $snapshotToken = self::tokenNextSourcePublicationFence((string) ($options['snapshot_token'] ?? 'wp.recursive.view.returning.snapshot.178'), 'snapshot token');
+        $snapshotToken = self::tokenNextSourcePublicationFence((string) ($options['snapshot_token'] ?? 'app.recursive.view.returning.snapshot.178'), 'snapshot token');
         $expectedSnapshotToken = self::tokenNextSourcePublicationFence((string) ($options['expected_snapshot_token'] ?? $snapshotToken), 'expected snapshot token');
         $schemaCookie = self::cookieNextSourcePublicationFence($options['current_schema_cookie'] ?? 178, 'current schema cookie');
         $expectedSchemaCookie = self::cookieNextSourcePublicationFence($options['expected_current_schema_cookie'] ?? $schemaCookie, 'expected current schema cookie');
@@ -4753,7 +4753,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                     'returning_snapshot_token' => $snapshotToken,
                     'returning_schema_cookie' => $schemaCookie,
                     'returning_row_ordinal' => count($rows),
-                    'returning_option_name' => (string) (($row['returning']['option_name'] ?? null) ?? ''),
+                    'returning_key_name' => (string) (($row['returning']['key_name'] ?? null) ?? ''),
                 ];
             }
         }
@@ -4827,9 +4827,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $currentToken = self::recursiveViewResetGenerationToken((string) ($options['current_source_token'] ?? 'wp.current.source.180'), 'current source token', 'SQLite trigger recursive view RETURNING next180');
+        $currentToken = self::recursiveViewResetGenerationToken((string) ($options['current_source_token'] ?? 'app.current.source.180'), 'current source token', 'SQLite trigger recursive view RETURNING next180');
         $expectedCurrentToken = self::recursiveViewResetGenerationToken((string) ($options['expected_current_source_token'] ?? $currentToken), 'expected current source token', 'SQLite trigger recursive view RETURNING next180');
-        $drainAck = self::recursiveViewResetGenerationToken((string) ($options['drain_ack_token'] ?? 'wp.returning.drain.180'), 'drain ack token', 'SQLite trigger recursive view RETURNING next180');
+        $drainAck = self::recursiveViewResetGenerationToken((string) ($options['drain_ack_token'] ?? 'app.returning.drain.180'), 'drain ack token', 'SQLite trigger recursive view RETURNING next180');
         $expectedDrainAck = self::recursiveViewResetGenerationToken((string) ($options['expected_drain_ack_token'] ?? $drainAck), 'expected drain ack token', 'SQLite trigger recursive view RETURNING next180');
 
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceDrainTicketFence(
@@ -5125,13 +5125,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $checkpoint = self::tokenNestedCurrentCheckpointFence((string) ($options['checkpoint_name'] ?? 'wp_recursive_view_returning_checkpoint_181'), 'checkpoint name');
+        $checkpoint = self::tokenNestedCurrentCheckpointFence((string) ($options['checkpoint_name'] ?? 'app_recursive_view_returning_checkpoint_181'), 'checkpoint name');
         $commitVisible = (bool) ($options['commit_visible_checkpoints'] ?? true);
         $baseOptions = $options + [
-            'cursor_name' => 'wp_recursive_view_returning_cursor_181',
-            'current_generation' => 'wp-current-returning-181',
-            'next_generation' => 'wp-next-returning-181',
-            'savepoint' => 'wp_recursive_view_returning_next181',
+            'cursor_name' => 'app_recursive_view_returning_cursor_181',
+            'current_generation' => 'app-current-returning-181',
+            'next_generation' => 'app-next-returning-181',
+            'savepoint' => 'app_recursive_view_returning_next181',
         ];
 
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceDrainTicketFence(
@@ -5294,11 +5294,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $currentGeneration = self::tokenNextSourceQuarantineFence((string) ($options['current_source_generation'] ?? 'wp.recursive.view.current.182'), 'current source generation');
+        $currentGeneration = self::tokenNextSourceQuarantineFence((string) ($options['current_source_generation'] ?? 'app.recursive.view.current.182'), 'current source generation');
         $expectedCurrentGeneration = self::tokenNextSourceQuarantineFence((string) ($options['expected_current_source_generation'] ?? $currentGeneration), 'expected current source generation');
-        $triggerGeneration = self::tokenNextSourceQuarantineFence((string) ($options['trigger_source_generation'] ?? 'wp.recursive.trigger.current.182'), 'trigger source generation');
+        $triggerGeneration = self::tokenNextSourceQuarantineFence((string) ($options['trigger_source_generation'] ?? 'app.recursive.trigger.current.182'), 'trigger source generation');
         $expectedTriggerGeneration = self::tokenNextSourceQuarantineFence((string) ($options['expected_trigger_source_generation'] ?? $triggerGeneration), 'expected trigger source generation');
-        $cursorGeneration = self::tokenNextSourceQuarantineFence((string) ($options['returning_cursor_generation'] ?? 'wp.recursive.returning.cursor.182'), 'returning cursor generation');
+        $cursorGeneration = self::tokenNextSourceQuarantineFence((string) ($options['returning_cursor_generation'] ?? 'app.recursive.returning.cursor.182'), 'returning cursor generation');
 
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNextSourcePublicationFence(
             $rows,
@@ -5417,7 +5417,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $seen = [];
         $out = [];
         foreach ($rows as $row) {
-            $key = ($row['statement_source'] ?? '') . "\0" . ($row['returning_page'] ?? '') . "\0" . ($row['returning_row_ordinal'] ?? '') . "\0" . ($row['returning_option_name'] ?? '');
+            $key = ($row['statement_source'] ?? '') . "\0" . ($row['returning_page'] ?? '') . "\0" . ($row['returning_row_ordinal'] ?? '') . "\0" . ($row['returning_key_name'] ?? '');
             if (isset($seen[$key])) {
                 continue;
             }
@@ -5489,9 +5489,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $rollbackToken = self::tokenCurrentSourceResetGenerationFence((string) ($options['rollback_token'] ?? 'wp.rollback.current.183'), 'rollback token');
+        $rollbackToken = self::tokenCurrentSourceResetGenerationFence((string) ($options['rollback_token'] ?? 'app.rollback.current.183'), 'rollback token');
         $expectedRollbackToken = self::tokenCurrentSourceResetGenerationFence((string) ($options['expected_rollback_token'] ?? $rollbackToken), 'expected rollback token');
-        $resetGeneration = self::tokenCurrentSourceResetGenerationFence((string) ($options['reset_generation'] ?? 'wp-current-reset-183'), 'reset generation');
+        $resetGeneration = self::tokenCurrentSourceResetGenerationFence((string) ($options['reset_generation'] ?? 'app-current-reset-183'), 'reset generation');
         $rollbackRequested = (bool) ($options['rollback_current_source'] ?? true);
         $commitCurrent = (bool) ($options['commit_current_source'] ?? false);
 
@@ -5690,14 +5690,14 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $handoffToken = self::currentCheckpointToken((string) ($options['handoff_token'] ?? 'wp.returning.current.source.handoff.184'), 'handoff token');
+        $handoffToken = self::currentCheckpointToken((string) ($options['handoff_token'] ?? 'app.returning.current.source.handoff.184'), 'handoff token');
         $expectedHandoffToken = self::currentCheckpointToken((string) ($options['expected_handoff_token'] ?? $handoffToken), 'expected handoff token');
         $baseOptions = $options + [
-            'cursor_name' => 'wp_recursive_view_returning_cursor_184',
-            'current_generation' => 'wp-current-returning-184',
-            'next_generation' => 'wp-next-returning-184',
-            'checkpoint_name' => 'wp_recursive_view_checkpoint_184',
-            'savepoint' => 'wp_recursive_view_returning_next184',
+            'cursor_name' => 'app_recursive_view_returning_cursor_184',
+            'current_generation' => 'app-current-returning-184',
+            'next_generation' => 'app-next-returning-184',
+            'checkpoint_name' => 'app_recursive_view_checkpoint_184',
+            'savepoint' => 'app_recursive_view_returning_next184',
         ];
 
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNestedCurrentCheckpointFence(
@@ -5953,7 +5953,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $nestedEpoch = self::tokenNestedCurrentReturningVisibilityFence((string) ($options['nested_epoch'] ?? 'wp.recursive.view.nested.185'), 'nested epoch');
+        $nestedEpoch = self::tokenNestedCurrentReturningVisibilityFence((string) ($options['nested_epoch'] ?? 'app.recursive.view.nested.185'), 'nested epoch');
         $expectedNestedEpoch = self::tokenNestedCurrentReturningVisibilityFence((string) ($options['expected_nested_epoch'] ?? $nestedEpoch), 'expected nested epoch');
         $requiredDepths = self::depthsNestedCurrentReturningVisibilityFence($options['required_nested_depths'] ?? [1, 2], 'required nested depths');
         $drainedDepths = self::depthsNestedCurrentReturningVisibilityFence($options['drained_nested_depths'] ?? $requiredDepths, 'drained nested depths');
@@ -6083,7 +6083,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $seen = [];
         $out = [];
         foreach ($rows as $row) {
-            $key = ($row['statement_source'] ?? '') . "\0" . ($row['returning_row_ordinal'] ?? '') . "\0" . ($row['returning_option_name'] ?? '');
+            $key = ($row['statement_source'] ?? '') . "\0" . ($row['returning_row_ordinal'] ?? '') . "\0" . ($row['returning_key_name'] ?? '');
             if (isset($seen[$key])) {
                 continue;
             }
@@ -6179,9 +6179,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $postResetToken = self::tokenPostResetCurrentSourceRebind((string) ($options['post_reset_current_source_token'] ?? 'wp.current.source.postreset.186'), 'post reset current source token');
+        $postResetToken = self::tokenPostResetCurrentSourceRebind((string) ($options['post_reset_current_source_token'] ?? 'app.current.source.postreset.186'), 'post reset current source token');
         $expectedPostResetToken = self::tokenPostResetCurrentSourceRebind((string) ($options['expected_post_reset_current_source_token'] ?? $postResetToken), 'expected post reset current source token');
-        $postResetCursor = self::tokenPostResetCurrentSourceRebind((string) ($options['post_reset_cursor'] ?? 'wp.returning.postreset.cursor.186'), 'post reset cursor');
+        $postResetCursor = self::tokenPostResetCurrentSourceRebind((string) ($options['post_reset_cursor'] ?? 'app.returning.postreset.cursor.186'), 'post reset cursor');
         $reuseStaleCursor = (bool) ($options['reuse_stale_returning_cursor'] ?? false);
 
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceResetGenerationFence(
@@ -6261,7 +6261,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'statement_source' => 'post-reset-current',
                 'returning_row_ordinal' => $ordinal,
                 'returning' => $payload,
-                'returning_option_name' => (string) ($new['option_name'] ?? $new['name'] ?? ''),
+                'returning_key_name' => (string) ($new['key_name'] ?? $new['name'] ?? ''),
                 'post_reset_current_source_token_next186' => $token,
                 'post_reset_cursor_next186' => $cursor,
                 'reset_generation_next186' => $resetGeneration,
@@ -6288,9 +6288,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $expr = is_array($term) ? (string) ($term['expr'] ?? '') : (string) $term;
             $alias = is_array($term) ? (string) ($term['as'] ?? $expr) : $expr;
             $payload[$alias] = match ($expr) {
-                'new.option_name' => $new['option_name'] ?? null,
-                'new.option_value' => $new['option_value'] ?? null,
-                'old.option_value' => null,
+                'new.key_name' => $new['key_name'] ?? null,
+                'new.key_value' => $new['key_value'] ?? null,
+                'old.key_value' => null,
                 'event' => 'post-reset-current',
                 'depth' => 0,
                 'ordinal' => $ordinal,
@@ -6471,12 +6471,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $options = [],
     ): array {
         $baseOptions = $options + [
-            'cursor_name' => 'wp_recursive_view_returning_cursor_187',
-            'current_generation' => 'wp-current-returning-187',
-            'next_generation' => 'wp-next-returning-187',
-            'checkpoint_name' => 'wp_recursive_view_checkpoint_187',
-            'handoff_token' => 'wp.returning.current.source.handoff.187',
-            'savepoint' => 'wp_recursive_view_returning_next187',
+            'cursor_name' => 'app_recursive_view_returning_cursor_187',
+            'current_generation' => 'app-current-returning-187',
+            'next_generation' => 'app-next-returning-187',
+            'checkpoint_name' => 'app_recursive_view_checkpoint_187',
+            'handoff_token' => 'app.returning.current.source.handoff.187',
+            'savepoint' => 'app_recursive_view_returning_next187',
         ];
 
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentCheckpointHandoff(
@@ -6489,7 +6489,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $baseOptions,
         );
 
-        $prefix = self::tokenCurrentCheckpointDrainTicket((string) ($options['drain_ticket_prefix'] ?? 'wp.returning.current.source.drain.187'), 'drain ticket prefix');
+        $prefix = self::tokenCurrentCheckpointDrainTicket((string) ($options['drain_ticket_prefix'] ?? 'app.returning.current.source.drain.187'), 'drain ticket prefix');
         $expectedTicket = self::tokenCurrentCheckpointDrainTicket((string) ($options['expected_drain_ticket'] ?? self::ticketCurrentCheckpointDrainTicket($prefix, $base['required_current_checkpoints'] ?? [])), 'expected drain ticket');
         $actualTicket = self::tokenCurrentCheckpointDrainTicket((string) ($options['drain_ticket'] ?? self::ticketCurrentCheckpointDrainTicket($prefix, $base['acknowledged_current_checkpoints'] ?? [])), 'drain ticket');
         $ticketMatches = $actualTicket === $expectedTicket;
@@ -6676,7 +6676,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $watermark = self::tokenCurrentWatermarkOrdinalFence((string) ($options['current_watermark'] ?? 'wp.recursive.view.current.watermark.188'), 'current watermark');
+        $watermark = self::tokenCurrentWatermarkOrdinalFence((string) ($options['current_watermark'] ?? 'app.recursive.view.current.watermark.188'), 'current watermark');
         $expectedWatermark = self::tokenCurrentWatermarkOrdinalFence((string) ($options['expected_current_watermark'] ?? $watermark), 'expected current watermark');
         $requireContiguous = (bool) ($options['require_contiguous_ordinals'] ?? true);
 
@@ -6893,7 +6893,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $seen = [];
         $out = [];
         foreach ($rows as $row) {
-            $key = ($row['statement_source'] ?? '') . "\0" . ($row['returning_row_ordinal'] ?? '') . "\0" . ($row['returning_option_name'] ?? '');
+            $key = ($row['statement_source'] ?? '') . "\0" . ($row['returning_row_ordinal'] ?? '') . "\0" . ($row['returning_key_name'] ?? '');
             if (isset($seen[$key])) {
                 continue;
             }
@@ -7001,9 +7001,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         );
 
         $acknowledged = self::ordinalsNextSourceAdmissionAfterFreshAck($options['fresh_acknowledged_ordinals'] ?? []);
-        $nextToken = self::tokenNextSourceAdmissionAfterFreshAck((string) ($options['next_source_token'] ?? 'wp.next.source.189'), 'next source token');
+        $nextToken = self::tokenNextSourceAdmissionAfterFreshAck((string) ($options['next_source_token'] ?? 'app.next.source.189'), 'next source token');
         $expectedNextToken = self::tokenNextSourceAdmissionAfterFreshAck((string) ($options['expected_next_source_token'] ?? $nextToken), 'expected next source token');
-        $nextCursor = self::tokenNextSourceAdmissionAfterFreshAck((string) ($options['next_cursor'] ?? 'wp.returning.next.cursor.189'), 'next cursor');
+        $nextCursor = self::tokenNextSourceAdmissionAfterFreshAck((string) ($options['next_cursor'] ?? 'app.returning.next.cursor.189'), 'next cursor');
         $expectedResetGeneration = self::tokenNextSourceAdmissionAfterFreshAck((string) ($options['expected_reset_generation'] ?? ($base['post_reset_rebind_plan_next186']['reset_generation'] ?? '')), 'expected reset generation');
         $resetGenerationMatches = hash_equals($expectedResetGeneration, (string) ($base['post_reset_rebind_plan_next186']['reset_generation'] ?? ''));
         $tokenMatches = hash_equals($nextToken, $expectedNextToken);
@@ -7012,7 +7012,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $currentRowsAcknowledged = $freshRows !== [] && self::acknowledgesAllFreshRowsNextSourceAdmissionAfterFreshAck($freshOrdinals, $acknowledged);
         $canAdmitNext = $currentRowsAcknowledged && $tokenMatches && $resetGenerationMatches && $base['blocked_reasons_next186'] === [];
         $nextRows = $canAdmitNext
-            ? self::nextRowsNextSourceAdmissionAfterFreshAck($nextInput, self::viewNextSourceAdmissionAfterFreshAck($nextView), $returning, $nextToken, $nextCursor, (string) ($options['next_generation'] ?? 'wp-next-returning-189'))
+            ? self::nextRowsNextSourceAdmissionAfterFreshAck($nextInput, self::viewNextSourceAdmissionAfterFreshAck($nextView), $returning, $nextToken, $nextCursor, (string) ($options['next_generation'] ?? 'app-next-returning-189'))
             : [];
 
         return [
@@ -7083,7 +7083,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'statement_source' => 'next-source',
                 'returning_row_ordinal' => $ordinal,
                 'returning' => self::returningPayloadNextSourceAdmissionAfterFreshAck($returning, $new, $view, $ordinal),
-                'returning_option_name' => (string) ($new['option_name'] ?? $new['name'] ?? ''),
+                'returning_key_name' => (string) ($new['key_name'] ?? $new['name'] ?? ''),
                 'next_source_token_next189' => $token,
                 'next_cursor_next189' => $cursor,
                 'next_generation_next189' => $generation,
@@ -7109,9 +7109,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $expr = is_array($term) ? (string) ($term['expr'] ?? '') : (string) $term;
             $alias = is_array($term) ? (string) ($term['as'] ?? $expr) : $expr;
             $payload[$alias] = match ($expr) {
-                'new.option_name' => $new['option_name'] ?? null,
-                'new.option_value' => $new['option_value'] ?? null,
-                'old.option_value' => null,
+                'new.key_name' => $new['key_name'] ?? null,
+                'new.key_value' => $new['key_value'] ?? null,
+                'old.key_value' => null,
                 'event' => 'next-source',
                 'depth' => 0,
                 'ordinal' => $ordinal,
@@ -7320,13 +7320,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $options = [],
     ): array {
         $baseOptions = $options + [
-            'cursor_name' => 'wp_recursive_view_returning_cursor_190',
-            'current_generation' => 'wp-current-returning-190',
-            'next_generation' => 'wp-next-returning-190',
-            'checkpoint_name' => 'wp_recursive_view_checkpoint_190',
-            'handoff_token' => 'wp.returning.current.source.handoff.190',
-            'savepoint' => 'wp_recursive_view_returning_next190',
-            'drain_ticket_prefix' => 'wp.returning.current.source.drain.190',
+            'cursor_name' => 'app_recursive_view_returning_cursor_190',
+            'current_generation' => 'app-current-returning-190',
+            'next_generation' => 'app-next-returning-190',
+            'checkpoint_name' => 'app_recursive_view_checkpoint_190',
+            'handoff_token' => 'app.returning.current.source.handoff.190',
+            'savepoint' => 'app_recursive_view_returning_next190',
+            'drain_ticket_prefix' => 'app.returning.current.source.drain.190',
         ];
 
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentCheckpointDrainTicket(
@@ -7343,7 +7343,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $attemptedNextRows = self::rowsCurrentSourceResumeFence($base['attempted_next_source_rows'] ?? [], 'attempted next source rows');
         $lastCurrentResume = $currentRows === [] ? null : (string) $currentRows[array_key_last($currentRows)]['resume_token'];
         $firstNextResume = $attemptedNextRows === [] ? null : (string) $attemptedNextRows[0]['resume_token'];
-        $prefix = self::tokenCurrentSourceResumeFence((string) ($options['resume_source_prefix'] ?? 'wp.returning.current.source.resume.190'), 'resume source prefix');
+        $prefix = self::tokenCurrentSourceResumeFence((string) ($options['resume_source_prefix'] ?? 'app.returning.current.source.resume.190'), 'resume source prefix');
         $expectedResumeSource = self::tokenCurrentSourceResumeFence(
             (string) ($options['expected_resume_source_token'] ?? self::resumeTokenCurrentSourceResumeFence($prefix, $lastCurrentResume, $currentView, $returning)),
             'expected resume source token',
@@ -7590,7 +7590,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $salt = self::currentSourceFingerprintToken((string) ($options['fingerprint_salt'] ?? 'wp.recursive.view.returning.fingerprint.191'), 'fingerprint salt');
+        $salt = self::currentSourceFingerprintToken((string) ($options['fingerprint_salt'] ?? 'app.recursive.view.returning.fingerprint.191'), 'fingerprint salt');
         $expectedSalt = self::currentSourceFingerprintToken((string) ($options['expected_fingerprint_salt'] ?? $salt), 'expected fingerprint salt');
         $requireOrder = (bool) ($options['require_fingerprint_order'] ?? true);
 
@@ -7707,7 +7707,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 $salt,
                 (string) ($row['statement_source'] ?? 'current'),
                 (string) ($row['returning_row_ordinal'] ?? $index),
-                (string) ($row['returning_option_name'] ?? ($payload['option_name'] ?? '')),
+                (string) ($row['returning_key_name'] ?? ($payload['key_name'] ?? '')),
                 (string) ($row['returning_current_source_generation'] ?? ''),
                 (string) ($row['returning_trigger_source_generation'] ?? ''),
                 json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
@@ -7808,7 +7808,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $seen = [];
         $out = [];
         foreach ($rows as $row) {
-            $key = ($row['statement_source'] ?? '') . "\0" . ($row['returning_row_ordinal'] ?? '') . "\0" . ($row['returning_option_name'] ?? '');
+            $key = ($row['statement_source'] ?? '') . "\0" . ($row['returning_row_ordinal'] ?? '') . "\0" . ($row['returning_key_name'] ?? '');
             if (isset($seen[$key])) {
                 continue;
             }
@@ -7919,13 +7919,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $requiredOrdinals = array_column($nextRows, 'returning_row_ordinal');
         $acknowledgedOrdinals = self::followingCurrentAcknowledgedOrdinals($options['next_acknowledged_ordinals'] ?? []);
         $nextRowsAcknowledged = $nextRows !== [] && self::sameFollowingCurrentOrdinals($requiredOrdinals, $acknowledgedOrdinals);
-        $nextCursor = self::followingCurrentCursorToken((string) ($options['next_cursor'] ?? ($base['next_cursor_next189'] ?? 'wp.returning.next.cursor.192')), 'next cursor');
+        $nextCursor = self::followingCurrentCursorToken((string) ($options['next_cursor'] ?? ($base['next_cursor_next189'] ?? 'app.returning.next.cursor.192')), 'next cursor');
         $closeCursor = self::followingCurrentCursorToken((string) ($options['close_next_cursor'] ?? $nextCursor), 'close next cursor');
         $cursorMatches = hash_equals($nextCursor, $closeCursor);
-        $followingToken = self::followingCurrentCursorToken((string) ($options['following_current_source_token'] ?? 'wp.current.source.following.192'), 'following current source token');
+        $followingToken = self::followingCurrentCursorToken((string) ($options['following_current_source_token'] ?? 'app.current.source.following.192'), 'following current source token');
         $expectedFollowingToken = self::followingCurrentCursorToken((string) ($options['expected_following_current_source_token'] ?? $followingToken), 'expected following current source token');
         $followingTokenMatches = hash_equals($followingToken, $expectedFollowingToken);
-        $followingCursor = self::followingCurrentCursorToken((string) ($options['following_cursor'] ?? 'wp.returning.following.cursor.192'), 'following cursor');
+        $followingCursor = self::followingCurrentCursorToken((string) ($options['following_cursor'] ?? 'app.returning.following.cursor.192'), 'following cursor');
         $baseAdmittedNext = ($base['status_next189'] ?? '') === 'trigger-recursive-view-returning-current-source-next189-next-source-visible';
         $canAdmitFollowing = $baseAdmittedNext && $nextRowsAcknowledged && $cursorMatches && $followingTokenMatches;
         $followingRows = $canAdmitFollowing
@@ -7935,7 +7935,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 $returning,
                 $followingToken,
                 $followingCursor,
-                (string) ($options['following_generation'] ?? 'wp-following-current-192'),
+                (string) ($options['following_generation'] ?? 'app-following-current-192'),
             )
             : [];
 
@@ -8006,7 +8006,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'statement_source' => 'following-current',
                 'returning_row_ordinal' => $ordinal,
                 'returning' => self::followingCurrentReturningPayload($returning, $new, $view, $ordinal),
-                'returning_option_name' => (string) ($new['option_name'] ?? $new['name'] ?? ''),
+                'returning_key_name' => (string) ($new['key_name'] ?? $new['name'] ?? ''),
                 'following_current_source_token_next192' => $token,
                 'following_cursor_next192' => $cursor,
                 'following_generation_next192' => $generation,
@@ -8032,9 +8032,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $expr = is_array($term) ? (string) ($term['expr'] ?? '') : (string) $term;
             $alias = is_array($term) ? (string) ($term['as'] ?? $expr) : $expr;
             $payload[$alias] = match ($expr) {
-                'new.option_name' => $new['option_name'] ?? null,
-                'new.option_value' => $new['option_value'] ?? null,
-                'old.option_value' => null,
+                'new.key_name' => $new['key_name'] ?? null,
+                'new.key_value' => $new['key_value'] ?? null,
+                'old.key_value' => null,
                 'event' => 'following-current',
                 'depth' => 0,
                 'ordinal' => $ordinal,
@@ -8255,7 +8255,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         );
 
         $nextRows = self::sealedNextSourceRows($base['next_source_rows_next189'] ?? [], 'next source rows');
-        $handoffToken = self::sealedNextSourceToken((string) ($options['handoff_token'] ?? 'wp.recursive.view.returning.handoff.193'), 'handoff token');
+        $handoffToken = self::sealedNextSourceToken((string) ($options['handoff_token'] ?? 'app.recursive.view.returning.handoff.193'), 'handoff token');
         $expectedHandoffToken = self::sealedNextSourceToken((string) ($options['expected_handoff_token'] ?? $handoffToken), 'expected handoff token');
         $sequenceToken = self::sealedNextSourceToken((string) ($options['source_sequence_token'] ?? self::sealedNextSourceSequenceToken($nextRows)), 'source sequence token');
         $expectedSequenceToken = self::sealedNextSourceToken((string) ($options['expected_source_sequence_token'] ?? self::sealedNextSourceSequenceToken($nextRows)), 'expected source sequence token');
@@ -8351,7 +8351,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
 
         return substr(hash('sha256', json_encode([
             'signatures' => $signatures,
-            'names' => array_column($rows, 'returning_option_name'),
+            'names' => array_column($rows, 'returning_key_name'),
             'count' => count($rows),
         ], JSON_THROW_ON_ERROR)), 0, 16);
     }
@@ -8367,7 +8367,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
 
         return 'seq-' . substr(hash('sha256', json_encode([
             'ordinals' => array_column($rows, 'returning_row_ordinal'),
-            'names' => array_column($rows, 'returning_option_name'),
+            'names' => array_column($rows, 'returning_key_name'),
         ], JSON_THROW_ON_ERROR)), 0, 12);
     }
 
@@ -8510,14 +8510,14 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options + [
                 'admit_next_source' => true,
                 'auto_ack_current' => true,
-                'cursor_name' => 'wp_recursive_view_returning_cursor_done_gate',
-                'current_generation' => 'wp-current-returning-done-gate',
-                'next_generation' => 'wp-next-returning-done-gate',
-                'checkpoint_name' => 'wp_recursive_view_checkpoint_done_gate',
-                'handoff_token' => 'wp.returning.current.source.handoff.done.gate',
-                'savepoint' => 'wp_recursive_view_returning_done_gate',
-                'drain_ticket_prefix' => 'wp.returning.current.source.drain.done.gate',
-                'resume_source_prefix' => 'wp.returning.current.source.resume.done.gate',
+                'cursor_name' => 'app_recursive_view_returning_cursor_done_gate',
+                'current_generation' => 'app-current-returning-done-gate',
+                'next_generation' => 'app-next-returning-done-gate',
+                'checkpoint_name' => 'app_recursive_view_checkpoint_done_gate',
+                'handoff_token' => 'app.returning.current.source.handoff.done.gate',
+                'savepoint' => 'app_recursive_view_returning_done_gate',
+                'drain_ticket_prefix' => 'app.returning.current.source.drain.done.gate',
+                'resume_source_prefix' => 'app.returning.current.source.resume.done.gate',
             ],
         );
 
@@ -8750,9 +8750,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $sourceToken = self::tokenForSourceResume((string) ($options['current_source_token_source_resume'] ?? 'wp.recursive.view.current.source.195'), 'current source token');
+        $sourceToken = self::tokenForSourceResume((string) ($options['current_source_token_source_resume'] ?? 'app.recursive.view.current.source.195'), 'current source token');
         $expectedSourceToken = self::tokenForSourceResume((string) ($options['expected_current_source_token_source_resume'] ?? $sourceToken), 'expected current source token');
-        $resumeToken = self::tokenForSourceResume((string) ($options['next_resume_token_source_resume'] ?? 'wp.recursive.view.next.resume.195'), 'next resume token');
+        $resumeToken = self::tokenForSourceResume((string) ($options['next_resume_token_source_resume'] ?? 'app.recursive.view.next.resume.195'), 'next resume token');
         $expectedResumeToken = self::tokenForSourceResume((string) ($options['expected_next_resume_token_source_resume'] ?? $resumeToken), 'expected next resume token');
         $requireOrder = (bool) ($options['require_receipt_order_source_resume'] ?? true);
 
@@ -8871,7 +8871,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 $resumeToken,
                 (string) ($row['current_row_fingerprint_next191'] ?? ''),
                 (string) ($row['returning_row_ordinal'] ?? $index),
-                (string) ($row['returning_option_name'] ?? ''),
+                (string) ($row['returning_key_name'] ?? ''),
                 (string) ($row['source_signature_next188'] ?? ''),
             ];
             $receipts[] = substr(hash('sha256', implode('|', $parts)), 0, 28);
@@ -9081,11 +9081,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $followingVisible = ($base['status_next192'] ?? '') === 'trigger-recursive-view-returning-current-source-next192-following-current-visible';
         $recursiveColumn = self::followingRecursiveChildIdentifier((string) ($options['recursive_child_column'] ?? 'spawn_child'), 'recursive child column');
         $recursiveSuffix = self::followingRecursiveChildToken((string) ($options['recursive_child_suffix'] ?? '_child'), 'recursive child suffix');
-        $currentToken = self::followingRecursiveChildToken((string) ($options['following_current_source_token'] ?? ($base['following_current_source_token_next192'] ?? 'wp.current.source.following.196')), 'following current source token');
-        $childToken = self::followingRecursiveChildToken((string) ($options['recursive_child_source_token'] ?? 'wp.current.source.recursive.child.196'), 'recursive child source token');
+        $currentToken = self::followingRecursiveChildToken((string) ($options['following_current_source_token'] ?? ($base['following_current_source_token_next192'] ?? 'app.current.source.following.196')), 'following current source token');
+        $childToken = self::followingRecursiveChildToken((string) ($options['recursive_child_source_token'] ?? 'app.current.source.recursive.child.196'), 'recursive child source token');
         $expectedChildToken = self::followingRecursiveChildToken((string) ($options['expected_recursive_child_source_token'] ?? $childToken), 'expected recursive child source token');
-        $cursor = self::followingRecursiveChildToken((string) ($options['recursive_child_cursor'] ?? 'wp.returning.recursive.child.cursor.196'), 'recursive child cursor');
-        $generation = self::followingRecursiveChildToken((string) ($options['recursive_child_generation'] ?? 'wp-recursive-child-current-196'), 'recursive child generation');
+        $cursor = self::followingRecursiveChildToken((string) ($options['recursive_child_cursor'] ?? 'app.returning.recursive.child.cursor.196'), 'recursive child cursor');
+        $generation = self::followingRecursiveChildToken((string) ($options['recursive_child_generation'] ?? 'app-recursive-child-current-196'), 'recursive child generation');
         $childRows = $followingVisible
             ? self::followingRecursiveChildRows($followingRows, $returning, $currentView, $recursiveColumn, $recursiveSuffix, $currentToken, $childToken, $cursor, $generation)
             : [];
@@ -9154,8 +9154,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 continue;
             }
             $new = [
-                'option_name' => (string) ($payload['name'] ?? $payload['option_name'] ?? $parent['returning_option_name'] ?? '') . $suffix,
-                'option_value' => (string) ($payload['value'] ?? $payload['option_value'] ?? '') . $suffix,
+                'key_name' => (string) ($payload['name'] ?? $payload['key_name'] ?? $parent['returning_key_name'] ?? '') . $suffix,
+                'key_value' => (string) ($payload['value'] ?? $payload['key_value'] ?? '') . $suffix,
                 $recursiveColumn => false,
             ];
             $out[] = [
@@ -9163,7 +9163,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'parent_returning_row_ordinal' => (int) ($parent['returning_row_ordinal'] ?? $parentOrdinal),
                 'returning_row_ordinal' => count($out),
                 'returning' => self::followingRecursiveChildReturningPayload($returning, $new, $view, count($out)),
-                'returning_option_name' => $new['option_name'],
+                'returning_key_name' => $new['key_name'],
                 'parent_following_current_source_token_next196' => $currentToken,
                 'recursive_child_source_token_next196' => $childToken,
                 'recursive_child_cursor_next196' => $cursor,
@@ -9191,9 +9191,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $expr = is_array($term) ? (string) ($term['expr'] ?? '') : (string) $term;
             $alias = is_array($term) ? (string) ($term['as'] ?? $expr) : $expr;
             $payload[$alias] = match ($expr) {
-                'new.option_name' => $new['option_name'],
-                'new.option_value' => $new['option_value'],
-                'old.option_value' => null,
+                'new.key_name' => $new['key_name'],
+                'new.key_value' => $new['key_value'],
+                'old.key_value' => null,
                 'event' => 'recursive-child-current',
                 'depth' => 1,
                 'ordinal' => $ordinal,
@@ -9389,14 +9389,14 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options + [
                 'admit_next_source' => true,
                 'auto_ack_current' => true,
-                'cursor_name' => 'wp_recursive_view_returning_cursor_200',
-                'current_generation' => 'wp-current-returning-200',
-                'next_generation' => 'wp-next-returning-200',
-                'checkpoint_name' => 'wp_recursive_view_checkpoint_200',
-                'handoff_token' => 'wp.returning.current.source.handoff.200',
-                'savepoint' => 'wp_recursive_view_returning_next200',
-                'drain_ticket_prefix' => 'wp.returning.current.source.drain.200',
-                'resume_source_prefix' => 'wp.returning.current.source.resume.200',
+                'cursor_name' => 'app_recursive_view_returning_cursor_200',
+                'current_generation' => 'app-current-returning-200',
+                'next_generation' => 'app-next-returning-200',
+                'checkpoint_name' => 'app_recursive_view_checkpoint_200',
+                'handoff_token' => 'app.returning.current.source.handoff.200',
+                'savepoint' => 'app_recursive_view_returning_next200',
+                'drain_ticket_prefix' => 'app.returning.current.source.drain.200',
+                'resume_source_prefix' => 'app.returning.current.source.resume.200',
             ],
         );
         $base['status_done_gate'] = $base['status'];
@@ -9644,10 +9644,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $currentGeneration = self::currentGenerationDepthFenceToken((string) ($options['current_view_generation_generationDepthFence'] ?? 'wp.current.recursive.view.202'), 'current view generation');
+        $currentGeneration = self::currentGenerationDepthFenceToken((string) ($options['current_view_generation_generationDepthFence'] ?? 'app.current.recursive.view.202'), 'current view generation');
         $expectedGeneration = self::currentGenerationDepthFenceToken((string) ($options['expected_current_view_generation_generationDepthFence'] ?? $currentGeneration), 'expected current view generation');
-        $nextGeneration = self::currentGenerationDepthFenceToken((string) ($options['next_view_generation_generationDepthFence'] ?? 'wp.next.recursive.view.202'), 'next view generation');
-        $resumeBarrier = self::currentGenerationDepthFenceToken((string) ($options['returning_resume_barrier_generationDepthFence'] ?? 'wp.returning.resume.barrier.202'), 'returning resume barrier');
+        $nextGeneration = self::currentGenerationDepthFenceToken((string) ($options['next_view_generation_generationDepthFence'] ?? 'app.next.recursive.view.202'), 'next view generation');
+        $resumeBarrier = self::currentGenerationDepthFenceToken((string) ($options['returning_resume_barrier_generationDepthFence'] ?? 'app.returning.resume.barrier.202'), 'returning resume barrier');
         $requiredDepths = self::normalizedCurrentGenerationDepths($options['required_current_depths_generationDepthFence'] ?? self::requiredCurrentGenerationDepths($base), 'required current depths');
         $acknowledgedDepths = self::normalizedCurrentGenerationDepths($options['acknowledged_current_depths_generationDepthFence'] ?? [], 'acknowledged current depths');
         $generationMatches = hash_equals($currentGeneration, $expectedGeneration);
@@ -9939,10 +9939,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $currentGeneration = self::currentGenerationToken((string) ($options['current_generation_next203'] ?? 'wp.current.recursive.returning.generation.203'), 'current generation');
+        $currentGeneration = self::currentGenerationToken((string) ($options['current_generation_next203'] ?? 'app.current.recursive.returning.generation.203'), 'current generation');
         $expectedGeneration = self::currentGenerationToken((string) ($options['expected_current_generation_next203'] ?? $currentGeneration), 'expected current generation');
-        $handoffCursor = self::currentGenerationToken((string) ($options['current_handoff_cursor_next203'] ?? 'wp.returning.current.handoff.cursor.203'), 'current handoff cursor');
-        $commitMarker = self::currentGenerationToken((string) ($options['current_generation_commit_marker_next203'] ?? 'wp.current.recursive.returning.commit.203'), 'current generation commit marker');
+        $handoffCursor = self::currentGenerationToken((string) ($options['current_handoff_cursor_next203'] ?? 'app.returning.current.handoff.cursor.203'), 'current handoff cursor');
+        $commitMarker = self::currentGenerationToken((string) ($options['current_generation_commit_marker_next203'] ?? 'app.current.recursive.returning.commit.203'), 'current generation commit marker');
         $basePublishAllowed = (bool) ($base['next_source_publish_allowed_next196'] ?? false);
         $generationMatches = hash_equals($currentGeneration, $expectedGeneration);
         $requiredReceipts = self::currentGenerationReceipts(
@@ -10067,7 +10067,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 $commitMarker,
                 (string) ($row['source_signature_next196'] ?? ''),
                 (string) ($row['returning_row_ordinal'] ?? $index),
-                (string) ($row['returning_option_name'] ?? ''),
+                (string) ($row['returning_key_name'] ?? ''),
             ];
             $receipts[] = substr(hash('sha256', implode('|', $parts)), 0, 30);
         }
@@ -10273,11 +10273,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $currentRows = self::rowsForSourceSequenceFence($base['current_generation_rows_next203'] ?? [], 'current generation rows');
         $nextRows = self::rowsForSourceSequenceFence($base['attempted_next_generation_rows_next203'] ?? [], 'attempted next generation rows');
         $baseVisible = (bool) ($base['next_source_visible_after_current_generation_next203'] ?? false);
-        $sourceToken = self::tokenForSourceSequenceFence((string) ($options['current_source_sequence_fence_token_source_sequence_fence'] ?? 'wp.current.returning.source.sequence.source_sequence'), 'current source-sequence token');
+        $sourceToken = self::tokenForSourceSequenceFence((string) ($options['current_source_sequence_fence_token_source_sequence_fence'] ?? 'app.current.returning.source.sequence.source_sequence'), 'current source-sequence token');
         $expectedSourceToken = self::tokenForSourceSequenceFence((string) ($options['expected_current_source_sequence_fence_token_source_sequence_fence'] ?? $sourceToken), 'expected current source-sequence token');
-        $nextSourceToken = self::tokenForSourceSequenceFence((string) ($options['next_source_sequence_fence_token_source_sequence_fence'] ?? 'wp.next.returning.source.sequence.source_sequence'), 'next source-sequence token');
+        $nextSourceToken = self::tokenForSourceSequenceFence((string) ($options['next_source_sequence_fence_token_source_sequence_fence'] ?? 'app.next.returning.source.sequence.source_sequence'), 'next source-sequence token');
         $expectedNextSourceToken = self::tokenForSourceSequenceFence((string) ($options['expected_next_source_sequence_fence_token_source_sequence_fence'] ?? $nextSourceToken), 'expected next source-sequence token');
-        $cursor = self::tokenForSourceSequenceFence((string) ($options['source_sequence_cursor_source_sequence_fence'] ?? 'wp.returning.source.sequence.cursor.source_sequence'), 'source-sequence cursor');
+        $cursor = self::tokenForSourceSequenceFence((string) ($options['source_sequence_cursor_source_sequence_fence'] ?? 'app.returning.source.sequence.cursor.source_sequence'), 'source-sequence cursor');
         $sequence = self::sourceSequenceReceipts($currentRows, $sourceToken, $cursor);
         $acknowledged = self::acknowledgedSourceSequenceReceipts($options, $sequence);
         $requireOrder = (bool) ($options['require_source_sequence_fence_order_source_sequence_fence'] ?? true);
@@ -10389,7 +10389,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 $cursor,
                 (string) ($row['current_generation_receipt_next203'] ?? ''),
                 (string) ($row['returning_row_ordinal'] ?? $index),
-                (string) ($row['returning_option_name'] ?? ''),
+                (string) ($row['returning_key_name'] ?? ''),
             ];
             $sequence[] = substr(hash('sha256', implode('|', $parts)), 0, 32);
         }
@@ -10601,9 +10601,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
 
         $currentRows = self::rowsForYieldWatermarkFence($base['current_generation_rows_next203'] ?? [], 'current generation rows');
         $nextRows = self::rowsForYieldWatermarkFence($base['attempted_next_generation_rows_next203'] ?? [], 'attempted next generation rows');
-        $sourceToken = self::tokenForYieldWatermarkFence((string) ($options['yield_current_source_token_next206'] ?? 'wp.current.recursive.returning.source.206'), 'current source token');
-        $cursor = self::tokenForYieldWatermarkFence((string) ($options['yield_current_cursor_next206'] ?? 'wp.returning.current.cursor.206'), 'current cursor');
-        $statementToken = self::tokenForYieldWatermarkFence((string) ($options['yield_statement_token_next206'] ?? 'wp.recursive.view.returning.statement.206'), 'statement token');
+        $sourceToken = self::tokenForYieldWatermarkFence((string) ($options['yield_current_source_token_next206'] ?? 'app.current.recursive.returning.source.206'), 'current source token');
+        $cursor = self::tokenForYieldWatermarkFence((string) ($options['yield_current_cursor_next206'] ?? 'app.returning.current.cursor.206'), 'current cursor');
+        $statementToken = self::tokenForYieldWatermarkFence((string) ($options['yield_statement_token_next206'] ?? 'app.recursive.view.returning.statement.206'), 'statement token');
         $batchKeys = self::batchKeysForYieldWatermarkFence($currentRows, $sourceToken, $cursor, $statementToken);
         $watermark = self::watermarkForYieldWatermarkFence($batchKeys, $sourceToken, $cursor, $statementToken);
         $expectedWatermark = self::tokenForYieldWatermarkFence((string) ($options['expected_yield_watermark_next206'] ?? $watermark), 'expected watermark');
@@ -10695,7 +10695,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 $statementToken,
                 (string) ($row['current_generation_receipt_next203'] ?? ''),
                 (string) ($row['returning_row_ordinal'] ?? $index),
-                (string) ($payload['name'] ?? $payload['option_name'] ?? $row['returning_option_name'] ?? ''),
+                (string) ($payload['name'] ?? $payload['key_name'] ?? $row['returning_key_name'] ?? ''),
             ];
             $keys[] = substr(hash('sha256', implode('|', $parts)), 0, 32);
         }
@@ -10874,10 +10874,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $currentRows = self::rowsForCurrentSourceDrainFence($base['current_source_rows_next206'] ?? [], 'current source rows');
         $nextRows = self::rowsForCurrentSourceDrainFence($base['attempted_next_source_rows_next206'] ?? [], 'attempted next source rows');
         $baseVisible = (bool) ($base['next_source_visible_after_yield_watermark_next206'] ?? false);
-        $drainToken = self::tokenForCurrentSourceDrainFence((string) ($options['current_returning_drain_token_next207'] ?? 'wp.current.returning.drain.207'), 'current drain token');
+        $drainToken = self::tokenForCurrentSourceDrainFence((string) ($options['current_returning_drain_token_next207'] ?? 'app.current.returning.drain.207'), 'current drain token');
         $expectedDrainToken = self::tokenForCurrentSourceDrainFence((string) ($options['expected_current_returning_drain_token_next207'] ?? $drainToken), 'expected current drain token');
-        $cursor = self::tokenForCurrentSourceDrainFence((string) ($options['current_returning_cursor_next207'] ?? 'wp.current.returning.cursor.207'), 'current returning cursor');
-        $statementToken = self::tokenForCurrentSourceDrainFence((string) ($options['returning_statement_token_next207'] ?? 'wp.recursive.view.returning.statement.207'), 'statement token');
+        $cursor = self::tokenForCurrentSourceDrainFence((string) ($options['current_returning_cursor_next207'] ?? 'app.current.returning.cursor.207'), 'current returning cursor');
+        $statementToken = self::tokenForCurrentSourceDrainFence((string) ($options['returning_statement_token_next207'] ?? 'app.recursive.view.returning.statement.207'), 'statement token');
         $drainKeys = self::drainKeysForCurrentSourceDrainFence($currentRows, $drainToken, $cursor, $statementToken);
         $acknowledgedDrainKeys = self::acknowledgedDrainKeysForCurrentSourceDrainFence($options, $drainKeys);
         $requireOrder = (bool) ($options['require_returning_drain_order_next207'] ?? true);
@@ -10989,7 +10989,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 (string) ($row['yield_watermark_next206'] ?? ''),
                 (string) ($row['yield_batch_key_next206'] ?? ''),
                 (string) ($row['returning_row_ordinal'] ?? $index),
-                (string) ($payload['name'] ?? $payload['option_name'] ?? $row['returning_option_name'] ?? ''),
+                (string) ($payload['name'] ?? $payload['key_name'] ?? $row['returning_key_name'] ?? ''),
             ];
             $keys[] = substr(hash('sha256', implode('|', $parts)), 0, 32);
         }
@@ -11221,7 +11221,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $currentCursor = self::cursorCloseToken((string) ($base['yield_current_cursor_next206'] ?? ''), 'base current cursor');
         $closeCursor = self::cursorCloseToken((string) ($options['close_current_cursor_next208'] ?? $currentCursor), 'close current cursor');
         $expectedCloseCursor = self::cursorCloseToken((string) ($options['expected_close_current_cursor_next208'] ?? $currentCursor), 'expected close cursor');
-        $closeStatement = self::cursorCloseToken((string) ($options['close_statement_token_next208'] ?? 'wp.recursive.view.returning.close.208'), 'close statement token');
+        $closeStatement = self::cursorCloseToken((string) ($options['close_statement_token_next208'] ?? 'app.recursive.view.returning.close.208'), 'close statement token');
         $closedWatermark = self::cursorCloseWatermark($currentRows, $currentCursor, $closeCursor, $closeStatement, (string) ($base['yield_watermark_next206'] ?? ''));
         $expectedWatermark = self::cursorCloseToken((string) ($options['expected_closed_yield_watermark_next208'] ?? $closedWatermark), 'expected closed watermark');
         $cursorMatches = hash_equals($currentCursor, $closeCursor) && hash_equals($currentCursor, $expectedCloseCursor);
@@ -11430,7 +11430,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $drainSource = self::currentSourceWatermarkDrainToken((string) ($options['current_source_drain_token_next209'] ?? 'wp.current.source.drain.209'), 'current source drain token');
+        $drainSource = self::currentSourceWatermarkDrainToken((string) ($options['current_source_drain_token_next209'] ?? 'app.current.source.drain.209'), 'current source drain token');
         $viewCookie = self::currentSourceWatermarkDrainToken((string) ($options['current_view_cookie_next209'] ?? (string) ($currentView['source'] ?? 'current-view-cookie-209')), 'current view cookie');
         $triggerCookie = self::currentSourceWatermarkDrainToken((string) ($options['current_trigger_cookie_next209'] ?? (string) ($currentView['trigger_source'] ?? 'current-trigger-cookie-209')), 'current trigger cookie');
         $expectedViewCookie = self::currentSourceWatermarkDrainToken((string) ($options['expected_current_view_cookie_next209'] ?? $viewCookie), 'expected current view cookie');
@@ -11761,8 +11761,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $sequenceToken = self::currentSourceSequenceToken((string) ($options['current_source_sequence_fence_token_next210'] ?? $options['current_source_sequence_token_next210'] ?? 'wp.current.source.sequence.210'), 'current source-sequence token');
-        $handoffCursor = self::currentSourceSequenceToken((string) ($options['sequence_handoff_cursor_next210'] ?? 'wp.returning.sequence.cursor.210'), 'sequence handoff cursor');
+        $sequenceToken = self::currentSourceSequenceToken((string) ($options['current_source_sequence_fence_token_next210'] ?? $options['current_source_sequence_token_next210'] ?? 'app.current.source.sequence.210'), 'current source-sequence token');
+        $handoffCursor = self::currentSourceSequenceToken((string) ($options['sequence_handoff_cursor_next210'] ?? 'app.returning.sequence.cursor.210'), 'sequence handoff cursor');
         $expectedHandoffCursor = self::currentSourceSequenceToken((string) ($options['expected_sequence_handoff_cursor_next210'] ?? $handoffCursor), 'expected sequence handoff cursor');
         $viewCookie = self::currentSourceSequenceToken((string) ($base['current_view_cookie_next209'] ?? ''), 'base view cookie');
         $triggerCookie = self::currentSourceSequenceToken((string) ($base['current_trigger_cookie_next209'] ?? ''), 'base trigger cookie');
@@ -12417,9 +12417,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $yieldToken = self::currentSourceYieldToken((string) ($options['current_source_yield_token_next212'] ?? 'wp.current.source.yield.212'), 'current source yield token');
-        $viewCursor = self::currentSourceYieldToken((string) ($options['current_view_yield_cursor_next212'] ?? 'wp.returning.view.yield.cursor.212'), 'current view yield cursor');
-        $triggerCursor = self::currentSourceYieldToken((string) ($options['current_trigger_yield_cursor_next212'] ?? 'wp.returning.trigger.yield.cursor.212'), 'current trigger yield cursor');
+        $yieldToken = self::currentSourceYieldToken((string) ($options['current_source_yield_token_next212'] ?? 'app.current.source.yield.212'), 'current source yield token');
+        $viewCursor = self::currentSourceYieldToken((string) ($options['current_view_yield_cursor_next212'] ?? 'app.returning.view.yield.cursor.212'), 'current view yield cursor');
+        $triggerCursor = self::currentSourceYieldToken((string) ($options['current_trigger_yield_cursor_next212'] ?? 'app.returning.trigger.yield.cursor.212'), 'current trigger yield cursor');
         $requireOrder = (bool) ($options['require_current_source_yield_order_next212'] ?? true);
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_drain_next209'] ?? false);
 
@@ -12732,8 +12732,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $sealToken = self::currentSourcePayloadSealToken((string) ($options['current_source_payload_seal_token_next213'] ?? 'wp.current.source.payload.seal.213'), 'current source payload seal token');
-        $sealCursor = self::currentSourcePayloadSealToken((string) ($options['current_source_payload_seal_cursor_next213'] ?? 'wp.returning.current.payload.cursor.213'), 'current source payload seal cursor');
+        $sealToken = self::currentSourcePayloadSealToken((string) ($options['current_source_payload_seal_token_next213'] ?? 'app.current.source.payload.seal.213'), 'current source payload seal token');
+        $sealCursor = self::currentSourcePayloadSealToken((string) ($options['current_source_payload_seal_cursor_next213'] ?? 'app.returning.current.payload.cursor.213'), 'current source payload seal cursor');
         $requireOrder = (bool) ($options['require_current_source_payload_seal_order_next213'] ?? true);
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_yield_next212'] ?? false);
 
@@ -13038,7 +13038,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $provenanceToken = self::tokenForProvenanceFence((string) ($options['current_source_provenance_token_next217'] ?? 'wp.current.source.provenance.217'), 'current source provenance token');
+        $provenanceToken = self::tokenForProvenanceFence((string) ($options['current_source_provenance_token_next217'] ?? 'app.current.source.provenance.217'), 'current source provenance token');
         $viewSource = self::tokenForProvenanceFence((string) ($currentView['source'] ?? ''), 'current view source');
         $triggerSource = self::tokenForProvenanceFence((string) ($currentView['trigger_source'] ?? ''), 'current trigger source');
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_yield_next212'] ?? false);
@@ -13379,10 +13379,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $epoch = self::tokenForEpochReceiptFence((string) ($options['current_source_epoch_next218'] ?? 'wp.current.source.epoch.218'), 'current source epoch');
+        $epoch = self::tokenForEpochReceiptFence((string) ($options['current_source_epoch_next218'] ?? 'app.current.source.epoch.218'), 'current source epoch');
         $expectedEpoch = self::tokenForEpochReceiptFence((string) ($options['expected_current_source_epoch_next218'] ?? $epoch), 'expected current source epoch');
-        $viewEpoch = self::tokenForEpochReceiptFence((string) ($options['current_view_epoch_next218'] ?? 'wp.returning.view.epoch.218'), 'current view epoch');
-        $triggerEpoch = self::tokenForEpochReceiptFence((string) ($options['current_trigger_epoch_next218'] ?? 'wp.returning.trigger.epoch.218'), 'current trigger epoch');
+        $viewEpoch = self::tokenForEpochReceiptFence((string) ($options['current_view_epoch_next218'] ?? 'app.returning.view.epoch.218'), 'current view epoch');
+        $triggerEpoch = self::tokenForEpochReceiptFence((string) ($options['current_trigger_epoch_next218'] ?? 'app.returning.trigger.epoch.218'), 'current trigger epoch');
         $requireOrder = (bool) ($options['require_current_source_epoch_order_next218'] ?? true);
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_yield_next212'] ?? false);
         $epochMatches = hash_equals($epoch, $expectedEpoch);
@@ -13690,10 +13690,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $resetToken = self::tokenForResetFence((string) ($options['next_source_reset_token_next219'] ?? 'wp.next.source.reset.219'), 'next source reset token');
-        $resetCursor = self::tokenForResetFence((string) ($options['next_source_reset_cursor_next219'] ?? 'wp.returning.next.reset.cursor.219'), 'next source reset cursor');
+        $resetToken = self::tokenForResetFence((string) ($options['next_source_reset_token_next219'] ?? 'app.next.source.reset.219'), 'next source reset token');
+        $resetCursor = self::tokenForResetFence((string) ($options['next_source_reset_cursor_next219'] ?? 'app.returning.next.reset.cursor.219'), 'next source reset cursor');
         $expectedResetCursor = self::tokenForResetFence((string) ($options['expected_next_source_reset_cursor_next219'] ?? $resetCursor), 'expected next source reset cursor');
-        $followingToken = self::tokenForResetFence((string) ($options['following_current_source_token_next219'] ?? 'wp.current.source.following.219'), 'following current source token');
+        $followingToken = self::tokenForResetFence((string) ($options['following_current_source_token_next219'] ?? 'app.current.source.following.219'), 'following current source token');
         $expectedFollowingToken = self::tokenForResetFence((string) ($options['expected_following_current_source_token_next219'] ?? $followingToken), 'expected following current source token');
         $followingView = self::viewForResetFence($options['following_current_view_next219'] ?? $currentView);
         $followingInput = self::inputRowsForResetFence($options['following_current_input_next219'] ?? [], 'following current input');
@@ -13927,16 +13927,16 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $rows = [];
         foreach ($input as $row) {
             $new = [
-                'option_name' => (string) ($row['name'] ?? $row['option_name'] ?? ''),
-                'option_value' => (string) ($row['value'] ?? $row['option_value'] ?? ''),
-                'autoload' => (string) ($row['autoload_flag'] ?? $row['autoload'] ?? 'yes'),
+                'key_name' => (string) ($row['name'] ?? $row['key_name'] ?? ''),
+                'key_value' => (string) ($row['value'] ?? $row['key_value'] ?? ''),
+                'load_policy' => (string) ($row['load_policy_flag'] ?? $row['load_policy'] ?? 'yes'),
                 'spawn_child' => (bool) ($row['spawn_child'] ?? false),
             ];
             $rows[] = [
                 'statement_source' => 'following-current-after-next-reset',
                 'returning_row_ordinal' => count($rows),
                 'returning' => self::returningPayloadForResetFence($returning, $new, $view, count($rows)),
-                'returning_option_name' => $new['option_name'],
+                'returning_key_name' => $new['key_name'],
                 'following_current_source_token_next219' => $followingToken,
                 'next_source_reset_token_next219' => $resetToken,
                 'next_source_reset_cursor_next219' => $resetCursor,
@@ -13964,9 +13964,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $expr = is_array($term) ? (string) ($term['expr'] ?? '') : (string) $term;
             $alias = is_array($term) ? (string) ($term['as'] ?? $expr) : $expr;
             $payload[$alias] = match ($expr) {
-                'new.option_name' => $new['option_name'],
-                'new.option_value' => $new['option_value'],
-                'old.option_value' => null,
+                'new.key_name' => $new['key_name'],
+                'new.key_value' => $new['key_value'],
+                'old.key_value' => null,
                 'event' => 'following-current-after-next-reset',
                 'depth' => 0,
                 'ordinal' => $ordinal,
@@ -14101,7 +14101,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $sourceTicket = self::tokenForTicketFence((string) ($options['current_source_ticket_next222'] ?? 'wp.current.source.ticket.222'), 'current source ticket');
+        $sourceTicket = self::tokenForTicketFence((string) ($options['current_source_ticket_next222'] ?? 'app.current.source.ticket.222'), 'current source ticket');
         $viewSource = self::tokenForTicketFence((string) ($options['current_view_source_next222'] ?? (string) ($currentView['source'] ?? 'main@view-cookie-222-current')), 'current view source');
         $triggerSource = self::tokenForTicketFence((string) ($options['current_trigger_source_next222'] ?? (string) ($currentView['trigger_source'] ?? 'main@trigger-cookie-222-current')), 'current trigger source');
         $expectedViewSource = self::tokenForTicketFence((string) ($options['expected_current_view_source_next222'] ?? $viewSource), 'expected current view source');
@@ -14497,7 +14497,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $currentRows = self::returningRowsForSourceSeal($base['current_source_rows_next218'] ?? [], 'current source rows');
         $nextRows = self::returningRowsForSourceSeal($base['attempted_next_source_rows_next218'] ?? [], 'attempted next source rows');
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_epoch_next218'] ?? false);
-        $sourceToken = self::tokenForSourceSeal((string) ($options['current_returning_source_token_source_seal'] ?? 'wp.current.returning.source.224'), 'current returning source token');
+        $sourceToken = self::tokenForSourceSeal((string) ($options['current_returning_source_token_source_seal'] ?? 'app.current.returning.source.224'), 'current returning source token');
         $expectedSourceToken = self::tokenForSourceSeal((string) ($options['expected_current_returning_source_token_source_seal'] ?? $sourceToken), 'expected current returning source token');
         $viewSource = self::tokenForSourceSeal((string) ($options['current_returning_view_source_source_seal'] ?? ($currentView['source'] ?? 'main@view-cookie-224-current')), 'current returning view source');
         $expectedViewSource = self::tokenForSourceSeal((string) ($options['expected_current_returning_view_source_source_seal'] ?? $viewSource), 'expected current returning view source');
@@ -14876,10 +14876,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
 
         $baseFollowingVisible = (bool) ($base['following_current_source_visible_next219'] ?? false);
         $followingRows = self::followingCurrentSealRows($base['following_current_rows_next219'] ?? [], 'following current rows');
-        $sealToken = self::followingCurrentSealToken((string) ($options['following_current_seal_token_next226'] ?? 'wp.following.current.seal.226'), 'following current seal token');
-        $sealCursor = self::followingCurrentSealToken((string) ($options['following_current_seal_cursor_next226'] ?? 'wp.returning.following.current.cursor.226'), 'following current seal cursor');
+        $sealToken = self::followingCurrentSealToken((string) ($options['following_current_seal_token_next226'] ?? 'app.following.current.seal.226'), 'following current seal token');
+        $sealCursor = self::followingCurrentSealToken((string) ($options['following_current_seal_cursor_next226'] ?? 'app.returning.following.current.cursor.226'), 'following current seal cursor');
         $expectedSealCursor = self::followingCurrentSealToken((string) ($options['expected_following_current_seal_cursor_next226'] ?? $sealCursor), 'expected following current seal cursor');
-        $subsequentToken = self::followingCurrentSealToken((string) ($options['subsequent_next_source_token_next226'] ?? 'wp.subsequent.next.source.226'), 'subsequent next source token');
+        $subsequentToken = self::followingCurrentSealToken((string) ($options['subsequent_next_source_token_next226'] ?? 'app.subsequent.next.source.226'), 'subsequent next source token');
         $expectedSubsequentToken = self::followingCurrentSealToken((string) ($options['expected_subsequent_next_source_token_next226'] ?? $subsequentToken), 'expected subsequent next source token');
         $subsequentView = self::followingCurrentSealView($options['subsequent_next_view_next226'] ?? $nextView);
         $subsequentInput = self::followingCurrentSealInputRows($options['subsequent_next_input_next226'] ?? [], 'subsequent next input');
@@ -15111,16 +15111,16 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $rows = [];
         foreach ($input as $row) {
             $new = [
-                'option_name' => (string) ($row['name'] ?? $row['option_name'] ?? ''),
-                'option_value' => (string) ($row['value'] ?? $row['option_value'] ?? ''),
-                'autoload' => (string) ($row['autoload_flag'] ?? $row['autoload'] ?? 'yes'),
+                'key_name' => (string) ($row['name'] ?? $row['key_name'] ?? ''),
+                'key_value' => (string) ($row['value'] ?? $row['key_value'] ?? ''),
+                'load_policy' => (string) ($row['load_policy_flag'] ?? $row['load_policy'] ?? 'yes'),
                 'spawn_child' => (bool) ($row['spawn_child'] ?? false),
             ];
             $rows[] = [
                 'statement_source' => 'subsequent-next-after-following-current-seal',
                 'returning_row_ordinal' => count($rows),
                 'returning' => self::followingCurrentSealReturningPayload($returning, $new, $view, count($rows)),
-                'returning_option_name' => $new['option_name'],
+                'returning_key_name' => $new['key_name'],
                 'subsequent_next_source_token_next226' => $subsequentToken,
                 'following_current_seal_token_next226' => $sealToken,
                 'following_current_seal_cursor_next226' => $sealCursor,
@@ -15148,9 +15148,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $expr = is_array($term) ? (string) ($term['expr'] ?? '') : (string) $term;
             $alias = is_array($term) ? (string) ($term['as'] ?? $expr) : $expr;
             $payload[$alias] = match ($expr) {
-                'new.option_name' => $new['option_name'],
-                'new.option_value' => $new['option_value'],
-                'old.option_value' => null,
+                'new.key_name' => $new['key_name'],
+                'new.key_value' => $new['key_value'],
+                'old.key_value' => null,
                 'event' => 'subsequent-next-after-following-current-seal',
                 'depth' => 0,
                 'ordinal' => $ordinal,
@@ -15286,7 +15286,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $currentRows = self::returningSnapshotRows($base['current_source_rows_source_seal'] ?? [], 'current source rows');
         $nextRows = self::returningSnapshotRows($base['attempted_next_source_rows_source_seal'] ?? [], 'attempted next source rows');
         $baseVisible = (bool) ($base['next_source_visible_after_current_returning_source_source_seal'] ?? false);
-        $snapshotToken = self::returningSnapshotToken((string) ($options['current_returning_snapshot_token_snapshot_ack'] ?? 'wp.current.returning.snapshot.228'), 'current returning snapshot token');
+        $snapshotToken = self::returningSnapshotToken((string) ($options['current_returning_snapshot_token_snapshot_ack'] ?? 'app.current.returning.snapshot.228'), 'current returning snapshot token');
         $expectedSnapshotToken = self::returningSnapshotToken((string) ($options['expected_current_returning_snapshot_token_snapshot_ack'] ?? $snapshotToken), 'expected current returning snapshot token');
         $viewSource = self::returningSnapshotToken((string) ($options['current_returning_view_source_snapshot_ack'] ?? ($currentView['source'] ?? 'main@view-cookie-228-current')), 'current returning view source');
         $expectedViewSource = self::returningSnapshotToken((string) ($options['expected_current_returning_view_source_snapshot_ack'] ?? $viewSource), 'expected current returning view source');
@@ -15589,7 +15589,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $currentRows = self::currentReturningGenerationRows($base['current_source_rows_source_seal'] ?? [], 'current source rows');
         $nextRows = self::currentReturningGenerationRows($base['attempted_next_source_rows_source_seal'] ?? [], 'attempted next source rows');
         $baseVisible = (bool) ($base['next_source_visible_after_current_returning_source_source_seal'] ?? false);
-        $sourceGeneration = self::currentReturningGenerationToken((string) ($options['current_returning_source_generation'] ?? 'wp.current.returning.source.generation.229'), 'current returning source generation');
+        $sourceGeneration = self::currentReturningGenerationToken((string) ($options['current_returning_source_generation'] ?? 'app.current.returning.source.generation.229'), 'current returning source generation');
         $expectedSourceGeneration = self::currentReturningGenerationToken((string) ($options['expected_current_returning_source_generation'] ?? $sourceGeneration), 'expected current returning source generation');
         $viewGeneration = self::currentReturningGenerationToken((string) ($options['current_returning_view_generation'] ?? ($currentView['source'] ?? 'main@view-generation-229-current')), 'current returning view generation');
         $expectedViewGeneration = self::currentReturningGenerationToken((string) ($options['expected_current_returning_view_generation'] ?? $viewGeneration), 'expected current returning view generation');
@@ -15995,9 +15995,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $baseVisible = (bool) ($base['subsequent_next_source_visible_next226'] ?? false);
         $followingRows = self::currentSourceEpochRows($base['following_current_rows_next226'] ?? [], 'following current rows');
         $subsequentRows = self::currentSourceEpochRows($base['subsequent_next_rows_next226'] ?? [], 'subsequent next rows');
-        $epoch = self::currentSourceEpochToken((string) ($options['current_source_epoch'] ?? 'wp.current.source.epoch.230'), 'current source epoch');
+        $epoch = self::currentSourceEpochToken((string) ($options['current_source_epoch'] ?? 'app.current.source.epoch.230'), 'current source epoch');
         $expectedEpoch = self::currentSourceEpochToken((string) ($options['expected_current_source_epoch'] ?? $epoch), 'expected current source epoch');
-        $epochCursor = self::currentSourceEpochToken((string) ($options['current_source_epoch_cursor'] ?? 'wp.returning.current.epoch.cursor.230'), 'current source epoch cursor');
+        $epochCursor = self::currentSourceEpochToken((string) ($options['current_source_epoch_cursor'] ?? 'app.returning.current.epoch.cursor.230'), 'current source epoch cursor');
         $expectedEpochCursor = self::currentSourceEpochToken((string) ($options['expected_current_source_epoch_cursor'] ?? $epochCursor), 'expected current source epoch cursor');
         $requiredEpochs = self::subsequentCurrentSourceEpochReceipts($followingRows, $epoch, $epochCursor);
         $acknowledgedEpochs = self::acknowledgedSubsequentCurrentSourceEpochs($options, $requiredEpochs);
@@ -16300,8 +16300,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $cursor = self::currentSourceCloseToken((string) ($options['current_source_cursor_source_close'] ?? 'wp.returning.current.cursor.source.close'), 'current source cursor');
-        $closeToken = self::currentSourceCloseToken((string) ($options['current_source_close_token_source_close'] ?? 'wp.current.source.close.source.close'), 'current source close token');
+        $cursor = self::currentSourceCloseToken((string) ($options['current_source_cursor_source_close'] ?? 'app.returning.current.cursor.source.close'), 'current source cursor');
+        $closeToken = self::currentSourceCloseToken((string) ($options['current_source_close_token_source_close'] ?? 'app.current.source.close.source.close'), 'current source close token');
         $expectedCloseToken = self::currentSourceCloseToken((string) ($options['expected_current_source_close_token_source_close'] ?? $closeToken), 'expected current source close token');
         $viewCookie = self::currentSourceCloseToken((string) ($options['current_view_cookie_source_close'] ?? (string) ($currentView['source'] ?? 'main@view-cookie-source-close-current')), 'current view cookie');
         $triggerCookie = self::currentSourceCloseToken((string) ($options['current_trigger_cookie_source_close'] ?? (string) ($currentView['trigger_source'] ?? 'main@trigger-cookie-source-close-current')), 'current trigger cookie');

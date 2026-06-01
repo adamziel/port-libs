@@ -199,7 +199,7 @@ $tests['encoding collation affinity like current source nextTwoFiveNine rejects 
     $t->throws(InvalidArgumentException::class, static fn () => $plan259(escape: '!!'));
 };
 
-$tests['encoding collation affinity like current source nextTwoFiveNine rejects missing option name'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFiveNine rejects missing key name'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationBinaryCollationDefaultLikePlan([['setting_id' => 1]], []));
 };
 

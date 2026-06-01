@@ -21,6 +21,8 @@ $sourceFiles = [
     $sourceRoot . '/SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan.php',

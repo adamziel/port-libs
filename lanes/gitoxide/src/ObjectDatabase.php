@@ -322,7 +322,7 @@ final class ObjectDatabase
         }
 
         foreach ($this->looseStores() as $store) {
-            $merged = self::mergeNoCandidatePrefixSource($candidate, $store->prefixObjectIds($prefix));
+            $merged = self::mergeNoCandidatePrefixSource($candidate, $store->prefixObjectIds($prefix, false));
             if ($merged !== null) {
                 return $merged;
             }
@@ -367,7 +367,10 @@ final class ObjectDatabase
         }
 
         if (count($sourceOids) > 1) {
-            $matches = $candidate === null ? $sourceOids : array_merge([$candidate], $sourceOids);
+            $matches = $sourceOids;
+            if ($candidate !== null && !in_array($candidate, $sourceOids, true)) {
+                $matches[] = $candidate;
+            }
             sort($matches, SORT_STRING);
 
             return ['status' => 'ambiguous', 'matches' => $matches];

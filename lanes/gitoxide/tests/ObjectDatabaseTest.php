@@ -1218,6 +1218,31 @@ return [
         $t->same(false, $database->contains($directoryCandidateOid));
         $t->same(substr($contentOid, 0, 5), $database->disambiguatePrefix(strtoupper($contentOid), 4));
     },
+    'object database preserves loose case-duplicate ambiguity beside MIDX without candidate collection like gix-odb' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture, $looseObjectPath): void {
+        [$gitDir, $fixture] = $writeWordPressMultiPackFixture();
+        $content = $fixture['objectsByRole']['content'];
+        $contentOid = $content['oid'];
+
+        $duplicateLooseOid = (new LooseObjectStore($gitDir))->write(new GitObject('blob', $content['body']));
+        $caseVariantPath = dirname($looseObjectPath($gitDir, $contentOid)) . '/' . strtoupper(substr($contentOid, 2));
+        $t->true($caseVariantPath !== $looseObjectPath($gitDir, $contentOid));
+        file_put_contents($caseVariantPath, 'case-variant loose prefix path candidate');
+
+        $database = new ObjectDatabase($gitDir);
+        $withoutCandidates = $database->lookupPrefix(strtoupper($contentOid));
+        $withCandidates = $database->lookupPrefix(strtoupper($contentOid), true);
+
+        $t->same($contentOid, $duplicateLooseOid);
+        $t->same('ambiguous', $withoutCandidates['status']);
+        $t->same([$contentOid, $contentOid], $withoutCandidates['matches']);
+        $t->same([
+            'status' => 'found',
+            'oid' => $contentOid,
+            'candidates' => [$contentOid],
+        ], $withCandidates);
+        $t->same($contentOid, $database->disambiguatePrefix(strtoupper($contentOid), 4));
+        $t->same($content['body'], $database->read(strtoupper($contentOid))->body);
+    },
     'object database rejects multi-pack-index entries that reference missing packs' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
         [$gitDir] = $writeWordPressMultiPackFixture(true);
         $database = new ObjectDatabase($gitDir);

@@ -8,30 +8,30 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 $tests = [];
 
 $current237 = [
-    ['option_id' => 1, 'option_name' => 'plugin_literal', 'option_value' => 'plugin_%alpha', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'plugin_upper', 'option_value' => 'Plugin_%Beta', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'plugin_false_percent', 'option_value' => 'pluginX%gamma', 'autoload' => 'yes'],
-    ['option_id' => 4, 'option_name' => 'plugin_false_missing_percent', 'option_value' => 'plugin_delta', 'autoload' => 'no'],
-    ['option_id' => 5, 'option_name' => 'plugin_number', 'option_value' => 12.5, 'autoload' => 'no'],
-    ['option_id' => 6, 'option_name' => 'plugin_int_literal', 'option_value' => 'plugin_%123', 'autoload' => 'yes'],
-    ['option_id' => 7, 'option_name' => 'plugin_null', 'option_value' => null, 'autoload' => 'no'],
-    ['option_id' => 8, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin_%blob'), 'autoload' => 'no'],
-    ['option_id' => 9, 'option_name' => 'plugin_bad_text', 'option_value' => "\xffplugin_%bad", 'autoload' => 'no'],
-    ['option_id' => 10, 'option_name' => 'theme_literal', 'option_value' => 'theme_%alpha', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'plugin_literal', 'key_value' => 'plugin_%alpha', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'plugin_upper', 'key_value' => 'Plugin_%Beta', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'plugin_false_percent', 'key_value' => 'pluginX%gamma', 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'plugin_false_missing_percent', 'key_value' => 'plugin_delta', 'load_policy' => 'no'],
+    ['setting_id' => 5, 'key_name' => 'plugin_number', 'key_value' => 12.5, 'load_policy' => 'no'],
+    ['setting_id' => 6, 'key_name' => 'plugin_int_literal', 'key_value' => 'plugin_%123', 'load_policy' => 'yes'],
+    ['setting_id' => 7, 'key_name' => 'plugin_null', 'key_value' => null, 'load_policy' => 'no'],
+    ['setting_id' => 8, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin_%blob'), 'load_policy' => 'no'],
+    ['setting_id' => 9, 'key_name' => 'plugin_bad_text', 'key_value' => "\xffplugin_%bad", 'load_policy' => 'no'],
+    ['setting_id' => 10, 'key_name' => 'theme_literal', 'key_value' => 'theme_%alpha', 'load_policy' => 'yes'],
 ];
 
 $nextTwoThreeSeven = [
-    ['option_id' => 1, 'option_name' => 'plugin_literal', 'option_value' => 'plugin_%alpha', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'plugin_upper', 'option_value' => 'Plugin_%Beta', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'plugin_false_percent', 'option_value' => 'plugin_%gamma', 'autoload' => 'yes'],
-    ['option_id' => 4, 'option_name' => 'plugin_false_missing_percent', 'option_value' => 'plugin_delta', 'autoload' => 'no'],
-    ['option_id' => 5, 'option_name' => 'plugin_number', 'option_value' => 'plugin_%12.5', 'autoload' => 'yes'],
-    ['option_id' => 6, 'option_name' => 'plugin_int_literal', 'option_value' => 'plugin_%123 ', 'autoload' => 'yes'],
-    ['option_id' => 7, 'option_name' => 'plugin_null', 'option_value' => null, 'autoload' => 'no'],
-    ['option_id' => 8, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin_%blob'), 'autoload' => 'no'],
-    ['option_id' => 9, 'option_name' => 'plugin_bad_text', 'option_value' => "\xffplugin_%bad", 'autoload' => 'no'],
-    ['option_id' => 11, 'option_name' => 'plugin_added', 'option_value' => 'plugin_%added', 'autoload' => 'yes'],
-    ['option_id' => 12, 'option_name' => 'plugin_case_false', 'option_value' => 'PLUGIN_%CASE', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'plugin_literal', 'key_value' => 'plugin_%alpha', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'plugin_upper', 'key_value' => 'Plugin_%Beta', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'plugin_false_percent', 'key_value' => 'plugin_%gamma', 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'plugin_false_missing_percent', 'key_value' => 'plugin_delta', 'load_policy' => 'no'],
+    ['setting_id' => 5, 'key_name' => 'plugin_number', 'key_value' => 'plugin_%12.5', 'load_policy' => 'yes'],
+    ['setting_id' => 6, 'key_name' => 'plugin_int_literal', 'key_value' => 'plugin_%123 ', 'load_policy' => 'yes'],
+    ['setting_id' => 7, 'key_name' => 'plugin_null', 'key_value' => null, 'load_policy' => 'no'],
+    ['setting_id' => 8, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin_%blob'), 'load_policy' => 'no'],
+    ['setting_id' => 9, 'key_name' => 'plugin_bad_text', 'key_value' => "\xffplugin_%bad", 'load_policy' => 'no'],
+    ['setting_id' => 11, 'key_name' => 'plugin_added', 'key_value' => 'plugin_%added', 'load_policy' => 'yes'],
+    ['setting_id' => 12, 'key_name' => 'plugin_case_false', 'key_value' => 'PLUGIN_%CASE', 'load_policy' => 'yes'],
 ];
 
 $plan237 = static fn (
@@ -82,7 +82,7 @@ $rowById237 = static function (array $trace, int $rowid): array {
 $cases237 = [
     'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoThreeSeven'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'option_value LIKE ? ESCAPE ? COLLATE NOCASE /* text affinity before residual */'],
+    'expression' => ['expression', 'key_value LIKE ? ESCAPE ? COLLATE NOCASE /* text affinity before residual */'],
     'pattern' => ['pattern', 'plugin!_%!%%'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
@@ -172,9 +172,9 @@ foreach ($traceCases237 as $name => [$traceKey, $rowid, $field, $expected]) {
 
 $tests['encoding collation affinity like current source nextTwoThreeSeven stable cursor is reusable'] = static function (TestRunner $t) use ($plan237): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 'plugin_%alpha'],
-        ['option_id' => 2, 'option_value' => 'Plugin_%Beta'],
-        ['option_id' => 3, 'option_value' => 'plugin_delta'],
+        ['setting_id' => 1, 'key_value' => 'plugin_%alpha'],
+        ['setting_id' => 2, 'key_value' => 'Plugin_%Beta'],
+        ['setting_id' => 3, 'key_value' => 'plugin_delta'],
     ];
     $plan = $plan237($rows, $rows, 'plugin!_%!%%', '!', 'NOCASE', false, 'same', 'same', 7, 7);
 
@@ -186,8 +186,8 @@ $tests['encoding collation affinity like current source nextTwoThreeSeven stable
 
 $tests['encoding collation affinity like current source nextTwoThreeSeven escaped wildcard differs from unescaped wildcard'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 'plugin_%literal'],
-        ['option_id' => 2, 'option_value' => 'pluginX%literal'],
+        ['setting_id' => 1, 'key_value' => 'plugin_%literal'],
+        ['setting_id' => 2, 'key_value' => 'pluginX%literal'],
     ];
     $escaped = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueEscapePlan($rows, $rows, 'plugin!_%!%%', '!', 'NOCASE', false, 'same', 'same', 1, 1);
     $unescaped = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueEscapePlan($rows, $rows, 'plugin_%!%%', '!', 'NOCASE', false, 'same', 'same', 1, 1);
@@ -221,20 +221,20 @@ $tests['encoding collation affinity like current source nextTwoThreeSeven reject
 };
 
 $tests['encoding collation affinity like current source nextTwoThreeSeven records nonscalar value as malformed'] = static function (TestRunner $t): void {
-    $rows = [['option_id' => 1, 'option_value' => ['plugin_%bad']]];
+    $rows = [['setting_id' => 1, 'key_value' => ['plugin_%bad']]];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueEscapePlan($rows, [], '%', null, 'BINARY', true, 'same', 'same', 1, 1);
 
     $t->same([1], $plan['currentMalformedRowids']);
-    $t->same('SQLite encoding collation affinity LIKE nextTwoThreeSeven rows require scalar option_value', $plan['currentErrors'][1]);
+    $t->same('SQLite encoding collation affinity LIKE nextTwoThreeSeven rows require scalar key_value', $plan['currentErrors'][1]);
 };
 
 $tests['encoding collation affinity like current source nextTwoThreeSeven rejects missing option id'] = static function (TestRunner $t): void {
-    $rows = [['option_value' => 'plugin_%bad']];
+    $rows = [['key_value' => 'plugin_%bad']];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueEscapePlan($rows, []));
 };
 
-$tests['encoding collation affinity like current source nextTwoThreeSeven rejects missing option value'] = static function (TestRunner $t): void {
-    $rows = [['option_id' => 1]];
+$tests['encoding collation affinity like current source nextTwoThreeSeven rejects missing key value'] = static function (TestRunner $t): void {
+    $rows = [['setting_id' => 1]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueEscapePlan($rows, []));
 };
 

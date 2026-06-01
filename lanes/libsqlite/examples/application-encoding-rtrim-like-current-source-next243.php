@@ -11,17 +11,17 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $current = [
-    ['option_id' => 1, 'option_name' => 'cache_plain', 'option_value' => 'cache_hit'],
-    ['option_id' => 2, 'option_name' => 'cache_space', 'option_value' => 'cache_hit   '],
-    ['option_id' => 3, 'option_name' => 'cache_upper', 'option_value' => 'CACHE_HIT'],
-    ['option_id' => 4, 'option_name' => 'cache_blob', 'option_value' => new SQLiteBlobValue('cache_hit')],
+    ['setting_id' => 1, 'key_name' => 'cache_plain', 'key_value' => 'cache_hit'],
+    ['setting_id' => 2, 'key_name' => 'cache_space', 'key_value' => 'cache_hit   '],
+    ['setting_id' => 3, 'key_name' => 'cache_upper', 'key_value' => 'CACHE_HIT'],
+    ['setting_id' => 4, 'key_name' => 'cache_blob', 'key_value' => new SQLiteBlobValue('cache_hit')],
 ];
 
 $next = [
-    ['option_id' => 1, 'option_name' => 'cache_plain', 'option_value' => 'cache_hit'],
-    ['option_id' => 2, 'option_name' => 'cache_space_trimmed', 'option_value' => 'cache_hit'],
-    ['option_id' => 3, 'option_name' => 'cache_upper_changed', 'option_value' => 'cache_hit'],
-    ['option_id' => 5, 'option_name' => 'cache_new', 'option_value' => 'cache_new   '],
+    ['setting_id' => 1, 'key_name' => 'cache_plain', 'key_value' => 'cache_hit'],
+    ['setting_id' => 2, 'key_name' => 'cache_space_trimmed', 'key_value' => 'cache_hit'],
+    ['setting_id' => 3, 'key_name' => 'cache_upper_changed', 'key_value' => 'cache_hit'],
+    ['setting_id' => 5, 'key_name' => 'cache_new', 'key_value' => 'cache_new   '],
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan($current, $next);

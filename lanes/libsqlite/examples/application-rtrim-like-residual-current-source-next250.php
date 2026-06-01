@@ -10,15 +10,15 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 
 $current = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'plugin_cache  '],
-    ['option_id' => 3, 'option_name_bytes' => $enc('Plugin_Cache', 'UTF-16LE'), 'text_encoding' => 2],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'plugin_cache  '],
+    ['setting_id' => 3, 'key_name_bytes' => $enc('Plugin_Cache', 'UTF-16LE'), 'text_encoding' => 2],
 ];
 
 $next = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache  '],
-    ['option_id' => 2, 'option_name' => 'plugin_cache'],
-    ['option_id' => 3, 'option_name_bytes' => $enc('Plugin_Cache', 'UTF-16BE'), 'text_encoding' => 3],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache  '],
+    ['setting_id' => 2, 'key_name' => 'plugin_cache'],
+    ['setting_id' => 3, 'key_name_bytes' => $enc('Plugin_Cache', 'UTF-16BE'), 'text_encoding' => 3],
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualSourcePlan($current, $next, 'plugin!_cache', '!');
@@ -36,7 +36,7 @@ if (($argv[1] ?? null) === '--self-test') {
 
 echo json_encode([
     'scenario' => 'application-rtrim-like-residual-current-source-next250',
-    'applicationUse' => 'Copied wp_options imports can use an RTRIM collation key to detect trailing-space peers, but LIKE residual matching must still read the raw option_name before publishing a next-source cursor.',
+    'applicationUse' => 'Copied app_settings imports can use an RTRIM collation key to detect trailing-space peers, but LIKE residual matching must still read the raw key_name before publishing a next-source cursor.',
     'pattern' => $plan['pattern'],
     'currentMatchedRowids' => $plan['currentMatchedRowids'],
     'nextMatchedRowids' => $plan['nextMatchedRowids'],

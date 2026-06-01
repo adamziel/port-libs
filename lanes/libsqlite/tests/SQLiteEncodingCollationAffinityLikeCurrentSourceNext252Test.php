@@ -7,16 +7,16 @@ use PortLibs\LibSqlite\SQLiteUtf16LikeGlobAffinityCurrentSourceCursor;
 $tests = [];
 
 $rows252 = [
-    ['key' => 1.0, 'rowid' => 1, 'textEncoding' => 'UTF-8', 'payload' => ['option_name' => 'upload_path', 'option_value' => 1.0]],
-    ['key' => 10.0, 'rowid' => 2, 'textEncoding' => 'UTF-16LE', 'payload' => ['option_name' => 'posts_per_page', 'option_value' => 10.0]],
-    ['key' => 100.0, 'rowid' => 3, 'textEncoding' => 'UTF-16BE', 'payload' => ['option_name' => 'thumbnail_size_w', 'option_value' => 100.0]],
-    ['key' => 100.5, 'rowid' => 4, 'textEncoding' => 'UTF-16LE', 'payload' => ['option_name' => 'image_quality', 'option_value' => 100.5]],
-    ['key' => 1000.0, 'rowid' => 5, 'textEncoding' => 'UTF-8', 'payload' => ['option_name' => 'large_size_w', 'option_value' => 1000.0]],
-    ['key' => 1200.0, 'rowid' => 6, 'textEncoding' => 'UTF-16BE', 'payload' => ['option_name' => 'large_size_h', 'option_value' => 1200.0]],
-    ['key' => 100.25, 'rowid' => 7, 'textEncoding' => 'UTF-16LE', 'payload' => ['option_name' => 'jpeg_quality', 'option_value' => 100.25]],
-    ['key' => 0.0, 'rowid' => 8, 'textEncoding' => 'UTF-8', 'payload' => ['option_name' => 'blog_public', 'option_value' => 0.0]],
-    ['key' => true, 'rowid' => 9, 'textEncoding' => 'UTF-16LE', 'payload' => ['option_name' => 'autoload_flag', 'option_value' => true]],
-    ['key' => null, 'rowid' => 10, 'textEncoding' => 'UTF-16BE', 'payload' => ['option_name' => 'empty_option', 'option_value' => null]],
+    ['key' => 1.0, 'rowid' => 1, 'textEncoding' => 'UTF-8', 'payload' => ['key_name' => 'upload_path', 'key_value' => 1.0]],
+    ['key' => 10.0, 'rowid' => 2, 'textEncoding' => 'UTF-16LE', 'payload' => ['key_name' => 'posts_per_page', 'key_value' => 10.0]],
+    ['key' => 100.0, 'rowid' => 3, 'textEncoding' => 'UTF-16BE', 'payload' => ['key_name' => 'thumbnail_size_w', 'key_value' => 100.0]],
+    ['key' => 100.5, 'rowid' => 4, 'textEncoding' => 'UTF-16LE', 'payload' => ['key_name' => 'image_quality', 'key_value' => 100.5]],
+    ['key' => 1000.0, 'rowid' => 5, 'textEncoding' => 'UTF-8', 'payload' => ['key_name' => 'large_size_w', 'key_value' => 1000.0]],
+    ['key' => 1200.0, 'rowid' => 6, 'textEncoding' => 'UTF-16BE', 'payload' => ['key_name' => 'large_size_h', 'key_value' => 1200.0]],
+    ['key' => 100.25, 'rowid' => 7, 'textEncoding' => 'UTF-16LE', 'payload' => ['key_name' => 'jpeg_quality', 'key_value' => 100.25]],
+    ['key' => 0.0, 'rowid' => 8, 'textEncoding' => 'UTF-8', 'payload' => ['key_name' => 'blog_public', 'key_value' => 0.0]],
+    ['key' => true, 'rowid' => 9, 'textEncoding' => 'UTF-16LE', 'payload' => ['key_name' => 'load_policy_flag', 'key_value' => true]],
+    ['key' => null, 'rowid' => 10, 'textEncoding' => 'UTF-16BE', 'payload' => ['key_name' => 'empty_option', 'key_value' => null]],
 ];
 
 $cursor252 = static fn (string $pattern = '100%', string $operator = 'LIKE', string $collation = 'NOCASE'): SQLiteUtf16LikeGlobAffinityCurrentSourceCursor =>
@@ -78,8 +78,8 @@ $cases252 = [
     'dependency text affinity' => [static fn (): mixed => $plan252()['dependencies'][0], [], 'sqlite-text-affinity'],
     'dependency utf16' => [static fn (): mixed => $plan252()['dependencies'][1], [], 'sqlite-utf16-encoding'],
     'dependency collation' => [static fn (): mixed => $plan252()['dependencies'][2], [], 'sqlite-like-glob-collation'],
-    'application payload preserved row three' => [static fn (): mixed => $matched252()[0]['payload']['option_name'], [], 'thumbnail_size_w'],
-    'application payload preserved row five' => [static fn (): mixed => $matched252()[3]['payload']['option_name'], [], 'large_size_w'],
+    'application payload preserved row three' => [static fn (): mixed => $matched252()[0]['payload']['key_name'], [], 'thumbnail_size_w'],
+    'application payload preserved row five' => [static fn (): mixed => $matched252()[3]['payload']['key_name'], [], 'large_size_w'],
     'position row three sorted before fractional' => [static fn (): mixed => $matched252()[0]['position'], [], 5],
     'position row five sorted after fractional' => [static fn (): mixed => $matched252()[3]['position'], [], 8],
     'text affinity excludes null' => [static fn (): bool => !in_array(10, $matchedRowids252('1%'), true), [], true],

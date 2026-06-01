@@ -12,12 +12,12 @@ require_once dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewReturningCurrent
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $currentView = [
-    'name' => 'wp_recursive_option_import',
+    'name' => 'app_recursive_setting_import',
     'source' => 'main@view-cookie-189-current',
-    'trigger' => 'wp_recursive_option_import_io_insert',
+    'trigger' => 'app_recursive_setting_import_io_insert',
     'trigger_source' => 'main@trigger-cookie-189-current',
-    'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'spawn_child'],
-    'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload'],
+    'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'spawn_child'],
+    'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy'],
     'audit_label' => 'current-recursive-view-trigger-189',
 ];
 $nextView = $currentView;
@@ -29,40 +29,40 @@ $postResetView['trigger_source'] = 'main@trigger-cookie-189-post-reset';
 
 $summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNextSourceAdmissionAfterFreshAck(
     [
-        ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
-        ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
+        ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes'],
+        ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing_url.test', 'load_policy' => 'yes'],
     ],
     [
-        ['import_id' => 10, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-        ['import_id' => 11, 'name' => 'current_plugin', 'value' => 'enabled', 'autoload_flag' => 'no', 'spawn_child' => true],
+        ['import_id' => 10, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+        ['import_id' => 11, 'name' => 'current_module', 'value' => 'enabled', 'load_policy_flag' => 'no', 'spawn_child' => true],
     ],
     [
-        ['import_id' => 20, 'name' => 'home', 'value' => 'https://next.test', 'autoload_flag' => 'yes', 'spawn_child' => true],
-        ['import_id' => 21, 'name' => 'next_plugin', 'value' => 'active', 'autoload_flag' => 'no', 'spawn_child' => false],
+        ['import_id' => 20, 'name' => 'landing_url', 'value' => 'https://next.test', 'load_policy_flag' => 'yes', 'spawn_child' => true],
+        ['import_id' => 21, 'name' => 'next_module', 'value' => 'active', 'load_policy_flag' => 'no', 'spawn_child' => false],
     ],
     $currentView,
     $nextView,
     [
-        ['expr' => 'new.option_name', 'as' => 'name'],
-        ['expr' => 'new.option_value', 'as' => 'value'],
+        ['expr' => 'new.key_name', 'as' => 'name'],
+        ['expr' => 'new.key_value', 'as' => 'value'],
         ['expr' => 'event', 'as' => 'event_name'],
         ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
     ],
     [
-        'savepoint' => 'wp_recursive_view_189',
-        'cursor_name' => 'wp_recursive_view_returning_cursor_189',
+        'savepoint' => 'app_recursive_view_189',
+        'cursor_name' => 'app_recursive_view_returning_cursor_189',
         'admit_next_source' => true,
-        'reset_generation' => 'wp-current-reset-189',
-        'post_reset_current_source_token' => 'wp.current.source.postreset.189',
-        'post_reset_cursor' => 'wp.returning.postreset.cursor.189',
+        'reset_generation' => 'app-current-reset-189',
+        'post_reset_current_source_token' => 'app.current.source.postreset.189',
+        'post_reset_cursor' => 'app.returning.postreset.cursor.189',
         'post_reset_view' => $postResetView,
         'post_reset_input' => [
-            ['import_id' => 30, 'name' => 'siteurl', 'value' => 'https://fresh.test', 'autoload_flag' => 'yes'],
-            ['import_id' => 31, 'name' => 'rewrite_rules', 'value' => 'fresh-rules', 'autoload_flag' => 'no'],
+            ['import_id' => 30, 'name' => 'base_url', 'value' => 'https://fresh.test', 'load_policy_flag' => 'yes'],
+            ['import_id' => 31, 'name' => 'routing_rules', 'value' => 'fresh-rules', 'load_policy_flag' => 'no'],
         ],
         'fresh_acknowledged_ordinals' => [0, 1],
-        'next_source_token' => 'wp.next.source.189',
-        'next_cursor' => 'wp.returning.next.cursor.189',
+        'next_source_token' => 'app.next.source.189',
+        'next_cursor' => 'app.returning.next.cursor.189',
     ],
 );
 
@@ -70,7 +70,7 @@ if (
     $summary['status_next189'] !== 'trigger-recursive-view-returning-current-source-next189-next-source-visible'
     || $summary['fresh_required_ordinals_next189'] !== [0, 1]
     || $summary['next_source_row_count_next189'] !== 2
-    || array_column($summary['next_source_payloads_next189'], 'name') !== ['home', 'next_plugin']
+    || array_column($summary['next_source_payloads_next189'], 'name') !== ['landing_url', 'next_module']
 ) {
     fwrite(STDERR, "application-trigger-recursive-view-returning-current-source-next189 self-test failed\n");
     exit(1);

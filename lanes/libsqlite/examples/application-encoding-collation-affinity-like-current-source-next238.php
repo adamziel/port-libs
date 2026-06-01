@@ -8,20 +8,20 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $current = [
-    ['option_id' => 1, 'option_name' => 'retry_timeout_real', 'option_value' => 100.0],
-    ['option_id' => 2, 'option_name' => 'retry_timeout_integer', 'option_value' => 100],
-    ['option_id' => 3, 'option_name' => 'retry_timeout_text', 'option_value' => '100.0'],
-    ['option_id' => 4, 'option_name' => 'retry_timeout_blob', 'option_value' => new SQLiteBlobValue('100.0')],
-    ['option_id' => 5, 'option_name' => 'retry_timeout_null', 'option_value' => null],
+    ['setting_id' => 1, 'key_name' => 'retry_timeout_real', 'key_value' => 100.0],
+    ['setting_id' => 2, 'key_name' => 'retry_timeout_integer', 'key_value' => 100],
+    ['setting_id' => 3, 'key_name' => 'retry_timeout_text', 'key_value' => '100.0'],
+    ['setting_id' => 4, 'key_name' => 'retry_timeout_blob', 'key_value' => new SQLiteBlobValue('100.0')],
+    ['setting_id' => 5, 'key_name' => 'retry_timeout_null', 'key_value' => null],
 ];
 
 $next = [
-    ['option_id' => 1, 'option_name' => 'retry_timeout_real', 'option_value' => 100.0],
-    ['option_id' => 2, 'option_name' => 'retry_timeout_integer_promoted', 'option_value' => 100.0],
-    ['option_id' => 3, 'option_name' => 'retry_timeout_text_changed', 'option_value' => '100'],
-    ['option_id' => 4, 'option_name' => 'retry_timeout_blob', 'option_value' => new SQLiteBlobValue('100.0')],
-    ['option_id' => 5, 'option_name' => 'retry_timeout_null', 'option_value' => null],
-    ['option_id' => 6, 'option_name' => 'retry_timeout_new_real', 'option_value' => 100.25],
+    ['setting_id' => 1, 'key_name' => 'retry_timeout_real', 'key_value' => 100.0],
+    ['setting_id' => 2, 'key_name' => 'retry_timeout_integer_promoted', 'key_value' => 100.0],
+    ['setting_id' => 3, 'key_name' => 'retry_timeout_text_changed', 'key_value' => '100'],
+    ['setting_id' => 4, 'key_name' => 'retry_timeout_blob', 'key_value' => new SQLiteBlobValue('100.0')],
+    ['setting_id' => 5, 'key_name' => 'retry_timeout_null', 'key_value' => null],
+    ['setting_id' => 6, 'key_name' => 'retry_timeout_new_real', 'key_value' => 100.25],
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRealTextAffinityLikePlan(

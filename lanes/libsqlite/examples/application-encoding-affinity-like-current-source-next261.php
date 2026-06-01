@@ -14,18 +14,18 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 
 $current = [
-    ['option_id' => 1, 'option_name_bytes' => $enc('Plugin_cache', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => 'enabled:core'],
-    ['option_id' => 2, 'option_name_bytes' => $enc('plugin_cache_timeout', 'UTF-16BE'), 'name_text_encoding' => 'UTF-16BE', 'option_value' => 'disabled:15'],
-    ['option_id' => 3, 'option_name_bytes' => $enc('plugin_theme', 'UTF-8'), 'name_text_encoding' => 'UTF-8', 'option_value' => 'enabled:theme'],
-    ['option_id' => 4, 'option_name_bytes' => $enc('plugin_blob', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => new SQLiteBlobValue('enabled:blob')],
+    ['setting_id' => 1, 'key_name_bytes' => $enc('Plugin_cache', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'key_value' => 'enabled:core'],
+    ['setting_id' => 2, 'key_name_bytes' => $enc('plugin_cache_timeout', 'UTF-16BE'), 'name_text_encoding' => 'UTF-16BE', 'key_value' => 'disabled:15'],
+    ['setting_id' => 3, 'key_name_bytes' => $enc('plugin_theme', 'UTF-8'), 'name_text_encoding' => 'UTF-8', 'key_value' => 'enabled:theme'],
+    ['setting_id' => 4, 'key_name_bytes' => $enc('plugin_blob', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'key_value' => new SQLiteBlobValue('enabled:blob')],
 ];
 
 $next = [
-    ['option_id' => 1, 'option_name_bytes' => $enc('Plugin_cache', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => 'enabled:core'],
-    ['option_id' => 2, 'option_name_bytes' => $enc('plugin_cache_timeout', 'UTF-16BE'), 'name_text_encoding' => 'UTF-16BE', 'option_value' => 'enabled:15'],
-    ['option_id' => 3, 'option_name_bytes' => $enc('plugin_theme', 'UTF-8'), 'name_text_encoding' => 'UTF-8', 'option_value' => 'disabled:theme'],
-    ['option_id' => 4, 'option_name_bytes' => $enc('plugin_blob', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => new SQLiteBlobValue('enabled:blob')],
-    ['option_id' => 5, 'option_name_bytes' => $enc('plugin_new', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => true],
+    ['setting_id' => 1, 'key_name_bytes' => $enc('Plugin_cache', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'key_value' => 'enabled:core'],
+    ['setting_id' => 2, 'key_name_bytes' => $enc('plugin_cache_timeout', 'UTF-16BE'), 'name_text_encoding' => 'UTF-16BE', 'key_value' => 'enabled:15'],
+    ['setting_id' => 3, 'key_name_bytes' => $enc('plugin_theme', 'UTF-8'), 'name_text_encoding' => 'UTF-8', 'key_value' => 'disabled:theme'],
+    ['setting_id' => 4, 'key_name_bytes' => $enc('plugin_blob', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'key_value' => new SQLiteBlobValue('enabled:blob')],
+    ['setting_id' => 5, 'key_name_bytes' => $enc('plugin_new', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'key_value' => true],
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16NameAndValueLikePlan(
@@ -47,7 +47,7 @@ if (PHP_SAPI === 'cli' && realpath($argv[0] ?? '') === __FILE__) {
 
 return [
     'scenario' => 'application-encoding-affinity-like-current-source-next261',
-    'applicationUse' => 'Copied wp_options imports can bind UTF-16 LIKE patterns for option_name while applying SQLite text affinity to option_value before deciding whether a current-source cursor is reusable.',
+    'applicationUse' => 'Copied app_settings imports can bind UTF-16 LIKE patterns for key_name while applying SQLite text affinity to key_value before deciding whether a current-source cursor is reusable.',
     'currentMatchedRowids' => $plan['currentMatchedRowids'],
     'nextMatchedRowids' => $plan['nextMatchedRowids'],
     'invalidationReasons' => $plan['invalidationReasons'],
