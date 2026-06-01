@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 05:41:56 UTC",
-    "sourceCommit": "759c229a919c62c7024605352e8bd074ac615adf",
-    "sourceCommitShort": "759c229a919c",
+    "generated": "2026-06-01 05:49:50 UTC",
+    "sourceCommit": "4c1cd973406f2c5e6dc9670e3181db319590e57f",
+    "sourceCommitShort": "4c1cd973406f",
     "sourceBranch": "unknown",
-    "dashboardCommit": "759c229a919c62c7024605352e8bd074ac615adf",
-    "dashboardCommitShort": "759c229a919c",
+    "dashboardCommit": "4c1cd973406f2c5e6dc9670e3181db319590e57f",
+    "dashboardCommitShort": "4c1cd973406f",
     "averageProgressPercent": "88.4",
     "lanes": [
         {
@@ -60,20 +60,20 @@
         },
         {
             "library": "gitoxide",
-            "progressPercent": "94.5",
+            "progressPercent": "94.6",
             "suite": "current-base Gitoxide merge-base replay",
             "benchmark": "current-base Gitoxide merge-base replay",
             "denominator": "2886",
             "mapped": "1749",
             "coverage": "1749 / 2886",
-            "php": "7629 pass / 0 fail",
+            "php": "7675 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
             "audit": "2026-06-01 supervisor batch: full Gitoxid...",
-            "currentWork": "Protocol-v2 fetch sideband trim-end parity and send-pack receive-status malformed object-...",
+            "currentWork": "Receive-pack transport header boundaries, smart HTTP upgrade redirect proxy/cookie handli...",
             "nextTarget": "Keep three Gitoxide workers on current-base non-overlapping fetch sideband, send-pack, re...",
             "blocker": "Full upstream Cargo workspace remains unexecuted.",
-            "commit": "759c229"
+            "commit": "4c1cd97"
         },
         {
             "library": "libsqlite",
@@ -87,27 +87,27 @@
             "wordpressScenarios": "1 / 1",
             "phase": "focused real-corpus and source-neutral coverage accepte...",
             "audit": "2026-06-01 supervisor batch: accepted sou...",
-            "currentWork": "Real upstream upsert1 count_changes UPSERT dynamic corpus coverage integrated on current...",
-            "nextTarget": "Continue broad release/all parity blockers, source-neutral cleanup of pre-existing wp_ fi...",
+            "currentWork": "Source-neutral CAST/LIKE/GLOB defaults cleanup integrated on current base.",
+            "nextTarget": "Continue broad release/all parity blockers, source-neutral cleanup of CurrentSourceNext/C...",
             "blocker": "Broad libsqlite full-lane/release parity is not green: sampled failures r...",
-            "commit": "759c229"
+            "commit": "4c1cd97"
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "99.2",
+            "progressPercent": "99.3",
             "suite": "current-base LightningCSS import/grid/target replay",
             "benchmark": "current-base LightningCSS import/grid/target replay",
             "denominator": "3532",
             "mapped": "2359",
             "coverage": "2359 / 3532",
-            "php": "6267 pass / 0 fail",
+            "php": "6322 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
             "audit": "2026-06-01 supervisor batch: full Lightni...",
-            "currentWork": "CSS Modules nth-child formula local/global compose parity, media-query redundant boolean...",
+            "currentWork": "Bundle/import graph parity, CSSOM transition property identifier read/write parity, custo...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph,...",
             "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-            "commit": "759c229"
+            "commit": "4c1cd97"
         },
         {
             "library": "markerPDF",
