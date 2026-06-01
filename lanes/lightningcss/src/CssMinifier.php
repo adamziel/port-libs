@@ -3335,7 +3335,7 @@ final class CssMinifier
         $value = $this->compactGridTemplateAreaTrackSpacing($value);
         $value = $this->minifyGridNumericDimensions($value);
 
-        return $property === 'grid' ? $this->minifyGridAutoFlowDefaultRows($value) : $value;
+        return $value;
     }
 
     private function normalizeGridQuotedAreaRows(string $value): string
@@ -3415,22 +3415,6 @@ final class CssMinifier
             . ')';
 
         return preg_replace('/(' . $trackToken . ')\s+(?=")/i', '$1', $value) ?? $value;
-    }
-
-    private function minifyGridAutoFlowDefaultRows(string $value): string
-    {
-        $parts = $this->splitTopLevel($value, '/');
-        if (count($parts) !== 2) {
-            return $value;
-        }
-
-        $rows = trim($parts[0]);
-        $columns = trim($parts[1]);
-        if (strcasecmp($rows, 'auto-flow') !== 0 || $columns === '') {
-            return $value;
-        }
-
-        return 'none/' . $columns;
     }
 
     private function minifyGridAutoFlowValue(string $value): string

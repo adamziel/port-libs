@@ -9,28 +9,28 @@ use PortLibs\LibSqlite\SQLiteJsonbGeneratedCheckIndexPlan;
 $jsonb54 = static fn (array $value): SQLiteBlobValue => new SQLiteBlobValue(SQLiteJsonB::encode($value));
 
 $createTable54 = <<<'SQL'
-CREATE TABLE wp_options(
-  option_id INTEGER PRIMARY KEY,
-  option_name TEXT NOT NULL,
-  option_value BLOB,
-  autoload TEXT,
-  plugin_slug TEXT GENERATED ALWAYS AS (jsonb_extract(option_value, '$.plugin.slug')) STORED CHECK(plugin_slug <> ''),
-  plugin_enabled INTEGER GENERATED ALWAYS AS (jsonb_extract(option_value, '$.plugin.enabled')) VIRTUAL CHECK(plugin_enabled >= 0),
-  plugin_rank INTEGER GENERATED ALWAYS AS (jsonb_extract(option_value, '$.plugin.rank')) VIRTUAL CHECK(plugin_rank BETWEEN 1 AND 99)
+CREATE TABLE app_settings(
+  setting_id INTEGER PRIMARY KEY,
+  key_name TEXT NOT NULL,
+  key_value BLOB,
+  load_policy TEXT,
+  plugin_slug TEXT GENERATED ALWAYS AS (jsonb_extract(key_value, '$.plugin.slug')) STORED CHECK(plugin_slug <> ''),
+  plugin_enabled INTEGER GENERATED ALWAYS AS (jsonb_extract(key_value, '$.plugin.enabled')) VIRTUAL CHECK(plugin_enabled >= 0),
+  plugin_rank INTEGER GENERATED ALWAYS AS (jsonb_extract(key_value, '$.plugin.rank')) VIRTUAL CHECK(plugin_rank BETWEEN 1 AND 99)
 )
 SQL;
 
 $rows54 = [
-    ['option_id' => 101, 'option_name' => 'plugin_alpha_settings', 'option_value' => $jsonb54(['plugin' => ['slug' => 'alpha', 'enabled' => 1, 'rank' => 10]]), 'autoload' => 'yes'],
-    ['option_id' => 102, 'option_name' => 'plugin_beta_settings', 'option_value' => $jsonb54(['plugin' => ['slug' => 'beta', 'enabled' => 0, 'rank' => 20]]), 'autoload' => 'yes'],
-    ['option_id' => 103, 'option_name' => 'plugin_gamma_settings', 'option_value' => $jsonb54(['plugin' => ['slug' => 'gamma', 'enabled' => 1, 'rank' => 30]]), 'autoload' => 'no'],
-    ['option_id' => 104, 'option_name' => 'plugin_delta_settings', 'option_value' => $jsonb54(['plugin' => ['slug' => 'delta', 'enabled' => 1, 'rank' => 40]]), 'autoload' => 'yes'],
+    ['setting_id' => 101, 'key_name' => 'plugin_alpha_settings', 'key_value' => $jsonb54(['plugin' => ['slug' => 'alpha', 'enabled' => 1, 'rank' => 10]]), 'load_policy' => 'yes'],
+    ['setting_id' => 102, 'key_name' => 'plugin_beta_settings', 'key_value' => $jsonb54(['plugin' => ['slug' => 'beta', 'enabled' => 0, 'rank' => 20]]), 'load_policy' => 'yes'],
+    ['setting_id' => 103, 'key_name' => 'plugin_gamma_settings', 'key_value' => $jsonb54(['plugin' => ['slug' => 'gamma', 'enabled' => 1, 'rank' => 30]]), 'load_policy' => 'no'],
+    ['setting_id' => 104, 'key_name' => 'plugin_delta_settings', 'key_value' => $jsonb54(['plugin' => ['slug' => 'delta', 'enabled' => 1, 'rank' => 40]]), 'load_policy' => 'yes'],
 ];
 
 $indexes54 = [
-    ['name' => 'idx_plugin_slug_checked54', 'rootPage' => 54, 'unique' => true, 'sql' => 'CREATE UNIQUE INDEX idx_plugin_slug_checked54 ON wp_options(plugin_slug COLLATE NOCASE) WHERE plugin_slug IS NOT NULL'],
-    ['name' => 'idx_plugin_enabled_checked54', 'rootPage' => 55, 'sql' => 'CREATE INDEX idx_plugin_enabled_checked54 ON wp_options(plugin_enabled) WHERE plugin_enabled = 1'],
-    ['name' => 'idx_plugin_rank_checked54', 'rootPage' => 56, 'sql' => 'CREATE INDEX idx_plugin_rank_checked54 ON wp_options(plugin_rank DESC) WHERE plugin_rank IS NOT NULL'],
+    ['name' => 'idx_plugin_slug_checked54', 'rootPage' => 54, 'unique' => true, 'sql' => 'CREATE UNIQUE INDEX idx_plugin_slug_checked54 ON app_settings(plugin_slug COLLATE NOCASE) WHERE plugin_slug IS NOT NULL'],
+    ['name' => 'idx_plugin_enabled_checked54', 'rootPage' => 55, 'sql' => 'CREATE INDEX idx_plugin_enabled_checked54 ON app_settings(plugin_enabled) WHERE plugin_enabled = 1'],
+    ['name' => 'idx_plugin_rank_checked54', 'rootPage' => 56, 'sql' => 'CREATE INDEX idx_plugin_rank_checked54 ON app_settings(plugin_rank DESC) WHERE plugin_rank IS NOT NULL'],
 ];
 
 $updates54 = [
@@ -74,7 +74,7 @@ $tests = [
     'jsonb generated check index current next54 table and generated metadata' => static function (TestRunner $t) use ($plan54): void {
         $plan = $plan54();
 
-        $t->same('wp_options', $plan['table']);
+        $t->same('app_settings', $plan['table']);
         $t->same(3, count($plan['generated_columns']));
         $t->same(['plugin_slug', 'plugin_enabled', 'plugin_rank'], array_column($plan['generated_columns'], 'name'));
         $t->same(['$.plugin.slug', '$.plugin.enabled', '$.plugin.rank'], array_column($plan['generated_columns'], 'path'));
@@ -105,7 +105,7 @@ $tests = [
         $t->same(['alpha', 'beta', 'epsilon', 'delta'], array_column($after, 'plugin_slug'));
         $t->same([0, 0, 1, 1], array_column($after, 'plugin_enabled'));
         $t->same([15, 20, 35, 40], array_column($after, 'plugin_rank'));
-        $t->same(['plugin_beta_settings', 'plugin_delta_settings'], [$after[1]['option_name'], $after[3]['option_name']]);
+        $t->same(['plugin_beta_settings', 'plugin_delta_settings'], [$after[1]['key_name'], $after[3]['key_name']]);
     },
     'jsonb generated check index current next54 reports failed check details' => static function (TestRunner $t) use ($plan54, $valueAt54): void {
         $plan = $plan54();
@@ -119,9 +119,9 @@ $tests = [
     },
     'jsonb generated check index current next54 decodes accepted JSONB payloads' => static function (TestRunner $t) use ($plan54, $decodeOption54): void {
         $after = $plan54()['after'];
-        $alpha = $decodeOption54($after[0]['option_value']);
-        $gamma = $decodeOption54($after[2]['option_value']);
-        $beta = $decodeOption54($after[1]['option_value']);
+        $alpha = $decodeOption54($after[0]['key_value']);
+        $gamma = $decodeOption54($after[2]['key_value']);
+        $beta = $decodeOption54($after[1]['key_value']);
 
         $t->same(15, $alpha['plugin']['rank']);
         $t->same(0, $alpha['plugin']['enabled']);

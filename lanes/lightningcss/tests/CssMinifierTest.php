@@ -1557,7 +1557,7 @@ CSS
         $t->same('.foo{grid:200px/auto-flow}', $minifier->minify('.foo { grid: 200px / auto-flow; }'));
         $t->same('.foo{grid:30%/auto-flow dense}', $minifier->minify('.foo { grid: 30% / dense auto-flow; }'));
         $t->same('.foo{grid:none/auto-flow 1fr}', $minifier->minify('.foo { grid: none / auto-flow 1fr; }'));
-        $t->same('.foo{grid:none/200px}', $minifier->minify('.foo { grid: auto-flow / 200px; }'));
+        $t->same('.foo{grid:auto-flow/200px}', $minifier->minify('.foo { grid: auto-flow / 200px; }'));
         $t->same(
             '.foo{grid:auto-flow 300px/repeat(3,[line1 line2 line3]200px)}',
             $minifier->minify('.foo { grid: auto-flow 300px / repeat(3, [line1 line2 line3] 200px); }')
@@ -1834,15 +1834,21 @@ CSS
             )
         );
         $t->same(
-            '.test-auto-flow-row-1{grid:none/1fr 2fr 1fr;grid-template-areas:".one."}',
+            '.test-auto-flow-row-1{grid:auto-flow/1fr 2fr 1fr;grid-template-areas:".one."}',
             $minifier->minify(
                 '.test-auto-flow-row-1 { grid: auto-flow / 1fr 2fr 1fr; grid-template-areas: "  .   one  .  "; }'
             )
         );
         $t->same(
-            '.test-auto-flow-row-2{grid:none/100px 100px;grid-template-areas:"one two"}',
+            '.test-auto-flow-row-2{grid:auto-flow/100px 100px;grid-template-areas:"one two"}',
             $minifier->minify(
                 '.test-auto-flow-row-2 { grid: auto-flow auto / 100px 100px; grid-template-areas: " one two "; }'
+            )
+        );
+        $t->same(
+            '.test-auto-flow-dense{grid:auto-flow dense/1fr 2fr;grid-template-areas:".content."}',
+            $minifier->minify(
+                '.test-auto-flow-dense { grid: dense auto-flow / 1fr 2fr; grid-template-areas: "  .   content  .  "; }'
             )
         );
     },

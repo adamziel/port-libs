@@ -18,6 +18,7 @@ final class SQLiteGeneratedJsonPathIndexPlan
         if ($analysis['status'] !== 'ok') {
             throw new \InvalidArgumentException($analysis['message'] ?? 'SQLite generated JSON path index plan cannot evaluate cyclic generated columns');
         }
+        $rowidColumn = self::rowidColumn($createTableSql);
 
         $generatedColumns = self::generatedJsonColumns($analysis['columns'], $analysis['order']);
         if ($generatedColumns === []) {
@@ -31,7 +32,7 @@ final class SQLiteGeneratedJsonPathIndexPlan
 
         $before = array_map(static fn (array $row): array => self::evaluateGeneratedColumns($row, $generatedColumns), array_values($rows));
         $after = $before;
-        $positions = self::rowPositions($after);
+        $positions = self::rowPositions($after, $rowidColumn);
         $changedRows = [];
         $indexUpdates = [];
 
@@ -126,12 +127,13 @@ final class SQLiteGeneratedJsonPathIndexPlan
             $generatedColumns[strtolower((string) $column['name'])] = $column;
         }
         $indexPlans = self::indexPlans($indexes, $generatedColumns);
+        $rowidColumn = self::rowidColumn($createTableSql);
 
         $btreeIndexes = [];
         $actions = [];
         foreach ($indexPlans as $index) {
-            $currentEntries = self::btreeEntries($plan['before'], $index);
-            $nextEntries = self::btreeEntries($plan['after'], $index);
+            $currentEntries = self::btreeEntries($plan['before'], $index, $rowidColumn);
+            $nextEntries = self::btreeEntries($plan['after'], $index, $rowidColumn);
             $currentLeafPage = self::indexLeafPage($currentEntries, $pageSize);
             $nextLeafPage = self::indexLeafPage($nextEntries, $pageSize);
             $btreeIndexes[$index['name']] = [
@@ -188,6 +190,7 @@ final class SQLiteGeneratedJsonPathIndexPlan
         if ($analysis['status'] !== 'ok') {
             throw new \InvalidArgumentException($analysis['message'] ?? 'SQLite generated JSON path covering-index DELETE plan cannot evaluate cyclic generated columns');
         }
+        $rowidColumn = self::rowidColumn($createTableSql);
 
         $generatedColumns = self::generatedJsonColumns($analysis['columns'], $analysis['order']);
         if ($generatedColumns === []) {
@@ -200,7 +203,7 @@ final class SQLiteGeneratedJsonPathIndexPlan
         }
 
         $before = array_map(static fn (array $row): array => self::evaluateGeneratedColumns($row, $generatedColumns), array_values($rows));
-        $positions = self::rowPositions($before);
+        $positions = self::rowPositions($before, $rowidColumn);
         $deletedKeys = [];
         foreach ($deleteRowids as $rowid) {
             if (!is_int($rowid) && !is_string($rowid)) {
@@ -212,10 +215,7 @@ final class SQLiteGeneratedJsonPathIndexPlan
         $deletedRows = [];
         $after = [];
         foreach ($before as $row) {
-            $rowid = $row['option_id'] ?? $row['rowid'] ?? null;
-            if (!is_int($rowid) && !is_string($rowid)) {
-                throw new \InvalidArgumentException('SQLite generated JSON path covering-index DELETE rows need option_id or rowid');
-            }
+            $rowid = self::rowidValue($row, $rowidColumn, 'covering-index DELETE');
 
             if (array_key_exists((string) $rowid, $deletedKeys)) {
                 $deletedRows[(string) $rowid] = $row;
@@ -243,8 +243,8 @@ final class SQLiteGeneratedJsonPathIndexPlan
         $actions = [];
         foreach ($indexPlans as $index) {
             $coveringColumns = $coveringByIndex[$index['name']] ?? [];
-            $currentEntries = self::coveringBtreeEntries($before, $index, $coveringColumns);
-            $nextEntries = self::coveringBtreeEntries($after, $index, $coveringColumns);
+            $currentEntries = self::coveringBtreeEntries($before, $index, $coveringColumns, $rowidColumn);
+            $nextEntries = self::coveringBtreeEntries($after, $index, $coveringColumns, $rowidColumn);
             $currentLeafPage = self::coveringIndexLeafPage($currentEntries, $pageSize);
             $nextLeafPage = self::coveringIndexLeafPage($nextEntries, $pageSize);
             $btreeIndexes[$index['name']] = [
@@ -269,7 +269,7 @@ final class SQLiteGeneratedJsonPathIndexPlan
             ];
 
             foreach ($deletedRows as $rowid => $row) {
-                $entry = self::coveringIndexEntry($row, $index, $coveringColumns);
+                $entry = self::coveringIndexEntry($row, $index, $coveringColumns, $rowidColumn);
                 if (!$entry['present']) {
                     continue;
                 }
@@ -337,6 +337,7 @@ final class SQLiteGeneratedJsonPathIndexPlan
         if ($analysis['status'] !== 'ok') {
             throw new \InvalidArgumentException($analysis['message'] ?? 'SQLite generated JSON path DELETE index plan cannot evaluate cyclic generated columns');
         }
+        $rowidColumn = self::rowidColumn($createTableSql);
 
         $generatedColumns = self::generatedJsonColumns($analysis['columns'], $analysis['order']);
         if ($generatedColumns === []) {
@@ -349,7 +350,7 @@ final class SQLiteGeneratedJsonPathIndexPlan
         }
 
         $current = array_map(static fn (array $row): array => self::evaluateGeneratedColumns($row, $generatedColumns), array_values($rows));
-        $positions = self::rowPositions($current);
+        $positions = self::rowPositions($current, $rowidColumn);
         $deleteSet = [];
         foreach ($deleteRowids as $rowid) {
             if (!is_int($rowid) && !is_string($rowid)) {
@@ -368,10 +369,7 @@ final class SQLiteGeneratedJsonPathIndexPlan
         }
 
         foreach ($current as $row) {
-            $rowid = $row['option_id'] ?? $row['rowid'] ?? null;
-            if (!is_int($rowid) && !is_string($rowid)) {
-                throw new \InvalidArgumentException('SQLite generated JSON path DELETE rows need option_id or rowid');
-            }
+            $rowid = self::rowidValue($row, $rowidColumn, 'DELETE');
 
             if (array_key_exists((string) $rowid, $deleteSet)) {
                 $deletedRows[] = $row;
@@ -384,7 +382,7 @@ final class SQLiteGeneratedJsonPathIndexPlan
 
         $indexDeletes = [];
         foreach ($deletedRows as $deletedRow) {
-            $rowid = $deletedRow['option_id'] ?? $deletedRow['rowid'];
+            $rowid = self::rowidValue($deletedRow, $rowidColumn, 'DELETE');
             foreach ($indexPlans as $index) {
                 $entry = self::indexEntry($deletedRow, $index);
                 if (!$entry['present']) {
@@ -414,8 +412,8 @@ final class SQLiteGeneratedJsonPathIndexPlan
 
         $btreeIndexes = [];
         foreach ($indexPlans as $index) {
-            $currentEntries = self::btreeEntries($current, $index);
-            $nextEntries = self::btreeEntries($next, $index);
+            $currentEntries = self::btreeEntries($current, $index, $rowidColumn);
+            $nextEntries = self::btreeEntries($next, $index, $rowidColumn);
             $currentLeafPage = self::indexLeafPage($currentEntries, $pageSize);
             $nextLeafPage = self::indexLeafPage($nextEntries, $pageSize);
             $btreeIndexes[$index['name']] = [
@@ -672,14 +670,11 @@ final class SQLiteGeneratedJsonPathIndexPlan
      * @param list<array<string,mixed>> $rows
      * @return array<string,int>
      */
-    private static function rowPositions(array $rows): array
+    private static function rowPositions(array $rows, ?string $rowidColumn): array
     {
         $positions = [];
         foreach ($rows as $position => $row) {
-            $rowid = $row['option_id'] ?? $row['rowid'] ?? null;
-            if (!is_int($rowid) && !is_string($rowid)) {
-                throw new \InvalidArgumentException('SQLite generated JSON path index rows need option_id or rowid');
-            }
+            $rowid = self::rowidValue($row, $rowidColumn, 'index');
             $key = (string) $rowid;
             if (array_key_exists($key, $positions)) {
                 throw new \InvalidArgumentException('SQLite generated JSON path index rows need unique rowids');
@@ -704,6 +699,69 @@ final class SQLiteGeneratedJsonPathIndexPlan
         }
 
         return ['present' => $present, 'key' => $present ? $key : null];
+    }
+
+    private static function rowidColumn(string $createTableSql): ?string
+    {
+        $body = self::parenthesizedBody($createTableSql);
+        if ($body === null) {
+            return null;
+        }
+
+        foreach (self::splitTopLevel($body, ',') as $definition) {
+            $definition = trim($definition);
+            if ($definition === '') {
+                continue;
+            }
+
+            $constraint = self::stripLeadingConstraint($definition);
+            if (
+                self::startsWithKeyword($constraint, 'PRIMARY')
+                || self::startsWithKeyword($constraint, 'UNIQUE')
+                || self::startsWithKeyword($constraint, 'CHECK')
+                || self::startsWithKeyword($constraint, 'FOREIGN')
+            ) {
+                continue;
+            }
+
+            $identifier = self::readIdentifier($definition);
+            if ($identifier === null) {
+                continue;
+            }
+
+            $tail = substr($definition, $identifier['end']);
+            if (preg_match('/\bINTEGER\b/i', $tail) === 1 && preg_match('/\bPRIMARY\s+KEY\b/i', $tail) === 1) {
+                return $identifier['identifier'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function rowidValue(array $row, ?string $rowidColumn, string $context): int|string
+    {
+        $candidates = [];
+        if ($rowidColumn !== null) {
+            $candidates[] = $rowidColumn;
+        }
+        array_push($candidates, 'rowid', '_rowid_', 'oid');
+
+        foreach ($candidates as $candidate) {
+            foreach ($row as $column => $value) {
+                if (strcasecmp((string) $column, $candidate) !== 0) {
+                    continue;
+                }
+                if (is_int($value) || is_string($value)) {
+                    return $value;
+                }
+                throw new \InvalidArgumentException("SQLite generated JSON path {$context} rowid value must be integer or text");
+            }
+        }
+
+        throw new \InvalidArgumentException("SQLite generated JSON path {$context} rows need the table INTEGER PRIMARY KEY rowid column or rowid alias");
     }
 
     private static function canonicalKey(mixed $value): mixed
@@ -749,7 +807,7 @@ final class SQLiteGeneratedJsonPathIndexPlan
      * @param array{name:string,rootPage:int|null,column:string,path:string,partial:bool,partialPredicate:?SQLiteIndexPredicate,collation:string,descending:bool,unique:bool} $index
      * @return list<array{key:mixed,rowid:int|string,record:list<mixed>,record_hex:string}>
      */
-    private static function btreeEntries(array $rows, array $index): array
+    private static function btreeEntries(array $rows, array $index, ?string $rowidColumn): array
     {
         $entries = [];
         foreach ($rows as $row) {
@@ -758,10 +816,7 @@ final class SQLiteGeneratedJsonPathIndexPlan
                 continue;
             }
 
-            $rowid = $row['option_id'] ?? $row['rowid'] ?? null;
-            if (!is_int($rowid) && !is_string($rowid)) {
-                throw new \InvalidArgumentException('SQLite generated JSON path B-tree rows need option_id or rowid');
-            }
+            $rowid = self::rowidValue($row, $rowidColumn, 'B-tree');
 
             $record = [$entry['key'], $rowid];
             $entries[] = [
@@ -783,11 +838,11 @@ final class SQLiteGeneratedJsonPathIndexPlan
      * @param list<string> $coveringColumns
      * @return list<array{key:mixed,rowid:int|string,coveringValues:array<string,mixed>,record:list<mixed>,record_hex:string}>
      */
-    private static function coveringBtreeEntries(array $rows, array $index, array $coveringColumns): array
+    private static function coveringBtreeEntries(array $rows, array $index, array $coveringColumns, ?string $rowidColumn): array
     {
         $entries = [];
         foreach ($rows as $row) {
-            $entry = self::coveringIndexEntry($row, $index, $coveringColumns);
+            $entry = self::coveringIndexEntry($row, $index, $coveringColumns, $rowidColumn);
             if (!$entry['present']) {
                 continue;
             }
@@ -812,20 +867,22 @@ final class SQLiteGeneratedJsonPathIndexPlan
      * @param list<string> $coveringColumns
      * @return array{present:bool,key:mixed,rowid:int|string,coveringValues:array<string,mixed>,record:list<mixed>}
      */
-    private static function coveringIndexEntry(array $row, array $index, array $coveringColumns): array
+    private static function coveringIndexEntry(array $row, array $index, array $coveringColumns, ?string $rowidColumn): array
     {
         $entry = self::indexEntry($row, $index);
-        $rowid = $row['option_id'] ?? $row['rowid'] ?? null;
-        if (!is_int($rowid) && !is_string($rowid)) {
-            throw new \InvalidArgumentException('SQLite generated JSON path covering-index DELETE rows need option_id or rowid');
-        }
+        $rowid = self::rowidValue($row, $rowidColumn, 'covering-index DELETE');
 
         $coveringValues = [];
         foreach ($coveringColumns as $column) {
             if (strcasecmp($column, $index['column']) === 0) {
                 continue;
             }
-            if (strcasecmp($column, 'rowid') === 0 || strcasecmp($column, 'option_id') === 0) {
+            if (
+                strcasecmp($column, 'rowid') === 0
+                || strcasecmp($column, '_rowid_') === 0
+                || strcasecmp($column, 'oid') === 0
+                || ($rowidColumn !== null && strcasecmp($column, $rowidColumn) === 0)
+            ) {
                 continue;
             }
 
@@ -849,6 +906,143 @@ final class SQLiteGeneratedJsonPathIndexPlan
             'coveringValues' => $coveringValues,
             'record' => array_merge([$entry['key']], array_values($coveringValues), [$rowid]),
         ];
+    }
+
+    private static function parenthesizedBody(string $sql): ?string
+    {
+        $open = strpos($sql, '(');
+        if ($open === false) {
+            return null;
+        }
+
+        $close = self::matchingParen($sql, $open);
+
+        return $close === null ? null : substr($sql, $open + 1, $close - $open - 1);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitTopLevel(string $sql, string $delimiter): array
+    {
+        $parts = [];
+        $start = 0;
+        $depth = 0;
+        $quote = null;
+        $length = strlen($sql);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    if ($quote === "'" && ($sql[$i + 1] ?? null) === "'") {
+                        $i++;
+                        continue;
+                    }
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '[') {
+                $quote = ']';
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                continue;
+            }
+            if ($depth === 0 && $char === $delimiter) {
+                $parts[] = trim(substr($sql, $start, $i - $start));
+                $start = $i + 1;
+            }
+        }
+        $parts[] = trim(substr($sql, $start));
+
+        return array_values(array_filter($parts, static fn (string $part): bool => $part !== ''));
+    }
+
+    private static function matchingParen(string $sql, int $open): ?int
+    {
+        $depth = 0;
+        $quote = null;
+        $length = strlen($sql);
+
+        for ($i = $open; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    if ($quote === "'" && ($sql[$i + 1] ?? null) === "'") {
+                        $i++;
+                        continue;
+                    }
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '[') {
+                $quote = ']';
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $i;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static function stripLeadingConstraint(string $definition): string
+    {
+        if (preg_match('/^\s*CONSTRAINT\s+(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s+/i', $definition, $matches) === 1) {
+            return substr($definition, strlen($matches[0]));
+        }
+
+        return $definition;
+    }
+
+    private static function startsWithKeyword(string $definition, string $keyword): bool
+    {
+        return preg_match('/^\s*' . preg_quote($keyword, '/') . '\b/i', $definition) === 1;
+    }
+
+    /**
+     * @return null|array{identifier:string,end:int}
+     */
+    private static function readIdentifier(string $definition): ?array
+    {
+        if (preg_match('/^\s*"((?:""|[^"])+)"/', $definition, $matches, PREG_OFFSET_CAPTURE) === 1) {
+            return ['identifier' => str_replace('""', '"', $matches[1][0]), 'end' => $matches[0][1] + strlen($matches[0][0])];
+        }
+        if (preg_match('/^\s*`([^`]+)`/', $definition, $matches, PREG_OFFSET_CAPTURE) === 1) {
+            return ['identifier' => $matches[1][0], 'end' => $matches[0][1] + strlen($matches[0][0])];
+        }
+        if (preg_match('/^\s*\[([^\]]+)\]/', $definition, $matches, PREG_OFFSET_CAPTURE) === 1) {
+            return ['identifier' => $matches[1][0], 'end' => $matches[0][1] + strlen($matches[0][0])];
+        }
+        if (preg_match('/^\s*([A-Za-z_][A-Za-z0-9_]*)/', $definition, $matches, PREG_OFFSET_CAPTURE) === 1) {
+            return ['identifier' => $matches[1][0], 'end' => $matches[0][1] + strlen($matches[0][0])];
+        }
+
+        return null;
     }
 
     /**

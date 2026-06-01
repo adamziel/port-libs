@@ -829,6 +829,7 @@ final class MediaQueryParser
     {
         $value = trim($value);
         $value = $this->foldSimpleCalc($value);
+        $value = $this->foldSimpleMathFunction($value, $type);
         $value = $this->minifyFunctionCommas($value);
         $value = preg_replace('/\s*\/\s*/', '/', $value) ?? $value;
         if (preg_match('/^([0-9]+(?:\.[0-9]+)?)\/1$/', $value, $matches) === 1) {
@@ -842,6 +843,135 @@ final class MediaQueryParser
         }
 
         return $this->minifyNumericValue($value);
+    }
+
+    private function foldSimpleMathFunction(string $value, ?string $type): string
+    {
+        if (!in_array($type, ['length', 'number', 'unknown'], true)) {
+            return $value;
+        }
+
+        if (preg_match('/^(min|max|clamp)\(/i', $value, $matches) !== 1) {
+            return $value;
+        }
+
+        $function = strtolower($matches[1]);
+        $open = strlen($matches[1]);
+        try {
+            if ($this->findMatchingDelimiter($value, $open, '(', ')') !== strlen($value) - 1) {
+                return $value;
+            }
+        } catch (\InvalidArgumentException) {
+            return $value;
+        }
+
+        $args = $this->splitTopLevel(substr($value, $open + 1, -1), ',');
+        if (($function === 'clamp' && count($args) !== 3) || ($function !== 'clamp' && count($args) < 2)) {
+            return $value;
+        }
+
+        $values = [];
+        foreach ($args as $arg) {
+            $comparable = $this->comparableMathValue($arg, $type);
+            if ($comparable === null) {
+                return $value;
+            }
+
+            $values[] = $comparable;
+        }
+
+        if (!$this->mathValuesShareComparableUnit($values)) {
+            return $value;
+        }
+
+        if ($function === 'min' || $function === 'max') {
+            $selected = $values[0];
+            foreach (array_slice($values, 1) as $candidate) {
+                if (($function === 'min' && $candidate['number'] < $selected['number'])
+                    || ($function === 'max' && $candidate['number'] > $selected['number'])
+                ) {
+                    $selected = $candidate;
+                }
+            }
+
+            return $this->formatComparableMathValue($selected, $type);
+        }
+
+        [$minimum, $center, $maximum] = $values;
+        if ($center['number'] > $maximum['number']) {
+            $center = $maximum;
+        }
+        if ($center['number'] < $minimum['number']) {
+            $center = $minimum;
+        }
+
+        return $this->formatComparableMathValue($center, $type);
+    }
+
+    /**
+     * @return array{number:float,unit:string}|null
+     */
+    private function comparableMathValue(string $value, ?string $type): ?array
+    {
+        $value = trim($value);
+        $value = $this->foldSimpleCalc($value);
+        $folded = $this->foldSimpleMathFunction($value, $type);
+        $value = $this->minifyNumericValue($folded);
+        $number = $this->cssNumberPattern();
+
+        if (preg_match('/^(' . $number . ')([a-zA-Z%]+)?$/', $value, $matches) !== 1) {
+            return null;
+        }
+
+        $unit = strtolower($matches[2] ?? '');
+        if ($type === 'number' && $unit !== '') {
+            return null;
+        }
+
+        if ($type === 'length' && $unit === '' && (float) $matches[1] !== 0.0) {
+            $unit = 'px';
+        }
+
+        return [
+            'number' => (float) $matches[1],
+            'unit' => $unit,
+        ];
+    }
+
+    /**
+     * @param list<array{number:float,unit:string}> $values
+     */
+    private function mathValuesShareComparableUnit(array $values): bool
+    {
+        if ($values === []) {
+            return false;
+        }
+
+        $unit = $values[0]['unit'];
+        foreach ($values as $value) {
+            if ($value['unit'] !== $unit) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array{number:float,unit:string} $value
+     */
+    private function formatComparableMathValue(array $value, ?string $type): string
+    {
+        $number = $this->trimNumber(rtrim(rtrim(sprintf('%.12F', $value['number']), '0'), '.'));
+        if ($number === '-0') {
+            $number = '0';
+        }
+
+        if ($type === 'length' && $number === '0') {
+            return '0';
+        }
+
+        return $number . $value['unit'];
     }
 
     private function minifyNumericValue(string $value): string

@@ -188,6 +188,24 @@ $actual = [
 CSS,
         ['firefox' => 60]
     ),
+    'mathFunctionRangeFallback' => $prefixer->prefixForTargets(
+        <<<'CSS'
+@layer theme.blocks {
+  @media (width > max(10px, 20px)) {
+    .wp-block-query.is-math-function-wide {
+      color: yellow;
+    }
+  }
+
+  @media (width >= clamp(10px, 15px, 20px)) {
+    .wp-block-query.is-math-function-clamp {
+      color: yellow;
+    }
+  }
+}
+CSS,
+        ['firefox' => 60]
+    ),
     'negatedRangeGroup' => $prefixer->prefixForTargets(
         '@layer theme.blocks { @media not ((100px <= width <= 200px) or (hover)) { .wp-block-query.is-not-compact-hover { color: yellow; } } }',
         ['firefox' => 85]
@@ -433,6 +451,7 @@ $expected = [
     'xResolutionIntervalPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query.is-low-density-window{color:#ff0}}}',
     'mixedEnvResolutionPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2) and (min-resolution:env(--wp-density-floor)),(min--moz-device-pixel-ratio:2) and (min-resolution:env(--wp-density-floor)),(min-resolution:2dppx) and (min-resolution:env(--wp-density-floor)){.wp-block-query.is-density-env-window{color:#ff0}}}',
     'numericCalcRangeFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2){.wp-block-query.is-density-calc{color:#ff0}}@media (min--moz-device-pixel-ratio:1) and (max--moz-device-pixel-ratio:2){.wp-block-query.is-density-calc-window{color:#ff0}}}',
+    'mathFunctionRangeFallback' => '@layer theme.blocks{@media not (max-width:20px){.wp-block-query.is-math-function-wide{color:#ff0}}@media (min-width:15px){.wp-block-query.is-math-function-clamp{color:#ff0}}}',
     'negatedRangeGroup' => '@layer theme.blocks{@media not (((min-width:100px) and (max-width:200px)) or (hover)){.wp-block-query.is-not-compact-hover{color:#ff0}}}',
     'negatedIntervalWithHover' => '@layer theme.blocks{@media (hover) and (not ((min-width:200px) and (not (min-width:500px)))){.wp-block-query.is-not-middle-hover{color:#ff0}}}',
     'upstreamIntervalPrefixFallbacks' => '@layer theme.blocks{@media not ((min-width:100px) and (max-width:200px)){.wp-block-query.is-not-compact-range{color:#ff0}}@media (hover) and (min-width:100px) and (max-width:200px){.wp-block-query.is-hover-compact-range{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:200px)){.wp-block-query.is-open-range{color:#ff0}}@media not ((not (max-width:100px)) and (not (min-width:200px))){.wp-block-query.is-not-open-range{color:#ff0}}@media (max-width:200px) and (min-width:100px){.wp-block-query.is-descending-range{color:#ff0}}@media not (max-color:2){.wp-block-query.is-rich-color{color:#ff0}}@media not (min-color:2){.wp-block-query.is-low-color{color:#ff0}}}',

@@ -221,7 +221,7 @@ return [
         $t->same('print', $parser->andQuery('print', 'print'));
         $t->throws(InvalidArgumentException::class, static fn () => $parser->andQuery('not print', 'not screen'));
     },
-    'media query parser folds simple same-unit calc values' => static function (TestRunner $t): void {
+    'media query parser folds simple same-unit calc and math function values' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 
         $t->same('(width>=240px)', $parser->minifyList('(min-width: calc(200px + 40px))'));
@@ -229,15 +229,29 @@ return [
         $t->same('(width>=calc(1em + 5px))', $parser->minifyList('(min-width: calc(1em+5px))'));
         $t->same('(width>=6px)', $parser->minifyList('(width >= calc(2px + 4px))'));
         $t->same('(width>calc(1px + 1rem))', $parser->minifyList('(width > calc(1px+1rem))'));
+        $t->same('(width>20px)', $parser->minifyList('(width > max(10px, 20px))'));
+        $t->same('(width>10px)', $parser->minifyList('(width > min(10px, 20px))'));
+        $t->same('(width>15px)', $parser->minifyList('(width > clamp(10px, 15px, 20px))'));
+        $t->same('(width>20px)', $parser->minifyList('(width > clamp(10px, 25px, 20px))'));
+        $t->same('(width>10px)', $parser->minifyList('(width > clamp(10px, 5px, 20px))'));
+        $t->same('(width>max(10px,1rem))', $parser->minifyList('(width > max(10px, 1rem))'));
         $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= calc(1 + 1))'));
+        $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= max(1, 2))'));
         $t->same('(1<=-moz-device-pixel-ratio<=2)', $parser->minifyList('(1 <= -moz-device-pixel-ratio <= calc(1 + 1))'));
         $t->same('not (max-width:calc(1px + 1rem))', $parser->lowerRangeSyntaxList('(width > calc(1px+1rem))'));
+        $t->same('not (max-width:20px)', $parser->lowerRangeSyntaxList('(width > max(10px, 20px))'));
+        $t->same('(min-width:15px)', $parser->lowerRangeSyntaxList('(width >= clamp(10px, 15px, 20px))'));
         $t->same('(not (max-width:100px)) and (not (min-width:calc(100vw - 50px)))', $parser->lowerRangeSyntaxList('(100px < width < calc(100vw-50px))'));
         $t->same('(-webkit-min-device-pixel-ratio:2)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio >= calc(1 + 1))'));
+        $t->same('(-webkit-min-device-pixel-ratio:2)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio >= max(1, 2))'));
         $t->same('(min--moz-device-pixel-ratio:1) and (max--moz-device-pixel-ratio:2)', $parser->lowerRangeSyntaxList('(1 <= -moz-device-pixel-ratio <= calc(1 + 1))'));
         $t->same(
             '@layer blocks{@media (-webkit-device-pixel-ratio>=2){.wp-block-query{color:#ff0}}}',
             (new CssMinifier())->minify('@layer blocks { @media (-webkit-device-pixel-ratio >= calc(1 + 1)) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (width>15px){.wp-block-query{color:#ff0}}}',
+            (new CssMinifier())->minify('@layer blocks { @media (width > clamp(10px, 15px, 20px)) { .wp-block-query { color: yellow; } } }')
         );
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('&test, speech'));
     },
