@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 23:56:53 UTC",
-    "sourceCommit": "66a795f7d7ef29ef21369290672d43b8326ee19b",
-    "sourceCommitShort": "66a795f7d7ef",
+    "generated": "2026-06-01 23:59:12 UTC",
+    "sourceCommit": "07f02fcff7766b7f27f0460605548cd300ea18be",
+    "sourceCommitShort": "07f02fcff776",
     "sourceBranch": "unknown",
-    "dashboardCommit": "66a795f7d7ef29ef21369290672d43b8326ee19b",
-    "dashboardCommitShort": "66a795f7d7ef",
+    "dashboardCommit": "07f02fcff7766b7f27f0460605548cd300ea18be",
+    "dashboardCommitShort": "07f02fcff776",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -45,13 +45,13 @@
             "coverage": "2,439 / 3,532 (69.1%)",
             "mapPercent": "69.1%",
             "unmapped": "1,093",
-            "php": "9,217 pass / 0 fail",
+            "php": "9,222 pass / 0 fail",
             "phase": "wrap-up source parity plus runner-evidence consolidation; full Rust/N...",
             "audit": "2026-06-01 isolated worker on base 4891303774c9ca404591d2f3a4d35bc9e1...",
-            "currentWork": "Bundle import graph parity, advanced color fallback parity, and runner-evidence closu...",
+            "currentWork": "CSS Modules terminal pseudo/composes parity is accepted on current base, alongside bu...",
             "nextTarget": "Install or vendor the missing upstream runner dependencies in...",
             "remainingGate": "Full upstream runner closure is partial: bounded Rust media test and...",
-            "commit": "66a795f"
+            "commit": "07f02fc"
         },
         {
             "lane": "gitoxide",
@@ -61,20 +61,20 @@
             "state": "High coverage",
             "progressPercent": "98.8",
             "completion": "98.8%",
-            "suite": "current-base Gitoxide Cargo workspace evidence wrap-up",
-            "benchmark": "current-base Gitoxide Cargo workspace evidence wrap-up",
+            "suite": "current-base Gitoxide URL/refspec push matching parity",
+            "benchmark": "current-base Gitoxide URL/refspec push matching parity",
             "denominator": "2886",
-            "mapped": "1819",
-            "coverage": "1,819 / 2,886 (63.0%)",
-            "mapPercent": "63.0%",
-            "unmapped": "1,067",
-            "php": "11,001 pass / 0 fail",
+            "mapped": "1820",
+            "coverage": "1,820 / 2,886 (63.1%)",
+            "mapPercent": "63.1%",
+            "unmapped": "1,066",
+            "php": "11,015 pass / 0 fail",
             "phase": "wrap-up PHP parity and runner-evidence consolidation; full Cargo work...",
             "audit": "2026-06-01 20:36 UTC supervisor integration: source commit e5958190df...",
-            "currentWork": "Receive-pack v1 advertisement/transport boundary parity is accepted on current base,...",
+            "currentWork": "URL/refspec push match parity is accepted on current base, alongside receive-pack, Ca...",
             "nextTarget": "Materialize the source-available upstream target files or run...",
             "remainingGate": "Cargo workspace blocked by sparse target files",
-            "commit": "66a795f"
+            "commit": "07f02fc"
         },
         {
             "lane": "readability",
