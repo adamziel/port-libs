@@ -260,4 +260,161 @@ return [
             $t->same(true, $polyfill['file_unchanged']);
         });
     },
+
+    'SQLitePDO INSERT and UPDATE conflict modifiers keep native invalid DML parity' => static function (TestRunner $t) use ($sqlitePdoNativeAvailable, $withScratchDir, $open): void {
+        if (!$sqlitePdoNativeAvailable()) {
+            return;
+        }
+
+        $cases = [
+            'prepare insert or ignore invalid target column' => [
+                'prepare-execute',
+                'INSERT OR IGNORE INTO app_settings (missing_key) VALUES (?)',
+                ['ignored'],
+                ['HY000', 1, 'table app_settings has no column named missing_key'],
+                'prepare',
+                [['setting_id' => 1, 'key_name' => 'alpha', 'key_value' => 'kept']],
+            ],
+            'exec insert or replace invalid scalar column' => [
+                'exec',
+                'INSERT OR REPLACE INTO app_settings (key_name) VALUES (missing_value)',
+                [],
+                ['HY000', 1, 'no such column: missing_value'],
+                'exec',
+                [['setting_id' => 1, 'key_name' => 'alpha', 'key_value' => 'kept']],
+            ],
+            'prepare replace invalid target column' => [
+                'prepare-execute',
+                'REPLACE INTO app_settings (missing_key) VALUES (?)',
+                ['ignored'],
+                ['HY000', 1, 'table app_settings has no column named missing_key'],
+                'prepare',
+                [['setting_id' => 1, 'key_name' => 'alpha', 'key_value' => 'kept']],
+            ],
+            'prepare update or ignore invalid assignment column' => [
+                'prepare-execute',
+                'UPDATE OR IGNORE app_settings SET missing_key = ? WHERE key_name = ?',
+                ['ignored', 'alpha'],
+                ['HY000', 1, 'no such column: missing_key'],
+                'prepare',
+                [['setting_id' => 1, 'key_name' => 'alpha', 'key_value' => 'kept']],
+            ],
+            'exec update or fail invalid scalar column' => [
+                'exec',
+                "UPDATE OR FAIL app_settings SET key_value = missing_value WHERE key_name = 'alpha'",
+                [],
+                ['HY000', 1, 'no such column: missing_value'],
+                'exec',
+                [['setting_id' => 1, 'key_name' => 'alpha', 'key_value' => 'kept']],
+            ],
+            'prepared insert or fail valid parameter persists' => [
+                'prepare-execute',
+                'INSERT OR FAIL INTO app_settings (key_name, key_value) VALUES (?, ?)',
+                ['beta', 'made'],
+                null,
+                'execute',
+                [
+                    ['setting_id' => 1, 'key_name' => 'alpha', 'key_value' => 'kept'],
+                    ['setting_id' => 2, 'key_name' => 'beta', 'key_value' => 'made'],
+                ],
+            ],
+            'prepared replace valid parameter persists' => [
+                'prepare-execute',
+                'REPLACE INTO app_settings (key_name, key_value) VALUES (?, ?)',
+                ['beta', 'made'],
+                null,
+                'execute',
+                [
+                    ['setting_id' => 1, 'key_name' => 'alpha', 'key_value' => 'kept'],
+                    ['setting_id' => 2, 'key_name' => 'beta', 'key_value' => 'made'],
+                ],
+            ],
+            'prepared update or replace valid parameter persists' => [
+                'prepare-execute',
+                'UPDATE OR REPLACE app_settings SET key_value = ? WHERE key_name = ?',
+                ['changed', 'alpha'],
+                null,
+                'execute',
+                [['setting_id' => 1, 'key_name' => 'alpha', 'key_value' => 'changed']],
+            ],
+        ];
+
+        $exercise = static function (string $class, string $path, string $operation, string $sql, array $parameters) use ($open): array {
+            $pdo = $open($class, $path);
+            $pdo->exec('CREATE TABLE app_settings (setting_id INTEGER PRIMARY KEY, key_name TEXT, key_value TEXT)');
+            $pdo->exec("INSERT INTO app_settings (key_name, key_value) VALUES ('alpha', 'kept')");
+            $before = (string) file_get_contents($path);
+            $statement = null;
+            $phase = $operation === 'exec' ? 'exec' : 'prepare';
+            $result = null;
+            $exception = null;
+
+            try {
+                if ($operation === 'exec') {
+                    $result = $pdo->exec($sql);
+                } else {
+                    $statement = $pdo->prepare($sql);
+                    $phase = 'execute';
+                    if (!$statement instanceof PDOStatement) {
+                        throw new RuntimeException('Expected prepared statement');
+                    }
+                    $result = $statement->execute($parameters);
+                }
+            } catch (PDOException $caught) {
+                $exception = $caught;
+            }
+
+            $connectionErrorInfo = $pdo->errorInfo();
+            $statementErrorInfo = $statement instanceof PDOStatement ? $statement->errorInfo() : null;
+            $rows = $pdo->query('SELECT setting_id, key_name, key_value FROM app_settings ORDER BY setting_id')->fetchAll(PDO::FETCH_ASSOC);
+            $reopened = $open($class, $path);
+
+            return [
+                'phase' => $phase,
+                'result' => $result,
+                'exception_message' => $exception?->getMessage(),
+                'exception_error_info' => $exception?->errorInfo ?? null,
+                'connection_error_info' => $connectionErrorInfo,
+                'statement_was_created' => $statement instanceof PDOStatement,
+                'statement_error_info' => $statementErrorInfo,
+                'file_unchanged' => hash('sha256', $before) === hash('sha256', (string) file_get_contents($path)),
+                'rows' => $rows,
+                'reopened_rows' => $reopened->query('SELECT setting_id, key_name, key_value FROM app_settings ORDER BY setting_id')->fetchAll(PDO::FETCH_ASSOC),
+            ];
+        };
+
+        $withScratchDir('sqlite-pdo-conflict-modifier-invalid-dml', static function (string $dir) use ($t, $cases, $exercise): void {
+            $caseNumber = 0;
+            foreach ($cases as $name => [$operation, $sql, $parameters, $expectedErrorInfo, $expectedPhase, $expectedRows]) {
+                $polyfill = $exercise(SQLitePDO::class, $dir . "/polyfill-{$caseNumber}.sqlite", $operation, $sql, $parameters);
+                $native = $exercise(PDO::class, $dir . "/native-{$caseNumber}.sqlite", $operation, $sql, $parameters);
+
+                $t->same($expectedPhase, $polyfill['phase'], "{$name} phase");
+                if ($expectedErrorInfo !== null) {
+                    $t->contains($expectedErrorInfo[2], $polyfill['exception_message'] ?? '', "{$name} exception message");
+                    $t->same($expectedErrorInfo, $polyfill['exception_error_info'], "{$name} exception errorInfo");
+                    $t->same($expectedErrorInfo, $polyfill['connection_error_info'], "{$name} connection errorInfo");
+                    $t->same(null, $polyfill['statement_error_info'], "{$name} no statement errorInfo");
+                    $t->same(false, $polyfill['statement_was_created'], "{$name} statement not created");
+                    $t->same(true, $polyfill['file_unchanged'], "{$name} unchanged after invalid DML");
+                } else {
+                    $t->same(null, $polyfill['exception_error_info'], "{$name} no exception");
+                    $t->same(true, $polyfill['result'] === true || $polyfill['result'] === 1, "{$name} successful result");
+                    $t->same(['00000', null, null], $polyfill['connection_error_info'], "{$name} success connection errorInfo");
+                    $t->same(['00000', null, null], $polyfill['statement_error_info'], "{$name} success statement errorInfo");
+                    $t->same(false, $polyfill['file_unchanged'], "{$name} changed after valid DML");
+                }
+                $t->same($expectedRows, $polyfill['rows'], "{$name} rows");
+                $t->same($expectedRows, $polyfill['reopened_rows'], "{$name} reopened rows");
+                $t->same($native['phase'], $polyfill['phase'], "{$name} native phase");
+                $t->same($native['exception_error_info'], $polyfill['exception_error_info'], "{$name} native exception errorInfo");
+                $t->same($native['connection_error_info'], $polyfill['connection_error_info'], "{$name} native connection errorInfo");
+                $t->same($native['statement_was_created'], $polyfill['statement_was_created'], "{$name} native statement creation");
+                $t->same($native['statement_error_info'], $polyfill['statement_error_info'], "{$name} native statement errorInfo");
+                $t->same($native['rows'], $polyfill['rows'], "{$name} native rows");
+                $t->same($native['reopened_rows'], $polyfill['reopened_rows'], "{$name} native reopened rows");
+                $caseNumber++;
+            }
+        });
+    },
 ];

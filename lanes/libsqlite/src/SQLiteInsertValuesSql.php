@@ -13,7 +13,10 @@ final class SQLiteInsertValuesSql
     {
         $sql = trim(rtrim(trim($sql), ';'));
         $offset = 0;
-        self::readKeyword($sql, $offset, 'insert');
+        if (self::tryReadKeyword($sql, $offset, 'replace') === false) {
+            self::readKeyword($sql, $offset, 'insert');
+            self::readOptionalConflictClause($sql, $offset);
+        }
         self::readKeyword($sql, $offset, 'into');
         $target = self::readIdentifier($sql, $offset, 'SQLite INSERT target table');
         $offset = self::skipWhitespace($sql, $offset);
@@ -49,14 +52,17 @@ final class SQLiteInsertValuesSql
     public static function startsWithInsertKeyword(string $sql): bool
     {
         $sql = ltrim($sql);
-        $keyword = 'insert';
-        if (strtolower(substr($sql, 0, strlen($keyword))) !== $keyword) {
-            return false;
+        foreach (['insert', 'replace'] as $keyword) {
+            if (strtolower(substr($sql, 0, strlen($keyword))) !== $keyword) {
+                continue;
+            }
+
+            $next = $sql[strlen($keyword)] ?? '';
+
+            return $next === '' || (!ctype_alnum($next) && $next !== '_');
         }
 
-        $next = $sql[strlen($keyword)] ?? '';
-
-        return $next === '' || (!ctype_alnum($next) && $next !== '_');
+        return false;
     }
 
     private static function readKeyword(string $sql, int &$offset, string $keyword): void
@@ -72,6 +78,35 @@ final class SQLiteInsertValuesSql
             throw new \InvalidArgumentException('SQLite INSERT SQL expected ' . strtoupper($keyword));
         }
         $offset += $length;
+    }
+
+    private static function tryReadKeyword(string $sql, int &$offset, string $keyword): bool
+    {
+        $checkpoint = $offset;
+        try {
+            self::readKeyword($sql, $offset, $keyword);
+
+            return true;
+        } catch (\InvalidArgumentException) {
+            $offset = $checkpoint;
+
+            return false;
+        }
+    }
+
+    private static function readOptionalConflictClause(string $sql, int &$offset): void
+    {
+        if (self::tryReadKeyword($sql, $offset, 'or') === false) {
+            return;
+        }
+
+        foreach (['rollback', 'abort', 'replace', 'fail', 'ignore'] as $algorithm) {
+            if (self::tryReadKeyword($sql, $offset, $algorithm)) {
+                return;
+            }
+        }
+
+        throw new \InvalidArgumentException('SQLite INSERT conflict algorithm is malformed');
     }
 
     private static function readIdentifier(string $sql, int &$offset, string $label): string

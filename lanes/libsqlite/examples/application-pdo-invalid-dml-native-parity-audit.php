@@ -33,6 +33,17 @@ try {
         ];
     }
 
+    try {
+        $pdo->exec("INSERT OR IGNORE INTO app_settings (missing_key) VALUES ('ignored')");
+        throw new RuntimeException('Expected invalid INSERT OR IGNORE target-column failure');
+    } catch (PDOException $exception) {
+        $invalidConflictInsertTarget = [
+            'exception_error_info' => $exception->errorInfo ?? null,
+            'connection_error_info' => $pdo->errorInfo(),
+            'file_unchanged' => hash('sha256', $beforeInvalid) === hash('sha256', (string) file_get_contents($path)),
+        ];
+    }
+
     $statement = $pdo->prepare('DELETE FROM app_settings WHERE key_name = ?');
     try {
         $statement->execute(['alpha', 'surplus']);
@@ -57,12 +68,19 @@ try {
         ];
     }
 
+    $conflictUpdate = $pdo->prepare('UPDATE OR REPLACE app_settings SET key_value = ? WHERE key_name = ?');
+    $conflictUpdateResult = $conflictUpdate->execute(['changed-after-audit', 'alpha']);
+
     $result = [
         'scenario' => 'application-pdo-invalid-dml-native-parity-audit',
         'applicationUse' => 'Audit invalid SQLitePDO UPDATE and DELETE paths for application settings files: native-style errors are reported before any file-backed row mutation.',
         'invalidUpdateExpression' => $invalidUpdateExpression,
+        'invalidConflictInsertTarget' => $invalidConflictInsertTarget,
         'surplusDeleteParameter' => $surplusDeleteParameter,
         'surplusUpdateExecParameter' => $surplusUpdateExecParameter,
+        'conflictUpdateResult' => $conflictUpdateResult,
+        'conflictUpdateRowCount' => $conflictUpdate->rowCount(),
+        'conflictUpdateErrorInfo' => $conflictUpdate->errorInfo(),
         'rowsAfterAudit' => $pdo->query('SELECT key_name, key_value FROM app_settings ORDER BY setting_id')->fetchAll(),
     ];
 } finally {
@@ -76,6 +94,9 @@ if (($argv[1] ?? null) === '--self-test') {
         && $result['invalidUpdateExpression']['exception_error_info'] === ['HY000', 1, 'no such column: missing_value']
         && $result['invalidUpdateExpression']['connection_error_info'] === ['HY000', 1, 'no such column: missing_value']
         && $result['invalidUpdateExpression']['file_unchanged'] === true
+        && $result['invalidConflictInsertTarget']['exception_error_info'] === ['HY000', 1, 'table app_settings has no column named missing_key']
+        && $result['invalidConflictInsertTarget']['connection_error_info'] === ['HY000', 1, 'table app_settings has no column named missing_key']
+        && $result['invalidConflictInsertTarget']['file_unchanged'] === true
         && $result['surplusDeleteParameter']['exception_error_info'] === ['HY000', 25, 'column index out of range']
         && $result['surplusDeleteParameter']['connection_error_info'] === ['00000', null, null]
         && $result['surplusDeleteParameter']['statement_error_info'] === ['HY000', 25, 'column index out of range']
@@ -83,8 +104,11 @@ if (($argv[1] ?? null) === '--self-test') {
         && $result['surplusUpdateExecParameter']['exception_error_info'] === ['HY000', 25, 'column index out of range']
         && $result['surplusUpdateExecParameter']['connection_error_info'] === ['HY000', 25, 'column index out of range']
         && $result['surplusUpdateExecParameter']['file_unchanged'] === true
+        && $result['conflictUpdateResult'] === true
+        && $result['conflictUpdateRowCount'] === 1
+        && $result['conflictUpdateErrorInfo'] === ['00000', null, null]
         && $result['rowsAfterAudit'] === [
-            ['key_name' => 'alpha', 'key_value' => 'kept'],
+            ['key_name' => 'alpha', 'key_value' => 'changed-after-audit'],
             ['key_name' => 'beta', 'key_value' => 'kept-too'],
         ];
 

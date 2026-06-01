@@ -695,7 +695,7 @@ final class SQLitePDO extends \PDO
 
     private function validateUpdatePrepareSql(string $sql): void
     {
-        if (preg_match('/^update\s+([A-Za-z_][A-Za-z0-9_]*)\s+set\s+(.+?)(?:\s+where\s+(.+))?$/is', $sql, $match) !== 1) {
+        if (preg_match('/^update(?:\s+or\s+(?:rollback|abort|replace|fail|ignore))?\s+([A-Za-z_][A-Za-z0-9_]*)\s+set\s+(.+?)(?:\s+where\s+(.+))?$/is', $sql, $match) !== 1) {
             return;
         }
 
@@ -1393,7 +1393,7 @@ final class SQLitePDO extends \PDO
     /** @param array<int|string,mixed> $parameters */
     private function updateRows(string $sql, array $parameters): int
     {
-        if (preg_match('/^update\s+([A-Za-z_][A-Za-z0-9_]*)\s+set\s+(.+?)(?:\s+where\s+(.+))?$/is', $sql, $match) !== 1) {
+        if (preg_match('/^update(?:\s+or\s+(?:rollback|abort|replace|fail|ignore))?\s+([A-Za-z_][A-Za-z0-9_]*)\s+set\s+(.+?)(?:\s+where\s+(.+))?$/is', $sql, $match) !== 1) {
             throw new \PDOException('SQLitePDO UPDATE support requires UPDATE table SET ... [WHERE ...]');
         }
         $table = $match[1];
@@ -1406,7 +1406,10 @@ final class SQLitePDO extends \PDO
             $assignments[$assignmentMatch[1]] = $assignmentMatch[2];
         }
         $this->assertColumns($table, array_keys($assignments), 'update');
-        $indexes = $this->matchingIndexes($table, $match[3] ?? null, $parameters);
+        $where = isset($match[3]) && trim($match[3]) !== ''
+            ? $this->rewriteUpdateWhereAnonymousParameters($match[3], array_values($assignments))
+            : null;
+        $indexes = $this->matchingIndexes($table, $where, $parameters);
         foreach ($indexes as $index) {
             $parameterCursor = $this->parameterCursor($parameters);
             foreach ($assignments as $column => $expression) {
@@ -1431,6 +1434,78 @@ final class SQLitePDO extends \PDO
         }
 
         return count($indexes);
+    }
+
+    /**
+     * @param list<string> $assignmentExpressions
+     */
+    private function rewriteUpdateWhereAnonymousParameters(string $where, array $assignmentExpressions): string
+    {
+        $state = ['next' => 1, 'named' => []];
+        foreach ($assignmentExpressions as $expression) {
+            $this->scanUpdateParameterSql($expression, $state, false);
+        }
+
+        return $this->scanUpdateParameterSql($where, $state, true);
+    }
+
+    /**
+     * @param array{next:int,named:array<string,int>} $state
+     */
+    private function scanUpdateParameterSql(string $sql, array &$state, bool $rewriteAnonymous): string
+    {
+        $result = '';
+        $quote = false;
+        $length = strlen($sql);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                $result .= $char;
+                if ($quote && ($sql[$i + 1] ?? null) === "'") {
+                    $result .= "'";
+                    $i++;
+                    continue;
+                }
+                $quote = !$quote;
+                continue;
+            }
+            if ($quote) {
+                $result .= $char;
+                continue;
+            }
+            if ($char === '?') {
+                $end = $i + 1;
+                while ($end < $length && ctype_digit($sql[$end])) {
+                    $end++;
+                }
+                $token = substr($sql, $i, $end - $i);
+                if ($token === '?') {
+                    $index = $state['next']++;
+                    $result .= $rewriteAnonymous ? '?' . $index : $token;
+                } else {
+                    $index = $this->explicitParameterIndex($token);
+                    $state['next'] = max($state['next'], $index + 1);
+                    $result .= $token;
+                }
+                $i = $end - 1;
+                continue;
+            }
+            if ($char === ':') {
+                $token = $this->namedParameterToken($sql, $i);
+                if ($token !== null) {
+                    if (!array_key_exists($token, $state['named'])) {
+                        $state['named'][$token] = $state['next']++;
+                    }
+                    $result .= $token;
+                    $i += strlen($token) - 1;
+                    continue;
+                }
+            }
+
+            $result .= $char;
+        }
+
+        return $result;
     }
 
     /** @param array<int|string,mixed> $parameters @return list<int> */
