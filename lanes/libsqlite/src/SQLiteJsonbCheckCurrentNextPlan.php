@@ -21,7 +21,7 @@ final class SQLiteJsonbCheckCurrentNextPlan
         $jsonColumn = self::identifier((string) ($options['jsonColumn'] ?? 'key_value'), 'JSON column');
         $rowidColumn = isset($options['rowidColumn'])
             ? self::identifier((string) $options['rowidColumn'], 'rowid column')
-            : null;
+            : self::rowidColumn($createTableSql);
 
         $rows = self::rowsByRowid($currentRows, $rowidColumn);
         $current = [];
@@ -397,6 +397,53 @@ final class SQLiteJsonbCheckCurrentNextPlan
 
         $suffix = $rowidColumn === null ? 'rowid, setting_id, or id' : "{$rowidColumn}, rowid, setting_id, or id";
         throw new \InvalidArgumentException("SQLite JSONB CHECK row requires {$suffix}");
+    }
+
+    private static function rowidColumn(string $createTableSql): ?string
+    {
+        $body = self::parenthesizedBody($createTableSql);
+        if ($body === null) {
+            return null;
+        }
+
+        foreach (self::splitTopLevel($body, ',') as $definition) {
+            $parsed = self::leadingColumnDefinition($definition);
+            if ($parsed === null) {
+                continue;
+            }
+
+            if (preg_match('/\bINTEGER\b/i', $parsed['tail']) === 1 && preg_match('/\bPRIMARY\s+KEY\b/i', $parsed['tail']) === 1) {
+                return $parsed['identifier'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{identifier:string,tail:string}
+     */
+    private static function leadingColumnDefinition(string $definition): ?array
+    {
+        $definition = ltrim($definition);
+        if (preg_match('/^(CONSTRAINT|PRIMARY|UNIQUE|CHECK|FOREIGN)\b/i', $definition) === 1) {
+            return null;
+        }
+
+        if (preg_match('/^"((?:""|[^"])*)"(.*)$/s', $definition, $matches) === 1) {
+            return ['identifier' => str_replace('""', '"', $matches[1]), 'tail' => $matches[2]];
+        }
+        if (preg_match('/^`([^`]*)`(.*)$/s', $definition, $matches) === 1) {
+            return ['identifier' => $matches[1], 'tail' => $matches[2]];
+        }
+        if (preg_match('/^\[([^\]]*)\](.*)$/s', $definition, $matches) === 1) {
+            return ['identifier' => $matches[1], 'tail' => $matches[2]];
+        }
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)(.*)$/s', $definition, $matches) !== 1) {
+            return null;
+        }
+
+        return ['identifier' => $matches[1], 'tail' => $matches[2]];
     }
 
     /**

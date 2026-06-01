@@ -454,6 +454,42 @@ if (
 
 echo 'unknown-statement-import: preserved-after-resolution' . PHP_EOL;
 
+$unknownStatementMappedReads = [];
+$unknownStatementMappedResolved = [];
+$unknownStatementMappedBundle = (new CssBundler())->bundleWithReaderSourceMap(
+    '/unknown-statement-map.css',
+    static function (string $file) use (&$unknownStatementMappedReads): string {
+        $unknownStatementMappedReads[] = $file;
+
+        return $file === '/unknown-statement-map.css'
+            ? '@wp-bundle meta; @import "pkg:card\2e css" layer(theme.blocks) supports(display: grid) screen; .wp-site-blocks { color: red }'
+            : '.wp-block-card { color: green; }';
+    },
+    static function (string $specifier, string $originatingFile) use (&$unknownStatementMappedResolved): string {
+        $unknownStatementMappedResolved[] = [$specifier, $originatingFile];
+
+        return '/blocks/card.css';
+    },
+    '/'
+);
+$unknownStatementMappedMap = $unknownStatementMappedBundle['sourceMap']->toArray(null, false);
+
+if (
+    $unknownStatementMappedBundle['code'] !== '@wp-bundle meta;@import "pkg:card.css" layer(theme.blocks) supports(display:grid) screen;.wp-site-blocks{color:red}'
+    || $unknownStatementMappedReads !== ['/unknown-statement-map.css', '/blocks/card.css']
+    || $unknownStatementMappedResolved !== [['pkg:card.css', '/unknown-statement-map.css']]
+    || $unknownStatementMappedMap['sources'] !== ['unknown-statement-map.css', 'blocks/card.css']
+    || $unknownStatementMappedMap['sourcesContent'] !== [
+        '@wp-bundle meta; @import "pkg:card\2e css" layer(theme.blocks) supports(display: grid) screen; .wp-site-blocks { color: red }',
+        '.wp-block-card { color: green; }',
+    ]
+) {
+    fwrite(STDERR, "Expected preserved unknown at-rule imports to retain resolved source-map sources\n");
+    exit(1);
+}
+
+echo 'unknown-statement-source-map: collected' . PHP_EOL;
+
 $escapedSpaceUrlBundle = (new CssBundler())->bundle('/escaped-space-url.css', [
     '/escaped-space-url.css' => '@import url(blocks/card\ hero.css); .wp-site-blocks { color: red; }',
     '/blocks/card hero.css' => '.wp-block-card { color: green; }',

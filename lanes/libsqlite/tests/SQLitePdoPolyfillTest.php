@@ -225,12 +225,117 @@ return [
             $pdo->exec("UPDATE test SET namedd = 'Other' WHERE id = 1");
             throw new RuntimeException('Expected PDOException for unknown UPDATE column');
         } catch (PDOException $exception) {
-            $t->contains('no column named namedd', $exception->getMessage());
+            $t->contains('no such column: namedd', $exception->getMessage());
             $t->same('HY000', $pdo->errorCode());
             $t->same('HY000', $pdo->errorInfo()[0]);
         }
 
         $t->same([['id' => 1, 'name' => 'Janet']], $pdo->query('SELECT * FROM test')->fetchAll(PDO::FETCH_ASSOC));
+    },
+
+    'SQLitePDO file DSN invalid columns match native PDO and preserve file image' => static function (TestRunner $t) use ($sqlitePdoNativeAvailable): void {
+        $scratchRoot = __DIR__ . '/.sqlite-pdo-tmp';
+        if (!is_dir($scratchRoot) && !mkdir($scratchRoot)) {
+            throw new RuntimeException("Unable to create temporary test root: {$scratchRoot}");
+        }
+        chmod($scratchRoot, 0700);
+        $dir = $scratchRoot . '/sqlite-pdo-invalid-column-' . bin2hex(random_bytes(6));
+        if (!mkdir($dir) && !is_dir($dir)) {
+            throw new RuntimeException("Unable to create temporary test directory: {$dir}");
+        }
+        chmod($dir, 0700);
+
+        $cases = [
+            'insert unknown target column' => ['exec', "INSERT INTO test (namedd) VALUES ('Other')"],
+            'update unknown assignment column' => ['exec', "UPDATE test SET namedd = 'Other' WHERE id = 1"],
+            'select unknown result column' => ['query', 'SELECT namedd FROM test'],
+            'select unknown predicate column' => ['query', 'SELECT name FROM test WHERE namedd = 1'],
+        ];
+
+        $exercise = static function (string $class, string $path) use ($cases): array {
+            $pdo = new $class('sqlite:' . $path, null, null, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+            $pdo->exec('CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)');
+            $pdo->exec("INSERT INTO test (name) VALUES ('Janet')");
+            $before = (string) file_get_contents($path);
+            $errors = [];
+
+            foreach ($cases as $name => [$operation, $sql]) {
+                try {
+                    if ($operation === 'query') {
+                        $pdo->query($sql);
+                    } else {
+                        $pdo->exec($sql);
+                    }
+                    throw new RuntimeException("Expected PDOException for {$name}");
+                } catch (PDOException $exception) {
+                    $after = (string) file_get_contents($path);
+                    $errors[$name] = [
+                        'message' => $exception->getMessage(),
+                        'error_code' => $pdo->errorCode(),
+                        'error_info' => $pdo->errorInfo(),
+                        'file_unchanged' => hash('sha256', $before) === hash('sha256', $after),
+                    ];
+                }
+            }
+
+            $reopened = new $class('sqlite:' . $path, null, null, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+
+            return [
+                'errors' => $errors,
+                'rows' => $reopened->query('SELECT * FROM test')->fetchAll(PDO::FETCH_ASSOC),
+                'file_unchanged' => hash('sha256', $before) === hash('sha256', (string) file_get_contents($path)),
+            ];
+        };
+
+        $polyfillPath = $dir . '/polyfill.sqlite';
+        $nativePath = $dir . '/native.sqlite';
+
+        try {
+            $polyfill = $exercise(SQLitePDO::class, $polyfillPath);
+            $native = $sqlitePdoNativeAvailable() ? $exercise(PDO::class, $nativePath) : null;
+
+            $expectedMessages = [
+                'insert unknown target column' => 'table test has no column named namedd',
+                'update unknown assignment column' => 'no such column: namedd',
+                'select unknown result column' => 'no such column: namedd',
+                'select unknown predicate column' => 'no such column: namedd',
+            ];
+
+            foreach ($expectedMessages as $name => $expectedMessage) {
+                $t->contains($expectedMessage, $polyfill['errors'][$name]['message']);
+                $t->same('HY000', $polyfill['errors'][$name]['error_code']);
+                $t->same('HY000', $polyfill['errors'][$name]['error_info'][0]);
+                $t->same(1, $polyfill['errors'][$name]['error_info'][1]);
+                $t->same($expectedMessage, $polyfill['errors'][$name]['error_info'][2]);
+                $t->same(true, $polyfill['errors'][$name]['file_unchanged']);
+
+                if ($native !== null) {
+                    $t->same($native['errors'][$name]['error_info'][2], $polyfill['errors'][$name]['error_info'][2]);
+                    $t->same(true, $native['errors'][$name]['file_unchanged']);
+                }
+            }
+
+            $t->same([['id' => 1, 'name' => 'Janet']], $polyfill['rows']);
+            $t->same(true, $polyfill['file_unchanged']);
+        } finally {
+            foreach ([$polyfillPath, $nativePath] as $path) {
+                if (is_file($path)) {
+                    unlink($path);
+                }
+            }
+            if (is_dir($dir)) {
+                rmdir($dir);
+            }
+            if (is_dir($scratchRoot) && (scandir($scratchRoot) ?: ['.', '..']) === ['.', '..']) {
+                rmdir($scratchRoot);
+            }
+        }
     },
 
     'SQLitePDO reports PDO exceptions for invalid DSNs unsupported APIs and transaction misuse' => static function (TestRunner $t): void {

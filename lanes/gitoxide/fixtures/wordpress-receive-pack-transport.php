@@ -250,6 +250,7 @@ return [
     'gitDaemonProtocolV2NamedHomeUrlServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://git.example.test/%7Edeploy/wp-content.git', ['session-id'], 2),
     'gitDaemonEncodedUrlServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://git%2Dmirror.example.test/wp%2Dcontent.git', ['version=2']),
     'gitDaemonIpv6ServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytes('/wp-content.git', '2001:db8::42', null, ['version=2']),
+    'gitDaemonVirtualHostServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://socket.example.test:9418/wp-content.git', ['session-id', 'object-format=sha1'], 2, 'git.example.test', 9440),
     'unsafeGitDaemonPathRejected' => (static function (): bool {
         try {
             GitDaemonReceivePackTransport::serviceRequestBytes('wp-content.git', 'git.example.test');
@@ -307,6 +308,24 @@ return [
     'unsafeGitDaemonProtocolVersionRejected' => (static function (): bool {
         try {
             GitDaemonReceivePackTransport::serviceRequestBytes('/wp-content.git', 'git.example.test', null, [], 3);
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+
+        return false;
+    })(),
+    'unsafeGitDaemonVirtualHostRejected' => (static function (): bool {
+        try {
+            GitDaemonReceivePackTransport::serviceRequestBytes('/wp-content.git', 'socket.example.test', 9418, [], 1, 'bad host.example.test');
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+
+        return false;
+    })(),
+    'unsafeGitDaemonVirtualPortRejected' => (static function (): bool {
+        try {
+            GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://socket.example.test/wp-content.git', [], 1, null, 9440);
         } catch (InvalidArgumentException) {
             return true;
         }

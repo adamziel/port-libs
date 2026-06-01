@@ -21,12 +21,22 @@ final class GitDaemonReceivePackTransport implements ReceivePackTransport
         ?int $port = null,
         array $extraParameters = [],
         int $protocolVersion = 1,
+        ?string $virtualHost = null,
+        ?int $virtualPort = null,
     ) {
         if (!is_resource($readStream) || !is_resource($writeStream)) {
             throw new \InvalidArgumentException('git-daemon receive-pack transport expects readable and writable stream resources');
         }
 
-        self::writeAll($writeStream, self::serviceRequestBytes($repositoryPath, $host, $port, $extraParameters, $protocolVersion));
+        self::writeAll($writeStream, self::serviceRequestBytes(
+            $repositoryPath,
+            $host,
+            $port,
+            $extraParameters,
+            $protocolVersion,
+            $virtualHost,
+            $virtualPort,
+        ));
         if (!fflush($writeStream)) {
             throw new \RuntimeException('git-daemon receive-pack transport failed to flush service request');
         }
@@ -37,14 +47,28 @@ final class GitDaemonReceivePackTransport implements ReceivePackTransport
     /**
      * @param list<string> $extraParameters
      */
-    public static function connect(string $url, float $timeout = 30.0, array $extraParameters = [], int $protocolVersion = 1): self
-    {
+    public static function connect(
+        string $url,
+        float $timeout = 30.0,
+        array $extraParameters = [],
+        int $protocolVersion = 1,
+        ?string $virtualHost = null,
+        ?int $virtualPort = null,
+    ): self {
         if ($timeout <= 0.0) {
             throw new \InvalidArgumentException('git-daemon receive-pack transport timeout must be greater than zero');
         }
 
         $target = self::parseGitUrl($url);
-        self::serviceRequestBytes($target['path'], $target['host'], $target['port'], $extraParameters, $protocolVersion);
+        self::serviceRequestBytes(
+            $target['path'],
+            $target['host'],
+            $target['port'],
+            $extraParameters,
+            $protocolVersion,
+            $virtualHost,
+            $virtualPort,
+        );
 
         $connectPort = $target['port'] ?? 9418;
         $address = self::tcpAddress($target['host']);
@@ -60,7 +84,17 @@ final class GitDaemonReceivePackTransport implements ReceivePackTransport
         $microseconds = (int) (($timeout - $seconds) * 1_000_000);
         stream_set_timeout($stream, $seconds, $microseconds);
 
-        return new self($stream, $stream, $target['path'], $target['host'], $target['port'], $extraParameters, $protocolVersion);
+        return new self(
+            $stream,
+            $stream,
+            $target['path'],
+            $target['host'],
+            $target['port'],
+            $extraParameters,
+            $protocolVersion,
+            $virtualHost,
+            $virtualPort,
+        );
     }
 
     /**
@@ -72,14 +106,19 @@ final class GitDaemonReceivePackTransport implements ReceivePackTransport
         ?int $port = null,
         array $extraParameters = [],
         int $protocolVersion = 1,
+        ?string $virtualHost = null,
+        ?int $virtualPort = null,
     ): string {
         self::validateRepositoryPath($repositoryPath);
         self::validateHost($host);
         self::validatePort($port);
+        self::validateVirtualHostOverride($virtualHost, $virtualPort);
         self::validateExtraParameters($extraParameters);
         self::validateProtocolVersion($protocolVersion);
 
-        $hostParameter = 'host=' . self::hostParameterValue($host, $port) . "\0";
+        $hostParameterHost = $virtualHost ?? $host;
+        $hostParameterPort = $virtualHost === null ? $port : $virtualPort;
+        $hostParameter = 'host=' . self::hostParameterValue($hostParameterHost, $hostParameterPort) . "\0";
         $payload = 'git-receive-pack ' . self::shellRepositoryPath($repositoryPath) . "\0{$hostParameter}";
         $extraParamsNeedNullPrefix = true;
         if ($protocolVersion !== 1) {
@@ -101,11 +140,24 @@ final class GitDaemonReceivePackTransport implements ReceivePackTransport
     /**
      * @param list<string> $extraParameters
      */
-    public static function serviceRequestBytesForUrl(string $url, array $extraParameters = [], int $protocolVersion = 1): string
-    {
+    public static function serviceRequestBytesForUrl(
+        string $url,
+        array $extraParameters = [],
+        int $protocolVersion = 1,
+        ?string $virtualHost = null,
+        ?int $virtualPort = null,
+    ): string {
         $target = self::parseGitUrl($url);
 
-        return self::serviceRequestBytes($target['path'], $target['host'], $target['port'], $extraParameters, $protocolVersion);
+        return self::serviceRequestBytes(
+            $target['path'],
+            $target['host'],
+            $target['port'],
+            $extraParameters,
+            $protocolVersion,
+            $virtualHost,
+            $virtualPort,
+        );
     }
 
     public function readAdvertisement(): string
@@ -191,6 +243,20 @@ final class GitDaemonReceivePackTransport implements ReceivePackTransport
         if ($port !== null && ($port < 1 || $port > 65535)) {
             throw new \InvalidArgumentException('git-daemon receive-pack port must be between 1 and 65535');
         }
+    }
+
+    private static function validateVirtualHostOverride(?string $virtualHost, ?int $virtualPort): void
+    {
+        if ($virtualHost === null) {
+            if ($virtualPort !== null) {
+                throw new \InvalidArgumentException('git-daemon receive-pack virtual port requires a virtual host');
+            }
+
+            return;
+        }
+
+        self::validateHost($virtualHost);
+        self::validatePort($virtualPort);
     }
 
     private static function validateProtocolVersion(int $protocolVersion): void

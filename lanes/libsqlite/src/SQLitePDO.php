@@ -346,7 +346,7 @@ final class SQLitePDO extends \PDO
                 return ['rows' => [], 'changes' => 0];
             }
         } catch (\Throwable $exception) {
-            throw $this->failure($exception->getMessage(), $exception);
+            throw $this->failure($this->pdoSqliteMessage($exception), $exception);
         }
 
         throw $this->failure("SQLitePDO unsupported SQL statement: {$sql}");
@@ -364,6 +364,16 @@ final class SQLitePDO extends \PDO
         $this->errorInfo = ['HY000', 1, $message];
 
         return new \PDOException($message, 0, $previous);
+    }
+
+    private function pdoSqliteMessage(\Throwable $exception): string
+    {
+        $message = $exception->getMessage();
+        if (preg_match('/^SQLite SELECT (?:expression|predicate) row is missing column (.+)$/', $message, $match) === 1) {
+            return 'no such column: ' . $match[1];
+        }
+
+        return $message;
     }
 
     /** @param array<int|string,mixed> $parameters */
@@ -554,7 +564,7 @@ final class SQLitePDO extends \PDO
         $table = $statement['target'];
         $this->assertTable($table);
         $columns = $statement['columns'] ?? $this->columns[$table];
-        $this->assertColumns($table, $columns);
+        $this->assertColumns($table, $columns, 'insert');
         $changes = 0;
         $parameterCursor = $parameters;
         foreach ($statement['tuples'] as $values) {
@@ -595,7 +605,7 @@ final class SQLitePDO extends \PDO
             }
             $assignments[$assignmentMatch[1]] = $assignmentMatch[2];
         }
-        $this->assertColumns($table, array_keys($assignments));
+        $this->assertColumns($table, array_keys($assignments), 'update');
         $indexes = $this->matchingIndexes($table, $match[3] ?? null, $parameters);
         foreach ($indexes as $index) {
             $parameterCursor = $parameters;
@@ -646,12 +656,15 @@ final class SQLitePDO extends \PDO
     }
 
     /** @param list<string> $columns */
-    private function assertColumns(string $table, array $columns): void
+    private function assertColumns(string $table, array $columns, string $operation): void
     {
         $known = array_flip($this->columns[$table]);
         foreach ($columns as $column) {
             if (!array_key_exists($column, $known)) {
-                throw new \PDOException("SQLitePDO table {$table} has no column named {$column}");
+                $message = $operation === 'update'
+                    ? "no such column: {$column}"
+                    : "table {$table} has no column named {$column}";
+                throw new \PDOException($message);
             }
         }
     }

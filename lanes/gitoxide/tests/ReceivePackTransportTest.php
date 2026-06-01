@@ -668,6 +668,22 @@ return [
         $t->same($request->requestBytes(), $requestBytes);
         $t->same("{$old} {$blob->oid()} refs/heads/main\0 report-status side-band-64k object-format=sha1 agent=port-libs/0.1", $commands[0]);
         $t->same($request->pack()?->packBytes(), $packBytes);
+
+        $virtualWrite = $streamWith('');
+        new GitDaemonReceivePackTransport(
+            $streamWith(''),
+            $virtualWrite,
+            '/wp-content.git',
+            'socket.example.test',
+            9418,
+            [],
+            1,
+            'git.example.test',
+            9440,
+        );
+        $virtualWritten = $streamBytes($virtualWrite);
+        $virtualServiceLength = hexdec(substr($virtualWritten, 0, 4));
+        $t->same("git-receive-pack /wp-content.git\0host=git.example.test:9440\0", substr($virtualWritten, 4, $virtualServiceLength - 4));
     },
     'git-daemon receive-pack service request validates urls and parameters' => static function (TestRunner $t): void {
         $packet = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test');
@@ -706,6 +722,15 @@ return [
         $ipv6UrlPacket = GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://[2001:db8::1]/repo.git');
         $t->same("git-receive-pack /repo.git\0host=[2001:db8::1]\0", substr($ipv6UrlPacket, 4));
 
+        $virtualHostPacket = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'socket.example.test', 9418, ['session-id'], 2, 'git.example.test', 9440);
+        $t->same("git-receive-pack /repo.git\0host=git.example.test:9440\0\0version=2\0session-id\0", substr($virtualHostPacket, 4));
+
+        $virtualHostUrlPacket = GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://socket.example.test:9418/repo.git', ['session-id'], 2, 'git.example.test');
+        $t->same("git-receive-pack /repo.git\0host=git.example.test\0\0version=2\0session-id\0", substr($virtualHostUrlPacket, 4));
+
+        $virtualIpv6Packet = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'socket.example.test', 9418, [], 1, '2001:db8::7', 9440);
+        $t->same("git-receive-pack /repo.git\0host=[2001:db8::7]:9440\0", substr($virtualIpv6Packet, 4));
+
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::connect('https://example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::connect('git://example.test'));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('https://example.test/repo.git'));
@@ -724,6 +749,10 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes("/bad\nrepo", 'example.test'));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', "example.test\r"));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', 0));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, [], 1, 'bad host.example.test'));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, [], 1, "git.example.test\n"));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, [], 1, 'git.example.test', 0));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, [], 1, null, 9440));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ["bad\0extra"]));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ["bad\nextra"]));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['=2']));
@@ -5008,10 +5037,13 @@ return [
         $t->same("git-receive-pack /wp-content.git\0host=git.example.test\0\0version=2\0session-id\0object-format=sha1\0", substr($fixture['gitDaemonValueOnlyExtraServiceRequest'], 4));
         $t->same("git-receive-pack ~/wp-content.git\0host=git.example.test\0\0version=2\0session-id\0object-format=sha1\0", substr($fixture['gitDaemonProtocolV2HomeServiceRequest'], 4));
         $t->same("git-receive-pack ~deploy/wp-content.git\0host=git.example.test\0\0version=2\0session-id\0", substr($fixture['gitDaemonProtocolV2NamedHomeUrlServiceRequest'], 4));
+        $t->same("git-receive-pack /wp-content.git\0host=git.example.test:9440\0\0version=2\0session-id\0object-format=sha1\0", substr($fixture['gitDaemonVirtualHostServiceRequest'], 4));
         $t->same(true, $fixture['unsafeGitDaemonEncodedControlByteRejected']);
         $t->same(true, $fixture['unsafeGitDaemonEncodedHostDelimiterRejected']);
         $t->same(true, $fixture['unsafeGitDaemonExtraParameterRejected']);
         $t->same(true, $fixture['unsafeGitDaemonProtocolVersionRejected']);
+        $t->same(true, $fixture['unsafeGitDaemonVirtualHostRejected']);
+        $t->same(true, $fixture['unsafeGitDaemonVirtualPortRejected']);
         $t->same(true, $fixture['unsafeSmartHttpCredentialTabRejected']);
         $t->same(true, $fixture['unsafeSmartHttpExtraParameterTabRejected']);
         $t->same(true, $fixture['unsafeSmartHttpHeaderTabRejected']);

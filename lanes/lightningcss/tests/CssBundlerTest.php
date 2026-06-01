@@ -190,6 +190,44 @@ CSS,
         $t->same(['/theme/entry.css', '/theme/tokens.css', '/theme/../shared/button.css'], $reads);
         $t->same(['entry.css', 'tokens.css', '../shared/button.css'], $result['sourceMap']->toArray(null, false)['sources']);
     },
+    'css bundler source map retains resolved sources for preserved unknown statement imports' => static function (TestRunner $t): void {
+        $files = [
+            '/entry.css' => '@wp-bundle meta; @import "pkg:card\2e css" layer(theme.blocks) supports(display: grid) screen; .entry { color: red }',
+            '/blocks/card.css' => '.card { color: green }',
+        ];
+        $reads = [];
+        $resolved = [];
+
+        $result = (new CssBundler())->bundleWithReaderSourceMap(
+            '/entry.css',
+            static function (string $file) use (&$reads, $files): string {
+                $reads[] = $file;
+                if (!array_key_exists($file, $files)) {
+                    throw new RuntimeException("Missing reader source {$file}");
+                }
+
+                return $files[$file];
+            },
+            static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return '/blocks/card.css';
+            },
+            '/'
+        );
+
+        $sourceMap = $result['sourceMap']->toArray(null, false);
+
+        $t->same(
+            '@wp-bundle meta;@import "pkg:card.css" layer(theme.blocks) supports(display:grid) screen;.entry{color:red}',
+            $result['code']
+        );
+        $t->same(['/entry.css', '/blocks/card.css'], $reads);
+        $t->same([['pkg:card.css', '/entry.css']], $resolved);
+        $t->same(['entry.css', 'blocks/card.css'], $sourceMap['sources']);
+        $t->same(array_values($files), $sourceMap['sourcesContent']);
+        $t->same('', $sourceMap['mappings']);
+    },
     'css bundler remaps upstream inline input source maps across imports' => static function (TestRunner $t): void {
         $inputMap = 'data:application/json;base64,' . base64_encode(json_encode([
             'version' => 3,

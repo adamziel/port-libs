@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteGeneratedJsonPathIndexPlan;
 use PortLibs\LibSqlite\SQLiteJsonB;
+use PortLibs\LibSqlite\SQLiteJsonbCheckCurrentNextPlan;
 use PortLibs\LibSqlite\SQLiteJsonbGeneratedCascadePlan;
 use PortLibs\LibSqlite\SQLiteJsonbGeneratedCheckIndexPlan;
 
@@ -12,6 +13,7 @@ $libsqliteRoot = dirname(__DIR__);
 $sourceRoot = $libsqliteRoot . '/src';
 $sourceFiles = [
     $sourceRoot . '/SQLiteGeneratedJsonPathIndexPlan.php',
+    $sourceRoot . '/SQLiteJsonbCheckCurrentNextPlan.php',
     $sourceRoot . '/SQLiteJsonbGeneratedCascadePlan.php',
     $sourceRoot . '/SQLiteJsonbGeneratedCheckIndexPlan.php',
     $sourceRoot . '/SQLiteJsonTablePlan.php',
@@ -93,6 +95,36 @@ return [
         $t->same([12], array_column($plan['rejected_updates'], 'rowid'));
         $t->same([15, 20, 30], array_column($plan['after'], 'module_rank'));
         $t->same(['alpha', 'beta', 'delta'], array_column($plan['after'], 'module_slug'));
+    },
+    'jsonb check plan derives rowid column from neutral schema' => static function (TestRunner $t) use ($jsonb): void {
+        $schema = <<<'SQL'
+CREATE TABLE event_records(
+  record_id INTEGER PRIMARY KEY,
+  payload_jsonb BLOB,
+  CHECK(json_valid(payload_jsonb, 8)),
+  CHECK(json_extract(payload_jsonb, '$.rank') BETWEEN 1 AND 9)
+)
+SQL;
+        $plan = SQLiteJsonbCheckCurrentNextPlan::plan(
+            $schema,
+            [
+                ['record_id' => 51, 'payload_jsonb' => $jsonb(['rank' => 2])],
+                ['record_id' => 52, 'payload_jsonb' => $jsonb(['rank' => 4])],
+            ],
+            [
+                ['op' => 'UPDATE', 'rowid' => 51, 'mutations' => [
+                    ['function' => 'jsonb_set', 'path' => '$.rank', 'value' => 7],
+                ]],
+                ['op' => 'INSERT', 'row' => ['record_id' => 53, 'payload_jsonb' => $jsonb(['rank' => 12])]],
+            ],
+            ['jsonColumn' => 'payload_jsonb'],
+        );
+
+        $t->same([51, 52], array_column($plan['current'], 'rowid'));
+        $t->same([51], array_column($plan['accepted'], 'rowid'));
+        $t->same([53], array_column($plan['rejected'], 'rowid'));
+        $t->same([51, 52], array_column($plan['after'], 'record_id'));
+        $t->same(7, SQLiteJsonB::decode($plan['after'][0]['payload_jsonb']->bytes)['rank']);
     },
     'jsonb generated path btree records omit primary-key covering payload' => static function (TestRunner $t) use ($schema, $rows, $indexes): void {
         $covering = [
