@@ -59,6 +59,12 @@ try {
 } catch (RuntimeException $error) {
     $uploadPackError = rtrim($error->getMessage());
 }
+$sidebandAllDecodedErrLineError = null;
+try {
+    FetchResponse::fromV2PacketLines($fixture['sidebandAllDecodedErrLineResponse'], true);
+} catch (InvalidArgumentException $error) {
+    $sidebandAllDecodedErrLineError = $error->getMessage();
+}
 $truncatedPackError = null;
 try {
     FetchResponse::fromV2PacketLines($fixture['truncatedPackResponse']);
@@ -117,6 +123,8 @@ return [
     ),
     'errors' => $response->errorMessages(),
     'uploadPackError' => $uploadPackError,
+    'sidebandAllDecodedErrLineError' => $sidebandAllDecodedErrLineError,
+    'sidebandAllDecodedErrLineRejectedAsProtocolText' => $sidebandAllDecodedErrLineError === 'fetch response: unknown or unsupported section header ERR decoded WordPress fetch text',
     'truncatedPackRejected' => $truncatedPackError === 'fetch response: missing sideband flush packet',
     'truncatedPackError' => $truncatedPackError,
     'progressCancellationRejected' => $progressCancelError === 'fetch response: interrupted by user',

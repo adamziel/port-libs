@@ -12,8 +12,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -33,17 +33,17 @@ $next = [
     $row(4, 'plugin_été', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNonAsciiPrefixFullScanPlan($current, $next);
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiPrefixFullScanPlan($current, $next);
 
 if (in_array('--self-test', $argv, true)) {
-    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-next204');
+    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-nexttwoZeroFour');
     assert($plan['rejectedReason'] === 'nocase_like_prefix_must_be_ascii_for_range');
     assert($plan['usesPrefixRangeCursor'] === false);
     assert($plan['currentMatchedRowids'] === [1, 2]);
     assert($plan['nextMatchedRowids'] === [1, 3, 4]);
     assert($plan['matchedExitedRowids'] === [2]);
     assert($plan['matchedEnteredRowids'] === [3, 4]);
-    echo "application-utf16-nocase-like-rtrim-current-source-next204 self-test passed\n";
+    echo "application-utf16-nocase-like-rtrim-current-source-nexttwoZeroFour self-test passed\n";
 
     return;
 }

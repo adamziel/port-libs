@@ -9,8 +9,8 @@ $tests = [];
 
 $enc201 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row201 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc201($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc201($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -18,8 +18,8 @@ $row201 = static fn (int $id, string $name, int|string $encoding): array => [
     },
 ];
 $bad201 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -78,7 +78,7 @@ $valueAt201 = static function (array $value, string $path): mixed {
 $cases201 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroOne'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* NULL pattern rebind */'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* NULL pattern rebind */'],
     'current pattern' => ['currentPattern', 'plugin!_cache%'],
     'next pattern null' => ['nextPattern', null],
     'escape' => ['escape', '!'],
@@ -238,9 +238,9 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroOne rejects invalid es
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNullPatternRebindPlan($currentRows201, $nextRows201, 'plugin!_cache%', null, '!!'));
 };
 
-$tests['utf16 nocase like rtrim current source nextTwoZeroOne rejects missing option id'] = static function (TestRunner $t) use ($nextRows201): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroOne rejects missing setting id'] = static function (TestRunner $t) use ($nextRows201): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNullPatternRebindPlan([
-        ['option_name_bytes' => 'plugin_cache', 'text_encoding' => 1],
+        ['key_name_bytes' => 'plugin_cache', 'text_encoding' => 1],
     ], $nextRows201));
 };
 

@@ -12,8 +12,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -32,16 +32,16 @@ $next = [
     $row(4, 'plugin_cache_added', 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNullPatternRebindPlan($current, $next);
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNullPatternRebindPlan($current, $next);
 
 if (in_array('--self-test', $argv, true)) {
-    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-next201');
+    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-nexttwoZeroOne');
     assert($plan['currentMatchedRowids'] === [1, 2]);
     assert($plan['nextMatchedRowids'] === []);
     assert($plan['nextPatternIsSqlNull'] === true);
     assert($plan['mustReprepareForNullPattern'] === true);
     assert(in_array('null-like-pattern', $plan['invalidationReasons'], true));
-    echo "application-utf16-nocase-like-rtrim-current-source-next201 self-test passed\n";
+    echo "application-utf16-nocase-like-rtrim-current-source-nexttwoZeroOne self-test passed\n";
 
     return;
 }

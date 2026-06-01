@@ -18,6 +18,8 @@ $malformedOptionOld = str_repeat('c', 40);
 $malformedOptionNew = str_repeat('d', 64);
 $objectPrefixDiagnosticOld = str_repeat('e', 40);
 $objectPrefixDiagnosticNew = str_repeat('f', 64);
+$sha1ObjectPrefixOld = str_repeat('a', 40);
+$sha1ObjectPrefixNew = str_repeat('b', 40);
 $siteAOld = str_repeat('6', 40);
 $siteANew = str_repeat('7', 40);
 $siteBOld = str_repeat('8', 40);
@@ -125,6 +127,16 @@ return [
         . $packet("ok refs/for/wp-release accepted after hook suffix diagnostics\n")
         . $packet("option old-oid {$objectPrefixDiagnosticOld}#pre-receive-suffix\n")
         . $packet("option new-oid {$objectPrefixDiagnosticNew}:accepted-by-hook\n")
+        . $flush,
+    'sha1ObjectPrefixRef' => [
+        'requested' => 'refs/for/wp-release',
+        'oldObject' => $sha1ObjectPrefixOld,
+        'newObject' => $sha1ObjectPrefixNew,
+    ],
+    'sha1ObjectPrefixResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/for/wp-release accepted with sha1 status prefix\n")
+        . $packet("option old-oid {$sha1ObjectPrefixOld}feed\n")
+        . $packet("option new-oid {$sha1ObjectPrefixNew}cafe\n")
         . $flush,
     'expectedRefNames' => [
         'refs/heads/main',

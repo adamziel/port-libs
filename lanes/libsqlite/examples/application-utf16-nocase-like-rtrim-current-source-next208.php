@@ -14,8 +14,8 @@ $encoding = static fn (int|string $encoding): int => match ($encoding) {
     'UTF-16BE', 3 => 3,
 };
 $row = static fn (int $id, string $name, int|string $encodingName): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encodingName),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encodingName),
     'text_encoding' => $encoding($encodingName),
 ];
 $escape = static fn (string $text, int|string $encodingName, bool $bom = false): string => ($bom ? match ($encodingName) {
@@ -35,7 +35,7 @@ $next = [
     $row(4, 'PLUGIN_CACHE_NEW', 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedEscapePlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPreparedEscapePlan(
     $current,
     $next,
     'plugin!_cache%',
@@ -46,8 +46,8 @@ $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedEs
 );
 
 $summary = [
-    'scenario' => 'application-utf16-nocase-like-rtrim-current-source-next208',
-    'applicationUse' => 'Copied wp_options imports can decode a prepared UTF-16 ESCAPE parameter before reusing an RTRIM/NOCASE LIKE cursor, avoiding stale range/residual behavior when the next source uses a BOM-prefixed escape byte string.',
+    'scenario' => 'application-utf16-nocase-like-rtrim-current-source-nexttwoZeroEight',
+    'applicationUse' => 'Application setting imports can decode a prepared UTF-16 ESCAPE parameter before reusing an RTRIM/NOCASE LIKE cursor, avoiding stale range/residual behavior when the next source uses a BOM-prefixed escape byte string.',
     'status' => $plan['status'],
     'currentEscape' => $plan['currentEscape'],
     'nextEscape' => $plan['nextEscape'],
@@ -59,14 +59,14 @@ $summary = [
 ];
 
 if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
-    assert($summary['status'] === 'utf16-nocase-like-rtrim-current-source-next208');
+    assert($summary['status'] === 'utf16-nocase-like-rtrim-current-source-nexttwoZeroEight');
     assert($summary['currentEscape'] === '!');
     assert($summary['nextEscape'] === '~');
     assert($summary['nextEscapeHadBom'] === true);
     assert($summary['currentMatchedRowids'] === [1, 2]);
     assert($summary['nextMatchedRowids'] === [1, 2, 4]);
     assert(in_array('prepared-escape-bom', $summary['invalidationReasons'], true));
-    echo "application-utf16-nocase-like-rtrim-current-source-next208 self-test passed\n";
+    echo "application-utf16-nocase-like-rtrim-current-source-nexttwoZeroEight self-test passed\n";
 }
 
 return $summary;

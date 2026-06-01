@@ -36,9 +36,10 @@ final class ReceivePackClient
         $this->transport->writeRequest($request->requestBytes());
         $responseBytes = $this->transport->readResponse();
 
+        $objectFormat = self::objectFormatFromFeatures($features);
         $response = self::hasFeature($features, 'side-band') || self::hasFeature($features, 'side-band-64k')
-            ? PushResponse::fromSidebandPacketLines($responseBytes)
-            : PushResponse::fromReportStatusPacketLines($responseBytes);
+            ? PushResponse::fromSidebandPacketLines($responseBytes, $objectFormat)
+            : PushResponse::fromReportStatusPacketLines($responseBytes, $objectFormat);
 
         return $response->forExpectedRefNames(self::expectedRefNames($request->command()));
     }
@@ -66,6 +67,23 @@ final class ReceivePackClient
         }
 
         return false;
+    }
+
+    /**
+     * @param list<string> $features
+     */
+    private static function objectFormatFromFeatures(array $features): string
+    {
+        foreach ($features as $feature) {
+            [$name, $value] = array_pad(explode('=', $feature, 2), 2, null);
+            if ($name !== 'object-format') {
+                continue;
+            }
+
+            return $value === 'sha256' ? 'sha256' : 'sha1';
+        }
+
+        return 'sha1';
     }
 
     /**

@@ -2929,6 +2929,64 @@ CSS;
         $t->same(['unit' => 'px', 'value' => 4.0], $seen['block'][1]['value']);
         $t->same('--wp-gap', $seen['block'][2]['value']['name']['ident']);
     },
+    'custom at-rules serialize returned upstream unknown block token lists' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@wp-token-block card { #056ef0 4px var(--wp-gap) }
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => [
+                    'wp-token-block' => static function (array $rule) use (&$seen): array {
+                        $seen = [
+                            'preludeTypes' => array_map(
+                                static fn (array $component): string => $component['type'],
+                                $rule['preludeTokens']
+                            ),
+                            'blockTypes' => array_map(
+                                static fn (array $component): string => $component['type'],
+                                is_array($rule['block'] ?? null) ? $rule['block'] : []
+                            ),
+                        ];
+                        $rule['prelude'] = [
+                            ['type' => 'token', 'value' => ['type' => 'ident', 'value' => 'card-live']],
+                        ];
+                        $rule['block'] = [
+                            ['type' => 'color', 'value' => ['type' => 'rgb', 'r' => 171, 'g' => 205, 'b' => 239, 'alpha' => 1]],
+                            ['type' => 'length', 'value' => ['unit' => 'rem', 'value' => 1.5]],
+                            ['type' => 'var', 'value' => ['name' => ['ident' => '--wp-scale']]],
+                        ];
+                        unset($rule['body']);
+
+                        return ['type' => 'unknown', 'value' => $rule];
+                    },
+                ],
+            ],
+        ]);
+
+        $empty = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => [
+                    'wp-token-block' => static function (array $rule): array {
+                        $rule['block'] = [];
+                        unset($rule['body']);
+
+                        return ['type' => 'unknown', 'value' => $rule];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('@wp-token-block card-live{#abcdef 1.5rem var(--wp-scale)}.wp-block-card{color:red}', $result);
+        $t->same('@wp-token-block card{}.wp-block-card{color:red}', $empty);
+        $t->same(['token'], $seen['preludeTypes']);
+        $t->same(['color', 'length', 'var'], $seen['blockTypes']);
+    },
     'custom at-rules visit upstream native media boolean rule visitors' => static function (TestRunner $t): void {
         $seenQuery = null;
         $result = (new CustomAtRuleTransformer())->transform('@media (hover) { .foo { color: red; } }', [], [

@@ -8,8 +8,8 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -24,7 +24,7 @@ $rows = [
 ];
 $patternBytes = "\xfe\xff" . SQLiteEncodingCollationSourceCursor::encodeText('plugin!_cache%', 'UTF-16BE');
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedBomPatternPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPreparedBomPatternPlan(
     $rows,
     $rows,
     SQLiteEncodingCollationSourceCursor::encodeText('plugin!_cache%', 'UTF-16LE'),
@@ -43,7 +43,7 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
     assert($plan['nextPrefix'] === 'plugin_cache');
     assert($plan['nextMatchedRowids'] === [1, 2]);
     assert($plan['rawBomMatchedRowids'] === []);
-    echo "application-utf16-nocase-like-rtrim-current-source-next206 self-test passed\n";
+    echo "application-utf16-nocase-like-rtrim-current-source-nexttwoZeroSix self-test passed\n";
 }
 
 return $plan;

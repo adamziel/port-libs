@@ -3454,6 +3454,18 @@ CSS;
             $prefixer->prefixForTargets('@supports (clip-path: circle(50%)) { .foo { clip-path: circle(50%); } }', ['chrome' => 55])
         );
         $t->same(
+            '@supports ((-webkit-break-before:page) or (break-before:page)){.foo{-webkit-break-before:page;break-before:page}}',
+            $prefixer->prefixForTargets('@supports (break-before: page) { .foo { break-before: page; } }', ['chrome' => 49])
+        );
+        $t->same(
+            '@supports (break-before:page){.foo{break-before:page}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-break-before: page) or (break-before: page)) { .foo { -webkit-break-before: page; break-before: page; } }', ['chrome' => 50])
+        );
+        $t->same(
+            '@supports ((-webkit-break-after:column) or (break-after:column)) and ((-webkit-break-inside:avoid) or (break-inside:avoid)){.foo{-webkit-break-after:column;break-after:column;-webkit-break-inside:avoid;break-inside:avoid}}',
+            $prefixer->prefixForTargets('@supports (break-after: column) and (break-inside: avoid) { .foo { break-after: column; break-inside: avoid; } }', ['safari' => 8])
+        );
+        $t->same(
             '@supports ((-ms-text-size-adjust:none) or (text-size-adjust:none)){.foo{-ms-text-size-adjust:none;text-size-adjust:none}}',
             $prefixer->prefixForTargets('@supports (text-size-adjust: none) { .foo { text-size-adjust: none; } }', ['ie' => 11])
         );
@@ -4747,6 +4759,10 @@ CSS;
         $t->same(
             '@import "blocks/density.css" layer(theme.blocks) (min-resolution:2x);@layer theme.blocks{.wp-block-query{color:#ff0}}',
             $prefixer->prefixForTargets('@import "blocks/density.css" layer(theme.blocks) (resolution >= 2dppx); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['chrome' => 95])
+        );
+        $t->same(
+            '@import "blocks/density.css" layer(theme.blocks) (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx);@layer theme.blocks{.wp-block-query{color:#ff0}}',
+            $prefixer->prefixForTargets('@import "blocks/density.css" layer(theme.blocks) ((resolution >= 2dppx)); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['safari' => 15, 'firefox' => 10])
         );
     },
     'transition prefixer maps upstream negated grouped media ranges inside layers' => static function (TestRunner $t): void {

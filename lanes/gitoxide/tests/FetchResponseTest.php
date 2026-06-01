@@ -950,9 +950,21 @@ return [
         $t->same(1, $progress[3]->step);
         $t->same(2, $progress[3]->max);
     },
-    'rejects malformed sideband-all response packets before section parsing' => static function (TestRunner $t) use ($packet): void {
+    'rejects malformed sideband-all response packets before section parsing' => static function (TestRunner $t) use ($packet, $delimiter, $invalidArgumentMessage): void {
         $t->throws(InvalidArgumentException::class, static fn () => FetchResponse::fromV2PacketLines($packet("\x09acknowledgments\n"), true));
-        $t->throws(RuntimeException::class, static fn () => FetchResponse::fromV2PacketLines($packet("\x01ERR segmentation fault\n"), true));
+        $t->contains(
+            'fetch response: unknown or unsupported section header ERR segmentation fault',
+            $invalidArgumentMessage(static fn () => FetchResponse::fromV2PacketLines($packet("\x01ERR segmentation fault\n"), true))
+        );
+        $t->contains(
+            'fetch response: unknown line prefix in ERR common collapsed',
+            $invalidArgumentMessage(static fn () => FetchResponse::fromV2PacketLines(
+                $packet("\x01acknowledgments\n")
+                . $packet("\x01ERR common collapsed\n")
+                . $delimiter,
+                true
+            ))
+        );
         $t->same(
             [],
             FetchResponse::fromV2PacketLines($packet("\x03") . $packet("\x01acknowledgments\n") . $packet("\x01NAK\n") . '0000', true)->errorMessages()
@@ -1015,6 +1027,11 @@ return [
 
         $summary = require dirname(__DIR__) . '/examples/wordpress-protocol-v2-fetch-response.php';
         $t->same('fetch response: upload-pack error raw WordPress fetch failure', $summary['uploadPackError']);
+        $t->same(true, $summary['sidebandAllDecodedErrLineRejectedAsProtocolText']);
+        $t->same(
+            'fetch response: unknown or unsupported section header ERR decoded WordPress fetch text',
+            $summary['sidebandAllDecodedErrLineError']
+        );
         $t->same(true, $summary['truncatedPackRejected']);
         $t->same('fetch response: missing sideband flush packet', $summary['truncatedPackError']);
         $t->same(true, $summary['progressCancellationRejected']);

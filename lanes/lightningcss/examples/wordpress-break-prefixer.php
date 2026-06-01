@@ -19,6 +19,14 @@ $css = <<<'CSS'
 }
 CSS;
 
+$supportsCss = <<<'CSS'
+@supports (break-before: page) {
+  .wp-block-query-pagination {
+    break-before: page;
+  }
+}
+CSS;
+
 $actual = [
     'legacy_webkit_editor' => $prefixer->prefixForTargets($css, [
         'android' => '4.4.3',
@@ -36,11 +44,19 @@ $actual = [
         'safari' => 9,
         'samsung' => 5,
     ]),
+    'legacy_webkit_supports' => $prefixer->prefixForTargets($supportsCss, [
+        'chrome' => 49,
+    ]),
+    'modern_supports' => $prefixer->prefixForTargets($supportsCss, [
+        'chrome' => 50,
+    ]),
 ];
 
 $expected = [
     'legacy_webkit_editor' => '.wp-block-query-pagination{-webkit-break-before:page;break-before:page}.wp-block-column{-webkit-break-after:column;break-after:column;-webkit-break-inside:avoid;break-inside:avoid}',
     'modern_frontend' => '.wp-block-query-pagination{break-before:page}.wp-block-column{break-after:column;break-inside:avoid}',
+    'legacy_webkit_supports' => '@supports ((-webkit-break-before:page) or (break-before:page)){.wp-block-query-pagination{-webkit-break-before:page;break-before:page}}',
+    'modern_supports' => '@supports (break-before:page){.wp-block-query-pagination{break-before:page}}',
 ];
 
 if ($actual !== $expected) {

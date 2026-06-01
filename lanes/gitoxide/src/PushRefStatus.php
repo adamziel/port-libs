@@ -83,7 +83,7 @@ final class PushRefStatus
         );
     }
 
-    public function withOption(string $name, ?string $value = null): self
+    public function withOption(string $name, ?string $value = null, string $objectFormat = 'any'): self
     {
         if (!$this->isOk()) {
             throw new \InvalidArgumentException('push response: report-status-v2 options require a successful ref status');
@@ -101,7 +101,7 @@ final class PushRefStatus
                 return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
             }
 
-            $objectId = self::parseObjectIdOption($value);
+            $objectId = self::parseObjectIdOption($value, $objectFormat);
             if ($objectId === null) {
                 return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
             }
@@ -113,7 +113,7 @@ final class PushRefStatus
                 return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
             }
 
-            $objectId = self::parseObjectIdOption($value);
+            $objectId = self::parseObjectIdOption($value, $objectFormat);
             if ($objectId === null) {
                 return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
             }
@@ -137,8 +137,15 @@ final class PushRefStatus
         return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
     }
 
-    private static function parseObjectIdOption(string $value): ?string
+    private static function parseObjectIdOption(string $value, string $objectFormat): ?string
     {
+        if ($objectFormat === 'sha1') {
+            return self::parseFixedObjectIdPrefix($value, 40);
+        }
+        if ($objectFormat === 'sha256') {
+            return self::parseFixedObjectIdPrefix($value, 64);
+        }
+
         foreach ([64, 40] as $length) {
             if (preg_match('/^([0-9a-fA-F]{' . $length . '})(?:$|[^0-9a-fA-F])/', $value, $matches) === 1) {
                 return strtolower($matches[1]);
@@ -146,6 +153,15 @@ final class PushRefStatus
         }
 
         return null;
+    }
+
+    private static function parseFixedObjectIdPrefix(string $value, int $length): ?string
+    {
+        if (preg_match('/^[0-9a-fA-F]{' . $length . '}/', $value) !== 1) {
+            return null;
+        }
+
+        return strtolower(substr($value, 0, $length));
     }
 
     private static function assertObjectId(string $oid): void

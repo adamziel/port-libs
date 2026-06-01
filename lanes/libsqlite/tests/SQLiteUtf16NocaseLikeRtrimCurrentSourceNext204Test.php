@@ -9,8 +9,8 @@ $tests = [];
 
 $enc204 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row204 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc204($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc204($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -18,8 +18,8 @@ $row204 = static fn (int $id, string $name, int|string $encoding): array => [
     },
 ];
 $bad204 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -81,7 +81,7 @@ $valueAt204 = static function (array $value, string $path): mixed {
 $cases204 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroFour'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* non-ASCII prefix full scan */'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* non-ASCII prefix full scan */'],
     'pattern' => ['pattern', 'plugin!_é%'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
@@ -196,21 +196,21 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroFour rejects no fixed 
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiPrefixFullScanPlan($rows, $rows, '%é%'));
 };
 
-$tests['utf16 nocase like rtrim current source nextTwoZeroFour rejects missing option id'] = static function (TestRunner $t) use ($nextTwoZeroFour): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroFour rejects missing setting id'] = static function (TestRunner $t) use ($nextTwoZeroFour): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiPrefixFullScanPlan([
-        ['option_name_bytes' => 'plugin_éclair', 'text_encoding' => 1],
+        ['key_name_bytes' => 'plugin_éclair', 'text_encoding' => 1],
     ], $nextTwoZeroFour));
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoZeroFour rejects missing bytes'] = static function (TestRunner $t) use ($nextTwoZeroFour): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiPrefixFullScanPlan([
-        ['option_id' => 1, 'text_encoding' => 1],
+        ['setting_id' => 1, 'text_encoding' => 1],
     ], $nextTwoZeroFour));
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoZeroFour rejects missing encoding'] = static function (TestRunner $t) use ($nextTwoZeroFour): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiPrefixFullScanPlan([
-        ['option_id' => 1, 'option_name_bytes' => 'plugin_éclair'],
+        ['setting_id' => 1, 'key_name_bytes' => 'plugin_éclair'],
     ], $nextTwoZeroFour));
 };
 

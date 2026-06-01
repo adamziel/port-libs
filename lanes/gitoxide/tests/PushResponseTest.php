@@ -292,6 +292,38 @@ return [
         $t->same(strtolower($old), $sidebandStatus->oldObject);
         $t->same(strtolower($new), $sidebandStatus->newObject);
     },
+    'parses report-status-v2 object ids with negotiated sha1 prefix length like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
+        $oldPrefix = str_repeat('a', 40);
+        $newPrefix = str_repeat('b', 40);
+        $oldOverlong = $oldPrefix . 'feed';
+        $newOverlong = $newPrefix . 'cafe';
+        $raw = $packet("unpack ok\n")
+            . $packet("ok refs/for/wp-release accepted with sha1 status prefix\n")
+            . $packet("option old-oid {$oldOverlong}\n")
+            . $packet("option new-oid {$newOverlong}\n")
+            . $flush;
+        $generic = PushResponse::fromReportStatusPacketLines($raw);
+        $direct = PushResponse::fromReportStatusPacketLines($raw, 'sha1');
+        $sideband = PushResponse::fromSidebandPacketLines(
+            $packet("\x02remote: sha1 status object prefix applied\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/for/wp-release accepted with sha1 status prefix\n"))
+            . $packet("\x01" . $packet("option old-oid {$oldOverlong}\n"))
+            . $packet("\x01" . $packet("option new-oid {$newOverlong}\n"))
+            . $packet("\x01" . $flush)
+            . $flush,
+            'sha1'
+        );
+
+        $t->same(null, $generic->refStatuses()[0]->oldObject);
+        $t->same(null, $generic->refStatuses()[0]->newObject);
+        $t->same($oldPrefix, $direct->refStatuses()[0]->oldObject);
+        $t->same($newPrefix, $direct->refStatuses()[0]->newObject);
+        $t->same(true, $direct->refStatuses()[0]->hasReportOption());
+        $t->same(['remote: sha1 status object prefix applied'], $sideband->progressMessages());
+        $t->same($oldPrefix, $sideband->refStatuses()[0]->oldObject);
+        $t->same($newPrefix, $sideband->refStatuses()[0]->newObject);
+    },
     'accepts valueless report-status-v2 options like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
         $response = PushResponse::fromReportStatusPacketLines(
             $packet("unpack ok\n")
@@ -817,6 +849,7 @@ return [
             ->refStatuses()[0];
         $malformedObjectOption = PushResponse::fromReportStatusPacketLines($fixture['malformedObjectOptionResponse'])->refStatuses()[0];
         $objectPrefixDiagnostic = PushResponse::fromReportStatusPacketLines($fixture['objectPrefixDiagnosticResponse'])->refStatuses()[0];
+        $sha1ObjectPrefix = PushResponse::fromReportStatusPacketLines($fixture['sha1ObjectPrefixResponse'], 'sha1')->refStatuses()[0];
         $emptyUnpackStatus = PushResponse::fromReportStatusPacketLines($fixture['emptyUnpackStatusResponse']);
 
         $t->same(true, $response->isSuccessful());
@@ -859,6 +892,10 @@ return [
         $t->same($fixture['objectPrefixDiagnosticRef']['oldObject'], $objectPrefixDiagnostic->oldObject);
         $t->same($fixture['objectPrefixDiagnosticRef']['newObject'], $objectPrefixDiagnostic->newObject);
         $t->same(true, $objectPrefixDiagnostic->hasReportOption());
+        $t->same($fixture['sha1ObjectPrefixRef']['requested'], $sha1ObjectPrefix->refName);
+        $t->same($fixture['sha1ObjectPrefixRef']['oldObject'], $sha1ObjectPrefix->oldObject);
+        $t->same($fixture['sha1ObjectPrefixRef']['newObject'], $sha1ObjectPrefix->newObject);
+        $t->same(true, $sha1ObjectPrefix->hasReportOption());
         $t->same('', $emptyUnpackStatus->unpackStatus());
         $t->same(false, $emptyUnpackStatus->unpackOk());
         $t->same($fixture['emptyUnpackStatusRef']['message'], $emptyUnpackStatus->rejectedRefs()[0]->message);
@@ -934,6 +971,7 @@ return [
         $t->same(true, $summary['valuelessReportStatusOptionsAccepted']);
         $t->same(true, $summary['malformedObjectOptionsIgnored']);
         $t->same(true, $summary['objectPrefixDiagnosticSuffixesParsed']);
+        $t->same(true, $summary['sha1ObjectPrefixOptionsParsed']);
         $t->same(true, $summary['emptyUnpackStatusRejected']);
     },
 ];

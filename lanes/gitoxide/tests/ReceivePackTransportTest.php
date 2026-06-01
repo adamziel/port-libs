@@ -370,6 +370,35 @@ return [
         $t->same([], $response->rejectedRefs());
         $t->same(['remote: validating deployment refs'], $response->progressMessages());
     },
+    'receive-pack client uses negotiated sha1 length for report-status object options' => static function (TestRunner $t) use ($packet, $flush, $streamWith): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress sha1 receive-status object prefix payload');
+        $oldPrefix = str_repeat('a', 40);
+        $newPrefix = str_repeat('b', 40);
+        $advertisement = $packet("{$old} refs/heads/main\0report-status-v2 side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x02remote: proc-receive sent sha1 status prefixes\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/for/wp-release accepted with sha1 object prefixes\n"))
+            . $packet("\x01" . $packet('option old-oid ' . $oldPrefix . "feed\n"))
+            . $packet("\x01" . $packet('option new-oid ' . $newPrefix . "cafe\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $client = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($advertisement . $responseBytes), $streamWith('')),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/for/wp-release', $blob->oid());
+
+        $response = $client->send($session->buildRequest([$blob]));
+
+        $t->same(true, $response->isSuccessful());
+        $t->same(['remote: proc-receive sent sha1 status prefixes'], $response->progressMessages());
+        $t->same('refs/for/wp-release', $response->refStatuses()[0]->effectiveRefName());
+        $t->same($oldPrefix, $response->refStatuses()[0]->oldObject);
+        $t->same($newPrefix, $response->refStatuses()[0]->newObject);
+        $t->same(true, $response->refStatuses()[0]->hasReportOption());
+    },
     'receive-pack client preserves repeated proc-receive reports for one requested ref' => static function (TestRunner $t) use ($packet, $flush, $streamWith): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
         $siteAOld = str_repeat('6', 40);

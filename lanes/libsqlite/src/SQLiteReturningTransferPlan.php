@@ -48,6 +48,56 @@ final class SQLiteReturningTransferPlan
     }
 
     /**
+     * @param array<int,array<string,mixed>> $targetRows
+     * @param array<int,array<string,mixed>> $sourceRows
+     * @param list<string> $columns
+     * @return array<string,mixed>
+     */
+    public static function insertSelectXferOptimizationDecision(
+        array $targetRows,
+        array $sourceRows,
+        array $columns,
+        bool $returning = false,
+        bool $integrityCheckRan = false,
+        string $sourceTable = 'source_rows',
+        string $targetTable = 'target_rows'
+    ): array {
+        self::validateIdentifier($sourceTable, 'source table');
+        self::validateIdentifier($targetTable, 'target table');
+        $columns = self::validateColumns($columns);
+
+        $before = self::projectRows($targetRows, $columns, 'target row');
+        $insertedRows = self::projectRows($sourceRows, $columns, 'source row');
+        $usesTransferOptimization = !$returning;
+
+        return [
+            'source' => 'insert4.test',
+            'scenario' => 'insert4-10.2/10.3/10.4 INSERT INTO target SELECT * FROM source transfer optimization and RETURNING',
+            'source_table' => $sourceTable,
+            'target_table' => $targetTable,
+            'columns' => $columns,
+            'before' => $before,
+            'inserted_rows' => $insertedRows,
+            'returning_rows' => $returning ? $insertedRows : [],
+            'after' => array_merge($before, $insertedRows),
+            'changes' => count($insertedRows),
+            'returning' => $returning,
+            'integrity_check_ran' => $integrityCheckRan,
+            'integrity_check_preserves_transfer_eligibility' => true,
+            'xfer_optimization_used' => $usesTransferOptimization,
+            'xferopt_count' => $usesTransferOptimization ? 1 : 0,
+            'optimization_blocker' => $returning ? 'returning-clause-requires-row-image-emission' : null,
+            'dependencies' => [
+                'insert4-10.2 transfer optimization without RETURNING',
+                'insert4-10.3 integrity_check preserves transfer optimization',
+                'insert4-10.4 RETURNING disables transfer optimization',
+                'returning-emits-inserted-row-image',
+                'target-append-preserves-existing-rows',
+            ],
+        ];
+    }
+
+    /**
      * @param list<string> $columns
      * @return list<string>
      */

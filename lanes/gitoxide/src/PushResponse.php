@@ -21,12 +21,12 @@ final class PushResponse
     ) {
     }
 
-    public static function fromReportStatusPacketLines(string $bytes): self
+    public static function fromReportStatusPacketLines(string $bytes, string $objectFormat = 'any'): self
     {
-        return self::parseReportStatus($bytes, [], []);
+        return self::parseReportStatus($bytes, [], [], $objectFormat);
     }
 
-    public static function fromSidebandPacketLines(string $bytes): self
+    public static function fromSidebandPacketLines(string $bytes, string $objectFormat = 'any'): self
     {
         $offset = 0;
         $statusBytes = '';
@@ -77,7 +77,7 @@ final class PushResponse
             throw new \RuntimeException('push response: sideband error ' . implode("\n", $errorMessages));
         }
 
-        return self::parseReportStatus($statusBytes, $progressMessages, $errorMessages);
+        return self::parseReportStatus($statusBytes, $progressMessages, $errorMessages, $objectFormat);
     }
 
     public function unpackStatus(): string
@@ -209,7 +209,7 @@ final class PushResponse
      * @param list<string> $progressMessages
      * @param list<string> $errorMessages
      */
-    private static function parseReportStatus(string $bytes, array $progressMessages, array $errorMessages): self
+    private static function parseReportStatus(string $bytes, array $progressMessages, array $errorMessages, string $objectFormat): self
     {
         $offset = 0;
         $unpackStatus = null;
@@ -241,7 +241,7 @@ final class PushResponse
                 continue;
             }
 
-            self::parseStatusLine($line, $refStatuses);
+            self::parseStatusLine($line, $refStatuses, $objectFormat);
         }
 
         if (!$sawFlush) {
@@ -257,7 +257,7 @@ final class PushResponse
     /**
      * @param list<PushRefStatus> $refStatuses
      */
-    private static function parseStatusLine(string $line, array &$refStatuses): void
+    private static function parseStatusLine(string $line, array &$refStatuses, string $objectFormat): void
     {
         if (str_starts_with($line, 'ok ')) {
             [$refName, $message] = self::splitRefStatusPayload(substr($line, 3));
@@ -285,7 +285,7 @@ final class PushResponse
                 [$name, $value] = explode(' ', $option, 2);
             }
             $last = count($refStatuses) - 1;
-            $refStatuses[$last] = $refStatuses[$last]->withOption($name, $value);
+            $refStatuses[$last] = $refStatuses[$last]->withOption($name, $value, $objectFormat);
 
             return;
         }

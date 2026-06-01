@@ -8,8 +8,8 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -29,7 +29,7 @@ $next = [
     $row(4, 'PLUGIN_CACHE_NEW  ', 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameRtrimCollationRebindPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyRtrimCollationRebindPlan(
     $current,
     $next,
     'plugin!_cache%',
@@ -43,11 +43,11 @@ $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameRtrimColla
 );
 
 if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'] ?? '')) {
-    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-next207');
+    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-nexttwoZeroSeven');
     assert($plan['currentMatchedRowids'] === [1, 2, 3]);
     assert($plan['nextMatchedRowids'] === [1, 2, 3, 4]);
     assert(in_array('rtrim-collation-rebound', $plan['invalidationReasons'], true));
-    echo "application-utf16-nocase-like-rtrim-current-source-next207 self-test passed\n";
+    echo "application-utf16-nocase-like-rtrim-current-source-nexttwoZeroSeven self-test passed\n";
 }
 
 return $plan;

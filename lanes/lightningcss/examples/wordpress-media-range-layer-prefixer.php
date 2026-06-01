@@ -83,6 +83,10 @@ $actual = [
         '@import "blocks/density.css" layer(theme.blocks) (resolution >= 2dppx); @layer theme.blocks { .wp-block-query.is-imported-density { color: yellow; } }',
         ['chrome' => 95]
     ),
+    'importResolutionRangePrefixTailFallback' => $prefixer->prefixForTargets(
+        '@import "blocks/density.css" layer(theme.blocks) ((resolution >= 2dppx)); @layer theme.blocks { .wp-block-query.is-imported-density { color: yellow; } }',
+        ['safari' => 15, 'firefox' => 10]
+    ),
     'safari163RangeFallback' => $prefixer->prefixForTargets(
         '@layer theme.blocks { @media (width >= 240px) { .wp-block-query.is-range-boundary { color: yellow; } } }',
         ['safari' => '16.3']
@@ -531,6 +535,7 @@ $expected = [
     'importRangeLayerTailFallback' => '@import "blocks/query.css" layer(theme.blocks) (min-width:240px);@layer theme.blocks{.wp-block-query.is-imported-range{color:#ff0}}',
     'importIntervalLayerTailFallback' => '@import "blocks/query.css" layer(theme.blocks) (min-width:100px) and (max-width:200px);@layer theme.blocks{.wp-block-query.is-imported-window{color:#ff0}}',
     'importResolutionRangeXUnitTailFallback' => '@import "blocks/density.css" layer(theme.blocks) (min-resolution:2x);@layer theme.blocks{.wp-block-query.is-imported-density{color:#ff0}}',
+    'importResolutionRangePrefixTailFallback' => '@import "blocks/density.css" layer(theme.blocks) (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx);@layer theme.blocks{.wp-block-query.is-imported-density{color:#ff0}}',
     'safari163RangeFallback' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query.is-range-boundary{color:#ff0}}}',
     'safari164RangeModern' => '@layer theme.blocks{@media (width>=240px){.wp-block-query.is-range-boundary{color:#ff0}}}',
     'firefox62RangeFallback' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query.is-firefox-range-boundary{color:#ff0}}}',

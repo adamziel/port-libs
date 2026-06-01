@@ -50,7 +50,7 @@ final class FetchResponse
             if ($packet['kind'] === 'delimiter') {
                 continue;
             }
-            if (self::isUploadPackErrorPacket($packet['payload'])) {
+            if (!$sidebandAll && self::isUploadPackErrorPacket($packet['payload'])) {
                 self::throwUploadPackError($packet['payload']);
             }
 
@@ -265,7 +265,7 @@ final class FetchResponse
             if ($packet['kind'] === 'delimiter') {
                 return null;
             }
-            if (self::isUploadPackErrorPacket($packet['payload'])) {
+            if (!$sidebandAll && self::isUploadPackErrorPacket($packet['payload'])) {
                 self::throwUploadPackError($packet['payload']);
             }
             self::assertUtf8ProtocolLine($packet['payload']);

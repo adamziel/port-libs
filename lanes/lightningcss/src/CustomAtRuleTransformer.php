@@ -1897,7 +1897,7 @@ final class CustomAtRuleTransformer
             return $head . ';';
         }
 
-        return $head . '{' . (string) ($rule['body'] ?? '') . '}';
+        return $head . '{' . ($this->serializeUnknownRuleBlockValue($rule) ?? (string) ($rule['body'] ?? '')) . '}';
     }
 
     /**
@@ -5000,6 +5000,11 @@ final class CustomAtRuleTransformer
             return $head . ';';
         }
 
+        $block = $this->serializeUnknownRuleBlockValue($rule);
+        if ($block !== null) {
+            return $head . '{' . $block . '}';
+        }
+
         $body = (string) ($rule['body'] ?? '');
 
         return $head . '{' . (
@@ -5007,6 +5012,24 @@ final class CustomAtRuleTransformer
                 ? $this->processRuleList($body)
                 : $this->processStyleBody($body, $parentSelectors)
         ) . '}';
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     */
+    private function serializeUnknownRuleBlockValue(array $rule): ?string
+    {
+        if (!array_key_exists('block', $rule) || !is_array($rule['block'])) {
+            return null;
+        }
+        if (array_key_exists('body', $rule) && is_string($rule['body']) && $rule['body'] !== '') {
+            return null;
+        }
+
+        return $this->serializeComponentSequence(
+            array_values($rule['block']),
+            fn (mixed $component): string => $this->serializeVisitorValue($component)
+        );
     }
 
     private function serializeAtRulePreludeValue(mixed $prelude, string $fallback = ''): string

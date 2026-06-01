@@ -14,13 +14,13 @@ $encodingId208 = static fn (int|string $encoding): int => match ($encoding) {
     'UTF-16BE', 3 => 3,
 };
 $row208 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc208($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc208($name, $encoding),
     'text_encoding' => $encodingId208($encoding),
 ];
 $bad208 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -84,7 +84,7 @@ $cases208 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroEight'],
     'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroZero'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* prepared UTF-16 escape */'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* prepared UTF-16 escape */'],
     'template' => ['patternTemplate', 'plugin!_cache%'],
     'current pattern' => ['currentPattern', 'plugin!_cache%'],
     'next pattern' => ['nextPattern', 'plugin~_cache%'],

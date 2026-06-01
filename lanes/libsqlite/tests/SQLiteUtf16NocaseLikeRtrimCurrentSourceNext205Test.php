@@ -9,8 +9,8 @@ $tests = [];
 
 $enc205 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row205 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc205($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc205($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -18,8 +18,8 @@ $row205 = static fn (int $id, string $name, int|string $encoding): array => [
     },
 ];
 $bad205 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -81,7 +81,7 @@ $valueAt205 = static function (array $value, string $path): mixed {
 $cases205 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroFive'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* non-ASCII prefix fallback */'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* non-ASCII prefix fallback */'],
     'pattern' => ['pattern', 'plüg!_%'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
@@ -201,7 +201,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroFive rejects invalid e
 
 $tests['utf16 nocase like rtrim current source nextTwoZeroFive rejects missing encoding'] = static function (TestRunner $t) use ($nextTwoZeroFive): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiFullScanPlan([
-        ['option_id' => 1, 'option_name_bytes' => 'plüg_cache'],
+        ['setting_id' => 1, 'key_name_bytes' => 'plüg_cache'],
     ], $nextTwoZeroFive));
 };
 
