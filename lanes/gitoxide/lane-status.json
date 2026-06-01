@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "library": "gitoxide",
     "estimatedProgress": 97.8,
-    "suiteProgress": "Supervisor-integrated Gitoxide protocol-v2 fetch sideband decoded ERR boundary parity and send-pack receive-status object-format/prefix parity. Verification passed changed PHP lint, git diff --check, changed example smokes, and full Gitoxide lane 40 files / 9414 assertions / 0 failures.",
-    "phpPass": 9414,
+    "suiteProgress": "Supervisor-integrated Gitoxide git-daemon receive-pack virtual-host boundary parity. Verification passed changed PHP lint, git diff --check, changed example smoke, and full Gitoxide lane 40 files / 9425 assertions / 0 failures.",
+    "phpPass": 9425,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions including recursive symbolic reflog split behavior, config includeIf deployment conditions, attributes/pathspec filtering boundaries, sparse checkout, partial clone/promisor hydration, credential helpers, SSH receive-pack IPv6 argv boundaries, receive-pack/send-pack transport and status parsing including stream delimiter termination, same-port scheme-upgrade redirect, no-slash cookie-path proxy, and multi-report no-refname receive-status parity, protocol-v2 ref-in-want fetch exchange sideband parsing plus empty-error sideband handler cancellation, smart HTTP proxy/TLS/SOCKS boundaries, merge-base graph behavior including stable hydration after shallow/promisor parent discovery, URL/refspec canonical writing and fetch match-lhs mapping, tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 supervisor batch: changed PHP lint passed; changed examples passed; full Gitoxide PHP lane passed 40 files / 9414 assertions / 0 failures after fetch sideband decoded ERR and send-pack receive-status object-format/prefix parity. Cargo workspace was not run.",
-    "currentWork": "Protocol-v2 fetch sideband decoded ERR boundary parity and send-pack receive-status object-format/prefix parity integrated on current base.",
+    "audit": "2026-06-01 supervisor receive-pack follow-up: changed PHP lint passed; changed example passed; full Gitoxide PHP lane passed 40 files / 9425 assertions / 0 failures after git-daemon receive-pack virtual-host boundary parity. Cargo workspace was not run.",
+    "currentWork": "Git-daemon receive-pack virtual-host boundary parity integrated on current base.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "306226e89096a89e478a2188b8fe6c2cebd2d445",
+    "latestCommit": "f6c239cfdf5c9eb195ee3309309c6a85f027eea5",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping receive-pack/send-pack, sparse-checkout/pathspec, object database, loose object integrity, smart-HTTP/SSH, reference transaction, tree-merge, merge-base, URL/refspec, partial-clone, pack/index, and protocol parity slices.",
-    "commit": "306226e89096a89e478a2188b8fe6c2cebd2d445",
-    "latestFocusedSlice": "2026-06-01 supervisor batch: protocol-v2 fetch sideband decoded ERR boundary parity and send-pack receive-status object-format/prefix parity. Full Gitoxide lane passed 40 files / 9414 assertions / 0 failures; conservative mapped coverage remains 1794 / 2886; full upstream Cargo workspace was not executed."
+    "commit": "f6c239cfdf5c9eb195ee3309309c6a85f027eea5",
+    "latestFocusedSlice": "2026-06-01 supervisor follow-up: git-daemon receive-pack virtual-host boundary parity. Full Gitoxide lane passed 40 files / 9425 assertions / 0 failures; conservative mapped coverage remains 1794 / 2886; full upstream Cargo workspace was not executed."
 }

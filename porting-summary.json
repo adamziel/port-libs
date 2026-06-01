@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 13:03:45 UTC",
-    "sourceCommit": "306226e89096a89e478a2188b8fe6c2cebd2d445",
-    "sourceCommitShort": "306226e89096",
+    "generated": "2026-06-01 13:07:25 UTC",
+    "sourceCommit": "f6c239cfdf5c9eb195ee3309309c6a85f027eea5",
+    "sourceCommitShort": "f6c239cfdf5c",
     "sourceBranch": "main",
-    "dashboardCommit": "306226e89096a89e478a2188b8fe6c2cebd2d445",
-    "dashboardCommitShort": "306226e89096",
+    "dashboardCommit": "f6c239cfdf5c9eb195ee3309309c6a85f027eea5",
+    "dashboardCommitShort": "f6c239cfdf5c",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -24,11 +24,11 @@
             "unmapped": "0",
             "php": "5,895,014 pass / 7 fail",
             "phase": "focused source integration accepted; broad full-lane/release parity r...",
-            "audit": "2026-06-01 supervisor batch: exact SQLitePDO INSERT typo reproduction...",
-            "currentWork": "Real upstream JSON102 inspection SELECT corpus, insert4 RETURNING transfer corpus, an...",
+            "audit": "2026-06-01 supervisor PDO/JSONB follow-up: exact SQLitePDO INSERT typ...",
+            "currentWork": "SQLitePDO invalid-column/file persistence parity and source-neutral JSONB CHECK curre...",
             "nextTarget": "Prioritize broad full-lane memory exhaustion in SQLiteJsonImp...",
             "remainingGate": "Broad release/all still has 7 known failures",
-            "commit": "306226e"
+            "commit": "f6c239c"
         },
         {
             "lane": "lightningcss",
@@ -45,13 +45,13 @@
             "coverage": "2,392 / 3,532 (67.7%)",
             "mapPercent": "67.7%",
             "unmapped": "1,140",
-            "php": "7,963 pass / 0 fail",
+            "php": "7,969 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor batch: changed PHP lint passed; changed example...",
-            "currentWork": "Custom-at-rule returned block tokens, media-query range/layer fallbacks, property-val...",
+            "audit": "2026-06-01 supervisor bundle/import follow-up: changed PHP lint passe...",
+            "currentWork": "Bundle/import graph source-map and unknown-statement preservation follow-up integrate...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, bundle...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "306226e"
+            "commit": "f6c239c"
         },
         {
             "lane": "gitoxide",
@@ -68,13 +68,13 @@
             "coverage": "1,794 / 2,886 (62.2%)",
             "mapPercent": "62.2%",
             "unmapped": "1,092",
-            "php": "9,414 pass / 0 fail",
+            "php": "9,425 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor batch: changed PHP lint passed; changed example...",
-            "currentWork": "Protocol-v2 fetch sideband decoded ERR boundary parity and send-pack receive-status o...",
+            "audit": "2026-06-01 supervisor receive-pack follow-up: changed PHP lint passed...",
+            "currentWork": "Git-daemon receive-pack virtual-host boundary parity integrated on current base.",
             "nextTarget": "Keep Gitoxide workers on current-base non-overlapping receive...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "306226e"
+            "commit": "f6c239c"
         },
         {
             "lane": "readability",
