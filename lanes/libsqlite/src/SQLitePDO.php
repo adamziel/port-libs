@@ -349,7 +349,7 @@ final class SQLitePDO extends \PDO
      * @param array<int|string,mixed> $parameters
      * @return array{rows:list<array<string,mixed>>,changes:int}
      */
-    public function executeSql(string $sql, array $parameters, bool $requireBoundParameters = false): array
+    public function executeSql(string $sql, array $parameters, bool $validateParameterTokens = false): array
     {
         $sql = trim(rtrim(trim($sql), ';'));
         if ($sql === '') {
@@ -357,8 +357,8 @@ final class SQLitePDO extends \PDO
             return ['rows' => [], 'changes' => 0];
         }
         try {
-            if ($requireBoundParameters) {
-                $this->assertBoundParametersPresent($sql, $parameters);
+            if ($validateParameterTokens) {
+                $this->assertParameterTokensAreValid($sql);
             }
             if (preg_match('/^(?:select|values|with)\b/i', $sql) === 1) {
                 $result = ['rows' => SQLiteSelectSql::execute($sql, $this->tables, $parameters), 'changes' => 0];
@@ -784,9 +784,6 @@ final class SQLitePDO extends \PDO
                 }
                 $parameterCount = max($parameterCount, $index);
                 $zeroBased = $index - 1;
-                if (!array_key_exists($zeroBased, $parameters)) {
-                    throw $this->failure("SQLitePDO missing positional parameter {$token}", null, 25);
-                }
                 $i = $end - 1;
                 continue;
             }
@@ -800,9 +797,6 @@ final class SQLitePDO extends \PDO
                 }
                 $parameterCount = max($parameterCount, $namedParameterIndexes[$token]);
                 $bare = substr($token, 1);
-                if (!array_key_exists($token, $parameters) && !array_key_exists($bare, $parameters)) {
-                    throw $this->failure("SQLitePDO missing named parameter {$token}", null, 25);
-                }
                 if (array_key_exists($token, $parameters)) {
                     $usedKeys[$token] = true;
                 }
@@ -823,8 +817,7 @@ final class SQLitePDO extends \PDO
         }
     }
 
-    /** @param array<int|string,mixed> $parameters */
-    private function assertBoundParametersPresent(string $sql, array $parameters): void
+    private function assertParameterTokensAreValid(string $sql): void
     {
         $quote = false;
         $positionalIndex = 1;
@@ -850,13 +843,10 @@ final class SQLitePDO extends \PDO
                 }
                 $token = substr($sql, $i, $end - $i);
                 if ($token === '?') {
-                    $index = $positionalIndex++;
+                    $positionalIndex++;
                 } else {
                     $index = $this->explicitParameterIndex($token);
                     $positionalIndex = max($positionalIndex, $index + 1);
-                }
-                if (!array_key_exists($index, $parameters)) {
-                    throw new \PDOException("SQLitePDO missing positional parameter {$token}");
                 }
                 $i = $end - 1;
                 continue;
@@ -865,10 +855,6 @@ final class SQLitePDO extends \PDO
                 $token = $this->namedParameterToken($sql, $i);
                 if ($token === null) {
                     continue;
-                }
-                $bare = substr($token, 1);
-                if (!array_key_exists($token, $parameters) && !array_key_exists($bare, $parameters)) {
-                    throw new \PDOException("SQLitePDO missing named parameter {$token}");
                 }
                 $i += strlen($token) - 1;
             }

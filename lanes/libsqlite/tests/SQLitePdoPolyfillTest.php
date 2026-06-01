@@ -132,7 +132,7 @@ return [
         $t->same([['name' => 'first', 'qty' => 8]], $pdo->query('SELECT name, qty FROM items ORDER BY id')->fetchAll(PDO::FETCH_ASSOC));
     },
 
-    'SQLitePDO exec parameter arrays reject batches and missing placeholders' => static function (TestRunner $t): void {
+    'SQLitePDO exec parameter arrays reject batches and bind omitted placeholders as null' => static function (TestRunner $t): void {
         $pdo = new SQLitePDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, qty INTEGER)');
         $t->same(1, $pdo->exec('INSERT INTO items (name, qty) VALUES (?, ?)', ['first', 4]));
@@ -146,25 +146,17 @@ return [
             $t->same('HY000', $pdo->errorInfo()[0]);
         }
 
-        try {
-            $pdo->exec('INSERT INTO items (name, qty) VALUES (?, ?)', ['second']);
-            throw new RuntimeException('Expected PDOException for missing positional exec parameter');
-        } catch (PDOException $exception) {
-            $t->contains('missing positional parameter ?', $exception->getMessage());
-            $t->same('HY000', $pdo->errorCode());
-            $t->same('HY000', $pdo->errorInfo()[0]);
-        }
+        $t->same(1, $pdo->exec('INSERT INTO items (name, qty) VALUES (?, ?)', ['second']));
+        $t->same(1, $pdo->exec('INSERT INTO items (name, qty) VALUES (:name, :qty)', ['name' => 'third']));
 
-        try {
-            $pdo->exec('INSERT INTO items (name, qty) VALUES (:name, :qty)', ['name' => 'second']);
-            throw new RuntimeException('Expected PDOException for missing named exec parameter');
-        } catch (PDOException $exception) {
-            $t->contains('missing named parameter :qty', $exception->getMessage());
-            $t->same('HY000', $pdo->errorCode());
-            $t->same('HY000', $pdo->errorInfo()[0]);
-        }
-
-        $t->same([['name' => 'first', 'qty' => 4]], $pdo->query('SELECT name, qty FROM items ORDER BY id')->fetchAll(PDO::FETCH_ASSOC));
+        $t->same(
+            [
+                ['name' => 'first', 'qty' => 4],
+                ['name' => 'second', 'qty' => null],
+                ['name' => 'third', 'qty' => null],
+            ],
+            $pdo->query('SELECT name, qty FROM items ORDER BY id')->fetchAll(PDO::FETCH_ASSOC),
+        );
     },
 
     'SQLitePDO exec and prepared parameter arrays support numbered binds and reject surplus values before file writes' => static function (TestRunner $t) use ($sqlitePdoNativeAvailable): void {

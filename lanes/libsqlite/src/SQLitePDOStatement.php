@@ -64,7 +64,7 @@ final class SQLitePDOStatement extends \PDOStatement
 
     public function execute(?array $params = null): bool
     {
-        $requireBoundParameters = $params !== null;
+        $validateParameterTokens = $params !== null;
         $parameters = $this->boundValues;
         $connectionErrorState = $this->connection->pdoErrorState();
         foreach ($this->boundReferences as $key => &$value) {
@@ -78,7 +78,7 @@ final class SQLitePDOStatement extends \PDOStatement
                     $parameters[is_int($key) ? $key + 1 : $key] = $value;
                 }
             }
-            $result = $this->connection->executeSql($this->sql, $parameters, $requireBoundParameters);
+            $result = $this->connection->executeSql($this->sql, $parameters, $validateParameterTokens);
         } catch (\PDOException $exception) {
             $this->errorInfo = $this->normalizeExceptionErrorInfo($exception);
             $this->errorCode = $this->errorInfo[0];
