@@ -1380,7 +1380,7 @@
             "nativeVerification": "php -l on changed/new LightningCSS PHP files; git diff --check; focused gate 7 files / 1178 assertions / 0 failures; full LightningCSS lane 13 files / 1339 assertions / 0 failures; seven touched examples exit 0",
             "upstreamEvidence": "worker evidence cites pinned LightningCSS upstream commit 22bdda3d190f1cd321d98026225cfc964af64ad9 and targeted src/lib.rs, src/declaration.rs, src/bundler.rs, tests/test_cssom.rs, tests/cli_integration_tests.rs, and Node/custom-at-rule behavior slices; full Rust/Node runner not executed"
         },
-        "latestMappedAddition": "Accepted source commit 79e32fa deepens represented LightningCSS CSS Modules, custom-at-rule, media-query, property-value, and target-prefix clusters. Full LightningCSS PHP evidence is 13 files / 7582 assertions / 0 failures; conservative mapped coverage remains 2374 / 3532. Full upstream Rust/Node/WASM runners were not executed."
+        "latestMappedAddition": "Accepted source commit 3ec6eca deepens represented LightningCSS bundle/import, CSS Modules, and SourceMap clusters. Full LightningCSS PHP evidence is 13 files / 7610 assertions / 0 failures; conservative mapped coverage remains 2374 / 3532. Full upstream Rust/Node/WASM runners were not executed."
     },
     "nativeImplementation": {
         "language": "PHP",
@@ -1539,7 +1539,7 @@
     "nextTask": "Keep LightningCSS workers on current-base source maps, bundle/import graph, media query, property value, CSSOM, CSS Modules, custom-at-rule, and target-prefix slices; rebase stale overlapping TransitionPrefixer/CSSOM handoffs before retry.",
     "latestNativePhpVerification": "2026-06-01 current-base integration: changed PHP lint passed; changed examples passed; git diff --cached --check passed; full LightningCSS lane passed 13 files / 7075 assertions / 0 failures.",
     "runnerStatus": "Full LightningCSS PHP lane passed 13 files / 6998 assertions / 0 failures after integrating unicode-bidi target prefix browser-boundary parity. Full upstream Rust/Node/WASM runners were not executed.",
-    "currentWork": "CSS Modules unknown at-rule compose, nested custom-at-rule token-list preludes, compact negated media/layer recovery, property-value font/grid/color, and display-grid target-prefix browser boundaries integrated on current base.",
+    "currentWork": "Bundle/import unknown statement at-rule preservation, CSS Modules escaped view-transition selector-function canonicalization, and SourceMap negative-offset corrupt child-line skipping integrated on current base.",
     "focusedCoverage": {
         "focusedLightningCssSourceCssomModulesMediaMaps20260531": "Accepted source commit 4b52aac2: focused gate 7 files / 1083 assertions / 0 failures and full LightningCSS lane 13 files / 2092 assertions / 0 failures after adding bundle SourceProvider reads, CSS Modules escaped identifiers, env()/var() custom visitors, text-decoration CSSOM, unknown media range layers, and SourceMap project-root normalization. Conservative mapped coverage moves 1340 -> 1349 / 3532; no Rust/Node/WASM parity claim.",
         "focusedClipPathTargetBoundary20260531T163828Z": "Isolated target-prefix slice: focused TransitionPrefixerTest.php 1 file / 373 assertions / 0 failures and full LightningCSS lane 13 files / 2321 assertions / 0 failures after adding WebKit clip-path browser-boundary parity. Conservative mapped coverage moves 1446 -> 1450 / 3532; no Rust/Node/WASM parity claim.",
@@ -1573,8 +1573,8 @@
         "focusedBundleRatioColorCursorBatch20260601T0152Z": "CssBundler, CustomAtRuleTransformer, CssMinifier, and TransitionPrefixer now cover the accepted current-base batch from source commit 38285e381.",
         "focusedLightningCssSourceMapBundleCssModulesTargetCustomCssomMedia20260601T0234Z": "CssBundler, SourceMap, CssModulesTransformer, TransitionPrefixer, CustomAtRuleTransformer, and DeclarationBlock now cover the accepted source-only batch from source commit b701d7878f356e660f545ff27714cddd4c582300. Conservative mapped coverage moves 2297 -> 2303 / 3532; full LightningCSS PHP lane passed 13 files / 5521 assertions / 0 failures."
     },
-    "latestFocusedSlice": "2026-06-01 supervisor batch two: CSS Modules, custom-at-rule, media-query, property-values, and target-prefix parity slices. Full LightningCSS lane passed 13 files / 7582 assertions / 0 failures; conservative mapped coverage remains 2374 / 3532; Rust/Node/WASM upstream runners were not executed.",
-    "latestCommit": "79e32fa534735cd936d14e9152a6540ff780ba28",
+    "latestFocusedSlice": "2026-06-01 supervisor batch three: bundle/import graph, CSS Modules, and SourceMap parity slices. Full LightningCSS lane passed 13 files / 7610 assertions / 0 failures; conservative mapped coverage remains 2374 / 3532; Rust/Node/WASM upstream runners were not executed.",
+    "latestCommit": "3ec6eca5d768da593338507a6f68979d67b734cf",
     "audit": "2026-06-01 supervisor accepted source 9b57a0640eb0 with full LightningCSS PHP lane 13 files / 6998 assertions / 0 failures; Rust/Node/WASM upstream runners remain unexecuted.",
     "focusedGitCssSqliteBacklogBatch20260601T0058Z": {
         "sourceCommit": "dc6ff07aec68e1e84e6a2666ec51a11acc59324c",
