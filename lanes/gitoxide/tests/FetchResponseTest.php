@@ -664,6 +664,39 @@ return [
         $t->same([], $response->errorMessages());
         $t->same($fixture['responseBytesAfterCapabilityFlush'], strlen($fixture['response']));
     },
+    'parses upstream v2 ref-in-want fetch exchange without ls-refs advertisement' => static function (TestRunner $t) use ($packet, $flush): void {
+        $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-ref-in-want-sideband.php';
+        $fixture = $fixtures['refInWant'];
+        $exchangeBytes = $packet("version 2\n")
+            . $packet("agent=git/2.28.0\n")
+            . $packet("ls-refs\n")
+            . $packet("fetch=shallow\n")
+            . $packet("server-option\n")
+            . $packet("object-format=sha1\n")
+            . $flush
+            . $fixture['response'];
+
+        $exchange = ProtocolV2FetchExchange::fromPacketLines($exchangeBytes);
+        $response = $exchange->fetchResponse();
+        $wantedRefs = array_map(
+            static fn (FetchWantedRef $wantedRef): array => ['object' => $wantedRef->object, 'path' => $wantedRef->path],
+            $response->wantedRefs()
+        );
+
+        $t->same(860, strlen($exchangeBytes));
+        $t->same(['agent', 'ls-refs', 'fetch', 'server-option', 'object-format'], $exchange->capabilities()->names());
+        $t->same(['shallow'], $exchange->capabilities()->capability('fetch')?->values());
+        $t->same([], $exchange->remoteRefs());
+        $t->same(110, strlen($exchange->capabilityAdvertisementBytes()));
+        $t->same('', $exchange->lsRefsAdvertisementBytes());
+        $t->same(749, strlen($exchange->fetchResponseBytes()));
+        $t->same($fixture['wantedRefs'], $wantedRefs);
+        $t->same(true, $response->hasPack());
+        $t->same($fixture['packBytes'], strlen($response->packData()));
+        $t->same($fixture['packTrailer'], bin2hex(substr($response->packData(), -20)));
+        $t->same($fixture['progressCount'], count($response->progressMessages()));
+        $t->same('flush', $response->terminator());
+    },
     'parses upstream v2 fetch section fixtures with sideband pack bytes' => static function (TestRunner $t): void {
         $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-section-sideband.php';
 

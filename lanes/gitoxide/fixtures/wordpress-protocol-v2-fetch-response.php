@@ -58,6 +58,18 @@ return [
         . $packet("packfile\n")
         . $packet("\x01" . $packData)
         . $flush,
+    'refInWantExchangeResponse' => $packet("version 2\n")
+        . $packet("agent=port-libs/0.1\n")
+        . $packet("fetch=shallow ref-in-want\n")
+        . $packet("object-format=sha1\n")
+        . $flush
+        . $packet("wanted-refs\n")
+        . $packet("{$main} refs/heads/main\n")
+        . $delimiter
+        . $packet("packfile\n")
+        . $packet("\x01" . $packData)
+        . $flush
+        . "\n",
     'sha256Response' => $packet("acknowledgments\n")
         . $packet("ACK {$sha256Installed}\n")
         . $packet("ACK {$sha256Main} common\n")
@@ -180,6 +192,7 @@ return [
     'delimiterPackUse' => 'Protocol v2 sideband readers preserve delimiter stop-packet state after pack bytes, so WordPress deployment tooling can distinguish a section boundary from a flush-only response end.',
     'suffixlessAckUse' => 'Suffixless protocol v2 ACK lines are treated as common acknowledgements before the packfile, matching Gitoxide fetch.response fixture behavior for deployment fetch negotiation.',
     'refInWantUse' => 'A WordPress deployment fetch using ref-in-want can parse the wanted-refs section and still hand the following sideband pack bytes to object import without requiring a separate ls-refs advertisement.',
+    'refInWantExchangeUse' => 'A WordPress deployment fetch using ref-in-want can parse a full protocol v2 exchange where capabilities are followed directly by wanted-refs and sideband pack bytes, without an ls-refs advertisement.',
     'cloneExchangeUse' => 'A WordPress deployment fetch can parse a persistent protocol v2 upload-pack exchange from capability advertisement through ls-refs and the following sidebanded fetch response before importing pack bytes.',
     'cloneExchangeProgressHandlerUse' => 'A WordPress deployment fetch parsing a full protocol v2 exchange can stream sideband progress through the same caller cancellation handler used by lower-level fetch response readers.',
     'sha256ObjectFormatUse' => 'A WordPress deployment fetch from a SHA-256 object-format repository can parse 64-hex acknowledgements, shallow updates, and wanted refs before preserving sidebanded pack bytes.',

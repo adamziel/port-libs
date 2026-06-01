@@ -343,6 +343,34 @@ return [
         $t->same('a:-moz-any-link{color:red}a:any-link{color:red}', $prefixer->prefixForTargets('a:any-link { color: red; }', ['firefox' => 49]));
         $t->same('a:any-link{color:red}', $prefixer->prefixForTargets('a:any-link { color: red; }', ['firefox' => 50]));
     },
+    'transition prefixer prunes adjacent stale selector prefixes by browser boundary' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo:read-only{color:red}',
+            $prefixer->prefixForTargets('.foo:-moz-read-only { color: red; } .foo:read-only { color: red; }', ['firefox' => 85])
+        );
+        $t->same(
+            '.foo:-moz-read-only{color:red}.bar{color:#ff0}.foo:read-only{color:red}',
+            $prefixer->prefixForTargets('.foo:-moz-read-only { color: red; } .bar { color: yellow; } .foo:read-only { color: red; }', ['firefox' => 85])
+        );
+        $t->same(
+            '.foo:-moz-read-only{color:red}.foo:read-only{color:red}',
+            $prefixer->prefixForTargets('.foo:-moz-read-only { color: red; } .foo:read-only { color: red; }', ['firefox' => 36])
+        );
+        $t->same(
+            '.foo:fullscreen{color:red}',
+            $prefixer->prefixForTargets('.foo:-webkit-full-screen { color: red; } .foo:-moz-full-screen { color: red; } .foo:-ms-fullscreen { color: red; } .foo:fullscreen { color: red; }', ['chrome' => 96])
+        );
+        $t->same(
+            '.foo:-webkit-full-screen{color:red}.foo:-moz-full-screen{color:red}.foo:-ms-fullscreen{color:red}.foo:fullscreen{color:red}',
+            $prefixer->prefixForTargets('.foo:-webkit-full-screen { color: red; } .foo:-moz-full-screen { color: red; } .foo:-ms-fullscreen { color: red; } .foo:fullscreen { color: red; }', ['chrome' => 45, 'firefox' => 45, 'ie' => 11])
+        );
+        $t->same(
+            '.foo::file-selector-button{color:red}',
+            $prefixer->prefixForTargets('.foo::-webkit-file-upload-button { color: red; } .foo::-ms-browse { color: red; } .foo::file-selector-button { color: red; }', ['chrome' => 89, 'edge' => 19])
+        );
+    },
     'transition prefixer maps upstream placeholder pseudo-element target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -2647,6 +2675,30 @@ CSS;
         $t->same(
             '@supports (color:lab(0% 0 0)){.foo{background:linear-gradient(lch(56.208% 136.76 46.312),lch(51% 135.366 301.364))}}',
             $prefixer->prefixLegacySafari('@supports (color: lab(0% 0 0)) { .foo { background: linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364)) } }')
+        );
+    },
+    'transition prefixer maps upstream SVG paint advanced color fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{fill:#ee00be;fill:color(display-p3 .972962 -.362078 .804206);fill:lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets('.foo { fill: lch(50.998% 135.363 338) }', ['chrome' => 90, 'safari' => 14])
+        );
+        $t->same(
+            '.foo{stroke:#ee00be;stroke:color(display-p3 .972962 -.362078 .804206);stroke:lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets('.foo { stroke: lch(50.998% 135.363 338) }', ['chrome' => 90, 'safari' => 14])
+        );
+        $t->same(
+            '.foo{fill:url("#foo") #ee00be;fill:url("#foo") color(display-p3 .972962 -.362078 .804206);fill:url("#foo") lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets('.foo { fill: url(#foo) lch(50.998% 135.363 338) }', ['chrome' => 90, 'safari' => 14])
+        );
+        $t->same(
+            '.foo{fill:var(--url) #ee00be}@supports (color:lab(0% 0 0)){.foo{fill:var(--url) lab(50.998% 125.506 -50.7078)}}',
+            $prefixer->prefixForTargets('.foo { fill: var(--url) lch(50.998% 135.363 338) }', ['chrome' => 90])
+        );
+        $t->same(
+            '.foo{fill:lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets('.foo { fill: lch(50.998% 135.363 338) }', ['safari' => 15])
         );
     },
     'transition prefixer maps upstream outline advanced color target fallbacks' => static function (TestRunner $t): void {

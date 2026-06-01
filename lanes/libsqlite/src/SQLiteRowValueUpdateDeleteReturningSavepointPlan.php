@@ -19,7 +19,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $statements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_rollback_batch',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($statements === []) {
             throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING rollback needs statements');
@@ -144,6 +144,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rollbackReturningRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -229,7 +230,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $statements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_yield_batch',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         ?int $rollbackToAfterOrdinal = null,
     ): array {
         if ($statements === []) {
@@ -348,6 +349,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsYieldReturningSavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -464,7 +466,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_outer_rowvalue_import',
         string $innerSavepoint = 'app_inner_returning_batch',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === [] || $innerStatements === [] || $afterRollbackStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value nested savepoint rollback batch needs outer, inner, and after-rollback statements');
@@ -641,6 +643,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function nestedSavepointRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -738,7 +741,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $afterRollbackStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_retry_batch',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($beforeRollbackStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING preflight retry savepoint needs pre-rollback statements');
@@ -879,6 +882,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsPreflightRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -957,7 +961,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_fail_retry_batch',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($beforeRollbackStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value FAIL rollback retry needs pre-rollback statements');
@@ -1133,6 +1137,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsConflictRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -1228,7 +1233,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $statements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_fail_batch',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($statements === []) {
             throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING savepoint next162 needs statements');
@@ -1363,6 +1368,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsFailConflictRollbackSavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -1447,7 +1453,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_rowvalue_between_retry',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($beforeRollbackStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value BETWEEN savepoint next163 needs pre-rollback statements');
@@ -1592,6 +1598,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsBetweenRollbackRetrySavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -1656,7 +1663,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_rollback_batch',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($attemptStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value ROLLBACK retry next164 needs attempt statements');
@@ -1836,6 +1843,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsNullInequalityRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -1931,7 +1939,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $statements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_ignore_batch',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($statements === []) {
             throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING savepoint next165 needs statements');
@@ -2053,6 +2061,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsIgnoreReturningSavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -2166,7 +2175,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_settings_outer_import_nested_retry',
         string $innerSavepoint = 'app_settings_inner_cleanup_nested_retry',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($innerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value nested savepoint nested-retry needs inner statements');
@@ -2328,6 +2337,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsNestedRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -2428,7 +2438,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_settings_outer_rowvalue_nested_ignore_retry',
         string $innerSavepoint = 'app_settings_inner_rowvalue_nested_ignore_retry',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite nested row-value savepoint nested-ignore-retry needs outer statements');
@@ -2592,6 +2602,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsNestedIgnoreRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -2689,7 +2700,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_abort_batch',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($attemptStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value ABORT savepoint abort-retry needs attempt statements');
@@ -2874,6 +2885,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsAbortRollbackRetrySavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -2971,7 +2983,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_abort_batch',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($statements === []) {
             throw new \InvalidArgumentException('SQLite row-value ABORT savepoint next170 needs statements');
@@ -3146,6 +3158,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsAbortReturningSavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -3245,7 +3258,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_rowvalue_yield_retry_next172',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($yieldedBeforeRollbackStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value yield savepoint next172 needs yielded pre-rollback statements');
@@ -3409,6 +3422,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsYieldCheckpointSavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -3506,7 +3520,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_fail_retry_next173',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($attemptStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value update/delete RETURNING next173 needs attempt statements');
@@ -3693,6 +3707,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsInPredicateRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -3793,7 +3808,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_settings_outer_rowvalue_next174',
         string $innerSavepoint = 'app_settings_inner_rowvalue_next174',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value released inner savepoint next174 needs outer statements');
@@ -3933,6 +3948,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsReleasedInnerRollbackRetrySavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -4033,7 +4049,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_settings_outer_rowvalue_next177',
         string $innerSavepoint = 'app_settings_inner_rowvalue_next177',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value inner rollback next177 needs outer statements');
@@ -4189,6 +4205,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsInnerRollbackRetrySavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -4287,7 +4304,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $transaction = 'app_settings_import_txn',
         string $savepoint = 'app_settings_rowvalue_rollback_batch',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value OR ROLLBACK next178 needs outer statements');
@@ -4510,6 +4527,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsValuesRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -4612,7 +4630,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_settings_outer_rowvalue_ignore_retry',
         string $innerSavepoint = 'app_settings_inner_rowvalue_ignore_retry',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value ignore nested retry savepoint needs outer statements');
@@ -4768,6 +4786,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsIgnoreNestedRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -4866,7 +4885,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_settings_outer_rowvalue_next182',
         string $innerSavepoint = 'app_settings_inner_rowvalue_next182',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value released-inner rollback next182 needs outer statements');
@@ -5015,6 +5034,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsReleasedInnerSavepointRollback(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -5114,7 +5134,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_settings_outer_delete_inner_retry',
         string $innerSavepoint = 'app_settings_inner_delete_inner_retry',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerDeleteStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value nested delete delete-inner-retry needs outer delete statements');
@@ -5277,6 +5297,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsDeleteInnerRollbackRetrySavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -5373,7 +5394,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_fail_next185',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($preFailStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value OR FAIL next185 needs pre-fail statements');
@@ -5544,6 +5565,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsOrFailRollbackRetrySavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -5644,7 +5666,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $transaction = 'app_settings_rowvalue_abort_txn_next187',
         string $savepoint = 'app_settings_rowvalue_abort_savepoint_next187',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === [] || $savepointStatements === [] || $retryStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value ABORT savepoint next187 needs outer, savepoint, and retry statements');
@@ -5867,6 +5889,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsAbortSavepointRetry(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -5962,7 +5985,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         string $savepoint = 'app_settings_rowvalue_empty_in_next188',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($attemptStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value empty IN next188 needs attempted statements');
@@ -6100,6 +6123,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsRowValuePredicateRollbackRetrySavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -6198,7 +6222,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_settings_rowvalue_not_between_outer_next189',
         string $innerSavepoint = 'app_settings_rowvalue_not_between_inner_next189',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value not-between next189 needs outer statements');
@@ -6364,6 +6388,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsNotBetweenRollbackRetrySavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -6464,7 +6489,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $releaseSavepoint = 'app_settings_rowvalue_release_next190',
         string $rollbackSavepoint = 'app_settings_rowvalue_rollback_next190',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($releaseStatements === [] || $rollbackStatements === [] || $retryStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value negated savepoint next190 needs release, rollback, and retry statements');
@@ -6626,6 +6651,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsNegatedRollbackRetrySavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -6729,7 +6755,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_settings_rowvalue_abort_outer_next192',
         string $innerSavepoint = 'app_settings_rowvalue_abort_inner_next192',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value OR ABORT next192 needs outer statements');
@@ -6944,6 +6970,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsNestedAbortRollbackRetrySavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -7041,7 +7068,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_fail_stream_next193',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value fail stream next193 needs outer statements');
@@ -7205,6 +7232,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsFailStreamSavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -7305,7 +7333,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_fail_next196',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($preFailStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value OR FAIL next196 needs pre-fail statements');
@@ -7501,6 +7529,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsFailConflictPreserveRetrySavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -7600,7 +7629,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_abort_statement',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value ABORT savepoint needs outer statements');
@@ -7783,6 +7812,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
     {
         $parsed = SQLiteUpdateDeleteReturningSql::parse($sql);
         $table = $parsed['table'];
+        $rowIdColumn = self::resolveRowIdColumnForRows($before[$table] ?? [], $rowIdColumn);
         $where = self::wherePredicateAbortRollbackConflict($parsed['where']);
         if ($parsed['action'] === 'delete') {
             $plan = SQLiteUpdateDeleteLimitPlan::delete($before[$table] ?? [], $where, $parsed['order_by'], $parsed['limit'], $parsed['offset'], $rowIdColumn);
@@ -7843,6 +7873,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsAbortRollbackConflict(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -7968,7 +7999,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints = [],
         string $savepoint = 'app_settings_rowvalue_parenthesized_next202',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($attemptStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value parenthesized next202 needs attempted statements');
@@ -8108,6 +8139,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsParenthesizedRollbackRetrySavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -8205,7 +8237,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $deleteStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_ignore_replace_ignore_replace_delete',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($ignoreStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value ignore/replace ignore_replace_delete needs ignore statements');
@@ -8376,6 +8408,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsIgnoreReplaceDeleteSavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -8503,7 +8536,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $nextStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_release_release_followup_read',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         array $options = [],
     ): array {
         if ($savepointStatements === []) {
@@ -8672,6 +8705,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsReleaseFollowupReadSavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -8798,7 +8832,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_settings_outer_rowvalue_released_inner_retry',
         string $innerSavepoint = 'app_settings_inner_released_rowvalue_released_inner_retry',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value outer rollback released_inner_retry needs outer statements');
@@ -8969,6 +9003,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function releasedInnerRollbackRetryRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -9073,7 +9108,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_fail_or_fail_savepoint_retry',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value OR FAIL or-fail-savepoint-retry needs outer statements');
@@ -9240,6 +9275,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function orFailSavepointRetryRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -9360,7 +9396,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_fail_statement_pre_fail_rollback_retry',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value OR FAIL pre-fail-rollback-retry needs outer statements');
@@ -9552,6 +9588,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function preFailRollbackRetryRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -9656,7 +9693,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_fail_fail_statement_retry',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($beforeFailStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value OR FAIL fail-statement-retry needs pre-fail statements');
@@ -9854,6 +9891,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function failStatementRetryRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -9949,7 +9987,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_ignore_next210',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($attemptStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value OR IGNORE next210 needs attempted statements');
@@ -10100,6 +10138,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function ignoreRollbackRetryRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -10236,7 +10275,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $afterIgnoreStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_ignore_next211',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($beforeIgnoreStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value OR IGNORE next211 needs pre-ignore statements');
@@ -10428,6 +10467,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function orIgnoreSavepointReleaseRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -10523,7 +10563,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_subquery_next212',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($attemptStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value subquery savepoint next212 needs attempt statements');
@@ -10667,6 +10707,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function subquerySavepointRollbackRetryRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -10765,7 +10806,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_order_limit_next213',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
@@ -10827,7 +10868,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         string $transactionName = 'app_settings_rowvalue_transaction_next217',
         string $savepoint = 'app_settings_rowvalue_rollback_next217',
         string $retrySavepoint = 'app_settings_rowvalue_retry_next217',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($beforeRollbackStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value OR ROLLBACK next217 needs pre-rollback statements');
@@ -11042,6 +11083,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsRollbackToConflict(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -11139,7 +11181,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_rollback_to_next218',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($savepointStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value rollback next218 needs savepoint statements');
@@ -11305,6 +11347,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsRollbackToSavepointCurrentSource(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -11399,7 +11442,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_negative_limit_offset_next219',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
@@ -11461,7 +11504,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_abort_next220',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($beforeAbortStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value OR ABORT next220 needs pre-abort statements');
@@ -11659,6 +11702,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsAbortConflictRetry(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -11760,7 +11804,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_settings_outer_rowvalue_next224',
         string $innerSavepoint = 'app_settings_inner_rowvalue_next224',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($innerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value nested rollback next224 needs inner statements');
@@ -11943,6 +11987,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsNestedSavepointMaterialization(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -12037,7 +12082,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_distinct_subquery_next225',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
@@ -12098,7 +12143,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_distinct_subquery',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
@@ -12164,7 +12209,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_settings_outer_rowvalue_fail_rollback',
         string $innerSavepoint = 'app_settings_inner_rowvalue_fail_rollback',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback needs outer statements');
@@ -12401,6 +12446,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function innerFailRollbackRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -12497,7 +12543,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_select_retry',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($yieldStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value select retry savepoint release needs yield statements');
@@ -12678,6 +12724,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function selectRetrySavepointRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -12766,6 +12813,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function selectRetrySavepointIdsFromRows(array $rows, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $ids = [];
         foreach ($rows as $row) {
             $id = $row[$rowIdColumn] ?? null;
@@ -12797,7 +12845,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_settings_rowvalue_outer_release_rollback',
         string $innerSavepoint = 'app_settings_rowvalue_inner_release_rollback',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($preStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value nested release/outer rollback savepoint needs pre statements');
@@ -12978,6 +13026,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function nestedReleaseOuterRollbackRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -13082,7 +13131,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_compound_subquery',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
@@ -13145,7 +13194,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_returning_savepoint',
         ?int $rollbackToProtectedOrdinal = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($beforeStatements === [] || $protectedStatements === [] || $afterStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value savepoint needs before, protected, and after statements');
@@ -13364,6 +13413,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsUpdateDeleteReturningSavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -13434,7 +13484,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_settings_outer_empty_rowvalue_next186',
         string $innerSavepoint = 'app_settings_inner_empty_rowvalue_next186',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite empty row-value IN savepoint next186 needs outer statements');
@@ -13599,6 +13649,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function emptyRowValueInSavepointRetryRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -13696,7 +13747,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $outerSavepoint = 'app_settings_rowvalue_rollback_outer_next197',
         string $innerSavepoint = 'app_settings_rowvalue_rollback_inner_next197',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value rollback-to next197 needs outer statements');
@@ -13861,6 +13912,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rollbackToInnerSavepointRetryRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -13955,7 +14007,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         string $savepoint = 'app_settings_rowvalue_order_expr_next199',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($attemptStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value ORDER BY expression next199 needs attempted statements');
@@ -14093,6 +14145,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function orderExpressionSavepointRetryRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -14189,7 +14242,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_rollback_to_next201',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value rollback-to savepoint next201 needs outer statements');
@@ -14330,6 +14383,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsRollbackToSavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -14436,7 +14490,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $uniqueConstraints,
         string $transaction = 'app_settings_rowvalue_rollback_txn_next204',
         string $savepoint = 'app_settings_rowvalue_rollback_savepoint_next204',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($outerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value ROLLBACK savepoint next204 needs outer statements');
@@ -14625,6 +14679,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
     {
         $parsed = SQLiteUpdateDeleteReturningSql::parse($sql);
         $table = $parsed['table'];
+        $rowIdColumn = self::resolveRowIdColumnForRows($before[$table] ?? [], $rowIdColumn);
         $where = self::wherePredicateRollbackConflictRetry($parsed['where']);
         if ($parsed['action'] === 'delete') {
             $plan = SQLiteUpdateDeleteLimitPlan::delete($before[$table] ?? [], $where, $parsed['order_by'], $parsed['limit'], $parsed['offset'], $rowIdColumn);
@@ -14685,6 +14740,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rowsByIdsRollbackConflictRetry(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -14809,7 +14865,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_ordered_subquery_next214',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($attemptStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value ordered subquery next214 needs attempt statements');
@@ -14944,6 +15000,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function orderedSubquerySavepointRetryRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -15039,7 +15096,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_subquery_limit_next215',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
@@ -15081,7 +15138,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_distinct_subquery',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
@@ -15141,7 +15198,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_distinct_tuple',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($attemptStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value DISTINCT tuple savepoint needs attempted statements');
@@ -15299,6 +15356,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function distinctTupleRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         $wanted = [];
         foreach ($ids as $id) {
             $wanted[(string) $id] = true;
@@ -15388,10 +15446,19 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function distinctTupleRowIds(array $rows, string $rowIdColumn): array
     {
+        $rowIdColumn = self::resolveRowIdColumnForRows($rows, $rowIdColumn);
         return array_values(array_filter(
             array_column($rows, $rowIdColumn),
             static fn (mixed $id): bool => is_int($id) || is_string($id),
         ));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     */
+    private static function resolveRowIdColumnForRows(array $rows, string $rowIdColumn): string
+    {
+        return SQLiteRowIdColumn::resolveRows($rows, $rowIdColumn);
     }
 
 }

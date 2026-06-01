@@ -13,6 +13,7 @@ $emptyErrorSidebandResponse = FetchResponse::fromV2PacketLines($fixture['emptyEr
 $overflowProgressResponse = FetchResponse::fromV2PacketLines($fixture['overflowProgressResponse']);
 $suffixlessAckResponse = FetchResponse::fromV2PacketLines($fixture['suffixlessAckResponse']);
 $refInWantResponse = FetchResponse::fromV2PacketLines($fixture['refInWantResponse']);
+$refInWantExchange = ProtocolV2FetchExchange::fromPacketLines($fixture['refInWantExchangeResponse']);
 $sha256Response = FetchResponse::fromV2PacketLines($fixture['sha256Response']);
 $cloneExchangeProgressMessages = [];
 $cloneExchange = ProtocolV2FetchExchange::fromPacketLines(
@@ -129,6 +130,14 @@ return [
         && $refInWantResponse->wantedRefs()[0]->object === $fixture['objects']['main']
         && $refInWantResponse->packData() === $fixture['packData'],
     'refInWantPackTrailer' => bin2hex(substr($refInWantResponse->packData(), -20)),
+    'refInWantExchangeParsed' => count($refInWantExchange->remoteRefs()) === 0
+        && $refInWantExchange->lsRefsAdvertisementBytes() === ''
+        && count($refInWantExchange->fetchResponse()->wantedRefs()) === 1
+        && $refInWantExchange->fetchResponse()->wantedRefs()[0]->path === 'refs/heads/main'
+        && $refInWantExchange->fetchResponse()->wantedRefs()[0]->object === $fixture['objects']['main']
+        && $refInWantExchange->fetchResponse()->packData() === $fixture['packData'],
+    'refInWantExchangeCapabilities' => $refInWantExchange->capabilities()->names(),
+    'refInWantExchangePackTrailer' => bin2hex(substr($refInWantExchange->fetchResponse()->packData(), -20)),
     'sha256ObjectFormatParsed' => $sha256Response->acknowledgements()[0]->object === $fixture['objectsSha256']['installed']
         && $sha256Response->acknowledgements()[1]->object === $fixture['objectsSha256']['main']
         && $sha256Response->shallowUpdates()[0]->object === $fixture['objectsSha256']['shallow']

@@ -7,6 +7,7 @@ use PortLibs\LibSqlite\SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan
 use PortLibs\LibSqlite\SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRowValueSavepointUpsertCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowIdColumn;
 
 $libsqliteRoot = dirname(__DIR__);
 $sourceRoot = $libsqliteRoot . '/src';
@@ -14,6 +15,7 @@ $sourceRoot = $libsqliteRoot . '/src';
 $sourceFiles = [
     $sourceRoot . '/SQLiteRowIdColumn.php',
     $sourceRoot . '/SQLiteUpdateDeleteReturningSql.php',
+    $sourceRoot . '/SQLiteRowValueUpdateDeleteReturningSavepointPlan.php',
     $sourceRoot . '/SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteRowValueConflictReturningSavepointCurrentSourceNextPlan.php',
@@ -177,6 +179,16 @@ return [
         $t->same([2], $result['plan']->selectedIds);
         $t->same([2], $result['plan']->mutationIds);
         $t->same('shared-default', $result['returning'][0]['status']);
+    },
+    'source-neutral row id resolver keeps generic single-row defaults' => static function (TestRunner $t): void {
+        $t->same(
+            'setting_id',
+            SQLiteRowIdColumn::resolveRows(
+                [['setting_id' => 2, 'tenant_id' => 1, 'key_name' => 'site_title']],
+                'setting_id',
+                [['tenant_id', 'key_name']],
+            ),
+        );
     },
     'source-neutral row-value savepoint dependency closure' => static fn (TestRunner $t) => $t->same(
         'no new support component needed; reuses native row-value UPDATE/DELETE RETURNING, UPSERT, conflict handling, and savepoint current-source helpers with generic setting identifiers',

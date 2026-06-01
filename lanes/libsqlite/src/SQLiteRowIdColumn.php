@@ -49,6 +49,11 @@ final class SQLiteRowIdColumn
             return $singleColumnUnique;
         }
 
+        $singleRowIdentifier = self::singleRowIdentifierColumn($arrayRows, $uniqueConstraints);
+        if ($singleRowIdentifier !== null) {
+            return $singleRowIdentifier;
+        }
+
         $inferred = self::uniqueIdentifierColumn($arrayRows, $uniqueConstraints);
         if ($inferred !== null) {
             return $inferred;
@@ -101,6 +106,31 @@ final class SQLiteRowIdColumn
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<list<string>> $uniqueConstraints
+     */
+    private static function singleRowIdentifierColumn(array $rows, array $uniqueConstraints): ?string
+    {
+        if (count($rows) !== 1) {
+            return null;
+        }
+
+        $row = $rows[0];
+        $fallback = null;
+        foreach ($row as $column => $value) {
+            if (!is_string($column) || !str_ends_with($column, '_id') || (!is_int($value) && !is_string($value))) {
+                continue;
+            }
+            if (!self::appearsInCompositeUniqueConstraint($column, $uniqueConstraints)) {
+                return $column;
+            }
+            $fallback ??= $column;
+        }
+
+        return $fallback;
     }
 
     /**

@@ -113,7 +113,8 @@ final class TransitionPrefixer
                     $output,
                     $rewrittenStyleRule,
                     $rewrittenStyleRule !== $prelude . '{' . $body . '}',
-                    $lastMergeableStyleRule
+                    $lastMergeableStyleRule,
+                    $targetOptions
                 );
             }
             $cursor = $close + 1;
@@ -123,9 +124,41 @@ final class TransitionPrefixer
     }
 
     /**
-     * @param array{selectors:string, body:string, start:int, changed:bool}|null $lastMergeableStyleRule
+     * @param array{selectors:string, body:string, start:int, changed:bool, prefixInfo:array{canonical:string,prefixed:bool,needed:bool}, selectorSet:array<string, bool>}|null $lastMergeableStyleRule
+     * @param array<string, bool> $targetOptions
      */
-    private function appendRewrittenStyleRule(string &$output, string $rule, bool $changed, ?array &$lastMergeableStyleRule): void
+    private function appendRewrittenStyleRule(
+        string &$output,
+        string $rule,
+        bool $changed,
+        ?array &$lastMergeableStyleRule,
+        array $targetOptions
+    ): void
+    {
+        $rules = $this->splitStyleRuleList($rule);
+        if ($rules !== null && count($rules) > 1) {
+            foreach ($rules as $singleRule) {
+                $this->appendSingleRewrittenStyleRule($output, $singleRule, $changed, $lastMergeableStyleRule, $targetOptions, false);
+            }
+
+            return;
+        }
+
+        $this->appendSingleRewrittenStyleRule($output, $rule, $changed, $lastMergeableStyleRule, $targetOptions, true);
+    }
+
+    /**
+     * @param array{selectors:string, body:string, start:int, changed:bool, prefixInfo:array{canonical:string,prefixed:bool,needed:bool}, selectorSet:array<string, bool>}|null $lastMergeableStyleRule
+     * @param array<string, bool> $targetOptions
+     */
+    private function appendSingleRewrittenStyleRule(
+        string &$output,
+        string $rule,
+        bool $changed,
+        ?array &$lastMergeableStyleRule,
+        array $targetOptions,
+        bool $allowSelectorMerge
+    ): void
     {
         $parsed = $this->parseSingleStyleRule($rule);
         if ($parsed === null) {
@@ -134,28 +167,163 @@ final class TransitionPrefixer
             return;
         }
 
-        if ($lastMergeableStyleRule !== null
-            && $lastMergeableStyleRule['body'] === $parsed['body']
+        $prefixInfo = $this->selectorPrefixCanonicalInfo($parsed['selectors'], $targetOptions);
+        $sameBodyAsLast = $lastMergeableStyleRule !== null && $lastMergeableStyleRule['body'] === $parsed['body'];
+        $selectorSet = $sameBodyAsLast ? $lastMergeableStyleRule['selectorSet'] : [];
+
+        if ($sameBodyAsLast && isset($selectorSet[$parsed['selectors']])) {
+            return;
+        }
+
+        if ($sameBodyAsLast
+            && $lastMergeableStyleRule['prefixInfo']['canonical'] === $prefixInfo['canonical']
+            && $lastMergeableStyleRule['prefixInfo']['prefixed']
+            && !$lastMergeableStyleRule['prefixInfo']['needed']
+        ) {
+            if (!$prefixInfo['prefixed']) {
+                $output = substr($output, 0, $lastMergeableStyleRule['start'])
+                    . $parsed['selectors'] . '{' . $parsed['body'] . '}';
+                unset($selectorSet[$lastMergeableStyleRule['selectors']]);
+                $selectorSet[$parsed['selectors']] = true;
+                $lastMergeableStyleRule = [
+                    'selectors' => $parsed['selectors'],
+                    'body' => $parsed['body'],
+                    'start' => $lastMergeableStyleRule['start'],
+                    'changed' => true,
+                    'prefixInfo' => $prefixInfo,
+                    'selectorSet' => $selectorSet,
+                ];
+                return;
+            }
+
+            if (!$prefixInfo['needed']) {
+                return;
+            }
+        }
+
+        if ($sameBodyAsLast
+            && !$lastMergeableStyleRule['prefixInfo']['prefixed']
+            && $prefixInfo['prefixed']
+            && !$prefixInfo['needed']
+            && $lastMergeableStyleRule['prefixInfo']['canonical'] === $prefixInfo['canonical']
+        ) {
+            return;
+        }
+
+        if ($sameBodyAsLast
+            && $allowSelectorMerge
             && ($lastMergeableStyleRule['changed'] || $changed)
         ) {
             $selectors = $lastMergeableStyleRule['selectors'] . ',' . $parsed['selectors'];
+            $prefixInfo = $this->selectorPrefixCanonicalInfo($selectors, $targetOptions);
             $output = substr($output, 0, $lastMergeableStyleRule['start']) . $selectors . '{' . $parsed['body'] . '}';
+            unset($selectorSet[$lastMergeableStyleRule['selectors']]);
+            $selectorSet[$selectors] = true;
             $lastMergeableStyleRule = [
                 'selectors' => $selectors,
                 'body' => $parsed['body'],
                 'start' => $lastMergeableStyleRule['start'],
                 'changed' => true,
+                'prefixInfo' => $prefixInfo,
+                'selectorSet' => $selectorSet,
             ];
             return;
         }
 
         $start = strlen($output);
         $output .= $rule;
+        $selectorSet[$parsed['selectors']] = true;
         $lastMergeableStyleRule = [
             'selectors' => $parsed['selectors'],
             'body' => $parsed['body'],
             'start' => $start,
             'changed' => $changed,
+            'prefixInfo' => $prefixInfo,
+            'selectorSet' => $selectorSet,
+        ];
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function splitStyleRuleList(string $rules): ?array
+    {
+        $parts = [];
+        $cursor = 0;
+        $length = strlen($rules);
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($rules, '{', $cursor);
+            if ($open === null) {
+                return trim(substr($rules, $cursor)) === '' ? $parts : null;
+            }
+
+            $prelude = trim(substr($rules, $cursor, $open - $cursor));
+            if ($prelude === '' || str_starts_with($prelude, '@')) {
+                return null;
+            }
+
+            $close = $this->findMatchingBrace($rules, $open);
+            $parts[] = $prelude . '{' . substr($rules, $open + 1, $close - $open - 1) . '}';
+            $cursor = $close + 1;
+        }
+
+        return $parts === [] ? null : $parts;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return array{canonical:string,prefixed:bool,needed:bool}
+     */
+    private function selectorPrefixCanonicalInfo(string $selectors, array $targetOptions): array
+    {
+        $prefixed = false;
+        $needed = false;
+        $canonical = $selectors;
+        foreach ($this->selectorPrefixCanonicalPatterns($targetOptions) as $pattern) {
+            $canonical = preg_replace_callback(
+                $pattern['pattern'],
+                static function () use (&$prefixed, &$needed, $pattern): string {
+                    $prefixed = true;
+                    $needed = $needed || $pattern['needed'];
+
+                    return $pattern['canonical'];
+                },
+                $canonical
+            ) ?? $canonical;
+        }
+
+        return [
+            'canonical' => $canonical,
+            'prefixed' => $prefixed,
+            'needed' => $needed,
+        ];
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<array{pattern:string,canonical:string,needed:bool}>
+     */
+    private function selectorPrefixCanonicalPatterns(array $targetOptions): array
+    {
+        return [
+            ['pattern' => '/::-moz-selection(?![-_a-z0-9])/i', 'canonical' => '::selection', 'needed' => $targetOptions['selectionNeedsMoz'] ?? false],
+            ['pattern' => '/:-moz-placeholder-shown(?![-_a-z0-9])/i', 'canonical' => ':placeholder-shown', 'needed' => $targetOptions['placeholderShownNeedsMoz'] ?? false],
+            ['pattern' => '/:-ms-placeholder-shown(?![-_a-z0-9])/i', 'canonical' => ':placeholder-shown', 'needed' => $targetOptions['placeholderShownNeedsMs'] ?? false],
+            ['pattern' => '/:-webkit-full-screen(?![-_a-z0-9])/i', 'canonical' => ':fullscreen', 'needed' => $targetOptions['fullscreenNeedsWebkit'] ?? false],
+            ['pattern' => '/:-moz-full-screen(?![-_a-z0-9])/i', 'canonical' => ':fullscreen', 'needed' => $targetOptions['fullscreenNeedsMoz'] ?? false],
+            ['pattern' => '/:-ms-fullscreen(?![-_a-z0-9])/i', 'canonical' => ':fullscreen', 'needed' => $targetOptions['fullscreenNeedsMs'] ?? false],
+            ['pattern' => '/::-webkit-backdrop(?![-_a-z0-9])/i', 'canonical' => '::backdrop', 'needed' => $targetOptions['backdropNeedsWebkit'] ?? false],
+            ['pattern' => '/::-ms-backdrop(?![-_a-z0-9])/i', 'canonical' => '::backdrop', 'needed' => $targetOptions['backdropNeedsMs'] ?? false],
+            ['pattern' => '/::-webkit-file-upload-button(?![-_a-z0-9])/i', 'canonical' => '::file-selector-button', 'needed' => $targetOptions['fileSelectorButtonNeedsWebkit'] ?? false],
+            ['pattern' => '/::-ms-browse(?![-_a-z0-9])/i', 'canonical' => '::file-selector-button', 'needed' => $targetOptions['fileSelectorButtonNeedsMs'] ?? false],
+            ['pattern' => '/:-webkit-autofill(?![-_a-z0-9])/i', 'canonical' => ':autofill', 'needed' => $targetOptions['autofillNeedsWebkit'] ?? false],
+            ['pattern' => '/:-moz-read-only(?![-_a-z0-9])/i', 'canonical' => ':read-only', 'needed' => $targetOptions['readWriteNeedsMoz'] ?? false],
+            ['pattern' => '/:-moz-read-write(?![-_a-z0-9])/i', 'canonical' => ':read-write', 'needed' => $targetOptions['readWriteNeedsMoz'] ?? false],
+            ['pattern' => '/:-webkit-any-link(?![-_a-z0-9])/i', 'canonical' => ':any-link', 'needed' => $targetOptions['anyLinkNeedsWebkit'] ?? false],
+            ['pattern' => '/:-moz-any-link(?![-_a-z0-9])/i', 'canonical' => ':any-link', 'needed' => $targetOptions['anyLinkNeedsMoz'] ?? false],
+            ['pattern' => '/::-webkit-input-placeholder(?![-_a-z0-9])/i', 'canonical' => '::placeholder', 'needed' => $targetOptions['placeholderNeedsWebkit'] ?? false],
+            ['pattern' => '/::-moz-placeholder(?![-_a-z0-9])/i', 'canonical' => '::placeholder', 'needed' => $targetOptions['placeholderNeedsMoz'] ?? false],
+            ['pattern' => '/::-ms-input-placeholder(?![-_a-z0-9])/i', 'canonical' => '::placeholder', 'needed' => $targetOptions['placeholderNeedsMs'] ?? false],
         ];
     }
 
@@ -9205,8 +9373,10 @@ final class TransitionPrefixer
             'background',
             'background-color',
             'background-image',
+            'fill',
             'outline',
             'outline-color',
+            'stroke',
         ], true);
     }
 

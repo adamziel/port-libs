@@ -324,6 +324,111 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @return array<string,mixed>
+     */
+    public static function triggerCRecursiveInsertDepthCutoffPlan(
+        int $initialValue,
+        string $shape,
+        int $maxTriggerDepth = 1000
+    ): array {
+        if ($initialValue < 1) {
+            throw new \InvalidArgumentException('SQLite triggerC recursive insert initial value must be positive');
+        }
+        if ($maxTriggerDepth < 2) {
+            throw new \InvalidArgumentException('SQLite triggerC recursive insert max trigger depth must be at least two');
+        }
+
+        $shape = strtolower(trim($shape));
+        if (!in_array($shape, ['insert-select-count-cutoff', 'linear-primary-key-cutoff'], true)) {
+            throw new \InvalidArgumentException('SQLite triggerC recursive insert cutoff shape is unsupported');
+        }
+
+        $cutoff = intdiv($maxTriggerDepth, 2);
+        if ($cutoff < 1) {
+            throw new \InvalidArgumentException('SQLite triggerC recursive insert cutoff must admit at least one row');
+        }
+
+        $common = [
+            'source' => 'triggerC.test triggerC-2.2..2.3',
+            'scenarios' => ['triggerC-2.2', 'triggerC-2.3'],
+            'recursive_triggers' => true,
+            'max_trigger_depth' => $maxTriggerDepth,
+            'cutoff_expression' => '$SQLITE_MAX_TRIGGER_DEPTH / 2',
+            'cutoff_value' => $cutoff,
+            'initial_insert_value' => $initialValue,
+            'status' => 'commit-ok',
+            'final_row_count' => $cutoff,
+            'ignored_insert_count' => 1,
+            'before_trigger_action' => 'RAISE(IGNORE)',
+            'raise_ignore_aborts_current_insert_row' => true,
+            'statement_commits_rows_before_ignore' => true,
+            'upstream_expected_result' => [$cutoff],
+            'dependencies' => [
+                'sqlite-triggerC-recursive-triggers-enabled',
+                'sqlite-triggerC-before-insert-raise-ignore-cuts-off-recursion',
+                'sqlite-triggerC-recursive-insert-count-reaches-half-depth-limit',
+            ],
+            'non_overlap' => 'covers triggerC-2.2..2.3 cutoff-success recursion, not triggerC-2.1 ordering or triggerC-3 recursion-error cases',
+        ];
+
+        if ($shape === 'insert-select-count-cutoff') {
+            return array_merge($common, [
+                'scenario' => 'triggerC-2.2',
+                'operation' => 'recursive-insert-select-count-cutoff',
+                'table_name' => 't22',
+                'after_trigger_name' => 't22a',
+                'before_trigger_name' => 't22b',
+                'after_trigger_sql' => 'INSERT INTO t22 SELECT x + (SELECT max(x) FROM t22) FROM t22',
+                'before_trigger_condition' => 'SELECT count(*) FROM t22 >= cutoff',
+                'cutoff_kind' => 'table-row-count',
+                'select_reads_mutating_table' => true,
+                'primary_key_enforced' => false,
+                'accepted_insert_count' => $cutoff,
+                'after_trigger_invocation_count' => $cutoff,
+                'row_count_trace' => range(0, $cutoff),
+                'row_ordinals' => range(1, $cutoff),
+                'first_accepted_ordinal' => 1,
+                'last_accepted_ordinal' => $cutoff,
+                'ignored_attempt_ordinal' => $cutoff + 1,
+                'ignored_attempt_reason' => 'row-count-cutoff',
+                'max_value_policy' => 'SELECT max(x) FROM t22 is evaluated by the recursive insert-select program',
+                'dependencies' => array_merge($common['dependencies'], [
+                    'sqlite-triggerC-2-2-after-insert-select-recurses-from-t22',
+                    'sqlite-triggerC-2-2-before-insert-count-cutoff-preserves-final-count',
+                ]),
+            ]);
+        }
+
+        $finalValues = range($initialValue, $initialValue + $cutoff - 1);
+
+        return array_merge($common, [
+            'scenario' => 'triggerC-2.3',
+            'operation' => 'recursive-linear-primary-key-cutoff',
+            'table_name' => 't23',
+            'after_trigger_name' => 't23a',
+            'before_trigger_name' => 't23b',
+            'after_trigger_sql' => 'INSERT INTO t23 VALUES(new.x + 1)',
+            'before_trigger_condition' => 'new.x > cutoff',
+            'cutoff_kind' => 'new-row-value',
+            'select_reads_mutating_table' => false,
+            'primary_key_enforced' => true,
+            'accepted_insert_count' => $cutoff,
+            'after_trigger_invocation_count' => $cutoff,
+            'row_values' => $finalValues,
+            'first_row_value' => $finalValues[0],
+            'last_row_value' => $finalValues[count($finalValues) - 1],
+            'ignored_row_value' => $initialValue + $cutoff,
+            'ignored_attempt_reason' => 'new-value-cutoff',
+            'primary_key_conflict_count' => 0,
+            'dependencies' => array_merge($common['dependencies'], [
+                'sqlite-triggerC-2-3-after-insert-linear-recursion',
+                'sqlite-triggerC-2-3-before-insert-new-value-cutoff-preserves-final-count',
+                'sqlite-triggerC-2-3-primary-key-distinct-recursive-rows',
+            ]),
+        ]);
+    }
+
+    /**
      * @param list<array<string,mixed>> $parents
      * @param list<array<string,mixed>> $children
      * @return array<string,mixed>

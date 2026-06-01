@@ -31,8 +31,8 @@ final class ProtocolV2FetchExchange
         ?callable $progressHandler = null
     ): self {
         $messages = self::splitMessages($bytes);
-        if (count($messages) < 3) {
-            throw new \RuntimeException('protocol v2 fetch exchange: expected capability, ls-refs, and fetch response messages');
+        if ($messages === []) {
+            throw new \RuntimeException('protocol v2 fetch exchange: expected capability advertisement and fetch response messages');
         }
 
         $capabilityBytes = $messages[0];
@@ -45,15 +45,27 @@ final class ProtocolV2FetchExchange
             $next = 2;
         }
 
-        if (!isset($messages[$next], $messages[$next + 1])) {
-            throw new \RuntimeException('protocol v2 fetch exchange: expected ls-refs and fetch response messages');
+        if (!isset($messages[$next])) {
+            throw new \RuntimeException('protocol v2 fetch exchange: expected fetch response message');
+        }
+
+        $capabilities = ProtocolCapabilities::fromV2PacketLines($capabilityBytes, $expectedService);
+        if (!isset($messages[$next + 1])) {
+            return new self(
+                $capabilities,
+                [],
+                FetchResponse::fromV2PacketLines($messages[$next], $sidebandAll, $progressHandler),
+                $capabilityBytes,
+                '',
+                $messages[$next],
+            );
         }
         if (count($messages) !== $next + 2) {
             throw new \RuntimeException('protocol v2 fetch exchange: unexpected trailing packet-line messages');
         }
 
         return new self(
-            ProtocolCapabilities::fromV2PacketLines($capabilityBytes, $expectedService),
+            $capabilities,
             LsRefsCommand::parseV2PacketLines($messages[$next]),
             FetchResponse::fromV2PacketLines($messages[$next + 1], $sidebandAll, $progressHandler),
             $capabilityBytes,
@@ -106,6 +118,9 @@ final class ProtocolV2FetchExchange
         $lengthBytes = strlen($bytes);
 
         while ($offset < $lengthBytes) {
+            if ($current === '' && strspn($bytes, "\r\n", $offset) === $lengthBytes - $offset) {
+                break;
+            }
             if ($offset + 4 > $lengthBytes) {
                 throw new \InvalidArgumentException('protocol v2 fetch exchange: truncated packet line length');
             }
