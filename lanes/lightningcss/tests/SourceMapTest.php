@@ -481,6 +481,48 @@ return [
         $t->same(['.prelude{}', '.wp-block-cover{}'], $data['sourcesContent']);
         $t->same(['prelude-rule', 'block-rule'], $data['names']);
     },
+    'source map carries skipped raw vlq relative state across multiple offset lines' => static function (TestRunner $t): void {
+        $map = new SourceMap('/srv/www/site/wp-content/themes/example');
+        $shared = $map->addSource('src/shared.scss');
+        $map->setSourceContent($shared, ".shared { color: old; }\n");
+        $map->addName('shared-rule');
+
+        $map->addVlqMap(
+            'KAAAA;OCEGC;EDIDD',
+            [
+                '/srv/www/site/wp-content/themes/example/src/./shared.scss',
+                'src/other.scss',
+            ],
+            [
+                ".shared { color: new; }\n",
+                ".other { color: blue; }\n",
+            ],
+            [
+                'shared-rule',
+                'other-rule',
+            ],
+            -2,
+            0
+        );
+
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $roundTrip = SourceMap::fromBuffer('/srv/www/site/wp-content/themes/example', $map->toBuffer());
+        $data = $map->toArray(null, false);
+
+        $t->same('EAMEA', $map->writeVlq());
+        $t->same([0], array_column($decoded, 'generatedLine'));
+        $t->same([2], array_column($decoded, 'generatedColumn'));
+        $t->same([0], array_column($decoded, 'sourceIndex'));
+        $t->same([6], array_column($decoded, 'originalLine'));
+        $t->same([2], array_column($decoded, 'originalColumn'));
+        $t->same([0], array_column($decoded, 'nameIndex'));
+        $t->same(['src/shared.scss', 'src/other.scss'], $data['sources']);
+        $t->same([".shared { color: new; }\n", ".other { color: blue; }\n"], $data['sourcesContent']);
+        $t->same(['shared-rule', 'other-rule'], $data['names']);
+        $t->same($shared, $map->getSourceIndex('file:///srv/www/site/wp-content/themes/example/src/shared.scss'));
+        $t->same('EAMEA', $roundTrip->writeVlq());
+        $t->same(6, $map->findClosestMapping(0, 2)['originalLine'] ?? null);
+    },
     'source map preserves imported tables when raw vlq offsets skip every mapping' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $map->addVlqMap(

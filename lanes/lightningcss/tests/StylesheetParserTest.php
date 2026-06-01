@@ -49,6 +49,39 @@ return [
         $t->same(['.wp-site-blocks'], $block->selectors);
         $t->same('clamp(1rem, 2vw, 2rem)', $block->declarations['padding-inline']);
     },
+    'stylesheet parser maps layered media range paths after nested layer statements' => static function (TestRunner $t): void {
+        $parser = new StylesheetParser();
+        $css = <<<'CSS'
+@layer theme.blocks {
+  @layer reset;
+  @media (min-width: 48rem) {
+    .wp-site-blocks {
+      padding-inline: clamp(1rem, 2vw, 2rem);
+    }
+  }
+}
+CSS;
+
+        $rules = $parser->parse($css);
+        $layer = $rules[0];
+        $statement = $layer->rules[0];
+        $media = $layer->rules[1];
+        $block = $media->rules[0];
+
+        $t->same('layer', $statement->name);
+        $t->same('reset', $statement->prelude);
+        $t->same('media', $media->name);
+        $t->same('(width>=48rem)', $media->prelude);
+        $t->same(['.wp-site-blocks'], $block->selectors);
+        $t->same('clamp(1rem, 2vw, 2rem)', $block->declarations['padding-inline']);
+        $t->same(
+            [
+                'key' => ['start' => ['line' => 5, 'column' => 7], 'end' => ['line' => 5, 'column' => 21]],
+                'value' => ['start' => ['line' => 5, 'column' => 23], 'end' => ['line' => 5, 'column' => 45]],
+            ],
+            $parser->propertyLocation($css, [0, 1, 0], 0)
+        );
+    },
     'stylesheet parser parses nested WordPress selectors inside style rules' => static function (TestRunner $t): void {
         $rules = (new StylesheetParser())->parse('.wp-block-group { color: red; & .wp-block-button__link { color: white; } @supports (display: grid) { & > .wp-block-columns { display: grid; } } }');
 

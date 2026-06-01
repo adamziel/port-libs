@@ -127,7 +127,11 @@ final class StylesheetParser
         while (($open = $this->findNextTopLevel($body, '{', $cursor)) !== null) {
             $prefix = substr($body, $cursor, $open - $cursor);
             [$declarations, $prelude] = $this->splitDeclarationsAndNestedPrelude($prefix);
+            [$declarations, $statementRules] = $this->extractAtRuleStatements($declarations);
             $declarationSource .= $declarations;
+            foreach ($statementRules as $statementRule) {
+                $rules[] = $statementRule;
+            }
             $prelude = trim($prelude);
             if ($prelude === '') {
                 throw new \InvalidArgumentException('Nested CSS rule is missing a prelude');
@@ -138,11 +142,45 @@ final class StylesheetParser
             $cursor = $close + 1;
         }
 
-        $declarationSource .= substr($body, $cursor);
+        [$trailingDeclarations, $trailingStatementRules] = $this->extractAtRuleStatements(substr($body, $cursor));
+        $declarationSource .= $trailingDeclarations;
+        foreach ($trailingStatementRules as $statementRule) {
+            $rules[] = $statementRule;
+        }
         $declarationSource = trim($declarationSource);
         $declarations = $declarationSource === '' ? [] : (new DeclarationBlock())->parse($declarationSource);
 
         return ['declarations' => $declarations, 'rules' => $rules];
+    }
+
+    /**
+     * @return array{0:string,1:list<CssRule>}
+     */
+    private function extractAtRuleStatements(string $source): array
+    {
+        $declarations = '';
+        $rules = [];
+        $cursor = 0;
+
+        while (($semicolon = $this->findNextTopLevel($source, ';', $cursor)) !== null) {
+            $statement = substr($source, $cursor, $semicolon - $cursor);
+            $trimmed = trim($statement);
+            if ($trimmed !== '' && str_starts_with($trimmed, '@')) {
+                [$name, $prelude] = $this->parseAtPrelude($trimmed);
+                $rules[] = new CssRule(CssRule::TYPE_AT_RULE, $name, $prelude, [], [], []);
+            } else {
+                $declarations .= substr($source, $cursor, $semicolon - $cursor + 1);
+            }
+
+            $cursor = $semicolon + 1;
+        }
+
+        $tail = substr($source, $cursor);
+        if (trim($tail) !== '') {
+            $declarations .= $tail;
+        }
+
+        return [$declarations, $rules];
     }
 
     /**
@@ -238,7 +276,7 @@ final class StylesheetParser
                     return ['bodyStart' => $bodyStart, 'bodyEnd' => $close];
                 }
 
-                return $this->locateRuleBlock($css, array_slice($rulePath, 1), $bodyStart, $close, false);
+                return $this->locateRuleBlock($css, array_slice($rulePath, 1), $bodyStart, $close, true);
             }
 
             $index++;

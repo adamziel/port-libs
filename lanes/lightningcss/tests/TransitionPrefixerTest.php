@@ -3812,6 +3812,58 @@ CSS;
             $prefixer->prefixForTargets('@supports (text-decoration: underline) { .foo { text-decoration: underline; } }', ['safari' => 26])
         );
     },
+    'transition prefixer maps upstream legacy text supports browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@supports ((-moz-tab-size:4) or (tab-size:4)){.foo{-moz-tab-size:4;tab-size:4}}',
+            $prefixer->prefixForTargets('@supports (tab-size: 4) { .foo { tab-size: 4; } }', ['firefox' => 90])
+        );
+        $t->same(
+            '@supports (tab-size:4){.foo{tab-size:4}}',
+            $prefixer->prefixForTargets('@supports (tab-size: 4) { .foo { tab-size: 4; } }', ['firefox' => 91])
+        );
+        $t->same(
+            '@supports ((-o-tab-size:4) or (tab-size:4)){.foo{-o-tab-size:4;tab-size:4}}',
+            $prefixer->prefixForTargets('@supports (tab-size: 4) { .foo { tab-size: 4; } }', ['opera' => '12.1'])
+        );
+        $t->same(
+            '@supports (tab-size:4){.foo{tab-size:4}}',
+            $prefixer->prefixForTargets('@supports ((-moz-tab-size: 4) or (-o-tab-size: 4) or (tab-size: 4)) { .foo { -moz-tab-size: 4; -o-tab-size: 4; tab-size: 4; } }', ['opera' => 13])
+        );
+        $t->same(
+            '@supports ((-moz-text-align-last:center) or (text-align-last:center)){.foo{-moz-text-align-last:center;text-align-last:center}}',
+            $prefixer->prefixForTargets('@supports (text-align-last: center) { .foo { text-align-last: center; } }', ['firefox' => 48])
+        );
+        $t->same(
+            '@supports (text-align-last:center){.foo{text-align-last:center}}',
+            $prefixer->prefixForTargets('@supports ((-moz-text-align-last: center) or (text-align-last: center)) { .foo { -moz-text-align-last: center; text-align-last: center; } }', ['firefox' => 49])
+        );
+        $t->same(
+            '@supports ((-webkit-text-decoration-skip-ink:all) or (text-decoration-skip-ink:all)){.foo{-webkit-text-decoration-skip-ink:all;text-decoration-skip-ink:all}}',
+            $prefixer->prefixForTargets('@supports (text-decoration-skip-ink: all) { .foo { text-decoration-skip-ink: all; } }', ['safari' => 12])
+        );
+        $t->same(
+            '@supports (text-decoration-skip-ink:all){.foo{text-decoration-skip-ink:all}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-text-decoration-skip-ink: all) or (text-decoration-skip-ink: all)) { .foo { -webkit-text-decoration-skip-ink: all; text-decoration-skip-ink: all; } }', ['safari' => '12.1'])
+        );
+        $t->same(
+            '@supports ((-webkit-box-decoration-break:clone) or (box-decoration-break:clone)){.foo{-webkit-box-decoration-break:clone;box-decoration-break:clone}}',
+            $prefixer->prefixForTargets('@supports (box-decoration-break: clone) { .foo { box-decoration-break: clone; } }', ['chrome' => 129])
+        );
+        $t->same(
+            '@supports (box-decoration-break:clone){.foo{box-decoration-break:clone}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-box-decoration-break: clone) or (box-decoration-break: clone)) { .foo { -webkit-box-decoration-break: clone; box-decoration-break: clone; } }', ['chrome' => 130])
+        );
+        $t->same(
+            '@supports ((-moz-tab-size:4) or (tab-size:4)) and ((-moz-text-align-last:center) or (text-align-last:center)){.foo{-moz-tab-size:4;tab-size:4;-moz-text-align-last:center;text-align-last:center}}',
+            $prefixer->prefixForTargets('@supports (tab-size: 4) and (text-align-last: center) { .foo { tab-size: 4; text-align-last: center; } }', ['firefox' => 48])
+        );
+        $t->same(
+            '@supports ((-webkit-box-decoration-break:clone) or (box-decoration-break:clone)) and (color:red){.foo{-webkit-box-decoration-break:clone;box-decoration-break:clone;color:red}}',
+            $prefixer->prefixForTargets('@supports (box-decoration-break: clone) and (color: red) { .foo { box-decoration-break: clone; color: red; } }', ['safari' => 17])
+        );
+    },
     'transition prefixer maps upstream filter advanced color fallbacks' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
