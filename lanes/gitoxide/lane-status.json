@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 96.6,
-    "suiteProgress": "Supervisor-integrated Gitoxide pack-index/MIDX generated-prefix scans, partial-clone promisor hydration, and tree-merge multiple-base fixture parity. Verification passed changed PHP lint, git diff --cached --check, changed example smoke, and full Gitoxide lane 40 files / 8635 assertions / 0 failures.",
-    "phpPass": 8635,
+    "estimatedProgress": 96.7,
+    "suiteProgress": "Supervisor-integrated Gitoxide credential helper HTTP path disabled parity. Verification passed changed PHP lint, git diff --cached --check, changed example smoke, and full Gitoxide lane 40 files / 8648 assertions / 0 failures.",
+    "phpPass": 8648,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering boundaries, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing including multi-report no-refname receive-status parity, protocol-v2 ref-in-want fetch exchange sideband parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base graph behavior, URL/refspec canonical writing, tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 supervisor batch: accepted source 5eb0dde1d20d with pack-index/MIDX generated-prefix scans, partial-clone promisor hydration, and tree-merge multiple-base fixture parity. Full Gitoxide lane passed 40 files / 8635 assertions / 0 failures; full Cargo workspace was not executed.",
-    "currentWork": "Pack-index/MIDX generated-prefix scans, partial-clone promisor hydration, and tree-merge multiple-base fixture parity integrated on current base.",
+    "audit": "2026-06-01 supervisor batch: accepted source f0e7129dcfdc with credential helper HTTP path disabled parity. Full Gitoxide lane passed 40 files / 8648 assertions / 0 failures; full Cargo workspace was not executed.",
+    "currentWork": "Credential helper HTTP path disabled parity integrated on current base.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "5eb0dde1d20d62c61dd9e7d3a9120aaa9f87b852",
+    "latestCommit": "f0e7129dcfdc7dfc76f55fc16e99478283df0b0d",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping sparse-checkout, attributes/pathspec, credential, config, partial-clone, transport/protocol, pack/index, reference, tree-merge, merge-base, URL/refspec, and object-database parity slices; integrate only full-lane-green batches.",
-    "commit": "5eb0dde1d20d62c61dd9e7d3a9120aaa9f87b852"
+    "commit": "f0e7129dcfdc7dfc76f55fc16e99478283df0b0d"
 }

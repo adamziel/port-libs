@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "library": "libsqlite",
     "estimatedProgress": 99.6,
-    "suiteProgress": "Supervisor-integrated source-neutral JSONB generated cascade cleanup. Verification passed changed PHP lint, git diff --cached --check, and focused libsqlite/no-domain gate: 3 files / 72 assertions / 0 failures. Broad release/all still has 7 known failures.",
+    "suiteProgress": "Supervisor-integrated application WAL rollback JSON parity, row-value update/delete LIMIT JSON mutation parity, and VFS sync default transition corpus coverage. Verification passed changed PHP lint, git diff --cached --check, changed example smoke, and focused libsqlite/no-domain gate: 4 files / 26179 assertions / 0 failures. Broad release/all still has 7 known failures.",
     "phpPass": 5792118,
     "phpFail": 7,
     "wordpressScenarios": "Generic application/self-test coverage now includes source-neutral STAT4 planner key-field metadata, triggerC recursive insert depth-cutoff behavior, row-value savepoint default cleanup, upstream window aggregate/window NULL-row behavior, source-neutral UTF-16 NOCASE LIKE/RTRIM default rows, B-tree/index skipscan STAT4 planner behavior, capi3 PRAGMA prepare-tail behavior, expression-affinity modulo casts, subselect scalar WHERE subqueries, recursive trigger/upsert defaults, JSON path diagnostics, row-value DML LIMIT behavior, pager/WAL recovery including pager1 invalid page and rollback max-page real-corpus coverage, FK diagnostics, and app-WAL post-checkpoint recovery. No domain-specific libsqlite API is accepted.",
-    "phase": "source-neutral JSONB generated cascade cleanup accepted; broad full-lane and release/all parity remain open",
-    "audit": "2026-06-01 supervisor batch: accepted source 5eb0dde1d20d with source-neutral JSONB generated cascade cleanup. Focused libsqlite/no-domain gate passed 3 files / 72 assertions / 0 failures. Broad release/all still has 7 known failures.",
-    "currentWork": "Source-neutral JSONB generated cascade cleanup integrated on current base.",
+    "phase": "application WAL rollback JSON, row-value update/delete LIMIT JSON mutation, and VFS sync default transition coverage accepted; broad full-lane and release/all parity remain open",
+    "audit": "2026-06-01 supervisor batch: accepted source f0e7129dcfdc with application WAL rollback JSON parity, row-value update/delete LIMIT JSON mutation parity, and VFS sync default transition corpus coverage. Focused libsqlite/no-domain gate passed 4 files / 26179 assertions / 0 failures. Broad release/all still has 7 known failures.",
+    "currentWork": "Application WAL rollback JSON parity, row-value update/delete LIMIT JSON mutation parity, and VFS sync default transition corpus coverage integrated on current base.",
     "blocker": "Broad libsqlite full-lane/release parity is not green: seven known failures remain in sampled broad gates, and release/all parity still needs a current clean run before libsqlite can be declared complete.",
     "nextTask": "Continue broad release/all parity blockers, source-neutral cleanup of remaining CurrentSourceNext/CurrentNext production defaults and numbered-plan names, PDO trust-underlying-lib cleanup, and non-overlapping real-corpus JSON, VFS, WAL, pager, PRAGMA, B-tree/index, STAT4, expression, trigger/FK, row-value, date/time, cast/like, and upsert coverage.",
-    "wordpressScenarioLatest": "Latest libsqlite batch removes remaining source-level JSONB generated cascade domain strings without adding domain-specific APIs; no-domain guard remains green.",
-    "latestCommit": "5eb0dde1d20d62c61dd9e7d3a9120aaa9f87b852",
-    "commit": "5eb0dde1d20d62c61dd9e7d3a9120aaa9f87b852"
+    "wordpressScenarioLatest": "Latest libsqlite batch adds application WAL rollback JSON, row-value update/delete LIMIT JSON mutation, and VFS sync default transition coverage without adding domain-specific APIs; no-domain guard remains green.",
+    "latestCommit": "f0e7129dcfdc7dfc76f55fc16e99478283df0b0d",
+    "commit": "f0e7129dcfdc7dfc76f55fc16e99478283df0b0d"
 }
