@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 08:05:23 UTC",
-    "sourceCommit": "71d4d5b6f31cca035a3a582e6a6809757cc4bce8",
-    "sourceCommitShort": "71d4d5b6f31c",
+    "generated": "2026-06-01 08:08:09 UTC",
+    "sourceCommit": "463ccc44d074d875b6b8268f2260cd468ce891ad",
+    "sourceCommitShort": "463ccc44d074",
     "sourceBranch": "main",
-    "dashboardCommit": "71d4d5b6f31cca035a3a582e6a6809757cc4bce8",
-    "dashboardCommitShort": "71d4d5b6f31c",
+    "dashboardCommit": "463ccc44d074d875b6b8268f2260cd468ce891ad",
+    "dashboardCommitShort": "463ccc44d074",
     "averageProgressPercent": "88.6",
     "lanes": [
         {
@@ -91,11 +91,11 @@
             "php": "5,762,618 pass / 7 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "focused real-corpus and source-neutral coverage accepted; broad full-...",
-            "audit": "2026-06-01 supervisor batch: accepted source dfde8639e with dynamic d...",
-            "currentWork": "Dynamic date-affinity, VFS cache-spill/read-lock, RETURNING bare-expression, and...",
+            "audit": "2026-06-01 supervisor followup: accepted source 463ccc44 with source-...",
+            "currentWork": "Source-neutral JSON path strict/lax diagnostics and indexed-update defaults now u...",
             "nextTarget": "Continue broad release/all parity blockers, source-neutral cleanup of remaining C...",
             "blocker": "Broad release/all still has 7 known failures",
-            "commit": "dfde863"
+            "commit": "463ccc4"
         },
         {
             "lane": "lightningcss",

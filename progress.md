@@ -1,7 +1,7 @@
 # Native PHP Porting Progress
 
-Generated: 2026-06-01 08:05:23 UTC
-Source snapshot: `71d4d5b6f31c`
+Generated: 2026-06-01 08:08:09 UTC
+Source snapshot: `463ccc44d074`
 Average progress: `88.6%`
 
 | Project | Progress | PHP Tests | Mapped | State | Next | Gap | Commit |
@@ -10,7 +10,7 @@ Average progress: `88.6%`
 | [dolt](lanes/dolt/lane-status.json) | 69.0% | 249 pass / 0 fail | [315 / 613](lanes/dolt/UPSTREAM_TEST_MANIFEST.json) | Native table diff classification, Dolt-style DOLT_DIFF_* rows, schema/tag/index/f... | Implementation worker: map the next bounded SQL merge visibility edge after allow... | Upstream runner parity unavailable | cd2e8a0 |
 | [esbuild](lanes/esbuild/lane-status.json) | 77.0% | 259 pass / 0 fail | [259 / 2,567](lanes/esbuild/UPSTREAM_TEST_MANIFEST.json) | Added a bounded output-format preview slice for named ESM re-export clauses. The... | After integrator/root acceptance, the next best lane task is a tiny bounded outpu... | Release-extra upstream `make test-all` coverage remains static-only. | cd2e8a0 |
 | [gitoxide](lanes/gitoxide/lane-status.json) | 96.0% | 8,180 pass / 0 fail | [1,769 / 2,886](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | Smart HTTP receive-pack connect-timeout, low-speed, HTTP-version, and verbose opt... | Keep Gitoxide workers on current-base non-overlapping transport, protocol, merge-... | Full upstream Cargo workspace remains unexecuted. | 71d4d5b |
-| [libsqlite](lanes/libsqlite/lane-status.json) | 99.6% | 5,762,618 pass / 7 fail | [1,589 / 1,589](lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json) | Dynamic date-affinity, VFS cache-spill/read-lock, RETURNING bare-expression, and... | Continue broad release/all parity blockers, source-neutral cleanup of remaining C... | Broad release/all still has 7 known failures | dfde863 |
+| [libsqlite](lanes/libsqlite/lane-status.json) | 99.6% | 5,762,618 pass / 7 fail | [1,589 / 1,589](lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json) | Source-neutral JSON path strict/lax diagnostics and indexed-update defaults now u... | Continue broad release/all parity blockers, source-neutral cleanup of remaining C... | Broad release/all still has 7 known failures | 463ccc4 |
 | [LightningCSS](lanes/lightningcss/lane-status.json) | 99.8% | 6,875 pass / 0 fail | [2,360 / 3,532](lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json) | Bundle/import graph diagnostics, CSS Modules pseudo canonicalization, raw VLQ sou... | Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import... | Rust/Node/WASM upstream runners not run | dfde863 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | 67.0% | 293 pass / 0 fail | [177 / 78](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | Reduced simple-font WinAnsiEncoding handoff. PdfTextExtractor now maps high-bit W... | Choose the next bounded markerPDF text extraction gap, likely a small remaining P... | Upstream runner parity unavailable | cd2e8a0 |
 | [pandoc](lanes/pandoc/lane-status.json) | 95.0% | 239 pass / 0 fail | [660 / 2,276](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | Native MarkdownWriter keeps the accepted inline line-break, table, definition-lis... | Map another bounded Markdown writer branch after block-start list-marker escaping... | Pandoc-local PHP blocker: none; focused pandoc behavior count is 239 tests with 2,317... | cd2e8a0 |
