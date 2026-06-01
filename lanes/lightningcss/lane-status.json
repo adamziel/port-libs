@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "library": "LightningCSS",
-  "estimatedProgress": 97.9,
-  "suiteProgress": "Supervisor-integrated LightningCSS bundle import, source-map, media-query, property-values, and target-prefix replay. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 5793 assertions / 0 failures, and touched examples.",
-  "phpPass": 5793,
+  "estimatedProgress": 98,
+  "suiteProgress": "Supervisor-integrated LightningCSS CSSOM box-spacing length normalization and target-prefix Safari/Samsung fullscreen boundary slices. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 5805 assertions / 0 failures, and touched example self-tests.",
+  "phpPass": 5805,
   "phpFail": 0,
   "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
   "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-  "audit": "2026-06-01 supervisor replay: full LightningCSS lane passed 13 files / 5793 assertions / 0 failures after accepting bundle import graph, source-map VLQ offsets, media-query boundary, property-value font target, and target-prefix boundary slices. Conservative mapped coverage remains 2320 / 3532 because these deepen already represented clusters. Full upstream Rust/Node/WASM runners were not executed.",
-  "currentWork": "Bundle import graph, source-map offsets, media-query boundary, property-value target, and target-prefix parity integrated on current base.",
-  "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 5793 assertions; continue source-map, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices.",
-  "latestCommit": "1d2e8073b901a121abddb7ab0fe41d40859d0c30",
+  "audit": "2026-06-01 supervisor replay: full LightningCSS lane passed 13 files / 5805 assertions / 0 failures after accepting CSSOM box-spacing length normalization and target-prefix Safari/Samsung fullscreen boundaries. Conservative mapped coverage remains 2320 / 3532 because these deepen already represented CSSOM/target-prefix clusters. Full upstream Rust/Node/WASM runners were not executed.",
+  "currentWork": "CSSOM box-spacing length normalization and target-prefix Safari/Samsung fullscreen boundary parity integrated on current base.",
+  "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 5805 assertions; continue source-map, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices.",
+  "latestCommit": "52d782fb4acaec6efc117205ce6c5ae05c1b55ed",
   "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media queries, property values, target prefixing, CSSOM, and custom at-rules with full-lane PHP gates.",
-  "commit": "1d2e8073b901a121abddb7ab0fe41d40859d0c30"
+  "commit": "52d782fb4acaec6efc117205ce6c5ae05c1b55ed"
 }

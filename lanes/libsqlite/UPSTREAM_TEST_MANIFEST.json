@@ -169,7 +169,7 @@
     }
   },
   "benchmarkDenominator": {
-    "status": "current-base-libsqlite-trigger-rowvalue-replay",
+    "status": "current-base-libsqlite-pager-wal-dynamic-replay",
     "total": 1589,
     "mapped": 1589,
     "latestMappedAddition": "Mapped denominator remains complete at 1589 / 1589. The 2026-06-01 supervisor followup adds focused PHP evidence for date.test date-8 now-modifier behavior, wal.test wal-12 reused-log prefix recovery, and application WAL rollback JSON checkpoint-followup tail parity without claiming release/all parity.",
@@ -708,7 +708,7 @@
       "focusedUpstreamVeryquickShardCurrentSourceNext433Scripts": 1,
       "focusedUpstreamVeryquickShardCurrentSourceNext949Through964Scripts": 16
     },
-    "runnerStatus": "2026-06-01 supervisor replay: focused libsqlite gate passed 9 files / 2196 assertions / 0 failures after accepting source-neutral row-value cleanup and real-upstream trigger/fkey dynamic coverage. Mapped denominator remains 1589 / 1589; cumulative selected libsqlite evidence moves to 5432018 pass / 7 fail. Broad release/all parity remains open.",
+    "runnerStatus": "2026-06-01 supervisor replay: focused libsqlite pager gate passed 1 file / 24021 assertions / 0 failures after accepting real upstream pager1/WAL rollback max_page_count dynamic coverage. Mapped denominator remains 1589 / 1589; cumulative selected libsqlite evidence is 5433021 pass with 7 known broad-lane failures. Full release/all runner was not green.",
     "warning": "The upstream veryquick permutation now has local runner parity. The 2026-05-30 bulk upstream suite denominator burnup B slice moves mapped coverage from 830 to 958 by admitting 128 focused suite-denominator rows through lane-local runner-gap evidence and focused PHP PASS gates. Full all/release permutations remain unexecuted, and release/all parity is not claimed. Accepted source commit b0d8a112 adds 5335 selected libsqlite pass assertions across where7 multi-index OR, e_select2 join associativity, and trigger1 temp-trigger rebind behavior; mapped denominator remains 1589 / 1589 and full release/all parity still requires separate closure evidence. Accepted source commit 244af0e12 adds seven selected native libsqlite slices with focused verification 8 files / 155391 assertions / 0 failures under memory_limit=2048M, lint, diff-check, source-neutral API guard, and touched example self-test. It is still not full release/all-runner parity.",
     "upstreamRuns": {
       "focusedResults": {
@@ -3429,10 +3429,10 @@
       "focusedUpstreamVeryquickShardCurrentSourceNext431": "The 2026-05-28 isolated current-source next431 suite veryquick-shard runner slice maps one additional runner-countability blocker row for launcher Base accepted HEAD fca16e3d, current integration source 8a447f44, lane-local zero-error guarded runner artifact rows, duplicate-runner gates, exact 96 focused PASS-line admission, focused current-source veryquick shard scope, and no release/all parity claim."
     }
   },
-  "latestFocusedSlice": "2026-06-01 supervisor replay: source-neutral row-value cleanup plus real-upstream trigger/fkey dynamic coverage; focused libsqlite gate passed 9 files / 2196 assertions / 0 failures.",
-  "latestNativePhpVerification": "Source commit 1d2e8073b901: PHP lint, git diff --check, focused libsqlite gate 9 files / 2196 assertions / 0 failures, touched examples passed, and no new WordPress/wp_ strings under lanes/libsqlite/src.",
-  "runnerStatus": "2026-06-01 supervisor batch: focused libsqlite gate passed 2 files / 9101 assertions / 0 failures after accepting window4 dynamic corpus coverage and STAT4 source-neutral planner cleanup. Mapped denominator remains 1589 / 1589; cumulative selected libsqlite evidence is 5430413 pass with 7 known broad-lane failures. Full release/all runner was not green.",
-  "latestCommit": "1d2e8073b901a121abddb7ab0fe41d40859d0c30",
+  "latestFocusedSlice": "2026-06-01 supervisor replay: real upstream pager1/WAL rollback max_page_count dynamic coverage; focused libsqlite pager gate passed 1 file / 24021 assertions / 0 failures.",
+  "latestNativePhpVerification": "Source commit 52d782fb4aca: PHP lint, git diff --check, focused libsqlite pager gate 1 file / 24021 assertions / 0 failures, touched examples passed, and no new WordPress/wp_ strings under lanes/libsqlite/src.",
+  "runnerStatus": "2026-06-01 supervisor replay: focused libsqlite pager gate passed 1 file / 24021 assertions / 0 failures after accepting real upstream pager1/WAL rollback max_page_count dynamic coverage. Mapped denominator remains 1589 / 1589; cumulative selected libsqlite evidence is 5433021 pass with 7 known broad-lane failures. Full release/all runner was not green.",
+  "latestCommit": "52d782fb4acaec6efc117205ce6c5ae05c1b55ed",
   "latestFocusedCorpusBatch20260531T2250Z": {
     "sourceCommit": "48a678f72e367c869dc62452fbad34f36daa273b",
     "selectedPassIncrease": 2411,
@@ -3474,7 +3474,7 @@
     "upstreamEvidence": "hydrated SQLite upstream corpus source sections for btree, pager WAL/savepoint, pragma malformed leaf, trigger/fkey, and windowB behavior; full release/all runner not executed for this micro-batch",
     "cleanupDebt": "pre-existing wp_ fixture strings and CurrentSourceNext/CurrentNext/numbered-plan source names remain; latest batch introduced none"
   },
-  "currentSlice": "Real upstream window4 dynamic section 11/12 corpus and STAT4 source-neutral planner cleanup.",
+  "currentSlice": "Real upstream pager1/WAL rollback max_page_count dynamic corpus coverage.",
   "latestFocusedCorpusBatch20260601T0124Z": {
     "sourceCommit": "e899fc4a21fdb01ae8459804f624b30e40cbd9f5",
     "selectedPassIncrease": 14718,

@@ -55,6 +55,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (ninth replay intake 03:37 UTC):
+  audited active tmux state after the user's cleanup question and confirmed
+  there is only one tmux session (`main`), with 10 active isolated worker
+  windows plus `supervisor` and `bash`; no extra tmux sessions or long sleepers
+  were present, so no worker windows were pruned. Accepted 5 source-only
+  handoffs as source commit
+  `52d782fb4acaec6efc117205ce6c5ae05c1b55ed` (`ports: integrate git ssh
+  http cssom prefix and sqlite pager slices`). The batch adds Gitoxide smart
+  HTTP trailing-dot domain cookie/noProxy proxy-credential parity and SSH
+  receive-pack shell-quoted invocation parity; LightningCSS CSSOM box-spacing
+  length normalization and Safari/Samsung fullscreen target-prefix boundaries;
+  and libsqlite real upstream `pager1.test` WAL rollback `max_page_count`
+  dynamic coverage. Verification passed PHP lint, `git diff --check`, full
+  Gitoxide `40 files / 7184 assertions / 0 failures`, full LightningCSS
+  `13 files / 5805 assertions / 0 failures`, focused libsqlite pager
+  `1 file / 24021 assertions / 0 failures`, touched examples, and no new
+  `wp_`/WordPress strings under `lanes/libsqlite/src`. Dashboard status should
+  report Gitoxide `1721 / 2886` mapped and `7184 pass / 0 fail`,
+  LightningCSS `2320 / 3532` mapped and `5805 pass / 0 fail`, and libsqlite
+  `1589 / 1589` mapped with `5433021 pass / 7 fail`.
+
 - 2026-06-01 supervisor continuation (eighth replay intake 03:38 UTC):
   accepted 10 source-only handoffs as source commit
   `1d2e8073b901a121abddb7ab0fe41d40859d0c30` (`ports: integrate git
