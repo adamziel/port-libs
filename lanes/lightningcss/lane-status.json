@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "library": "LightningCSS",
     "estimatedProgress": 99.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS bundle CSS Modules direct var dependency diagnostics, prefixed text-overflow CSSOM read/write parity, variable/env fallback prelude visitors, and XYZ relative-color value assertions. Verification passed changed PHP lint, git diff --check, changed example smokes, and full LightningCSS lane 13 files / 8621 assertions / 0 failures.",
-    "phpPass": 8621,
+    "suiteProgress": "Supervisor-integrated LightningCSS CSS Modules page composes descriptor parity. Verification passed changed PHP lint, git diff --check, changed example smoke, and full LightningCSS lane 13 files / 8625 assertions / 0 failures.",
+    "phpPass": 8625,
     "phpFail": 0,
     "wordpressScenarios": "LightningCSS examples remain generic coverage plus existing fixture smokes; latest accepted source adds CSS Modules local/global dangling-combinator parity, prefixed 3D transform layout CSSOM read-write parity, and source-map VLQ generated-only child pruning.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 15:58 UTC supervisor integration: source commit bcf112a8d6f0156b0adc2d4d35b011de24ab880a accepted bundle CSS Modules direct var dependency diagnostics, prefixed text-overflow CSSOM read/write parity, variable/env fallback prelude visitors, and XYZ relative-color value assertions. Changed PHP lint passed; git diff --check passed; changed example smokes passed; full LightningCSS PHP lane passed 13 files / 8621 assertions / 0 failures. Rust/Node/WASM runners were not run.",
-    "currentWork": "Bundle CSS Modules direct var dependency diagnostics, prefixed text-overflow CSSOM read/write parity, variable/env fallback prelude visitors, and XYZ relative-color value assertions integrated on current main.",
+    "audit": "2026-06-01 16:05 UTC supervisor integration: source commit 60fde5b67432524a0e4cd56c0332c44c08d854a6 accepted CSS Modules page composes descriptor parity. Changed PHP lint passed; git diff --check passed; changed example smoke passed; full LightningCSS PHP lane passed 13 files / 8625 assertions / 0 failures. Rust/Node/WASM runners were not run.",
+    "currentWork": "CSS Modules page composes descriptor parity integrated on current main.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "bcf112a8d6f0156b0adc2d4d35b011de24ab880a",
+    "latestCommit": "60fde5b67432524a0e4cd56c0332c44c08d854a6",
     "nextTask": "Keep LightningCSS workers on current-base source maps, bundle/import graph, media query, property value, CSSOM, CSS Modules, custom-at-rule, target-prefix, selector, parser recovery, and upstream Rust/Node/WASM parity gaps that can be expressed in PHP.",
-    "commit": "bcf112a8d6f0156b0adc2d4d35b011de24ab880a",
-    "latestFocusedSlice": "2026-06-01 supervisor batch: bundle CSS Modules direct var dependency diagnostics, prefixed text-overflow CSSOM read/write parity, variable/env fallback prelude visitors, and XYZ relative-color value assertions deepen represented clusters. Full LightningCSS lane passed 13 files / 8621 assertions / 0 failures; phpPass moves 8550 -> 8621; mapped coverage remains 2398 / 3532; Rust/Node/WASM upstream runners were not executed."
+    "commit": "60fde5b67432524a0e4cd56c0332c44c08d854a6",
+    "latestFocusedSlice": "2026-06-01 supervisor batch: CSS Modules page composes descriptor parity deepens the represented CSS Modules cluster. Full LightningCSS lane passed 13 files / 8625 assertions / 0 failures; phpPass moves 8621 -> 8625; mapped coverage remains 2398 / 3532; Rust/Node/WASM upstream runners were not executed."
 }

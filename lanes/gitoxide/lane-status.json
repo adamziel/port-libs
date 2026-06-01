@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "library": "gitoxide",
     "estimatedProgress": 98.2,
-    "suiteProgress": "Supervisor-integrated Gitoxide reference transaction symbolic no-op lock/reflog parity and tree-merge binary attribute conflict fixture parity. Verification passed changed PHP lint, git diff --check, changed example smokes, and full Gitoxide lane 40 files / 10074 assertions / 0 failures.",
-    "phpPass": 10074,
+    "suiteProgress": "Supervisor-integrated Gitoxide empty MIDX object-database prefix parity and partial-clone promisor returned-header refresh parity. Verification passed changed PHP lint, git diff --check, changed example smokes, and full Gitoxide lane 40 files / 10106 assertions / 0 failures.",
+    "phpPass": 10106,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed workflows remain covered; latest accepted source adds merge-base commit-graph cache lookup, URL/refspec Unix colon-path classification, and attributes/pathspec parent-traversal rejection parity.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 15:58 UTC supervisor integration: source commit bcf112a8d6f0156b0adc2d4d35b011de24ab880a accepted reference transaction symbolic no-op lock/reflog parity and tree-merge binary attribute conflict fixture parity. Changed PHP lint passed; git diff --check passed; changed example smokes passed; full Gitoxide PHP lane passed 40 files / 10074 assertions / 0 failures. Cargo workspace was not run.",
-    "currentWork": "Reference transaction symbolic no-op lock/reflog parity and tree-merge binary attribute conflict fixture parity integrated on current main.",
+    "audit": "2026-06-01 16:05 UTC supervisor integration: source commit 60fde5b67432524a0e4cd56c0332c44c08d854a6 accepted empty MIDX object-database prefix parity and partial-clone promisor returned-header refresh parity. Changed PHP lint passed; git diff --check passed; changed example smokes passed; full Gitoxide PHP lane passed 40 files / 10106 assertions / 0 failures. Cargo workspace was not run.",
+    "currentWork": "Empty MIDX object-database prefix parity and partial-clone promisor returned-header refresh parity integrated on current main.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "bcf112a8d6f0156b0adc2d4d35b011de24ab880a",
+    "latestCommit": "60fde5b67432524a0e4cd56c0332c44c08d854a6",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping reference transaction, partial-clone, credential/config, pack/index, object database, tree-merge, merge-base, protocol-v2, receive-pack/send-pack, smart-HTTP/SSH, sparse-checkout/pathspec, and URL/refspec parity slices.",
-    "commit": "bcf112a8d6f0156b0adc2d4d35b011de24ab880a",
-    "latestFocusedSlice": "2026-06-01 supervisor batch: reference transaction symbolic no-op lock/reflog parity and tree-merge binary attribute conflict fixture parity deepen represented gix-ref and gix-merge clusters. Full Gitoxide lane passed 40 files / 10074 assertions / 0 failures; phpPass moves 10055 -> 10074; mapped coverage remains 1806 / 2886; full upstream Cargo workspace was not executed."
+    "commit": "60fde5b67432524a0e4cd56c0332c44c08d854a6",
+    "latestFocusedSlice": "2026-06-01 supervisor batch: empty MIDX object-database prefix parity maps +1 conservative row; partial-clone promisor returned-header refresh parity deepens an existing cluster. Full Gitoxide lane passed 40 files / 10106 assertions / 0 failures; phpPass moves 10074 -> 10106; mapped coverage moves 1806 -> 1807 / 2886; full upstream Cargo workspace was not executed."
 }
