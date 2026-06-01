@@ -440,7 +440,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
                 'currentSourceFence' => $currentFence,
                 'detail' => ($stale ? 'REPREPARE' : 'REUSE') . ' STAT4 RANGE ORDER CURRENT SOURCE ' . (string) ($selected['detail'] ?? 'NO PLAN'),
                 'dependency_closure' => 'no new support component needed; cursor-tape composes existing STAT4 multicolumn range planning into current-source cursor tape diagnostics',
-                'non_overlap' => 'avoids accepted expression-index range-cost and expression ORDER BY work by asserting STAT4 range boundary seek/stop opcodes, current-source fences, and covering/deferred cursor behavior for plain indexed option-name ranges',
+                'non_overlap' => 'avoids accepted expression-index range-cost and expression ORDER BY work by asserting STAT4 range boundary seek/stop opcodes, current-source fences, and covering/deferred cursor behavior for plain indexed key-name ranges',
             ];
         }
 

@@ -16,8 +16,8 @@ use PortLibs\LibSqlite\SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan;
 
 $bytes = static fn (string $value, string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($value, $encoding);
 $row = static fn (int $id, string $value, string $encoding = 'UTF-16LE'): array => [
-    'option_id' => $id,
-    'option_value_bytes' => $bytes($value, $encoding),
+    'setting_id' => $id,
+    'key_value_bytes' => $bytes($value, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8' => 1,
         'UTF-16LE' => 2,
@@ -40,7 +40,7 @@ $nextRows = [
     $row(5, 'plugin_[draft_new', 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::optionRowValuePlan(
+$plan = SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows,
     $nextRows,
     $bytes('plugin_[draft*', 'UTF-16LE'),
@@ -50,8 +50,8 @@ $plan = SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::optionRowValue
     null,
     null,
     false,
-    'main.wp_options@current',
-    'main.wp_options@next',
+    'main.app_settings@current',
+    'main.app_settings@next',
     'UTF-16LE',
     'UTF-16BE',
 );

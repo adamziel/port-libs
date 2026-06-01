@@ -473,7 +473,9 @@ final class SourceMap
                     );
                 }
 
-                $this->generatedLineCount = max($this->generatedLineCount, $generatedLine + 1);
+                if ($preserveUnusedTables || $lineMappings !== []) {
+                    $this->generatedLineCount = max($this->generatedLineCount, $generatedLine + 1);
+                }
             }
         } finally {
             $this->drainSourceMap($sourceMap);

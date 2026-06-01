@@ -377,12 +377,12 @@ final class GitConfig
 
     private static function parseValue(string $value): string
     {
-        $value = ltrim(self::stripInlineComment($value));
+        $value = trim(self::stripInlineComment($value));
         if (strlen($value) >= 2 && $value[0] === '"' && $value[strlen($value) - 1] === '"') {
             return self::unquote(substr($value, 1, -1));
         }
 
-        return rtrim($value);
+        return $value;
     }
 
     private static function stripInlineComment(string $value): string

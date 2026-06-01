@@ -437,6 +437,29 @@ CSS,
         $t->same(1, $decoded[0]['sourceIndex']);
         $t->same(false, in_array('blocks/_tokens.scss', $data['sources'], true));
     },
+    'css bundler drops generated-only inline input source map rows' => static function (TestRunner $t): void {
+        $inputMap = 'data:application/json;base64,' . base64_encode(json_encode([
+            'version' => 3,
+            'mappings' => ';K',
+            'sources' => ['blocks/generated-only.scss'],
+            'sourcesContent' => ['.card { color: $brand }'],
+            'names' => ['unused-generated-only'],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = (new CssBundler())->bundleWithSourceMap('/theme/entry.css', [
+            '/theme/entry.css' => '@import "blocks/generated-only.css"; .entry { color: red }',
+            '/theme/blocks/generated-only.css' => ".card { color: green }\n/*# sourceMappingURL={$inputMap} */",
+        ], null, '/theme');
+
+        $data = $result['sourceMap']->toArray(null, false);
+
+        $t->same('.card{color:green}.entry{color:red}', $result['code']);
+        $t->same('', $data['mappings']);
+        $t->same(['entry.css'], $data['sources']);
+        $t->same(['@import "blocks/generated-only.css"; .entry { color: red }'], $data['sourcesContent']);
+        $t->same([], $data['names']);
+        $t->same(false, in_array('blocks/generated-only.scss', $data['sources'], true));
+    },
     'css bundler suppresses generated sources for malformed upstream inline input source maps' => static function (TestRunner $t): void {
         $badDataUrl = 'data:application/json;base64,not-json';
         $result = (new CssBundler())->bundleWithSourceMap('/theme/entry.css', [
@@ -552,6 +575,47 @@ CSS,
                 ['root:hello/world.css', $root . '/bar.css'],
             ], $resolved);
         });
+    },
+    'css bundler maps upstream custom source provider prefix resolution' => static function (TestRunner $t) use ($bundle): void {
+        $resolved = [];
+        $resolveFoo = static function (string $specifier, string $originatingFile) use (&$resolved): string {
+            $resolved[] = [$specifier, $originatingFile];
+            if (!str_starts_with($specifier, 'foo:')) {
+                throw new RuntimeException("Failed to resolve `{$specifier}`, specifier does not start with `foo:`.");
+            }
+
+            return substr($specifier, strlen('foo:'));
+        };
+
+        $t->same(
+            '.b{color:green}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "foo:/b.css"; .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css', $resolveFoo)
+        );
+        $t->same([['foo:/b.css', '/a.css']], $resolved);
+
+        try {
+            $bundle([
+                '/a.css' => "\n  /* Forgot to prefix with `foo:`. */\n  @import \"/b.css\";\n  .a { color: red }",
+                '/b.css' => '.b { color: green }',
+            ], '/a.css', $resolveFoo);
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('Failed to resolve `/b.css`, specifier does not start with `foo:`.', $exception->getMessage());
+            $t->same('/a.css', $exception->sourceFile);
+            $t->same(3, $exception->sourceLine);
+            $t->same(3, $exception->sourceColumn);
+            $t->same([
+                ['foo:/b.css', '/a.css'],
+                ['/b.css', '/a.css'],
+            ], $resolved);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected custom source provider to reject non-prefixed imports');
     },
     'css bundler preserves upstream filesystem lexical import identities' => static function (TestRunner $t) use ($withTempFiles): void {
         $withTempFiles([

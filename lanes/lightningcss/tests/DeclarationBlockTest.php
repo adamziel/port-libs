@@ -1431,6 +1431,40 @@ return [
         $t->same(['value' => 'border-box', 'important' => false], $block->getProperty($sizedBackground, 'background-origin'));
         $t->same(['value' => 'content-box', 'important' => false], $block->getProperty($sizedBackground, 'background-clip'));
     },
+    'declaration block canonicalizes upstream direct background clip cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'background-clip: Text, Padding-Box; -webkit-background-clip: Text; -moz-background-clip: Border; --Background-Clip: Text';
+
+        $t->same(
+            [
+                'background-clip' => 'text, padding-box',
+                '-webkit-background-clip' => 'text',
+                '-moz-background-clip' => 'border',
+                '--Background-Clip' => 'Text',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'text, padding-box', 'important' => false], $block->getProperty($declarations, 'background-clip'));
+        $t->same(['value' => 'text', 'important' => false], $block->getProperty($declarations, '-WebKit-Background-Clip'));
+        $t->same(['value' => 'border', 'important' => false], $block->getProperty($declarations, '-moz-background-clip'));
+        $t->same(['value' => 'Text', 'important' => false], $block->getProperty($declarations, '--Background-Clip'));
+        $t->same(
+            '-webkit-background-clip: text; -moz-background-clip: border; --Background-Clip: Text; background-clip: border-box !important',
+            $block->setProperty($declarations, 'background-clip', 'Border-Box', true)
+        );
+        $t->same(
+            'background-clip: text, padding-box; -moz-background-clip: border; --Background-Clip: Text; -webkit-background-clip: content-box !important',
+            $block->setProperty($declarations, '-webkit-background-clip', 'Content-Box', true)
+        );
+        $t->same(
+            'background-clip: text, padding-box; -webkit-background-clip: text; -moz-background-clip: var(--wp--custom--clip); --Background-Clip: Text',
+            $block->setProperty($declarations, '-moz-background-clip', 'var(--wp--custom--clip)')
+        );
+        $t->same(
+            'background-clip: text, padding-box; -moz-background-clip: border; --Background-Clip: Text',
+            $block->removeProperty($declarations, '-webkit-background-clip')
+        );
+    },
     'declaration block reads upstream mask border source cssom longhand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

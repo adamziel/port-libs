@@ -43,6 +43,11 @@ $write($repo . '/single-component-slash.config', <<<CFG
 singleComponentSlash = should-not-load
 CFG);
 
+$write($repo . '/quoted-comment-path.config', <<<CFG
+[wordpress]
+quotedCommentPath = matched
+CFG);
+
 $write($repo . '/remote-policy.config', <<<CFG
 [http]
 extraHeader = X-WP-Deploy: staging
@@ -347,6 +352,8 @@ path = ../single-component-branch.config
 [includeIf "onbranch:deploy*"]
 path = ../single-component-slash.config
 [includeIf "onbranch:deploy/"]
+path = "../quoted-comment-path.config" ; quoted include path comment
+[includeIf "onbranch:deploy/"]
 path = ../depth-limited.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/**"]
 path = ../remote-policy.config
@@ -545,6 +552,7 @@ return [
     'preview' => $config->value('wordpress', null, 'preview'),
     'singleComponentBranchPolicy' => $config->value('wordpress', null, 'singleComponentBranch'),
     'singleComponentSlashPolicy' => $config->value('wordpress', null, 'singleComponentSlash'),
+    'quotedCommentPathPolicy' => $config->value('wordpress', null, 'quotedCommentPath'),
     'conflictStyle' => $config->value('merge', null, 'conflictStyle'),
     'httpExtraHeader' => $config->value('http', null, 'extraHeader'),
     'transferFsckObjects' => $config->value('transfer', null, 'fsckObjects'),

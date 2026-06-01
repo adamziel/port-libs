@@ -9,8 +9,8 @@ use PortLibs\LibSqlite\SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -21,7 +21,7 @@ $row = static function (int $id, string $name, string $encoding): array {
 
 $pattern = static fn (string $text, string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 
-$plan = SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan::optionRowNamePlan(
+$plan = SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan(
     [
         $row(1, 'Plugin_Cache', 'UTF-16LE'),
         $row(2, 'plugin_cache  ', 'UTF-16BE'),

@@ -190,8 +190,8 @@ final class CssModulesTransformer
             return $this->rewritePositionTryDeclarationList($body);
         }
 
-        if (preg_match('/^@page\b/i', $prelude) === 1 && !str_contains($body, '{')) {
-            return $this->rewritePageDeclarationList($body);
+        if (preg_match('/^@page\b/i', $prelude) === 1) {
+            return $this->rewritePageRuleBody($body);
         }
 
         if (preg_match('/^@counter-style\b/i', $prelude) === 1) {
@@ -1752,6 +1752,80 @@ final class CssModulesTransformer
         }
 
         return $output . $rewrittenTail;
+    }
+
+    private function rewritePageRuleBody(string $body): string
+    {
+        if (!str_contains($body, '{')) {
+            return $this->rewritePageDeclarationList($body);
+        }
+
+        $pageDeclarations = '';
+        $nestedBlocks = '';
+        $cursor = 0;
+
+        while (($nextBlock = $this->findNextTopLevel($body, '{', $cursor)) !== null) {
+            $prefix = substr($body, $cursor, $nextBlock - $cursor);
+            [$declarations, $nestedPrelude] = $this->splitDeclarationsAndNestedPrelude($prefix);
+            $pageDeclarations .= $this->rewritePageDeclarationList($declarations);
+
+            $trimmedNested = trim($nestedPrelude);
+            if ($trimmedNested === '') {
+                throw new \InvalidArgumentException('Nested CSS rule is missing a prelude');
+            }
+
+            if ($trimmedNested[0] !== '@') {
+                $this->throwInvalidPageNestedPrelude($trimmedNested);
+            }
+
+            $close = $this->findMatchingBrace($body, $nextBlock);
+            $nestedBody = substr($body, $nextBlock + 1, $close - $nextBlock - 1);
+            $nestedBlocks .= $trimmedNested . '{' . $this->rewritePageMarginBoxDeclarationList($nestedBody) . '}';
+            $cursor = $close + 1;
+        }
+
+        return $pageDeclarations . $this->rewritePageDeclarationList(substr($body, $cursor)) . $nestedBlocks;
+    }
+
+    private function throwInvalidPageNestedPrelude(string $prelude): void
+    {
+        $first = ltrim($prelude)[0] ?? '';
+        if ($first === '.') {
+            throw new \InvalidArgumentException("Unexpected token Delim('.')");
+        }
+
+        throw new \InvalidArgumentException('Invalid nested @page rule');
+    }
+
+    private function rewritePageMarginBoxDeclarationList(string $body): string
+    {
+        $output = '';
+        $cursor = 0;
+
+        while (($semicolon = $this->findNextTopLevel($body, ';', $cursor)) !== null) {
+            $statement = substr($body, $cursor, $semicolon - $cursor + 1);
+            $output .= $this->rewritePageMarginBoxDeclarationStatement($statement);
+            $cursor = $semicolon + 1;
+        }
+
+        $tail = substr($body, $cursor);
+        if (trim($tail) === '') {
+            return $output . $tail;
+        }
+
+        $rewrittenTail = $this->rewritePageMarginBoxDeclarationStatement($tail);
+        if (trim($rewrittenTail) !== '' && !str_ends_with(rtrim($rewrittenTail), ';')) {
+            $rewrittenTail .= ';';
+        }
+
+        return $output . $rewrittenTail;
+    }
+
+    private function rewritePageMarginBoxDeclarationStatement(string $statement): string
+    {
+        $composes = [];
+
+        return $this->rewriteDeclarationStatement($statement, $composes, 1, true, false);
     }
 
     private function rewritePageDeclarationStatement(string $statement): string

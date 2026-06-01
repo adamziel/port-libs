@@ -2102,7 +2102,8 @@ final class TransitionPrefixer
             || $this->targetInRange($normalized, 'safari', [4], [8]);
         $animationNeedsMoz = $this->targetInRange($normalized, 'firefox', [5], [15]);
         $animationNeedsO = $this->targetInRange($normalized, 'opera', [12], [12]);
-        $anyPseudoNeedsWebkit = $this->targetInRange($normalized, 'chrome', [12], [87])
+        $anyPseudoNeedsWebkit = $this->targetInRange($normalized, 'android', [4, 4], [87])
+            || $this->targetInRange($normalized, 'chrome', [12], [87])
             || $this->targetInRange($normalized, 'edge', [79], [87])
             || $this->targetInRange($normalized, 'ios_saf', [5], [13])
             || $this->targetInRange($normalized, 'opera', [14], [73])
@@ -2118,13 +2119,14 @@ final class TransitionPrefixer
             || isset($normalized['samsung'])
             || $this->targetInRange($normalized, 'ios_saf', [0], [10, 2, 255])
             || $this->targetInRange($normalized, 'safari', [0], [10, 0, 255]);
-        $selectorDirNeedsLangFallback = $this->targetInRange($normalized, 'android', [0], [24, 255, 255])
+        $selectorDirNeedsLangFallback = $this->targetInRange($normalized, 'android', [0], [144, 255, 255])
             || $this->targetInRange($normalized, 'chrome', [0], [119, 255, 255])
             || $this->targetInRange($normalized, 'edge', [0], [119, 255, 255])
             || $this->targetInRange($normalized, 'firefox', [0], [48, 255, 255])
             || $this->targetInRange($normalized, 'ios_saf', [0], [16, 3, 255])
             || $this->targetInRange($normalized, 'opera', [0], [105, 255, 255])
             || $this->targetInRange($normalized, 'safari', [0], [16, 3, 255])
+            || $this->targetInRange($normalized, 'samsung', [0], [24, 255, 255])
             || isset($normalized['ie']);
         $fullscreenNeedsWebkit = $this->targetInRange($normalized, 'chrome', [15], [70])
             || $this->targetInRange($normalized, 'opera', [15], [63])

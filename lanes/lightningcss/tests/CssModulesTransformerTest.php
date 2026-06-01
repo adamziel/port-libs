@@ -3630,6 +3630,63 @@ CSS);
         $t->same([], $result['references']);
         $t->same('EgL3uq_card EgL3uq_base', CssModulesTransformer::exportClassList($result['exports'], 'card'));
     },
+    'css modules scopes page composes descriptors before margin boxes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+@page {
+  margin: 1in;
+  composes: print-card from global;
+
+  @top-left {
+    content: "Card";
+    color: red;
+  }
+}
+
+@page wide {
+  @bottom-right {
+    composes: from global;
+    color: blue;
+  }
+
+  composes: pageFooter from "./print.css";
+  margin: 2in;
+}
+
+.card {
+  composes: base;
+  color: white;
+}
+
+.base {
+  color: black;
+}
+CSS);
+
+        $t->same('@page{margin:1in;composes:EgL3uq_print-card from global;@top-left{content:"Card";color:red}}@page wide{composes:EgL3uq_pageFooter from "./print.css";margin:2in;@bottom-right{composes:from global;color:#00f}}.EgL3uq_card{color:#fff}.EgL3uq_base{color:#000}', $result['code']);
+        $t->same([
+            'print-card' => $export('EgL3uq_print-card'),
+            'pageFooter' => $export('EgL3uq_pageFooter'),
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_card EgL3uq_base', CssModulesTransformer::exportClassList($result['exports'], 'card'));
+
+        foreach ([
+            '@page { @top-left { composes: corner; color: red } } .corner { color: blue }',
+            '@page { @bottom-right { composes: corner from global; color: red } }',
+            '@page { @top-left-corner { composes: corner from "./print.css"; color: red } }',
+        ] as $css) {
+            try {
+                (new CssModulesTransformer())->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same('The `composes` property cannot be used within nested rules', $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream nested @page margin-box composes exception');
+        }
+    },
     'css modules prunes upstream unused symbols while preserving surviving composes exports' => static function (TestRunner $t) use ($export, $local, $dependency): void {
         $css = <<<'CSS'
 @property --unused-accent {

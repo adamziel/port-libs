@@ -25,11 +25,43 @@ $child->addName('unused-name');
 $childBeforeAppend = $child->toJson(null, false);
 $parent->appendSourceMapWithGeneratedOffset($child, 2, 4, false);
 
+$trailingParent = new SourceMap();
+$trailingEntrySource = $trailingParent->addSource('wp-content/themes/example/style.css');
+$trailingParent->setSourceContent($trailingEntrySource, ".theme{color:green}\n");
+$trailingParent->addMapping(0, 0, $trailingEntrySource, 0, 0, 'theme-root');
+
+$trailingChild = new SourceMap();
+$trailingChildSource = $trailingChild->addSource('wp-content/themes/example/blocks/trailing.scss');
+$trailingChild->setSourceContent($trailingChildSource, ".wp-block-trailing { color: \$brand; }\n");
+$trailingChild->addMapping(0, 0, $trailingChildSource, 2, 1, 'trailing-rule');
+$trailingChild->addGeneratedMapping(1, 4);
+$trailingChild->offsetLines(2, 2);
+$trailingChildBeforeAppend = $trailingChild->toJson(null, false);
+$trailingParent->appendSourceMapWithGeneratedOffset($trailingChild, 2, 4, false);
+
+$generatedOnlyParent = new SourceMap();
+$generatedOnlyEntrySource = $generatedOnlyParent->addSource('wp-content/themes/example/style.css');
+$generatedOnlyParent->setSourceContent($generatedOnlyEntrySource, ".theme{color:green}\n");
+$generatedOnlyParent->addMapping(0, 0, $generatedOnlyEntrySource, 0, 0, 'theme-root');
+
+$generatedOnlyChild = new SourceMap();
+$generatedOnlyChildSource = $generatedOnlyChild->addSource('wp-content/themes/example/blocks/generated-only.scss');
+$generatedOnlyChild->setSourceContent($generatedOnlyChildSource, ".wp-block-generated-only { color: \$brand; }\n");
+$generatedOnlyChild->addGeneratedMapping(1, 5);
+$generatedOnlyChild->addName('unused-generated-only');
+$generatedOnlyParent->appendSourceMapWithGeneratedOffset($generatedOnlyChild, 2, 4, false);
+
 $actual = [
     'childBeforeAppend' => $childBeforeAppend,
     'map' => $parent->toJson(null, false),
     'mappings' => $parent->getMappings(),
     'childConsumed' => $child->toJson(null, false),
+    'trailingChildBeforeAppend' => $trailingChildBeforeAppend,
+    'trailingMap' => $trailingParent->toJson(null, false),
+    'trailingEmptyClosest' => $trailingParent->findClosestMapping(3, 0),
+    'trailingChildConsumed' => $trailingChild->toJson(null, false),
+    'generatedOnlyMap' => $generatedOnlyParent->toJson(null, false),
+    'generatedOnlyChildConsumed' => $generatedOnlyChild->toJson(null, false),
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -42,6 +74,12 @@ if (($argv[1] ?? null) === '--self-test') {
             ['generatedLine' => 3, 'generatedColumn' => 8, 'sourceIndex' => 1, 'originalLine' => 3, 'originalColumn' => 2, 'nameIndex' => 2],
         ],
         'childConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'trailingChildBeforeAppend' => '{"version":3,"mappings":"AAECA;I;;","sources":["wp-content/themes/example/blocks/trailing.scss"],"sourcesContent":[".wp-block-trailing { color: $brand; }\n"],"names":["trailing-rule"]}',
+        'trailingMap' => '{"version":3,"mappings":"AAAAA;;ICECC","sources":["wp-content/themes/example/style.css","wp-content/themes/example/blocks/trailing.scss"],"sourcesContent":[".theme{color:green}\n",".wp-block-trailing { color: $brand; }\n"],"names":["theme-root","trailing-rule"]}',
+        'trailingEmptyClosest' => null,
+        'trailingChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'generatedOnlyMap' => '{"version":3,"mappings":"AAAAA","sources":["wp-content/themes/example/style.css"],"sourcesContent":[".theme{color:green}\n"],"names":["theme-root"]}',
+        'generatedOnlyChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
     ];
 
     if ($actual !== $expected) {

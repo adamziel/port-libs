@@ -9,8 +9,8 @@ $tests = [];
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -19,8 +19,8 @@ $row = static function (int $id, string $name, string $encoding): array {
     ];
 };
 $bad = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 $enc = static fn (string $text, string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);

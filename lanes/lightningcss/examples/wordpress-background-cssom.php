@@ -12,6 +12,7 @@ $declarations = 'background: url(hero.jpg) green; background-repeat: repeat-x; c
 $gallery = 'background: url(card.jpg), url(texture.png)';
 $cover = 'background: url(hero.jpg)';
 $heroPosition = 'background-position: 20px 10px; background-size: cover';
+$legacyClip = '-webkit-background-clip: Text; background-clip: Text; color: var(--wp--preset--color--contrast)';
 
 $actual = [
     'themeBackgroundColor' => $block->setProperty(
@@ -33,6 +34,19 @@ $actual = [
         $cover,
         'background-clip',
         'text'
+    ),
+    'legacyClipText' => $block->getProperty(
+        $legacyClip,
+        '-webkit-background-clip'
+    ),
+    'legacyClipContentBox' => $block->setProperty(
+        $legacyClip,
+        '-webkit-background-clip',
+        'Content-Box'
+    ),
+    'withoutLegacyClip' => $block->removeProperty(
+        $legacyClip,
+        '-webkit-background-clip'
     ),
     'resetBackgroundOnly' => $block->removeProperty(
         'background: url(hero.jpg) fixed content-box text; background-color: blue; background-clip: text; padding: var(--wp--preset--spacing--40)',
@@ -60,9 +74,12 @@ $actual = [
 
 $expected = [
     'themeBackgroundColor' => 'background: var(--wp--preset--color--accent) url(hero.jpg); background-repeat: repeat-x; color: var(--wp--preset--color--contrast)',
-    'galleryRepeat' => 'background: url(card.jpg) no-repeat, url(texture.png) repeat',
+    'galleryRepeat' => 'background: url(card.jpg) no-repeat, url(texture.png)',
     'galleryAttachment' => 'background: url(card.jpg) fixed, url(texture.png) local',
     'coverClipText' => 'background: url(hero.jpg) text',
+    'legacyClipText' => ['value' => 'text', 'important' => false],
+    'legacyClipContentBox' => '-webkit-background-clip: content-box; background-clip: text; color: var(--wp--preset--color--contrast)',
+    'withoutLegacyClip' => 'background-clip: text; color: var(--wp--preset--color--contrast)',
     'resetBackgroundOnly' => 'padding: var(--wp--preset--spacing--40)',
     'heroFocalPointX' => 'background-position: left 10px; background-size: cover',
     'heroFocalPointY' => 'background-position: 20px bottom; background-size: cover',

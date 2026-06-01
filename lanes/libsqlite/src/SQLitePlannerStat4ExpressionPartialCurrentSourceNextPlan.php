@@ -17931,14 +17931,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
         private static function gapDensityLikePrefixMatches(string $value, string $pattern): bool
         {
-            if (str_ends_with($pattern, '%') && !str_contains(substr($pattern, 0, -1), '_')) {
-                return str_starts_with(strtolower($value), strtolower(substr($pattern, 0, -1)));
-            }
-            if ($pattern === 'plugin_%') {
-                return str_starts_with(strtolower($value), 'plugin_');
-            }
-
-            return strtolower($value) === strtolower($pattern);
+            return self::stat4SourceNeutralLikeMatches($value, $pattern);
         }
 
         /** @param array<string,mixed> $row */
@@ -19058,14 +19051,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
         private static function likePrefixForSampleRowGuardFence(string $value, string $pattern): bool
         {
-            if ($pattern === 'plugin_%') {
-                return str_starts_with(strtolower($value), 'plugin_');
-            }
-            if (str_ends_with($pattern, '%') && !str_contains(substr($pattern, 0, -1), '_')) {
-                return str_starts_with(strtolower($value), strtolower(substr($pattern, 0, -1)));
-            }
-
-            return strtolower($value) === strtolower($pattern);
+            return self::stat4SourceNeutralLikeMatches($value, $pattern);
         }
 
         /** @param array<string,mixed> $row */
@@ -20018,6 +20004,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return strtolower((string) preg_replace('/\s+/', '', trim($expression)));
         }
 
+        private static function stat4SourceNeutralLikeMatches(string $value, string $pattern): bool
+        {
+            return SQLiteDatabase::likeMatches($value, $pattern, null, false);
+        }
+
         private static function firstExpressionFromIndexes(array $source, string $label): string
         {
             foreach (($source['indexes'] ?? []) as $index) {
@@ -20432,14 +20423,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
         private static function likePrefixCurrentSourceStat4DensityVectorValidation(string $value, string $pattern): bool
         {
-            if ($pattern === 'plugin_%') {
-                return str_starts_with(strtolower($value), 'plugin_');
-            }
-            if (str_ends_with($pattern, '%') && !str_contains(substr($pattern, 0, -1), '_')) {
-                return str_starts_with(strtolower($value), strtolower(substr($pattern, 0, -1)));
-            }
-
-            return strtolower($value) === strtolower($pattern);
+            return self::stat4SourceNeutralLikeMatches($value, $pattern);
         }
 
         /** @param array<string,mixed> $row */
@@ -22445,14 +22429,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
         private static function likePrefixCurrentSourceHistogramValidation(string $value, string $pattern): bool
         {
-            if ($pattern === 'plugin_%') {
-                return str_starts_with(strtolower($value), 'plugin_');
-            }
-            if (str_ends_with($pattern, '%') && !str_contains(substr($pattern, 0, -1), '_')) {
-                return str_starts_with(strtolower($value), strtolower(substr($pattern, 0, -1)));
-            }
-
-            return strtolower($value) === strtolower($pattern);
+            return self::stat4SourceNeutralLikeMatches($value, $pattern);
         }
 
         /** @param array<string,mixed> $row */
@@ -23367,14 +23344,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
         private static function likePrefixStat4SampleAnchor(string $value, string $pattern): bool
         {
-            if ($pattern === 'plugin_%') {
-                return str_starts_with(strtolower($value), 'plugin_');
-            }
-            if (str_ends_with($pattern, '%') && !str_contains(substr($pattern, 0, -1), '_')) {
-                return str_starts_with(strtolower($value), strtolower(substr($pattern, 0, -1)));
-            }
-
-            return strtolower($value) === strtolower($pattern);
+            return self::stat4SourceNeutralLikeMatches($value, $pattern);
         }
 
         /** @param array<string,mixed> $row */
@@ -24614,14 +24584,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
         private static function duplicatePeerLikePrefix(string $value, string $pattern): bool
         {
-            if ($pattern === 'plugin_%') {
-                return str_starts_with(strtolower($value), 'plugin_');
-            }
-            if (str_ends_with($pattern, '%') && !str_contains(substr($pattern, 0, -1), '_')) {
-                return str_starts_with(strtolower($value), strtolower(substr($pattern, 0, -1)));
-            }
-
-            return strtolower($value) === strtolower($pattern);
+            return self::stat4SourceNeutralLikeMatches($value, $pattern);
         }
 
         /** @param array<string,mixed> $row */
@@ -25555,11 +25518,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
         private static function currentScanDirectionLikePrefix(string $value, string $pattern): bool
         {
-            if ($pattern === 'plugin_%') {
-                return str_starts_with(strtolower($value), 'plugin_');
-            }
-
-            return $value === $pattern;
+            return self::stat4SourceNeutralLikeMatches($value, $pattern);
         }
 
         private static function currentScanDirectionRowExpressionKey(array $row, string $keyColumn): string

@@ -9,23 +9,23 @@ $tests = [];
 
 $textRow = static function (int $id, string $value, string $encoding = 'UTF-8', mixed $raw = null): array {
     return [
-        'option_id' => $id,
-        'option_value_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($value, $encoding),
+        'setting_id' => $id,
+        'key_value_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($value, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
         },
-        'option_value' => $raw,
+        'key_value' => $raw,
     ];
 };
-$scalarRow = static fn (int $id, mixed $value): array => ['option_id' => $id, 'option_value' => $value];
+$scalarRow = static fn (int $id, mixed $value): array => ['setting_id' => $id, 'key_value' => $value];
 $bytes = static fn (string $value, string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($value, $encoding);
 
 $currentRows = [
-    $textRow(1, 'autoload:yes', 'UTF-8'),
-    $textRow(2, 'Autoload:No', 'UTF-16LE'),
-    $textRow(3, 'autoload:trail ', 'UTF-16LE'),
+    $textRow(1, 'loadflag:yes', 'UTF-8'),
+    $textRow(2, 'Loadflag:No', 'UTF-16LE'),
+    $textRow(3, 'loadflag:trail ', 'UTF-16LE'),
     $textRow(4, 'cache:%literal', 'UTF-16BE'),
     $textRow(5, 'plugin_α:enabled', 'UTF-16LE'),
     $textRow(6, 'plugin_β:disabled', 'UTF-16BE'),
@@ -33,13 +33,13 @@ $currentRows = [
     $scalarRow(8, 10.5),
     $scalarRow(9, true),
     $scalarRow(10, null),
-    ['option_id' => 12, 'option_value_bytes' => "\x00\xd8", 'text_encoding' => 2],
+    ['setting_id' => 12, 'key_value_bytes' => "\x00\xd8", 'text_encoding' => 2],
 ];
 
 $nextRows = [
-    $textRow(1, 'autoload:yes', 'UTF-16LE'),
-    $textRow(2, 'Autoload:No', 'UTF-16BE'),
-    $textRow(3, 'autoload:trail', 'UTF-16LE'),
+    $textRow(1, 'loadflag:yes', 'UTF-16LE'),
+    $textRow(2, 'Loadflag:No', 'UTF-16BE'),
+    $textRow(3, 'loadflag:trail', 'UTF-16LE'),
     $textRow(4, 'cache:%literal', 'UTF-16LE'),
     $textRow(5, 'plugin_α:enabled', 'UTF-16BE'),
     $textRow(6, 'plugin_γ:enabled', 'UTF-16BE'),
@@ -47,8 +47,8 @@ $nextRows = [
     $scalarRow(8, 10.5),
     $scalarRow(9, false),
     $scalarRow(10, null),
-    $textRow(13, 'autoload:fresh', 'UTF-16BE'),
-    ['option_id' => 14, 'option_value_bytes' => "\xd8\x00", 'text_encoding' => 3],
+    $textRow(13, 'loadflag:fresh', 'UTF-16BE'),
+    ['setting_id' => 14, 'key_value_bytes' => "\xd8\x00", 'text_encoding' => 3],
 ];
 
 $plan = static fn (
@@ -88,33 +88,33 @@ $valueAt = static function (array $value, string $path): mixed {
 };
 
 $cases = [
-    'records decoded pattern' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'decodedPattern', 'autoload:%'],
-    'records pattern bytes' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'patternBytesHex', '6100750074006f006c006f00610064003a002500'],
-    'records collation' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'collation', 'NOCASE'],
-    'records operator' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'operator', 'LIKE'],
-    'records current range encoding' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'currentRangeEncoding', 'UTF-16LE'],
-    'records next range encoding' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'nextRangeEncoding', 'UTF-16BE'],
-    'nocase like index usable' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'rangePlan.indexUsable', true],
-    'nocase like lower folds ascii prefix' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'rangePlan.range.lowerInclusive', 'autoload:'],
-    'nocase like upper bound folds ascii prefix' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'rangePlan.range.upperBound', 'autoload;'],
-    'nocase current rowids include mixed case' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'currentRowids', [1, 2, 3]],
-    'nocase next rowids include fresh' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'nextRowids', [1, 2, 3, 13]],
-    'nocase retained rowids' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'retainedRowids', [1, 2, 3]],
-    'nocase entered rowids' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'enteredRowids', [13]],
-    'nocase changed encoding rowids' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'changedEncodingRowids', [1, 2]],
-    'nocase changed bytes rowids' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'changedBytesRowids', [1, 2, 3]],
-    'nocase malformed current rowids' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'currentMalformedRowids', [12]],
-    'nocase malformed next rowids' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'nextMalformedRowids', [14]],
-    'nocase current range lower bytes utf16le' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'currentRangeBytesHex.lowerInclusive', '6100750074006f006c006f00610064003a00'],
-    'nocase next range lower bytes utf16be' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'nextRangeBytesHex.lowerInclusive', '006100750074006f006c006f00610064003a'],
-    'nocase next range upper bytes utf16be' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'nextRangeBytesHex.upperBound', '006100750074006f006c006f00610064003b'],
-    'range encoding invalidates' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'invalidationReasons.4', 'range-encoding'],
-    'range bytes invalidates' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'invalidationReasons.5', 'range-bytes'],
-    'binary default like rejected for nocase mode' => ['autoload:%', 'UTF-16LE', 'LIKE', 'BINARY', null, null, false, 'rangePlan.rejectedReason', 'default_like_requires_nocase_index'],
-    'binary default like has no range bytes' => ['autoload:%', 'UTF-16LE', 'LIKE', 'BINARY', null, null, false, 'currentRangeBytesHex.lowerInclusive', null],
-    'binary case sensitive like index usable' => ['autoload:%', 'UTF-16LE', 'LIKE', 'BINARY', null, null, true, 'rangePlan.indexUsable', true],
-    'binary case sensitive excludes mixed case' => ['AUTOLOAD:%', 'UTF-16LE', 'LIKE', 'BINARY', null, null, true, 'currentRowids', []],
-    'rtrim default like rejected' => ['autoload:%', 'UTF-16LE', 'LIKE', 'RTRIM', null, null, false, 'rangePlan.rejectedReason', 'default_like_requires_nocase_index'],
+    'records decoded pattern' => ['loadflag:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'decodedPattern', 'loadflag:%'],
+    'records pattern bytes' => ['loadflag:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'patternBytesHex', '6c006f006100640066006c00610067003a002500'],
+    'records collation' => ['loadflag:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'collation', 'NOCASE'],
+    'records operator' => ['loadflag:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'operator', 'LIKE'],
+    'records current range encoding' => ['loadflag:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'currentRangeEncoding', 'UTF-16LE'],
+    'records next range encoding' => ['loadflag:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'nextRangeEncoding', 'UTF-16BE'],
+    'nocase like index usable' => ['loadflag:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'rangePlan.indexUsable', true],
+    'nocase like lower folds ascii prefix' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'rangePlan.range.lowerInclusive', 'loadflag:'],
+    'nocase like upper bound folds ascii prefix' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'rangePlan.range.upperBound', 'loadflag;'],
+    'nocase current rowids include mixed case' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'currentRowids', [1, 2, 3]],
+    'nocase next rowids include fresh' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'nextRowids', [1, 2, 3, 13]],
+    'nocase retained rowids' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'retainedRowids', [1, 2, 3]],
+    'nocase entered rowids' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'enteredRowids', [13]],
+    'nocase changed encoding rowids' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'changedEncodingRowids', [1, 2]],
+    'nocase changed bytes rowids' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'changedBytesRowids', [1, 2, 3]],
+    'nocase malformed current rowids' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'currentMalformedRowids', [12]],
+    'nocase malformed next rowids' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'nextMalformedRowids', [14]],
+    'nocase current range lower bytes utf16le' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'currentRangeBytesHex.lowerInclusive', '6c006f006100640066006c00610067003a00'],
+    'nocase next range lower bytes utf16be' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'nextRangeBytesHex.lowerInclusive', '006c006f006100640066006c00610067003a'],
+    'nocase next range upper bytes utf16be' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'nextRangeBytesHex.upperBound', '006c006f006100640066006c00610067003b'],
+    'range encoding invalidates' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'invalidationReasons.4', 'range-encoding'],
+    'range bytes invalidates' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'invalidationReasons.5', 'range-bytes'],
+    'binary default like rejected for nocase mode' => ['loadflag:%', 'UTF-16LE', 'LIKE', 'BINARY', null, null, false, 'rangePlan.rejectedReason', 'default_like_requires_nocase_index'],
+    'binary default like has no range bytes' => ['loadflag:%', 'UTF-16LE', 'LIKE', 'BINARY', null, null, false, 'currentRangeBytesHex.lowerInclusive', null],
+    'binary case sensitive like index usable' => ['loadflag:%', 'UTF-16LE', 'LIKE', 'BINARY', null, null, true, 'rangePlan.indexUsable', true],
+    'binary case sensitive excludes mixed case' => ['LOADFLAG:%', 'UTF-16LE', 'LIKE', 'BINARY', null, null, true, 'currentRowids', []],
+    'rtrim default like rejected' => ['loadflag:%', 'UTF-16LE', 'LIKE', 'RTRIM', null, null, false, 'rangePlan.rejectedReason', 'default_like_requires_nocase_index'],
     'unicode nocase prefix rejected for range' => ['plugin!_α:%', 'UTF-16LE', 'LIKE', 'NOCASE', '!', 'UTF-16LE', false, 'rangePlan.rejectedReason', 'nocase_like_prefix_must_be_ascii_for_range'],
     'unicode nocase still matches current alpha' => ['plugin!_α:%', 'UTF-16LE', 'LIKE', 'NOCASE', '!', 'UTF-16LE', false, 'currentRowids', [5]],
     'unicode nocase still matches next alpha' => ['plugin!_α:%', 'UTF-16LE', 'LIKE', 'NOCASE', '!', 'UTF-16LE', false, 'nextRowids', [5]],
@@ -136,9 +136,9 @@ $cases = [
     'numeric storage changed' => ['10', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'changedStorageRowids', [7]],
     'bool true current rowid' => ['1', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'currentRowids', [9]],
     'bool false exits next' => ['1', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'nextRowids', []],
-    'source switch reason first' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'invalidationReasons.0', 'source-name', 'main.app_settings', 'temp.app_settings'],
-    'dependency pattern decode' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'dependencies.0', 'sqlite-utf16-pattern-decode'],
-    'dependency collation nextOneOneEight' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'dependencies.2', 'sqlite-collation-range-current-source-nextoneOneEight'],
+    'source switch reason first' => ['loadflag:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'invalidationReasons.0', 'source-name', 'main.app_settings', 'temp.app_settings'],
+    'dependency pattern decode' => ['loadflag:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'dependencies.0', 'sqlite-utf16-pattern-decode'],
+    'dependency collation nextOneOneEight' => ['loadflag:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'dependencies.2', 'sqlite-collation-range-current-source-nextoneOneEight'],
 ];
 
 foreach ($cases as $name => $case) {
@@ -151,7 +151,7 @@ foreach ($cases as $name => $case) {
 }
 
 $stableRows = [
-    $textRow(1, 'autoload:yes', 'UTF-16LE'),
+    $textRow(1, 'loadflag:yes', 'UTF-16LE'),
     $textRow(2, 'theme:yes', 'UTF-16LE'),
 ];
 
@@ -159,7 +159,7 @@ $tests['utf16 collation affinity pattern current source nextOneOneEight stable r
     $plan = SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::keyValueRowValuePlan(
         $stableRows,
         $stableRows,
-        $bytes('autoload:%', 'UTF-16LE'),
+        $bytes('loadflag:%', 'UTF-16LE'),
         'UTF-16LE',
         'LIKE',
         'NOCASE',
@@ -176,11 +176,11 @@ $tests['utf16 collation affinity pattern current source nextOneOneEight stable r
 };
 
 $tests['utf16 collation affinity pattern current source nextOneOneEight rejects unsupported collation'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $nextRows, $bytes('autoload:%', 'UTF-16LE'), 'UTF-16LE', 'LIKE', 'UNICODE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $nextRows, $bytes('loadflag:%', 'UTF-16LE'), 'UTF-16LE', 'LIKE', 'UNICODE'));
 };
 
 $tests['utf16 collation affinity pattern current source nextOneOneEight rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $nextRows, $bytes('autoload:%', 'UTF-16LE'), 'UTF-16LE', 'REGEXP'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $nextRows, $bytes('loadflag:%', 'UTF-16LE'), 'UTF-16LE', 'REGEXP'));
 };
 
 $tests['utf16 collation affinity pattern current source nextOneOneEight rejects glob escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {

@@ -9,8 +9,8 @@ require_once __DIR__ . '/../../../tools/bootstrap.php';
 
 $row = static function (int $id, string $value, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_value_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($value, $encoding),
+        'setting_id' => $id,
+        'key_value_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($value, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -21,34 +21,34 @@ $row = static function (int $id, string $value, string $encoding): array {
 $pattern = static fn (string $text, string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 
 $current = [
-    $row(1, 'autoload:yes', 'UTF-8'),
+    $row(1, 'loadflag:yes', 'UTF-8'),
     $row(2, 'cache:%literal', 'UTF-16BE'),
     $row(3, 'plugin_α:enabled', 'UTF-16LE'),
-    ['option_id' => 4, 'option_value' => 10],
-    ['option_id' => 9, 'option_value_bytes' => "\x00\xd8", 'text_encoding' => 2],
+    ['setting_id' => 4, 'key_value' => 10],
+    ['setting_id' => 9, 'key_value_bytes' => "\x00\xd8", 'text_encoding' => 2],
 ];
 
 $next = [
-    $row(1, 'autoload:yes', 'UTF-16LE'),
+    $row(1, 'loadflag:yes', 'UTF-16LE'),
     $row(2, 'cache:%literal', 'UTF-16LE'),
     $row(3, 'plugin_γ:enabled', 'UTF-16BE'),
-    ['option_id' => 4, 'option_value' => '10'],
-    $row(5, 'autoload:fresh', 'UTF-16BE'),
+    ['setting_id' => 4, 'key_value' => '10'],
+    $row(5, 'loadflag:fresh', 'UTF-16BE'),
 ];
 
 $result = [
     'scenario' => 'application-utf16-pattern-like-glob-affinity-current-source-next114',
-    'autoloadLike' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($current, $next, $pattern('autoload:%', 'UTF-16LE'), 'UTF-16LE'),
-    'literalPercent' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($current, $next, $pattern('cache:!%%', 'UTF-16BE'), 'UTF-16BE', 'LIKE', $pattern('!', 'UTF-16BE'), 'UTF-16BE'),
-    'greekGlob' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($current, $next, $pattern('plugin_[αγ]:*', 'UTF-16LE'), 'UTF-16LE', 'GLOB'),
-    'numericLike' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($current, $next, $pattern('10', 'UTF-16LE'), 'UTF-16LE'),
+    'loadflagLike' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($current, $next, $pattern('loadflag:%', 'UTF-16LE'), 'UTF-16LE'),
+    'literalPercent' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($current, $next, $pattern('cache:!%%', 'UTF-16BE'), 'UTF-16BE', 'LIKE', $pattern('!', 'UTF-16BE'), 'UTF-16BE'),
+    'greekGlob' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($current, $next, $pattern('plugin_[αγ]:*', 'UTF-16LE'), 'UTF-16LE', 'GLOB'),
+    'numericLike' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($current, $next, $pattern('10', 'UTF-16LE'), 'UTF-16LE'),
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($result['autoloadLike']['currentRowids'] === [1]);
-    assert($result['autoloadLike']['nextRowids'] === [1, 5]);
-    assert($result['autoloadLike']['changedEncodingRowids'] === [1]);
-    assert($result['autoloadLike']['currentMalformedRowids'] === [9]);
+    assert($result['loadflagLike']['currentRowids'] === [1]);
+    assert($result['loadflagLike']['nextRowids'] === [1, 5]);
+    assert($result['loadflagLike']['changedEncodingRowids'] === [1]);
+    assert($result['loadflagLike']['currentMalformedRowids'] === [9]);
     assert($result['literalPercent']['currentRowids'] === [2]);
     assert($result['literalPercent']['changedBytesRowids'] === [2]);
     assert($result['greekGlob']['currentRowids'] === [3]);

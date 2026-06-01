@@ -10,9 +10,20 @@ $css = <<<'CSS'
 @page {
   composes: printShell from global;
   margin: 0.5in;
+
+  @top-left {
+    content: "Card";
+    color: red;
+  }
 }
 
 @page cardPrint {
+  @bottom-right {
+    composes: from global;
+    content: "Footer";
+    color: blue;
+  }
+
   composes: pageCover pageFooter from "./print-tokens.module.css";
   margin: 1in;
 }
@@ -38,7 +49,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '@page{composes:BlockA_printShell from global;margin:.5in}@page cardPrint{composes:BlockA_pageCover BlockA_pageFooter from "./print-tokens.module.css";margin:1in}.BlockA_card{color:red}.BlockA_reset{color:#00f}',
+    'code' => '@page{composes:BlockA_printShell from global;margin:.5in;@top-left{content:"Card";color:red}}@page cardPrint{composes:BlockA_pageCover BlockA_pageFooter from "./print-tokens.module.css";margin:1in;@bottom-right{composes:from global;content:"Footer";color:#00f}}.BlockA_card{color:red}.BlockA_reset{color:#00f}',
     'exports' => [
         'printShell' => [
             'name' => 'BlockA_printShell',

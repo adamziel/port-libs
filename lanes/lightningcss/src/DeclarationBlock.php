@@ -416,6 +416,11 @@ final class DeclarationBlock
         'background-position-x',
         'background-position-y',
     ];
+    private const BACKGROUND_CLIP_PROPERTIES = [
+        'background-clip',
+        '-webkit-background-clip',
+        '-moz-background-clip',
+    ];
 
     private const BORDER_SIDES = ['top', 'right', 'bottom', 'left'];
     private const LOGICAL_BORDER_AXES = [
@@ -7919,6 +7924,22 @@ final class DeclarationBlock
         return strtolower(trim($clip)) === 'border-box';
     }
 
+    private function normalizeBackgroundClipDeclarationValue(string $value): string
+    {
+        $parts = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            $part = trim($part);
+            $lower = strtolower($part);
+            if (!$this->isBackgroundBoxToken($lower) && !$this->isBackgroundClipKeyword($lower)) {
+                return trim($value);
+            }
+
+            $parts[] = $lower;
+        }
+
+        return implode(', ', $parts);
+    }
+
     /**
      * @return array{0:?string,1:?string}
      */
@@ -14467,6 +14488,10 @@ final class DeclarationBlock
 
         if ($property === 'border-spacing') {
             return $this->normalizeBorderSpacingValue($value);
+        }
+
+        if (in_array($property, self::BACKGROUND_CLIP_PROPERTIES, true)) {
+            return $this->normalizeBackgroundClipDeclarationValue($value);
         }
 
         if (in_array($property, self::GRID_LONGHANDS, true)) {

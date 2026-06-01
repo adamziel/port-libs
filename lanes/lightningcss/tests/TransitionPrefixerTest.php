@@ -197,6 +197,42 @@ return [
             $prefixer->prefixForTargets('a:dir(ltr) { color: red; }', ['safari' => 14])
         );
         $t->same(
+            'a:is(.foo,.bar){color:red}',
+            $prefixer->prefixForTargets('a:is(.foo, .bar) { color: red; }', ['android' => '4.3'])
+        );
+        $t->same(
+            'a:-webkit-any(.foo,.bar){color:red}a:is(.foo,.bar){color:red}',
+            $prefixer->prefixForTargets('a:is(.foo, .bar) { color: red; }', ['android' => '4.4'])
+        );
+        $t->same(
+            'a:-webkit-any(.foo,.bar){color:red}a:is(.foo,.bar){color:red}',
+            $prefixer->prefixForTargets('a:is(.foo, .bar) { color: red; }', ['android' => 87])
+        );
+        $t->same(
+            'a:is(.foo,.bar){color:red}',
+            $prefixer->prefixForTargets('a:is(.foo, .bar) { color: red; }', ['android' => 88])
+        );
+        $t->same(
+            'a:-webkit-any(' . $rtlLangs . '){color:red}a:is(' . $rtlLangs . '){color:red}',
+            $prefixer->prefixForTargets('a:dir(rtl) { color: red; }', ['android' => '4.4'])
+        );
+        $t->same(
+            'a:is(' . $rtlLangs . '){color:red}',
+            $prefixer->prefixForTargets('a:dir(rtl) { color: red; }', ['android' => 144])
+        );
+        $t->same(
+            'a:dir(rtl){color:red}',
+            $prefixer->prefixForTargets('a:dir(rtl) { color: red; }', ['android' => 145])
+        );
+        $t->same(
+            'a:is(' . $rtlLangs . '){color:red}',
+            $prefixer->prefixForTargets('a:dir(rtl) { color: red; }', ['samsung' => 24])
+        );
+        $t->same(
+            'a:dir(rtl){color:red}',
+            $prefixer->prefixForTargets('a:dir(rtl) { color: red; }', ['samsung' => 25])
+        );
+        $t->same(
             'a:lang(' . $rtlLangList . '){color:red}',
             $prefixer->prefixForTargets('a:is(:dir(rtl)) { color: red; }', ['safari' => 14])
         );

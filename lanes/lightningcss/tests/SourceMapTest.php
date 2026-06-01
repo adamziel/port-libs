@@ -1654,6 +1654,59 @@ return [
         $t->same([], $child->getNames());
         $t->same('', $child->writeVlq());
     },
+    'source map drops generated-only spans during pruned input-map appends' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $parentSource = $parent->addSource('entry.css');
+        $parent->setSourceContent($parentSource, ".entry{}\n");
+        $parent->addMapping(0, 0, $parentSource, 0, 0, 'entryRule');
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('blocks/card.scss');
+        $child->setSourceContent($childSource, ".card { color: \$brand; }\n");
+        $child->addMapping(0, 0, $childSource, 2, 1, 'cardRule');
+        $child->addGeneratedMapping(1, 4);
+        $child->offsetLines(2, 2);
+
+        $t->same('AAECA;I;;', $child->writeVlq());
+
+        $parent->appendSourceMapWithGeneratedOffset($child, 2, 3, false);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $data = $parent->toArray(null, false);
+
+        $t->same('AAAAA;;GCECC', $parent->writeVlq());
+        $t->same([0, 2], array_column($decoded, 'generatedLine'));
+        $t->same([0, 3], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 1], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 2], array_column($decoded, 'originalLine'));
+        $t->same([0, 1], array_column($decoded, 'originalColumn'));
+        $t->same([0, 1], array_column($decoded, 'nameIndex'));
+        $t->same(['entry.css', 'blocks/card.scss'], $data['sources']);
+        $t->same([".entry{}\n", ".card { color: \$brand; }\n"], $data['sourcesContent']);
+        $t->same(['entryRule', 'cardRule'], $data['names']);
+        $t->same(null, $parent->findClosestMapping(3, 0));
+        $t->same([], $child->getSources());
+        $t->same('', $child->writeVlq());
+
+        $generatedOnlyParent = new SourceMap();
+        $generatedOnlyEntry = $generatedOnlyParent->addSource('entry.css');
+        $generatedOnlyParent->setSourceContent($generatedOnlyEntry, ".entry{}\n");
+        $generatedOnlyParent->addMapping(0, 0, $generatedOnlyEntry, 0, 0, 'entryRule');
+
+        $generatedOnlyChild = new SourceMap();
+        $generatedOnlySource = $generatedOnlyChild->addSource('blocks/generated-only.scss');
+        $generatedOnlyChild->setSourceContent($generatedOnlySource, ".generated { color: \$brand; }\n");
+        $generatedOnlyChild->addGeneratedMapping(1, 5);
+        $generatedOnlyChild->addName('unusedGeneratedOnly');
+
+        $generatedOnlyParent->appendSourceMapWithGeneratedOffset($generatedOnlyChild, 2, 3, false);
+
+        $t->same('AAAAA', $generatedOnlyParent->writeVlq());
+        $t->same(['entry.css'], $generatedOnlyParent->getSources());
+        $t->same([".entry{}\n"], $generatedOnlyParent->getSourcesContent());
+        $t->same(['entryRule'], $generatedOnlyParent->getNames());
+        $t->same([], $generatedOnlyChild->getSources());
+        $t->same('', $generatedOnlyChild->writeVlq());
+    },
     'source map normalizes upstream project-root source paths' => static function (TestRunner $t): void {
         $map = new SourceMap('/srv/www/site/wp-content/themes/example');
         $style = $map->addSource('/srv/www/site/wp-content/themes/example/style.css');

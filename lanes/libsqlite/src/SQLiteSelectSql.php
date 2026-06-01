@@ -4705,6 +4705,13 @@ final class SQLiteSelectSql
     private static function valueExpression(string $sql, array $tables = []): array
     {
         $sql = trim($sql);
+        if (stripos($sql, 'OVER') !== false) {
+            $binary = self::binaryValueExpression($sql, $tables);
+            if ($binary !== null) {
+                return $binary;
+            }
+        }
+
         $window = self::windowExpression($sql, $tables);
         if ($window !== null) {
             return $window;
@@ -4970,25 +4977,9 @@ final class SQLiteSelectSql
             ];
         }
 
-        foreach ([['&', '|', '<<', '>>'], ['+', '-'], ['*', '/', '%'], ['||', '->>', '->']] as $operators) {
-            $operator = self::topLevelExpressionOperator($sql, $operators);
-            if ($operator === null) {
-                continue;
-            }
-
-            [$offset, $token] = $operator;
-            $left = trim(substr($sql, 0, $offset));
-            $right = trim(substr($sql, $offset + strlen($token)));
-            if ($left === '' || $right === '') {
-                throw new \InvalidArgumentException("SQLite SELECT SQL expression {$token} needs both operands");
-            }
-
-            return [
-                'type' => 'binary',
-                'operator' => $token,
-                'left' => self::valueExpression($left, $tables),
-                'right' => self::valueExpression($right, $tables),
-            ];
+        $binary = self::binaryValueExpression($sql, $tables);
+        if ($binary !== null) {
+            return $binary;
         }
         if (preg_match('/^[+-]?0[xX][0-9A-Fa-f]+$/', $sql) === 1) {
             return ['type' => 'literal', 'value' => self::hexIntegerLiteralValue($sql)];
@@ -5190,6 +5181,36 @@ final class SQLiteSelectSql
         }
 
         throw new \InvalidArgumentException("SQLite SELECT SQL expression {$sql} is not supported");
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array<string,mixed>|null
+     */
+    private static function binaryValueExpression(string $sql, array $tables): ?array
+    {
+        foreach ([['&', '|', '<<', '>>'], ['+', '-'], ['*', '/', '%'], ['||', '->>', '->']] as $operators) {
+            $operator = self::topLevelExpressionOperator($sql, $operators);
+            if ($operator === null) {
+                continue;
+            }
+
+            [$offset, $token] = $operator;
+            $left = trim(substr($sql, 0, $offset));
+            $right = trim(substr($sql, $offset + strlen($token)));
+            if ($left === '' || $right === '') {
+                throw new \InvalidArgumentException("SQLite SELECT SQL expression {$token} needs both operands");
+            }
+
+            return [
+                'type' => 'binary',
+                'operator' => $token,
+                'left' => self::valueExpression($left, $tables),
+                'right' => self::valueExpression($right, $tables),
+            ];
+        }
+
+        return null;
     }
 
     /**

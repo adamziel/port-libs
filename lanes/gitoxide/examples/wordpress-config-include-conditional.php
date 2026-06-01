@@ -12,6 +12,7 @@ return [
     'preview' => $fixture['preview'],
     'singleComponentBranchPolicy' => $fixture['singleComponentBranchPolicy'],
     'singleComponentSlashPolicy' => $fixture['singleComponentSlashPolicy'],
+    'quotedCommentPathPolicy' => $fixture['quotedCommentPathPolicy'],
     'conflictStyle' => $fixture['conflictStyle'],
     'httpExtraHeader' => $fixture['httpExtraHeader'],
     'transferFsckObjects' => $fixture['transferFsckObjects'],

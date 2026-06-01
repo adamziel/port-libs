@@ -1011,6 +1011,45 @@ return [
         $t->same(null, $config->value('user', null, 'trailing'));
     },
 
+    'conditional include paths strip comments before quoted value normalization like gix-config' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $root = $tmpDir();
+        $worktree = $root . '/wp-content';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+
+        $write($worktree . '/direct.config', "[policy]\ndirect = matched\n");
+        $write($worktree . '/branch.config', "[policy]\nbranch = matched\n");
+        $write($worktree . '/gitdir.config', "[policy]\ngitdir = matched\n");
+        $write($worktree . '/remote.config', "[policy]\nremote = matched\n");
+        $write($worktree . '/quoted-value.config', "[policy]\nquotedValue = \"literal # value\" ; comment after quoted value\n");
+        $write($gitDir . '/config', <<<CFG
+        [remote "origin"]
+        url = https://git.example.test/wp-content.git
+        [include]
+        path = "../direct.config" ; comment after quoted include.path
+        [includeIf "onbranch:deploy/"]
+        path = "../branch.config"    # comment after quoted onbranch path
+        [includeIf "gitdir:wp-content/"]
+        path = "../gitdir.config"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content.git"]
+        path = "../remote.config" ; comment after quoted hasconfig path
+        [includeIf "onbranch:deploy/"]
+        path = "../quoted-value.config" ; comment after quoted path
+        CFG);
+
+        $config = GitConfig::fromFile($gitDir . '/config', [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+            'branchName' => 'refs/heads/deploy/site-a',
+        ]);
+
+        $t->same('matched', $config->value('policy', null, 'direct'));
+        $t->same('matched', $config->value('policy', null, 'branch'));
+        $t->same('matched', $config->value('policy', null, 'gitdir'));
+        $t->same('matched', $config->value('policy', null, 'remote'));
+        $t->same('literal # value', $config->value('policy', null, 'quotedValue'));
+    },
+
     'conditional include path interpolation follows gix prefix and tilde sentinels' => static function (TestRunner $t) use ($tmpDir, $write): void {
         $root = $tmpDir();
         $worktree = $root . '/literal-tilde';
@@ -1481,6 +1520,7 @@ return [
         $t->same('enabled', $fixture['preview']);
         $t->same('matched', $fixture['singleComponentBranchPolicy']);
         $t->same(null, $fixture['singleComponentSlashPolicy']);
+        $t->same('matched', $fixture['quotedCommentPathPolicy']);
         $t->same('zdiff3', $fixture['conflictStyle']);
         $t->same('X-WP-Deploy: staging', $fixture['httpExtraHeader']);
         $t->same('true', $fixture['transferFsckObjects']);
@@ -1540,6 +1580,7 @@ return [
         $t->same($fixture['preview'], $summary['preview']);
         $t->same($fixture['singleComponentBranchPolicy'], $summary['singleComponentBranchPolicy']);
         $t->same($fixture['singleComponentSlashPolicy'], $summary['singleComponentSlashPolicy']);
+        $t->same($fixture['quotedCommentPathPolicy'], $summary['quotedCommentPathPolicy']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
         $t->same($fixture['escapedGitdirPolicy'], $summary['escapedGitdirPolicy']);
         $t->same($fixture['recursiveGitdirPolicy'], $summary['recursiveGitdirPolicy']);

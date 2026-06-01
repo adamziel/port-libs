@@ -390,6 +390,55 @@ if (!$resolverRejected) {
 
 echo 'resolver-error-location: mapped' . PHP_EOL;
 
+$prefixResolved = [];
+$prefixResolver = static function (string $specifier, string $originatingFile) use (&$prefixResolved): string {
+    $prefixResolved[] = [$specifier, $originatingFile];
+    if (!str_starts_with($specifier, 'wp:')) {
+        throw new RuntimeException("Failed to resolve WP import `{$specifier}` from `{$originatingFile}` without wp: prefix.");
+    }
+
+    return '/' . substr($specifier, strlen('wp:'));
+};
+$prefixBundle = (new CssBundler())->bundle('/theme.css', [
+    '/theme.css' => '@import "wp:blocks/card.css"; .wp-site-blocks { color: red }',
+    '/blocks/card.css' => '.wp-block-card { color: green }',
+], $prefixResolver);
+
+if (
+    $prefixBundle !== '.wp-block-card{color:green}.wp-site-blocks{color:red}'
+    || $prefixResolved !== [['wp:blocks/card.css', '/theme.css']]
+) {
+    fwrite(STDERR, "Expected wp:-prefixed package imports to resolve through the custom provider\n");
+    exit(1);
+}
+
+echo 'custom-prefix-resolver: resolved' . PHP_EOL;
+
+$prefixRejected = false;
+try {
+    (new CssBundler())->bundle('/theme.css', [
+        '/theme.css' => "\n  @import \"blocks/card.css\";\n  .wp-site-blocks { color: red }",
+        '/blocks/card.css' => '.wp-block-card { color: green }',
+    ], $prefixResolver);
+} catch (CssBundleException $exception) {
+    $prefixRejected = $exception->kind === 'resolver-error'
+        && $exception->getMessage() === 'Failed to resolve WP import `blocks/card.css` from `/theme.css` without wp: prefix.'
+        && $exception->sourceFile === '/theme.css'
+        && $exception->sourceLine === 2
+        && $exception->sourceColumn === 3
+        && $prefixResolved === [
+            ['wp:blocks/card.css', '/theme.css'],
+            ['blocks/card.css', '/theme.css'],
+        ];
+}
+
+if (!$prefixRejected) {
+    fwrite(STDERR, "Expected non-prefixed block package imports to report the import location\n");
+    exit(1);
+}
+
+echo 'custom-prefix-resolver: rejected' . PHP_EOL;
+
 $readerObjectRejected = false;
 try {
     (new CssBundler())->bundleWithReader(
