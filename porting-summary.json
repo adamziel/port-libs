@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 12:26:53 UTC",
-    "sourceCommit": "7ea5a92c04a1f9fc2133b1464757c86314bd6c9e",
-    "sourceCommitShort": "7ea5a92c04a1",
+    "generated": "2026-06-01 12:31:11 UTC",
+    "sourceCommit": "8aa0f647feef219f847496a11e97b301093c2aae",
+    "sourceCommitShort": "8aa0f647feef",
     "sourceBranch": "unknown",
-    "dashboardCommit": "7ea5a92c04a1f9fc2133b1464757c86314bd6c9e",
-    "dashboardCommitShort": "7ea5a92c04a1",
+    "dashboardCommit": "8aa0f647feef219f847496a11e97b301093c2aae",
+    "dashboardCommitShort": "8aa0f647feef",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "5,889,968 pass / 7 fail",
+            "php": "5,889,994 pass / 7 fail",
             "phase": "focused source integration accepted; broad full-lane/release parity r...",
-            "audit": "2026-06-01 supervisor batch: focused libsqlite/domain gate passed 22...",
-            "currentWork": "Pragma writable-schema index-rootpage swap integrity diagnostics, wherelimit3 B-tree/...",
+            "audit": "2026-06-01 supervisor PDO follow-up: SQLitePdoPolyfillTest plus no-do...",
+            "currentWork": "SQLitePDO exec parameter arrays, first file-backed persistence/reopen support, and un...",
             "nextTarget": "Prioritize fixing the broad full-lane memory exhaustion in SQ...",
             "remainingGate": "Broad release/all still has 7 known failures",
-            "commit": "7ea5a92"
+            "commit": "8aa0f64"
         },
         {
             "lane": "lightningcss",
