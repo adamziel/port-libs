@@ -359,6 +359,23 @@ return [
         $t->same([], $zeroDatabase->promisorRemotes());
         $t->same('missing', $zeroDatabase->objectState($notPromisedOid)['status']);
     },
+    'object database rejects malformed promisor remote config booleans like gix-config' => static function (TestRunner $t) use ($writePromisorConfigFixture): void {
+        $gitDir = $writePromisorConfigFixture('sometimes');
+        $database = new ObjectDatabase($gitDir);
+        $missingOid = (new GitObject('blob', 'Malformed remote.origin.promisor must not silently disable hydration'))->oid();
+
+        $message = null;
+        try {
+            $database->promisorRemotes();
+        } catch (RuntimeException $exception) {
+            $message = $exception->getMessage();
+        }
+
+        $t->true($message !== null, 'Malformed remote.origin.promisor values should reject promisor config parsing');
+        $t->contains('Invalid Git config boolean value for remote promisor: sometimes', (string) $message);
+        $t->contains("Booleans need to be 'no', 'off', 'false', '' or 'yes', 'on', 'true' or any number", (string) $message);
+        $t->throws(RuntimeException::class, static fn () => $database->objectState($missingOid));
+    },
     'object database can lazily resolve promised missing objects into loose storage' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
         [$gitDir] = $writePromisorPackFixture();
         $missingMediaBlob = new GitObject('blob', 'Lazily fetched WordPress media attachment bytes');
@@ -1271,6 +1288,8 @@ return [
             'url' => 'https://git.example.test/wp-content.git',
             'partialCloneFilter' => 'blob:none',
         ]], $summary['promisorRemotes']);
+        $t->contains('Invalid Git config boolean value for remote promisor: sometimes', (string) $summary['invalidPromisorConfigMessage']);
+        $t->contains("Booleans need to be 'no', 'off', 'false', '' or 'yes', 'on', 'true' or any number", (string) $summary['invalidPromisorConfigMessage']);
         $t->same('promisor-present', $summary['afterRead']['status']);
         $t->same(true, in_array($summary['hydrationPack'], $summary['promisorPacksAfterHydration'], true));
         $t->same(true, str_ends_with($summary['hydrationKeep'], '.keep'));

@@ -108,6 +108,23 @@ file_put_contents($gitDir . '/config', <<<CFG
     partialCloneFilter = blob:none
 CFG);
 
+$invalidConfigGitDir = sys_get_temp_dir() . '/port-libs-git-lazy-promisor-invalid-config-' . bin2hex(random_bytes(4)) . '/.git';
+if (!mkdir($invalidConfigGitDir . '/objects/pack', 0777, true) && !is_dir($invalidConfigGitDir . '/objects/pack')) {
+    throw new RuntimeException("Unable to create invalid promisor config fixture: {$invalidConfigGitDir}");
+}
+file_put_contents($invalidConfigGitDir . '/config', <<<CFG
+[remote "origin"]
+    url = https://git.example.test/wp-content.git
+    promisor = sometimes
+    partialCloneFilter = blob:none
+CFG);
+$invalidPromisorConfigMessage = null;
+try {
+    (new ObjectDatabase($invalidConfigGitDir))->promisorRemotes();
+} catch (RuntimeException $exception) {
+    $invalidPromisorConfigMessage = $exception->getMessage();
+}
+
 $mediaBlob = new GitObject('blob', 'Lazily fetched WordPress media attachment bytes');
 $thinStable = '';
 for ($i = 0; $i < 72; $i++) {
@@ -470,6 +487,7 @@ try {
 
 return [
     'promisorRemotes' => $database->promisorRemotes(),
+    'invalidPromisorConfigMessage' => $invalidPromisorConfigMessage,
     'promisorPacks' => $database->promisorPackNames(),
     'mediaObject' => $mediaBlob->oid(),
     'beforeRead' => $before,

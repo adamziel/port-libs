@@ -1658,6 +1658,9 @@ final class ObjectDatabase
             return preg_match('/^[+-]?0+$/', $normalized) !== 1;
         }
 
-        return false;
+        throw new \RuntimeException(
+            "Invalid Git config boolean value for remote promisor: {$value}. "
+            . "Booleans need to be 'no', 'off', 'false', '' or 'yes', 'on', 'true' or any number"
+        );
     }
 }
