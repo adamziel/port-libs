@@ -2,15 +2,15 @@
     "schemaVersion": 1,
     "library": "gitoxide",
     "estimatedProgress": 96.2,
-    "suiteProgress": "Supervisor-integrated Gitoxide merge-base shallow/promisor missing-parent intersection parity and URL/refspec UTF-8 canonical writer parity. Verification passed changed PHP lint, git diff --check, changed example smoke, and full Gitoxide lane 40 files / 8370 assertions / 0 failures.",
-    "phpPass": 8370,
+    "suiteProgress": "Supervisor-integrated Gitoxide protocol-v2 ref-in-want fetch exchange sideband parity. Verification passed changed PHP lint, git diff --cached --check, changed example smoke, and full Gitoxide lane 40 files / 8383 assertions / 0 failures.",
+    "phpPass": 8383,
     "phpFail": 0,
-    "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering boundaries, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base graph behavior including shallow/promisor missing-parent intersections, URL/refspec UTF-8 canonical writing, tree-merge behavior, and pack building without shelling out to git.",
+    "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering boundaries, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, protocol-v2 ref-in-want fetch exchange sideband parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base graph behavior, URL/refspec canonical writing, tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 supervisor batch: accepted source fcfaf07d459a with merge-base shallow/promisor missing-parent intersection parity and URL/refspec UTF-8 canonical writer parity. Full Gitoxide lane passed 40 files / 8370 assertions / 0 failures; full Cargo workspace was not executed.",
-    "currentWork": "Merge-base shallow/promisor missing-parent intersection parity and URL/refspec UTF-8 canonical writer parity integrated on current base.",
+    "audit": "2026-06-01 supervisor batch: accepted source 0a5ff0db8c57 with protocol-v2 ref-in-want fetch exchange sideband parity. Full Gitoxide lane passed 40 files / 8383 assertions / 0 failures; full Cargo workspace was not executed.",
+    "currentWork": "Protocol-v2 ref-in-want fetch exchange sideband parity integrated on current base.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "fcfaf07d459ace211dc4575ab736cd60a6c891b0",
+    "latestCommit": "0a5ff0db8c576a94f6e2edee941eda3bf53871cb",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping sparse-checkout, attributes/pathspec, credential, config, partial-clone, transport/protocol, pack/index, reference, tree-merge, merge-base, URL/refspec, and object-database parity slices; integrate only full-lane-green batches.",
-    "commit": "fcfaf07d459ace211dc4575ab736cd60a6c891b0"
+    "commit": "0a5ff0db8c576a94f6e2edee941eda3bf53871cb"
 }
