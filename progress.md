@@ -1,8 +1,8 @@
 | Project | Focus | State | Progress | PHP Tests | Mapped Upstream | Unmapped | Next Gate | Commit |
 | --- | --- | --- | ---: | ---: | --- | ---: | --- | --- |
-| [libsqlite](lanes/libsqlite/lane-status.json) | Primary | 16 open failures | 99.6% | 5,941,178 pass / 16 fail | [1,589 / 1,589 (100.0%)](lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json) | 0 | Broad libsqlite full-lane/release parity is not green: latest selecte... | eef9582 |
-| [LightningCSS](lanes/lightningcss/lane-status.json) | Active | PHP green, upstream gap | 99.8% | 8,290 pass / 0 fail | [2,393 / 3,532 (67.8%)](lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json) | 1,139 | Rust/Node/WASM upstream runners not run | eef9582 |
-| [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.1% | 9,835 pass / 0 fail | [1,799 / 2,886 (62.3%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,087 | Cargo workspace not run | eef9582 |
+| [libsqlite](lanes/libsqlite/lane-status.json) | Primary | 16 open failures | 99.6% | 5,941,212 pass / 16 fail | [1,589 / 1,589 (100.0%)](lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json) | 0 | Broad libsqlite full-lane/release parity is not green: latest selecte... | 876fa5f |
+| [LightningCSS](lanes/lightningcss/lane-status.json) | Active | PHP green, upstream gap | 99.8% | 8,305 pass / 0 fail | [2,393 / 3,532 (67.8%)](lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json) | 1,139 | Rust/Node/WASM upstream runners not run | 876fa5f |
+| [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.1% | 9,851 pass / 0 fail | [1,799 / 2,886 (62.3%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,087 | Cargo workspace not run | 876fa5f |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
 | [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 95.0% | 239 pass / 0 fail | [660 / 2,276 (29.0%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 1,616 | No local blocker | cd2e8a0 |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
