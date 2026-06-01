@@ -365,6 +365,7 @@ final class SQLitePDO extends \PDO
         $table = $statement['target'];
         $this->assertTable($table);
         $columns = $statement['columns'] ?? $this->columns[$table];
+        $this->assertColumns($table, $columns);
         $changes = 0;
         $parameterCursor = $parameters;
         foreach ($statement['tuples'] as $values) {
@@ -402,6 +403,7 @@ final class SQLitePDO extends \PDO
             }
             $assignments[$assignmentMatch[1]] = $assignmentMatch[2];
         }
+        $this->assertColumns($table, array_keys($assignments));
         $indexes = $this->matchingIndexes($table, $match[3] ?? null, $parameters);
         foreach ($indexes as $index) {
             $parameterCursor = $parameters;
@@ -448,6 +450,17 @@ final class SQLitePDO extends \PDO
     {
         if (!array_key_exists($table, $this->tables)) {
             throw new \PDOException("SQLitePDO table {$table} does not exist");
+        }
+    }
+
+    /** @param list<string> $columns */
+    private function assertColumns(string $table, array $columns): void
+    {
+        $known = array_flip($this->columns[$table]);
+        foreach ($columns as $column) {
+            if (!array_key_exists($column, $known)) {
+                throw new \PDOException("SQLitePDO table {$table} has no column named {$column}");
+            }
         }
     }
 

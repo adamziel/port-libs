@@ -115,6 +115,33 @@ return [
         $t->same(['kept'], $pdo->query('SELECT body FROM logs ORDER BY id')->fetchAll(PDO::FETCH_COLUMN));
     },
 
+    'SQLitePDO rejects unknown INSERT and UPDATE columns without mutating rows' => static function (TestRunner $t): void {
+        $pdo = new SQLitePDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)');
+
+        try {
+            $pdo->exec("INSERT INTO test (namedd) VALUES ('Janet')");
+            throw new RuntimeException('Expected PDOException for unknown INSERT column');
+        } catch (PDOException $exception) {
+            $t->contains('no column named namedd', $exception->getMessage());
+            $t->same('HY000', $pdo->errorCode());
+            $t->same('HY000', $pdo->errorInfo()[0]);
+        }
+        $t->same([], $pdo->query('SELECT * FROM test')->fetchAll(PDO::FETCH_ASSOC));
+
+        $t->same(1, $pdo->exec("INSERT INTO test (name) VALUES ('Janet')"));
+        try {
+            $pdo->exec("UPDATE test SET namedd = 'Other' WHERE id = 1");
+            throw new RuntimeException('Expected PDOException for unknown UPDATE column');
+        } catch (PDOException $exception) {
+            $t->contains('no column named namedd', $exception->getMessage());
+            $t->same('HY000', $pdo->errorCode());
+            $t->same('HY000', $pdo->errorInfo()[0]);
+        }
+
+        $t->same([['id' => 1, 'name' => 'Janet']], $pdo->query('SELECT * FROM test')->fetchAll(PDO::FETCH_ASSOC));
+    },
+
     'SQLitePDO reports PDO exceptions for invalid DSNs unsupported APIs and transaction misuse' => static function (TestRunner $t): void {
         $t->throws(PDOException::class, static fn () => new SQLitePDO('mysql:dbname=test'));
 
