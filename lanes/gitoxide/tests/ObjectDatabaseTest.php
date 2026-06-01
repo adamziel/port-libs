@@ -91,6 +91,22 @@ $writeWordPressSha256MultiPackFixture = static function (): array {
     return [$gitDir, $fixture];
 };
 
+$writeWordPressSha256MultiPackFixtureToObjectsDirectory = static function (string $objectsDirectory): array {
+    $fixture = require dirname(__DIR__) . '/fixtures/wordpress-object-database-multi-pack-sha256.php';
+    $packDir = $objectsDirectory . '/pack';
+    if (!mkdir($packDir, 0777, true) && !is_dir($packDir)) {
+        throw new RuntimeException("Unable to create SHA-256 multi-pack fixture directory: {$packDir}");
+    }
+
+    foreach ($fixture['packs'] as $pack) {
+        file_put_contents($packDir . '/' . $pack['packName'], $pack['packBytes']);
+        file_put_contents($packDir . '/' . $pack['indexName'], $pack['indexBytes']);
+    }
+    file_put_contents($packDir . '/multi-pack-index', $fixture['multiIndexBytes']);
+
+    return $fixture;
+};
+
 $rewriteMultiPackIndexOffset = static function (string $bytes, string $oid, int $packIndex, int $packOffset): string {
     $readUInt64 = static function (string $data, int $offset): int {
         $parts = unpack('Nhigh/Nlow', substr($data, $offset, 8));
@@ -1067,6 +1083,53 @@ return [
         $t->same($content['oid'], $contentObject->oid('sha256'));
         $t->same(['type' => 'blob', 'size' => strlen($media['body']), 'source' => 'pack'], $mediaHeader);
     },
+    'object database de-duplicates sha256 MIDX prefix candidates repeated through alternates like gix-odb' => static function (TestRunner $t) use ($writeWordPressSha256MultiPackFixture, $writeWordPressSha256MultiPackFixtureToObjectsDirectory): void {
+        [$gitDir, $fixture] = $writeWordPressSha256MultiPackFixture();
+        $alternateObjectsDirectory = dirname($gitDir) . '/alternate-sha256-cache/objects';
+        $alternateFixture = $writeWordPressSha256MultiPackFixtureToObjectsDirectory($alternateObjectsDirectory);
+        $objectsInfoDirectory = $gitDir . '/objects/info';
+        if (!mkdir($objectsInfoDirectory, 0777, true) && !is_dir($objectsInfoDirectory)) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsInfoDirectory}");
+        }
+        file_put_contents($objectsInfoDirectory . '/alternates', $alternateObjectsDirectory . "\n");
+
+        $looseCandidateBody = 'midx-sha256-prefix-candidate-145428';
+        $alternateLooseCandidate = LooseObjectStore::fromObjectsDirectory($alternateObjectsDirectory, 'sha256')
+            ->write(new GitObject('blob', $looseCandidateBody));
+
+        $database = new ObjectDatabase($gitDir, objectHash: 'sha256');
+        $content = $fixture['objectsByRole']['content'];
+        $contentOid = $content['oid'];
+
+        $t->same($contentOid, $alternateFixture['objectsByRole']['content']['oid']);
+        $t->same(64, strlen($alternateLooseCandidate));
+        $t->same(substr($contentOid, 0, 4), substr($alternateLooseCandidate, 0, 4));
+        $t->same($looseCandidateBody, $database->read($alternateLooseCandidate)->body);
+
+        $duplicatePrefix = $database->lookupPrefix(strtoupper(substr($contentOid, 0, 12)), true);
+        $t->same('found', $duplicatePrefix['status']);
+        $t->same($contentOid, $duplicatePrefix['oid']);
+        $t->same([$contentOid], $duplicatePrefix['candidates']);
+
+        $ambiguousPrefix = $database->lookupPrefix(strtoupper(substr($contentOid, 0, 4)), true);
+        $expectedCandidates = [$contentOid, $alternateLooseCandidate];
+        sort($expectedCandidates, SORT_STRING);
+        $t->same('ambiguous', $ambiguousPrefix['status']);
+        $t->same($expectedCandidates, $ambiguousPrefix['matches']);
+        $t->same($expectedCandidates, $ambiguousPrefix['candidates']);
+        $t->same($expectedCandidates, array_values(array_unique($ambiguousPrefix['candidates'])));
+
+        $shortestContentPrefix = $database->disambiguatePrefix(strtoupper($contentOid), 4);
+        $t->true($shortestContentPrefix !== null);
+        $t->true(strlen($shortestContentPrefix) > 4);
+        $t->same(substr($contentOid, 0, strlen($shortestContentPrefix)), $shortestContentPrefix);
+        $t->same(['status' => 'found', 'oid' => $contentOid], $database->lookupPrefix($shortestContentPrefix));
+
+        $absentContentCandidate = substr($contentOid, 0, 8) . str_repeat('f', 56);
+        $t->same(substr($contentOid, 0, 8), $database->disambiguatePrefix(strtoupper($absentContentCandidate), 8));
+        $t->same(null, $database->disambiguatePrefix($absentContentCandidate, 64));
+        $t->same(['status' => 'missing', 'candidates' => []], $database->lookupPrefix($absentContentCandidate, true));
+    },
     'wordpress object database multi-pack example verifies referenced pack offsets' => static function (TestRunner $t): void {
         $summary = require dirname(__DIR__) . '/examples/wordpress-object-database-multi-pack.php';
 
@@ -1116,13 +1179,30 @@ return [
         $summary = require dirname(__DIR__) . '/examples/wordpress-object-database-multi-pack-sha256.php';
 
         $t->same('sha256', $summary['objectHash']);
-        $t->same(2, $summary['packedObjects']);
+        $t->same(4, $summary['packedObjects']);
         $t->same(64, $summary['multiPackIndexChecksumLength']);
         $t->same(64, $summary['contentOidLength']);
         $t->same(true, $summary['contentReadable']);
         $t->same('found', $summary['mediaPrefixStatus']);
         $t->same(1, count($summary['mediaPrefixCandidates']));
         $t->same('pack', $summary['mediaHeader']['source']);
+        $t->same('found', $summary['contentDuplicatePrefixStatus']);
+        $t->same([$summary['contentOid']], $summary['contentDuplicatePrefixCandidates']);
+        $t->same('ambiguous', $summary['contentAmbiguousPrefixStatus']);
+        $expectedSha256Candidates = [
+            $summary['contentOid'],
+            $summary['alternateLooseCandidateOid'],
+        ];
+        sort($expectedSha256Candidates, SORT_STRING);
+        $t->same($expectedSha256Candidates, $summary['contentAmbiguousPrefixCandidates']);
+        $t->same(true, $summary['alternateLooseCandidateReadable']);
+        $t->true(strlen($summary['contentShortestPrefixAfterAlternateCandidate']) > 4);
+        $t->same(
+            substr($summary['contentOid'], 0, strlen($summary['contentShortestPrefixAfterAlternateCandidate'])),
+            $summary['contentShortestPrefixAfterAlternateCandidate']
+        );
+        $t->same(substr($summary['contentOid'], 0, 8), $summary['absentContentCandidateShortestPrefix']);
+        $t->same(false, $summary['absentContentCandidateFullPrefixExists']);
     },
     'wordpress object database example writes deployment commits through the database' => static function (TestRunner $t): void {
         $summary = require dirname(__DIR__) . '/examples/wordpress-object-database.php';

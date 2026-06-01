@@ -489,10 +489,14 @@ final class ObjectDatabase
     /**
      * @return array{packName:string,indexName:string,promisorName:string,keepName:?string,packChecksum:string,indexChecksum:string,objectIds:list<string>,objectCount:int,alreadyPresent:bool}
      */
-    public function writePromisorPackBundle(PackBuildResult $pack, string $promisorNote = '', bool $keep = true): array
+    public function writePromisorPackBundle(PackBuildResult $pack, string $promisorNote = '', bool $keep = true, bool $repairThinPack = false): array
     {
         if ($this->objectHash !== 'sha1') {
             throw new \RuntimeException('Promisor pack bundle writing currently supports SHA-1 pack build results');
+        }
+
+        if ($repairThinPack && $pack->isThin()) {
+            $pack = $this->repairPromisorThinPack($pack);
         }
 
         $this->assertPromisorPackExternalBasesResolvable($pack);
@@ -540,6 +544,72 @@ final class ObjectDatabase
             'objectCount' => count($pack->entries()),
             'alreadyPresent' => $packAlreadyExists && $indexAlreadyExists,
         ];
+    }
+
+    private function repairPromisorThinPack(PackBuildResult $pack): PackBuildResult
+    {
+        $externalBases = $this->externalBaseObjectsForThinPack($pack);
+        if ($externalBases === []) {
+            return $pack;
+        }
+
+        return PackData::fromBytes($pack->packBytes(), $this->objectHash)
+            ->repairThinPack(PackIndex::fromBytes($pack->indexBytes(), $this->objectHash), $externalBases);
+    }
+
+    /**
+     * @return array<string,GitObject>
+     */
+    private function externalBaseObjectsForThinPack(PackBuildResult $pack): array
+    {
+        $contained = [];
+        foreach ($pack->entries() as $entry) {
+            $contained[$entry['oid']] = true;
+        }
+
+        $externalBases = [];
+        foreach ($pack->entries() as $entry) {
+            if (($entry['storage'] ?? 'whole') !== 'ref-delta' || !isset($entry['baseOid'])) {
+                continue;
+            }
+
+            $baseOid = strtolower($entry['baseOid']);
+            if (isset($contained[$baseOid]) || isset($externalBases[$baseOid])) {
+                continue;
+            }
+
+            $externalBases[$baseOid] = $this->readPromisorPackExternalBaseObject($baseOid);
+        }
+
+        return $externalBases;
+    }
+
+    private function readPromisorPackExternalBaseObject(string $baseOid): GitObject
+    {
+        $this->assertObjectId($baseOid);
+        $baseOid = strtolower($baseOid);
+
+        $object = $this->tryReadLocalObject($baseOid);
+        if ($object !== null) {
+            return $object;
+        }
+
+        if ($this->hasPromisorConfiguration()) {
+            $object = $this->resolvePromisedObject($baseOid);
+            if ($object !== null) {
+                return $object;
+            }
+
+            if ($this->refreshObjectStorageOnMiss) {
+                $this->refreshObjectStorage();
+                $object = $this->tryReadLocalObject($baseOid);
+                if ($object !== null) {
+                    return $object;
+                }
+            }
+        }
+
+        throw new \RuntimeException("Promisor pack external REF_DELTA base not found in object database, alternates, or promisor resolver: {$baseOid}");
     }
 
     private function assertPromisorPackExternalBasesResolvable(PackBuildResult $pack): void

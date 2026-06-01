@@ -24,7 +24,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next232',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $savepoint) !== 1) {
             throw new \InvalidArgumentException('SQLite row-value window current-source next232 savepoint must be an identifier');
@@ -154,7 +154,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_returning_window_next233',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($yieldStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value returning window next233 needs yield statements');
@@ -311,7 +311,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 $previousBytes = $bytes;
             }
             $windows[] = [
-                'option_id' => self::rowIdValueReturningWindowRollbackRetry($row, $rowIdColumn),
+                $rowIdColumn => self::rowIdValueReturningWindowRollbackRetry($row, $rowIdColumn),
                 'option_name' => (string) ($row['option_name'] ?? ''),
                 'status' => $row['status'] ?? null,
                 'bytes' => $bytes,
@@ -877,7 +877,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_returning_window_next235',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
@@ -1002,7 +1002,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next236',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReturningWindowRollbackRetry(
             $tables,
@@ -1500,7 +1500,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_returning_window_next238',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReturningWindowDigests(
             $tables,
@@ -1802,7 +1802,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next239',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentRowWindowFrames(
             $tables,

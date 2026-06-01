@@ -6,6 +6,7 @@ require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
+require_once __DIR__ . '/../src/SQLiteRowIdColumn.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
 require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointPlan.php';
 require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
@@ -43,6 +44,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeR
         "DELETE FROM wp_options WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'retry_delete') RETURNING option_id, blog_id, option_name, status ORDER BY option_id DESC",
     ],
     [['blog_id', 'option_name']],
+    rowIdColumn: 'option_id',
 );
 
 if (($argv[1] ?? '') === '--self-test') {

@@ -8,6 +8,8 @@ use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\LooseObjectStore;
 use PortLibs\Gitoxide\ObjectDatabase;
 use PortLibs\Gitoxide\PackBuilder;
+use PortLibs\Gitoxide\PackData;
+use PortLibs\Gitoxide\PackIndex;
 use PortLibs\Gitoxide\PromisorObjectResolver;
 
 $fixture = require __DIR__ . '/../fixtures/wordpress-pack-data.php';
@@ -47,6 +49,12 @@ for ($i = 0; $i < 72; $i++) {
 }
 $alternateBaseBlob = new GitObject('blob', "WordPress alternate template base\n{$alternateStable}status=draft\nchecksum=old\n");
 $alternateTargetBlob = new GitObject('blob', "WordPress alternate template base\n{$alternateStable}status=publish\nchecksum=new\n");
+$repairedStable = '';
+for ($i = 0; $i < 72; $i++) {
+    $repairedStable .= hash('sha1', 'wordpress-repaired-promisor-base-' . $i) . "\n";
+}
+$repairedBaseBlob = new GitObject('blob', "WordPress repaired thin-pack base\n{$repairedStable}status=draft\nchecksum=old\n");
+$repairedTargetBlob = new GitObject('blob', "WordPress repaired thin-pack base\n{$repairedStable}status=publish\nchecksum=new\n");
 $resolver = new class([$mediaBlob, $thinBaseBlob]) implements PromisorObjectResolver {
     public array $requests = [];
     public ?string $hydrationPack = null;
@@ -195,6 +203,37 @@ $alternateThinTargetHeader = $database->readHeader($alternateTargetBlob->oid());
 $alternateThinTarget = $database->read($alternateTargetBlob->oid());
 $promisorPacksAfterAlternateHydration = $database->promisorPackNames();
 
+$repairedThinPack = PackBuilder::buildWithRefDeltas([$repairedTargetBlob], [$repairedBaseBlob]);
+$repairedResolver = new class($repairedBaseBlob) implements PromisorObjectResolver {
+    public array $requests = [];
+
+    public function __construct(private readonly GitObject $base)
+    {
+    }
+
+    public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
+    {
+        $this->requests[] = $oid;
+
+        return $oid === $this->base->oid() ? $this->base : null;
+    }
+};
+$repairedDatabase = $database->withPromisorResolver($repairedResolver);
+$repairedBaseBeforeWrite = $repairedDatabase->objectState($repairedBaseBlob->oid());
+$repairedWrite = $repairedDatabase->writePromisorPackBundle(
+    $repairedThinPack,
+    "WordPress repaired received thin promisor pack\n",
+    true,
+    true
+);
+$repairedStoredPack = PackData::open($packDir . '/' . $repairedWrite['packName']);
+$repairedStoredIndex = PackIndex::open($packDir . '/' . $repairedWrite['indexName']);
+$repairedTargetHeader = $repairedStoredPack->readObjectHeader($repairedStoredIndex, $repairedTargetBlob->oid());
+$repairedTargetBodyMatches = $repairedStoredPack->readObject($repairedStoredIndex, $repairedTargetBlob->oid())->body === $repairedTargetBlob->body;
+$repairedFreshDatabase = new ObjectDatabase($gitDir);
+$repairedFreshTargetState = $repairedFreshDatabase->objectState($repairedTargetBlob->oid());
+$repairedFreshTargetHeader = $repairedFreshDatabase->readHeader($repairedTargetBlob->oid());
+
 $inventoryBlob = new GitObject('blob', 'WordPress direct promisor inventory refresh bytes');
 $inventoryPack = PackBuilder::build([$inventoryBlob]);
 $inventoryWrite = $database->writePromisorPackBundle($inventoryPack, "WordPress direct promisor inventory hydration\n");
@@ -326,6 +365,20 @@ return [
     'alternateThinTargetSize' => strlen($alternateThinTarget->body),
     'alternateThinTargetBodyMatches' => $alternateThinTarget->body === $alternateTargetBlob->body,
     'promisorPacksAfterAlternateHydration' => $promisorPacksAfterAlternateHydration,
+    'repairedThinPackWasThin' => $repairedThinPack->isThin(),
+    'repairedBaseBeforeWrite' => $repairedBaseBeforeWrite,
+    'repairedResolverRequests' => $repairedResolver->requests,
+    'repairedPromisorPack' => $repairedWrite['promisorName'],
+    'repairedPromisorKeep' => $repairedWrite['keepName'],
+    'repairedPromisorObjects' => $repairedWrite['objectIds'],
+    'repairedPromisorObjectCount' => $repairedWrite['objectCount'],
+    'repairedPackChecksumChanged' => $repairedWrite['packChecksum'] !== $repairedThinPack->packChecksum(),
+    'repairedStoredPackCount' => $repairedStoredPack->count(),
+    'repairedStoredIndexCount' => $repairedStoredIndex->count(),
+    'repairedTargetHeader' => $repairedTargetHeader,
+    'repairedTargetBodyMatches' => $repairedTargetBodyMatches,
+    'repairedFreshTargetState' => $repairedFreshTargetState,
+    'repairedFreshTargetHeader' => $repairedFreshTargetHeader,
     'directInventoryObject' => $inventoryBlob->oid(),
     'directInventoryPack' => $inventoryWrite['promisorName'],
     'directInventoryKeep' => $inventoryWrite['keepName'],

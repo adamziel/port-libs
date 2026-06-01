@@ -1579,32 +1579,87 @@ final class SourceMap
      */
     private static function parseDataUrl(string $dataUrl): array
     {
-        if (!str_starts_with(strtolower($dataUrl), 'data:')) {
-            throw new InvalidArgumentException('Source map data URL must use the data: scheme.');
+        $dataUrl = self::trimC0AndSpace($dataUrl);
+        $length = strlen($dataUrl);
+        $offset = 0;
+        foreach (['d', 'a', 't', 'a', ':'] as $expected) {
+            while ($offset < $length && self::isUrlIgnoredAscii($dataUrl[$offset])) {
+                $offset++;
+            }
+
+            if ($offset >= $length) {
+                throw new InvalidArgumentException('Source map data URL must use the data: scheme.');
+            }
+
+            $char = $dataUrl[$offset];
+            if ($expected === ':') {
+                if ($char !== ':') {
+                    throw new InvalidArgumentException('Source map data URL must use the data: scheme.');
+                }
+            } elseif (strtolower($char) !== $expected) {
+                throw new InvalidArgumentException('Source map data URL must use the data: scheme.');
+            }
+
+            $offset++;
         }
 
-        $comma = strpos($dataUrl, ',');
-        if ($comma === false) {
-            throw new InvalidArgumentException('Source map data URL is missing a payload separator.');
-        }
+        $afterColon = self::trimC0AndSpace(substr($dataUrl, $offset));
+        $comma = null;
+        for ($i = 0, $afterColonLength = strlen($afterColon); $i < $afterColonLength; $i++) {
+            if ($afterColon[$i] === ',') {
+                $comma = $i;
+                break;
+            }
 
-        $metadata = substr($dataUrl, 5, $comma - 5);
-        $payload = substr($dataUrl, $comma + 1);
-        $parts = $metadata === '' ? [] : explode(';', $metadata);
-        $mimeType = $parts[0] ?? 'text/plain';
-        if ($mimeType === '') {
-            $mimeType = 'text/plain';
-        }
-
-        $isBase64 = false;
-        foreach (array_slice($parts, 1) as $parameter) {
-            if (strtolower($parameter) === 'base64') {
-                $isBase64 = true;
+            if ($afterColon[$i] === '#') {
                 break;
             }
         }
 
+        if ($comma === null) {
+            throw new InvalidArgumentException('Source map data URL is missing a payload separator.');
+        }
+
+        $metadata = substr($afterColon, 0, $comma);
+        $payload = substr($afterColon, $comma + 1);
+        [$mimeType, $isBase64] = self::parseDataUrlMetadata($metadata);
+
         return [$mimeType, $payload, $isBase64];
+    }
+
+    /**
+     * @return array{0:string,1:bool}
+     */
+    private static function parseDataUrlMetadata(string $metadata): array
+    {
+        $metadata = trim($metadata, " \t\n\r");
+        $metadata = str_replace(["\t", "\n", "\r"], '', $metadata);
+        $isBase64 = preg_match('/; *base64 *$/i', $metadata) === 1;
+        if ($isBase64) {
+            $metadata = preg_replace('/; *base64 *$/i', '', $metadata) ?? $metadata;
+        }
+
+        if (str_starts_with($metadata, ';')) {
+            $metadata = 'text/plain' . $metadata;
+        }
+
+        $mimeType = explode(';', $metadata, 2)[0] ?? 'text/plain';
+        $mimeType = trim($mimeType);
+        if ($mimeType === '') {
+            $mimeType = 'text/plain';
+        }
+
+        return [$mimeType, $isBase64];
+    }
+
+    private static function trimC0AndSpace(string $value): string
+    {
+        return preg_replace('/^[\x00-\x20]+|[\x00-\x20]+$/', '', $value) ?? $value;
+    }
+
+    private static function isUrlIgnoredAscii(string $char): bool
+    {
+        return $char === "\t" || $char === "\n" || $char === "\r";
     }
 
     private static function decodeDataUrlPayload(string $payload): string

@@ -9,6 +9,8 @@ use PortLibs\Gitoxide\LooseObjectStore;
 use PortLibs\Gitoxide\ObjectDatabase;
 use PortLibs\Gitoxide\PackBuilder;
 use PortLibs\Gitoxide\PackBuildResult;
+use PortLibs\Gitoxide\PackData;
+use PortLibs\Gitoxide\PackIndex;
 use PortLibs\Gitoxide\PromisorObjectResolver;
 use PortLibs\Gitoxide\ProtocolCapabilities;
 use PortLibs\Gitoxide\Tree;
@@ -623,6 +625,57 @@ return [
         $t->same(false, is_file($packDir . '/' . $basename . '.promisor'));
         $t->same('promised-missing', $database->objectState($targetBlob->oid())['status']);
     },
+    'object database repairs received promisor thin pack bundles with resolver hydrated bases' => static function (TestRunner $t) use ($writePromisorPackFixture, $buildThinPromisorBlobs): void {
+        [$gitDir] = $writePromisorPackFixture();
+        [$baseBlob, $targetBlob] = $buildThinPromisorBlobs('resolver-repaired-bundle');
+        $baseOid = $baseBlob->oid();
+        $targetOid = $targetBlob->oid();
+        $thinPack = PackBuilder::buildWithRefDeltas([$targetBlob], [$baseBlob]);
+        $resolver = new class($baseBlob) implements PromisorObjectResolver {
+            public array $requests = [];
+
+            public function __construct(private readonly GitObject $base)
+            {
+            }
+
+            public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
+            {
+                $this->requests[] = $oid;
+
+                return $oid === $this->base->oid() ? $this->base : null;
+            }
+        };
+        $database = (new ObjectDatabase($gitDir))->withPromisorResolver($resolver);
+
+        $t->same(true, $thinPack->isThin());
+        $t->same('promised-missing', $database->objectState($baseOid)['status']);
+
+        $write = $database->writePromisorPackBundle(
+            $thinPack,
+            "resolver repaired promisor thin pack\n",
+            true,
+            true
+        );
+        $packDir = $gitDir . '/objects/pack';
+        $storedPack = PackData::open($packDir . '/' . $write['packName']);
+        $storedIndex = PackIndex::open($packDir . '/' . $write['indexName']);
+        $targetHeader = $storedPack->readObjectHeader($storedIndex, $targetOid);
+
+        $t->same([$baseOid], $resolver->requests);
+        $t->same(false, $write['packChecksum'] === $thinPack->packChecksum());
+        $t->same([$baseOid, $targetOid], $write['objectIds']);
+        $t->same(2, $write['objectCount']);
+        $t->same(2, $storedPack->count());
+        $t->same(2, $storedIndex->count());
+        $t->same('blob', $targetHeader['type']);
+        $t->same(1, $targetHeader['numDeltas']);
+        $t->same($baseBlob->body, $storedPack->readObject($storedIndex, $baseOid)->body);
+        $t->same($targetBlob->body, $storedPack->readObject($storedIndex, $targetOid)->body);
+        $t->same('promisor-present', $database->objectState($baseOid)['status']);
+        $t->same('promisor-present', $database->objectState($targetOid)['status']);
+        $t->same('pack', (new ObjectDatabase($gitDir))->readHeader($targetOid)['source']);
+        $t->same($targetBlob->body, (new ObjectDatabase($gitDir))->read($targetOid)->body);
+    },
     'refresh-disabled handle writes promisor pack bundle without refreshing its cached inventory' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
         [$gitDir] = $writePromisorPackFixture();
         $staleDatabase = (new ObjectDatabase($gitDir))->withObjectStorageRefreshDisabled();
@@ -982,6 +1035,21 @@ return [
         $t->same('pack', $summary['alternateThinTargetHeader']['source']);
         $t->same($summary['alternateThinTargetHeader']['size'], $summary['alternateThinTargetSize']);
         $t->same(true, $summary['alternateThinTargetBodyMatches']);
+        $t->same(true, $summary['repairedThinPackWasThin']);
+        $t->same('promised-missing', $summary['repairedBaseBeforeWrite']['status']);
+        $t->same([$summary['repairedPromisorObjects'][0]], $summary['repairedResolverRequests']);
+        $t->same(true, str_ends_with($summary['repairedPromisorPack'], '.promisor'));
+        $t->same(true, str_ends_with($summary['repairedPromisorKeep'], '.keep'));
+        $t->same(2, $summary['repairedPromisorObjectCount']);
+        $t->same(2, count($summary['repairedPromisorObjects']));
+        $t->same(true, $summary['repairedPackChecksumChanged']);
+        $t->same(2, $summary['repairedStoredPackCount']);
+        $t->same(2, $summary['repairedStoredIndexCount']);
+        $t->same('blob', $summary['repairedTargetHeader']['type']);
+        $t->same(1, $summary['repairedTargetHeader']['numDeltas']);
+        $t->same(true, $summary['repairedTargetBodyMatches']);
+        $t->same('promisor-present', $summary['repairedFreshTargetState']['status']);
+        $t->same('pack', $summary['repairedFreshTargetHeader']['source']);
         $t->same(true, in_array($summary['directInventoryPack'], $summary['directInventoryPackNames'], true));
         $t->same(true, in_array($summary['directInventoryObject'], $summary['directInventoryObjectIds'], true));
         $t->same(true, $summary['directInventoryIsPromisor']);

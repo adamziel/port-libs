@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWindowRowValueUpsertCurrentSourcePlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 
 $libsqliteRoot = dirname(__DIR__);
 $sourceRoot = $libsqliteRoot . '/src';
@@ -99,6 +100,52 @@ $partitionedWindowSourceMatches = static function () use ($partitionedWindowSour
     );
 };
 
+$rowValueWindowDefaultSignatureMatches = static function () use ($partitionedWindowSourceFile, $libsqliteRoot): array {
+    $contents = file_get_contents($partitionedWindowSourceFile);
+    if ($contents === false) {
+        throw new RuntimeException("Unable to read {$partitionedWindowSourceFile}");
+    }
+
+    $functions = [
+        'executeRetryWindowPlan',
+        'executeReturningWindowRollbackRetry',
+        'executeReturningWindowDigests',
+        'executeCurrentRowWindowFrames',
+        'executeReplayPairWindow',
+        'executeStatementWindowMetrics',
+    ];
+    $terms = [
+        'opt' . 'ion_id',
+        'blog' . '_id',
+        'auto' . 'load',
+    ];
+    $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
+    $relative = str_replace($libsqliteRoot . '/', '', $partitionedWindowSourceFile);
+    $matches = [];
+
+    foreach ($functions as $function) {
+        $startMarker = "public static function {$function}(";
+        $start = strpos($contents, $startMarker);
+        if ($start === false) {
+            throw new RuntimeException("Unable to find row-value window default signature {$function}");
+        }
+        $end = strpos($contents, '): array {', $start);
+        if ($end === false || $end <= $start) {
+            throw new RuntimeException("Unable to isolate row-value window default signature {$function}");
+        }
+
+        $signature = substr($contents, $start, $end - $start);
+        if (preg_match_all($pattern, $signature, $fileMatches) < 1) {
+            continue;
+        }
+        foreach ($fileMatches[0] as $match) {
+            $matches[] = "{$relative}: {$function}: {$match}";
+        }
+    }
+
+    return $matches;
+};
+
 $windowRowValueDefaults = static fn (): array => SQLiteWindowRowValueUpsertCurrentSourcePlan::execute(
     [
         ['key_name' => 'base_url', 'version' => 1, 'priority' => 10, 'load_policy' => 'yes', 'key_value' => 'old'],
@@ -119,9 +166,29 @@ $windowRowValueKeys = static function () use ($windowRowValueDefaults): array {
     return array_keys($row);
 };
 
+$returningWindowDefaultRows = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReturningWindowRollbackRetry(
+    [
+        'app_settings' => [
+            ['setting_id' => 1, 'tenant_id' => 1, 'key_name' => 'base_url', 'key_value' => 'old', 'load_policy' => 'yes', 'status' => 'live', 'bytes' => 10],
+            ['setting_id' => 2, 'tenant_id' => 1, 'key_name' => 'module_registry', 'key_value' => 'enabled', 'load_policy' => 'no', 'status' => 'queued', 'bytes' => 12],
+        ],
+    ],
+    [
+        "UPDATE app_settings SET (status, key_value, bytes) = ('yield', key_value || ':yield', bytes + 1) WHERE setting_id = 1 RETURNING setting_id, tenant_id, key_name, status, key_value, bytes ORDER BY setting_id",
+    ],
+    [
+        "UPDATE app_settings SET (status, key_value, bytes) = ('attempt', key_value || ':attempt', bytes + 1) WHERE setting_id = 2 RETURNING setting_id, tenant_id, key_name, status, key_value, bytes ORDER BY setting_id",
+    ],
+    [
+        "UPDATE app_settings SET (status, key_value, bytes) = ('retry', key_value || ':retry', bytes + 2) WHERE setting_id = 2 RETURNING setting_id, tenant_id, key_name, status, key_value, bytes ORDER BY setting_id",
+    ],
+    [['tenant_id', 'key_name']],
+);
+
 return [
     'source-neutral compound window defaults dynamic source has no legacy setting table terms' => static fn (TestRunner $t) => $t->same([], $compoundWindowSourceMatches()),
     'source-neutral partitioned row-value window source defaults use setting terms' => static fn (TestRunner $t) => $t->same([], $partitionedWindowSourceMatches()),
+    'source-neutral row-value window retry signatures default to setting ids' => static fn (TestRunner $t) => $t->same([], $rowValueWindowDefaultSignatureMatches()),
     'source-neutral row-value window defaults expose generic key names' => static fn (TestRunner $t) => $t->same([
         'action',
         'first_key_name',
@@ -133,4 +200,12 @@ return [
         'last_key_name',
         'sequence',
     ], $windowRowValueKeys()),
+    'source-neutral row-value returning window default rowid is setting id' => static function (TestRunner $t) use ($returningWindowDefaultRows): void {
+        $plan = $returningWindowDefaultRows();
+
+        $t->same([1], array_column($plan['yield_window'], 'setting_id'));
+        $t->same([2], array_column($plan['retry_window'], 'setting_id'));
+        $t->same(false, array_key_exists('option_id', $plan['retry_window'][0]));
+        $t->same('retry', array_column($plan['current_source_tables']['app_settings'], 'status', 'setting_id')[2]);
+    },
 ];

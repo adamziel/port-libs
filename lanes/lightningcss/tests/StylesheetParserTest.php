@@ -29,9 +29,25 @@ return [
         $media = $rules[0];
         $t->same(CssRule::TYPE_AT_RULE, $media->type);
         $t->same('media', $media->name);
-        $t->same('(min-width: 600px)', $media->prelude);
+        $t->same('(width>=600px)', $media->prelude);
         $t->same(['.wp-site-blocks'], $media->rules[0]->selectors);
         $t->same('2rem', $media->rules[0]->declarations['padding']);
+    },
+    'stylesheet parser normalizes media range preludes inside cascade layers' => static function (TestRunner $t): void {
+        $rules = (new StylesheetParser())->parse('@layer theme.blocks { @media screen and (min-width: 48rem), (hover) { .wp-site-blocks { padding-inline: clamp(1rem, 2vw, 2rem); } } }');
+
+        $layer = $rules[0];
+        $media = $layer->rules[0];
+        $block = $media->rules[0];
+        $t->same(CssRule::TYPE_AT_RULE, $layer->type);
+        $t->same('layer', $layer->name);
+        $t->same('theme.blocks', $layer->prelude);
+        $t->same(CssRule::TYPE_AT_RULE, $media->type);
+        $t->same('media', $media->name);
+        $t->same('screen and (width>=48rem),(hover)', $media->prelude);
+        $t->same(CssRule::TYPE_STYLE, $block->type);
+        $t->same(['.wp-site-blocks'], $block->selectors);
+        $t->same('clamp(1rem, 2vw, 2rem)', $block->declarations['padding-inline']);
     },
     'stylesheet parser parses nested WordPress selectors inside style rules' => static function (TestRunner $t): void {
         $rules = (new StylesheetParser())->parse('.wp-block-group { color: red; & .wp-block-button__link { color: white; } @supports (display: grid) { & > .wp-block-columns { display: grid; } } }');

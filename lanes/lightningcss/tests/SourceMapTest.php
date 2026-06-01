@@ -1331,6 +1331,29 @@ return [
         $t->same([], $map->getSources());
         $t->same('', $map->writeVlq());
     },
+    'source map accepts upstream data URL parser trivia before vlq import' => static function (TestRunner $t): void {
+        $json = '{"version":3,"mappings":";CAAA","sources":["blocks/trivia.css"],"sourcesContent":[".trivia{}"],"names":[]}';
+        $encoded = base64_encode($json);
+        $encoded = substr($encoded, 0, 10) . " \t" . substr($encoded, 10, 12) . "%0C" . substr($encoded, 22);
+        $map = SourceMap::fromDataUrl(" \x00\tD\na\rtA: application/json ; \tbase64 ," . $encoded . " \n#wp-devtools");
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+
+        $t->same(';CAAA', $map->writeVlq());
+        $t->same(['blocks/trivia.css'], $map->getSources());
+        $t->same(['.trivia{}'], $map->getSourcesContent());
+        $t->same([1], array_column($decoded, 'generatedLine'));
+        $t->same([1], array_column($decoded, 'generatedColumn'));
+        $t->same([0], array_column($decoded, 'sourceIndex'));
+
+        $parent = new SourceMap();
+        $parent->addGeneratedMapping(0, 0);
+        $parent->addSourceMap($map, 2);
+
+        $t->same('A;;;CAAA', $parent->writeVlq());
+        $t->same(['blocks/trivia.css'], $parent->getSources());
+        $t->same([], $map->getSources());
+        $t->same('', $map->writeVlq());
+    },
     'source map round trips upstream buffer snapshots after offsets' => static function (TestRunner $t): void {
         $map = new SourceMap('/srv/www/site/wp-content/themes/example');
         $style = $map->addSource('/srv/www/site/wp-content/themes/example/style.css');

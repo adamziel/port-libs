@@ -650,6 +650,20 @@ final class DeclarationBlock
     private const MASK_BORDER_REPEAT_KEYWORDS = ['stretch', 'repeat', 'round', 'space'];
     private const MASK_BORDER_MODE_KEYWORDS = ['alpha', 'luminance'];
     private const MASK_TYPE_KEYWORDS = ['alpha', 'luminance'];
+    private const WEBKIT_MASK_COMPOSITE_KEYWORDS = [
+        'clear',
+        'copy',
+        'source-over',
+        'source-in',
+        'source-out',
+        'source-atop',
+        'destination-over',
+        'destination-in',
+        'destination-out',
+        'destination-atop',
+        'xor',
+    ];
+    private const WEBKIT_MASK_SOURCE_TYPE_KEYWORDS = ['auto', 'alpha', 'luminance'];
     private const MASK_LONGHANDS = [
         'mask-image',
         'mask-position',
@@ -13932,6 +13946,22 @@ final class DeclarationBlock
             return $this->normalizeKeywordDeclarationValue($value, self::MASK_TYPE_KEYWORDS);
         }
 
+        if ($property === 'mask-composite') {
+            return $this->normalizeKeywordListDeclarationValue($value, self::MASK_COMPOSITE_KEYWORDS);
+        }
+
+        if ($property === 'mask-mode') {
+            return $this->normalizeKeywordListDeclarationValue($value, self::MASK_MODE_KEYWORDS);
+        }
+
+        if ($property === '-webkit-mask-composite') {
+            return $this->normalizeKeywordListDeclarationValue($value, self::WEBKIT_MASK_COMPOSITE_KEYWORDS);
+        }
+
+        if ($property === '-webkit-mask-source-type') {
+            return $this->normalizeKeywordListDeclarationValue($value, self::WEBKIT_MASK_SOURCE_TYPE_KEYWORDS);
+        }
+
         if ($property === 'color-scheme') {
             return $this->normalizeColorSchemeDeclarationValue($value);
         }
@@ -14390,6 +14420,25 @@ final class DeclarationBlock
         $keyword = strtolower($trimmed);
 
         return in_array($keyword, $keywords, true) ? $keyword : $trimmed;
+    }
+
+    /**
+     * @param list<string> $keywords
+     */
+    private function normalizeKeywordListDeclarationValue(string $value, array $keywords): string
+    {
+        $parts = array_map('trim', $this->splitTopLevel($value, ','));
+        if ($parts === [] || in_array('', $parts, true)) {
+            return trim($value);
+        }
+
+        return implode(
+            ', ',
+            array_map(
+                fn (string $part): string => $this->normalizeKeywordDeclarationValue($part, $keywords),
+                $parts
+            )
+        );
     }
 
     private function normalizeZIndexDeclarationValue(string $value): string

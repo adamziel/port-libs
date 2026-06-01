@@ -39,6 +39,7 @@ $plan233 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurre
     [$attemptUpdate233, $attemptDelete233],
     [$retryUpdate233, $retryDelete233],
     $unique233,
+    rowIdColumn: 'option_id',
 );
 $customPlan233 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReturningWindowRollbackRetry(
     $tables233,
@@ -47,6 +48,7 @@ $customPlan233 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindo
     [$retryUpdate233],
     $unique233,
     'custom_window_233',
+    'option_id',
 );
 
 $cases233 = [

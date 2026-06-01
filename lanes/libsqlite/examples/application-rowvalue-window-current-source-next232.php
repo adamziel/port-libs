@@ -34,6 +34,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeR
     [$attemptUpdate],
     [$retryUpdate, $retryDelete],
     [['blog_id', 'option_name']],
+    rowIdColumn: 'option_id',
 );
 
 echo json_encode([

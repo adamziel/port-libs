@@ -1428,6 +1428,46 @@ return [
             )
         );
     },
+    'declaration block canonicalizes upstream standalone mask compositing cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = '-webkit-mask-composite: SOURCE-OUT, Xor; -webkit-mask-source-type: LUMINANCE, Auto; mask-composite: SUBTRACT, Exclude; mask-mode: LUMINANCE, Match-Source; --Mask-Composite: SOURCE-OUT';
+
+        $t->same(
+            [
+                '-webkit-mask-composite' => 'source-out, xor',
+                '-webkit-mask-source-type' => 'luminance, auto',
+                'mask-composite' => 'subtract, exclude',
+                'mask-mode' => 'luminance, match-source',
+                '--Mask-Composite' => 'SOURCE-OUT',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'source-out, xor', 'important' => false], $block->getProperty($declarations, '-webkit-mask-composite'));
+        $t->same(['value' => 'luminance, auto', 'important' => false], $block->getProperty($declarations, '-webkit-mask-source-type'));
+        $t->same(['value' => 'subtract, exclude', 'important' => false], $block->getProperty($declarations, 'mask-composite'));
+        $t->same(['value' => 'luminance, match-source', 'important' => false], $block->getProperty($declarations, 'mask-mode'));
+        $t->same(['value' => 'SOURCE-OUT', 'important' => false], $block->getProperty($declarations, '--Mask-Composite'));
+        $t->same(
+            '-webkit-mask-source-type: luminance, auto; mask-composite: subtract, exclude; mask-mode: luminance, match-source; --Mask-Composite: SOURCE-OUT; -webkit-mask-composite: source-in, destination-out !important',
+            $block->setProperty($declarations, '-webkit-mask-composite', 'Source-In, Destination-Out', true)
+        );
+        $t->same(
+            '-webkit-mask-composite: source-out, xor; -webkit-mask-source-type: alpha; mask-composite: subtract, exclude; mask-mode: luminance, match-source; --Mask-Composite: SOURCE-OUT',
+            $block->setProperty($declarations, '-webkit-mask-source-type', 'Alpha')
+        );
+        $t->same(
+            '-webkit-mask-composite: source-out, xor; -webkit-mask-source-type: luminance, auto; mask-composite: subtract, exclude; mask-mode: alpha, match-source; --Mask-Composite: SOURCE-OUT',
+            $block->setProperty($declarations, 'mask-mode', 'Alpha, Match-Source')
+        );
+        $t->same(
+            '-webkit-mask-composite: source-out, xor; mask-composite: subtract, exclude; mask-mode: luminance, match-source; --Mask-Composite: SOURCE-OUT',
+            $block->removeProperty($declarations, '-webkit-mask-source-type')
+        );
+        $t->same(
+            '-webkit-mask-composite: source-out, xor; -webkit-mask-source-type: luminance, auto; mask-mode: luminance, match-source; --Mask-Composite: SOURCE-OUT',
+            $block->removeProperty($declarations, 'mask-composite')
+        );
+    },
     'declaration block canonicalizes upstream mask type cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'mask-type: LUMINANCE; color: red; --Mask-Type: LUMINANCE';

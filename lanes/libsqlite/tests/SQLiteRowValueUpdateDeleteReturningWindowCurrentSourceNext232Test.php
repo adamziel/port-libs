@@ -54,6 +54,7 @@ $plan232 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurre
     [$attemptUpdate232, $attemptDelete232],
     [$retryUpdate232, $retryDelete232],
     $unique232,
+    rowIdColumn: 'option_id',
 );
 $customPlan232 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRetryWindowPlan(
     $tables232,
@@ -62,6 +63,7 @@ $customPlan232 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindo
     [$retryUpdate232],
     $unique232,
     'custom_rowvalue_window_232',
+    'option_id',
 );
 
 $cases232 = [

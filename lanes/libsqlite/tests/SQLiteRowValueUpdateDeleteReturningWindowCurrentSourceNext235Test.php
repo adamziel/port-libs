@@ -46,13 +46,15 @@ $plan235 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurre
     [$attemptUpdate235, $attemptDelete235],
     [$retryUpdate235, $retryDelete235],
     $unique235,
+    rowIdColumn: 'option_id',
 );
 $customPlan235 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReturningWindowDigests(
     $tables235,
     [$attemptUpdate235],
     [$retryUpdate235],
     $unique235,
-    'wp_custom_returning_window235',
+    'app_custom_returning_window235',
+    'option_id',
 );
 
 $cases235 = [
@@ -120,7 +122,7 @@ $cases235 = [
     'plan dependency delete window' => [static fn (): mixed => in_array('sqlite-rowvalue-delete-returning-window-current-source-next235', $plan235()['dependencies'], true), true],
     'plan dependency closure' => [static fn (): mixed => str_contains($plan235()['dependency_closure_next235'], 'no new support component needed'), true],
     'plan non overlap' => [static fn (): mixed => str_contains($plan235()['non_overlap_next235'], 'avoids accepted next231'), true],
-    'custom savepoint' => [static fn (): mixed => $customPlan235()['savepoint'], 'wp_custom_returning_window235'],
+    'custom savepoint' => [static fn (): mixed => $customPlan235()['savepoint'], 'app_custom_returning_window235'],
     'custom discarded window count' => [static fn (): mixed => $customPlan235()['discarded_attempt_window_count_next235'], 2],
     'custom yielded window count' => [static fn (): mixed => $customPlan235()['yielded_retry_window_count_next235'], 2],
     'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReturningWindowDigests($tables235, [], [$retryUpdate235], $unique235), InvalidArgumentException::class],

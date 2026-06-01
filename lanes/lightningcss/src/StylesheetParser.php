@@ -104,6 +104,7 @@ final class StylesheetParser
     {
         if (str_starts_with($prelude, '@')) {
             [$name, $atPrelude] = $this->parseAtPrelude($prelude);
+            $atPrelude = $this->normalizeAtRulePrelude($name, $atPrelude);
             $bodyParts = $this->parseBody($body);
 
             return new CssRule(CssRule::TYPE_AT_RULE, $name, $atPrelude, [], $bodyParts['declarations'], $bodyParts['rules']);
@@ -172,6 +173,15 @@ final class StylesheetParser
         }
 
         return [strtolower($matches[1]), trim($matches[2] ?? '')];
+    }
+
+    private function normalizeAtRulePrelude(string $name, string $prelude): string
+    {
+        if ($name !== 'media' || $prelude === '') {
+            return $prelude;
+        }
+
+        return (new MediaQueryParser())->minifyList($prelude, true);
     }
 
     /**

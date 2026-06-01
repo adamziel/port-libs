@@ -28,6 +28,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeC
     [$attemptUpdate, $attemptDelete],
     [$retryUpdate, $retryDelete],
     [['blog_id', 'option_name']],
+    rowIdColumn: 'option_id',
 );
 
 assert($plan['status'] === 'rowvalue-update-delete-returning-window-current-source-next236');

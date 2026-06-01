@@ -48,13 +48,15 @@ $plan238 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurre
     [$attemptUpdate238, $attemptDelete238],
     [$retryUpdate238, $retryDelete238],
     $unique238,
+    rowIdColumn: 'option_id',
 );
 $customPlan238 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReplayPairWindow(
     $tables238,
     [$attemptUpdate238],
     [$retryUpdate238],
     $unique238,
-    'wp_custom_returning_window_next238',
+    'app_custom_returning_window_next238',
+    'option_id',
 );
 
 $cases238 = [
@@ -123,7 +125,7 @@ $cases238 = [
     'plan dependencies' => [static fn (): mixed => $plan238()['dependencies'], ['sqlite-rowvalue-returning-window-current-source-fence-next238', 'sqlite-rowvalue-update-returning-window-replay-next238', 'sqlite-rowvalue-delete-returning-window-restart-next238']],
     'plan dependency closure' => [static fn (): mixed => str_contains($plan238()['dependency_closure_next238'], 'no new support component needed'), true],
     'plan non overlap' => [static fn (): mixed => str_contains($plan238()['non_overlap_next238'], 'avoids accepted nullable row-value'), true],
-    'custom savepoint' => [static fn (): mixed => $customPlan238()['savepoint'], 'wp_custom_returning_window_next238'],
+    'custom savepoint' => [static fn (): mixed => $customPlan238()['savepoint'], 'app_custom_returning_window_next238'],
     'custom pair count' => [static fn (): mixed => $customPlan238()['window_pair_count_next238'], 4],
     'custom replay ids' => [static fn (): mixed => $customPlan238()['window_replayed_rowids_next238'], [8, 9]],
     'custom discarded only ids' => [static fn (): mixed => $customPlan238()['window_discarded_only_rowids_next238'], [7]],

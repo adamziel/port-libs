@@ -29,6 +29,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeS
     [$attemptUpdate, $attemptDelete],
     [$retryUpdate, $retryDelete],
     [['blog_id', 'option_name']],
+    rowIdColumn: 'option_id',
 );
 
 $retryUpdateKey = 'retry-window-after-rollback-release-next233#0#update';
