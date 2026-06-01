@@ -110,6 +110,8 @@ final class SQLitePDO extends \PDO
             throw new \PDOException('SQLitePDO prepare options are not supported');
         }
 
+        $this->validatePrepareSql($query);
+
         return new SQLitePDOStatement($this, $query);
     }
 
@@ -374,6 +376,230 @@ final class SQLitePDO extends \PDO
         }
 
         return $message;
+    }
+
+    private function validatePrepareSql(string $sql): void
+    {
+        $statements = $this->splitStatements($sql);
+        if ($statements === []) {
+            $this->clearError();
+            return;
+        }
+
+        foreach ($statements as $statement) {
+            $statement = trim(rtrim(trim($statement), ';'));
+            if ($statement === '') {
+                continue;
+            }
+
+            try {
+                if (preg_match('/^(?:select|values|with)\b/i', $statement) === 1) {
+                    $this->validateSelectPrepareSql($statement);
+                    continue;
+                }
+                if (SQLiteInsertValuesSql::startsWithInsertKeyword($statement)) {
+                    $this->validateInsertPrepareSql($statement);
+                    continue;
+                }
+                if (preg_match('/^update\b/i', $statement) === 1) {
+                    $this->validateUpdatePrepareSql($statement);
+                    continue;
+                }
+                if (preg_match('/^delete\b/i', $statement) === 1) {
+                    $this->validateDeletePrepareSql($statement);
+                }
+            } catch (\Throwable $exception) {
+                $message = $this->pdoSqliteMessage($exception);
+                if ($this->isColumnResolutionError($message)) {
+                    throw $this->failure($message, $exception);
+                }
+            }
+        }
+
+        $this->clearError();
+    }
+
+    /** @return array<string,list<array<string,mixed>>> */
+    private function prepareValidationTables(): array
+    {
+        $tables = $this->tables;
+        foreach ($this->columns as $table => $columns) {
+            if (($tables[$table] ?? []) === []) {
+                $tables[$table] = [array_fill_keys($columns, null)];
+            }
+        }
+
+        return $tables;
+    }
+
+    private function validateInsertPrepareSql(string $sql): void
+    {
+        $statement = SQLiteInsertValuesSql::parse($sql);
+        $table = $statement['target'];
+        $this->assertTable($table);
+        $columns = $statement['columns'] ?? $this->columns[$table];
+        $this->assertColumns($table, $columns, 'insert');
+        foreach ($statement['tuples'] as $values) {
+            if (count($values) !== count($columns)) {
+                continue;
+            }
+            foreach ($values as $expression) {
+                $this->assertPrepareScalarReferences($expression, []);
+            }
+        }
+    }
+
+    private function validateSelectPrepareSql(string $sql): void
+    {
+        $tables = $this->prepareValidationTables();
+        $plan = SQLiteSelectSql::plan($sql, $tables, []);
+        $this->assertSelectPlanColumnReferences($plan['select'] ?? [], $this->selectPlanColumns($plan));
+        if (isset($plan['where'])) {
+            $this->assertSelectPlanColumnReferences($plan['where'], $this->selectPlanColumns($plan));
+        }
+
+        SQLiteSelectSql::execute($sql, $tables, []);
+    }
+
+    /** @param array<string,mixed> $plan @return array<string,bool> */
+    private function selectPlanColumns(array $plan): array
+    {
+        $columns = ['rowid' => true, '_rowid_' => true, 'oid' => true];
+        foreach (($plan['from'] ?? []) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            foreach (array_keys($row) as $column) {
+                if (!is_string($column)) {
+                    continue;
+                }
+                $columns[$column] = true;
+                if (str_contains($column, '.')) {
+                    $columns[substr($column, strrpos($column, '.') + 1)] = true;
+                }
+            }
+        }
+
+        return $columns;
+    }
+
+    /** @param array<string,bool> $knownColumns */
+    private function assertSelectPlanColumnReferences(mixed $node, array $knownColumns): void
+    {
+        if (!is_array($node)) {
+            return;
+        }
+
+        if (($node['type'] ?? null) === 'column' && isset($node['name']) && is_string($node['name'])) {
+            if (!isset($node['sourceExpression']) && !$this->selectPlanHasColumn($node['name'], $knownColumns)) {
+                throw new \PDOException("no such column: {$node['name']}");
+            }
+            if (isset($node['sourceExpression'])) {
+                $this->assertSelectPlanColumnReferences($node['sourceExpression'], $knownColumns);
+            }
+
+            return;
+        }
+
+        foreach ($node as $value) {
+            $this->assertSelectPlanColumnReferences($value, $knownColumns);
+        }
+    }
+
+    /** @param array<string,bool> $knownColumns */
+    private function selectPlanHasColumn(string $column, array $knownColumns): bool
+    {
+        if (array_key_exists($column, $knownColumns)) {
+            return true;
+        }
+        if (str_contains($column, '.')) {
+            return array_key_exists(substr($column, strrpos($column, '.') + 1), $knownColumns);
+        }
+
+        return false;
+    }
+
+    private function validateUpdatePrepareSql(string $sql): void
+    {
+        if (preg_match('/^update\s+([A-Za-z_][A-Za-z0-9_]*)\s+set\s+(.+?)(?:\s+where\s+(.+))?$/is', $sql, $match) !== 1) {
+            return;
+        }
+
+        $table = $match[1];
+        $this->assertTable($table);
+        $assignments = [];
+        foreach ($this->splitTopLevel($match[2], ',') as $assignment) {
+            if (preg_match('/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)\s*$/s', $assignment, $assignmentMatch) !== 1) {
+                continue;
+            }
+            $assignments[$assignmentMatch[1]] = $assignmentMatch[2];
+        }
+        $this->assertColumns($table, array_keys($assignments), 'update');
+        $knownColumns = array_fill_keys($this->columns[$table], true);
+        foreach ($assignments as $expression) {
+            $this->assertPrepareScalarReferences($expression, $knownColumns);
+        }
+        if (isset($match[3]) && trim($match[3]) !== '') {
+            $this->validateWherePrepareSql($table, $match[3]);
+        }
+    }
+
+    private function validateDeletePrepareSql(string $sql): void
+    {
+        if (preg_match('/^delete\s+from\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+where\s+(.+))?$/is', $sql, $match) !== 1) {
+            return;
+        }
+
+        $table = $match[1];
+        $this->assertTable($table);
+        if (isset($match[2]) && trim($match[2]) !== '') {
+            $this->validateWherePrepareSql($table, $match[2]);
+        }
+    }
+
+    private function validateWherePrepareSql(string $table, string $where): void
+    {
+        $row = ['__sqlitepdo_index' => 0] + array_fill_keys($this->columns[$table], null);
+        SQLiteSelectSql::execute(
+            "SELECT __sqlitepdo_index FROM {$table} WHERE {$where}",
+            [$table => [$row]],
+            [],
+        );
+    }
+
+    /** @param array<string,bool> $knownColumns */
+    private function assertPrepareScalarReferences(string $expression, array $knownColumns): void
+    {
+        $expression = trim($expression);
+        if ($expression === ''
+            || preg_match('/^\?(?:\d+)?$/', $expression) === 1
+            || preg_match('/^[:@$][A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)?(?:\([^)]*\))?$/', $expression) === 1
+            || preg_match('/^null$/i', $expression) === 1
+            || preg_match('/^-?\d+(?:\.\d+)?$/', $expression) === 1
+            || preg_match("/^(?:X)?'(?:''|[^'])*'$/i", $expression) === 1
+        ) {
+            return;
+        }
+
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)$/', $expression, $match) === 1) {
+            if (!array_key_exists($match[1], $knownColumns)) {
+                throw new \PDOException("no such column: {$match[1]}");
+            }
+
+            return;
+        }
+
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*\s*\((.*)\)$/s', $expression, $match) === 1) {
+            foreach ($this->splitTopLevel($match[1], ',') as $argument) {
+                $this->assertPrepareScalarReferences($argument, $knownColumns);
+            }
+        }
+    }
+
+    private function isColumnResolutionError(string $message): bool
+    {
+        return str_starts_with($message, 'no such column: ')
+            || preg_match('/^table [A-Za-z_][A-Za-z0-9_]* has no column named [A-Za-z_][A-Za-z0-9_]*$/', $message) === 1;
     }
 
     /** @param array<int|string,mixed> $parameters */
