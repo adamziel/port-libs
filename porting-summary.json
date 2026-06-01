@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 11:30:40 UTC",
-    "sourceCommit": "79e32fa534735cd936d14e9152a6540ff780ba28",
-    "sourceCommitShort": "79e32fa53473",
+    "generated": "2026-06-01 11:36:01 UTC",
+    "sourceCommit": "3ec6eca5d768da593338507a6f68979d67b734cf",
+    "sourceCommitShort": "3ec6eca5d768",
     "sourceBranch": "main",
-    "dashboardCommit": "79e32fa534735cd936d14e9152a6540ff780ba28",
-    "dashboardCommitShort": "79e32fa53473",
+    "dashboardCommit": "3ec6eca5d768da593338507a6f68979d67b734cf",
+    "dashboardCommitShort": "3ec6eca5d768",
     "averageProgressPercent": "88.7",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "5,877,833 pass / 7 fail",
+            "php": "5,878,793 pass / 7 fail",
             "phase": "focused source integration accepted; broad full-lane/release parity r...",
             "audit": "2026-06-01 supervisor batch: focused libsqlite/no-domain gate passed...",
-            "currentWork": "Real upstream altercol UPSERT trigger ALTER TABLE rename plus shared2 read-uncommitte...",
+            "currentWork": "Row-value UPDATE/DELETE LIMIT cast-affinity dynamic execution and application WAL rol...",
             "nextTarget": "Prioritize fixing the broad full-lane memory exhaustion in SQ...",
             "remainingGate": "Broad release/all still has 7 known failures",
-            "commit": "79e32fa"
+            "commit": "3ec6eca"
         },
         {
             "lane": "lightningcss",
@@ -45,13 +45,13 @@
             "coverage": "2,374 / 3,532 (67.2%)",
             "mapPercent": "67.2%",
             "unmapped": "1,158",
-            "php": "7,582 pass / 0 fail",
+            "php": "7,610 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
             "audit": "2026-06-01 supervisor batch: full LightningCSS PHP lane passed 13 fil...",
-            "currentWork": "CSS Modules unknown at-rule compose, nested custom-at-rule token-list preludes, compa...",
+            "currentWork": "Bundle/import unknown statement at-rule preservation, CSS Modules escaped view-transi...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, bundle...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "79e32fa"
+            "commit": "3ec6eca"
         },
         {
             "lane": "gitoxide",
@@ -59,22 +59,22 @@
             "priority": "Active",
             "queue": "Active",
             "state": "High coverage",
-            "progressPercent": "97.3",
-            "completion": "97.3%",
+            "progressPercent": "97.4",
+            "completion": "97.4%",
             "suite": "current-base Gitoxide pack-index and partial-clone parity batch",
             "benchmark": "current-base Gitoxide pack-index and partial-clone parity batch",
             "denominator": "2886",
-            "mapped": "1787",
-            "coverage": "1,787 / 2,886 (61.9%)",
-            "mapPercent": "61.9%",
-            "unmapped": "1,099",
-            "php": "9,035 pass / 0 fail",
+            "mapped": "1788",
+            "coverage": "1,788 / 2,886 (62.0%)",
+            "mapPercent": "62.0%",
+            "unmapped": "1,098",
+            "php": "9,054 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
             "audit": "2026-06-01 supervisor batch: full Gitoxide PHP lane passed 40 files /...",
-            "currentWork": "Loose-object LF-tailed size-header integrity plus sparse-checkout non-cone literal an...",
+            "currentWork": "Tree/pathspec negative-wildcard directory traversal parity integrated on current base.",
             "nextTarget": "Keep Gitoxide workers on current-base non-overlapping sparse-...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "79e32fa"
+            "commit": "3ec6eca"
         },
         {
             "lane": "readability",
