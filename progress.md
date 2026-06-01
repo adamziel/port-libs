@@ -55,6 +55,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor followup (pack/SSH/tree/CSS/window replay intake):
+  accepted source commit `33cea199fc65307dd614e23c3b9200fd3b055464`
+  (`Integrate git css sqlite parity handoffs`). Gitoxide added pack-index/MIDX
+  alternate prefix deduplication, SSH receive-pack identity boundary parity,
+  and tree-merge super-1 diff3/resolve-tree fixture parity; full Gitoxide
+  verification passed `40 files / 8000 assertions / 0 failures` and
+  conservative mapped coverage moves to `1761 / 2886`. LightningCSS added CSS
+  Modules WebVTT cue scoping, CSSOM accent-color read/write parity, media
+  range layer fallback/recovery coverage, and text-emphasis target-prefix
+  boundary parity; full LightningCSS verification passed `13 files / 6698
+  assertions / 0 failures`, mapped coverage remains `2360 / 3532`. libsqlite
+  added real upstream `window1.test` mixed RANGE dynamic corpus coverage plus
+  source-neutral STAT4 expression/key-field cleanup; focused verification
+  passed `3 files / 6027 assertions / 0 failures`, selected evidence moves to
+  `5630934 pass / 7 fail`, and mapped coverage remains `1589 / 1589`. Full
+  upstream Cargo/Rust/Node/WASM/release-all runners remain honestly unclaimed.
+  The custom-at-rules, source-map, and encoding handoffs from the same queue
+  remain parked because their hunks overlapped current source and need a
+  bounded reconcile pass.
+
 - 2026-06-01 supervisor followup (HTTP/ref/CSS/skipscan replay intake):
   accepted source commit `8252b5d265c0f9d9ce59f0db6b0154cc76569bc9`
   (`Integrate http refs css sqlite followup handoffs`). Gitoxide added smart

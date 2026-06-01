@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "library": "LightningCSS",
-  "estimatedProgress": 99.6,
-  "suiteProgress": "Supervisor-integrated LightningCSS bundle import graph resolution, custom at-rule escaped-name visitor parity, property-value color/font/grid examples, and keyframes target-prefix browser-boundary parity. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 6655 assertions / 0 failures, and touched example self-tests.",
-  "phpPass": 6655,
+  "estimatedProgress": 99.62,
+  "suiteProgress": "Supervisor-integrated LightningCSS CSS Modules WebVTT cue scoping, CSSOM accent-color read/write parity, media range layer fallback/recovery coverage, and text-emphasis target-prefix boundary parity. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 6698 assertions / 0 failures, and touched example self-tests.",
+  "phpPass": 6698,
   "phpFail": 0,
   "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
   "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-  "audit": "2026-06-01 supervisor followup: full LightningCSS lane passed 13 files / 6655 assertions / 0 failures after accepting bundle import graph resolution, custom at-rule escaped-name visitor parity, property-value color/font/grid examples, and keyframes target-prefix browser-boundary parity. Full upstream Rust/Node/WASM runners were not executed.",
-  "currentWork": "Bundle import graph resolution, custom at-rule escaped-name visitor parity, property-value color/font/grid examples, and keyframes target-prefix browser-boundary parity integrated on current base.",
-  "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 6655 assertions; continue source-map, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices.",
-  "latestCommit": "8252b5d265c0f9d9ce59f0db6b0154cc76569bc9",
+  "audit": "2026-06-01 supervisor followup: accepted source 33cea199 with CSS Modules WebVTT cue scoping, CSSOM accent-color read/write parity, media range layer fallback/recovery coverage, and text-emphasis target-prefix boundary parity. Full LightningCSS lane passed 13 files / 6698 assertions / 0 failures. Full upstream Rust/Node/WASM runners were not executed.",
+  "currentWork": "CSS Modules WebVTT cue scoping, CSSOM accent-color read/write parity, media range layer fallback/recovery coverage, and text-emphasis target-prefix boundary parity integrated on current base.",
+  "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 6698 assertions; continue source-map, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices.",
+  "latestCommit": "33cea199fc65307dd614e23c3b9200fd3b055464",
   "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media queries, property values, target prefixing, CSSOM, and custom at-rules with full-lane PHP gates.",
-  "commit": "8252b5d"
+  "commit": "33cea199"
 }

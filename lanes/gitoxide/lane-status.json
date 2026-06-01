@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "library": "gitoxide",
-  "estimatedProgress": 95.35,
-  "suiteProgress": "Supervisor-integrated Gitoxide smart HTTP receive-pack discovery redirect limit parity, smart HTTP default-port proxy/cookie behavior, and reference transaction packed-shadow reflog parity. Verification passed PHP lint, git diff --check, full Gitoxide lane 40 files / 7942 assertions / 0 failures, and touched example smoke runs.",
-  "phpPass": 7942,
+  "estimatedProgress": 95.45,
+  "suiteProgress": "Supervisor-integrated Gitoxide pack-index/MIDX alternate prefix deduplication, SSH receive-pack identity boundary parity, and tree-merge super-1 diff3/resolve-tree fixture parity. Verification passed PHP lint, git diff --check, full Gitoxide lane 40 files / 8000 assertions / 0 failures, and touched example smoke runs.",
+  "phpPass": 8000,
   "phpFail": 0,
   "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
   "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full Cargo runner not executed for isolated batch",
-  "audit": "2026-06-01 supervisor followup: full Gitoxide lane passed 40 files / 7942 assertions / 0 failures after accepting smart HTTP receive-pack discovery redirect limit parity, smart HTTP default-port proxy/cookie behavior, and reference transaction packed-shadow reflog parity. Full upstream Cargo workspace was not executed.",
-  "currentWork": "Smart HTTP receive-pack discovery redirect limit parity, smart HTTP default-port proxy/cookie behavior, and reference transaction packed-shadow reflog parity integrated on current base.",
-  "blocker": "Full upstream Cargo workspace remains unexecuted. Native PHP full-lane evidence is green at 7942 assertions; keep bounded Gitoxide workers on fetch sideband, send-pack, receive-pack, merge-base, URL/refspec, tree/pathspec, sparse-checkout, loose-object, config/include, object database, reference transaction, transport, protocol, and pack-index slices.",
-  "latestCommit": "8252b5d265c0f9d9ce59f0db6b0154cc76569bc9",
+  "audit": "2026-06-01 supervisor followup: accepted source 33cea199 with pack-index/MIDX alternate prefix deduplication, SSH receive-pack identity boundary parity, and tree-merge super-1 diff3/resolve-tree fixture parity. Full Gitoxide lane passed 40 files / 8000 assertions / 0 failures. Full upstream Cargo workspace was not executed.",
+  "currentWork": "Pack-index/MIDX alternate prefix deduplication, SSH receive-pack identity boundary parity, and tree-merge super-1 diff3/resolve-tree fixture parity integrated on current base.",
+  "blocker": "Full upstream Cargo workspace remains unexecuted. Native PHP full-lane evidence is green at 8000 assertions; keep bounded Gitoxide workers on fetch sideband, send-pack, receive-pack, merge-base, URL/refspec, tree/pathspec, sparse-checkout, loose-object, config/include, object database, reference transaction, transport, protocol, and pack-index slices.",
+  "latestCommit": "33cea199fc65307dd614e23c3b9200fd3b055464",
   "nextTask": "Keep three Gitoxide workers on current-base non-overlapping transport, protocol, merge-base, URL/refspec, tree/pathspec, sparse-checkout, loose-object, config/include, object database, reference transaction, and pack-index slices with full-lane PHP gates after each accepted batch.",
-  "commit": "8252b5d"
+  "commit": "33cea199"
 }
