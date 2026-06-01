@@ -100,6 +100,34 @@ return [
             $block->removeProperty($declarations, '--opacity')
         );
     },
+    'declaration block canonicalizes upstream accent color cssom declarations' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'accent-color: Yellow; color: blue; --Accent-Color: Yellow';
+
+        $t->same(
+            [
+                'accent-color' => '#ff0',
+                'color' => 'blue',
+                '--Accent-Color' => 'Yellow',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => '#ff0', 'important' => false], $block->getProperty($declarations, 'accent-color'));
+        $t->same(['value' => 'auto', 'important' => false], $block->getProperty('accent-color: AUTO', 'accent-color'));
+        $t->same(['value' => 'Yellow', 'important' => false], $block->getProperty($declarations, '--Accent-Color'));
+        $t->same(
+            'accent-color: auto; color: blue; --Accent-Color: Yellow',
+            $block->setProperty($declarations, 'accent-color', 'AUTO')
+        );
+        $t->same(
+            'color: blue; --Accent-Color: Yellow; accent-color: #0f0 !important',
+            $block->setProperty($declarations, 'accent-color', 'Lime', true)
+        );
+        $t->same(
+            'color: blue; --Accent-Color: Yellow',
+            $block->removeProperty($declarations, 'accent-color')
+        );
+    },
     'declaration block decodes escaped css property names in cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'c\\6f lor: red !important; background-color: white; --Block\\2D Accent: blue';

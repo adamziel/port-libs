@@ -2328,6 +2328,104 @@ return [
         ));
         $t->same(['four', 'six', 'two'], $worktreePaths);
     },
+    'maps upstream gix-merge tree-baseline super-1 diff3 and resolve-tree fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry] = $objectStore();
+        $lines = static fn (array $lines): string => implode("\n", $lines) . "\n";
+        $baseBodies = [
+            'five' => $lines(range(51, 59)),
+            'one' => $lines(range(11, 19)),
+            'three' => $lines(range(31, 39)),
+        ];
+        $oursBodies = [
+            'four' => $lines([...range(31, 39), 40]),
+            'six' => $lines(range(51, 59)),
+            'two' => $lines(range(10, 19)),
+        ];
+        $theirsBodies = [
+            'four' => $lines([...range(51, 59), 60]),
+            'six' => $lines([...range(11, 19), 20]),
+            'two' => $lines([...range(31, 39), 'forty']),
+        ];
+        $base = new Tree([
+            $blobEntry('one', $baseBodies['one']),
+            $blobEntry('three', $baseBodies['three']),
+            $blobEntry('five', $baseBodies['five']),
+        ]);
+        $ours = new Tree([
+            $blobEntry('two', $oursBodies['two']),
+            $blobEntry('four', $oursBodies['four']),
+            $blobEntry('six', $oursBodies['six']),
+        ]);
+        $theirs = new Tree([
+            $blobEntry('six', $theirsBodies['six']),
+            $blobEntry('two', $theirsBodies['two']),
+            $blobEntry('four', $theirsBodies['four']),
+        ]);
+        $treeBodies = static function (Tree $tree) use ($read): array {
+            $bodies = [];
+            foreach ($tree->entries as $entry) {
+                $bodies[$entry->filename] = $read($entry->oid)->body;
+            }
+            ksort($bodies, SORT_STRING);
+
+            return $bodies;
+        };
+
+        $diff3 = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write, BlobMerge::STYLE_DIFF3);
+        $merged = $treeBodies($diff3->tree);
+
+        $t->same(false, $diff3->isClean());
+        $t->same(['four', 'six', 'two'], $names($diff3->tree));
+        $t->same(
+            "<<<<<<< ours/four\n"
+                . $oursBodies['four']
+                . "||||||| base/four\n"
+                . $baseBodies['five']
+                . "=======\n"
+                . $theirsBodies['four']
+                . ">>>>>>> theirs/four\n",
+            $merged['four'],
+        );
+        $t->same(
+            "<<<<<<< ours/six\n"
+                . $oursBodies['six']
+                . "||||||| base/six\n"
+                . $baseBodies['one']
+                . "=======\n"
+                . $theirsBodies['six']
+                . ">>>>>>> theirs/six\n",
+            $merged['six'],
+        );
+        $t->same(
+            "<<<<<<< ours/two\n"
+                . $oursBodies['two']
+                . "||||||| base/two\n"
+                . $baseBodies['three']
+                . "=======\n"
+                . $theirsBodies['two']
+                . ">>>>>>> theirs/two\n",
+            $merged['two'],
+        );
+        $worktreePaths = array_map(static fn ($file): string => $file->path, $diff3->worktreeConflictFiles($read));
+        sort($worktreePaths, SORT_STRING);
+        $t->same(['four', 'six', 'two'], $worktreePaths);
+
+        $merge = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $ancestorResolved = $merge->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR, TreeMergeResult::RESOLVE_ANCESTOR);
+        $oursResolved = $merge->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS);
+        $theirsResolved = $merge->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_THEIRS, TreeMergeResult::RESOLVE_THEIRS);
+        $reverseOursResolved = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write)
+            ->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS);
+
+        $t->same(true, $ancestorResolved->isClean());
+        $t->same($baseBodies, $treeBodies($ancestorResolved->tree));
+        $t->same(true, $oursResolved->isClean());
+        $t->same($oursBodies, $treeBodies($oursResolved->tree));
+        $t->same(true, $theirsResolved->isClean());
+        $t->same($theirsBodies, $treeBodies($theirsResolved->tree));
+        $t->same(true, $reverseOursResolved->isClean());
+        $t->same($theirsBodies, $treeBodies($reverseOursResolved->tree));
+    },
     'maps upstream gix-merge tree-baseline super-2 fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $base = new Tree([

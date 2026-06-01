@@ -467,9 +467,10 @@ final class MediaQueryParser
                 throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
             }
             $name = $this->canonicalMediaFeatureIdentifier($matches[3]);
+            $type = $this->rangeComparableMediaFeatureType($name);
             $this->validateRangeFeature($name, $matches[1], $matches[5], $feature);
 
-            return $this->minifyValue($matches[1]) . $matches[2] . $name . $matches[4] . $this->minifyValue($matches[5]);
+            return $this->minifyValue($matches[1], $type) . $matches[2] . $name . $matches[4] . $this->minifyValue($matches[5], $type);
         }
 
         if (preg_match('/^(' . $ident . ')\s*(<=|>=|<|>|=)\s*(.+)$/', $feature, $matches) === 1) {
@@ -477,9 +478,10 @@ final class MediaQueryParser
             if ($matches[2] === '=' && !$this->isRangeComparableMediaFeature($name)) {
                 throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
             }
+            $type = $this->rangeComparableMediaFeatureType($name);
             $this->validateRangeFeature($name, $matches[3], null, $feature);
 
-            return $name . $matches[2] . $this->minifyValue($matches[3]);
+            return $name . $matches[2] . $this->minifyValue($matches[3], $type);
         }
 
         if (preg_match('/^(.+?)\s*(<=|>=|<|>|=)\s*(' . $ident . ')$/', $feature, $matches) === 1) {
@@ -487,9 +489,10 @@ final class MediaQueryParser
             if ($matches[2] === '=' && !$this->isRangeComparableMediaFeature($name)) {
                 throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
             }
+            $type = $this->rangeComparableMediaFeatureType($name);
             $this->validateRangeFeature($name, $matches[1], null, $feature);
 
-            return $name . $this->oppositeComparison($matches[2]) . $this->minifyValue($matches[1]);
+            return $name . $this->oppositeComparison($matches[2]) . $this->minifyValue($matches[1], $type);
         }
 
         if (preg_match('/^(' . $ident . ')\s*:\s*(.+)$/', $feature, $matches) === 1) {
@@ -505,7 +508,7 @@ final class MediaQueryParser
                     $this->validateRangeFeature($canonical, $matches[2], null, $feature);
                     $operator = $legacyMatches[1] === 'min' ? '>=' : '<=';
 
-                    return $canonical . $operator . $this->minifyValue($matches[2]);
+                    return $canonical . $operator . $this->minifyValue($matches[2], $type);
                 }
             }
 
@@ -519,13 +522,13 @@ final class MediaQueryParser
                     $this->validateRangeFeature($canonical, $matches[2], null, $feature);
                     $operator = $legacyMatches[1] === 'min' ? '>=' : '<=';
 
-                    return $canonical . $operator . $this->minifyValue($matches[2]);
+                    return $canonical . $operator . $this->minifyValue($matches[2], $type);
                 }
             }
 
             $this->validateDiscreteMediaFeature($name, $matches[2], $feature);
 
-            return $name . ':' . $this->minifyValue($matches[2]);
+            return $name . ':' . $this->minifyValue($matches[2], $this->knownMediaFeatureType($name));
         }
 
         if (preg_match('/^[_a-zA-Z-][_a-zA-Z0-9-]*\(/', $feature) === 1) {
@@ -763,7 +766,7 @@ final class MediaQueryParser
             'resolution' => preg_match('/^' . $number . '(?:dpcm|dpi|dppx|x)$/i', $value) === 1,
             'ratio' => preg_match('/^' . $number . '(?:\s*\/\s*' . $number . ')?$/', $value) === 1,
             'unknown' => $this->isValidUnknownRangeValue($value),
-            default => $this->isZeroNumber($value)
+            default => preg_match('/^' . $number . '$/', $value) === 1
                 || preg_match('/^' . $number . '(?:[a-zA-Z%]+)$/', $value) === 1,
         };
     }
@@ -822,7 +825,7 @@ final class MediaQueryParser
         return false;
     }
 
-    private function minifyValue(string $value): string
+    private function minifyValue(string $value, ?string $type = null): string
     {
         $value = trim($value);
         $value = $this->foldSimpleCalc($value);
@@ -833,6 +836,9 @@ final class MediaQueryParser
         }
         if (preg_match('/^' . $this->cssIdentifierPattern() . '$/', $value) === 1) {
             return $this->canonicalMediaIdentifierValue($value);
+        }
+        if ($type === 'length' && preg_match('/^' . $this->cssNumberPattern() . '$/', $value) === 1 && (float) $value !== 0.0) {
+            return $this->trimNumber($value) . 'px';
         }
 
         return $this->minifyNumericValue($value);
@@ -1681,7 +1687,7 @@ final class MediaQueryParser
             return null;
         }
 
-        return $name . $this->invertComparison($matches[2]) . $this->minifyValue($matches[3]);
+        return $name . $this->invertComparison($matches[2]) . $this->minifyValue($matches[3], $this->rangeComparableMediaFeatureType($name));
     }
 
     private function flattenRedundantBooleanGroups(string $query, string $operator): string
@@ -2110,8 +2116,9 @@ final class MediaQueryParser
                 return null;
             }
 
-            $left = $this->legacyComparison($name, $this->comparisonFromLeft($matches[2]), $this->minifyValue($matches[1]));
-            $right = $this->legacyComparison($name, $matches[4], $this->minifyValue($matches[5]));
+            $type = $this->rangeComparableMediaFeatureType($name);
+            $left = $this->legacyComparison($name, $this->comparisonFromLeft($matches[2]), $this->minifyValue($matches[1], $type));
+            $right = $this->legacyComparison($name, $matches[4], $this->minifyValue($matches[5], $type));
             $css = $this->andLegacyComparisons([$left, $right]);
             if ($negated) {
                 return [
@@ -2146,7 +2153,7 @@ final class MediaQueryParser
         $comparison = $this->legacyComparison(
             $name,
             $negated ? $this->invertComparison($matches[2]) : $matches[2],
-            $this->minifyValue($matches[3])
+            $this->minifyValue($matches[3], $this->rangeComparableMediaFeatureType($name))
         );
 
         return [

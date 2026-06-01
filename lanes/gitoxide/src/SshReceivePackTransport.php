@@ -45,7 +45,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param callable(string, ?string, ?int, string, float): array{read: resource, write: resource} $connector
-     * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, disallowShell?: bool} $options
+     * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, disallowShell?: bool, identityUsername?: ?string} $options
      */
     public static function connect(string $url, callable $connector, float $timeout = 30.0, array $options = []): self
     {
@@ -54,7 +54,9 @@ final class SshReceivePackTransport implements ReceivePackTransport
         }
 
         $target = self::parseRepositoryUrl($url);
-        $connectorContext = self::connectorContextForTarget($target, self::normalizeConnectOptions($options));
+        $normalizedOptions = self::normalizeConnectOptions($options);
+        $target = self::applyIdentityUsername($target, $normalizedOptions);
+        $connectorContext = self::connectorContextForTarget($target, $normalizedOptions);
         $streams = self::connectorAcceptsContext($connector)
             ? $connector(
                 $target['host'],
@@ -84,7 +86,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
     }
 
     /**
-     * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, disallowShell?: bool} $options
+     * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, disallowShell?: bool, identityUsername?: ?string} $options
      * @return array{
      *     host: string,
      *     user: ?string,
@@ -110,9 +112,11 @@ final class SshReceivePackTransport implements ReceivePackTransport
      */
     public static function connectorContext(string $url, array $options = []): array
     {
+        $normalizedOptions = self::normalizeConnectOptions($options);
+
         return self::connectorContextForTarget(
-            self::parseRepositoryUrl($url),
-            self::normalizeConnectOptions($options),
+            self::applyIdentityUsername(self::parseRepositoryUrl($url), $normalizedOptions),
+            $normalizedOptions,
         );
     }
 
@@ -521,8 +525,8 @@ final class SshReceivePackTransport implements ReceivePackTransport
     }
 
     /**
-     * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, disallowShell?: bool} $options
-     * @return array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool, useShell: bool, featureProbeRequired: bool}
+     * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, disallowShell?: bool, identityUsername?: ?string} $options
+     * @return array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool, useShell: bool, featureProbeRequired: bool, identityUsernameProvided: bool, identityUsername: ?string}
      */
     private static function normalizeConnectOptions(array $options): array
     {
@@ -556,6 +560,19 @@ final class SshReceivePackTransport implements ReceivePackTransport
             throw new \InvalidArgumentException('SSH receive-pack disallowShell must be a boolean');
         }
 
+        $identityUsernameProvided = array_key_exists('identityUsername', $options);
+        $identityUsername = null;
+        if ($identityUsernameProvided) {
+            $identityUsername = $options['identityUsername'];
+            if ($identityUsername !== null && !is_string($identityUsername)) {
+                throw new \InvalidArgumentException('SSH receive-pack identityUsername must be a string, null, or empty string');
+            }
+            if ($identityUsername === '') {
+                $identityUsername = null;
+            }
+            self::validateUser($identityUsername);
+        }
+
         return [
             'protocolVersion' => $protocolVersion,
             'programKind' => $normalizedKind,
@@ -563,7 +580,26 @@ final class SshReceivePackTransport implements ReceivePackTransport
             'disallowShell' => $disallowShell,
             'useShell' => self::sshCommandUsesShell($sshCommand, $disallowShell),
             'featureProbeRequired' => $featureProbeRequired,
+            'identityUsernameProvided' => $identityUsernameProvided,
+            'identityUsername' => $identityUsername,
         ];
+    }
+
+    /**
+     * @param array{host: string, user: ?string, port: ?int, path: string} $target
+     * @param array{identityUsernameProvided: bool, identityUsername: ?string} $options
+     * @return array{host: string, user: ?string, port: ?int, path: string}
+     */
+    private static function applyIdentityUsername(array $target, array $options): array
+    {
+        if (!$options['identityUsernameProvided']) {
+            return $target;
+        }
+
+        $target['user'] = $options['identityUsername'];
+        self::validateHost($target['host'], $target['user']);
+
+        return $target;
     }
 
     /**

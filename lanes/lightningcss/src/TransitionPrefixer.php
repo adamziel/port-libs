@@ -7606,7 +7606,7 @@ final class TransitionPrefixer
 
     private function textEmphasisPositionNeedsWebkitPrefix(string $value): bool
     {
-        return !in_array(strtolower(trim($value)), ['over left', 'under left'], true);
+        return !in_array($this->normalizeTextEmphasisPosition($value), ['over left', 'under left'], true);
     }
 
     private function normalizeTextEmphasisPropertyValue(string $base, string $value): string
@@ -7669,12 +7669,40 @@ final class TransitionPrefixer
             return trim($value);
         }
 
-        $tokens = $this->splitWhitespaceTopLevel(strtolower(trim($value)));
-        if (count($tokens) === 2 && $tokens[1] === 'right') {
-            array_pop($tokens);
+        $trimmed = trim($value);
+        $tokens = $this->splitWhitespaceTopLevel(strtolower($trimmed));
+        if ($tokens === []) {
+            return $trimmed;
         }
 
-        return $tokens === [] ? trim($value) : implode(' ', $tokens);
+        if (count($tokens) === 1) {
+            return in_array($tokens[0], ['over', 'under', 'left', 'right'], true) ? $tokens[0] : $trimmed;
+        }
+
+        if (count($tokens) !== 2) {
+            return $trimmed;
+        }
+
+        $vertical = null;
+        $horizontal = null;
+        foreach ($tokens as $token) {
+            if (in_array($token, ['over', 'under'], true) && $vertical === null) {
+                $vertical = $token;
+                continue;
+            }
+            if (in_array($token, ['left', 'right'], true) && $horizontal === null) {
+                $horizontal = $token;
+                continue;
+            }
+
+            return $trimmed;
+        }
+
+        if ($vertical === null || $horizontal === null) {
+            return $trimmed;
+        }
+
+        return $horizontal === 'right' ? $vertical : $vertical . ' left';
     }
 
     /**

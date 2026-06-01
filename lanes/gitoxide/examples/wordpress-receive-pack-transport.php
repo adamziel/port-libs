@@ -39,6 +39,9 @@ return [
     'sshOptionLikeHostWithUserArguments' => $fixture['sshOptionLikeHostWithUserContext']['sshArguments'],
     'sshScpLikeAtUserArguments' => $fixture['sshScpLikeAtUserContext']['sshArguments'],
     'sshPlinkArguments' => $fixture['sshPlinkContext']['sshArguments'],
+    'sshIdentityArguments' => $fixture['sshIdentityContext']['sshArguments'],
+    'sshIdentityCredentialContext' => $fixture['sshIdentityContext']['redactedCredentialContext'],
+    'sshIdentityClearedArguments' => $fixture['sshIdentityClearedContext']['sshArguments'],
     'sshTortoisePlinkArguments' => $fixture['sshTortoisePlinkContext']['sshArguments'],
     'sshSimpleArguments' => $fixture['sshSimpleContext']['sshArguments'],
     'sshShellScriptUsesShell' => $fixture['sshShellScriptContext']['useShell'],
@@ -96,4 +99,6 @@ return [
     'unsafeSshNumericPortOverflowRejected' => $fixture['unsafeSshNumericPortOverflowRejected'],
     'unsafeSshAuthorityTooLongRejected' => $fixture['unsafeSshAuthorityTooLongRejected'],
     'unsafeSshFeatureProbeHostRejected' => $fixture['unsafeSshFeatureProbeHostRejected'],
+    'unsafeSshIdentityUsernameRejected' => $fixture['unsafeSshIdentityUsernameRejected'],
+    'unsafeSshIdentityClearedOptionHostRejected' => $fixture['unsafeSshIdentityClearedOptionHostRejected'],
 ];

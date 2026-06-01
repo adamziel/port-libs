@@ -2015,6 +2015,10 @@ final class CssModulesTransformer
             }
 
             if (isset($pseudoElement['inner'])) {
+                if (($pseudoElement['singleSelector'] ?? false) === true) {
+                    $this->assertCssModulesFunctionalSelector($pseudoElement['inner']);
+                }
+
                 $this->assertSelectorPseudoElementBoundaries($pseudoElement['inner']);
             }
 
@@ -2055,6 +2059,24 @@ final class CssModulesTransformer
                 'end' => $close + 1,
                 'allowPseudoClasses' => false,
                 'inner' => substr($selector, $token['end'] + 1, $close - $token['end'] - 1),
+            ];
+        }
+
+        if ($colonLength === 2 && in_array($name, ['cue', 'cue-region'], true)) {
+            if (($selector[$token['end']] ?? '') === '(') {
+                $close = $this->findMatchingParen($selector, $token['end']);
+
+                return [
+                    'end' => $close + 1,
+                    'allowPseudoClasses' => true,
+                    'inner' => substr($selector, $token['end'] + 1, $close - $token['end'] - 1),
+                    'singleSelector' => true,
+                ];
+            }
+
+            return [
+                'end' => $token['end'],
+                'allowPseudoClasses' => true,
             ];
         }
 
@@ -2272,6 +2294,24 @@ final class CssModulesTransformer
                 $this->assertCssModulesFunctionalSelector($inner);
                 $output .= $this->rewriteSelectorFragment($inner, $mode === 'global' ? 'global' : 'local', $locals);
                 $i = $close;
+                continue;
+            }
+
+            $cueSelectorFunction = $bracketDepth === 0 ? $this->cueSelectorFunctionAt($selector, $i) : null;
+            if ($cueSelectorFunction !== null) {
+                $inner = substr(
+                    $selector,
+                    $cueSelectorFunction['open'] + 1,
+                    $cueSelectorFunction['close'] - $cueSelectorFunction['open'] - 1
+                );
+                $this->assertCssModulesFunctionalSelector($inner);
+
+                $output .= '::'
+                    . $cueSelectorFunction['name']
+                    . '('
+                    . $this->rewriteSelectorFragment($inner, $mode, $locals)
+                    . ')';
+                $i = $cueSelectorFunction['close'];
                 continue;
             }
 
@@ -3294,6 +3334,32 @@ final class CssModulesTransformer
         }
 
         return null;
+    }
+
+    /**
+     * @return array{name:string,open:int,close:int}|null
+     */
+    private function cueSelectorFunctionAt(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset] ?? '') !== ':' || ($selector[$offset + 1] ?? '') !== ':') {
+            return null;
+        }
+
+        $token = $this->readCssIdentifierToken($selector, $offset + 2);
+        if ($token === null || ($selector[$token['end']] ?? '') !== '(') {
+            return null;
+        }
+
+        $name = strtolower($token['decoded']);
+        if (!in_array($name, ['cue', 'cue-region'], true)) {
+            return null;
+        }
+
+        return [
+            'name' => $name,
+            'open' => $token['end'],
+            'close' => $this->findMatchingParen($selector, $token['end']),
+        ];
     }
 
     /**

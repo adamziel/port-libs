@@ -147,6 +147,14 @@ return [
         'ssh://deploy@git.example.test:2222/var/www/wp-content.git',
         ['protocolVersion' => 2, 'programKind' => 'plink'],
     ),
+    'sshIdentityContext' => SshReceivePackTransport::connectorContext(
+        'ssh://stale@git.example.test/var/www/wp-content.git',
+        ['protocolVersion' => 2, 'identityUsername' => 'deploy'],
+    ),
+    'sshIdentityClearedContext' => SshReceivePackTransport::connectorContext(
+        'ssh://stale@git.example.test/var/www/wp-content.git',
+        ['identityUsername' => ''],
+    ),
     'sshTortoisePlinkContext' => SshReceivePackTransport::connectorContext(
         'ssh://deploy@git.example.test:2222/var/www/wp-content.git',
         ['programKind' => 'tortoiseplink'],
@@ -660,5 +668,29 @@ return [
 
         return false;
     })(),
-    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, accept smart HTTP receive-pack advertisements with or without the optional service announcement, accept any matching receive-pack Content-Type header value when intermediaries duplicate response headers, surface receive-pack advertisement ERR packets and oversized packet-line boundaries before ref parsing, preflight SSH targets including explicit bracketed IPv6 URLs, scp-like bracketed IPv6 hosts without user info, scp-like usernames containing at-signs, legacy ssh+git/git+ssh receive-pack URLs, URL-form non-numeric port-looking host suffixes, and upstream root-path receive-pack targets before handing streams to a caller-approved SSH adapter, reject scp-like bracketed IPv6 hosts with user info like upstream Gitoxide, normalize scp-like /~ repository paths before remote git-receive-pack command construction, pass protocol-v2 GIT_PROTOCOL, locale, redacted credential-helper context metadata, and upstream-shaped Git environment-removal keys to an opted-in adapter without owning live SSH authentication, plan upstream SSH, plink, putty, tortoiseplink, simple-client, disallow-shell argv boundaries, and non-executing -G feature probes for unknown SSH commands, classify caller-provided SSH stderr lines into upstream permission, host-resolution, and connection failure buckets, allow option-looking SSH hosts only when an explicit user makes the combined user@host argument safe, reject option-looking hosts during unknown-command feature probing unless the caller pins an explicit program kind, reject numeric SSH port overflows, URL-form SSH authorities beyond the upstream 1024-byte pre-path boundary, decoded SSH host/user delimiters including encoded at-sign or colon username delimiters, reject unsupported SSH URL passwords, reject legacy SSH hosts that look like command-line options without an explicit user, reject decoded smart HTTP credential control bytes, URL/proxy/no-proxy host delimiters, raw URL/proxy control bytes, encoded URL path control bytes, Git-Protocol extra-parameter control bytes, and caller header control bytes, and construct git-daemon service requests from validated git:// URLs or explicit absolute repository URL paths with decoded URL components, upstream-style value-only or key=value extra parameters, no control bytes, decoded host delimiters, or malformed extra parameters, while preserving bracketed IPv6 virtual-host targets.',
+    'unsafeSshIdentityUsernameRejected' => (static function (): bool {
+        try {
+            SshReceivePackTransport::connectorContext(
+                'ssh://git.example.test/var/www/wp-content.git',
+                ['identityUsername' => '-deploy'],
+            );
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+
+        return false;
+    })(),
+    'unsafeSshIdentityClearedOptionHostRejected' => (static function (): bool {
+        try {
+            SshReceivePackTransport::connectorContext(
+                'ssh://stale@-git-proxy.example.test/var/www/wp-content.git',
+                ['identityUsername' => ''],
+            );
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+
+        return false;
+    })(),
+    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, accept smart HTTP receive-pack advertisements with or without the optional service announcement, accept any matching receive-pack Content-Type header value when intermediaries duplicate response headers, surface receive-pack advertisement ERR packets and oversized packet-line boundaries before ref parsing, preflight SSH targets including explicit bracketed IPv6 URLs, scp-like bracketed IPv6 hosts without user info, scp-like usernames containing at-signs, legacy ssh+git/git+ssh receive-pack URLs, URL-form non-numeric port-looking host suffixes, upstream root-path receive-pack targets, and credential-helper identity username replacement/clearing before handing streams to a caller-approved SSH adapter, reject scp-like bracketed IPv6 hosts with user info like upstream Gitoxide, normalize scp-like /~ repository paths before remote git-receive-pack command construction, pass protocol-v2 GIT_PROTOCOL, locale, redacted credential-helper context metadata, and upstream-shaped Git environment-removal keys to an opted-in adapter without owning live SSH authentication, plan upstream SSH, plink, putty, tortoiseplink, simple-client, disallow-shell argv boundaries, and non-executing -G feature probes for unknown SSH commands, classify caller-provided SSH stderr lines into upstream permission, host-resolution, and connection failure buckets, allow option-looking SSH hosts only when an explicit user makes the combined user@host argument safe, reject option-looking hosts during unknown-command feature probing unless the caller pins an explicit program kind, reject unsafe or ambiguous SSH identity usernames, reject clearing an identity username when that exposes an option-looking host as a raw SSH command argument, reject numeric SSH port overflows, URL-form SSH authorities beyond the upstream 1024-byte pre-path boundary, decoded SSH host/user delimiters including encoded at-sign or colon username delimiters, reject unsupported SSH URL passwords, reject legacy SSH hosts that look like command-line options without an explicit user, reject decoded smart HTTP credential control bytes, URL/proxy/no-proxy host delimiters, raw URL/proxy control bytes, encoded URL path control bytes, Git-Protocol extra-parameter control bytes, and caller header control bytes, and construct git-daemon service requests from validated git:// URLs or explicit absolute repository URL paths with decoded URL components, upstream-style value-only or key=value extra parameters, no control bytes, decoded host delimiters, or malformed extra parameters, while preserving bracketed IPv6 virtual-host targets.',
 ];

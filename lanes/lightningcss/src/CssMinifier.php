@@ -308,6 +308,15 @@ final class CssMinifier
                 continue;
             }
 
+            if ($char === '/' && ($condition[$i + 1] ?? '') === '*') {
+                $end = strpos($condition, '*/', $i + 2);
+                if ($end === false) {
+                    return null;
+                }
+                $i = $end + 1;
+                continue;
+            }
+
             if ($char === '(') {
                 $depth++;
                 continue;
@@ -318,7 +327,7 @@ final class CssMinifier
                 continue;
             }
 
-            if ($depth !== 0 || !$this->isIdentifierStart($char)) {
+            if (!$this->isIdentifierStart($char)) {
                 continue;
             }
 
@@ -329,14 +338,93 @@ final class CssMinifier
                 continue;
             }
 
+            if ($depth !== 0 && !$this->isConditionFunctionContext($condition, $i, $depth)) {
+                $i = $after - 1;
+                continue;
+            }
+
             if (!in_array($identifier, $allowedFunctions, true)) {
                 return $i;
             }
 
-            $i = $after - 1;
+            [, $functionEnd] = $this->readFunctionRaw($condition, $i);
+            $i = $functionEnd;
         }
 
         return null;
+    }
+
+    private function isConditionFunctionContext(string $condition, int $offset, int $depth): bool
+    {
+        $token = $this->previousConditionTokenAtDepth($condition, $offset, $depth);
+
+        return $token === null || in_array($token, ['(', 'and', 'or', 'not'], true);
+    }
+
+    private function previousConditionTokenAtDepth(string $condition, int $offset, int $targetDepth): ?string
+    {
+        $quote = null;
+        $depth = 0;
+        $lastToken = null;
+
+        for ($i = 0; $i < $offset; $i++) {
+            $char = $condition[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '/' && ($condition[$i + 1] ?? '') === '*') {
+                $end = strpos($condition, '*/', $i + 2);
+                if ($end === false) {
+                    break;
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '(') {
+                if ($depth + 1 === $targetDepth) {
+                    $lastToken = '(';
+                }
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                if ($depth === $targetDepth) {
+                    $lastToken = ')';
+                }
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth !== $targetDepth || ctype_space($char)) {
+                continue;
+            }
+
+            if ($this->isIdentifierStart($char)) {
+                $identifier = strtolower($this->readIdentifier($condition, $i));
+                $lastToken = $identifier;
+                $i += strlen($identifier) - 1;
+                continue;
+            }
+
+            $lastToken = $char;
+        }
+
+        return $lastToken;
     }
 
     /**
@@ -6401,12 +6489,40 @@ final class CssMinifier
             return trim($value);
         }
 
-        $tokens = $this->splitWhitespaceTopLevel(strtolower(trim($value)));
-        if (count($tokens) === 2 && $tokens[1] === 'right') {
-            array_pop($tokens);
+        $trimmed = trim($value);
+        $tokens = $this->splitWhitespaceTopLevel(strtolower($trimmed));
+        if ($tokens === []) {
+            return $trimmed;
         }
 
-        return $tokens === [] ? trim($value) : implode(' ', $tokens);
+        if (count($tokens) === 1) {
+            return in_array($tokens[0], ['over', 'under', 'left', 'right'], true) ? $tokens[0] : $trimmed;
+        }
+
+        if (count($tokens) !== 2) {
+            return $trimmed;
+        }
+
+        $vertical = null;
+        $horizontal = null;
+        foreach ($tokens as $token) {
+            if (in_array($token, ['over', 'under'], true) && $vertical === null) {
+                $vertical = $token;
+                continue;
+            }
+            if (in_array($token, ['left', 'right'], true) && $horizontal === null) {
+                $horizontal = $token;
+                continue;
+            }
+
+            return $trimmed;
+        }
+
+        if ($vertical === null || $horizontal === null) {
+            return $trimmed;
+        }
+
+        return $horizontal === 'right' ? $vertical : $vertical . ' left';
     }
 
     /**

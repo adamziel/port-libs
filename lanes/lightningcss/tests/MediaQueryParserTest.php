@@ -27,6 +27,11 @@ return [
         $t->same('(.5px<=width<=1.5px)', $parser->minifyList('(0.5px <= width <= 1.50px)'));
         $t->same('(width>=-.5px)', $parser->minifyList('(width >= -0.5px)'));
         $t->same('(width>=0)', $parser->minifyList('(width >= 0px)'));
+        $t->same('(width>=0)', $parser->minifyList('(width >= 0)'));
+        $t->same('(width>=2px)', $parser->minifyList('(width >= 2)'));
+        $t->same('(height<3px)', $parser->minifyList('(height < 3)'));
+        $t->same('(2px<=width<=4px)', $parser->minifyList('(2 <= width <= 4)'));
+        $t->same('(width=2px)', $parser->minifyList('(width = 2)'));
         $t->same('(aspect-ratio>=.5)', $parser->minifyList('(aspect-ratio >= 0.5/1.0)'));
         $t->same('(theme-breakpoint>=.5rem)', $parser->minifyList('(theme-breakpoint >= +0.5rem)'));
         $t->same('(width>=1000px)', $parser->minifyList('(width >= 1e3px)'));
@@ -44,6 +49,7 @@ return [
         $t->same('(width<=240px)', $parser->minifyList('not (width > 240px)'));
         $t->same('(width<240px)', $parser->minifyList('not (width >= 240px)'));
         $t->same('(width<240px)', $parser->minifyList('not (((min-width: 240px)))'));
+        $t->same('(width>=2px)', $parser->minifyList('not (width < 2)'));
         $t->same('not (color)', $parser->minifyList('not (((color)))'));
         $t->same('(width<240px)', $parser->minifyList('not (not (width < 240px))'));
         $t->same('(width<240px)', $parser->minifyList('not (min-width: 240px)'));
@@ -453,6 +459,10 @@ return [
         $t->same('(min-width:.5px) and (max-width:1.5px)', $parser->lowerRangeSyntaxList('(0.5px <= width <= 1.50px)'));
         $t->same('(min-width:-.5px)', $parser->lowerRangeSyntaxList('(width >= -0.5px)'));
         $t->same('(min-width:0)', $parser->lowerRangeSyntaxList('(width >= 0px)'));
+        $t->same('(min-width:2px)', $parser->lowerRangeSyntaxList('(width >= 2)'));
+        $t->same('not (min-height:3px)', $parser->lowerRangeSyntaxList('(height < 3)'));
+        $t->same('(min-width:2px) and (max-width:4px)', $parser->lowerRangeSyntaxList('(2 <= width <= 4)'));
+        $t->same('(width:2px)', $parser->lowerRangeSyntaxList('(width = 2)'));
         $t->same('(min-aspect-ratio:.5)', $parser->lowerRangeSyntaxList('(aspect-ratio >= 0.5/1.0)'));
         $t->same('(min-theme-breakpoint:.5rem)', $parser->lowerRangeSyntaxList('(theme-breakpoint >= +0.5rem)'));
         $t->same('(min-width:1000px)', $parser->lowerRangeSyntaxList('(width >= 1e3px)'));
@@ -473,6 +483,7 @@ return [
         $t->same('not screen and not (min-width:240px)', $parser->lowerRangeSyntaxList('not screen and (width < 240px)'));
         $t->same('only screen and (min-width:240px)', $parser->lowerRangeSyntaxList('only screen and (width >= 240px)'));
         $t->same('(min-width:240px)', $parser->lowerRangeSyntaxList('all and (width >= 240px)'));
+        $t->same('(min-width:2px)', $parser->lowerRangeSyntaxList('not (width < 2)'));
         $t->same('screen and not (max-width:max(10px,1rem))', $parser->lowerRangeSyntaxList('screen and (width > max(10px, 1rem))'));
         $t->same('screen and (not (min-width:240px)) and (hover)', $parser->lowerRangeSyntaxList('screen and (width < 240px) and (hover)'));
     },

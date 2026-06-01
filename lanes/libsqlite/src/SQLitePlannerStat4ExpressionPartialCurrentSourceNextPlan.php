@@ -1104,6 +1104,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $nextAdmitted = $nextSummary === null || $nextSummary['replanReasons'] === [];
             $ready = $selected !== null && $nextAdmitted;
             $rows = is_array($selected['currentNextRows'] ?? null) ? array_column($selected['currentNextRows'], 'current') : [];
+            $coveringNameColumn = self::coveringDisplayColumnCurrentSourceCoveringReprepare($selected, $neededColumns);
 
             return [
                 'status' => $ready ? 'stat4-expression-partial-current-source-coveringReprepare-ready' : 'requires-current-source-reprepare',
@@ -1125,7 +1126,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'coveringReprepareRowids' => array_column($rows, 'rowid'),
                     'coveringReprepareKeys' => array_column($rows, 'key'),
                     'coveringReprepareCoveringNames' => array_map(
-                        static fn (array $row): mixed => $row['covering']['option_name'] ?? null,
+                        static fn (array $row): mixed => $coveringNameColumn === '' ? null : ($row['covering'][$coveringNameColumn] ?? null),
                         $rows,
                     ),
                     'coveringReprepareCursorProgram' => self::cursorProgramCurrentSourceCoveringReprepare($selected, $neededColumns, $neededExpressions),
@@ -1201,6 +1202,23 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $program[] = ['opcode' => 'Next', 'target' => 'index'];
 
             return $program;
+        }
+
+        /**
+         * @param array<string,mixed>|null $plan
+         * @param list<string> $neededColumns
+         */
+        private static function coveringDisplayColumnCurrentSourceCoveringReprepare(?array $plan, array $neededColumns): string
+        {
+            foreach ($neededColumns as $column) {
+                if (is_string($column) && $column !== '') {
+                    return $column;
+                }
+            }
+
+            $expressionColumn = is_array($plan) ? ($plan['expressionColumn'] ?? null) : null;
+
+            return is_string($expressionColumn) ? $expressionColumn : '';
         }
 
         /**
@@ -1867,12 +1885,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
         private static function expressionValueCurrentOrSplitPartialExpression(string $expression, array $row): mixed
         {
-            if (self::normalizeExpressionCurrentOrSplitPartialExpression($expression) === 'lower(option_name)') {
-                $value = $row['option_name'] ?? null;
-                return is_string($value) ? strtolower($value) : null;
-            }
-
-            return $row[$expression] ?? null;
+            return self::stat4SourceNeutralExpressionValue($row, $expression, 'or-split partial expression', false);
         }
 
         /** @return list<array{key:mixed,neq:int,nlt:int,ndlt:int,rowid:int}> */
@@ -3755,13 +3768,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
         private static function expressionValueForStat4ExpressionPartialCurrentSource(array $row, string $expression): mixed
         {
-            if (strtolower(str_replace(' ', '', $expression)) === 'lower(option_name)') {
-                $value = $row['option_name'] ?? null;
-
-                return is_string($value) ? strtolower($value) : null;
-            }
-
-            throw new \InvalidArgumentException('SQLite next167 unsupported expression ' . $expression);
+            return self::stat4SourceNeutralExpressionValue($row, $expression, 'next167 expression partial');
         }
 
         private static function compareForStat4ExpressionPartialCurrentSource(mixed $left, mixed $right, string $collation): int
@@ -4086,13 +4093,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
         private static function stat4LikePrefixPartialExpressionValue(array $row, string $expression): mixed
         {
-            $normalized = self::stat4LikePrefixPartialNormalizeExpression($expression);
-            if ($normalized === 'lower(option_name)') {
-                $value = $row['option_name'] ?? null;
-                return is_string($value) ? strtolower($value) : null;
-            }
-
-            throw new \InvalidArgumentException('SQLite next168 unsupported expression ' . $expression);
+            return self::stat4SourceNeutralExpressionValue($row, $expression, 'next168 LIKE prefix partial');
         }
 
         private static function stat4LikePrefixPartialLikeMatches(mixed $value, string $pattern, string $collation): bool
@@ -4326,7 +4327,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             );
             $selectedSource = ($base['selectedSource'] ?? 'prepared') === 'current' ? $currentSource : $preparedSource;
             $selected = is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : [];
-            $competitors = self::competingExpressionIndexesForStat4PartialCostFence($selectedSource, (string) ($selected['name'] ?? ''));
+            $competitors = self::competingExpressionIndexesForStat4PartialCostFence($selectedSource, (string) ($selected['name'] ?? ''), $neededColumns);
             $partialCost = self::intValueForStat4PartialCostFence($selected, 'estimatedCost');
             $bestFullCost = self::bestFullCostForStat4PartialCostFence($competitors);
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-stat4-current-range-ready'
@@ -4368,7 +4369,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @return list<array<string,mixed>>
          */
-        private static function competingExpressionIndexesForStat4PartialCostFence(array $source, string $selectedName): array
+        private static function competingExpressionIndexesForStat4PartialCostFence(array $source, string $selectedName, array $neededColumns): array
         {
             $out = [];
             foreach (($source['indexes'] ?? []) as $index) {
@@ -4381,7 +4382,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     $stat4,
                 )));
                 $partial = (($index['partialPredicateTerms'] ?? []) !== []);
-                $covering = self::coversForStat4PartialCostFence($index['coveringColumns'] ?? [], ['option_name', 'option_value', 'updated_at']);
+                $covering = self::coversForStat4PartialCostFence($index['coveringColumns'] ?? [], $neededColumns);
                 $out[] = [
                     'name' => (string) ($index['name'] ?? ''),
                     'selected' => (string) ($index['name'] ?? '') === $selectedName,
@@ -4581,7 +4582,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!self::rowMatchesRelevantChurnTerms($row, $queryTerms)) {
                     continue;
                 }
-                $out[] = self::canonicalRelevantChurnRow($row);
+                $out[] = self::canonicalRelevantChurnRow($row, $queryTerms);
             }
             usort($out, static fn (array $left, array $right): int => ((int) ($left['rowid'] ?? 0)) <=> ((int) ($right['rowid'] ?? 0)));
 
@@ -4592,15 +4593,52 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @return array<string,mixed>
          */
-        private static function canonicalRelevantChurnRow(array $row): array
+        private static function canonicalRelevantChurnRow(array $row, array $queryTerms): array
         {
             return [
                 'rowid' => (int) ($row['rowid'] ?? 0),
-                'blog_id' => $row['blog_id'] ?? null,
-                'autoload' => $row['autoload'] ?? null,
-                'option_name' => $row['option_name'] ?? null,
-                'expressionKey' => is_string($row['option_name'] ?? null) ? strtolower((string) $row['option_name']) : null,
+                'columns' => self::canonicalRelevantChurnColumns($row, $queryTerms),
+                'expressions' => self::canonicalRelevantChurnExpressions($row, $queryTerms),
             ];
+        }
+
+        /**
+         * @param array<string,mixed> $row
+         * @param list<array<string,mixed>> $queryTerms
+         * @return array<string,mixed>
+         */
+        private static function canonicalRelevantChurnColumns(array $row, array $queryTerms): array
+        {
+            $columns = [];
+            foreach ($queryTerms as $term) {
+                $left = is_array($term) ? ($term['left'] ?? null) : null;
+                if (is_array($left) && is_string($left['column'] ?? null) && $left['column'] !== '') {
+                    $columns[$left['column']] = $row[$left['column']] ?? null;
+                }
+            }
+            ksort($columns);
+
+            return $columns;
+        }
+
+        /**
+         * @param array<string,mixed> $row
+         * @param list<array<string,mixed>> $queryTerms
+         * @return array<string,mixed>
+         */
+        private static function canonicalRelevantChurnExpressions(array $row, array $queryTerms): array
+        {
+            $expressions = [];
+            foreach ($queryTerms as $term) {
+                $left = is_array($term) ? ($term['left'] ?? null) : null;
+                if (is_array($left) && is_string($left['expression'] ?? null) && $left['expression'] !== '') {
+                    $normalized = self::normalizeRelevantChurnExpression($left['expression']);
+                    $expressions[$normalized] = self::stat4SourceNeutralExpressionValue($row, $left['expression'], 'next170 relevant row churn', false);
+                }
+            }
+            ksort($expressions);
+
+            return $expressions;
         }
 
         /**
@@ -4628,8 +4666,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     continue;
                 }
 
-                if (isset($left['expression']) && self::normalizeRelevantChurnExpression((string) $left['expression']) === 'lower(option_name)') {
-                    $key = is_string($row['option_name'] ?? null) ? strtolower((string) $row['option_name']) : null;
+                if (isset($left['expression'])) {
+                    $key = self::stat4SourceNeutralExpressionValue($row, (string) $left['expression'], 'next170 relevant row churn', false);
                     if ($operator === 'IN') {
                         $values = $term['values'] ?? null;
                         if (!is_array($values) || !in_array($key, $values, true)) {
@@ -5202,19 +5240,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /** @param array<string,mixed> $row */
         private static function expressionValueForUnsampledBracket(array $row, string $expression): mixed
         {
-            $normalized = self::normalizeExpressionForUnsampledBracket($expression);
-            if ($normalized === 'lower(option_name)') {
-                $value = $row['option_name'] ?? null;
-
-                return $value === null ? null : strtolower((string) $value);
-            }
-            if ($normalized === 'substr(option_name,1,12)') {
-                $value = $row['option_name'] ?? null;
-
-                return $value === null ? null : substr((string) $value, 0, 12);
-            }
-
-            return $row[$expression] ?? null;
+            return self::stat4SourceNeutralExpressionValue($row, $expression, 'next171 unsampled bracket', false);
         }
 
         private static function normalizeExpressionForUnsampledBracket(string $expression): string
@@ -5737,7 +5763,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             );
             $selected = self::arrayValueForDuplicateFanout($base, 'selectedPlan');
             $indexName = (string) ($selected['name'] ?? '');
-            $expression = (string) ($selected['expression'] ?? 'lower(option_name)');
+            $expression = self::selectedExpressionForDuplicateFanout($selected, $currentSource);
             $collation = (string) ($selected['collation'] ?? 'BINARY');
             $currentWindow = self::arrayValueForDuplicateFanout($base, 'currentSampleWindow');
             $sampleFence = self::arrayValueForDuplicateFanout($base, 'postAnalyzeSampleFence');
@@ -5939,6 +5965,16 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             }
 
             return $out;
+        }
+
+        /** @param array<string,mixed> $selected */
+        private static function selectedExpressionForDuplicateFanout(array $selected, array $source): string
+        {
+            if (is_string($selected['expression'] ?? null) && $selected['expression'] !== '') {
+                return $selected['expression'];
+            }
+
+            return self::firstExpressionFromIndexes($source, 'next173 duplicate fanout');
         }
 
         private static function intValueForDuplicateFanout(mixed $value): int
@@ -6758,19 +6794,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
         private static function expressionValueLikePrefixWindow(array $row, string $expression): mixed
         {
-            $normalized = self::normalizeLikePrefixWindowExpression($expression);
-            if ($normalized === 'lower(option_name)') {
-                $value = $row['option_name'] ?? null;
-
-                return is_string($value) ? strtolower($value) : null;
-            }
-            if ($normalized === 'length(option_value)') {
-                $value = $row['option_value'] ?? null;
-
-                return is_string($value) ? strlen($value) : null;
-            }
-
-            return $row[$normalized] ?? null;
+            return self::stat4SourceNeutralExpressionValue($row, $expression, 'next175 LIKE prefix window', false);
         }
 
         private static function normalizeLikePrefixWindowExpression(string $expression): string
@@ -7339,10 +7363,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         private static function normalizeExpressionForStat4BetweenRangeFence(string $expression): string
         {
             $expression = strtolower(trim($expression));
-            $expression = (string) preg_replace('/\s+/', '', $expression);
-            $expression = str_replace('(option_name)', '(option_name)', $expression);
-
-            return $expression;
+            return (string) preg_replace('/\s+/', '', $expression);
         }
 
         private static function signatureForStat4BetweenRangeFence(mixed $value): string
@@ -7373,7 +7394,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             if ($neededColumns === []) {
                 throw new \InvalidArgumentException('SQLite next178 needed columns cannot be empty');
             }
-            $orderBy ??= ['expression' => 'lower(option_name)', 'direction' => 'DESC', 'collation' => 'BINARY'];
+            $orderBy ??= ['expression' => self::firstExpressionFromIndexes($currentSource, 'next178 order fence'), 'direction' => 'DESC', 'collation' => 'BINARY'];
 
             $prepared = self::sourcePlanForStat4OrderFence($preparedSource, $whereTerms, $neededColumns, $orderBy);
             $current = self::sourcePlanForStat4OrderFence($currentSource, $whereTerms, $neededColumns, $orderBy);
@@ -7680,12 +7701,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
         private static function expressionValueForStat4OrderFence(array $row, string $expression): mixed
         {
-            $normalized = self::normalizeExpressionForStat4OrderFence($expression);
-            if ($normalized === 'lower(option_name)') {
-                return is_string($row['option_name'] ?? null) ? strtolower((string) $row['option_name']) : null;
-            }
-
-            return $row[$normalized] ?? null;
+            return self::stat4SourceNeutralExpressionValue($row, $expression, 'next178 order fence', false);
         }
 
         /** @param list<array<string,mixed>> $samples @return list<array{key:mixed,rowid:int,neq:int,nlt:string,ndlt:string}> */
@@ -19951,6 +19967,66 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             }
 
             return strtolower((string) ($row[$column] ?? ''));
+        }
+
+        /** @param array<string,mixed> $row */
+        private static function stat4SourceNeutralExpressionValue(array $row, string $expression, string $label, bool $strict = true): mixed
+        {
+            $lowerColumn = self::stat4LowerExpressionColumn($expression);
+            if ($lowerColumn !== null) {
+                $value = $row[$lowerColumn] ?? null;
+                return is_string($value) ? strtolower($value) : null;
+            }
+
+            $normalized = self::stat4SourceNeutralExpressionKey($expression);
+            if (preg_match('/^upper\(([a-z_][a-z0-9_]*)\)$/', $normalized, $matches) === 1) {
+                $value = $row[$matches[1]] ?? null;
+                return is_string($value) ? strtoupper($value) : null;
+            }
+            if (preg_match('/^length\(([a-z_][a-z0-9_]*)\)$/', $normalized, $matches) === 1) {
+                $value = $row[$matches[1]] ?? null;
+                return is_string($value) ? strlen($value) : null;
+            }
+            if (preg_match('/^substr\(([a-z_][a-z0-9_]*),(-?\d+),(\d+)\)$/', $normalized, $matches) === 1) {
+                $value = $row[$matches[1]] ?? null;
+                if ($value === null) {
+                    return null;
+                }
+                $start = (int) $matches[2];
+                $offset = $start > 0 ? $start - 1 : $start;
+                return substr((string) $value, $offset, (int) $matches[3]);
+            }
+            if (preg_match('/^json_extract\(([a-z_][a-z0-9_]*),\$\.(.+)\)$/', $normalized, $matches) === 1) {
+                $decoded = json_decode((string) ($row[$matches[1]] ?? ''), true);
+                return is_array($decoded) ? ($decoded[$matches[2]] ?? null) : null;
+            }
+            if (array_key_exists($expression, $row)) {
+                return $row[$expression];
+            }
+            if (array_key_exists($normalized, $row)) {
+                return $row[$normalized];
+            }
+            if (!$strict) {
+                return null;
+            }
+
+            throw new \InvalidArgumentException('SQLite ' . $label . ' unsupported expression ' . $expression);
+        }
+
+        private static function stat4SourceNeutralExpressionKey(string $expression): string
+        {
+            return strtolower((string) preg_replace('/\s+/', '', trim($expression)));
+        }
+
+        private static function firstExpressionFromIndexes(array $source, string $label): string
+        {
+            foreach (($source['indexes'] ?? []) as $index) {
+                if (is_array($index) && is_string($index['expression'] ?? null) && $index['expression'] !== '') {
+                    return $index['expression'];
+                }
+            }
+
+            throw new \InvalidArgumentException('SQLite ' . $label . ' needs an expression index');
         }
 
         /** @param array<string,mixed> $row */

@@ -58,6 +58,22 @@ $writeWordPressMultiPackFixture = static function (bool $omitMediaPack = false):
     return [$gitDir, $fixture];
 };
 
+$writeWordPressMultiPackFixtureToObjectsDirectory = static function (string $objectsDirectory): array {
+    $fixture = require dirname(__DIR__) . '/fixtures/wordpress-object-database-multi-pack.php';
+    $packDir = $objectsDirectory . '/pack';
+    if (!mkdir($packDir, 0777, true) && !is_dir($packDir)) {
+        throw new RuntimeException("Unable to create multi-pack fixture directory: {$packDir}");
+    }
+
+    foreach ($fixture['packs'] as $pack) {
+        file_put_contents($packDir . '/' . $pack['packName'], $pack['packBytes']);
+        file_put_contents($packDir . '/' . $pack['indexName'], $pack['indexBytes']);
+    }
+    file_put_contents($packDir . '/multi-pack-index', $fixture['multiIndexBytes']);
+
+    return $fixture;
+};
+
 $writeWordPressSha256MultiPackFixture = static function (): array {
     $fixture = require dirname(__DIR__) . '/fixtures/wordpress-object-database-multi-pack-sha256.php';
     $gitDir = sys_get_temp_dir() . '/port-libs-git-odb-midx-sha256-' . bin2hex(random_bytes(4)) . '/.git';
@@ -902,6 +918,40 @@ return [
         $t->same(['status' => 'found', 'oid' => $content['oid']], $database->lookupPrefix(substr($content['oid'], 0, 4)));
         $t->same(substr($content['oid'], 0, 4), $database->disambiguatePrefix(strtoupper($content['oid']), 4));
     },
+    'object database de-duplicates MIDX prefix candidates repeated through alternates like gix-odb' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture, $writeWordPressMultiPackFixtureToObjectsDirectory): void {
+        [$gitDir, $fixture] = $writeWordPressMultiPackFixture();
+        $alternateObjectsDirectory = dirname($gitDir) . '/alternate-cache/objects';
+        $alternateFixture = $writeWordPressMultiPackFixtureToObjectsDirectory($alternateObjectsDirectory);
+        $objectsInfoDirectory = $gitDir . '/objects/info';
+        if (!mkdir($objectsInfoDirectory, 0777, true) && !is_dir($objectsInfoDirectory)) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsInfoDirectory}");
+        }
+        file_put_contents($objectsInfoDirectory . '/alternates', $alternateObjectsDirectory . "\n");
+
+        $database = new ObjectDatabase($gitDir);
+        $content = $fixture['objectsByRole']['content'];
+        $contentOid = $content['oid'];
+        $prefix = strtoupper(substr($contentOid, 0, 8));
+        $lookup = $database->lookupPrefix($prefix, true);
+
+        $t->same($contentOid, $alternateFixture['objectsByRole']['content']['oid']);
+        $t->same('found', $lookup['status']);
+        $t->same($contentOid, $lookup['oid']);
+        $t->same([$contentOid], $lookup['candidates']);
+        $t->same(['status' => 'found', 'oid' => $contentOid], $database->lookupPrefix(substr($contentOid, 0, 4)));
+        $t->same(substr($contentOid, 0, 4), $database->disambiguatePrefix(strtoupper($contentOid), 4));
+
+        $alternateLooseCandidate = LooseObjectStore::fromObjectsDirectory($alternateObjectsDirectory)
+            ->write(new GitObject('blob', 'midx-prefix-candidate-128814'));
+        $ambiguous = $database->lookupPrefix(substr($contentOid, 0, 4), true);
+        $expected = [$contentOid, $alternateLooseCandidate];
+        sort($expected, SORT_STRING);
+
+        $t->same('ambiguous', $ambiguous['status']);
+        $t->same($expected, $ambiguous['matches']);
+        $t->same($expected, $ambiguous['candidates']);
+        $t->same($expected, array_values(array_unique($ambiguous['candidates'])));
+    },
     'object database returns full prefix after every shorter loose candidate prefix remains ambiguous like gix-odb' => static function (TestRunner $t) use ($looseObjectPath): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-odb-prefix-full-fallthrough-' . bin2hex(random_bytes(4)) . '/.git';
         $sharedThirtyNine = str_repeat('c', 39);
@@ -1050,6 +1100,15 @@ return [
         $t->same(false, $summary['missingAmbiguousFullPrefixExists']);
         $t->same(substr($summary['mediaOid'], 0, 8), $summary['absentMediaCandidateShortestPrefix']);
         $t->same(false, $summary['absentMediaCandidateFullPrefixExists']);
+        $t->same('found', $summary['alternateDuplicatePrefixStatus']);
+        $t->same([$summary['contentOid']], $summary['alternateDuplicatePrefixCandidates']);
+        $t->same('ambiguous', $summary['alternateAmbiguousPrefixStatus']);
+        $expectedAlternateCandidates = [
+            $summary['contentOid'],
+            $summary['alternateLooseCandidateOid'],
+        ];
+        sort($expectedAlternateCandidates, SORT_STRING);
+        $t->same($expectedAlternateCandidates, $summary['alternateAmbiguousPrefixCandidates']);
         $t->same(3, $summary['packedObjects']);
         $t->same(4, $summary['rawPackIndexObjects']);
     },

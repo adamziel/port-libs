@@ -135,6 +135,10 @@ final class DeclarationBlock
         'text-bottom',
     ];
     private const ALPHA_VALUE_PROPERTIES = ['opacity', 'fill-opacity', 'stroke-opacity'];
+    private const COLOR_OR_AUTO_PROPERTIES = ['accent-color'];
+    private const DIRECT_COLOR_PROPERTIES = [
+        'accent-color',
+    ];
     private const SVG_PAINT_PROPERTIES = ['fill', 'stroke'];
     private const SVG_MARKER_PROPERTIES = ['marker', 'marker-start', 'marker-mid', 'marker-end'];
     private const SVG_LENGTH_PERCENTAGE_PROPERTIES = ['stroke-width', 'stroke-dashoffset'];
@@ -13779,6 +13783,10 @@ final class DeclarationBlock
             return $this->normalizeAlphaValue($value);
         }
 
+        if (in_array($property, self::DIRECT_COLOR_PROPERTIES, true)) {
+            return $this->normalizeDirectColorDeclarationValue($property, $value);
+        }
+
         if (in_array($property, self::SVG_PAINT_PROPERTIES, true)) {
             return $this->normalizeSvgPaintValue($value);
         }
@@ -14356,6 +14364,19 @@ final class DeclarationBlock
     private function normalizeSvgPaintFallbackValue(string $value): string
     {
         return $this->normalizeShadowColorToken($value);
+    }
+
+    private function normalizeDirectColorDeclarationValue(string $property, string $value): string
+    {
+        $value = trim($value);
+        if (in_array($property, self::COLOR_OR_AUTO_PROPERTIES, true) && strcasecmp($value, 'auto') === 0) {
+            return 'auto';
+        }
+        if (strcasecmp($value, 'currentcolor') === 0) {
+            return 'currentColor';
+        }
+
+        return $this->normalizeMinifiedDeclarationValue($property, $value);
     }
 
     private function normalizeSvgMarkerValue(string $value): string

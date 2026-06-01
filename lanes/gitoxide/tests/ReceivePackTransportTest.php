@@ -3680,6 +3680,54 @@ return [
         $t->same("{$old} {$blob->oid()} refs/heads/main\0 report-status side-band-64k object-format=sha1 agent=port-libs/0.1", $commands[0]);
         $t->same($request->pack()?->packBytes(), $packBytes);
 
+        $identityRead = $streamWith($advertisement . $responseBytes);
+        $identityWrite = $streamWith('');
+        $identityConnection = null;
+        $identityConnector = static function (
+            string $host,
+            ?string $user,
+            ?int $port,
+            string $command,
+            float $timeout,
+            array $context,
+        ) use (&$identityConnection, $identityRead, $identityWrite): array {
+            $identityConnection = [
+                'host' => $host,
+                'user' => $user,
+                'port' => $port,
+                'command' => $command,
+                'timeout' => $timeout,
+                'context' => $context,
+            ];
+
+            return ['read' => $identityRead, 'write' => $identityWrite];
+        };
+        $identityClient = new ReceivePackClient(
+            SshReceivePackTransport::connect(
+                'ssh://git.example.test/var/www/wp-content.git',
+                $identityConnector,
+                9.25,
+                ['protocolVersion' => 2, 'identityUsername' => 'deploy'],
+            ),
+            'port-libs/0.1'
+        );
+        $identitySession = $identityClient->handshake();
+        $identitySession->createOrUpdate('refs/heads/main', $blob->oid());
+        $identityRequest = $identitySession->buildRequest([$blob]);
+        $identityResponse = $identityClient->send($identityRequest);
+
+        $t->same(true, $identityResponse->isSuccessful());
+        $t->same('git.example.test', $identityConnection['host']);
+        $t->same('deploy', $identityConnection['user']);
+        $t->same(null, $identityConnection['port']);
+        $t->same("git-receive-pack '/var/www/wp-content.git'", $identityConnection['command']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@git.example.test'], $identityConnection['context']['sshArguments']);
+        $t->same(
+            "path=var/www/wp-content.git\nprotocol=ssh\nhost=git.example.test\nusername=deploy\n",
+            $identityConnection['context']['credentialContext']->storageBytes()
+        );
+        $t->same($identityRequest->requestBytes(), $streamBytes($identityWrite));
+
         $v1Context = SshReceivePackTransport::connectorContext('deploy@git.example.test:wp-content.git');
         $t->same(1, $v1Context['protocolVersion']);
         $t->same(['LANG' => 'C', 'LC_ALL' => 'C'], $v1Context['environment']);
@@ -3687,6 +3735,34 @@ return [
         $t->same(['deploy@git.example.test'], $v1Context['sshArguments']);
         $t->same(false, $v1Context['useShell']);
         $t->same('ssh://deploy@git.example.test/wp-content.git', $v1Context['credentialContext']->toUrl());
+
+        $identityContext = SshReceivePackTransport::connectorContext(
+            'ssh://stale@git.example.test/var/www/wp-content.git',
+            ['protocolVersion' => 2, 'identityUsername' => 'deploy'],
+        );
+        $t->same('deploy', $identityContext['user']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@git.example.test'], $identityContext['sshArguments']);
+        $t->same('ssh://deploy@git.example.test/var/www/wp-content.git', $identityContext['credentialContext']->toUrl());
+        $t->same(
+            "path=var/www/wp-content.git\nprotocol=ssh\nhost=git.example.test\nusername=deploy\n",
+            $identityContext['credentialContext']->storageBytes()
+        );
+
+        $identityClearedContext = SshReceivePackTransport::connectorContext(
+            'ssh://stale@git.example.test/var/www/wp-content.git',
+            ['identityUsername' => ''],
+        );
+        $t->same(null, $identityClearedContext['user']);
+        $t->same(['git.example.test'], $identityClearedContext['sshArguments']);
+        $t->same("path=var/www/wp-content.git\nprotocol=ssh\nhost=git.example.test\n", $identityClearedContext['credentialContext']->storageBytes());
+
+        $identityNullClearedContext = SshReceivePackTransport::connectorContext(
+            'ssh://stale@git.example.test/var/www/wp-content.git',
+            ['identityUsername' => null],
+        );
+        $t->same(null, $identityNullClearedContext['user']);
+        $t->same(['git.example.test'], $identityNullClearedContext['sshArguments']);
+
         $nonNumericPortContext = SshReceivePackTransport::connectorContext(
             'ssh://deploy@git.example.test:tenant/wp-content.git',
             ['protocolVersion' => 2],
@@ -3802,6 +3878,11 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy@git.example.test/repo.git', ['programKind' => 'unknown']));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy@git.example.test/repo.git', ['sshCommand' => "ssh\n"]));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy@git.example.test/repo.git', ['disallowShell' => 'yes']));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://git.example.test/repo.git', ['identityUsername' => ['deploy']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://git.example.test/repo.git', ['identityUsername' => '-deploy']));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://git.example.test/repo.git', ['identityUsername' => "de\nploy"]));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://git.example.test/repo.git', ['identityUsername' => 'deploy:ops']));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://stale@-git-proxy.example.test/repo.git', ['identityUsername' => '']));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy:secret@git.example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('deploy@-git-proxy.example.test:wp-content.git', ['sshCommand' => 'echo hi']));
     },
@@ -4060,6 +4141,14 @@ return [
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'user@name@host.xz'], $fixture['sshScpLikeAtUserContext']['sshArguments']);
         $t->same('plink', $fixture['sshPlinkContext']['programKind']);
         $t->same(['-P', '2222', 'deploy@git.example.test'], $fixture['sshPlinkContext']['sshArguments']);
+        $t->same('deploy', $fixture['sshIdentityContext']['user']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@git.example.test'], $fixture['sshIdentityContext']['sshArguments']);
+        $t->same("path=var/www/wp-content.git\nprotocol=ssh\nhost=git.example.test\nusername=deploy\n", $fixture['sshIdentityContext']['credentialContext']->storageBytes());
+        $t->same(null, $fixture['sshIdentityClearedContext']['user']);
+        $t->same(['git.example.test'], $fixture['sshIdentityClearedContext']['sshArguments']);
+        $t->same("path=var/www/wp-content.git\nprotocol=ssh\nhost=git.example.test\n", $fixture['sshIdentityClearedContext']['credentialContext']->storageBytes());
+        $t->same(true, $fixture['unsafeSshIdentityUsernameRejected']);
+        $t->same(true, $fixture['unsafeSshIdentityClearedOptionHostRejected']);
         $t->same('tortoiseplink.exe', $fixture['sshTortoisePlinkContext']['sshCommand']);
         $t->same(['-batch', '-P', '2222', 'deploy@git.example.test'], $fixture['sshTortoisePlinkContext']['sshArguments']);
         $t->same('simple', $fixture['sshSimpleContext']['programKind']);

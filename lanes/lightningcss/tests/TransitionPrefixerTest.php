@@ -3129,8 +3129,16 @@ CSS;
             $prefixer->prefixForTargets('.foo { text-emphasis-position: over; }', ['chrome' => 30, 'safari' => 10, 'firefox' => 45])
         );
         $t->same(
+            '.foo{-webkit-text-emphasis-position:over;text-emphasis-position:over}',
+            $prefixer->prefixForTargets('.foo { text-emphasis-position: right over; }', ['chrome' => 30, 'safari' => 10, 'firefox' => 45])
+        );
+        $t->same(
             '.foo{text-emphasis-position:over left}',
             $prefixer->prefixForTargets('.foo { text-emphasis-position: over left; }', ['chrome' => 30, 'safari' => 10, 'firefox' => 45])
+        );
+        $t->same(
+            '.foo{text-emphasis-position:over left}',
+            $prefixer->prefixForTargets('.foo { text-emphasis-position: left over; }', ['chrome' => 30, 'safari' => 10, 'firefox' => 45])
         );
         $t->same(
             '.foo{-webkit-text-emphasis-position:var(--test);text-emphasis-position:var(--test)}',
@@ -3474,6 +3482,26 @@ CSS;
             $prefixer->prefixForTargets('.foo { text-emphasis-style: filled; }', ['chrome' => 99])
         );
         $t->same(
+            '.foo{-webkit-text-emphasis-position:over;text-emphasis-position:over}',
+            $prefixer->prefixForTargets('.foo { text-emphasis-position: right over; }', ['chrome' => 98])
+        );
+        $t->same(
+            '.foo{text-emphasis-position:over}',
+            $prefixer->prefixForTargets('.foo { text-emphasis-position: right over; }', ['chrome' => 99])
+        );
+        $t->same(
+            '.foo{-webkit-text-emphasis-position:under;text-emphasis-position:under}',
+            $prefixer->prefixForTargets('.foo { text-emphasis-position: right under; }', ['safari' => 7])
+        );
+        $t->same(
+            '.foo{text-emphasis-position:under}',
+            $prefixer->prefixForTargets('.foo { text-emphasis-position: right under; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{text-emphasis-position:over left}',
+            $prefixer->prefixForTargets('.foo { text-emphasis-position: left over; }', ['chrome' => 98, 'safari' => 7])
+        );
+        $t->same(
             '.foo{-webkit-text-decoration:underline double;text-decoration:underline double}',
             $prefixer->prefixForTargets('.foo { text-decoration: double underline; }', ['safari' => 26])
         );
@@ -3718,6 +3746,22 @@ CSS;
         $t->same(
             '@layer blocks{@media (min-width:.5px){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width >= 0.5px) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:2px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (width>=2px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 64])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:2px) and (max-width:4px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (2 <= width <= 4) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media (2px<=width<=4px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (2 <= width <= 4) { .wp-block-query { color: yellow; } } }', ['firefox' => 102])
         );
         $t->same(
             '@layer blocks{@media (min-width:.5px) and (max-width:1.5px){.wp-block-query{color:#ff0}}}',

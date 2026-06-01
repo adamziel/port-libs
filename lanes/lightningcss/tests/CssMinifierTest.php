@@ -3065,6 +3065,27 @@ CSS;
             ],
             $compound['warnings']
         );
+
+        $nestedMedia = $minifier->minifyWithErrorRecovery(
+            '@layer blocks { @media (not unknown(foo)) { .bad { color: red; } } } @media ((color) or unknown(foo)) { .bad { color: red; } } @media (width >= calc(1px + 2px)) { .ok { color: yellow; } }',
+            'layer-media.css'
+        );
+        $t->same('@layer blocks;@media (width>=3px){.ok{color:#ff0}}', $nestedMedia['code']);
+        $t->same(
+            [
+                [
+                    'message' => 'Unexpected token Function("unknown")',
+                    'type' => 'UnexpectedToken',
+                    'loc' => ['filename' => 'layer-media.css', 'line' => 1, 'column' => 28],
+                ],
+                [
+                    'message' => 'Unexpected token Function("unknown")',
+                    'type' => 'UnexpectedToken',
+                    'loc' => ['filename' => 'layer-media.css', 'line' => 1, 'column' => 88],
+                ],
+            ],
+            $nestedMedia['warnings']
+        );
     },
     'css minifier maps upstream transition longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -3347,7 +3368,11 @@ CSS;
         $t->same('.foo{text-emphasis-position:over}', $minifier->minify('.foo { text-emphasis-position: over }'));
         $t->same('.foo{text-emphasis-position:under}', $minifier->minify('.foo { text-emphasis-position: under }'));
         $t->same('.foo{text-emphasis-position:over}', $minifier->minify('.foo { text-emphasis-position: over right }'));
+        $t->same('.foo{text-emphasis-position:over}', $minifier->minify('.foo { text-emphasis-position: right over }'));
         $t->same('.foo{text-emphasis-position:over left}', $minifier->minify('.foo { text-emphasis-position: over left }'));
+        $t->same('.foo{text-emphasis-position:over left}', $minifier->minify('.foo { text-emphasis-position: left over }'));
+        $t->same('.foo{text-emphasis-position:under}', $minifier->minify('.foo { text-emphasis-position: right under }'));
+        $t->same('.foo{text-emphasis-position:under left}', $minifier->minify('.foo { text-emphasis-position: left under }'));
     },
     'wordpress block theme fixture minifies without breaking custom property math' => static function (TestRunner $t): void {
         $css = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.css');

@@ -21,6 +21,33 @@ foreach ($fixture['packs'] as $pack) {
 }
 file_put_contents($packDir . '/multi-pack-index', $fixture['multiIndexBytes']);
 
+$writeFixtureToPackDirectory = static function (string $packDirectory) use ($fixture): void {
+    if (!mkdir($packDirectory, 0777, true) && !is_dir($packDirectory)) {
+        throw new RuntimeException("Unable to create pack example directory: {$packDirectory}");
+    }
+    foreach ($fixture['packs'] as $pack) {
+        file_put_contents($packDirectory . '/' . $pack['packName'], $pack['packBytes']);
+        file_put_contents($packDirectory . '/' . $pack['indexName'], $pack['indexBytes']);
+    }
+    file_put_contents($packDirectory . '/multi-pack-index', $fixture['multiIndexBytes']);
+};
+
+$alternateRoot = sys_get_temp_dir() . '/port-libs-wordpress-odb-midx-alt-' . bin2hex(random_bytes(4));
+$alternateGitDir = $alternateRoot . '/site/.git';
+$alternateObjectsDirectory = $alternateRoot . '/cache/objects';
+$writeFixtureToPackDirectory($alternateGitDir . '/objects/pack');
+$writeFixtureToPackDirectory($alternateObjectsDirectory . '/pack');
+$alternateObjectsInfo = $alternateGitDir . '/objects/info';
+if (!mkdir($alternateObjectsInfo, 0777, true) && !is_dir($alternateObjectsInfo)) {
+    throw new RuntimeException("Unable to create alternate objects info directory: {$alternateObjectsInfo}");
+}
+file_put_contents($alternateObjectsInfo . '/alternates', $alternateObjectsDirectory . "\n");
+$alternateDatabase = new ObjectDatabase($alternateGitDir);
+$alternateDuplicatePrefix = $alternateDatabase->lookupPrefix(substr($fixture['objectsByRole']['content']['oid'], 0, 8), true);
+$alternateLooseCandidateOid = LooseObjectStore::fromObjectsDirectory($alternateObjectsDirectory)
+    ->write(new GitObject('blob', 'midx-prefix-candidate-128814'));
+$alternateAmbiguousPrefix = $alternateDatabase->lookupPrefix(substr($fixture['objectsByRole']['content']['oid'], 0, 4), true);
+
 $database = new ObjectDatabase($gitDir);
 $content = $database->read($fixture['objectsByRole']['content']['oid']);
 $media = $database->read($fixture['objectsByRole']['media']['oid']);
@@ -79,5 +106,10 @@ return [
     'missingAmbiguousFullPrefixExists' => $database->contains($syntheticMissingCandidate),
     'absentMediaCandidateShortestPrefix' => $database->disambiguatePrefix($absentMediaCandidate, 8),
     'absentMediaCandidateFullPrefixExists' => $database->contains($absentMediaCandidate),
+    'alternateDuplicatePrefixStatus' => $alternateDuplicatePrefix['status'],
+    'alternateDuplicatePrefixCandidates' => $alternateDuplicatePrefix['candidates'],
+    'alternateLooseCandidateOid' => $alternateLooseCandidateOid,
+    'alternateAmbiguousPrefixStatus' => $alternateAmbiguousPrefix['status'],
+    'alternateAmbiguousPrefixCandidates' => $alternateAmbiguousPrefix['candidates'],
     'packOffsetOrder' => $database->objectIds(ObjectDatabase::ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL),
 ];

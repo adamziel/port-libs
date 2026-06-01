@@ -364,6 +364,46 @@ CSS);
             $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
         }
     },
+    'css modules scopes upstream cue selectors while preserving local global composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card::cue(:global(.wp-caption) .captionTitle) {
+  color: red;
+}
+
+.card::cue-region(.activeCue):hover {
+  color: yellow;
+}
+
+.button {
+  composes: card;
+  color: white;
+}
+
+.card {
+  color: blue;
+}
+CSS);
+
+        $t->same('.EgL3uq_card::cue(.wp-caption .EgL3uq_captionTitle){color:red}.EgL3uq_card::cue-region(.EgL3uq_activeCue):hover{color:#ff0}.EgL3uq_button{color:#fff}.EgL3uq_card{color:#00f}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'captionTitle' => $export('EgL3uq_captionTitle'),
+            'activeCue' => $export('EgL3uq_activeCue'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+
+        foreach ([
+            '.card::cue(:global(.wp-caption), .captionTitle) { color: red }',
+            '.card::cue-region(.activeCue) .title { color: red }',
+            '.card::cue(.activeCue) { composes: base; color: red }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
+        }
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform('::cue(.activeCue) { color: red }', ['pure' => true]));
+    },
     'css modules scopes upstream state and highlight custom idents while preserving local global composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 :local(.card:state(open)) {
