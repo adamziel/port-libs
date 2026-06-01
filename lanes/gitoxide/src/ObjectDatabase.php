@@ -484,6 +484,8 @@ final class ObjectDatabase
      */
     public function promisorPackNames(): array
     {
+        $this->refreshObjectStorageBeforePromisorInventory();
+
         return array_map(
             static fn (array $bundle): string => basename($bundle['promisorPath']),
             $this->promisorPackBundles()
@@ -492,6 +494,8 @@ final class ObjectDatabase
 
     public function hasPromisorPacks(): bool
     {
+        $this->refreshObjectStorageBeforePromisorInventory();
+
         return $this->promisorPackBundles() !== [];
     }
 
@@ -559,6 +563,8 @@ final class ObjectDatabase
      */
     public function promisorObjectIds(): array
     {
+        $this->refreshObjectStorageBeforePromisorInventory();
+
         $ids = [];
         foreach ($this->promisorPackBundles() as $bundle) {
             foreach ($bundle['index']->entries() as $entry) {
@@ -576,6 +582,8 @@ final class ObjectDatabase
     {
         $this->assertObjectId($oid);
         $oid = strtolower($oid);
+
+        $this->refreshObjectStorageBeforePromisorInventory();
 
         foreach ($this->promisorPackBundles() as $bundle) {
             if ($bundle['index']->lookup($oid) !== null) {
@@ -888,6 +896,13 @@ final class ObjectDatabase
         $this->promisorPacks = null;
         $this->objectDirectories = null;
         $this->looseStores = null;
+    }
+
+    private function refreshObjectStorageBeforePromisorInventory(): void
+    {
+        if ($this->refreshObjectStorageOnMiss) {
+            $this->refreshObjectStorage();
+        }
     }
 
     private function hasPromisorConfiguration(): bool

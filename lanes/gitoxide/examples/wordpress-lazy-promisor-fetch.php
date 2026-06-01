@@ -132,6 +132,16 @@ $crossPackTarget = $database->read($crossPackTargetBlob->oid());
 $crossPackBaseAfterRead = $database->objectState($crossPackBaseBlob->oid());
 $crossPackTargetAfterRead = $database->objectState($crossPackTargetBlob->oid());
 
+$inventoryBlob = new GitObject('blob', 'WordPress direct promisor inventory refresh bytes');
+$inventoryPack = PackBuilder::build([$inventoryBlob]);
+$inventoryPackBase = 'pack-' . $inventoryPack->packChecksum();
+file_put_contents($packDir . '/' . $inventoryPackBase . '.pack', $inventoryPack->packBytes());
+file_put_contents($packDir . '/' . $inventoryPackBase . '.idx', $inventoryPack->indexBytes());
+file_put_contents($packDir . '/' . $inventoryPackBase . '.promisor', "WordPress direct promisor inventory hydration\n");
+$directInventoryPackNames = $database->promisorPackNames();
+$directInventoryObjectIds = $database->promisorObjectIds();
+$directInventoryIsPromisor = $database->isPromisorObject($inventoryBlob->oid());
+
 return [
     'promisorRemotes' => $database->promisorRemotes(),
     'promisorPacks' => $database->promisorPackNames(),
@@ -180,4 +190,9 @@ return [
     'crossPackBaseAfterRead' => $crossPackBaseAfterRead,
     'crossPackTargetAfterRead' => $crossPackTargetAfterRead,
     'promisorPacksAfterCrossPackHydration' => $database->promisorPackNames(),
+    'directInventoryObject' => $inventoryBlob->oid(),
+    'directInventoryPack' => $inventoryPackBase . '.promisor',
+    'directInventoryPackNames' => $directInventoryPackNames,
+    'directInventoryObjectIds' => $directInventoryObjectIds,
+    'directInventoryIsPromisor' => $directInventoryIsPromisor,
 ];

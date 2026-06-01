@@ -388,6 +388,29 @@ return [
         $t->same('promisor-present', $database->objectState($hydratedPatternOid)['status']);
         $t->same($hydratedPatternBlob->body, $database->read($hydratedPatternOid)->body);
     },
+    'object database refreshes promisor inventory after external hydration' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackForObject): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $hydratedManifestBlob = new GitObject('blob', 'Externally hydrated deployment manifest bytes');
+        $hydratedManifestOid = $hydratedManifestBlob->oid();
+        $database = new ObjectDatabase($gitDir);
+        $beforePacks = $database->promisorPackNames();
+        $beforeObjectIds = $database->promisorObjectIds();
+
+        $t->same(1, count($beforePacks));
+        $t->same(false, in_array($hydratedManifestOid, $beforeObjectIds, true));
+        $t->same(false, $database->isPromisorObject($hydratedManifestOid));
+
+        $hydrationPack = $writePromisorPackForObject($gitDir, $hydratedManifestBlob, "external promisor inventory hydration\n");
+        $afterPacks = $database->promisorPackNames();
+        $afterObjectIds = $database->promisorObjectIds();
+
+        $t->same(count($beforePacks) + 1, count($afterPacks));
+        $t->same(true, in_array($hydrationPack, $afterPacks, true));
+        $t->same(true, in_array($hydratedManifestOid, $afterObjectIds, true));
+        $t->same(true, $database->hasPromisorPacks());
+        $t->same(true, $database->isPromisorObject($hydratedManifestOid));
+        $t->same('promisor-present', $database->objectState($hydratedManifestOid)['status']);
+    },
     'object database refresh-disabled handle preserves promised missing state after external promisor hydration' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackForObject): void {
         [$gitDir] = $writePromisorPackFixture();
         $hydratedBlockBlob = new GitObject('blob', 'Externally hydrated block bytes hidden from a refresh-disabled handle');
@@ -626,5 +649,8 @@ return [
         $t->same(true, $summary['crossPackTargetBodyMatches']);
         $t->same('promisor-present', $summary['crossPackBaseAfterRead']['status']);
         $t->same('promisor-present', $summary['crossPackTargetAfterRead']['status']);
+        $t->same(true, in_array($summary['directInventoryPack'], $summary['directInventoryPackNames'], true));
+        $t->same(true, in_array($summary['directInventoryObject'], $summary['directInventoryObjectIds'], true));
+        $t->same(true, $summary['directInventoryIsPromisor']);
     },
 ];

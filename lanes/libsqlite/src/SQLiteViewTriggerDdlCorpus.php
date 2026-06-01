@@ -41,7 +41,7 @@ final class SQLiteViewTriggerDdlCorpus
 
     /**
      * @param list<SQLiteSchemaRecord> $records
-     * @return list<array{name:string, table:string, event:string, timing:string, temporary:bool, insteadOf:bool, bodyStatements:int, referencedNew:list<string>, referencedOld:list<string>, dependencies:list<string>, sql:string}>
+     * @return list<array{name:string, table:string, event:string, timing:string, temporary:bool, insteadOf:bool, bodyStatements:int, referencedNew:list<string>, referencedOld:list<string>, raiseActions:list<array{action:string,message:?string,expression:?string}>, dependencies:list<string>, sql:string}>
      */
     public static function triggers(array $records): array
     {
@@ -68,6 +68,7 @@ final class SQLiteViewTriggerDdlCorpus
                 'bodyStatements' => self::triggerBodyStatementCount($record->sql),
                 'referencedNew' => self::pseudoColumns($record->sql, 'new'),
                 'referencedOld' => self::pseudoColumns($record->sql, 'old'),
+                'raiseActions' => self::triggerRaiseActions($record->sql),
                 'dependencies' => self::fromDependencies($record->sql),
                 'sql' => self::normalizeSql($record->sql),
             ];
@@ -226,6 +227,188 @@ final class SQLiteViewTriggerDdlCorpus
         $statements = array_filter(array_map('trim', explode(';', $matches['body'])), static fn (string $part): bool => $part !== '');
 
         return count($statements);
+    }
+
+    /**
+     * @return list<array{action:string,message:?string,expression:?string}>
+     */
+    private static function triggerRaiseActions(string $sql): array
+    {
+        $actions = [];
+        $offset = 0;
+        while (($open = self::findRaiseOpenParenthesis($sql, $offset)) !== null) {
+            $close = self::matchingParenthesis($sql, $open);
+            if ($close === null) {
+                $offset = $open + 1;
+                continue;
+            }
+
+            $arguments = self::splitSqlArguments(substr($sql, $open + 1, $close - $open - 1));
+            $action = strtolower(trim((string) ($arguments[0] ?? '')));
+            if (!in_array($action, ['ignore', 'rollback', 'abort', 'fail'], true)) {
+                $offset = $close + 1;
+                continue;
+            }
+
+            $expression = isset($arguments[1]) ? self::normalizeSql($arguments[1]) : null;
+            $actions[] = [
+                'action' => $action,
+                'message' => $expression === null ? null : self::stringLiteralValue($expression),
+                'expression' => $expression,
+            ];
+            $offset = $close + 1;
+        }
+
+        return $actions;
+    }
+
+    private static function findRaiseOpenParenthesis(string $sql, int $offset): ?int
+    {
+        $length = strlen($sql);
+        for ($i = $offset; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $i = self::skipQuotedSql($sql, $i, $char);
+                continue;
+            }
+            if ($char === '[') {
+                $end = strpos($sql, ']', $i + 1);
+                if ($end === false) {
+                    return null;
+                }
+                $i = $end;
+                continue;
+            }
+            if (strtolower(substr($sql, $i, 5)) !== 'raise') {
+                continue;
+            }
+            if (self::isIdentifierChar($sql[$i - 1] ?? '') || self::isIdentifierChar($sql[$i + 5] ?? '')) {
+                continue;
+            }
+
+            $cursor = $i + 5;
+            while ($cursor < $length && ctype_space($sql[$cursor])) {
+                $cursor++;
+            }
+            if (($sql[$cursor] ?? '') === '(') {
+                return $cursor;
+            }
+        }
+
+        return null;
+    }
+
+    private static function isIdentifierChar(string $char): bool
+    {
+        return $char !== '' && (ctype_alnum($char) || $char === '_');
+    }
+
+    private static function matchingParenthesis(string $sql, int $open): ?int
+    {
+        $depth = 0;
+        $length = strlen($sql);
+        for ($i = $open; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $i = self::skipQuotedSql($sql, $i, $char);
+                continue;
+            }
+            if ($char === '[') {
+                $end = strpos($sql, ']', $i + 1);
+                if ($end === false) {
+                    return null;
+                }
+                $i = $end;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char !== ')') {
+                continue;
+            }
+            $depth--;
+            if ($depth === 0) {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitSqlArguments(string $sql): array
+    {
+        $arguments = [];
+        $start = 0;
+        $depth = 0;
+        $length = strlen($sql);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $i = self::skipQuotedSql($sql, $i, $char);
+                continue;
+            }
+            if ($char === '[') {
+                $end = strpos($sql, ']', $i + 1);
+                if ($end === false) {
+                    $i = $length;
+                    break;
+                }
+                $i = $end;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')' && $depth > 0) {
+                $depth--;
+                continue;
+            }
+            if ($char === ',' && $depth === 0) {
+                $arguments[] = trim(substr($sql, $start, $i - $start));
+                $start = $i + 1;
+            }
+        }
+
+        $tail = trim(substr($sql, $start));
+        if ($tail !== '') {
+            $arguments[] = $tail;
+        }
+
+        return $arguments;
+    }
+
+    private static function skipQuotedSql(string $sql, int $offset, string $quote): int
+    {
+        $length = strlen($sql);
+        for ($i = $offset + 1; $i < $length; $i++) {
+            if ($sql[$i] !== $quote) {
+                continue;
+            }
+            if (($sql[$i + 1] ?? '') === $quote) {
+                $i++;
+                continue;
+            }
+
+            return $i;
+        }
+
+        return $length - 1;
+    }
+
+    private static function stringLiteralValue(string $expression): ?string
+    {
+        $trimmed = trim($expression);
+        if (preg_match("/^'(?:''|[^'])*'$/s", $trimmed) !== 1) {
+            return null;
+        }
+
+        return str_replace("''", "'", substr($trimmed, 1, -1));
     }
 
     /**
