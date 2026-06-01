@@ -29,6 +29,11 @@ $lfSizeReadRejected = false;
 $lfSizeReadMessage = null;
 $lfSizeIntegrityRejected = false;
 $lfSizeIntegrityMessage = null;
+$missingNulHeaderRejected = false;
+$missingNulHeaderMessage = null;
+$missingNulReadRejected = false;
+$missingNulIntegrityRejected = false;
+$missingNulIntegrityMessage = null;
 $allocationLimitRejected = false;
 $allocationLimitMessage = null;
 $trailingStreamIgnored = false;
@@ -139,6 +144,35 @@ try {
 } catch (RuntimeException $exception) {
     $lfSizeIntegrityRejected = true;
     $lfSizeIntegrityMessage = $exception->getMessage();
+}
+
+$missingNulDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-missing-nul-' . bin2hex(random_bytes(4)) . '/objects';
+$missingNulPath = $missingNulDirectory . '/' . substr($fixture['missingNulHeaderOid'], 0, 2) . '/' . substr($fixture['missingNulHeaderOid'], 2);
+if (!is_dir(dirname($missingNulPath)) && !mkdir(dirname($missingNulPath), 0777, true) && !is_dir(dirname($missingNulPath))) {
+    throw new RuntimeException('Unable to create object-header missing-NUL fixture directory');
+}
+$missingNulCompressed = gzcompress($fixture['missingNulHeaderStorage']);
+if ($missingNulCompressed === false) {
+    throw new RuntimeException('Unable to compress object-header missing-NUL fixture');
+}
+file_put_contents($missingNulPath, $missingNulCompressed);
+$missingNulStore = LooseObjectStore::fromObjectsDirectory($missingNulDirectory);
+try {
+    $missingNulStore->readHeader($fixture['missingNulHeaderOid']);
+} catch (InvalidArgumentException $exception) {
+    $missingNulHeaderRejected = true;
+    $missingNulHeaderMessage = $exception->getMessage();
+}
+try {
+    $missingNulStore->read($fixture['missingNulHeaderOid']);
+} catch (InvalidArgumentException $exception) {
+    $missingNulReadRejected = $exception->getMessage() === 'Did not find 0 byte in header';
+}
+try {
+    $missingNulStore->verifyIntegrity();
+} catch (RuntimeException $exception) {
+    $missingNulIntegrityRejected = true;
+    $missingNulIntegrityMessage = $exception->getMessage();
 }
 
 $trailingObjectsDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-trailing-' . bin2hex(random_bytes(4)) . '/objects';
@@ -284,6 +318,11 @@ return [
     'lfSizeReadMessage' => $lfSizeReadMessage,
     'lfSizeIntegrityRejected' => $lfSizeIntegrityRejected,
     'lfSizeIntegrityMessage' => $lfSizeIntegrityMessage,
+    'missingNulHeaderRejected' => $missingNulHeaderRejected,
+    'missingNulHeaderMessage' => $missingNulHeaderMessage,
+    'missingNulReadRejected' => $missingNulReadRejected,
+    'missingNulIntegrityRejected' => $missingNulIntegrityRejected,
+    'missingNulIntegrityMessage' => $missingNulIntegrityMessage,
     'allocationLimitBytes' => $boundedStore->allocationLimitBytes(),
     'oversizedHeaderSize' => $oversizedHeader['size'],
     'allocationLimitRejected' => $allocationLimitRejected,

@@ -317,6 +317,28 @@ return [
         $writeLooseStorage($objectsDirectory, $longHeaderOid, 'blob ' . str_repeat('1', 60) . "\0body");
         $t->throws(InvalidArgumentException::class, static fn () => $store->readHeader($longHeaderOid));
 
+        $missingNulOid = str_repeat('6', 40);
+        $writeLooseStorage($objectsDirectory, $missingNulOid, 'blob 4');
+        foreach ([
+            'readHeader' => static fn () => $store->readHeader($missingNulOid),
+            'tryReadHeader' => static fn () => $store->tryReadHeader($missingNulOid),
+            'read' => static fn () => $store->read($missingNulOid),
+        ] as $operation => $callback) {
+            try {
+                $callback();
+                throw new RuntimeException("Expected missing-NUL loose object {$operation} to fail");
+            } catch (InvalidArgumentException $exception) {
+                $t->same('Did not find 0 byte in header', $exception->getMessage());
+            }
+        }
+        try {
+            $store->verifyIntegrity();
+            throw new RuntimeException('Expected missing-NUL loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$missingNulOid} could not be read exactly", $exception->getMessage());
+            $t->contains('Did not find 0 byte in header', $exception->getMessage());
+        }
+
         $badZlibOid = str_repeat('e', 40);
         $badPath = $looseObjectPath($objectsDirectory, $badZlibOid);
         if (!is_dir(dirname($badPath)) && !mkdir(dirname($badPath), 0777, true) && !is_dir(dirname($badPath))) {
@@ -949,6 +971,11 @@ return [
         $t->same(true, $summary['lfSizeReadRejected']);
         $t->same(true, $summary['lfSizeIntegrityRejected']);
         $t->contains('could not be read exactly', $summary['lfSizeIntegrityMessage']);
+        $t->same(true, $summary['missingNulHeaderRejected']);
+        $t->same('Did not find 0 byte in header', $summary['missingNulHeaderMessage']);
+        $t->same(true, $summary['missingNulReadRejected']);
+        $t->same(true, $summary['missingNulIntegrityRejected']);
+        $t->contains('Did not find 0 byte in header', $summary['missingNulIntegrityMessage']);
         $t->same($fixture['allocationLimitBytes'], $summary['allocationLimitBytes']);
         $t->same(4096, $summary['oversizedHeaderSize']);
         $t->same(true, $summary['allocationLimitRejected']);

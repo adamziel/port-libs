@@ -820,6 +820,54 @@ return [
             $t->contains("Invalid Git object header: blob 3\n", $exception->getMessage());
         }
     },
+    'object database loose integrity reports missing-NUL loose headers across primary and alternate stores' => static function (TestRunner $t) use ($writeCompressedLooseBytes, $looseObjectPath): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-missing-nul-header-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateGitDir = $root . '/shared-cache/.git';
+        $alternateObjectsDir = $alternateGitDir . '/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+
+        $primaryOid = str_repeat('7', 40);
+        $alternateOid = str_repeat('8', 40);
+        $writeCompressedLooseBytes($gitDir, $primaryOid, 'blob 4');
+        $writeCompressedLooseBytes($alternateGitDir, $alternateOid, 'tree 12');
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $database = new ObjectDatabase($gitDir);
+        foreach ([
+            'primary header' => static fn () => $database->readHeader($primaryOid),
+            'primary body' => static fn () => $database->read($primaryOid),
+            'alternate header' => static fn () => $database->readHeader($alternateOid),
+            'alternate body' => static fn () => $database->read($alternateOid),
+        ] as $operation => $callback) {
+            try {
+                $callback();
+                throw new RuntimeException("Expected missing-NUL loose object {$operation} to fail");
+            } catch (InvalidArgumentException $exception) {
+                $t->same('Did not find 0 byte in header', $exception->getMessage());
+            }
+        }
+
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected primary missing-NUL loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$primaryOid} could not be read exactly", $exception->getMessage());
+            $t->contains('Did not find 0 byte in header', $exception->getMessage());
+        }
+
+        unlink($looseObjectPath($gitDir, $primaryOid));
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected alternate missing-NUL loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$alternateOid} could not be read exactly", $exception->getMessage());
+            $t->contains('Did not find 0 byte in header', $exception->getMessage());
+        }
+    },
     'object database loose integrity canonicalizes zero-padded size headers across alternates' => static function (TestRunner $t) use ($writeCompressedLooseBytes): void {
         $root = sys_get_temp_dir() . '/port-libs-git-odb-zero-padded-size-' . bin2hex(random_bytes(4));
         $gitDir = $root . '/site/.git';

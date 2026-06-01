@@ -376,6 +376,19 @@ return [
         $t->same('(resolution>=env(--wp-density-floor))', $parser->minifyList('(min-resolution: env(--wp-density-floor))'));
         $t->same('(min-resolution:env(--wp-density-floor)) and (max-resolution:2dppx)', $parser->lowerRangeSyntaxList('(env(--wp-density-floor) <= resolution <= 2dppx)'));
     },
+    'css minifier maps upstream resolution x-unit media serialization in layers' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('@media (resolution>=2x){.foo{color:#ff0}}', $minifier->minify('@media (resolution >= 2dppx) { .foo { color: yellow; } }'));
+        $t->same('@media (resolution>=2x){.foo{color:#ff0}}', $minifier->minify('@media (min-resolution: 2dppx) { .foo { color: yellow; } }'));
+        $t->same('@media (2x<=resolution<=3x){.foo{color:#ff0}}', $minifier->minify('@media (2dppx <= resolution <= 3dppx) { .foo { color: yellow; } }'));
+        $t->same('@media (2x<resolution<3x){.foo{color:#ff0}}', $minifier->minify('@media (2dppx < resolution < 3dppx) { .foo { color: yellow; } }'));
+        $t->same('@media (resolution=2x){.foo{color:#ff0}}', $minifier->minify('@media (resolution = 2dppx) { .foo { color: yellow; } }'));
+        $t->same('@media (resolution<2x){.foo{color:#ff0}}', $minifier->minify('@media not (resolution >= 2dppx) { .foo { color: yellow; } }'));
+        $t->same('@layer blocks{@media (2x<=resolution<=3x){.wp-block-query{color:#ff0}}}', $minifier->minify('@layer blocks { @media (2dppx <= resolution <= 3dppx) { .wp-block-query { color: yellow; } } }'));
+        $t->same('@import "blocks/density.css" layer(theme.blocks) (resolution>=2x);', $minifier->minify('@import "blocks/density.css" layer(theme.blocks) (min-resolution: 2dppx);'));
+        $t->same('@import "blocks/density.css" layer(theme.blocks) (2x<=resolution<=3x);', $minifier->minify('@import "blocks/density.css" layer(theme.blocks) (2dppx <= resolution <= 3dppx);'));
+    },
     'media query parser rejects upstream invalid range and feature syntax' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
         $invalid = [

@@ -788,10 +788,7 @@ final class SQLiteSelectSql
             ],
         ];
         if ($orderSql !== null) {
-            $plan['compound']['orderBy'] = self::compoundOrderBy($orderSql, array_map(
-                static fn (array $arm): array => isset($arm['select']) && is_array($arm['select']) ? $arm['select'] : [],
-                $arms,
-            ));
+            $plan['compound']['orderBy'] = self::compoundOrderBy($orderSql, $arms);
         }
         if ($limitSql !== null) {
             [$limit, $offset] = self::limitOffset($limitSql, $tables);
@@ -909,12 +906,13 @@ final class SQLiteSelectSql
     }
 
     /**
-     * @param list<list<array<string,mixed>>> $selectArms
+     * @param list<array<string,mixed>> $arms
      * @return list<array{column:string,direction?:string,collation?:string,nulls?:string}>
      */
-    private static function compoundOrderBy(string $sql, array $selectArms): array
+    private static function compoundOrderBy(string $sql, array $arms): array
     {
-        $select = $selectArms[0] ?? [];
+        $firstArm = $arms[0] ?? [];
+        $select = isset($firstArm['select']) && is_array($firstArm['select']) ? $firstArm['select'] : [];
         $columns = [];
         $ordinal = 1;
         foreach ($select as $term) {
@@ -930,6 +928,7 @@ final class SQLiteSelectSql
         $orderBy = [];
         foreach (self::splitTopLevel($sql, ',') as $term) {
             [$expression, $direction, $collation, $nulls] = self::orderByTermParts($term);
+            $inheritedCollation = null;
             if (preg_match('/^[1-9][0-9]*$/', $expression) === 1) {
                 $ordinal = (int) $expression;
                 if (!isset($columns[$ordinal])) {
@@ -937,11 +936,12 @@ final class SQLiteSelectSql
                 }
                 $column = $columns[$ordinal];
             } else {
-                $matched = self::compoundOrderByMatchedColumn($expression, $columns, $selectArms);
+                $matched = self::compoundOrderByMatchedColumn($expression, $columns, $arms);
                 if ($matched === null) {
                     throw new \InvalidArgumentException('SQLite SELECT SQL compound ORDER BY term does not match a result column');
                 } else {
-                    $column = $matched;
+                    $column = $matched['column'];
+                    $inheritedCollation = isset($matched['collation']) && is_string($matched['collation']) ? $matched['collation'] : null;
                 }
             }
 
@@ -951,6 +951,8 @@ final class SQLiteSelectSql
             }
             if ($collation !== null) {
                 $entry['collation'] = $collation;
+            } elseif ($inheritedCollation !== null) {
+                $entry['collation'] = $inheritedCollation;
             }
             if ($nulls !== null) {
                 $entry['nulls'] = $nulls;
@@ -963,13 +965,15 @@ final class SQLiteSelectSql
 
     /**
      * @param array<int,string> $columns
-     * @param list<list<array<string,mixed>>> $selectArms
+     * @param list<array<string,mixed>> $arms
+     * @return array{column:string,collation?:string}|null
      */
-    private static function compoundOrderByMatchedColumn(string $sql, array $columns, array $selectArms): ?string
+    private static function compoundOrderByMatchedColumn(string $sql, array $columns, array $arms): ?array
     {
         $sql = self::unquoteIdentifier($sql) ?? $sql;
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $sql) === 1) {
-            foreach ($selectArms as $select) {
+            foreach ($arms as $arm) {
+                $select = isset($arm['select']) && is_array($arm['select']) ? $arm['select'] : [];
                 $ordinal = 1;
                 foreach ($select as $term) {
                     if (!is_array($term)) {
@@ -977,25 +981,26 @@ final class SQLiteSelectSql
                     }
                     $termColumns = self::compoundProjectionColumns($term, $ordinal);
                     $outputColumn = self::compoundArmOutputColumn($term, $ordinal);
+                    $termCollation = self::compoundTermCollation($term, $arm);
                     foreach ($termColumns as $column) {
                         if ($column === $sql && in_array($column, $columns, true)) {
-                            return $column;
+                            return self::compoundMatchedOrderColumn($column, $termCollation);
                         }
                         if (str_contains($sql, '.') && substr($sql, strrpos($sql, '.') + 1) === $column && in_array($column, $columns, true)) {
-                            return $column;
+                            return self::compoundMatchedOrderColumn($column, $termCollation);
                         }
                         if (str_contains($column, '.') && substr($column, strrpos($column, '.') + 1) === $sql && in_array($column, $columns, true)) {
-                            return $column;
+                            return self::compoundMatchedOrderColumn($column, $termCollation);
                         }
                     }
                     if ($outputColumn === $sql && isset($columns[$ordinal])) {
-                        return $columns[$ordinal];
+                        return self::compoundMatchedOrderColumn($columns[$ordinal], $termCollation);
                     }
                     if (str_contains($sql, '.') && substr($sql, strrpos($sql, '.') + 1) === $outputColumn && isset($columns[$ordinal])) {
-                        return $columns[$ordinal];
+                        return self::compoundMatchedOrderColumn($columns[$ordinal], $termCollation);
                     }
                     if (str_contains($outputColumn, '.') && substr($outputColumn, strrpos($outputColumn, '.') + 1) === $sql && isset($columns[$ordinal])) {
-                        return $columns[$ordinal];
+                        return self::compoundMatchedOrderColumn($columns[$ordinal], $termCollation);
                     }
                     $ordinal += count($termColumns);
                 }
@@ -1005,18 +1010,35 @@ final class SQLiteSelectSql
         }
 
         $expression = self::valueExpression($sql);
-        foreach ($selectArms as $select) {
+        foreach ($arms as $arm) {
+            $select = isset($arm['select']) && is_array($arm['select']) ? $arm['select'] : [];
             foreach ($select as $index => $term) {
                 if (!is_array($term) || !isset($columns[$index + 1])) {
                     continue;
                 }
                 if (self::compoundOrderByExpressionsMatch($expression, self::projectionExpressionForComparison($term))) {
-                    return $columns[$index + 1];
+                    return self::compoundMatchedOrderColumn(
+                        $columns[$index + 1],
+                        self::compoundTermCollation($term, $arm)
+                    );
                 }
             }
         }
 
         return null;
+    }
+
+    /**
+     * @return array{column:string,collation?:string}
+     */
+    private static function compoundMatchedOrderColumn(string $column, ?string $collation): array
+    {
+        $matched = ['column' => $column];
+        if ($collation !== null) {
+            $matched['collation'] = $collation;
+        }
+
+        return $matched;
     }
 
     /**
@@ -1309,7 +1331,7 @@ final class SQLiteSelectSql
                 continue;
             }
             $columns = self::compoundProjectionColumns($term, $ordinal);
-            $collation = self::compoundTermCollation($term);
+            $collation = self::compoundTermCollation($term, $arm);
             foreach ($columns as $_column) {
                 if ($collation !== null) {
                     $collations[$ordinal] = $collation;
@@ -1324,13 +1346,24 @@ final class SQLiteSelectSql
     /**
      * @param array<string,mixed> $term
      */
-    private static function compoundTermCollation(array $term): ?string
+    private static function compoundTermCollation(array $term, ?array $arm = null): ?string
     {
         if (($term['type'] ?? null) === 'collate' && isset($term['collation']) && is_string($term['collation']) && $term['collation'] !== '') {
             return strtoupper($term['collation']);
         }
         if (isset($term['sourceExpression']) && is_array($term['sourceExpression'])) {
-            return self::compoundTermCollation($term['sourceExpression']);
+            return self::compoundTermCollation($term['sourceExpression'], $arm);
+        }
+        if ($arm !== null && isset($arm['from']) && is_array($arm['from'])) {
+            foreach ($arm['from'] as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $collation = SQLiteSelectExpression::collation($row, $term);
+                if ($collation !== null) {
+                    return $collation;
+                }
+            }
         }
 
         return null;

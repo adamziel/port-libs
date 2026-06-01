@@ -2025,7 +2025,8 @@ final class CssMinifier
                 continue;
             }
 
-            $parts[] = (new MediaQueryParser())->minifyList($tail, allowCompactedNegation: true);
+            $parser = new MediaQueryParser();
+            $parts[] = $this->minifyMediaQueryList($parser, $tail, allowCompactedNegation: true);
             break;
         }
 
@@ -2643,7 +2644,8 @@ final class CssMinifier
             $prelude = trim(substr($css, $position + 6, $open - ($position + 6)));
             $minifiedPrelude = $prelude === ''
                 ? ''
-                : $parser->minifyList(
+                : $this->minifyMediaQueryList(
+                    $parser,
                     $prelude,
                     allowCompactedNegation: true,
                     recoverInvalidFeatureValues: $this->recoverInvalidMediaFeatureValues
@@ -2668,6 +2670,19 @@ final class CssMinifier
         }
 
         return $output;
+    }
+
+    private function minifyMediaQueryList(
+        MediaQueryParser $parser,
+        string $prelude,
+        bool $allowCompactedNegation = false,
+        bool $recoverInvalidFeatureValues = false
+    ): string {
+        return $parser->useXResolutionUnitList($parser->minifyList(
+            $prelude,
+            allowCompactedNegation: $allowCompactedNegation,
+            recoverInvalidFeatureValues: $recoverInvalidFeatureValues
+        ));
     }
 
     private function minifyContainerQueries(string $css): string

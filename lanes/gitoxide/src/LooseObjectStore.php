@@ -458,6 +458,10 @@ final class LooseObjectStore
                     return substr($window, 0, $nul + 1);
                 }
 
+                if (strlen($inflated) < self::HEADER_MAX_SIZE) {
+                    throw new \InvalidArgumentException('Did not find 0 byte in header');
+                }
+
                 throw new \InvalidArgumentException('Loose object header exceeds maximum size of 64 bytes');
             }
         }
@@ -502,6 +506,9 @@ final class LooseObjectStore
                 if ($nul === false) {
                     if (strlen($inflated) >= self::HEADER_MAX_SIZE) {
                         throw new \InvalidArgumentException('Loose object header exceeds maximum size of 64 bytes');
+                    }
+                    if ($status === ZLIB_STREAM_END) {
+                        throw new \InvalidArgumentException('Did not find 0 byte in header');
                     }
                     continue;
                 }
