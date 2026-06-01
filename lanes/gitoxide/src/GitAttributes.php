@@ -591,6 +591,8 @@ final class GitAttributes
                     $i = $end;
                     continue;
                 }
+                $regex .= '(?!)';
+                continue;
             }
             $regex .= preg_quote($char, '~');
         }

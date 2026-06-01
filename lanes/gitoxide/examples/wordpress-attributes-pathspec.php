@@ -33,9 +33,19 @@ $backslashAttributes = GitAttributes::fromString(
     . 'wp-content/plugins/f/oo/block.json slash-plugin' . "\n",
     withBuiltInMacros: false,
 );
+$malformedBracketAttributes = GitAttributes::fromString(
+    "wp-content/uploads/foo[ malformed\n"
+    . "wp-content/uploads/foo[] empty-class\n"
+    . "wp-content/uploads/foo[!] negated-empty-class\n"
+    . "wp-content/uploads/foo[[] literal-open\n"
+    . "wp-content/uploads/foo[!]] not-close\n",
+    withBuiltInMacros: false,
+);
 $backslashPath = 'wp-content/plugins/f\\oo/block.json';
 $slashPath = 'wp-content/plugins/f/oo/block.json';
 $backslashPathspec = ':(glob,attr:backslash-plugin)wp-content/plugins/f\\\\oo/block.json';
+$malformedBracketMatch = PathspecSearch::fromSpecs(['wp-content/uploads/foo['])
+    ->match('wp-content/uploads/foo[', false);
 $tabAttributes = GitAttributes::fromString(
     "wp-content/plugins/gutenberg/** deploy review=yes\n",
     withBuiltInMacros: false,
@@ -230,6 +240,21 @@ return [
         false,
         $backslashAttributes,
     ),
+    'malformedBracketAttributeSkipped' => $malformedBracketAttributes->attributesForPath(
+        'wp-content/uploads/foo[',
+        ['malformed'],
+    ),
+    'validLiteralBracketAttributeMatches' => $malformedBracketAttributes->attributesForPath(
+        'wp-content/uploads/foo[',
+        ['literal-open'],
+    ),
+    'malformedBracketPathspecFallsBackVerbatim' => $malformedBracketMatch?->kind,
+    'malformedBracketAttrPathspecSkipped' => !PathspecSearch::fromSpecs([
+        ':(attr:malformed)wp-content/uploads/foo[',
+    ])->isIncluded('wp-content/uploads/foo[', false, $malformedBracketAttributes),
+    'validNegatedCloseBracketPathspecMatches' => PathspecSearch::fromSpecs([
+        'wp-content/uploads/foo[!]]',
+    ])->isIncluded('wp-content/uploads/fooX', false),
     'reversedRangePathspecMatchesStart' => $reversedRangeSearch->isIncluded(
         'wp-content/uploads/z/photo.jpg',
         false,

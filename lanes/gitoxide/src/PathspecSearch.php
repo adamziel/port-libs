@@ -468,6 +468,8 @@ final class PathspecSearch
                     $i = $end;
                     continue;
                 }
+                $regex .= '(?!)';
+                continue;
             }
             $regex .= preg_quote($char, '#');
         }

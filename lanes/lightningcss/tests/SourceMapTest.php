@@ -331,6 +331,49 @@ return [
         $t->same(1, $closest['sourceIndex'] ?? null);
         $t->same(null, $map->findClosestMapping(2, 0));
     },
+    'source map deduplicates imported raw vlq tables before applying offsets' => static function (TestRunner $t): void {
+        $map = new SourceMap('/srv/www/site/wp-content/themes/example');
+        $shared = $map->addSource('/srv/www/site/wp-content/themes/example/shared.css');
+        $map->setSourceContent($shared, '.shared{color:old}');
+        $map->addName('shared-rule');
+
+        $map->addVlqMap(
+            'AAAAA,ICEGC;ACACC',
+            [
+                '/srv/www/site/wp-content/themes/example/shared.css',
+                './blocks/card.css',
+                'shared.css',
+            ],
+            [
+                '.shared{color:green}',
+                '.card{color:red}',
+                '.shared{color:rebeccapurple}',
+            ],
+            [
+                'shared-rule',
+                'card-rule',
+                'shared-rule',
+            ],
+            2,
+            3
+        );
+
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $data = $map->toArray(null, false);
+
+        $t->same(';;GAAAA,ICEGC;GDACD', $map->writeVlq());
+        $t->same([2, 2, 3], array_column($decoded, 'generatedLine'));
+        $t->same([3, 7, 3], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 1, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 2, 2], array_column($decoded, 'originalLine'));
+        $t->same([0, 3, 4], array_column($decoded, 'originalColumn'));
+        $t->same([0, 1, 0], array_column($decoded, 'nameIndex'));
+        $t->same(['shared.css', 'blocks/card.css'], $data['sources']);
+        $t->same(['.shared{color:rebeccapurple}', '.card{color:red}'], $data['sourcesContent']);
+        $t->same(['shared-rule', 'card-rule'], $data['names']);
+        $t->same($shared, $map->getSourceIndex('file:///srv/www/site/wp-content/themes/example/shared.css'));
+        $t->same(0, $map->getNameIndex('shared-rule'));
+    },
     'source map imports negative-offset raw vlq maps after skipped-line deltas' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $map->addVlqMap(

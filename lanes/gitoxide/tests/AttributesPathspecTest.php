@@ -208,6 +208,52 @@ return [
         $shellGlob = PathspecSearch::fromSpecs(['wp-content/plugins/**.php']);
         $t->same(true, $shellGlob->isIncluded('wp-content/plugins/nested/index.php', false));
     },
+    'malformed bracket pathspecs fall back verbatim while attributes keep gix wildmatch aborts' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString(
+            "wp-content/uploads/foo[ malformed\n"
+            . "wp-content/uploads/foo[] empty-class\n"
+            . "wp-content/uploads/foo[!] negated-empty-class\n"
+            . "wp-content/uploads/foo[[] literal-open\n"
+            . "wp-content/uploads/foo[!]] not-close\n",
+            withBuiltInMacros: false,
+        );
+
+        $t->same([
+            'literal-open' => true,
+            'malformed' => null,
+        ], $attributes->attributesForPath('wp-content/uploads/foo[', ['malformed', 'literal-open']));
+        $t->same(['empty-class' => null], $attributes->attributesForPath('wp-content/uploads/foo[]', ['empty-class']));
+        $t->same(['negated-empty-class' => null], $attributes->attributesForPath('wp-content/uploads/foo[!]', ['negated-empty-class']));
+        $t->same(['not-close' => true], $attributes->attributesForPath('wp-content/uploads/fooX', ['not-close']));
+        $t->same(['not-close' => null], $attributes->attributesForPath('wp-content/uploads/foo]', ['not-close']));
+
+        foreach ([
+            'wp-content/uploads/foo[',
+            'wp-content/uploads/foo[]',
+            'wp-content/uploads/foo[!]',
+        ] as $spec) {
+            $match = PathspecSearch::fromSpecs([$spec])->match($spec, false);
+            $t->same(PathspecMatch::KIND_VERBATIM, $match?->kind);
+            $t->same(true, PathspecMatcher::matchesOne($spec, $spec, false));
+        }
+
+        $literalOpen = PathspecSearch::fromSpecs(['wp-content/uploads/foo[[]'])->match('wp-content/uploads/foo[', false);
+        $t->same(PathspecMatch::KIND_WILDCARD, $literalOpen?->kind);
+        $t->same(true, PathspecMatcher::matchesOne('wp-content/uploads/foo[[]', 'wp-content/uploads/foo[', false));
+        $t->same(true, PathspecSearch::fromSpecs(['wp-content/uploads/foo[!]]'])->isIncluded('wp-content/uploads/fooX', false));
+        $t->same(false, PathspecSearch::fromSpecs(['wp-content/uploads/foo[!]]'])->isIncluded('wp-content/uploads/foo]', false));
+
+        $t->same(false, PathspecMatcher::matchesOne(
+            ':(attr:malformed)wp-content/uploads/foo[',
+            'wp-content/uploads/foo[',
+            false,
+            $attributes,
+        ));
+        $t->same(false, PathspecSearch::fromSpecs([':(attr:empty-class)wp-content/uploads/foo[]'])
+            ->isIncluded('wp-content/uploads/foo[]', false, $attributes));
+        $t->same(true, PathspecSearch::fromSpecs([':(attr:literal-open)wp-content/uploads/foo[[]'])
+            ->isIncluded('wp-content/uploads/foo[', false, $attributes));
+    },
     'pathspec parser accepts upstream attribute magic and escaped values' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/plugins/** deploy=plugin kind=one,two\n"
             . "wp-content/themes/** deploy=theme kind=one-two\n"
@@ -526,6 +572,11 @@ return [
         $t->same(['backslash-plugin' => null], $example['slashPathDoesNotMatchBackslashAttribute']);
         $t->same(true, $example['backslashPathspecMatchesByte']);
         $t->same(true, $example['backslashPathspecSkipsSlash']);
+        $t->same(['malformed' => null], $example['malformedBracketAttributeSkipped']);
+        $t->same(['literal-open' => true], $example['validLiteralBracketAttributeMatches']);
+        $t->same(PathspecMatch::KIND_VERBATIM, $example['malformedBracketPathspecFallsBackVerbatim']);
+        $t->same(true, $example['malformedBracketAttrPathspecSkipped']);
+        $t->same(true, $example['validNegatedCloseBracketPathspecMatches']);
         $t->same(true, $example['reversedRangePathspecMatchesStart']);
         $t->same(true, $example['reversedRangePathspecSkipsMiddle']);
         $t->same(['not-reversed-range' => true], $example['reversedRangeNegationMatchesMiddle']);
