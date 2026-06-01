@@ -7,11 +7,11 @@
     "phpFail": 0,
     "wordpressScenarios": "Git-backed workflows remain covered; latest accepted source adds merge-base commit-graph cache lookup, URL/refspec Unix colon-path classification, and attributes/pathspec parent-traversal rejection parity.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-  "audit": "2026-06-01 17:07 UTC supervisor integration: source commit 0c5064192a4593812c17bc80c02dc19e3f859e7b accepted receive-pack SHA-256 object-format boundary parity. Changed PHP lint passed for 20 changed PHP files across the batch; git diff --check passed; focused Gitoxide gate passed 3 files / 1438 assertions / 0 failures; receive-pack example smoke exited 0; full Gitoxide PHP lane passed 40 files / 10277 assertions / 0 failures. Cargo workspace was not run.",
+  "audit": "2026-06-01 17:07 UTC supervisor integration: source commit 0c5064192a99d79542a87215b85bea5af9b0cd55 accepted receive-pack SHA-256 object-format boundary parity. Changed PHP lint passed for 20 changed PHP files across the batch; git diff --check passed; focused Gitoxide gate passed 3 files / 1438 assertions / 0 failures; receive-pack example smoke exited 0; full Gitoxide PHP lane passed 40 files / 10277 assertions / 0 failures. Cargo workspace was not run.",
   "currentWork": "Receive-pack SHA-256 object-format boundary parity, send-pack receive-status report-status-v2 object fallback parity, merge-base equal-priority ordering, protocol-v2 fetch sideband transcript parity, sparse-checkout index mode, tree/pathspec rootless absolute guard, and URL/refspec match-rhs parity integrated on current main.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-  "latestCommit": "0c5064192a4593812c17bc80c02dc19e3f859e7b",
+  "latestCommit": "0c5064192a99d79542a87215b85bea5af9b0cd55",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping reference transaction, partial-clone, credential/config, pack/index, object database, tree-merge, merge-base, protocol-v2, receive-pack/send-pack, smart-HTTP/SSH, sparse-checkout/pathspec, and URL/refspec parity slices.",
-  "commit": "0c5064192a4593812c17bc80c02dc19e3f859e7b",
+  "commit": "0c5064192a99d79542a87215b85bea5af9b0cd55",
   "latestFocusedSlice": "2026-06-01 supervisor batch: receive-pack SHA-256 object-format boundary parity plus related push request coverage. Full Gitoxide lane passed 40 files / 10277 assertions / 0 failures; phpPass moves 10234 -> 10277; mapped coverage remains 1808 / 2886 pending a denominator review; full upstream Cargo workspace was not executed."
 }

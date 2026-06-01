@@ -7,11 +7,11 @@
     "phpFail": 0,
     "wordpressScenarios": "LightningCSS examples remain generic coverage plus existing fixture smokes; latest accepted source adds CSS Modules local/global dangling-combinator parity, prefixed 3D transform layout CSSOM read-write parity, and source-map VLQ generated-only child pruning.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-  "audit": "2026-06-01 17:07 UTC supervisor integration: source commit 0c5064192a4593812c17bc80c02dc19e3f859e7b accepted grid-template longhand composition parity. Changed PHP lint passed for 20 changed PHP files across the batch; git diff --check passed; focused LightningCSS gate passed 1 file / 25 assertions / 0 failures; full LightningCSS PHP lane passed 13 files / 8856 assertions / 0 failures; grid-template formatter example self-test exited 0. Rust/Node/WASM runners were not run.",
+  "audit": "2026-06-01 17:07 UTC supervisor integration: source commit 0c5064192a99d79542a87215b85bea5af9b0cd55 accepted grid-template longhand composition parity. Changed PHP lint passed for 20 changed PHP files across the batch; git diff --check passed; focused LightningCSS gate passed 1 file / 25 assertions / 0 failures; full LightningCSS PHP lane passed 13 files / 8856 assertions / 0 failures; grid-template formatter example self-test exited 0. Rust/Node/WASM runners were not run.",
   "currentWork": "Grid-template longhand composition parity, bundle import source_map_urls metadata, CSS Modules nth formula parity, CSSOM place-alignment longhands, source-map pruned generated-only input-map gaps, border-image target-prefix supports parity, cascade-layer custom-rule visitors, media-range fallback after layer statements, and font shorthand formatter parity integrated on current main.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-  "latestCommit": "0c5064192a4593812c17bc80c02dc19e3f859e7b",
+  "latestCommit": "0c5064192a99d79542a87215b85bea5af9b0cd55",
     "nextTask": "Keep LightningCSS workers on current-base source maps, bundle/import graph, media query, property value, CSSOM, CSS Modules, custom-at-rule, target-prefix, selector, parser recovery, and upstream Rust/Node/WASM parity gaps that can be expressed in PHP.",
-  "commit": "0c5064192a4593812c17bc80c02dc19e3f859e7b",
+  "commit": "0c5064192a99d79542a87215b85bea5af9b0cd55",
   "latestFocusedSlice": "2026-06-01 supervisor batch: grid-template longhand composition parity adds 5 accepted full-lane assertions on the current supervisor count. Full LightningCSS lane passed 13 files / 8856 assertions / 0 failures; phpPass moves 8851 -> 8856; mapped coverage remains 2399 / 3532; Rust/Node/WASM upstream runners were not executed."
 }
