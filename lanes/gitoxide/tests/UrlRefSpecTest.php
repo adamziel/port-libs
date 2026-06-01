@@ -1039,6 +1039,71 @@ return [
 
         $t->throws(InvalidArgumentException::class, static fn () => RefSpec::parseFetch('^dead'));
     },
+    'refspec match group maps fetch lhs against remote refs like gix-refspec' => static function (TestRunner $t): void {
+        $remoteRefs = [
+            ['name' => 'refs/heads/main', 'target' => str_repeat('1', 40)],
+            ['name' => 'refs/heads/f1', 'target' => str_repeat('2', 40)],
+            ['name' => 'refs/heads/f2', 'target' => str_repeat('3', 40)],
+            ['name' => 'refs/heads/feature/topic', 'target' => str_repeat('4', 40)],
+            ['name' => 'refs/tags/v1.0', 'target' => str_repeat('5', 40)],
+            ['name' => 'refs/tags/annotated-v2.0', 'target' => str_repeat('6', 40), 'object' => str_repeat('7', 40)],
+            ['name' => 'refs/pull/123/head', 'target' => str_repeat('8', 40)],
+        ];
+
+        $partial = RefSpec::matchFetchRemoteRefs(['main'], $remoteRefs);
+        $t->same(1, count($partial));
+        $t->same('refs/heads/main', $partial[0]['remote']);
+        $t->same(null, $partial[0]['local']);
+        $t->same(0, $partial[0]['specIndex']);
+        $t->same(0, $partial[0]['itemIndex']);
+
+        $glob = RefSpec::matchFetchRemoteRefs(['refs/heads/f*:refs/remotes/origin/f*'], $remoteRefs);
+        $t->same(['refs/heads/f1', 'refs/heads/f2', 'refs/heads/feature/topic'], array_column($glob, 'remote'));
+        $t->same([
+            'refs/remotes/origin/f1',
+            'refs/remotes/origin/f2',
+            'refs/remotes/origin/feature/topic',
+        ], array_column($glob, 'local'));
+        $t->same([1, 2, 3], array_column($glob, 'itemIndex'));
+
+        $pattern = RefSpec::matchFetchRemoteRefs(['refs/tags/v[0-9]*'], $remoteRefs);
+        $t->same(1, count($pattern));
+        $t->same('refs/tags/v1.0', $pattern[0]['remote']);
+        $t->same(null, $pattern[0]['local']);
+
+        $negative = RefSpec::matchFetchRemoteRefs([
+            'refs/heads/*:refs/remotes/origin/*',
+            '^refs/heads/f2',
+        ], $remoteRefs);
+        $t->same(['refs/heads/main', 'refs/heads/f1', 'refs/heads/feature/topic'], array_column($negative, 'remote'));
+        $t->same([
+            'refs/remotes/origin/main',
+            'refs/remotes/origin/f1',
+            'refs/remotes/origin/feature/topic',
+        ], array_column($negative, 'local'));
+
+        $dedup = RefSpec::matchFetchRemoteRefs([
+            'refs/heads/main:main',
+            'main:refs/heads/main',
+        ], $remoteRefs);
+        $t->same(1, count($dedup));
+        $t->same('refs/heads/main', $dedup[0]['remote']);
+        $t->same('refs/heads/main', $dedup[0]['local']);
+        $t->same(0, $dedup[0]['specIndex']);
+
+        $object = RefSpec::matchFetchRemoteRefs([
+            str_repeat('A', 40) . ':deployment-object',
+        ], $remoteRefs);
+        $t->same(1, count($object));
+        $t->same(str_repeat('a', 40), $object[0]['remote']);
+        $t->same('refs/heads/deployment-object', $object[0]['local']);
+        $t->same(0, $object[0]['specIndex']);
+        $t->same(null, $object[0]['itemIndex']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => RefSpec::matchFetchRemoteRefs(['refs/heads/main'], [['target' => str_repeat('9', 40)]]));
+        $t->throws(InvalidArgumentException::class, static fn () => RefSpec::matchFetchRemoteRefs([RefSpec::parsePush('refs/heads/main')], $remoteRefs));
+        $t->throws(InvalidArgumentException::class, static fn () => RefSpec::matchFetchRemoteRefs([123], $remoteRefs));
+    },
     'wordpress fixture normalizes deployment remote and fetch push refspecs without git binary' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-url-refspec-normalize.php';
         $summary = require dirname(__DIR__) . '/examples/wordpress-url-refspec-normalize.php';
@@ -1099,6 +1164,8 @@ return [
         $t->same($fixture['expectedPushInstructions'], array_column($summary['push'], 'instruction'));
         $t->same($fixture['expectedFetchNormalized'], array_column($summary['fetch'], 'normalized'));
         $t->same($fixture['expectedPushNormalized'], array_column($summary['push'], 'normalized'));
+        $t->same($fixture['expectedMatchedFetchRemotes'], array_column($summary['matchedFetchRefs'], 'remote'));
+        $t->same($fixture['expectedMatchedFetchLocals'], array_column($summary['matchedFetchRefs'], 'local'));
         $t->same($fixture['expectedPushInstructionIdentityUniqueCount'], $summary['pushInstructionIdentityUniqueCount']);
         $t->same($fixture['expectedSameNamedPushEquivalent'], $summary['sameNamedPushEquivalent']);
         $t->same($fixture['expectedDeleteForceEquivalent'], $summary['deleteForceEquivalent']);

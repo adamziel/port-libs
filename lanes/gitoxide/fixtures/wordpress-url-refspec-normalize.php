@@ -109,6 +109,27 @@ return [
         '+',
         '',
     ],
+    'remoteAdvertisedRefs' => [
+        ['name' => 'refs/heads/main', 'target' => str_repeat('1', 40)],
+        ['name' => 'refs/heads/release', 'target' => str_repeat('2', 40)],
+        ['name' => 'refs/heads/private', 'target' => str_repeat('3', 40)],
+        ['name' => 'refs/tags/v1.0', 'target' => str_repeat('4', 40)],
+    ],
+    'matchFetchRefspecs' => [
+        '+refs/heads/*:refs/remotes/origin/*',
+        '^refs/heads/private',
+        'refs/tags/v[0-9]*',
+    ],
+    'expectedMatchedFetchRemotes' => [
+        'refs/heads/main',
+        'refs/heads/release',
+        'refs/tags/v1.0',
+    ],
+    'expectedMatchedFetchLocals' => [
+        'refs/remotes/origin/main',
+        'refs/remotes/origin/release',
+        null,
+    ],
     'pushRefspecs' => [
         '+refs/heads/release:refs/heads/wp-release',
         '+:refs/heads/stale-preview',

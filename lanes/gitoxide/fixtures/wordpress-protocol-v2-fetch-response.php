@@ -197,7 +197,7 @@ return [
     'wordpressUse' => 'A PHP deployment tool can parse protocol v2 sideband-all fetch response sections, confirm the wanted WordPress branch object, collect shallow boundary updates, surface remote progress, and hand channel-1 pack bytes to the object database layer.',
     'packetLineBoundUse' => 'Fetch response packet-lines are bounded to Gitoxide gix-packetline 64k framing before sideband decoding, so an oversized remote payload cannot be interpreted as pack or progress data.',
     'rawUploadPackErrorUse' => 'Raw upload-pack ERR pkt-lines are surfaced before sideband decoding, so WordPress deployment fetch diagnostics report the server failure text instead of a misleading sideband channel error.',
-    'emptyErrorSidebandUse' => 'Empty channel-3 sideband keepalive/error packets are ignored instead of creating a blank deployment error, matching Gitoxide remote-progress handling.',
+    'emptyErrorSidebandUse' => 'Empty channel-3 sideband keepalive/error packets do not create blank deployment errors, but caller sideband handlers still see the empty error boundary for cancellation parity.',
     'truncatedPackUse' => 'A truncated protocol v2 sideband pack response without a flush is rejected before WordPress deployment tooling can import a partial pack.',
     'overflowProgressUse' => 'Remote progress percentages larger than Gitoxide u32 progress bounds are ignored while step and maximum counters are retained for WordPress deployment diagnostics.',
     'progressCancelUse' => 'A WordPress deployment fetch can abort while reading sideband progress, matching Gitoxide sideband reader interruption behavior before pack bytes are imported.',

@@ -8,7 +8,7 @@ final class SQLiteSelectSql
 {
     private const MAX_VARIABLE_NUMBER = 32766;
     private const HIDDEN_WILDCARD_METADATA_PREFIX = '__sqlite_hidden_wildcard_columns';
-    private const JSON_TABLE_SOURCE_COLUMNS = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path', 'json', 'root'];
+    private const JSON_TABLE_SOURCE_COLUMNS = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'];
     private const JSON_TABLE_HIDDEN_WILDCARD_COLUMNS = ['json', 'root'];
 
     /**
@@ -2768,10 +2768,16 @@ final class SQLiteSelectSql
             $qualified[$index][$prefix . '.rowid'] = $row['id'];
             $qualified[$index][$prefix . '._rowid_'] = $row['id'];
             $qualified[$index][$prefix . '.oid'] = $row['id'];
-            $qualified[$index][self::HIDDEN_WILDCARD_METADATA_PREFIX . '.' . $prefix] = array_map(
-                static fn (string $column): string => $prefix . '.' . $column,
+            $hiddenColumns = array_values(array_filter(
                 self::JSON_TABLE_HIDDEN_WILDCARD_COLUMNS,
-            );
+                static fn (string $column): bool => array_key_exists($column, $row),
+            ));
+            if ($hiddenColumns !== []) {
+                $qualified[$index][self::HIDDEN_WILDCARD_METADATA_PREFIX . '.' . $prefix] = array_map(
+                    static fn (string $column): string => $prefix . '.' . $column,
+                    $hiddenColumns,
+                );
+            }
         }
 
         return $qualified;
@@ -2790,7 +2796,13 @@ final class SQLiteSelectSql
             $rows[$index]['rowid'] = $row['id'];
             $rows[$index]['_rowid_'] = $row['id'];
             $rows[$index]['oid'] = $row['id'];
-            $rows[$index][self::HIDDEN_WILDCARD_METADATA_PREFIX] = self::JSON_TABLE_HIDDEN_WILDCARD_COLUMNS;
+            $hiddenColumns = array_values(array_filter(
+                self::JSON_TABLE_HIDDEN_WILDCARD_COLUMNS,
+                static fn (string $column): bool => array_key_exists($column, $row),
+            ));
+            if ($hiddenColumns !== []) {
+                $rows[$index][self::HIDDEN_WILDCARD_METADATA_PREFIX] = $hiddenColumns;
+            }
         }
 
         return $rows;
@@ -4002,9 +4014,14 @@ final class SQLiteSelectSql
      */
     private static function qualifiedJsonTableColumns(string $alias): array
     {
+        $visibleColumns = array_values(array_diff(
+            self::JSON_TABLE_SOURCE_COLUMNS,
+            self::JSON_TABLE_HIDDEN_WILDCARD_COLUMNS,
+        ));
+
         return array_map(
             static fn (string $column): string => $alias . '.' . $column,
-            array_merge(self::JSON_TABLE_SOURCE_COLUMNS, ['rowid', '_rowid_', 'oid']),
+            array_merge($visibleColumns, ['rowid', '_rowid_', 'oid']),
         );
     }
 

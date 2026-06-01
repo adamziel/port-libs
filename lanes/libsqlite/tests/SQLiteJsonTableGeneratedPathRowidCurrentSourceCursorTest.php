@@ -7,16 +7,16 @@ use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 
 $current171 = [
-    'option_id' => 171,
-    'option_name' => 'wp_plugin_generated_path_rowid_cost_current_source_next171',
-    'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 171,
+    'key_name' => 'app_plugin_generated_path_rowid_cost_current_source_next171',
+    'key_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules',
     'scan_root' => '$.rules',
 ];
 $next171 = [
-    'option_id' => 171,
-    'option_name' => 'wp_plugin_generated_path_rowid_cost_current_source_next171',
-    'option_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 171,
+    'key_name' => 'app_plugin_generated_path_rowid_cost_current_source_next171',
+    'key_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules[2]',
     'scan_root' => '$.rules',
 ];
@@ -31,7 +31,7 @@ $plan171 = static fn (
     'json_tree',
     $current ?? $current171,
     $next ?? $next171,
-    'option_value',
+    'key_value',
     'generated_path',
     $constraints ?? [
         ['column' => 'path', 'operator' => 'LIKE', 'value' => '$.rules%'],
@@ -65,9 +65,9 @@ $unusable171 = static fn (): array => $plan171(
 );
 $jsonb171 = static fn (): array => $plan171(
     $current171,
-    array_replace($current171, ['option_value' => new SQLiteBlobValue(SQLiteJsonB::encode(json_decode($current171['option_value'])))]),
+    array_replace($current171, ['key_value' => new SQLiteBlobValue(SQLiteJsonB::encode(json_decode($current171['key_value'])))]),
 );
-$nullNext171 = static fn (): array => $plan171($current171, array_replace($next171, ['option_value' => null]));
+$nullNext171 = static fn (): array => $plan171($current171, array_replace($next171, ['key_value' => null]));
 
 $tests = [
     'records next171 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next171', $plan171()['dependencies'], true)),
@@ -78,8 +78,8 @@ $tests = [
     'stable has no next171 reasons' => static fn (TestRunner $t) => $t->same([], $stable171()['next171ReplanReasons']),
     'current cursor opcode pinned' => static fn (TestRunner $t) => $t->same('xNext-generated-path-rowid-current-source', $plan171()['currentGeneratedPathRowidCurrentSourceCursor']['cursorOpcode']),
     'next cursor opcode reparses' => static fn (TestRunner $t) => $t->same('xNext-generated-path-rowid-current-source-reprepare', $plan171()['nextGeneratedPathRowidCurrentSourceCursor']['cursorOpcode']),
-    'source option id retained' => static fn (TestRunner $t) => $t->same(171, $plan171()['currentGeneratedPathRowidCurrentSourceCursor']['sourceOptionId']),
-    'source option name retained' => static fn (TestRunner $t) => $t->same('wp_plugin_generated_path_rowid_cost_current_source_next171', $plan171()['currentGeneratedPathRowidCurrentSourceCursor']['sourceOptionName']),
+    'source setting id retained' => static fn (TestRunner $t) => $t->same(171, $plan171()['currentGeneratedPathRowidCurrentSourceCursor']['sourceSettingId']),
+    'source setting name retained' => static fn (TestRunner $t) => $t->same('app_plugin_generated_path_rowid_cost_current_source_next171', $plan171()['currentGeneratedPathRowidCurrentSourceCursor']['sourceKeyName']),
     'generated path retained' => static fn (TestRunner $t) => $t->same('$.rules', $plan171()['currentGeneratedPathRowidCurrentSourceCursor']['generatedPath']),
     'rowid alias is normalized into argv column' => static fn (TestRunner $t) => $t->same(null, $plan171()['currentGeneratedPathRowidCurrentSourceCursor']['rowidAlias']),
     'argv columns keep xfilter shape' => static fn (TestRunner $t) => $t->same(['path', 'id'], $plan171()['currentGeneratedPathRowidCurrentSourceCursor']['argvColumns']),

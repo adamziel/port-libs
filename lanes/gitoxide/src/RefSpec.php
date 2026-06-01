@@ -319,6 +319,87 @@ final class RefSpec
         ];
     }
 
+    /**
+     * Match fetch refspec left-hand sides against advertised remote refs.
+     *
+     * This mirrors the bounded behavior of gix-refspec MatchGroup::match_lhs:
+     * positive fetch specs produce deduplicated remote-to-local mappings, object
+     * IDs are mapped without requiring an advertised ref, and negative fetch
+     * specs remove matching ref-name mappings after all positives are collected.
+     *
+     * @param list<string|self> $fetchRefspecs
+     * @param list<string|array{name: string, target?: ?string, object?: ?string}> $remoteRefs
+     * @return list<array{remote: string, local: ?string, specIndex: int, itemIndex: ?int}>
+     */
+    public static function matchFetchRemoteRefs(array $fetchRefspecs, array $remoteRefs): array
+    {
+        $specs = [];
+        foreach ($fetchRefspecs as $index => $candidate) {
+            $specs[] = self::fetchSpecForMatch($candidate, $index);
+        }
+
+        $items = [];
+        foreach ($remoteRefs as $index => $item) {
+            $items[] = self::remoteRefItemForMatch($item, $index);
+        }
+
+        $out = [];
+        $seen = [];
+        foreach ($specs as $specIndex => $spec) {
+            if ($spec->mode === self::MODE_NEGATIVE) {
+                continue;
+            }
+
+            $source = $spec->source;
+            if ($source === null) {
+                continue;
+            }
+
+            if (self::looksLikeFullObjectHash($source)) {
+                self::pushUniqueFetchMapping(
+                    $out,
+                    $seen,
+                    strtolower($source),
+                    self::fetchDestinationToLocal($spec->destination, null),
+                    $specIndex,
+                    null
+                );
+                continue;
+            }
+
+            $oneSided = $spec->destination === null;
+            foreach ($items as $itemIndex => $item) {
+                $match = self::matchFetchSource($source, $item['name'], $oneSided);
+                if ($match === null) {
+                    continue;
+                }
+
+                self::pushUniqueFetchMapping(
+                    $out,
+                    $seen,
+                    $item['name'],
+                    self::fetchDestinationToLocal($spec->destination, $match['capture']),
+                    $specIndex,
+                    $itemIndex
+                );
+            }
+        }
+
+        foreach ($specs as $spec) {
+            if ($spec->mode !== self::MODE_NEGATIVE || $spec->source === null) {
+                continue;
+            }
+
+            $source = $spec->source;
+            $out = array_values(array_filter(
+                $out,
+                static fn (array $mapping): bool => self::matchFetchSource($source, $mapping['remote'], true) === null
+            ));
+        }
+
+        return $out;
+    }
+
     public function toString(): string
     {
         if ($this->operation === self::OP_FETCH && $this->destination === null && $this->mode !== self::MODE_NEGATIVE && $this->source !== null) {
@@ -347,6 +428,220 @@ final class RefSpec
         }
 
         return $prefix . $this->source;
+    }
+
+    private static function fetchSpecForMatch(mixed $candidate, int $index): self
+    {
+        if ($candidate instanceof self) {
+            $spec = $candidate;
+        } elseif (is_string($candidate)) {
+            $spec = self::parseFetch($candidate);
+        } else {
+            throw new \InvalidArgumentException("Fetch refspec at index {$index} must be a string or RefSpec");
+        }
+
+        if ($spec->operation !== self::OP_FETCH) {
+            throw new \InvalidArgumentException("Refspec at index {$index} is not a fetch refspec");
+        }
+
+        return $spec;
+    }
+
+    /**
+     * @return array{name: string}
+     */
+    private static function remoteRefItemForMatch(mixed $item, int $index): array
+    {
+        if (is_string($item) && $item !== '') {
+            return ['name' => $item];
+        }
+
+        if (!is_array($item) || !isset($item['name']) || !is_string($item['name']) || $item['name'] === '') {
+            throw new \InvalidArgumentException("Remote ref item at index {$index} must provide a non-empty name");
+        }
+
+        return ['name' => $item['name']];
+    }
+
+    /**
+     * @return array{capture: ?string}|null
+     */
+    private static function matchFetchSource(string $source, string $remoteRef, bool $oneSided): ?array
+    {
+        if ($oneSided && self::mustUsePatternMatching($source)) {
+            return self::refPatternMatches($source, $remoteRef) ? ['capture' => null] : null;
+        }
+
+        if (str_contains($source, '*')) {
+            $capture = self::simpleGlobCapture($source, $remoteRef);
+            return $capture === null ? null : ['capture' => $capture];
+        }
+
+        if (str_starts_with($source, 'refs/')) {
+            return $source === $remoteRef ? ['capture' => null] : null;
+        }
+
+        if (self::looksLikeFullObjectHash($source)) {
+            return null;
+        }
+
+        foreach (self::expandPartialRefName($source) as $expanded) {
+            if ($expanded === $remoteRef) {
+                return ['capture' => null];
+            }
+        }
+
+        return null;
+    }
+
+    private static function simpleGlobCapture(string $pattern, string $value): ?string
+    {
+        $star = strpos($pattern, '*');
+        if ($star === false) {
+            return $pattern === $value ? '' : null;
+        }
+
+        $prefix = substr($pattern, 0, $star);
+        $suffix = substr($pattern, $star + 1);
+        if (!str_starts_with($value, $prefix) || ($suffix !== '' && !str_ends_with($value, $suffix))) {
+            return null;
+        }
+
+        $end = strlen($value) - strlen($suffix);
+        if ($end < strlen($prefix)) {
+            return null;
+        }
+
+        return substr($value, strlen($prefix), $end - strlen($prefix));
+    }
+
+    private static function fetchDestinationToLocal(?string $destination, ?string $capture): ?string
+    {
+        if ($destination === null) {
+            return null;
+        }
+
+        if (str_contains($destination, '*')) {
+            if ($capture === null) {
+                throw new \InvalidArgumentException('Glob fetch destination requires a source glob capture');
+            }
+
+            $star = strpos($destination, '*');
+            return substr($destination, 0, $star) . $capture . substr($destination, $star + 1);
+        }
+
+        if (str_starts_with($destination, 'refs/')) {
+            return $destination;
+        }
+
+        if (self::looksLikeFullObjectHash($destination)) {
+            return 'refs/heads/' . strtolower($destination);
+        }
+
+        $base = 'refs/';
+        if (!str_starts_with($destination, 'tags/') && !str_starts_with($destination, 'remotes/')) {
+            $base .= 'heads/';
+        }
+
+        return $base . $destination;
+    }
+
+    /**
+     * @param list<array{remote: string, local: ?string, specIndex: int, itemIndex: ?int}> $out
+     * @param array<string, true> $seen
+     */
+    private static function pushUniqueFetchMapping(
+        array &$out,
+        array &$seen,
+        string $remote,
+        ?string $local,
+        int $specIndex,
+        ?int $itemIndex
+    ): void {
+        $key = $remote . "\0" . ($local ?? "\0");
+        if (isset($seen[$key])) {
+            return;
+        }
+
+        $seen[$key] = true;
+        $out[] = [
+            'remote' => $remote,
+            'local' => $local,
+            'specIndex' => $specIndex,
+            'itemIndex' => $itemIndex,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function expandPartialRefName(string $name): array
+    {
+        return [
+            $name,
+            'refs/' . $name,
+            'refs/tags/' . $name,
+            'refs/heads/' . $name,
+            'refs/remotes/' . $name,
+            'refs/remotes/' . $name . '/HEAD',
+        ];
+    }
+
+    private static function mustUsePatternMatching(string $pattern): bool
+    {
+        return substr_count($pattern, '*') > 1 || preg_match('/[?\[\]\\\\]/', $pattern) === 1;
+    }
+
+    private static function refPatternMatches(string $pattern, string $value): bool
+    {
+        $regex = self::refPatternRegex($pattern);
+        return @preg_match($regex, $value) === 1;
+    }
+
+    private static function refPatternRegex(string $pattern): string
+    {
+        $regex = '';
+        $length = strlen($pattern);
+        for ($i = 0; $i < $length;) {
+            $char = $pattern[$i];
+            if ($char === '*') {
+                $regex .= '.*';
+                ++$i;
+                continue;
+            }
+            if ($char === '?') {
+                $regex .= '.';
+                ++$i;
+                continue;
+            }
+            if ($char === '\\' && $i + 1 < $length) {
+                $regex .= preg_quote($pattern[$i + 1], '~');
+                $i += 2;
+                continue;
+            }
+            if ($char === '[') {
+                $end = strpos($pattern, ']', $i + 1);
+                if ($end !== false && $end > $i + 1) {
+                    $class = substr($pattern, $i + 1, $end - $i - 1);
+                    if ($class !== '') {
+                        if ($class[0] === '!') {
+                            $class = '^' . substr($class, 1);
+                        } elseif ($class[0] === '^') {
+                            $class = '\\^' . substr($class, 1);
+                        }
+                        $class = str_replace(['\\', '~'], ['\\\\', '\\~'], $class);
+                        $regex .= '[' . $class . ']';
+                        $i = $end + 1;
+                        continue;
+                    }
+                }
+            }
+
+            $regex .= preg_quote($char, '~');
+            ++$i;
+        }
+
+        return '~\A' . $regex . '\z~s';
     }
 
     private static function splitSides(string $spec, string $operation, string $mode): array

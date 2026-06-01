@@ -657,7 +657,7 @@ final class SQLiteJsonTablePlan
                 $branches,
             )),
             'branches' => $branches,
-            'rows' => $rows,
+            'rows' => self::jsonTableOutputRows($rows),
             'estimatedCost' => $runnable ? max(1, $estimatedCost) : 1000000,
             'estimatedRows' => $runnable ? $estimatedRows : 0,
             'orderByConsumed' => $orderBy !== [] && $orderByConsumed,
@@ -728,7 +728,7 @@ final class SQLiteJsonTablePlan
                         throw new \InvalidArgumentException("SQLite JSON table projection column {$column} is not available");
                     }
 
-                    $projected[$column] = self::rowColumnValue($row, $column);
+                    $projected[$column] = self::jsonTableOutputColumnValue($column, self::rowColumnValue($row, $column));
                 }
 
                 return $projected;
@@ -8392,7 +8392,7 @@ final class SQLiteJsonTablePlan
             'estimatedRows' => $sourcePlan['estimatedRows'],
             'jsonInputKind' => $sourcePlan['jsonInputKind'],
             'jsonValid' => $sourcePlan['jsonValid'],
-            'rows' => $rows,
+            'rows' => self::jsonTableOutputRows($rows),
         ];
     }
 
@@ -8487,7 +8487,7 @@ final class SQLiteJsonTablePlan
             'jsonInputKind' => $validatedPlan['jsonInputKind'],
             'jsonValid' => $validatedPlan['jsonValid'],
             'jsonError' => $validatedPlan['jsonError'],
-            'rows' => $rows,
+            'rows' => self::jsonTableOutputRows($rows),
         ];
     }
 
@@ -9379,7 +9379,7 @@ final class SQLiteJsonTablePlan
         if ($source === null) {
             return null;
         }
-        if (!is_string($source) && !$source instanceof SQLiteBlobValue) {
+        if (!is_string($source) && !$source instanceof SQLiteBlobValue && !$source instanceof SQLiteJsonSubtypeValue) {
             $source = SQLiteJsonCanonical::encodeDecodedJson($source);
         }
 
@@ -11084,7 +11084,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $source
      * @param array<string,mixed> $rowidCost
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
-     * @return array{sourceKind:string,runnable:bool,jsonColumn:string,generatedPathColumn:string,rootColumn:string|null,sourceOptionId:int|null,sourceOptionName:string|null,sourceRoot:mixed,generatedPath:mixed,rowidConstraintSignature:string|null,rowidScoped:bool,intersectedRowids:list<int|null>,intersectedPaths:list<string|null>,effectiveEstimatedCost:int,costClass:string,argvBindings:list<array{argvIndex:int,column:string,operator:string,value:mixed,omit:bool,kind:string}>,omitColumns:list<string>,residualColumns:list<string>,sourceFingerprint:string,costFingerprint:string,planFingerprint:string}
+     * @return array{sourceKind:string,runnable:bool,jsonColumn:string,generatedPathColumn:string,rootColumn:string|null,sourceSettingId:int|null,sourceKeyName:string|null,sourceRoot:mixed,generatedPath:mixed,rowidConstraintSignature:string|null,rowidScoped:bool,intersectedRowids:list<int|null>,intersectedPaths:list<string|null>,effectiveEstimatedCost:int,costClass:string,argvBindings:list<array{argvIndex:int,column:string,operator:string,value:mixed,omit:bool,kind:string}>,omitColumns:list<string>,residualColumns:list<string>,sourceFingerprint:string,costFingerprint:string,planFingerprint:string}
      */
     private static function jsonTableGeneratedPathRowidCostSourceProfile(
         array $source,
@@ -11130,15 +11130,15 @@ final class SQLiteJsonTablePlan
 
         $sourceRow = is_array($source['source'] ?? null) ? $source['source'] : [];
         $sourceKind = (string) ($source['jsonInputKind'] ?? 'unrunnable');
-        $sourceOptionId = is_int($sourceRow['option_id'] ?? null) ? $sourceRow['option_id'] : null;
-        $sourceOptionName = is_string($sourceRow['option_name'] ?? null) ? $sourceRow['option_name'] : null;
+        $sourceSettingId = self::sourceSettingId($sourceRow);
+        $sourceKeyName = self::sourceKeyName($sourceRow);
         $sourceRoot = $source['rootValue'] ?? null;
 
         $sourceFingerprint = hash('sha256', json_encode([
             $sourceKind,
             $source['runnable'] ?? null,
-            $sourceOptionId,
-            $sourceOptionName,
+            $sourceSettingId,
+            $sourceKeyName,
             $sourceRoot,
             hash('sha256', serialize($source['jsonValue'] ?? null)),
             $rowidCost['generatedPath'] ?? null,
@@ -11165,8 +11165,8 @@ final class SQLiteJsonTablePlan
             'jsonColumn' => $jsonColumn,
             'generatedPathColumn' => $generatedPathColumn,
             'rootColumn' => $rootColumn,
-            'sourceOptionId' => $sourceOptionId,
-            'sourceOptionName' => $sourceOptionName,
+            'sourceSettingId' => $sourceSettingId,
+            'sourceKeyName' => $sourceKeyName,
             'sourceRoot' => $sourceRoot,
             'generatedPath' => $rowidCost['generatedPath'] ?? null,
             'rowidConstraintSignature' => $rowidCost['rowidConstraintSignature'] ?? null,
@@ -12169,7 +12169,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param array<string,mixed> $sourceCost
      * @param array<string,mixed> $bestIndex
-     * @return array{sourceOptionId:int|null,sourceOptionName:string|null,sourceRoot:mixed,generatedPath:string|null,rowidAlias:string|null,argvSignature:list<string>,omittedConstraintColumns:list<string>,residualConstraintColumns:list<string>,yieldRowids:list<int>,yieldPaths:list<string>,yieldRowCount:int,firstYieldRowid:int|null,lastYieldRowid:int|null,rowsetFingerprint:string,currentSourcePinned:bool,coveringConstraintSet:bool,orderByConsumed:bool,estimatedRows:int,estimatedCost:int,yieldDecision:string,costClass:string,planFingerprint:string}
+     * @return array{sourceSettingId:int|null,sourceKeyName:string|null,sourceRoot:mixed,generatedPath:string|null,rowidAlias:string|null,argvSignature:list<string>,omittedConstraintColumns:list<string>,residualConstraintColumns:list<string>,yieldRowids:list<int>,yieldPaths:list<string>,yieldRowCount:int,firstYieldRowid:int|null,lastYieldRowid:int|null,rowsetFingerprint:string,currentSourcePinned:bool,coveringConstraintSet:bool,orderByConsumed:bool,estimatedRows:int,estimatedCost:int,yieldDecision:string,costClass:string,planFingerprint:string}
      */
     private static function jsonTableGeneratedPathRowidBestIndexYieldProfile(array $sourceCost, array $bestIndex): array
     {
@@ -12221,8 +12221,8 @@ final class SQLiteJsonTablePlan
         ], JSON_THROW_ON_ERROR));
 
         return [
-            'sourceOptionId' => $sourceCost['sourceOptionId'] ?? null,
-            'sourceOptionName' => $sourceCost['sourceOptionName'] ?? null,
+            'sourceSettingId' => $sourceCost['sourceSettingId'] ?? null,
+            'sourceKeyName' => $sourceCost['sourceKeyName'] ?? null,
             'sourceRoot' => $sourceCost['sourceRoot'] ?? null,
             'generatedPath' => $sourceCost['generatedPath'] ?? null,
             'rowidAlias' => $bestIndex['rowidAlias'] ?? null,
@@ -12281,7 +12281,7 @@ final class SQLiteJsonTablePlan
     private static function jsonTableGeneratedPathRowidBestIndexYieldTransitions(array $current, array $next): array
     {
         return [
-            ['field' => 'sourceOptionId', 'current' => $current['sourceOptionId'], 'next' => $next['sourceOptionId'], 'changed' => $current['sourceOptionId'] !== $next['sourceOptionId']],
+            ['field' => 'sourceSettingId', 'current' => $current['sourceSettingId'], 'next' => $next['sourceSettingId'], 'changed' => $current['sourceSettingId'] !== $next['sourceSettingId']],
             ['field' => 'sourceRoot', 'current' => $current['sourceRoot'], 'next' => $next['sourceRoot'], 'changed' => $current['sourceRoot'] !== $next['sourceRoot']],
             ['field' => 'generatedPath', 'current' => $current['generatedPath'], 'next' => $next['generatedPath'], 'changed' => $current['generatedPath'] !== $next['generatedPath']],
             ['field' => 'rowidAlias', 'current' => $current['rowidAlias'], 'next' => $next['rowidAlias'], 'changed' => $current['rowidAlias'] !== $next['rowidAlias']],
@@ -12311,7 +12311,7 @@ final class SQLiteJsonTablePlan
                 continue;
             }
             $reasons[] = match ($transition['field']) {
-                'sourceOptionId', 'sourceRoot', 'generatedPath' => 'json-table-generated-path-rowid-yield-source-changed',
+                'sourceSettingId', 'sourceRoot', 'generatedPath' => 'json-table-generated-path-rowid-yield-source-changed',
                 'rowidAlias', 'argvSignature' => 'json-table-generated-path-rowid-yield-argv-changed',
                 'yieldRowids', 'yieldPaths', 'rowsetFingerprint' => 'json-table-generated-path-rowid-yield-rowset-changed',
                 'currentSourcePinned', 'coveringConstraintSet', 'yieldDecision' => 'json-table-generated-path-rowid-yield-admission-changed',
@@ -12799,7 +12799,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param array<string,mixed> $yield
      * @param array<string,mixed> $bestIndex
-     * @return array{sourceOptionId:int|null,sourceOptionName:string|null,sourceRoot:mixed,generatedPath:string|null,idxNum:int,idxStr:string,argvValues:list<mixed>,argvColumns:list<string>,omitColumns:list<string>,residualColumns:list<string>,orderByConsumed:bool,currentSourcePinned:bool,cursorMode:string,cursorRows:list<array{sequence:int,rowid:int,path:string,sourceOptionId:int|null,currentSourcePinned:bool}>,cursorRowCount:int,rowidTape:list<int>,pathTape:list<string>,firstCursorRow:array{sequence:int,rowid:int,path:string,sourceOptionId:int|null,currentSourcePinned:bool}|null,lastCursorRow:array{sequence:int,rowid:int,path:string,sourceOptionId:int|null,currentSourcePinned:bool}|null,estimatedRows:int,estimatedCost:int,costClass:string,planFingerprint:string}
+     * @return array{sourceSettingId:int|null,sourceKeyName:string|null,sourceRoot:mixed,generatedPath:string|null,idxNum:int,idxStr:string,argvValues:list<mixed>,argvColumns:list<string>,omitColumns:list<string>,residualColumns:list<string>,orderByConsumed:bool,currentSourcePinned:bool,cursorMode:string,cursorRows:list<array{sequence:int,rowid:int,path:string,sourceSettingId:int|null,currentSourcePinned:bool}>,cursorRowCount:int,rowidTape:list<int>,pathTape:list<string>,firstCursorRow:array{sequence:int,rowid:int,path:string,sourceSettingId:int|null,currentSourcePinned:bool}|null,lastCursorRow:array{sequence:int,rowid:int,path:string,sourceSettingId:int|null,currentSourcePinned:bool}|null,estimatedRows:int,estimatedCost:int,costClass:string,planFingerprint:string}
      */
     private static function jsonTableGeneratedPathRowidProfile(array $yield, array $bestIndex): array
     {
@@ -12818,7 +12818,7 @@ final class SQLiteJsonTablePlan
                 'sequence' => $index,
                 'rowid' => $rowid,
                 'path' => $paths[$index] ?? '',
-                'sourceOptionId' => $yield['sourceOptionId'] ?? null,
+                'sourceSettingId' => $yield['sourceSettingId'] ?? null,
                 'currentSourcePinned' => (bool) ($yield['currentSourcePinned'] ?? false),
             ];
         }
@@ -12831,8 +12831,8 @@ final class SQLiteJsonTablePlan
         $idxStr = (string) ($bestIndex['idxStr'] ?? '');
 
         return [
-            'sourceOptionId' => $yield['sourceOptionId'] ?? null,
-            'sourceOptionName' => $yield['sourceOptionName'] ?? null,
+            'sourceSettingId' => $yield['sourceSettingId'] ?? null,
+            'sourceKeyName' => $yield['sourceKeyName'] ?? null,
             'sourceRoot' => $yield['sourceRoot'] ?? null,
             'generatedPath' => $yield['generatedPath'] ?? null,
             'idxNum' => (int) ($bestIndex['idxNum'] ?? 0),
@@ -12925,7 +12925,7 @@ final class SQLiteJsonTablePlan
     private static function jsonTableGeneratedPathRowidTransitions(array $current, array $next): array
     {
         return [
-            ['field' => 'sourceOptionId', 'current' => $current['sourceOptionId'], 'next' => $next['sourceOptionId'], 'changed' => $current['sourceOptionId'] !== $next['sourceOptionId']],
+            ['field' => 'sourceSettingId', 'current' => $current['sourceSettingId'], 'next' => $next['sourceSettingId'], 'changed' => $current['sourceSettingId'] !== $next['sourceSettingId']],
             ['field' => 'sourceRoot', 'current' => $current['sourceRoot'], 'next' => $next['sourceRoot'], 'changed' => $current['sourceRoot'] !== $next['sourceRoot']],
             ['field' => 'generatedPath', 'current' => $current['generatedPath'], 'next' => $next['generatedPath'], 'changed' => $current['generatedPath'] !== $next['generatedPath']],
             ['field' => 'idxNum', 'current' => $current['idxNum'], 'next' => $next['idxNum'], 'changed' => $current['idxNum'] !== $next['idxNum']],
@@ -12956,7 +12956,7 @@ final class SQLiteJsonTablePlan
             }
 
             $reasons[] = match ($transition['field']) {
-                'sourceOptionId', 'sourceRoot', 'generatedPath' => 'json-table-generated-path-rowid-current-source-source-changed',
+                'sourceSettingId', 'sourceRoot', 'generatedPath' => 'json-table-generated-path-rowid-current-source-source-changed',
                 'idxNum', 'idxStr', 'argvValues' => 'json-table-generated-path-rowid-current-source-xfilter-changed',
                 'residualColumns', 'cursorMode' => 'json-table-generated-path-rowid-current-source-admission-changed',
                 'cursorRows', 'rowidTape', 'pathTape' => 'json-table-generated-path-rowid-current-source-rowset-changed',
@@ -12974,7 +12974,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $admission
      * @param array<string,mixed> $source
      * @param array<string,mixed> $sourceRow
-     * @return array{cursorOpcode:string,sourceOptionId:int|null,sourceOptionName:string|null,sourcePinKey:string|null,generatedPath:string|null,rowidAlias:string|null,argvColumns:list<string>,seekRowids:list<int>,yieldProgram:list<array{step:int,opcode:string,rowid:int|null,path:string|null,eof:bool}>,yieldRowids:list<int>,skippedRowids:list<int>,missingSeekRowids:list<int>,yieldCount:int,firstYieldRowid:int|null,lastYieldRowid:int|null,eofAfterYield:bool,currentSourcePinned:bool,requiresSorter:bool,estimatedRows:int,estimatedCost:int,costClass:string,cursorFingerprint:string}
+     * @return array{cursorOpcode:string,sourceSettingId:int|null,sourceKeyName:string|null,sourcePinKey:string|null,generatedPath:string|null,rowidAlias:string|null,argvColumns:list<string>,seekRowids:list<int>,yieldProgram:list<array{step:int,opcode:string,rowid:int|null,path:string|null,eof:bool}>,yieldRowids:list<int>,skippedRowids:list<int>,missingSeekRowids:list<int>,yieldCount:int,firstYieldRowid:int|null,lastYieldRowid:int|null,eofAfterYield:bool,currentSourcePinned:bool,requiresSorter:bool,estimatedRows:int,estimatedCost:int,costClass:string,cursorFingerprint:string}
      */
     private static function jsonTableGeneratedPathRowidCurrentSourceCursorProfile(
         array $filter,
@@ -13033,8 +13033,8 @@ final class SQLiteJsonTablePlan
 
         return [
             'cursorOpcode' => $cursorOpcode,
-            'sourceOptionId' => is_int($sourceRow['option_id'] ?? null) ? $sourceRow['option_id'] : null,
-            'sourceOptionName' => is_string($sourceRow['option_name'] ?? null) ? $sourceRow['option_name'] : null,
+            'sourceSettingId' => self::sourceSettingId($sourceRow),
+            'sourceKeyName' => self::sourceKeyName($sourceRow),
             'sourcePinKey' => is_string($source['sourcePinKey'] ?? null) ? $source['sourcePinKey'] : null,
             'generatedPath' => is_string($source['generatedPath'] ?? null) ? $source['generatedPath'] : null,
             'rowidAlias' => is_string($admission['rowidAlias'] ?? null) ? $admission['rowidAlias'] : null,
@@ -13153,7 +13153,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param array<string,mixed> $yield
      * @param array<string,mixed> $sourceCost
-     * @return array{sourceOptionId:int|null,sourceOptionName:string|null,sourceRoot:mixed,generatedPath:string|null,yieldDecision:string,costClass:string,yieldRowids:list<int>,yieldPaths:list<string>,currentSourcePinned:bool,sourceFingerprint:string|null,costFingerprint:string|null,sourceFenceToken:string,resetGeneration:int,sourceResetRequired:bool,retainsCurrentRows:bool,staleYieldBlocked:bool,stableYieldKey:string}
+     * @return array{sourceSettingId:int|null,sourceKeyName:string|null,sourceRoot:mixed,generatedPath:string|null,yieldDecision:string,costClass:string,yieldRowids:list<int>,yieldPaths:list<string>,currentSourcePinned:bool,sourceFingerprint:string|null,costFingerprint:string|null,sourceFenceToken:string,resetGeneration:int,sourceResetRequired:bool,retainsCurrentRows:bool,staleYieldBlocked:bool,stableYieldKey:string}
      */
     private static function jsonTableGeneratedPathRowidCurrentSourceFenceProfile(array $yield, array $sourceCost): array
     {
@@ -13168,7 +13168,7 @@ final class SQLiteJsonTablePlan
         $token = hash('sha256', json_encode([
             $sourceFingerprint,
             $costFingerprint,
-            $yield['sourceOptionId'] ?? null,
+            $yield['sourceSettingId'] ?? null,
             $yield['sourceRoot'] ?? null,
             $yield['generatedPath'] ?? null,
             $rowids,
@@ -13183,8 +13183,8 @@ final class SQLiteJsonTablePlan
         ], JSON_THROW_ON_ERROR));
 
         return [
-            'sourceOptionId' => $yield['sourceOptionId'] ?? null,
-            'sourceOptionName' => $yield['sourceOptionName'] ?? null,
+            'sourceSettingId' => $yield['sourceSettingId'] ?? null,
+            'sourceKeyName' => $yield['sourceKeyName'] ?? null,
             'sourceRoot' => $yield['sourceRoot'] ?? null,
             'generatedPath' => $yield['generatedPath'] ?? null,
             'yieldDecision' => $yieldDecision,
@@ -13211,7 +13211,7 @@ final class SQLiteJsonTablePlan
     private static function jsonTableGeneratedPathRowidCurrentSourceFenceTransitions(array $current, array $next): array
     {
         return [
-            ['field' => 'sourceOptionId', 'current' => $current['sourceOptionId'], 'next' => $next['sourceOptionId'], 'changed' => $current['sourceOptionId'] !== $next['sourceOptionId']],
+            ['field' => 'sourceSettingId', 'current' => $current['sourceSettingId'], 'next' => $next['sourceSettingId'], 'changed' => $current['sourceSettingId'] !== $next['sourceSettingId']],
             ['field' => 'sourceRoot', 'current' => $current['sourceRoot'], 'next' => $next['sourceRoot'], 'changed' => $current['sourceRoot'] !== $next['sourceRoot']],
             ['field' => 'generatedPath', 'current' => $current['generatedPath'], 'next' => $next['generatedPath'], 'changed' => $current['generatedPath'] !== $next['generatedPath']],
             ['field' => 'yieldDecision', 'current' => $current['yieldDecision'], 'next' => $next['yieldDecision'], 'changed' => $current['yieldDecision'] !== $next['yieldDecision']],
@@ -13242,7 +13242,7 @@ final class SQLiteJsonTablePlan
                 continue;
             }
             $reasons[] = match ($transition['field']) {
-                'sourceOptionId', 'sourceRoot', 'generatedPath', 'sourceFingerprint' => 'json-table-generated-path-rowid-source-fence-source-changed',
+                'sourceSettingId', 'sourceRoot', 'generatedPath', 'sourceFingerprint' => 'json-table-generated-path-rowid-source-fence-source-changed',
                 'yieldRowids', 'yieldPaths', 'costFingerprint' => 'json-table-generated-path-rowid-source-fence-rowset-changed',
                 'yieldDecision', 'currentSourcePinned', 'sourceResetRequired', 'retainsCurrentRows', 'staleYieldBlocked' => 'json-table-generated-path-rowid-source-fence-admission-changed',
                 'costClass' => 'json-table-generated-path-rowid-source-fence-cost-changed',
@@ -13304,8 +13304,8 @@ final class SQLiteJsonTablePlan
 
         return [
             'sourceToken' => [
-                'option_id' => $source['option_id'] ?? null,
-                'option_name' => $source['option_name'] ?? null,
+                'setting_id' => self::sourceSettingId($source),
+                'key_name' => self::sourceKeyName($source),
                 'generatedPath' => $generatedPath,
                 'sourcePinKey' => $currentSource['sourcePinKey'] ?? null,
             ],
@@ -13574,7 +13574,7 @@ final class SQLiteJsonTablePlan
         }
 
         return [
-            'sourceOptionId' => $profile170['sourceOptionId'] ?? null,
+            'sourceSettingId' => $profile170['sourceSettingId'] ?? null,
             'sourceRoot' => $profile170['sourceRoot'] ?? null,
             'generatedPath' => $profile170['generatedPath'] ?? null,
             'rowidAliasConstraintCount' => count($aliasConstraints),
@@ -13667,7 +13667,7 @@ final class SQLiteJsonTablePlan
     private static function jsonTableGeneratedPathRowidAliasTransitions(array $current, array $next): array
     {
         $fields = [
-            'sourceOptionId',
+            'sourceSettingId',
             'sourceRoot',
             'generatedPath',
             'canonicalRowidConstraint',
@@ -13691,7 +13691,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -13710,7 +13710,7 @@ final class SQLiteJsonTablePlan
             }
 
             $reasons[] = match ($transition['field']) {
-                'sourceOptionId', 'sourceRoot', 'generatedPath' => 'json-table-generated-path-rowid-alias-generatedPathRowidAlias-source-changed',
+                'sourceSettingId', 'sourceRoot', 'generatedPath' => 'json-table-generated-path-rowid-alias-generatedPathRowidAlias-source-changed',
                 'canonicalRowidConstraint', 'conflictingRowidAliases', 'aliasPointValues' => 'json-table-generated-path-rowid-alias-generatedPathRowidAlias-rowid-alias-changed',
                 'dedupedArgvColumns', 'dedupedArgvValues', 'omitColumns', 'residualColumns' => 'json-table-generated-path-rowid-alias-generatedPathRowidAlias-xfilter-changed',
                 'cursorMode', 'rowidTape', 'pathTape' => 'json-table-generated-path-rowid-alias-generatedPathRowidAlias-rowset-changed',
@@ -13788,12 +13788,111 @@ final class SQLiteJsonTablePlan
         }
 
         return 'value:' . hash('sha256', json_encode([
-            $source['option_id'] ?? null,
-            $source['option_name'] ?? null,
-            $source['option_value'] ?? null,
+            self::sourceSettingId($source),
+            self::sourceKeyName($source),
+            self::sourcePayloadFingerprint($source),
             $source['generated_path'] ?? null,
             $source['scan_root'] ?? null,
         ], JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     */
+    private static function sourceSettingId(array $source): ?int
+    {
+        if (is_int($source['setting_id'] ?? null)) {
+            return $source['setting_id'];
+        }
+        if (is_int($source['id'] ?? null)) {
+            return $source['id'];
+        }
+
+        foreach ($source as $column => $value) {
+            if (is_string($column) && str_ends_with($column, '_id') && is_int($value)) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     */
+    private static function sourceKeyName(array $source): ?string
+    {
+        if (is_string($source['key_name'] ?? null)) {
+            return $source['key_name'];
+        }
+        if (is_string($source['name'] ?? null)) {
+            return $source['name'];
+        }
+
+        foreach ($source as $column => $value) {
+            if (is_string($column) && str_ends_with($column, '_name') && is_string($value)) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     */
+    private static function sourcePayloadValue(array $source): mixed
+    {
+        if (array_key_exists('key_value', $source)) {
+            return $source['key_value'];
+        }
+        if (array_key_exists('value', $source)) {
+            return $source['value'];
+        }
+
+        foreach ($source as $column => $value) {
+            if (is_string($column) && str_ends_with($column, '_value')) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     */
+    private static function sourcePayloadFingerprint(array $source): string
+    {
+        return hash('sha256', serialize(self::sourcePayloadValue($source)));
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool,sourceColumn:string|null,literal:bool}> $constraints
+     */
+    private static function jsonConstraintValue(array $constraints): mixed
+    {
+        foreach ($constraints as $constraint) {
+            if (($constraint['column'] ?? null) === 'json' && ($constraint['operator'] ?? null) === '=') {
+                return $constraint['value'] ?? null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool,sourceColumn:string|null,literal:bool}> $constraints
+     */
+    private static function jsonConstraintSourceColumn(array $constraints): ?string
+    {
+        foreach ($constraints as $constraint) {
+            if (($constraint['column'] ?? null) === 'json') {
+                return is_string($constraint['sourceColumn'] ?? null) ? $constraint['sourceColumn'] : null;
+            }
+        }
+
+        return null;
     }
 
     private static function jsonTableGeneratedPathRowidCurrentSourceCacheDisposition(bool $cacheReusable, int $estimatedRows, int $plannerCost): string
@@ -14033,7 +14132,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param array<string,mixed> $alias174
      * @param array<string,mixed> $profile170
-     * @return array{function:string,sourceOptionId:int|null,generatedPath:string|null,currentSourcePinned:bool,conflictingRowidAliases:bool,xFilterOpcode:string,resetRequired:bool,argvColumns:list<string>,argvValues:list<mixed>,argvProgram:list<array{step:int,opcode:string,column:string,value:mixed,omit:bool}>,omittedConstraintColumns:list<string>,residualConstraintColumns:list<string>,yieldRowids:list<int>,yieldPaths:list<string>,yieldCount:int,sourcePinKey:string|null,estimatedRows:int,estimatedCost:int,costClass:string,programFingerprint:string}
+     * @return array{function:string,sourceSettingId:int|null,generatedPath:string|null,currentSourcePinned:bool,conflictingRowidAliases:bool,xFilterOpcode:string,resetRequired:bool,argvColumns:list<string>,argvValues:list<mixed>,argvProgram:list<array{step:int,opcode:string,column:string,value:mixed,omit:bool}>,omittedConstraintColumns:list<string>,residualConstraintColumns:list<string>,yieldRowids:list<int>,yieldPaths:list<string>,yieldCount:int,sourcePinKey:string|null,estimatedRows:int,estimatedCost:int,costClass:string,programFingerprint:string}
      */
     private static function jsonTableGeneratedPathRowidXFilterProgram(
         string $function,
@@ -14101,7 +14200,7 @@ final class SQLiteJsonTablePlan
 
         return [
             'function' => $function,
-            'sourceOptionId' => $alias174['sourceOptionId'] ?? null,
+            'sourceSettingId' => $alias174['sourceSettingId'] ?? null,
             'generatedPath' => is_string($alias174['generatedPath'] ?? null) ? $alias174['generatedPath'] : null,
             'currentSourcePinned' => $pinned,
             'conflictingRowidAliases' => $conflict,
@@ -14197,7 +14296,7 @@ final class SQLiteJsonTablePlan
     private static function jsonTableGeneratedPathRowidXFilterTransitions(array $current, array $next): array
     {
         $fields = [
-            'sourceOptionId',
+            'sourceSettingId',
             'generatedPath',
             'currentSourcePinned',
             'conflictingRowidAliases',
@@ -14222,7 +14321,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -14241,7 +14340,7 @@ final class SQLiteJsonTablePlan
             }
 
             $reasons[] = match ($transition['field']) {
-                'sourceOptionId', 'generatedPath', 'sourcePinKey' => 'json-table-generated-path-rowid-xfilter-next177-source-changed',
+                'sourceSettingId', 'generatedPath', 'sourcePinKey' => 'json-table-generated-path-rowid-xfilter-next177-source-changed',
                 'currentSourcePinned', 'xFilterOpcode', 'resetRequired' => 'json-table-generated-path-rowid-xfilter-next177-admission-changed',
                 'conflictingRowidAliases', 'argvColumns', 'argvValues', 'argvProgram' => 'json-table-generated-path-rowid-xfilter-next177-argv-changed',
                 'omittedConstraintColumns', 'residualConstraintColumns' => 'json-table-generated-path-rowid-xfilter-next177-constraint-program-changed',
@@ -14466,7 +14565,7 @@ final class SQLiteJsonTablePlan
                     'rowid' => $entry['rowid'],
                     'id' => $entry['rowid'],
                     'path' => $entry['path'],
-                    'source_option_id' => $program177['sourceOptionId'] ?? null,
+                    'source_setting_id' => $program177['sourceSettingId'] ?? null,
                     'generated_path' => $program177['generatedPath'] ?? null,
                     'source_generation' => $sourceGeneration,
                     'current_source_pinned' => $currentSourcePinned,
@@ -14484,7 +14583,7 @@ final class SQLiteJsonTablePlan
 
         return [
             'sourceGeneration' => $sourceGeneration,
-            'sourceOptionId' => $program177['sourceOptionId'] ?? null,
+            'sourceSettingId' => $program177['sourceSettingId'] ?? null,
             'generatedPath' => $program177['generatedPath'] ?? null,
             'xFilterOpcode' => $xFilterOpcode,
             'programFingerprint' => $programFingerprint,
@@ -14590,7 +14689,7 @@ final class SQLiteJsonTablePlan
     {
         $fields = [
             'sourceGeneration',
-            'sourceOptionId',
+            'sourceSettingId',
             'generatedPath',
             'xFilterOpcode',
             'programFingerprint',
@@ -14612,7 +14711,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -14631,7 +14730,7 @@ final class SQLiteJsonTablePlan
             }
 
             $reasons[] = match ($transition['field']) {
-                'sourceGeneration', 'sourceOptionId', 'generatedPath' => 'json-table-generated-path-rowid-materialization-next180-source-changed',
+                'sourceGeneration', 'sourceSettingId', 'generatedPath' => 'json-table-generated-path-rowid-materialization-next180-source-changed',
                 'xFilterOpcode', 'programFingerprint', 'materializationOpcode', 'resetRequired', 'currentSourcePinned' => 'json-table-generated-path-rowid-materialization-next180-program-changed',
                 'seekTape', 'materializedRowids', 'materializedPaths' => 'json-table-generated-path-rowid-materialization-next180-rowset-changed',
                 'residualConstraintColumns' => 'json-table-generated-path-rowid-materialization-next180-residual-changed',
@@ -14705,7 +14804,7 @@ final class SQLiteJsonTablePlan
 
             $columns = [];
             foreach ($projection as $column) {
-                $columns[$column] = $rowsById[$rowid][$column] ?? null;
+                $columns[$column] = self::jsonTableOutputColumnValue($column, $rowsById[$rowid][$column] ?? null);
             }
             $materialized[] = ['rowid' => $rowid] + $columns;
             $tape[] = [
@@ -14850,7 +14949,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -15255,7 +15354,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -15350,7 +15449,7 @@ final class SQLiteJsonTablePlan
 
             $columns = [];
             foreach ($projection as $column) {
-                $columns[$column] = $rowsById[$rowid][$column] ?? null;
+                $columns[$column] = self::jsonTableOutputColumnValue($column, $rowsById[$rowid][$column] ?? null);
             }
             $projectedRows[] = ['rowid' => $rowid] + $columns;
             $checkpointTape[] = [
@@ -15480,7 +15579,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -15677,7 +15776,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -15959,7 +16058,7 @@ final class SQLiteJsonTablePlan
                     || ($sourceFullkey !== null && str_starts_with($sourceFullkey, $generatedPath . '['))
                     || ($sourceFullkey !== null && str_starts_with($sourceFullkey, $generatedPath . '.')));
             $valueMatched = is_array($sourceRow)
-                && (!array_key_exists('value', $row) || ($sourceRow['value'] ?? null) === $row['value']);
+                && (!array_key_exists('value', $row) || self::jsonTableCellValuesEqual($sourceRow['value'] ?? null, $row['value']));
             $acceptedRow = !$staleAfterNextSource && $pathMatched && $valueMatched;
 
             if ($acceptedRow) {
@@ -16102,7 +16201,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -16206,9 +16305,12 @@ final class SQLiteJsonTablePlan
             $fullkeyRow = $fullkey !== null ? ($rowsByFullkey[$fullkey] ?? null) : null;
             $sameRowid = is_array($row)
                 && ($row['fullkey'] ?? null) === $fullkey
-                && ($row['value'] ?? null) === $checkpointValue;
+                && self::jsonTableCellValuesEqual($row['value'] ?? null, $checkpointValue);
             $remappedRowid = is_array($fullkeyRow) ? self::jsonTableRowid($fullkeyRow) : null;
-            $remapped = !$sameRowid && $remappedRowid !== null && $remappedRowid !== $rowid && ($fullkeyRow['value'] ?? null) === $checkpointValue;
+            $remapped = !$sameRowid
+                && $remappedRowid !== null
+                && $remappedRowid !== $rowid
+                && self::jsonTableCellValuesEqual($fullkeyRow['value'] ?? null, $checkpointValue);
             $collision = !$sameRowid && is_array($row) && !$remapped && ($row['fullkey'] ?? null) !== $fullkey;
             $missing = !$sameRowid && !$remapped && !$collision;
 
@@ -16221,8 +16323,8 @@ final class SQLiteJsonTablePlan
                 'remapped' => $remapped,
                 'rowidCollision' => $collision,
                 'missing' => $missing,
-                'checkpointValueFingerprint' => hash('sha256', json_encode($checkpointValue, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
-                'sourceValueFingerprint' => hash('sha256', json_encode($fullkeyRow['value'] ?? ($row['value'] ?? null), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+                'checkpointValueFingerprint' => self::jsonTableOutputValueFingerprint($checkpointValue),
+                'sourceValueFingerprint' => self::jsonTableOutputValueFingerprint($fullkeyRow['value'] ?? ($row['value'] ?? null)),
             ];
         }
 
@@ -16352,7 +16454,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -16423,7 +16525,7 @@ final class SQLiteJsonTablePlan
             $columns = [];
             if ($accepted && is_array($row)) {
                 foreach ($projection as $column) {
-                    $columns[$column] = $row[$column] ?? null;
+                    $columns[$column] = self::jsonTableOutputColumnValue($column, $row[$column] ?? null);
                 }
             }
             if ($accepted && !is_array($row)) {
@@ -16545,7 +16647,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -16754,7 +16856,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -16947,7 +17049,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -17185,7 +17287,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -17410,7 +17512,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -17583,7 +17685,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -17762,7 +17864,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -17956,7 +18058,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -18162,7 +18264,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -18264,7 +18366,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -19095,6 +19197,8 @@ final class SQLiteJsonTablePlan
 
         return [
             'source' => $source,
+            'jsonColumn' => self::jsonConstraintSourceColumn($constraints),
+            'jsonValue' => self::jsonConstraintValue($constraints),
             'constraintSources' => self::constraintSourceMetadata($constraints),
             'runnable' => $indexPlan['runnable'],
             'idxNum' => $indexPlan['idxNum'],
@@ -19109,7 +19213,7 @@ final class SQLiteJsonTablePlan
             'jsonInputKind' => $validatedPlan['jsonInputKind'],
             'jsonValid' => $rootIsSqlNull ? null : $validatedPlan['jsonValid'],
             'jsonError' => $rootIsSqlNull ? 'SQL NULL root path' : $validatedPlan['jsonError'],
-            'rows' => $rows,
+            'rows' => self::jsonTableOutputRows($rows),
         ];
     }
 
@@ -19741,7 +19845,7 @@ final class SQLiteJsonTablePlan
                 throw new \InvalidArgumentException("SQLite JSON table lateral rowid projection column {$column} is not available");
             }
 
-            $projected[$column] = self::rowColumnValue($row, $column);
+            $projected[$column] = self::jsonTableOutputColumnValue($column, self::rowColumnValue($row, $column));
         }
 
         return $projected;
@@ -19836,6 +19940,89 @@ final class SQLiteJsonTablePlan
         }
 
         throw new \InvalidArgumentException('SQLite JSON table json constraint must be text, BLOB, JSON subtype, or NULL');
+    }
+
+    private static function jsonTableCellValuesEqual(mixed $left, mixed $right): bool
+    {
+        if ($left instanceof SQLiteJsonSubtypeValue || $right instanceof SQLiteJsonSubtypeValue) {
+            return self::jsonTableCellJsonText($left) === self::jsonTableCellJsonText($right);
+        }
+
+        return $left === $right;
+    }
+
+    private static function jsonTableTransitionValuesEqual(mixed $left, mixed $right): bool
+    {
+        return self::jsonTableNormalizeTransitionValue($left) === self::jsonTableNormalizeTransitionValue($right);
+    }
+
+    private static function jsonTableNormalizeTransitionValue(mixed $value): mixed
+    {
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return ['__jsonSubtype' => SQLiteJsonCanonical::json($value)];
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return ['__blob' => $value->bytes];
+        }
+        if (is_array($value)) {
+            $normalized = [];
+            foreach ($value as $key => $entry) {
+                $normalized[$key] = self::jsonTableNormalizeTransitionValue($entry);
+            }
+
+            return $normalized;
+        }
+
+        return $value;
+    }
+
+    private static function jsonTableCellJsonText(mixed $value): ?string
+    {
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return SQLiteJsonCanonical::json($value);
+        }
+        if ($value instanceof SQLiteBlobValue || is_string($value) || $value === null) {
+            return SQLiteJsonCanonical::json($value);
+        }
+
+        return SQLiteJsonCanonical::encodeDecodedJson($value);
+    }
+
+    private static function jsonTableOutputColumnValue(string $column, mixed $value): mixed
+    {
+        if ($column === 'value' && $value instanceof SQLiteJsonSubtypeValue) {
+            return SQLiteJsonCanonical::json($value);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function jsonTableOutputRows(array $rows): array
+    {
+        return array_map(
+            static function (array $row): array {
+                foreach ($row as $column => $value) {
+                    if (is_string($column)) {
+                        $row[$column] = self::jsonTableOutputColumnValue($column, $value);
+                    }
+                }
+
+                return $row;
+            },
+            $rows,
+        );
+    }
+
+    private static function jsonTableOutputValueFingerprint(mixed $value): string
+    {
+        return hash('sha256', json_encode(
+            self::jsonTableNormalizeTransitionValue($value),
+            JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
+        ));
     }
 
     private static function assertLimitValue(mixed $value): int
@@ -20882,8 +21069,9 @@ final class SQLiteJsonTablePlan
     ): array {
         $constraints = self::normalizeGeneratedHiddenConstraints($generatedConstraints);
         $matched = (bool) ($hiddenPathRowid['matched'] ?? false);
+        $source = is_array($plan['source'] ?? null) ? $plan['source'] : [];
         $fakeRow = [
-            'json' => $plan['source']['jsonValue'] ?? $plan['source']['option_value'] ?? null,
+            'json' => $plan['jsonValue'] ?? self::sourcePayloadValue($source),
             'value' => $hiddenPathRowid['matchedValue'] ?? null,
             'atom' => $hiddenPathRowid['matchedAtom'] ?? null,
         ];
@@ -22193,7 +22381,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $source
      * @param array<string,mixed> $rowidHiddenPath
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
-     * @return array{sourceToken:array{option_id:mixed,option_name:mixed,root:string,nestedPath:string},root:string,baseRoot:string,nestedPath:string,pathConstraintSignature:string|null,rowidConstraintSignature:string|null,aliasColumns:list<string>,rowidAlias:string|null,pathAlias:string|null,pointSeekable:bool,matchedRowCount:int,pinnedRowids:list<int>,pinnedRelativeFullkeys:list<string>,rowidPathTape:list<array{rowid:int|null,relativeFullkey:string,pathMatched:bool,rowidMatched:bool,matched:bool}>,firstPinned:array{rowid:int,relativeFullkey:string}|null,lastPinned:array{rowid:int,relativeFullkey:string}|null,effectiveEstimatedCost:int,costClass:string}
+     * @return array{sourceToken:array{setting_id:mixed,key_name:mixed,root:string,nestedPath:string},root:string,baseRoot:string,nestedPath:string,pathConstraintSignature:string|null,rowidConstraintSignature:string|null,aliasColumns:list<string>,rowidAlias:string|null,pathAlias:string|null,pointSeekable:bool,matchedRowCount:int,pinnedRowids:list<int>,pinnedRelativeFullkeys:list<string>,rowidPathTape:list<array{rowid:int|null,relativeFullkey:string,pathMatched:bool,rowidMatched:bool,matched:bool}>,firstPinned:array{rowid:int,relativeFullkey:string}|null,lastPinned:array{rowid:int,relativeFullkey:string}|null,effectiveEstimatedCost:int,costClass:string}
      */
     private static function hiddenRowidPathProfile(array $source, array $rowidHiddenPath, array $constraints): array
     {
@@ -22222,8 +22410,8 @@ final class SQLiteJsonTablePlan
 
         return [
             'sourceToken' => [
-                'option_id' => $source['option_id'] ?? null,
-                'option_name' => $source['option_name'] ?? null,
+                'setting_id' => self::sourceSettingId($source),
+                'key_name' => self::sourceKeyName($source),
                 'root' => (string) ($rowidHiddenPath['root'] ?? '$'),
                 'nestedPath' => (string) ($rowidHiddenPath['nestedPath'] ?? ''),
             ],
@@ -22724,7 +22912,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -22913,7 +23101,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -23162,7 +23350,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -23389,7 +23577,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -23573,7 +23761,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -23779,7 +23967,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -23976,7 +24164,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -24192,7 +24380,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -24375,7 +24563,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -24558,7 +24746,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -24749,7 +24937,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -24870,7 +25058,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -25047,7 +25235,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -25375,7 +25563,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -25615,7 +25803,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -25831,7 +26019,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -25996,7 +26184,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -26174,7 +26362,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -26362,7 +26550,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -26555,7 +26743,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -26767,7 +26955,7 @@ final class SQLiteJsonTablePlan
                 'field' => $field,
                 'current' => $current[$field] ?? null,
                 'next' => $next[$field] ?? null,
-                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+                'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
             ],
             $fields,
         );
@@ -27560,7 +27748,7 @@ final class SQLiteJsonTablePlan
             'field' => $field,
             'current' => $current[$field] ?? null,
             'next' => $next[$field] ?? null,
-            'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            'changed' => !self::jsonTableTransitionValuesEqual($current[$field] ?? null, $next[$field] ?? null),
         ], $fields);
     }
 

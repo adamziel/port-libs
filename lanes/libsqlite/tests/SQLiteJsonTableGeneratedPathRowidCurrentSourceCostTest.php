@@ -7,16 +7,16 @@ use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 
 $current170 = [
-    'option_id' => 170,
-    'option_name' => 'wp_plugin_generated_path_rowid_current_source_cost',
-    'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 170,
+    'key_name' => 'app_plugin_generated_path_rowid_current_source_cost',
+    'key_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules[1]',
     'scan_root' => '$.rules',
 ];
 $next170 = [
-    'option_id' => 170,
-    'option_name' => 'wp_plugin_generated_path_rowid_current_source_cost',
-    'option_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 170,
+    'key_name' => 'app_plugin_generated_path_rowid_current_source_cost',
+    'key_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules[2]',
     'scan_root' => '$.rules',
 ];
@@ -35,7 +35,7 @@ $plan170 = static fn (
     'json_tree',
     $current ?? $current170,
     $next ?? $next170,
-    'option_value',
+    'key_value',
     'generated_path',
     $constraints ?? $constraints170,
     'scan_root',
@@ -55,9 +55,9 @@ $range170 = static fn (): array => $plan170(
 );
 $jsonb170 = static fn (): array => $plan170(
     $current170,
-    array_replace($current170, ['option_value' => new SQLiteBlobValue(SQLiteJsonB::encode(json_decode($current170['option_value'])))]),
+    array_replace($current170, ['key_value' => new SQLiteBlobValue(SQLiteJsonB::encode(json_decode($current170['key_value'])))]),
 );
-$unrunnable170 = static fn (): array => $plan170($current170, array_replace($next170, ['option_value' => null]));
+$unrunnable170 = static fn (): array => $plan170($current170, array_replace($next170, ['key_value' => null]));
 
 $tests = [
     'records current-source dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-current-source-cost', $plan170()['dependencies'], true)),
@@ -66,8 +66,8 @@ $tests = [
     'prepares changed current-source policy' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-generated-path-rowid-current-source-cost-plan', $plan170()['nextReaderPolicy']),
     'stable current-source policy reuses current' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-generated-path-rowid-current-source-cost-plan', $stable170()['nextReaderPolicy']),
     'stable current-source reasons empty' => static fn (TestRunner $t) => $t->same([], $stable170()['generatedPathRowidCurrentSourceReplanReasons']),
-    'current option id recorded' => static fn (TestRunner $t) => $t->same(170, $plan170()['currentGeneratedPathRowidCurrentSource']['sourceOptionId']),
-    'current option name recorded' => static fn (TestRunner $t) => $t->same('wp_plugin_generated_path_rowid_current_source_cost', $plan170()['currentGeneratedPathRowidCurrentSource']['sourceOptionName']),
+    'current setting id recorded' => static fn (TestRunner $t) => $t->same(170, $plan170()['currentGeneratedPathRowidCurrentSource']['sourceSettingId']),
+    'current key name recorded' => static fn (TestRunner $t) => $t->same('app_plugin_generated_path_rowid_current_source_cost', $plan170()['currentGeneratedPathRowidCurrentSource']['sourceKeyName']),
     'current root recorded' => static fn (TestRunner $t) => $t->same('$.rules', $plan170()['currentGeneratedPathRowidCurrentSource']['sourceRoot']),
     'current generated path recorded' => static fn (TestRunner $t) => $t->same('$.rules[1]', $plan170()['currentGeneratedPathRowidCurrentSource']['generatedPath']),
     'current idx num records path rowid order covering' => static fn (TestRunner $t) => $t->same(15, $plan170()['currentGeneratedPathRowidCurrentSource']['idxNum']),
@@ -115,7 +115,7 @@ $tests = [
     'unrunnable next cost class sentinel' => static fn (TestRunner $t) => $t->same('unrunnable-json-table', $unrunnable170()['nextGeneratedPathRowidCurrentSource']['costClass']),
     'unrunnable next mode is fresh' => static fn (TestRunner $t) => $t->same('fresh-json-table-xfilter', $unrunnable170()['nextGeneratedPathRowidCurrentSource']['cursorMode']),
     'bad json source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCurrentSourceCost('json_tree', $current170, $next170, '', 'generated_path', $constraints170)),
-    'bad generated path column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCurrentSourceCost('json_tree', $current170, $next170, 'option_value', '', $constraints170)),
+    'bad generated path column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCurrentSourceCost('json_tree', $current170, $next170, 'key_value', '', $constraints170)),
     'dependency scenario has no new support component' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];
 

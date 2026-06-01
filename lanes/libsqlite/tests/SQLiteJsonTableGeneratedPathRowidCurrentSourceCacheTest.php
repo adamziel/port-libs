@@ -76,7 +76,7 @@ $tests = [
     'stable has no next175 reasons' => static fn (TestRunner $t) => $t->same([], $stable175()['next175ReplanReasons']),
     'current source generation recorded' => static fn (TestRunner $t) => $t->same('source_generation:7', $plan175()['currentGeneratedPathRowidCurrentSourceCache175']['sourceGeneration']),
     'next source generation recorded' => static fn (TestRunner $t) => $t->same('source_generation:8', $plan175()['nextGeneratedPathRowidCurrentSourceCache175']['sourceGeneration']),
-    'source token records option id' => static fn (TestRunner $t) => $t->same(175, $plan175()['currentGeneratedPathRowidCurrentSourceCache175']['sourceToken']['option_id']),
+    'source token records setting id' => static fn (TestRunner $t) => $t->same(175, $plan175()['currentGeneratedPathRowidCurrentSourceCache175']['sourceToken']['setting_id']),
     'source token records generated path' => static fn (TestRunner $t) => $t->same('$.rules', $plan175()['currentGeneratedPathRowidCurrentSourceCache175']['sourceToken']['generatedPath']),
     'bestindex fingerprint is carried' => static fn (TestRunner $t) => $t->same($plan175()['currentGeneratedPathRowidCurrentSourceBestIndex173']['bestIndexFingerprint'], $plan175()['currentGeneratedPathRowidCurrentSourceCache175']['bestIndexFingerprint']),
     'cache key is sha256' => static fn (TestRunner $t) => $t->same(64, strlen($plan175()['currentGeneratedPathRowidCurrentSourceCache175']['cacheKey'])),

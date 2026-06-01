@@ -5,16 +5,16 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 
 $current172 = [
-    'option_id' => 172,
-    'option_name' => 'wp_plugin_generated_path_rowid_cost_current_source_next172',
-    'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 172,
+    'key_name' => 'app_plugin_generated_path_rowid_cost_current_source_next172',
+    'key_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules[1]',
     'scan_root' => '$.rules',
 ];
 $next172 = [
-    'option_id' => 172,
-    'option_name' => 'wp_plugin_generated_path_rowid_cost_current_source_next172',
-    'option_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 172,
+    'key_name' => 'app_plugin_generated_path_rowid_cost_current_source_next172',
+    'key_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules[2]',
     'scan_root' => '$.rules',
 ];
@@ -33,7 +33,7 @@ $plan172 = static fn (
     'json_tree',
     $current ?? $current172,
     $next ?? $next172,
-    'option_value',
+    'key_value',
     'generated_path',
     $constraints ?? $constraints172,
     'scan_root',
@@ -65,8 +65,8 @@ $tests = [
     'prepares next reader policy' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-generated-path-rowid-source-fence-next172-plan', $plan172()['nextReaderPolicy']),
     'stable reader policy reuses current' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-generated-path-rowid-source-fence-next172-plan', $stable172()['nextReaderPolicy']),
     'stable next172 reasons empty' => static fn (TestRunner $t) => $t->same([], $stable172()['next172ReplanReasons']),
-    'current fence source id recorded' => static fn (TestRunner $t) => $t->same(172, $plan172()['currentGeneratedPathRowidSourceFence172']['sourceOptionId']),
-    'current fence source name recorded' => static fn (TestRunner $t) => $t->same('wp_plugin_generated_path_rowid_cost_current_source_next172', $plan172()['currentGeneratedPathRowidSourceFence172']['sourceOptionName']),
+    'current fence source id recorded' => static fn (TestRunner $t) => $t->same(172, $plan172()['currentGeneratedPathRowidSourceFence172']['sourceSettingId']),
+    'current fence source name recorded' => static fn (TestRunner $t) => $t->same('app_plugin_generated_path_rowid_cost_current_source_next172', $plan172()['currentGeneratedPathRowidSourceFence172']['sourceKeyName']),
     'current fence root recorded' => static fn (TestRunner $t) => $t->same('$.rules', $plan172()['currentGeneratedPathRowidSourceFence172']['sourceRoot']),
     'current fence generated path recorded' => static fn (TestRunner $t) => $t->same('$.rules[1]', $plan172()['currentGeneratedPathRowidSourceFence172']['generatedPath']),
     'current fence yield decision recorded' => static fn (TestRunner $t) => $t->same('yield-current-source-generated-path-rowid-covering', $plan172()['currentGeneratedPathRowidSourceFence172']['yieldDecision']),
@@ -108,7 +108,7 @@ $tests = [
     'moved root next source root recorded' => static fn (TestRunner $t) => $t->same('$', $movedRoot172()['nextGeneratedPathRowidSourceFence172']['sourceRoot']),
     'moved root next token changes' => static fn (TestRunner $t) => $t->true($movedRoot172()['currentGeneratedPathRowidSourceFence172']['sourceFenceToken'] !== $movedRoot172()['nextGeneratedPathRowidSourceFence172']['sourceFenceToken']),
     'bad json source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidSourceFence('json_tree', $current172, $next172, '', 'generated_path', $constraints172)),
-    'bad generated path column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidSourceFence('json_tree', $current172, $next172, 'option_value', '', $constraints172)),
+    'bad generated path column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidSourceFence('json_tree', $current172, $next172, 'key_value', '', $constraints172)),
     'dependency scenario has no new support component' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];
 

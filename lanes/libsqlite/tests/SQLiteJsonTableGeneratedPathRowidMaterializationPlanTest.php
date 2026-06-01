@@ -5,17 +5,17 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 
 $current180 = [
-    'option_id' => 180,
-    'option_name' => 'wp_plugin_generated_path_rowid_materialization',
-    'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 180,
+    'key_name' => 'app_plugin_generated_path_rowid_materialization',
+    'key_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules[1]',
     'scan_root' => '$.rules',
     'source_generation' => 'current-180-a',
 ];
 $next180 = [
-    'option_id' => 180,
-    'option_name' => 'wp_plugin_generated_path_rowid_materialization',
-    'option_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 180,
+    'key_name' => 'app_plugin_generated_path_rowid_materialization',
+    'key_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules[2]',
     'scan_root' => '$.rules',
     'source_generation' => 'next-180-b',
@@ -35,7 +35,7 @@ $plan180 = static fn (
     'json_tree',
     $current ?? $current180,
     $next ?? $next180,
-    'option_value',
+    'key_value',
     'generated_path',
     $constraints ?? $coveredConstraints180,
     'scan_root',
@@ -78,7 +78,7 @@ $tests = [
     'stable reasons empty' => static fn (TestRunner $t) => $t->same([], $stable180()['next180ReplanReasons']),
     'current source generation records explicit source' => static fn (TestRunner $t) => $t->same('source_generation:current-180-a', $plan180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['sourceGeneration']),
     'next source generation records explicit source' => static fn (TestRunner $t) => $t->same('source_generation:next-180-b', $plan180()['nextGeneratedPathRowidCurrentSourceMaterialization180']['sourceGeneration']),
-    'current source id recorded' => static fn (TestRunner $t) => $t->same(180, $plan180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['sourceOptionId']),
+    'current source id recorded' => static fn (TestRunner $t) => $t->same(180, $plan180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['sourceSettingId']),
     'current generated path recorded' => static fn (TestRunner $t) => $t->same('$.rules[1]', $plan180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['generatedPath']),
     'current xfilter opcode carried' => static fn (TestRunner $t) => $t->same('xfilter-current-source-covered-seek-next177', $plan180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['xFilterOpcode']),
     'current materializes covered rowset' => static fn (TestRunner $t) => $t->same('materialize-current-source-covered-rowset-next180', $plan180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['materializationOpcode']),
@@ -97,7 +97,7 @@ $tests = [
     'current materialized rowid' => static fn (TestRunner $t) => $t->same(6, $plan180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['materializedRows'][0]['rowid']),
     'current materialized id alias' => static fn (TestRunner $t) => $t->same(6, $plan180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['materializedRows'][0]['id']),
     'current materialized path' => static fn (TestRunner $t) => $t->same('$.rules[1]', $plan180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['materializedRows'][0]['path']),
-    'current materialized source id' => static fn (TestRunner $t) => $t->same(180, $plan180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['materializedRows'][0]['source_option_id']),
+    'current materialized source id' => static fn (TestRunner $t) => $t->same(180, $plan180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['materializedRows'][0]['source_setting_id']),
     'current materialized generated path' => static fn (TestRunner $t) => $t->same('$.rules[1]', $plan180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['materializedRows'][0]['generated_path']),
     'current materialized source generation' => static fn (TestRunner $t) => $t->same('source_generation:current-180-a', $plan180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['materializedRows'][0]['source_generation']),
     'current materialized pinned flag' => static fn (TestRunner $t) => $t->same(true, $plan180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['materializedRows'][0]['current_source_pinned']),
@@ -134,7 +134,7 @@ $tests = [
     'conflict rowids empty' => static fn (TestRunner $t) => $t->same([], $conflict180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['materializedRowids']),
     'conflict cost class empty' => static fn (TestRunner $t) => $t->same('json-table-generated-path-rowid-materialization-contradiction-empty-next180', $conflict180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['costClass']),
     'unusable rowid still materializes path point' => static fn (TestRunner $t) => $t->same([6], $unusable180()['currentGeneratedPathRowidCurrentSourceMaterialization180']['materializedRowids']),
-    'bad function rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::generatedPathRowidMaterializationPlan('json_bad', $current180, $next180, 'option_value', 'generated_path')),
+    'bad function rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::generatedPathRowidMaterializationPlan('json_bad', $current180, $next180, 'key_value', 'generated_path')),
     'dependency scenario has no new support component' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];
 

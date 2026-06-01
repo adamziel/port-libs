@@ -177,22 +177,22 @@ foreach ($cases84 as $name => $case) {
 $tests['json table rowid hidden constraint current source next84 plan uses id constraint for rowid'] = static function (TestRunner $t) use ($plan84, $settingsSql84): void {
     $plan = $plan84("SELECT key FROM json_each AS j WHERE j.json = '{$settingsSql84}' AND j.root = '$.plugins' AND j.rowid = 2");
     $t->same(1, count($plan['from']));
-    $t->same(2, $plan['from'][0]['id']);
-    $t->same(2, $plan['from'][0]['rowid']);
+    $t->same(2, $plan['from'][0]['j.id']);
+    $t->same(2, $plan['from'][0]['j.rowid']);
 };
 
 $tests['json table rowid hidden constraint current source next84 plan uses id constraint for oid'] = static function (TestRunner $t) use ($plan84, $settingsSql84): void {
     $plan = $plan84("SELECT key FROM json_each AS j WHERE j.json = '{$settingsSql84}' AND j.root = '$.plugins' AND j.oid = 3");
-    $t->same(2, $plan['from'][0]['key']);
-    $t->same(3, $plan['from'][0]['id']);
-    $t->same(3, $plan['from'][0]['oid']);
+    $t->same(2, $plan['from'][0]['j.key']);
+    $t->same(3, $plan['from'][0]['j.id']);
+    $t->same(3, $plan['from'][0]['j.oid']);
 };
 
 $tests['json table rowid hidden constraint current source next84 plan keeps next source rowid independent'] = static function (TestRunner $t) use ($plan84, $settingsSql84): void {
     $plan = $plan84("SELECT key FROM json_tree AS t WHERE t.json = '{$settingsSql84}' AND t.root = '$.plugins' AND t.rowid = 6");
-    $t->same('cache', $plan['from'][0]['atom']);
-    $t->same(6, $plan['from'][0]['rowid']);
-    $t->same('$.plugins[1].slug', $plan['from'][0]['fullkey']);
+    $t->same('cache', $plan['from'][0]['t.atom']);
+    $t->same(6, $plan['from'][0]['t.rowid']);
+    $t->same('$.plugins[1].slug', $plan['from'][0]['t.fullkey']);
 };
 
 $tests['json table rowid hidden constraint current source next84 rowid and oid produce same current source'] = static function (TestRunner $t) use ($rows84, $settingsSql84): void {

@@ -5,16 +5,16 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 
 $current177 = [
-    'option_id' => 177,
-    'option_name' => 'wp_plugin_generated_path_rowid_xfilter_program',
-    'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 177,
+    'key_name' => 'app_plugin_generated_path_rowid_xfilter_program',
+    'key_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules[1]',
     'scan_root' => '$.rules',
 ];
 $next177 = [
-    'option_id' => 177,
-    'option_name' => 'wp_plugin_generated_path_rowid_xfilter_program',
-    'option_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 177,
+    'key_name' => 'app_plugin_generated_path_rowid_xfilter_program',
+    'key_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules[2]',
     'scan_root' => '$.rules',
 ];
@@ -37,7 +37,7 @@ $plan177 = static fn (
     'json_tree',
     $current ?? $current177,
     $next ?? $next177,
-    'option_value',
+    'key_value',
     'generated_path',
     $constraints ?? $coveredConstraints177,
     'scan_root',
@@ -70,7 +70,7 @@ $tests = [
     'stable reuses next reader policy' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-generated-path-rowid-xfilter-next177-program', $stable177()['nextReaderPolicy']),
     'stable next177 reasons empty' => static fn (TestRunner $t) => $t->same([], $stable177()['next177ReplanReasons']),
     'current function normalized' => static fn (TestRunner $t) => $t->same('json_tree', $plan177()['currentGeneratedPathRowidXFilterProgram177']['function']),
-    'current source id recorded' => static fn (TestRunner $t) => $t->same(177, $plan177()['currentGeneratedPathRowidXFilterProgram177']['sourceOptionId']),
+    'current source id recorded' => static fn (TestRunner $t) => $t->same(177, $plan177()['currentGeneratedPathRowidXFilterProgram177']['sourceSettingId']),
     'current generated path recorded' => static fn (TestRunner $t) => $t->same('$.rules[1]', $plan177()['currentGeneratedPathRowidXFilterProgram177']['generatedPath']),
     'current source pinned' => static fn (TestRunner $t) => $t->same(true, $plan177()['currentGeneratedPathRowidXFilterProgram177']['currentSourcePinned']),
     'current aliases not conflicting' => static fn (TestRunner $t) => $t->same(false, $plan177()['currentGeneratedPathRowidXFilterProgram177']['conflictingRowidAliases']),
@@ -117,7 +117,7 @@ $tests = [
     'conflict estimated rows zero' => static fn (TestRunner $t) => $t->same(0, $conflict177()['currentGeneratedPathRowidXFilterProgram177']['estimatedRows']),
     'conflict cost class empty' => static fn (TestRunner $t) => $t->same('json-table-generated-path-rowid-xfilter-contradiction-empty-next177', $conflict177()['currentGeneratedPathRowidXFilterProgram177']['costClass']),
     'unusable rowid keeps path-only covered seek' => static fn (TestRunner $t) => $t->same('xfilter-current-source-covered-seek-next177', $unusable177()['currentGeneratedPathRowidXFilterProgram177']['xFilterOpcode']),
-    'bad function rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::generatedPathRowidXFilterProgramPlan('json_blob', $current177, $next177, 'option_value', 'generated_path')),
+    'bad function rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::generatedPathRowidXFilterProgramPlan('json_blob', $current177, $next177, 'key_value', 'generated_path')),
     'bad json source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::generatedPathRowidXFilterProgramPlan('json_tree', $current177, $next177, '', 'generated_path')),
     'dependency scenario has no new support component' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];

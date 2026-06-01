@@ -7,16 +7,16 @@ use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 
 $current160 = [
-    'option_id' => 160,
-    'option_name' => 'wp_plugin_generated_path_rowid_cost_source',
-    'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 160,
+    'key_name' => 'app_plugin_generated_path_rowid_cost_source',
+    'key_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules[1]',
     'scan_root' => '$.rules',
 ];
 $next160 = [
-    'option_id' => 160,
-    'option_name' => 'wp_plugin_generated_path_rowid_cost_source',
-    'option_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 160,
+    'key_name' => 'app_plugin_generated_path_rowid_cost_source',
+    'key_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules[2]',
     'scan_root' => '$.rules',
 ];
@@ -33,7 +33,7 @@ $plan160 = static fn (
     'json_tree',
     $current ?? $current160,
     $next ?? $next160,
-    'option_value',
+    'key_value',
     'generated_path',
     $constraints ?? $constraints160,
     'scan_root',
@@ -62,9 +62,9 @@ $unusable160 = static fn (): array => $plan160(
 );
 $jsonb160 = static fn (): array => $plan160(
     $current160,
-    array_replace($current160, ['option_value' => new SQLiteBlobValue(SQLiteJsonB::encode(json_decode($current160['option_value'])))]),
+    array_replace($current160, ['key_value' => new SQLiteBlobValue(SQLiteJsonB::encode(json_decode($current160['key_value'])))]),
 );
-$unrunnable160 = static fn (): array => $plan160($current160, array_replace($next160, ['option_value' => null]));
+$unrunnable160 = static fn (): array => $plan160($current160, array_replace($next160, ['key_value' => null]));
 
 $tests = [
     'normalizes function name' => static fn (TestRunner $t) => $t->same('json_tree', $plan160()['function']),
@@ -76,11 +76,11 @@ $tests = [
     'stable has no next160 reasons' => static fn (TestRunner $t) => $t->same([], $stable160()['next160ReplanReasons']),
     'current source kind is text json' => static fn (TestRunner $t) => $t->same('text', $plan160()['currentGeneratedPathRowidCostSource']['sourceKind']),
     'current source is runnable' => static fn (TestRunner $t) => $t->same(true, $plan160()['currentGeneratedPathRowidCostSource']['runnable']),
-    'current json column retained' => static fn (TestRunner $t) => $t->same('option_value', $plan160()['currentGeneratedPathRowidCostSource']['jsonColumn']),
+    'current json column retained' => static fn (TestRunner $t) => $t->same('key_value', $plan160()['currentGeneratedPathRowidCostSource']['jsonColumn']),
     'generated path column retained' => static fn (TestRunner $t) => $t->same('generated_path', $plan160()['currentGeneratedPathRowidCostSource']['generatedPathColumn']),
     'root column retained' => static fn (TestRunner $t) => $t->same('scan_root', $plan160()['currentGeneratedPathRowidCostSource']['rootColumn']),
-    'source option id retained' => static fn (TestRunner $t) => $t->same(160, $plan160()['currentGeneratedPathRowidCostSource']['sourceOptionId']),
-    'source option name retained' => static fn (TestRunner $t) => $t->same('wp_plugin_generated_path_rowid_cost_source', $plan160()['currentGeneratedPathRowidCostSource']['sourceOptionName']),
+    'source setting id retained' => static fn (TestRunner $t) => $t->same(160, $plan160()['currentGeneratedPathRowidCostSource']['sourceSettingId']),
+    'source setting name retained' => static fn (TestRunner $t) => $t->same('app_plugin_generated_path_rowid_cost_source', $plan160()['currentGeneratedPathRowidCostSource']['sourceKeyName']),
     'source root retained' => static fn (TestRunner $t) => $t->same('$.rules', $plan160()['currentGeneratedPathRowidCostSource']['sourceRoot']),
     'current generated path retained' => static fn (TestRunner $t) => $t->same('$.rules[1]', $plan160()['currentGeneratedPathRowidCostSource']['generatedPath']),
     'next generated path retained' => static fn (TestRunner $t) => $t->same('$.rules[2]', $plan160()['nextGeneratedPathRowidCostSource']['generatedPath']),
@@ -131,8 +131,8 @@ $tests = [
     'unrunnable next source is not runnable' => static fn (TestRunner $t) => $t->same(false, $unrunnable160()['nextGeneratedPathRowidCostSource']['runnable']),
     'unrunnable next source cost sentinel' => static fn (TestRunner $t) => $t->same(1000000, $unrunnable160()['nextGeneratedPathRowidCostSource']['effectiveEstimatedCost']),
     'bad json source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSourcePlan('json_tree', $current160, $next160, '', 'generated_path', $constraints160)),
-    'bad generated path source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSourcePlan('json_tree', $current160, $next160, 'option_value', '', $constraints160)),
-    'missing generated path source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSourcePlan('json_tree', $current160, $next160, 'option_value', 'missing_path', $constraints160)),
+    'bad generated path source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSourcePlan('json_tree', $current160, $next160, 'key_value', '', $constraints160)),
+    'missing generated path source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSourcePlan('json_tree', $current160, $next160, 'key_value', 'missing_path', $constraints160)),
     'dependency scenario has no new support component' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];
 

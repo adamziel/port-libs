@@ -29,6 +29,16 @@ $cloneExchange = ProtocolV2FetchExchange::fromPacketLines(
 $responseEndNoPackResponse = FetchResponse::fromV2PacketLines($fixture['responseEndNoPackResponse']);
 $responseEndPackResponse = FetchResponse::fromV2PacketLines($fixture['responseEndPackResponse']);
 $delimiterPackResponse = FetchResponse::fromV2PacketLines($fixture['delimiterPackResponse']);
+$emptyErrorSidebandMessages = [];
+$emptyErrorSidebandHandledResponse = FetchResponse::fromV2PacketLines(
+    $fixture['emptyErrorSidebandResponse'],
+    false,
+    static function (bool $isError, string $text) use (&$emptyErrorSidebandMessages): bool {
+        $emptyErrorSidebandMessages[] = ['isError' => $isError, 'text' => $text];
+
+        return true;
+    }
+);
 $sidebandAllResponseEndMessages = [];
 $sidebandAllResponseEndResponse = FetchResponse::fromV2PacketLines(
     $fixture['sidebandAllResponseEndResponse'],
@@ -114,6 +124,10 @@ return [
     'progressCancellationMessages' => $progressCancelMessages,
     'emptyErrorKeepaliveIgnored' => $emptyErrorSidebandResponse->errorMessages() === []
         && $emptyErrorSidebandResponse->packData() === $fixture['packData'],
+    'emptyErrorKeepaliveHandled' => $emptyErrorSidebandHandledResponse->errorMessages() === []
+        && $emptyErrorSidebandHandledResponse->packData() === $fixture['packData']
+        && $emptyErrorSidebandMessages === [['isError' => true, 'text' => '']],
+    'emptyErrorKeepaliveMessages' => $emptyErrorSidebandMessages,
     'overflowProgress' => array_map(
         static fn ($progress): array => [
             'action' => $progress->action,

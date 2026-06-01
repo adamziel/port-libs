@@ -7,16 +7,16 @@ use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 
 $current166 = [
-    'option_id' => 166,
-    'option_name' => 'wp_plugin_generated_path_rowid_cost_current_source_next166',
-    'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 166,
+    'key_name' => 'app_plugin_generated_path_rowid_cost_current_source_next166',
+    'key_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules[1]',
     'scan_root' => '$.rules',
 ];
 $next166 = [
-    'option_id' => 166,
-    'option_name' => 'wp_plugin_generated_path_rowid_cost_current_source_next166',
-    'option_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 166,
+    'key_name' => 'app_plugin_generated_path_rowid_cost_current_source_next166',
+    'key_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules[2]',
     'scan_root' => '$.rules',
 ];
@@ -35,7 +35,7 @@ $plan166 = static fn (
     'json_tree',
     $current ?? $current166,
     $next ?? $next166,
-    'option_value',
+    'key_value',
     'generated_path',
     $constraints ?? $constraints166,
     'scan_root',
@@ -59,9 +59,9 @@ $unusable166 = static fn (): array => $plan166(
 );
 $jsonb166 = static fn (): array => $plan166(
     $current166,
-    array_replace($current166, ['option_value' => new SQLiteBlobValue(SQLiteJsonB::encode(json_decode($current166['option_value'])))]),
+    array_replace($current166, ['key_value' => new SQLiteBlobValue(SQLiteJsonB::encode(json_decode($current166['key_value'])))]),
 );
-$unrunnable166 = static fn (): array => $plan166($current166, array_replace($next166, ['option_value' => null]));
+$unrunnable166 = static fn (): array => $plan166($current166, array_replace($next166, ['key_value' => null]));
 
 $tests = [
     'records next166 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next166', $plan166()['dependencies'], true)),
@@ -70,8 +70,8 @@ $tests = [
     'prepares changed next yield policy' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-generated-path-rowid-yield-next166-plan', $plan166()['nextReaderPolicy']),
     'stable next yield policy reuses current' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-generated-path-rowid-yield-next166-plan', $stable166()['nextReaderPolicy']),
     'stable next166 reasons empty' => static fn (TestRunner $t) => $t->same([], $stable166()['next166ReplanReasons']),
-    'current source option id recorded' => static fn (TestRunner $t) => $t->same(166, $plan166()['currentGeneratedPathRowidYield']['sourceOptionId']),
-    'current source option name recorded' => static fn (TestRunner $t) => $t->same('wp_plugin_generated_path_rowid_cost_current_source_next166', $plan166()['currentGeneratedPathRowidYield']['sourceOptionName']),
+    'current source setting id recorded' => static fn (TestRunner $t) => $t->same(166, $plan166()['currentGeneratedPathRowidYield']['sourceSettingId']),
+    'current source setting name recorded' => static fn (TestRunner $t) => $t->same('app_plugin_generated_path_rowid_cost_current_source_next166', $plan166()['currentGeneratedPathRowidYield']['sourceKeyName']),
     'current source root recorded' => static fn (TestRunner $t) => $t->same('$.rules', $plan166()['currentGeneratedPathRowidYield']['sourceRoot']),
     'current generated path recorded' => static fn (TestRunner $t) => $t->same('$.rules[1]', $plan166()['currentGeneratedPathRowidYield']['generatedPath']),
     'current rowid alias preserves spelling' => static fn (TestRunner $t) => $t->same('_rowid_', $plan166()['currentGeneratedPathRowidYield']['rowidAlias']),
@@ -125,7 +125,7 @@ $tests = [
     'unrunnable next cost class sentinel' => static fn (TestRunner $t) => $t->same('unrunnable-json-table', $unrunnable166()['nextGeneratedPathRowidYield']['costClass']),
     'unrunnable next prepares fresh yield' => static fn (TestRunner $t) => $t->same('prepare-fresh-json-table-yield', $unrunnable166()['nextGeneratedPathRowidYield']['yieldDecision']),
     'bad json source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidYieldPlan('json_tree', $current166, $next166, '', 'generated_path', $constraints166)),
-    'bad generated path column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidYieldPlan('json_tree', $current166, $next166, 'option_value', '', $constraints166)),
+    'bad generated path column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidYieldPlan('json_tree', $current166, $next166, 'key_value', '', $constraints166)),
     'dependency scenario has no new support component' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];
 

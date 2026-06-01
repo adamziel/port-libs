@@ -506,10 +506,12 @@ final class MergeBaseFinder
 
         $distances = [$oid => 0];
         $queue = [[$oid, 0]];
+        $complete = true;
         for ($index = 0; $index < count($queue); $index++) {
             [$current, $distance] = $queue[$index];
             $commit = $this->tryCommit($current);
             if ($commit === null) {
+                $complete = false;
                 continue;
             }
 
@@ -521,6 +523,7 @@ final class MergeBaseFinder
                     continue;
                 }
                 if ($this->tryCommit($parent) === null) {
+                    $complete = false;
                     continue;
                 }
                 $distances[$parent] = $parentDistance;
@@ -528,7 +531,11 @@ final class MergeBaseFinder
             }
         }
 
-        return $this->ancestorCache[$oid] = $distances;
+        if ($complete) {
+            $this->ancestorCache[$oid] = $distances;
+        }
+
+        return $distances;
     }
 
     private function commit(string $oid): Commit

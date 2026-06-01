@@ -1028,6 +1028,45 @@ BASELINE;
         $t->same($release, $mergeBase->mergeBase($pluginReview, $themeReview));
         $t->same(true, in_array($release, $reads, true));
     },
+    'maps upstream stable ancestor reuse after hydrated shallow parent' => static function (TestRunner $t) use ($oid): void {
+        $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            "Ada <ada@example.test> {$seconds} +0000",
+            "CI <ci@example.test> {$seconds} +0000",
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ["Ada <ada@example.test> {$seconds} +0000"],
+                'committer' => ["CI <ci@example.test> {$seconds} +0000"],
+            ],
+        );
+        $release = $oid('1');
+        $pluginReview = $oid('2');
+        $themeReview = $oid('3');
+        $contentReview = $oid('4');
+        $reads = [];
+        $commits = [
+            $pluginReview => $timedCommit(1700000100, [$release]),
+            $themeReview => $timedCommit(1700000200, [$release]),
+            $contentReview => $timedCommit(1700000300, [$release]),
+        ];
+        $mergeBase = new MergeBaseFinder(static function (string $oid) use (&$commits, &$reads): ?Commit {
+            $reads[] = $oid;
+
+            return $commits[$oid] ?? null;
+        }, useCommitGraphGenerations: false);
+
+        $t->same([], $mergeBase->mergeBasesMany([$pluginReview, $themeReview, $contentReview]));
+        $t->same(true, in_array($release, $reads, true));
+
+        $commits[$release] = $timedCommit(1700000000);
+        $reads = [];
+
+        $t->same([$release], $mergeBase->mergeBasesMany([$pluginReview, $themeReview, $contentReview]));
+        $t->same(true, in_array($release, $reads, true));
+    },
     'maps upstream graph generation reuse after hydrated missing parent' => static function (TestRunner $t) use ($oid): void {
         $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
             str_repeat('f', 40),
@@ -1206,6 +1245,9 @@ BASELINE;
         $t->same([], $example['hydratedPromisorBeforeBases']);
         $t->same([$fixture['hydratedPromisorReleaseBaseline']], $example['hydratedPromisorAfterBases']);
         $t->same(true, $example['hydratedPromisorReusesFinderAfterMissingAncestor']);
+        $t->same([], $example['stableHydrationBeforeBases']);
+        $t->same([$fixture['hydratedPromisorReleaseBaseline']], $example['stableHydrationAfterBases']);
+        $t->same(true, $example['stableHydrationReusesFinderAfterMissingAncestor']);
         $generationHydrationCommits = $fixture['commits'];
         $generationHydrationIntermediateCommit = $generationHydrationCommits[$fixture['generationHydrationIntermediate']];
         unset($generationHydrationCommits[$fixture['generationHydrationIntermediate']]);

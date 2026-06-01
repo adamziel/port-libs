@@ -14,6 +14,7 @@ $sourceFiles = [
     $sourceRoot . '/SQLiteGeneratedJsonPathIndexPlan.php',
     $sourceRoot . '/SQLiteJsonbGeneratedCascadePlan.php',
     $sourceRoot . '/SQLiteJsonbGeneratedCheckIndexPlan.php',
+    $sourceRoot . '/SQLiteJsonTablePlan.php',
 ];
 
 $legacyJsonbCheckMatches = static function () use ($sourceFiles, $libsqliteRoot): array {

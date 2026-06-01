@@ -197,6 +197,24 @@ return [
         $t->same(['Counting objects: 100% (1/1)'], $response->progressMessages());
         $t->same(['remote: retained warning'], $response->errorMessages());
 
+        $emptyErrorCalls = [];
+        $emptyError = FetchResponse::fromV2PacketLines(
+            $packet("packfile\n")
+            . $packet("\x03")
+            . $packet("\x01PACKempty-error")
+            . $flush,
+            false,
+            static function (bool $isError, string $text) use (&$emptyErrorCalls): bool {
+                $emptyErrorCalls[] = [$isError, $text];
+
+                return true;
+            }
+        );
+
+        $t->same('PACKempty-error', $emptyError->packData());
+        $t->same([], $emptyError->errorMessages());
+        $t->same([[true, '']], $emptyErrorCalls);
+
         $abortedCalls = [];
         $t->same(
             'fetch response: interrupted by user',
@@ -234,6 +252,44 @@ return [
         $t->same(false, $sidebandAll->hasPack());
         $t->same(FetchAcknowledgement::NAK, $sidebandAll->acknowledgements()[0]->kind);
         $t->same([[false, 'remote: negotiating sideband-all']], $sidebandAllCalls);
+
+        $sidebandAllEmptyErrorCalls = [];
+        $sidebandAllEmptyError = FetchResponse::fromV2PacketLines(
+            $packet("\x03")
+            . $packet("\x01packfile\n")
+            . $packet("\x01PACKsideband-all-empty-error")
+            . $flush,
+            true,
+            static function (bool $isError, string $text) use (&$sidebandAllEmptyErrorCalls): bool {
+                $sidebandAllEmptyErrorCalls[] = [$isError, $text];
+
+                return true;
+            }
+        );
+
+        $t->same('PACKsideband-all-empty-error', $sidebandAllEmptyError->packData());
+        $t->same([], $sidebandAllEmptyError->errorMessages());
+        $t->same([[true, '']], $sidebandAllEmptyErrorCalls);
+
+        $emptyErrorAbortCalls = [];
+        $t->same(
+            'fetch response: interrupted by user',
+            $runtimeMessage(static function () use ($packet, $flush, &$emptyErrorAbortCalls): void {
+                FetchResponse::fromV2PacketLines(
+                    $packet("\x03")
+                    . $packet("\x01packfile\n")
+                    . $packet("\x01PACKsideband-all-empty-error")
+                    . $flush,
+                    true,
+                    static function (bool $isError, string $text) use (&$emptyErrorAbortCalls): bool {
+                        $emptyErrorAbortCalls[] = [$isError, $text];
+
+                        return false;
+                    }
+                );
+            })
+        );
+        $t->same([[true, '']], $emptyErrorAbortCalls);
 
         $body = $packet("packfile\n")
             . $packet("\x02Enumerating objects: 1, done.\n")
@@ -907,6 +963,16 @@ return [
         $response = FetchResponse::fromV2PacketLines($fixture['response'], $fixture['sidebandAll'] ?? false);
         $suffixlessAckResponse = FetchResponse::fromV2PacketLines($fixture['suffixlessAckResponse']);
         $refInWantResponse = FetchResponse::fromV2PacketLines($fixture['refInWantResponse']);
+        $emptyErrorSidebandMessages = [];
+        $emptyErrorSidebandResponse = FetchResponse::fromV2PacketLines(
+            $fixture['emptyErrorSidebandResponse'],
+            false,
+            static function (bool $isError, string $text) use (&$emptyErrorSidebandMessages): bool {
+                $emptyErrorSidebandMessages[] = ['isError' => $isError, 'text' => $text];
+
+                return true;
+            }
+        );
         $overflowProgressResponse = FetchResponse::fromV2PacketLines($fixture['overflowProgressResponse']);
         $cloneExchange = ProtocolV2FetchExchange::fromPacketLines($fixture['cloneExchangeResponse']);
         $smartHttpUploadPackResponse = FetchResponse::fromSmartHttpUploadPackResult($fixture['smartHttpUploadPackResponse']);
@@ -956,7 +1022,12 @@ return [
         $t->same([
             ['isError' => false, 'text' => 'remote: WordPress deployment fetch can be cancelled'],
         ], $summary['progressCancellationMessages']);
+        $t->same($fixture['packData'], $emptyErrorSidebandResponse->packData());
+        $t->same([], $emptyErrorSidebandResponse->errorMessages());
+        $t->same([['isError' => true, 'text' => '']], $emptyErrorSidebandMessages);
         $t->same(true, $summary['emptyErrorKeepaliveIgnored']);
+        $t->same(true, $summary['emptyErrorKeepaliveHandled']);
+        $t->same([['isError' => true, 'text' => '']], $summary['emptyErrorKeepaliveMessages']);
         $t->same(4294967295, $overflowProgressResponse->remoteProgress()[0]->percent);
         $t->same(null, $overflowProgressResponse->remoteProgress()[1]->percent);
         $t->same(5, $overflowProgressResponse->remoteProgress()[1]->step);

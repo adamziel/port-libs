@@ -5,16 +5,16 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 
 $current174 = [
-    'option_id' => 174,
-    'option_name' => 'wp_plugin_generated_path_rowid_alias_plan',
-    'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 174,
+    'key_name' => 'app_plugin_generated_path_rowid_alias_plan',
+    'key_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules[1]',
     'scan_root' => '$.rules',
 ];
 $generatedPathRowidAlias = [
-    'option_id' => 174,
-    'option_name' => 'wp_plugin_generated_path_rowid_alias_plan',
-    'option_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'setting_id' => 174,
+    'key_name' => 'app_plugin_generated_path_rowid_alias_plan',
+    'key_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"load_policy":"yes"}}',
     'generated_path' => '$.rules[2]',
     'scan_root' => '$.rules',
 ];
@@ -39,7 +39,7 @@ $plan174 = static fn (
     'json_tree',
     $current ?? $current174,
     $next ?? $generatedPathRowidAlias,
-    'option_value',
+    'key_value',
     'generated_path',
     $constraints ?? $sameAlias174,
     'scan_root',
@@ -72,7 +72,7 @@ $tests = [
     'prepares changed generatedPathRowidAlias policy' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-generated-path-rowid-alias-plan', $plan174()['nextReaderPolicy']),
     'stable generatedPathRowidAlias policy reuses current' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-generated-path-rowid-alias-plan', $stable174()['nextReaderPolicy']),
     'stable generatedPathRowidAlias reasons empty' => static fn (TestRunner $t) => $t->same([], $stable174()['generatedPathRowidAliasReplanReasons']),
-    'current source option recorded' => static fn (TestRunner $t) => $t->same(174, $plan174()['currentGeneratedPathRowidAliasProfile']['sourceOptionId']),
+    'current source setting recorded' => static fn (TestRunner $t) => $t->same(174, $plan174()['currentGeneratedPathRowidAliasProfile']['sourceSettingId']),
     'current root recorded' => static fn (TestRunner $t) => $t->same('$.rules', $plan174()['currentGeneratedPathRowidAliasProfile']['sourceRoot']),
     'current generated path recorded' => static fn (TestRunner $t) => $t->same('$.rules[1]', $plan174()['currentGeneratedPathRowidAliasProfile']['generatedPath']),
     'same aliases counted' => static fn (TestRunner $t) => $t->same(3, $plan174()['currentGeneratedPathRowidAliasProfile']['rowidAliasConstraintCount']),
@@ -122,7 +122,7 @@ $tests = [
     'unusable rowid alias is not canonical' => static fn (TestRunner $t) => $t->same(6, $unusable174()['currentGeneratedPathRowidAliasProfile']['canonicalRowidConstraint']),
     'unusable rowid alias is recorded but not argv' => static fn (TestRunner $t) => $t->same(null, $unusable174()['currentGeneratedPathRowidAliasProfile']['aliasConstraintUsage'][0]['argvIndex']),
     'bad json source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::generatedPathRowidAliasPlan('json_tree', $current174, $generatedPathRowidAlias, '', 'generated_path', $sameAlias174)),
-    'bad generated path column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::generatedPathRowidAliasPlan('json_tree', $current174, $generatedPathRowidAlias, 'option_value', '', $sameAlias174)),
+    'bad generated path column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::generatedPathRowidAliasPlan('json_tree', $current174, $generatedPathRowidAlias, 'key_value', '', $sameAlias174)),
     'dependency scenario has no new support component' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];
 

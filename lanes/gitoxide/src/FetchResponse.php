@@ -313,8 +313,8 @@ final class FetchResponse
                 $packData .= $sideband['data'];
             } elseif ($sideband['band'] === 2) {
                 self::recordSidebandText(false, $sideband['data'], $progressMessages, $progressHandler);
-            } elseif ($sideband['data'] !== '') {
-                self::recordSidebandText(true, $sideband['data'], $errorMessages, $progressHandler);
+            } else {
+                self::recordSidebandError($sideband['data'], $errorMessages, $progressHandler);
             }
         }
 
@@ -362,9 +362,7 @@ final class FetchResponse
                 continue;
             }
 
-            if ($sideband['data'] !== '') {
-                self::recordSidebandText(true, $sideband['data'], $errorMessages, $progressHandler);
-            }
+            self::recordSidebandError($sideband['data'], $errorMessages, $progressHandler);
         }
     }
 
@@ -380,6 +378,23 @@ final class FetchResponse
         if ($progressHandler !== null && $progressHandler($isError, $text) === false) {
             throw new \RuntimeException('fetch response: interrupted by user');
         }
+    }
+
+    /**
+     * @param list<string> $messages
+     * @param null|callable(bool, string):bool $progressHandler
+     */
+    private static function recordSidebandError(string $data, array &$messages, ?callable $progressHandler): void
+    {
+        if ($data === '') {
+            if ($progressHandler !== null && $progressHandler(true, '') === false) {
+                throw new \RuntimeException('fetch response: interrupted by user');
+            }
+
+            return;
+        }
+
+        self::recordSidebandText(true, $data, $messages, $progressHandler);
     }
 
     /**

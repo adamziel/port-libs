@@ -158,6 +158,18 @@ $hydratedPromisorAfterBases = $hydratedPromisorFinder->mergeBases(
     $fixture['hydratedPromisorPluginReview'],
     $fixture['hydratedPromisorThemeReview'],
 );
+$stableHydrationCommits = $fixture['commits'];
+$stableHydrationReleaseCommit = $stableHydrationCommits[$fixture['hydratedPromisorReleaseBaseline']];
+unset($stableHydrationCommits[$fixture['hydratedPromisorReleaseBaseline']]);
+$stableHydrationFinder = new MergeBaseFinder(
+    static function (string $oid) use (&$stableHydrationCommits): ?Commit {
+        return $stableHydrationCommits[$oid] ?? null;
+    },
+    useCommitGraphGenerations: false,
+);
+$stableHydrationBeforeBases = $stableHydrationFinder->mergeBasesMany($fixture['hydratedPromisorHeads']);
+$stableHydrationCommits[$fixture['hydratedPromisorReleaseBaseline']] = $stableHydrationReleaseCommit;
+$stableHydrationAfterBases = $stableHydrationFinder->mergeBasesMany($fixture['hydratedPromisorHeads']);
 $generationHydrationCommits = $fixture['commits'];
 $generationHydrationIntermediateCommit = $generationHydrationCommits[$fixture['generationHydrationIntermediate']];
 unset($generationHydrationCommits[$fixture['generationHydrationIntermediate']]);
@@ -336,6 +348,10 @@ return [
     'hydratedPromisorAfterBases' => $hydratedPromisorAfterBases,
     'hydratedPromisorReusesFinderAfterMissingAncestor' => $hydratedPromisorBeforeBases === []
         && $hydratedPromisorAfterBases === [$fixture['hydratedPromisorReleaseBaseline']],
+    'stableHydrationBeforeBases' => $stableHydrationBeforeBases,
+    'stableHydrationAfterBases' => $stableHydrationAfterBases,
+    'stableHydrationReusesFinderAfterMissingAncestor' => $stableHydrationBeforeBases === []
+        && $stableHydrationAfterBases === [$fixture['hydratedPromisorReleaseBaseline']],
     'generationHydrationHeads' => $fixture['generationHydrationHeads'],
     'generationHydrationBeforeBases' => $generationHydrationBeforeBases,
     'generationHydrationAfterBases' => $generationHydrationAfterBases,

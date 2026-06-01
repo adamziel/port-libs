@@ -84,6 +84,10 @@ $fetchInstructionIdentitySpecs = array_map(
     static fn (string $spec): RefSpec => RefSpec::parseFetch($spec),
     $fixture['fetchInstructionIdentityRefspecs']
 );
+$matchedFetchRefs = RefSpec::matchFetchRemoteRefs(
+    $fixture['matchFetchRefspecs'],
+    $fixture['remoteAdvertisedRefs']
+);
 $oversizedRemoteRejected = false;
 try {
     GitUrl::parse($fixture['oversizedRemoteUrl']);
@@ -150,6 +154,7 @@ $summary = [
     'partsSshPassword' => $partsSshPassword->toArray(),
     'fetch' => $fetch,
     'push' => $push,
+    'matchedFetchRefs' => $matchedFetchRefs,
     'pushInstructionIdentityUniqueCount' => count(array_unique($pushInstructionIdentityKeys)),
     'sameNamedPushEquivalent' => $pushInstructionIdentitySpecs[0]->equivalentTo($pushInstructionIdentitySpecs[1]),
     'deleteForceEquivalent' => $pushInstructionIdentitySpecs[2]->equivalentTo($pushInstructionIdentitySpecs[3]),
@@ -312,6 +317,12 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if (array_column($summary['fetch'], 'expandedPrefixes') !== $fixture['expectedFetchExpandedPrefixes']) {
         throw new RuntimeException('Unexpected expanded fetch refspec prefixes');
+    }
+    if (array_column($summary['matchedFetchRefs'], 'remote') !== $fixture['expectedMatchedFetchRemotes']) {
+        throw new RuntimeException('Unexpected matched fetch remote refs');
+    }
+    if (array_column($summary['matchedFetchRefs'], 'local') !== $fixture['expectedMatchedFetchLocals']) {
+        throw new RuntimeException('Unexpected matched fetch local refs');
     }
     if (array_column($summary['push'], 'instruction') !== $fixture['expectedPushInstructions']) {
         throw new RuntimeException('Unexpected push refspec instructions');
