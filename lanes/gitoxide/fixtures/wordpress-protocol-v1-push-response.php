@@ -20,6 +20,8 @@ $objectPrefixDiagnosticOld = str_repeat('e', 40);
 $objectPrefixDiagnosticNew = str_repeat('f', 64);
 $sha1ObjectPrefixOld = str_repeat('a', 40);
 $sha1ObjectPrefixNew = str_repeat('b', 40);
+$emptyRefnameOptionOld = str_repeat('5', 40);
+$emptyRefnameOptionNew = str_repeat('6', 40);
 $siteAOld = str_repeat('6', 40);
 $siteANew = str_repeat('7', 40);
 $siteBOld = str_repeat('8', 40);
@@ -105,6 +107,19 @@ return [
         . $packet("option old-oid\n")
         . $packet("option new-oid \n")
         . $packet("option unknown-future-extension\n")
+        . $flush,
+    'emptyRefnameOptionRef' => [
+        'requested' => 'refs/for/wp-preview',
+        'actual' => '',
+        'message' => 'accepted with blank remote refname',
+        'oldObject' => $emptyRefnameOptionOld,
+        'newObject' => $emptyRefnameOptionNew,
+    ],
+    'emptyRefnameOptionResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/for/wp-preview accepted with blank remote refname\n")
+        . $packet("option refname \n")
+        . $packet("option old-oid {$emptyRefnameOptionOld}\n")
+        . $packet("option new-oid {$emptyRefnameOptionNew}\n")
         . $flush,
     'malformedObjectOptionRef' => [
         'requested' => 'refs/for/wp-release',

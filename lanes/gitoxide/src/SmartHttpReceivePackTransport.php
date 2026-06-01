@@ -22,7 +22,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private array $cookies = [];
     /** @var array<string, string> */
     private readonly array $extraHeaders;
-    /** @var array{proxyConfigured: bool, proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, httpsProxyConfigured: bool, httpsProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, allProxyConfigured: bool, allProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string, connectTimeout: ?float, lowSpeedLimit: int, lowSpeedTime: int, httpVersion: ?string, verbose: bool, protocolVersion: ?int} */
+    /** @var array{proxyConfigured: bool, proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, httpsProxyConfigured: bool, httpsProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, allProxyConfigured: bool, allProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVersion: ?array{min: string, max: string, cryptoMethod: int}, sslVerify: bool, followRedirects: string, connectTimeout: ?float, lowSpeedLimit: int, lowSpeedTime: int, httpVersion: ?string, verbose: bool, protocolVersion: ?int} */
     private readonly array $httpOptions;
 
     /**
@@ -697,6 +697,9 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         if ($this->httpOptions['sslCaInfo'] !== null) {
             $options['sslCaInfo'] = $this->httpOptions['sslCaInfo'];
         }
+        if ($this->httpOptions['sslVersion'] !== null) {
+            $options['sslVersion'] = $this->httpOptions['sslVersion'];
+        }
         if (!$this->httpOptions['sslVerify']) {
             $options['sslVerify'] = false;
         }
@@ -1033,11 +1036,11 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param array<string, mixed> $httpOptions
-     * @return array{proxyConfigured: bool, proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, httpsProxyConfigured: bool, httpsProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, allProxyConfigured: bool, allProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string, connectTimeout: ?float, lowSpeedLimit: int, lowSpeedTime: int, httpVersion: ?string, verbose: bool, protocolVersion: ?int}
+     * @return array{proxyConfigured: bool, proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, httpsProxyConfigured: bool, httpsProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, allProxyConfigured: bool, allProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVersion: ?array{min: string, max: string, cryptoMethod: int}, sslVerify: bool, followRedirects: string, connectTimeout: ?float, lowSpeedLimit: int, lowSpeedTime: int, httpVersion: ?string, verbose: bool, protocolVersion: ?int}
      */
     private static function normalizeHttpOptions(array $httpOptions): array
     {
-        $allowed = ['proxy', 'httpsProxy', 'allProxy', 'noProxy', 'proxyAuthorization', 'proxyAuthMethod', 'proxyCredentials', 'proxyCredentialHelper', 'proxyCredentialStore', 'proxyCredentialErase', 'sslCaInfo', 'sslVerify', 'followRedirects', 'connectTimeout', 'lowSpeedLimit', 'lowSpeedTime', 'httpVersion', 'verbose', 'protocolVersion'];
+        $allowed = ['proxy', 'httpsProxy', 'allProxy', 'noProxy', 'proxyAuthorization', 'proxyAuthMethod', 'proxyCredentials', 'proxyCredentialHelper', 'proxyCredentialStore', 'proxyCredentialErase', 'sslCaInfo', 'sslVersion', 'sslVerify', 'followRedirects', 'connectTimeout', 'lowSpeedLimit', 'lowSpeedTime', 'httpVersion', 'verbose', 'protocolVersion'];
         foreach (array_keys($httpOptions) as $name) {
             if (!is_string($name) || !in_array($name, $allowed, true)) {
                 throw new \InvalidArgumentException('smart HTTP receive-pack HTTP option is not supported');
@@ -1127,6 +1130,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             'proxyCredentialStore' => $store,
             'proxyCredentialErase' => $erase,
             'sslCaInfo' => $sslCaInfo,
+            'sslVersion' => self::normalizeSslVersionRange($httpOptions['sslVersion'] ?? null),
             'sslVerify' => $sslVerify,
             'followRedirects' => self::normalizeFollowRedirects($httpOptions['followRedirects'] ?? null),
             'connectTimeout' => self::normalizePositiveFloat($httpOptions['connectTimeout'] ?? null, 'connectTimeout'),
@@ -1148,6 +1152,106 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return $value;
+    }
+
+    /**
+     * @return ?array{min: string, max: string, cryptoMethod: int}
+     */
+    private static function normalizeSslVersionRange(mixed $value): ?array
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_string($value)) {
+            $min = self::normalizeSslVersion($value);
+            $max = $min;
+        } elseif (is_array($value)) {
+            $minValue = $value['min'] ?? $value[0] ?? null;
+            $maxValue = $value['max'] ?? $value[1] ?? $minValue;
+            $min = self::normalizeSslVersion($minValue);
+            $max = self::normalizeSslVersion($maxValue);
+        } else {
+            throw new \InvalidArgumentException('smart HTTP receive-pack sslVersion must be a string or min/max array');
+        }
+
+        if (self::sslVersionRank($min) > self::sslVersionRank($max)) {
+            [$min, $max] = [$max, $min];
+        }
+
+        return [
+            'min' => $min,
+            'max' => $max,
+            'cryptoMethod' => self::sslCryptoMethodForRange($min, $max),
+        ];
+    }
+
+    private static function normalizeSslVersion(mixed $value): string
+    {
+        if (!is_string($value) || $value === '' || self::containsControlByte($value)) {
+            throw new \InvalidArgumentException('smart HTTP receive-pack sslVersion must use default, tlsv1, sslv2, sslv3, tlsv1.0, tlsv1.1, tlsv1.2, or tlsv1.3');
+        }
+
+        $normalized = strtolower(str_replace(['_', '-'], '.', trim($value)));
+        $normalized = preg_replace('/\.+/', '.', $normalized) ?? $normalized;
+
+        return match ($normalized) {
+            'default' => 'default',
+            'tls', 'tlsv1', 'tls1', 'tls.1' => 'tlsv1',
+            'ssl2', 'sslv2', 'ssl.2' => 'sslv2',
+            'ssl3', 'sslv3', 'ssl.3' => 'sslv3',
+            '1', '1.0', 'tls1.0', 'tlsv1.0', 'tls.1.0' => 'tlsv1.0',
+            '1.1', 'tls1.1', 'tlsv1.1', 'tls.1.1' => 'tlsv1.1',
+            '1.2', 'tls1.2', 'tlsv1.2', 'tls.1.2' => 'tlsv1.2',
+            '1.3', 'tls1.3', 'tlsv1.3', 'tls.1.3' => 'tlsv1.3',
+            default => throw new \InvalidArgumentException('smart HTTP receive-pack sslVersion must use default, tlsv1, sslv2, sslv3, tlsv1.0, tlsv1.1, tlsv1.2, or tlsv1.3'),
+        };
+    }
+
+    private static function sslVersionRank(string $version): int
+    {
+        return match ($version) {
+            'default' => 0,
+            'tlsv1' => 1,
+            'sslv2' => 2,
+            'sslv3' => 3,
+            'tlsv1.0' => 4,
+            'tlsv1.1' => 5,
+            'tlsv1.2' => 6,
+            'tlsv1.3' => 7,
+        };
+    }
+
+    private static function sslCryptoMethodForRange(string $min, string $max): int
+    {
+        if ($min === 'default' && $max === 'default') {
+            return \STREAM_CRYPTO_METHOD_TLS_CLIENT;
+        }
+
+        $method = 0;
+        foreach (['sslv2', 'sslv3', 'tlsv1', 'tlsv1.0', 'tlsv1.1', 'tlsv1.2', 'tlsv1.3'] as $version) {
+            $rank = self::sslVersionRank($version);
+            if ($rank < self::sslVersionRank($min) || $rank > self::sslVersionRank($max)) {
+                continue;
+            }
+            $method |= self::sslCryptoMethodForVersion($version);
+        }
+
+        return $method === 0 ? \STREAM_CRYPTO_METHOD_TLS_CLIENT : $method;
+    }
+
+    private static function sslCryptoMethodForVersion(string $version): int
+    {
+        return match ($version) {
+            'sslv2' => \STREAM_CRYPTO_METHOD_SSLv2_CLIENT,
+            'sslv3' => \STREAM_CRYPTO_METHOD_SSLv3_CLIENT,
+            'tlsv1' => \STREAM_CRYPTO_METHOD_TLS_CLIENT,
+            'tlsv1.0' => \STREAM_CRYPTO_METHOD_TLSv1_0_CLIENT,
+            'tlsv1.1' => \STREAM_CRYPTO_METHOD_TLSv1_1_CLIENT,
+            'tlsv1.2' => \STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT,
+            'tlsv1.3' => \STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT,
+            default => \STREAM_CRYPTO_METHOD_TLS_CLIENT,
+        };
     }
 
     private static function normalizePositiveFloat(mixed $value, string $name): ?float
@@ -1895,7 +1999,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             }
 
             if ($target['scheme'] === 'https') {
-                $enabled = @stream_socket_enable_crypto($stream, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+                $enabled = @stream_socket_enable_crypto($stream, true, self::sslCryptoMethodFromOptions($httpOptions));
                 if ($enabled !== true) {
                     throw new \RuntimeException('smart HTTP receive-pack SOCKS TLS negotiation failed');
                 }
@@ -1930,8 +2034,24 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         if (isset($httpOptions['sslCaInfo'])) {
             $options['cafile'] = (string) $httpOptions['sslCaInfo'];
         }
+        if (isset($httpOptions['sslVersion']) && is_array($httpOptions['sslVersion'])) {
+            $options['crypto_method'] = self::sslCryptoMethodFromOptions($httpOptions);
+        }
 
         return $options;
+    }
+
+    /**
+     * @param array<string, mixed> $httpOptions
+     */
+    private static function sslCryptoMethodFromOptions(array $httpOptions): int
+    {
+        $sslVersion = $httpOptions['sslVersion'] ?? null;
+        if (is_array($sslVersion) && isset($sslVersion['cryptoMethod']) && is_int($sslVersion['cryptoMethod'])) {
+            return $sslVersion['cryptoMethod'];
+        }
+
+        return \STREAM_CRYPTO_METHOD_TLS_CLIENT;
     }
 
     /**

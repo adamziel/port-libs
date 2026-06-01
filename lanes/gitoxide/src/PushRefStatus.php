@@ -24,7 +24,7 @@ final class PushRefStatus
             throw new \InvalidArgumentException("push response: unsupported ref status {$status}");
         }
         ReferenceName::assertValid($refName);
-        if ($reportedRefName !== null) {
+        if ($reportedRefName !== null && $reportedRefName !== '') {
             ReferenceName::assertValid($reportedRefName);
         }
         if ($oldObject !== null) {
@@ -90,7 +90,7 @@ final class PushRefStatus
         }
 
         if ($name === 'refname') {
-            if ($value === null || $value === '') {
+            if ($value === null) {
                 return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
             }
 

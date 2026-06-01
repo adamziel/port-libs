@@ -349,6 +349,45 @@ return [
         $t->same(false, $status->forcedUpdate);
         $t->same(true, $status->hasReportOption());
     },
+    'preserves empty refname report-status-v2 option values like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
+        $old = str_repeat('a', 40);
+        $new = str_repeat('b', 40);
+        $direct = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/wp-preview accepted with blank remote refname\n")
+            . $packet("option refname \n")
+            . $packet("option old-oid {$old}\n")
+            . $packet("option new-oid {$new}\n")
+            . $flush
+        )->forExpectedRefNames(['refs/for/wp-preview']);
+        $sideband = PushResponse::fromSidebandPacketLines(
+            $packet("\x02remote: proc-receive returned an empty rewrite refname\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/for/wp-preview accepted with blank remote refname\n"))
+            . $packet("\x01" . $packet("option refname \n"))
+            . $packet("\x01" . $packet("option old-oid {$old}\n"))
+            . $packet("\x01" . $packet("option new-oid {$new}\n"))
+            . $packet("\x01" . $flush)
+            . $flush
+        )->forExpectedRefNames(['refs/for/wp-preview']);
+        $directStatus = $direct->refStatuses()[0];
+        $sidebandStatus = $sideband->refStatuses()[0];
+
+        $t->same(true, $direct->isSuccessful());
+        $t->same('refs/for/wp-preview', $directStatus->refName);
+        $t->same('', $directStatus->reportedRefName);
+        $t->same('', $directStatus->effectiveRefName());
+        $t->same('accepted with blank remote refname', $directStatus->message);
+        $t->same($old, $directStatus->oldObject);
+        $t->same($new, $directStatus->newObject);
+        $t->same(true, $directStatus->hasReportOption());
+        $t->same(true, $sideband->isSuccessful());
+        $t->same(['remote: proc-receive returned an empty rewrite refname'], $sideband->progressMessages());
+        $t->same('', $sidebandStatus->reportedRefName);
+        $t->same('', $sidebandStatus->effectiveRefName());
+        $t->same($old, $sidebandStatus->oldObject);
+        $t->same($new, $sidebandStatus->newObject);
+    },
     'filters send-pack receive-status reports to requested refs like upstream Git' => static function (TestRunner $t) use ($packet, $flush): void {
         $old = str_repeat('4', 40);
         $new = str_repeat('5', 40);
@@ -847,6 +886,9 @@ return [
         $valuelessOption = PushResponse::fromReportStatusPacketLines($fixture['valuelessOptionResponse'])
             ->forExpectedRefNames([$fixture['valuelessOptionRef']['requested']])
             ->refStatuses()[0];
+        $emptyRefnameOption = PushResponse::fromReportStatusPacketLines($fixture['emptyRefnameOptionResponse'])
+            ->forExpectedRefNames([$fixture['emptyRefnameOptionRef']['requested']])
+            ->refStatuses()[0];
         $malformedObjectOption = PushResponse::fromReportStatusPacketLines($fixture['malformedObjectOptionResponse'])->refStatuses()[0];
         $objectPrefixDiagnostic = PushResponse::fromReportStatusPacketLines($fixture['objectPrefixDiagnosticResponse'])->refStatuses()[0];
         $sha1ObjectPrefix = PushResponse::fromReportStatusPacketLines($fixture['sha1ObjectPrefixResponse'], 'sha1')->refStatuses()[0];
@@ -884,6 +926,13 @@ return [
         $t->same(null, $valuelessOption->oldObject);
         $t->same(null, $valuelessOption->newObject);
         $t->same(true, $valuelessOption->hasReportOption());
+        $t->same($fixture['emptyRefnameOptionRef']['requested'], $emptyRefnameOption->refName);
+        $t->same($fixture['emptyRefnameOptionRef']['actual'], $emptyRefnameOption->reportedRefName);
+        $t->same($fixture['emptyRefnameOptionRef']['actual'], $emptyRefnameOption->effectiveRefName());
+        $t->same($fixture['emptyRefnameOptionRef']['message'], $emptyRefnameOption->message);
+        $t->same($fixture['emptyRefnameOptionRef']['oldObject'], $emptyRefnameOption->oldObject);
+        $t->same($fixture['emptyRefnameOptionRef']['newObject'], $emptyRefnameOption->newObject);
+        $t->same(true, $emptyRefnameOption->hasReportOption());
         $t->same($fixture['malformedObjectOptionRef']['requested'], $malformedObjectOption->refName);
         $t->same($fixture['malformedObjectOptionRef']['oldObject'], $malformedObjectOption->oldObject);
         $t->same($fixture['malformedObjectOptionRef']['newObject'], $malformedObjectOption->newObject);
@@ -969,6 +1018,9 @@ return [
         $t->same(true, $summary['responseEndTerminatedAccepted']);
         $t->same(true, $summary['delimiterTerminatedAccepted']);
         $t->same(true, $summary['valuelessReportStatusOptionsAccepted']);
+        $t->same(true, $summary['emptyRefnameOptionValuePreserved']);
+        $t->same($fixture['emptyRefnameOptionRef']['actual'], $summary['emptyRefnameOptionRefs'][0]['reportedRef']);
+        $t->same($fixture['emptyRefnameOptionRef']['actual'], $summary['emptyRefnameOptionRefs'][0]['effectiveRef']);
         $t->same(true, $summary['malformedObjectOptionsIgnored']);
         $t->same(true, $summary['objectPrefixDiagnosticSuffixesParsed']);
         $t->same(true, $summary['sha1ObjectPrefixOptionsParsed']);

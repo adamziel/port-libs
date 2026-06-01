@@ -822,7 +822,8 @@ final class MediaQueryParser
                 return false;
             }
             if (preg_match('/^sign\(/i', $value) === 1) {
-                return $this->foldSimpleMathFunction($value, $type) !== $value;
+                return $this->foldSimpleMathFunction($value, $type) !== $value
+                    || $this->minifyUnresolvedSignFunction($value, $type) !== null;
             }
 
             return match ($type) {
@@ -946,6 +947,10 @@ final class MediaQueryParser
         }
         $value = $this->foldSimpleCalc($value);
         $value = $this->foldSimpleMathFunction($value, $type);
+        $unresolvedSign = $this->minifyUnresolvedSignFunction($value, $type);
+        if ($unresolvedSign !== null) {
+            return $unresolvedSign;
+        }
         $value = $this->minifyFunctionCommas($value);
         $value = preg_replace('/\s*\/\s*/', '/', $value) ?? $value;
         if (preg_match('/^([0-9]+(?:\.[0-9]+)?)\/1$/', $value, $matches) === 1) {
@@ -1140,6 +1145,101 @@ final class MediaQueryParser
             'length', 'unknown' => $comparable['unit'] === '' || $this->isCssLengthUnit($comparable['unit']) ? $comparable : null,
             default => null,
         };
+    }
+
+    private function minifyUnresolvedSignFunction(string $value, ?string $type): ?string
+    {
+        if (!in_array($type, ['length', 'unknown'], true)) {
+            return null;
+        }
+
+        if (preg_match('/^sign\(/i', $value) !== 1) {
+            return null;
+        }
+
+        try {
+            if ($this->findMatchingDelimiter($value, 4, '(', ')') !== strlen($value) - 1) {
+                return null;
+            }
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
+
+        $args = $this->splitTopLevel(substr($value, 5, -1), ',');
+        if (count($args) !== 1) {
+            return null;
+        }
+
+        $argument = $this->minifyUnresolvedSignArgument($args[0]);
+        if ($argument === null || !$this->isLengthLikeUnresolvedSignArgument($argument)) {
+            return null;
+        }
+
+        return 'sign(' . $argument . ')';
+    }
+
+    private function minifyUnresolvedSignArgument(string $argument): ?string
+    {
+        $argument = trim($argument);
+        if ($argument === '') {
+            return null;
+        }
+
+        if (preg_match('/^calc\(/i', $argument) === 1) {
+            $argument = $this->normalizeSimpleCalcWrapper($argument);
+            try {
+                if ($this->findMatchingDelimiter($argument, 4, '(', ')') !== strlen($argument) - 1) {
+                    return null;
+                }
+            } catch (\InvalidArgumentException) {
+                return null;
+            }
+
+            return $this->normalizeCalcOperatorSpacing(trim(substr($argument, 5, -1)));
+        }
+
+        if (preg_match('/^([a-zA-Z-]+)\(/', $argument, $matches) === 1) {
+            if (!in_array(strtolower($matches[1]), ['min', 'max', 'clamp', 'round', 'rem', 'mod', 'hypot', 'abs', 'sign'], true)) {
+                return null;
+            }
+
+            try {
+                if ($this->findMatchingDelimiter($argument, strlen($matches[1]), '(', ')') !== strlen($argument) - 1) {
+                    return null;
+                }
+            } catch (\InvalidArgumentException) {
+                return null;
+            }
+        }
+
+        return $this->normalizeWhitespace($this->minifyFunctionCommas($argument));
+    }
+
+    private function isLengthLikeUnresolvedSignArgument(string $argument): bool
+    {
+        if (preg_match('/\b(?:env|var)\s*\(/i', $argument) === 1) {
+            return false;
+        }
+
+        $number = $this->cssNumberPattern();
+        if (preg_match('/' . $number . '\s*%/i', $argument) === 1
+            || preg_match('/' . $number . '\s*(?:dpcm|dpi|dppx)\b/i', $argument) === 1
+            || preg_match('/' . $number . '\s*x\b/i', $argument) === 1
+        ) {
+            return false;
+        }
+
+        if (preg_match_all('/' . $number . '\s*([a-zA-Z]+)/', $argument, $matches) === 0) {
+            return false;
+        }
+
+        foreach ($matches[1] as $unit) {
+            if ($this->isCssLengthUnit($unit)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isCssLengthUnit(string $unit): bool

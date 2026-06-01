@@ -225,6 +225,41 @@ if (
 
 echo 'source-map-input-malformed: suppressed' . PHP_EOL;
 
+$directiveBlockMap = 'data:application/json;base64,' . base64_encode(json_encode([
+    'version' => 3,
+    'mappings' => 'AAAA',
+    'sources' => ['blocks/directive-old.scss'],
+    'sourcesContent' => ['.wp-block-old { color: $wp-purple }'],
+    'names' => [],
+], JSON_THROW_ON_ERROR));
+$directiveBadMap = 'data:application/json;base64,not-json';
+$directiveBundle = (new CssBundler())->bundleWithSourceMap('/theme.css', [
+    '/theme.css' => '@import "blocks/directive-old.css"; @import "blocks/directive-leading.css"; @import "blocks/directive-equals.css"; @import "blocks/directive-empty.css"; .wp-site-blocks { color: red }',
+    '/blocks/directive-old.css' => ".wp-block-old { color: purple }\n/*@ sourceMappingURL={$directiveBlockMap} */",
+    '/blocks/directive-leading.css' => ".wp-block-leading { color: green }\n/*   # sourceMappingURL={$directiveBadMap} */",
+    '/blocks/directive-equals.css' => ".wp-block-equals { color: blue }\n/*# sourceMappingURL = {$directiveBadMap} */",
+    '/blocks/directive-empty.css' => ".wp-block-empty { color: red }\n/*# sourceMappingURL=  {$directiveBadMap} */",
+], null, '/');
+$directiveMap = $directiveBundle['sourceMap']->toArray(null, false);
+$directiveDecoded = SourceMap::decodeVlq($directiveMap['mappings']);
+
+if (
+    $directiveBundle['code'] !== '.wp-block-old{color:purple}.wp-block-leading{color:green}.wp-block-equals{color:#00f}.wp-block-empty{color:red}.wp-site-blocks{color:red}'
+    || $directiveMap['sources'] !== [
+        'theme.css',
+        'blocks/directive-leading.css',
+        'blocks/directive-equals.css',
+        'blocks/directive-empty.css',
+        'blocks/directive-old.scss',
+    ]
+    || ($directiveDecoded[0]['sourceIndex'] ?? null) !== array_search('blocks/directive-old.scss', $directiveMap['sources'], true)
+) {
+    fwrite(STDERR, "Expected source-map URL directives to follow upstream tokenization before inline-map replacement\n");
+    exit(1);
+}
+
+echo 'source-map-directive-tokenization: matched' . PHP_EOL;
+
 $resolverTrace = [];
 $resolverRejected = false;
 try {

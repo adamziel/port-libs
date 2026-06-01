@@ -404,6 +404,64 @@ return [
             'wp-content/plugins/dang*\\',
         ], $walkPaths($records));
     },
+    'keeps escaped byte pathspec prefixes traversable during tree walks' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
+        $search = PathspecSearch::fromSpecs([':(glob)wp-content/plugins/f\\oo/block.json']);
+
+        $t->same(null, $search->match('wp-content/plugins/f', true));
+        $t->same(true, $search->canMatch('wp-content/plugins/f', true));
+        $t->same(true, $search->directoryMatchesPrefix('wp-content/plugins/f', true));
+        $t->same(true, $search->canMatch('wp-content/plugins/foo', true));
+        $t->same(true, $search->directoryMatchesPrefix('wp-content/plugins/foo', true));
+        $t->same(PathspecMatch::KIND_WILDCARD, $search->match('wp-content/plugins/foo/block.json', false)?->kind);
+        $t->same(PathspecMatch::KIND_VERBATIM, $search->match('wp-content/plugins/f\\oo/block.json', false)?->kind);
+        $t->same(false, $search->isIncluded('wp-content/plugins/f/not-block.json', false));
+
+        $objects = [];
+        $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
+        $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
+            $object = $tree->toObject();
+            $objects[$object->oid()] = $object;
+
+            return new TreeEntry('040000', $name, $object->oid());
+        };
+        $root = new Tree([
+            $tree('wp-content', new Tree([
+                $tree('plugins', new Tree([
+                    $tree('f', new Tree([$blob('not-block.json')])),
+                    $tree('foo', new Tree([$blob('block.json')])),
+                    $tree('f\\oo', new Tree([$blob('block.json')])),
+                    $tree('bar', new Tree([$blob('block.json')])),
+                ])),
+            ])),
+        ]);
+
+        $readPaths = [];
+        $records = TreePathspecWalk::breadthFirst(
+            $root,
+            $search,
+            static function (TreeEntry $entry, string $path) use (&$objects, &$readPaths): GitObject {
+                $readPaths[] = $path;
+                if (!isset($objects[$entry->oid])) {
+                    throw new RuntimeException("Missing tree object for {$path}");
+                }
+
+                return $objects[$entry->oid];
+            },
+            includeTrees: false,
+        );
+
+        $t->same([
+            'wp-content/plugins/foo/block.json',
+            'wp-content/plugins/f\\oo/block.json',
+        ], $walkPaths($records));
+        $t->same([
+            'wp-content',
+            'wp-content/plugins',
+            'wp-content/plugins/f',
+            'wp-content/plugins/foo',
+            'wp-content/plugins/f\\oo',
+        ], $readPaths);
+    },
     'matches gix wildmatch POSIX blank and invalid class boundaries during tree walks' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
         $blankClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/slot[[:blank:]]/photo.jpg']);
         $spaceClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/slot[[:space:]]/photo.jpg']);
@@ -1450,6 +1508,9 @@ return [
             'wp-content/plugins/../secret.php',
             'wp-content/plugins/akismet/akismet.php',
             'wp-content/plugins/akismet/block.json',
+            'wp-content/plugins/f/not-block.json',
+            'wp-content/plugins/foo/block.json',
+            'wp-content/plugins/f\\oo/block.json',
             'wp-content/plugins/gutenberg/block.json',
             'wp-content/plugins/gutenberg/block.gson',
             "wp-content/plugins/new\nline/block.json",
@@ -1468,6 +1529,21 @@ return [
         $t->same(PathspecMatch::KIND_VERBATIM, $example['danglingBackslashExactMatchKind']);
         $t->same(true, $example['danglingBackslashWildcardSkipped']);
         $t->same(true, $example['danglingBackslashLiteralStarIncluded']);
+        $t->same([
+            'wp-content/plugins/foo/block.json',
+            'wp-content/plugins/f\\oo/block.json',
+        ], $example['escapedByteTraversalContentPaths']);
+        $t->same([
+            'wp-content',
+            'wp-content/plugins',
+            'wp-content/plugins/f',
+            'wp-content/plugins/foo',
+            'wp-content/plugins/f\\oo',
+        ], $example['escapedByteTraversalReadPaths']);
+        $t->same(true, $example['escapedBytePrefixDirectoryTraversed']);
+        $t->same(true, $example['escapedByteResolvedDirectoryTraversed']);
+        $t->same(true, $example['escapedByteWildcardIncluded']);
+        $t->same(true, $example['escapedByteVerbatimFallbackIncluded']);
         $t->same([
             'wp-content/uploads/a/hero.jpg',
             'wp-content/uploads/[/hero.jpg',

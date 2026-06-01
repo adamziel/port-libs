@@ -750,6 +750,44 @@ return [
             ['isError' => false, 'text' => 'Enumerating objects: 1, done.'],
         ], $abortedCalls);
     },
+    'derives protocol v2 exchange sideband-all decoding from fetch capability' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v2-fetch-response.php';
+        $calls = [];
+        $exchange = ProtocolV2FetchExchange::fromPacketLines(
+            $fixture['sidebandAllCapabilityExchangeResponse'],
+            null,
+            null,
+            static function (bool $isError, string $text) use (&$calls): bool {
+                $calls[] = ['isError' => $isError, 'text' => $text];
+
+                return true;
+            }
+        );
+        $response = $exchange->fetchResponse();
+
+        $t->same(['agent', 'fetch', 'object-format'], $exchange->capabilities()->names());
+        $t->same(['shallow', 'sideband-all'], $exchange->capabilities()->capability('fetch')?->values());
+        $t->same([], $exchange->remoteRefs());
+        $t->same('', $exchange->lsRefsAdvertisementBytes());
+        $t->same(true, $response->hasPack());
+        $t->same(FetchAcknowledgement::COMMON, $response->acknowledgements()[0]->kind);
+        $t->same($fixture['objects']['installed'], $response->acknowledgements()[0]->object);
+        $t->same(FetchAcknowledgement::READY, $response->acknowledgements()[1]->kind);
+        $t->same(FetchShallowUpdate::SHALLOW, $response->shallowUpdates()[0]->kind);
+        $t->same($fixture['objects']['main'], $response->shallowUpdates()[0]->object);
+        $t->same('refs/heads/main', $response->wantedRefs()[0]->path);
+        $t->same($fixture['objects']['main'], $response->wantedRefs()[0]->object);
+        $t->same($fixture['packData'], $response->packData());
+        $t->same('flush', $response->terminator());
+        $t->same([
+            'remote: preparing WordPress blobless pack',
+            'Enumerating objects: 1, done.',
+        ], $response->progressMessages());
+        $t->same([
+            ['isError' => false, 'text' => 'remote: preparing WordPress blobless pack'],
+            ['isError' => false, 'text' => 'Enumerating objects: 1, done.'],
+        ], $calls);
+    },
     'parses upstream v2 ref-in-want wanted-refs response with sideband pack' => static function (TestRunner $t): void {
         $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-ref-in-want-sideband.php';
         $fixture = $fixtures['refInWant'];
@@ -1062,6 +1100,12 @@ return [
             ['isError' => false, 'text' => 'Enumerating objects: 1, done.'],
         ], $summary['cloneExchangeProgressMessages']);
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['cloneExchangePackTrailer']);
+        $t->same(true, $summary['sidebandAllCapabilityExchangeParsed']);
+        $t->same([
+            ['isError' => false, 'text' => 'remote: preparing WordPress blobless pack'],
+            ['isError' => false, 'text' => 'Enumerating objects: 1, done.'],
+        ], $summary['sidebandAllCapabilityExchangeMessages']);
+        $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['sidebandAllCapabilityExchangePackTrailer']);
         $t->same(true, $summary['responseEndNoPackParsed']);
         $t->same(true, $summary['responseEndPackParsed']);
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['responseEndPackTrailer']);

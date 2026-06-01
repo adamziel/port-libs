@@ -113,6 +113,11 @@ return [
         'time' => $fixture['smartHttpTransportOptionsBoundary']['lowSpeedTime'],
     ],
     'smartHttpVersion' => $fixture['smartHttpTransportOptionsBoundary']['httpVersion'],
+    'smartHttpSslVersionRange' => [
+        'min' => $fixture['smartHttpTransportOptionsBoundary']['sslVersionMin'],
+        'max' => $fixture['smartHttpTransportOptionsBoundary']['sslVersionMax'],
+    ],
+    'smartHttpSslCryptoMethod' => $fixture['smartHttpTransportOptionsBoundary']['sslCryptoMethod'],
     'smartHttpVerboseEnabled' => $fixture['smartHttpTransportOptionsBoundary']['verbose'],
     'smartHttpTransportOptionsPostBodyPreserved' => $fixture['smartHttpTransportOptionsBoundary']['postBodyPreserved'],
     'smartHttpProtocolV2DiscoveryHeader' => $fixture['smartHttpProtocolHeaderBoundary']['v2DiscoveryGitProtocol'],

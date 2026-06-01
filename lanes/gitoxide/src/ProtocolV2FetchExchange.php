@@ -22,11 +22,12 @@ final class ProtocolV2FetchExchange
     }
 
     /**
+     * @param null|bool $sidebandAll Pass null to infer Gitoxide's default sideband-all fetch behavior from capabilities.
      * @param null|callable(bool, string):bool $progressHandler Receives sideband error/progress text. Return false to abort.
      */
     public static function fromPacketLines(
         string $bytes,
-        bool $sidebandAll = false,
+        ?bool $sidebandAll = null,
         ?string $expectedService = null,
         ?callable $progressHandler = null
     ): self {
@@ -50,11 +51,12 @@ final class ProtocolV2FetchExchange
         }
 
         $capabilities = ProtocolCapabilities::fromV2PacketLines($capabilityBytes, $expectedService);
+        $effectiveSidebandAll = $sidebandAll ?? self::fetchAdvertisesSidebandAll($capabilities);
         if (!isset($messages[$next + 1])) {
             return new self(
                 $capabilities,
                 [],
-                FetchResponse::fromV2PacketLines($messages[$next], $sidebandAll, $progressHandler),
+                FetchResponse::fromV2PacketLines($messages[$next], $effectiveSidebandAll, $progressHandler),
                 $capabilityBytes,
                 '',
                 $messages[$next],
@@ -67,7 +69,7 @@ final class ProtocolV2FetchExchange
         return new self(
             $capabilities,
             LsRefsCommand::parseV2PacketLines($messages[$next]),
-            FetchResponse::fromV2PacketLines($messages[$next + 1], $sidebandAll, $progressHandler),
+            FetchResponse::fromV2PacketLines($messages[$next + 1], $effectiveSidebandAll, $progressHandler),
             $capabilityBytes,
             $messages[$next],
             $messages[$next + 1],
@@ -176,5 +178,10 @@ final class ProtocolV2FetchExchange
         }
 
         return substr($message, 4, $length - 4);
+    }
+
+    private static function fetchAdvertisesSidebandAll(ProtocolCapabilities $capabilities): bool
+    {
+        return in_array('sideband-all', $capabilities->capability('fetch')?->values() ?? [], true);
     }
 }

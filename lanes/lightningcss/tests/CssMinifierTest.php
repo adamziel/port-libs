@@ -506,6 +506,14 @@ CSS
             $minifier->minify('.foo { color: lch(from color(display-p3 0 0 0) l c h / alpha); }')
         );
         $t->same(
+            '.foo{color:lab(0% 0 0)}',
+            $minifier->minify('.foo { color: lab(from color(display-p3 0 0 0) l a b / alpha); }')
+        );
+        $t->same(
+            '.foo{color:oklab(0% 0 0)}',
+            $minifier->minify('.foo { color: oklab(from color(display-p3 0 0 0) l a b / alpha); }')
+        );
+        $t->same(
             '.foo{color:oklch(0% 0 0)}',
             $minifier->minify('.foo { color: oklch(from color(display-p3 0 0 0) l c h / alpha); }')
         );

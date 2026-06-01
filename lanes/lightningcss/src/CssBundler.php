@@ -645,34 +645,18 @@ final class CssBundler
 
     private function sourceMapUrlFromComment(string $comment): ?string
     {
-        $comment = ltrim($comment);
-        $marker = $comment[0] ?? '';
-        if ($marker !== '#' && $marker !== '@') {
+        $directive = '# sourceMappingURL=';
+        $oldDirective = '@ sourceMappingURL=';
+
+        if (str_starts_with($comment, $directive)) {
+            $rest = substr($comment, strlen($directive));
+        } elseif (str_starts_with($comment, $oldDirective)) {
+            $rest = substr($comment, strlen($oldDirective));
+        } else {
             return null;
         }
 
-        $rest = ltrim(substr($comment, 1));
-        $name = 'sourceMappingURL';
-        if (strncasecmp($rest, $name, strlen($name)) !== 0) {
-            return null;
-        }
-
-        $rest = ltrim(substr($rest, strlen($name)));
-        if (($rest[0] ?? '') !== '=') {
-            return null;
-        }
-
-        $rest = ltrim(substr($rest, 1));
-        if ($rest === '') {
-            return null;
-        }
-
-        $parts = preg_split('/\s+/', $rest);
-        if ($parts === false || $parts === [] || $parts[0] === '') {
-            return null;
-        }
-
-        return $parts[0];
+        return substr($rest, 0, strcspn($rest, " \t\f\r\n"));
     }
 
     private function readerTypeName(mixed $value): string

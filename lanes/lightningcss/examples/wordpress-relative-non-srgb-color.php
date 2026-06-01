@@ -11,10 +11,11 @@ $css = <<<'CSS'
   color: rgb(from color(display-p3 0 1 0) r g b / alpha);
   background-color: hsl(from lab(0% 104.3 -50.9) h s l / alpha);
   border-color: hwb(from oklch(100% 0.399 336.3) h w b / alpha);
+  outline-color: oklab(from color(display-p3 0 0 0) l a b / alpha);
 }
 CSS;
 
-$expected = '.wp-block-cover.has-wide-gamut-relative{color:#00f942;background-color:#2a0022;border-color:#fff}';
+$expected = '.wp-block-cover.has-wide-gamut-relative{color:#00f942;background-color:#2a0022;border-color:#fff;outline-color:oklab(0% 0 0)}';
 $actual = (new CssMinifier())->minify($css);
 
 if (in_array('--self-test', $argv, true) && $actual !== $expected) {

@@ -369,6 +369,48 @@ CSS,
         $t->same([], $entryOnlyMap['sources']);
         $t->same([], $entryOnlyMap['sourcesContent']);
     },
+    'css bundler follows upstream sourceMappingURL directive tokenization' => static function (TestRunner $t): void {
+        $validMap = 'data:application/json;base64,' . base64_encode(json_encode([
+            'version' => 3,
+            'mappings' => 'AAAA',
+            'sources' => ['blocks/old.scss'],
+            'sourcesContent' => ['.old { color: $wp-purple }'],
+            'names' => [],
+        ], JSON_THROW_ON_ERROR));
+        $badDataUrl = 'data:application/json;base64,not-json';
+
+        $result = (new CssBundler())->bundleWithSourceMap('/theme/entry.css', [
+            '/theme/entry.css' => '@import "blocks/old-directive.css"; @import "blocks/leading-space.css"; @import "blocks/spaced-equals.css"; @import "blocks/empty-url.css"; .entry { color: red }',
+            '/theme/blocks/old-directive.css' => ".old { color: purple }\n/*@ sourceMappingURL={$validMap} */",
+            '/theme/blocks/leading-space.css' => ".leading { color: green }\n/*   # sourceMappingURL={$badDataUrl} */",
+            '/theme/blocks/spaced-equals.css' => ".equals { color: blue }\n/*# sourceMappingURL = {$badDataUrl} */",
+            '/theme/blocks/empty-url.css' => ".empty { color: red }\n/*# sourceMappingURL=  {$badDataUrl} */",
+        ], null, '/theme');
+
+        $data = $result['sourceMap']->toArray(null, false);
+        $decoded = SourceMap::decodeVlq($data['mappings']);
+
+        $t->same('.old{color:purple}.leading{color:green}.equals{color:#00f}.empty{color:red}.entry{color:red}', $result['code']);
+        $t->same([
+            'entry.css',
+            'blocks/leading-space.css',
+            'blocks/spaced-equals.css',
+            'blocks/empty-url.css',
+            'blocks/old.scss',
+        ], $data['sources']);
+        $t->same([
+            '@import "blocks/old-directive.css"; @import "blocks/leading-space.css"; @import "blocks/spaced-equals.css"; @import "blocks/empty-url.css"; .entry { color: red }',
+            ".leading { color: green }\n/*   # sourceMappingURL={$badDataUrl} */",
+            ".equals { color: blue }\n/*# sourceMappingURL = {$badDataUrl} */",
+            ".empty { color: red }\n/*# sourceMappingURL=  {$badDataUrl} */",
+            '.old { color: $wp-purple }',
+        ], $data['sourcesContent']);
+        $t->same(false, in_array('blocks/old-directive.css', $data['sources'], true));
+        $t->same(0, $decoded[0]['generatedColumn']);
+        $t->same(array_search('blocks/old.scss', $data['sources'], true), $decoded[0]['sourceIndex']);
+        $t->same(0, $decoded[0]['originalLine']);
+        $t->same(0, $decoded[0]['originalColumn']);
+    },
     'css bundler maps upstream EOF import without semicolon' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '.b{color:green}',

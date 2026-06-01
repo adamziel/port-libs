@@ -3950,6 +3950,49 @@ CSS;
             $prefixer->prefixForTargets('.foo { background: url(foo.png); background: image-set(url("foo.png") 2x, url(bar.png) 1x); }', ['ie' => 11, 'chrome' => 95])
         );
     },
+    'transition prefixer maps upstream cross-fade WebKit browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = '.foo { background-image: cross-fade(url(hero-light.png), url(hero-dark.png), 50%); }';
+        $modern = '.foo{background-image:cross-fade(url(hero-light.png),url(hero-dark.png),50%)}';
+        $prefixed = '.foo{background-image:-webkit-cross-fade(url(hero-light.png),url(hero-dark.png),50%);background-image:cross-fade(url(hero-light.png),url(hero-dark.png),50%)}';
+
+        $t->same($modern, $prefixer->prefixForTargets($css, ['chrome' => 16]));
+        $t->same($prefixed, $prefixer->prefixForTargets($css, ['chrome' => 17]));
+        $t->same($prefixed, $prefixer->prefixForTargets($css, ['chrome' => 145]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['firefox' => 120]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['android' => '4.3']));
+        $t->same($prefixed, $prefixer->prefixForTargets($css, ['android' => '4.4']));
+        $t->same($prefixed, $prefixer->prefixForTargets($css, ['edge' => 79]));
+        $t->same($prefixed, $prefixer->prefixForTargets($css, ['opera' => 15]));
+        $t->same($prefixed, $prefixer->prefixForTargets($css, ['samsung' => 4]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['safari' => 5]));
+        $t->same($prefixed, $prefixer->prefixForTargets($css, ['safari' => '5.1']));
+        $t->same($prefixed, $prefixer->prefixForTargets($css, ['safari' => '9.1']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['safari' => '9.2']));
+        $t->same($prefixed, $prefixer->prefixForTargets($css, ['ios_saf' => 5]));
+        $t->same($prefixed, $prefixer->prefixForTargets($css, ['ios_saf' => '9.3']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['ios_saf' => 10]));
+        $t->same(
+            '.foo{background:-webkit-cross-fade(url(card.png),url(card-hover.png),35%) center/cover no-repeat;background:cross-fade(url(card.png),url(card-hover.png),35%) center/cover no-repeat}',
+            $prefixer->prefixForTargets('.foo { background: cross-fade(url(card.png), url(card-hover.png), 35%) center / cover no-repeat; }', ['chrome' => 17])
+        );
+        $t->same(
+            '.foo{list-style-image:-webkit-cross-fade(url(marker.png),url(marker-hover.png),35%);list-style-image:cross-fade(url(marker.png),url(marker-hover.png),35%)}',
+            $prefixer->prefixForTargets('.foo { list-style-image: cross-fade(url(marker.png), url(marker-hover.png), 35%); }', ['chrome' => 17])
+        );
+        $t->same(
+            '.foo{background-image:cross-fade(url(hero-light.png),url(hero-dark.png),50%)}',
+            $prefixer->prefixForTargets('.foo { background-image: -webkit-cross-fade(url(hero-light.png), url(hero-dark.png), 50%); background-image: cross-fade(url(hero-light.png), url(hero-dark.png), 50%); }', ['safari' => '9.2'])
+        );
+        $t->same(
+            '@supports ((background-image:-webkit-cross-fade(url(a.png),url(b.png),50%)) or (background-image:cross-fade(url(a.png),url(b.png),50%))){.foo{background-image:-webkit-cross-fade(url(a.png),url(b.png),50%);background-image:cross-fade(url(a.png),url(b.png),50%)}}',
+            $prefixer->prefixForTargets('@supports (background-image: cross-fade(url(a.png), url(b.png), 50%)) { .foo { background-image: cross-fade(url(a.png), url(b.png), 50%); } }', ['chrome' => 17])
+        );
+        $t->same(
+            '@supports (background-image:cross-fade(url(a.png),url(b.png),50%)){.foo{background-image:cross-fade(url(a.png),url(b.png),50%)}}',
+            $prefixer->prefixForTargets('@supports ((background-image: -webkit-cross-fade(url(a.png), url(b.png), 50%)) or (background-image: cross-fade(url(a.png), url(b.png), 50%))) { .foo { background-image: -webkit-cross-fade(url(a.png), url(b.png), 50%); background-image: cross-fade(url(a.png), url(b.png), 50%); } }', ['safari' => '9.2'])
+        );
+    },
     'transition prefixer maps upstream keyframes target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

@@ -838,6 +838,7 @@ final class TransitionPrefixer
         $borderRadiusChanged = $this->rewriteBorderRadiusPrefixEntries($entries, $targetOptions);
         $borderImageChanged = $this->rewriteBorderImagePrefixEntries($entries, $targetOptions);
         $imageSetChanged = $this->rewriteImageSetPrefixEntries($entries, $targetOptions);
+        $crossFadeChanged = $this->rewriteCrossFadePrefixEntries($entries, $targetOptions);
         $gradientPrefixChanged = $this->rewriteGradientPrefixEntries($entries, $targetOptions);
         $sizingKeywordChanged = $this->rewriteSizingKeywordPrefixEntries($entries, $targetOptions);
         $logicalSizeFallbackChanged = $this->rewriteLogicalSizeFallbackEntries($entries, $targetOptions);
@@ -889,7 +890,7 @@ final class TransitionPrefixer
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
         $selectorVariants = $this->selectorPrefixVariants($selectors, $targetOptions);
-        if ($transitionChanged || $displayFlexChanged || $displayGridChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $cssRegionsChanged || $shapeChanged || $unicodeBidiChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $imageRenderingPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
+        if ($transitionChanged || $displayFlexChanged || $displayGridChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $cssRegionsChanged || $shapeChanged || $unicodeBidiChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $crossFadeChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $imageRenderingPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
             return $this->serializeRulesForSelectors($selectorVariants ?? [$selectors], $entries) . implode('', $supportRules);
         }
 
@@ -1290,6 +1291,7 @@ final class TransitionPrefixer
 
         $rewritten = $this->rewriteSupportsDeclarationPrefixes($condition, $condition, $prefixGroups);
         $rewritten = $this->rewriteSupportsImageRenderingPrefixes($rewritten, $condition, $targetOptions);
+        $rewritten = $this->rewriteSupportsCrossFadePrefixes($rewritten, $condition, $targetOptions);
 
         return '@supports ' . $rewritten;
     }
@@ -1631,6 +1633,91 @@ final class TransitionPrefixer
 
         return !(($this->imageRenderingNeededFallbacks($targetOptions))[$info['prefix']] ?? false)
             && $this->supportsConditionHasDeclaration($rootCondition, 'image-rendering', 'pixelated');
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteSupportsCrossFadePrefixes(string $condition, string $rootCondition, array $targetOptions): string
+    {
+        $logical = $this->splitSupportsConditionByLogicalOperator($condition);
+        if ($logical !== null) {
+            $operators = array_values(array_unique(array_map(
+                static fn (array $item): string => $item['type'] === 'operator' ? $item['value'] : '',
+                $logical
+            )));
+            $operators = array_values(array_filter($operators, static fn (string $operator): bool => $operator !== ''));
+
+            if ($operators === ['or']) {
+                $conditions = [];
+                foreach ($logical as $item) {
+                    if ($item['type'] === 'operator') {
+                        continue;
+                    }
+
+                    if ($this->shouldDropSupportsCrossFadeCondition($item['value'], $rootCondition, $targetOptions)) {
+                        continue;
+                    }
+
+                    $conditions[] = $this->rewriteSupportsCrossFadePrefixes($item['value'], $rootCondition, $targetOptions);
+                }
+
+                return $conditions === [] ? $condition : implode(' or ', $conditions);
+            }
+
+            $parts = [];
+            foreach ($logical as $item) {
+                $parts[] = $item['type'] === 'operator'
+                    ? $item['value']
+                    : $this->rewriteSupportsCrossFadePrefixes($item['value'], $rootCondition, $targetOptions);
+            }
+
+            return implode(' ', $parts);
+        }
+
+        $declaration = $this->parseSupportsDeclarationCondition($condition);
+        if ($declaration === null || !$this->crossFadePropertySupportsPrefix($declaration['property'])) {
+            return $condition;
+        }
+
+        if (!$this->containsUnprefixedCrossFade($declaration['value'])) {
+            return $condition;
+        }
+
+        if (!($targetOptions['crossFadeNeedsWebkit'] ?? false)) {
+            return $this->supportsDeclarationCondition($declaration['property'], $declaration['value']);
+        }
+
+        $prefixedValue = $this->prefixCrossFadeFunctions($declaration['value']);
+        if ($this->supportsConditionHasDeclaration($rootCondition, $declaration['property'], $prefixedValue)) {
+            return $this->supportsDeclarationCondition($declaration['property'], $declaration['value']);
+        }
+
+        return '(' . $this->supportsDeclarationCondition($declaration['property'], $prefixedValue)
+            . ' or ' . $this->supportsDeclarationCondition($declaration['property'], $declaration['value']) . ')';
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function shouldDropSupportsCrossFadeCondition(string $condition, string $rootCondition, array $targetOptions): bool
+    {
+        if ($targetOptions['crossFadeNeedsWebkit'] ?? false) {
+            return false;
+        }
+
+        $declaration = $this->parseSupportsDeclarationCondition($condition);
+        if ($declaration === null || !$this->crossFadePropertySupportsPrefix($declaration['property'])) {
+            return false;
+        }
+
+        if (!$this->containsPrefixedCrossFade($declaration['value'])) {
+            return false;
+        }
+
+        $modernValue = $this->unprefixCrossFadeFunctions($declaration['value']);
+
+        return $this->supportsConditionHasDeclaration($rootCondition, $declaration['property'], $modernValue);
     }
 
     /**
@@ -2335,6 +2422,13 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'safari', [6], [9, 1])
                 || $this->targetInRange($normalized, 'samsung', [4], [22])
             ),
+            'crossFadeNeedsWebkit' => $this->targetAtLeast($normalized, 'android', [4, 4])
+                || $this->targetAtLeast($normalized, 'chrome', [17])
+                || $this->targetAtLeast($normalized, 'edge', [79])
+                || $this->targetInRange($normalized, 'ios_saf', [5], [9, 3])
+                || $this->targetAtLeast($normalized, 'opera', [15])
+                || $this->targetInRange($normalized, 'safari', [5, 1], [9, 1])
+                || $this->targetAtLeast($normalized, 'samsung', [4]),
             'imageSetNeedsUrlFallback' => isset($normalized['ie']),
             'borderRadiusNeedsWebkit' => $this->targetInRange($normalized, 'android', [0], [2, 1])
                 || $this->targetInRange($normalized, 'chrome', [0], [4])
@@ -9842,6 +9936,170 @@ final class TransitionPrefixer
         $entries = $rewritten;
 
         return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteCrossFadePrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $needsWebkit = $targetOptions['crossFadeNeedsWebkit'] ?? false;
+        $modernValues = [];
+        $prefixedValues = [];
+
+        foreach ($entries as $entry) {
+            if ($entry['important'] || !$this->crossFadePropertySupportsPrefix($entry['property'])) {
+                continue;
+            }
+
+            $modernValue = $this->crossFadeModernValue($entry['value']);
+            if ($modernValue === null) {
+                continue;
+            }
+
+            if ($this->containsUnprefixedCrossFade($entry['value'])) {
+                $modernValues[$entry['property']][$modernValue] = true;
+            }
+            if ($this->containsPrefixedCrossFade($entry['value'])) {
+                $prefixedValues[$entry['property']][$modernValue] = true;
+            }
+        }
+
+        $changed = false;
+        $rewritten = [];
+        foreach ($entries as $entry) {
+            if ($entry['important'] || !$this->crossFadePropertySupportsPrefix($entry['property'])) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $modernValue = $this->crossFadeModernValue($entry['value']);
+            if ($modernValue === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if (!$needsWebkit
+                && $this->containsPrefixedCrossFade($entry['value'])
+                && isset($modernValues[$entry['property']][$modernValue])
+            ) {
+                $changed = true;
+                continue;
+            }
+
+            if ($needsWebkit
+                && $this->containsUnprefixedCrossFade($entry['value'])
+                && !isset($prefixedValues[$entry['property']][$modernValue])
+            ) {
+                $prefixedValue = $this->prefixCrossFadeFunctions($entry['value']);
+                $rewritten[] = $this->entryWithValue($entry, $prefixedValue);
+                $prefixedValues[$entry['property']][$modernValue] = true;
+                $changed = true;
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    private function crossFadePropertySupportsPrefix(string $property): bool
+    {
+        return in_array($property, [
+            'background',
+            'background-image',
+            'border-image',
+            'border-image-source',
+            'list-style',
+            'list-style-image',
+            'mask',
+            'mask-image',
+            '-webkit-mask',
+            '-webkit-mask-image',
+        ], true);
+    }
+
+    private function crossFadeModernValue(string $value): ?string
+    {
+        if (!$this->containsPrefixedCrossFade($value) && !$this->containsUnprefixedCrossFade($value)) {
+            return null;
+        }
+
+        return $this->unprefixCrossFadeFunctions($value);
+    }
+
+    private function containsUnprefixedCrossFade(string $value): bool
+    {
+        return preg_match('/(?<!-)cross-fade\(/i', $value) === 1;
+    }
+
+    private function containsPrefixedCrossFade(string $value): bool
+    {
+        return stripos($value, '-webkit-cross-fade(') !== false;
+    }
+
+    private function prefixCrossFadeFunctions(string $value): string
+    {
+        return $this->replaceCssFunctionNames($value, 'cross-fade', '-webkit-cross-fade');
+    }
+
+    private function unprefixCrossFadeFunctions(string $value): string
+    {
+        return $this->replaceCssFunctionNames($value, '-webkit-cross-fade', 'cross-fade');
+    }
+
+    private function replaceCssFunctionNames(string $value, string $from, string $to): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+        $fromLength = strlen($from);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            $previous = $i > 0 ? $value[$i - 1] : '';
+            $lower = strtolower(substr($value, $i));
+            if (str_starts_with($lower, 'url(') && ($previous === '' || !$this->isIdentifierChar($previous))) {
+                [$function, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $function;
+                $i = $offset;
+                continue;
+            }
+            if (($previous === '' || !$this->isIdentifierChar($previous))
+                && strncasecmp(substr($value, $i, $fromLength), $from, $fromLength) === 0
+                && ($value[$i + $fromLength] ?? '') === '('
+            ) {
+                [$function, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $to . substr($function, $fromLength);
+                $i = $offset;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
     }
 
     private function containsUnprefixedImageSet(string $value): bool

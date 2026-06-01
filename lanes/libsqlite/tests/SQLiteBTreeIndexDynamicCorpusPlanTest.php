@@ -272,6 +272,7 @@ $tests['real upstream btree index dynamic corpus source files are explicit'] = s
         'indexexpr3.test',
         'bestindex5.test',
         'wherelimit3.test',
+        'wherelimit2.test',
     ], [
         'btree01.test',
         'btree02.test',
@@ -291,6 +292,7 @@ $tests['real upstream btree index dynamic corpus source files are explicit'] = s
         'indexexpr3.test',
         'bestindex5.test',
         'wherelimit3.test',
+        'wherelimit2.test',
     ]);
 };
 
@@ -312,10 +314,11 @@ $tests['real upstream btree index dynamic corpus count is non overlapping'] = st
     $t->same(1000, count(SQLiteBTreeIndexDynamicCorpusPlan::bestindex5VirtualTableConstraintCases()));
     $t->same(1000, count(SQLiteBTreeIndexDynamicCorpusPlan::indexexpr3JsonExpressionCoveringCases()));
     $t->same(1000, count(SQLiteBTreeIndexDynamicCorpusPlan::whereLimit3RangeLimitPlannerCases()));
+    $t->same(1000, count(SQLiteBTreeIndexDynamicCorpusPlan::whereLimit2UpdateDeleteIndexCases()));
 };
 
 $tests['real upstream btree index dynamic corpus dependency closure'] = static function (TestRunner $t): void {
-    $t->same('no new support component needed; reuses lane-local B-tree/index page, record, planner, automatic-index, partial-index, wide-column ordering, write-order, create-index stress, expression-index, JSON expression-index, quoted-identifier, LIMIT-costing, and cursor-case helpers', 'no new support component needed; reuses lane-local B-tree/index page, record, planner, automatic-index, partial-index, wide-column ordering, write-order, create-index stress, expression-index, JSON expression-index, quoted-identifier, LIMIT-costing, and cursor-case helpers');
+    $t->same('no new support component needed; reuses lane-local B-tree/index page, record, planner, automatic-index, partial-index, wide-column ordering, write-order, create-index stress, expression-index, JSON expression-index, quoted-identifier, LIMIT-costing, UPDATE/DELETE LIMIT view/index, and cursor-case helpers', 'no new support component needed; reuses lane-local B-tree/index page, record, planner, automatic-index, partial-index, wide-column ordering, write-order, create-index stress, expression-index, JSON expression-index, quoted-identifier, LIMIT-costing, UPDATE/DELETE LIMIT view/index, and cursor-case helpers');
 };
 
 return $tests;

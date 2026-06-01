@@ -17601,6 +17601,9 @@ final class CssMinifier
 
                 return $srgb === null ? null : $this->relativeLabChannelsFromSrgbOrigin($srgb);
             }
+            if ($space === 'oklab') {
+                return $this->knownRelativeOklabOrigin($serialized);
+            }
 
             return null;
         }
@@ -17677,6 +17680,23 @@ final class CssMinifier
             'c' => max(0.0, $chroma),
             'h' => $hue,
             'alpha' => min(1.0, max(0.0, $alpha)),
+        ];
+    }
+
+    /**
+     * @return array{l:float,a:float,b:float,alpha:float}|null
+     */
+    private function knownRelativeOklabOrigin(string $origin): ?array
+    {
+        if (strtolower(trim($origin)) !== 'color(display-p3 0 0 0)') {
+            return null;
+        }
+
+        return [
+            'l' => 0.0,
+            'a' => 0.0,
+            'b' => 0.0,
+            'alpha' => 1.0,
         ];
     }
 

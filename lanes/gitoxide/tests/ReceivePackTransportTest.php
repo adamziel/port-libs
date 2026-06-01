@@ -2679,6 +2679,7 @@ return [
                     'lowSpeedLimit' => 512,
                     'lowSpeedTime' => '7',
                     'httpVersion' => 'HTTP/2',
+                    'sslVersion' => ['min' => 'tlsv1.3', 'max' => 'tlsv1.2'],
                     'verbose' => true,
                 ]
             ),
@@ -2700,9 +2701,41 @@ return [
             $t->same(512, $transportOptionRequestRecord['httpOptions']['lowSpeedLimit']);
             $t->same(7, $transportOptionRequestRecord['httpOptions']['lowSpeedTime']);
             $t->same('2', $transportOptionRequestRecord['httpOptions']['httpVersion']);
+            $t->same('tlsv1.2', $transportOptionRequestRecord['httpOptions']['sslVersion']['min']);
+            $t->same('tlsv1.3', $transportOptionRequestRecord['httpOptions']['sslVersion']['max']);
+            $t->same(
+                STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT,
+                $transportOptionRequestRecord['httpOptions']['sslVersion']['cryptoMethod']
+            );
             $t->same(true, $transportOptionRequestRecord['httpOptions']['verbose']);
             $t->same('tcp://proxy.example.test:8080', $transportOptionRequestRecord['httpOptions']['proxy']);
         }
+
+        $legacySslVersionRequests = [];
+        $legacySslVersionTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$legacySslVersionRequests, $packet, $flush): array {
+                $legacySslVersionRequests[] = $httpOptions;
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
+                ];
+            },
+            [],
+            30.0,
+            [],
+            ['sslVersion' => ['min' => 'sslv3', 'max' => 'tlsv1']]
+        );
+        $legacySslVersionTransport->readAdvertisement();
+
+        $t->same('tlsv1', $legacySslVersionRequests[0]['sslVersion']['min']);
+        $t->same('sslv3', $legacySslVersionRequests[0]['sslVersion']['max']);
+        $t->same(
+            STREAM_CRYPTO_METHOD_TLS_CLIENT | STREAM_CRYPTO_METHOD_SSLv2_CLIENT | STREAM_CRYPTO_METHOD_SSLv3_CLIENT,
+            $legacySslVersionRequests[0]['sslVersion']['cryptoMethod']
+        );
 
         $incompleteLowSpeedRequests = [];
         $incompleteLowSpeedTransport = new SmartHttpReceivePackTransport(
@@ -4318,6 +4351,9 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => ['example.test', 'bad\\host.test']]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentialStore' => 'not callable']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['sslCaInfo' => __DIR__ . '/missing-ca.pem']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['sslVersion' => 'tlsv1.4']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['sslVersion' => ['min' => 'tlsv1.2', 'max' => "tlsv1.3\n"]]));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['sslVersion' => true]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['sslVerify' => 'no']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['connectTimeout' => 0]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['connectTimeout' => 'soon']));

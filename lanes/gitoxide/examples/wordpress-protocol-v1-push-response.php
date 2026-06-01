@@ -16,6 +16,8 @@ $emptyRejectionResponse = PushResponse::fromReportStatusPacketLines($fixture['em
 $emptyUnpackStatusResponse = PushResponse::fromReportStatusPacketLines($fixture['emptyUnpackStatusResponse']);
 $valuelessOptionResponse = PushResponse::fromReportStatusPacketLines($fixture['valuelessOptionResponse'])
     ->forExpectedRefNames([$fixture['valuelessOptionRef']['requested']]);
+$emptyRefnameOptionResponse = PushResponse::fromReportStatusPacketLines($fixture['emptyRefnameOptionResponse'])
+    ->forExpectedRefNames([$fixture['emptyRefnameOptionRef']['requested']]);
 $malformedObjectOptionResponse = PushResponse::fromReportStatusPacketLines($fixture['malformedObjectOptionResponse']);
 $objectPrefixDiagnosticResponse = PushResponse::fromReportStatusPacketLines($fixture['objectPrefixDiagnosticResponse']);
 $sha1ObjectPrefixResponse = PushResponse::fromReportStatusPacketLines($fixture['sha1ObjectPrefixResponse'], 'sha1');
@@ -143,6 +145,19 @@ return [
         ],
         $valuelessOptionResponse->refStatuses()
     ),
+    'emptyRefnameOptionRefs' => array_map(
+        static fn (PushRefStatus $status): array => [
+            'requestedRef' => $status->refName,
+            'reportedRef' => $status->reportedRefName,
+            'effectiveRef' => $status->effectiveRefName(),
+            'status' => $status->status,
+            'message' => $status->message,
+            'oldObject' => $status->oldObject,
+            'newObject' => $status->newObject,
+            'hasReportOption' => $status->hasReportOption(),
+        ],
+        $emptyRefnameOptionResponse->refStatuses()
+    ),
     'malformedObjectOptionRefs' => array_map(
         static fn (PushRefStatus $status): array => [
             'requestedRef' => $status->refName,
@@ -255,6 +270,12 @@ return [
         && $valuelessOptionResponse->refStatuses()[0]->oldObject === null
         && $valuelessOptionResponse->refStatuses()[0]->newObject === null
         && $valuelessOptionResponse->refStatuses()[0]->hasReportOption(),
+    'emptyRefnameOptionValuePreserved' => $emptyRefnameOptionResponse->isSuccessful()
+        && $emptyRefnameOptionResponse->refStatuses()[0]->reportedRefName === $fixture['emptyRefnameOptionRef']['actual']
+        && $emptyRefnameOptionResponse->refStatuses()[0]->effectiveRefName() === $fixture['emptyRefnameOptionRef']['actual']
+        && $emptyRefnameOptionResponse->refStatuses()[0]->oldObject === $fixture['emptyRefnameOptionRef']['oldObject']
+        && $emptyRefnameOptionResponse->refStatuses()[0]->newObject === $fixture['emptyRefnameOptionRef']['newObject']
+        && $emptyRefnameOptionResponse->refStatuses()[0]->hasReportOption(),
     'malformedObjectOptionsIgnored' => $malformedObjectOptionResponse->isSuccessful()
         && $malformedObjectOptionResponse->refStatuses()[0]->oldObject === $fixture['malformedObjectOptionRef']['oldObject']
         && $malformedObjectOptionResponse->refStatuses()[0]->newObject === $fixture['malformedObjectOptionRef']['newObject']

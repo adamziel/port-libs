@@ -99,6 +99,27 @@ return [
         . $packet("\x02Enumerating objects: 1, done.\n")
         . $packet("\x01" . $packData)
         . $flush,
+    'sidebandAllCapabilityExchangeResponse' => $packet("version 2\n")
+        . $packet("agent=port-libs/0.1\n")
+        . $packet("fetch=shallow sideband-all\n")
+        . $packet("object-format=sha1\n")
+        . $flush
+        . $packet("\x02remote: preparing WordPress blobless pack\n")
+        . $packet("\x01acknowledgments\n")
+        . $packet("\x01ACK {$installed} common\n")
+        . $packet("\x01ready\n")
+        . $delimiter
+        . $packet("\x01shallow-info\n")
+        . $packet("\x01shallow {$main}\n")
+        . $delimiter
+        . $packet("\x01wanted-refs\n")
+        . $packet("\x01{$main} refs/heads/main\n")
+        . $delimiter
+        . $packet("\x01packfile\n")
+        . $packet("\x01")
+        . $packet("\x02Enumerating objects: 1, done.\n")
+        . $packet("\x01" . $packData)
+        . $flush,
     'rawUploadPackErrorResponse' => $packet('ERR raw WordPress fetch failure' . "\n"),
     'sidebandAllDecodedErrLineResponse' => $packet("\x01ERR decoded WordPress fetch text\n"),
     'emptyErrorSidebandResponse' => $packet("packfile\n")
@@ -210,6 +231,7 @@ return [
     'refInWantExchangeUse' => 'A WordPress deployment fetch using ref-in-want can parse a full protocol v2 exchange where capabilities are followed directly by wanted-refs and sideband pack bytes, without an ls-refs advertisement.',
     'cloneExchangeUse' => 'A WordPress deployment fetch can parse a persistent protocol v2 upload-pack exchange from capability advertisement through ls-refs and the following sidebanded fetch response before importing pack bytes.',
     'cloneExchangeProgressHandlerUse' => 'A WordPress deployment fetch parsing a full protocol v2 exchange can stream sideband progress through the same caller cancellation handler used by lower-level fetch response readers.',
+    'sidebandAllCapabilityExchangeUse' => 'A WordPress deployment fetch can infer sideband-all response decoding from the advertised protocol v2 fetch capability, matching Gitoxide default fetch argument behavior without a caller-only flag.',
     'sha256ObjectFormatUse' => 'A WordPress deployment fetch from a SHA-256 object-format repository can parse 64-hex acknowledgements, shallow updates, and wanted refs before preserving sidebanded pack bytes.',
     'smartHttpUploadPackUse' => 'A WordPress deployment fetch can unwrap a smart HTTP upload-pack result response, validate the upload-pack result content type and length, then parse the sidebanded protocol v2 fetch response without invoking git.',
     'trailingWhitespaceUse' => 'Protocol v2 fetch response section lines with trailing spaces or tabs are trimmed like Gitoxide before WordPress deployment tooling validates ACKs, shallow updates, wanted refs, and the following sideband pack bytes.',

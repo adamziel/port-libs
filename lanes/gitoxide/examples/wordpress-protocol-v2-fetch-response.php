@@ -26,6 +26,17 @@ $cloneExchange = ProtocolV2FetchExchange::fromPacketLines(
         return true;
     }
 );
+$sidebandAllCapabilityExchangeMessages = [];
+$sidebandAllCapabilityExchange = ProtocolV2FetchExchange::fromPacketLines(
+    $fixture['sidebandAllCapabilityExchangeResponse'],
+    null,
+    null,
+    static function (bool $isError, string $text) use (&$sidebandAllCapabilityExchangeMessages): bool {
+        $sidebandAllCapabilityExchangeMessages[] = ['isError' => $isError, 'text' => $text];
+
+        return true;
+    }
+);
 $responseEndNoPackResponse = FetchResponse::fromV2PacketLines($fixture['responseEndNoPackResponse']);
 $responseEndPackResponse = FetchResponse::fromV2PacketLines($fixture['responseEndPackResponse']);
 $delimiterPackResponse = FetchResponse::fromV2PacketLines($fixture['delimiterPackResponse']);
@@ -191,6 +202,14 @@ return [
         ['isError' => false, 'text' => 'Enumerating objects: 1, done.'],
     ],
     'cloneExchangePackTrailer' => bin2hex(substr($cloneExchange->fetchResponse()->packData(), -20)),
+    'sidebandAllCapabilityExchangeParsed' => in_array('sideband-all', $sidebandAllCapabilityExchange->capabilities()->capability('fetch')?->values() ?? [], true)
+        && $sidebandAllCapabilityExchange->fetchResponse()->packData() === $fixture['packData']
+        && $sidebandAllCapabilityExchange->fetchResponse()->progressMessages() === [
+            'remote: preparing WordPress blobless pack',
+            'Enumerating objects: 1, done.',
+        ],
+    'sidebandAllCapabilityExchangeMessages' => $sidebandAllCapabilityExchangeMessages,
+    'sidebandAllCapabilityExchangePackTrailer' => bin2hex(substr($sidebandAllCapabilityExchange->fetchResponse()->packData(), -20)),
     'responseEndNoPackParsed' => $responseEndNoPackResponse->hasPack() === false
         && count($responseEndNoPackResponse->acknowledgements()) === 1
         && $responseEndNoPackResponse->acknowledgements()[0]->kind === 'nak'
