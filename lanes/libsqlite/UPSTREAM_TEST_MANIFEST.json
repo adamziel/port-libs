@@ -3431,10 +3431,10 @@
             "focusedUpstreamVeryquickShardCurrentSourceNext431": "The 2026-05-28 isolated current-source next431 suite veryquick-shard runner slice maps one additional runner-countability blocker row for launcher Base accepted HEAD fca16e3d, current integration source 8a447f44, lane-local zero-error guarded runner artifact rows, duplicate-runner gates, exact 96 focused PASS-line admission, focused current-source veryquick shard scope, and no release/all parity claim."
         }
     },
-    "latestFocusedSlice": "2026-06-01 SQLitePDO invalid DML native parity: +214 accepted PDO parity assertions; full release/all still blocked by known memory/failure issues.",
-    "latestNativePhpVerification": "Source commit 588082dd42562f7345fd30c61f5099534baf4f7e: PHP lint, git diff --check, zero-domain source guard, exact INSERT INTO test (namedd) repro, PDO focused gate 6 files / 785 assertions / 0 failures, and PDO/source-neutral focused gate 4 files / 214 assertions / 0 failures passed.",
-    "runnerStatus": "Focused SQLitePDO invalid-DML native parity, PDO regression, file-persistence, silent/error-state, exact invalid-column, and no-domain gates passed. Broad release/all still has 16 known failures and the full-lane memory blocker remains.",
-    "latestCommit": "588082dd42562f7345fd30c61f5099534baf4f7e",
+    "latestFocusedSlice": "2026-06-01 fkey2 INTEGER PRIMARY KEY child foreign-key behavior plus row-value source-neutral cleanup: +15130 accepted assertions; full release/all still blocked by known memory/failure issues.",
+    "latestNativePhpVerification": "Source commit 99a2faf5648da6d68d02f40ddf196d913976b3f2: PHP lint, git diff --check, zero-domain source guard, focused trigger/FK plus row-value/no-domain gate 5 files / 15301 assertions / 0 failures, adjacent trigger/FK gate 6 files / 55356 assertions / 0 failures, and row-value examples passed.",
+    "runnerStatus": "Focused trigger/FK fkey2 child rowid, row-value source-neutral, no-domain, and adjacent trigger/FK gates passed. Broad release/all still has 16 known failures and the full-lane memory blocker remains.",
+    "latestCommit": "99a2faf5648da6d68d02f40ddf196d913976b3f2",
     "latestFocusedCorpusBatch20260531T2250Z": {
         "sourceCommit": "48a678f72e367c869dc62452fbad34f36daa273b",
         "selectedPassIncrease": 2411,
@@ -3676,7 +3676,7 @@
         "nativeVerification": "Changed PHP lint passed; git diff --check passed; SQLiteNoDomainSpecificApiTest.php 1 file / 6 assertions / 0 failures; application-json-path-validation-preflight.php self-test passed.",
         "upstreamEvidence": "Source-neutral guard evidence only; no new upstream corpus PASS delta. Broad release/all remains blocked by seven known failures and the memory-limited full-lane run."
     },
-    "currentSliceSource": "2026-06-01 supervisor batch: SQLitePDO invalid DML native parity for expression-column errors, invalid numbered variables, surplus parameters, and file-image non-mutation. Focused PDO gate passed 6 files / 785 assertions / 0 failures; exact invalid-column repro throws HY000/1; phpPass moves to 6195392; mapped coverage remains 1589 / 1589.",
+    "currentSliceSource": "2026-06-01 supervisor batch: fkey2.test fkey2-7.1..7.9 INTEGER PRIMARY KEY child foreign-key behavior plus source-neutral row-value savepoint cleanup. Focused trigger/FK plus row-value/no-domain gate passed 5 files / 15301 assertions / 0 failures; phpPass moves to 6210522; mapped coverage remains 1589 / 1589.",
     "focusedSelectAReversedUnionCollation20260601T133455Z": {
         "sourceCommit": "b377ea5b2fa3ea8bf0b90afbb451893100795e29",
         "selectedPassIncrease": 1003,
@@ -3828,5 +3828,22 @@
         "countingNote": "The SQLite upstream denominator is already complete at 1589 / 1589, so this batch increases accepted PDO parity assertions without changing mapped coverage.",
         "nativeVerification": "Changed PHP lint passed; git diff --check passed; zero-domain source guard passed; exact INSERT INTO test (namedd) repro throws PDOException with HY000/1; focused PDO gate passed 6 files / 785 assertions / 0 failures; focused PDO/source-neutral gate passed 4 files / 214 assertions / 0 failures; example self-test passed.",
         "upstreamEvidence": "Native pdo_sqlite was used as the parity oracle for invalid DML prepare/exec/errorInfo behavior. Full broad release parity still has 16 known failures."
+    },
+    "focusedTriggerFkeyRowvalueNeutralBatch20260601T1946Z": {
+        "sourceCommit": "99a2faf5648da6d68d02f40ddf196d913976b3f2",
+        "mappedSliceIncrease": 0,
+        "mappedBefore": 1589,
+        "mappedAfter": 1589,
+        "phpPassBefore": 6195392,
+        "phpPassAfter": 6210522,
+        "acceptedPassDelta": 15130,
+        "acceptedSlices": [
+            "fkey2.test fkey2-7.1..7.9 child INTEGER PRIMARY KEY foreign-key behavior",
+            "child rowid-alias update and parent delete/update statement rollback boundaries",
+            "source-neutral row-value savepoint default token cleanup"
+        ],
+        "countingNote": "The SQLite upstream denominator is already complete at 1589 / 1589, so this batch increases accepted focused PHP assertions without changing mapped coverage. The row-value source-neutral cleanup makes no counter claim.",
+        "nativeVerification": "Changed PHP lint passed; git diff --check passed; zero-domain source guard passed; focused trigger/FK plus row-value/no-domain gate 5 files / 15301 assertions / 0 failures; adjacent trigger/FK gate 6 files / 55356 assertions / 0 failures; row-value examples passed.",
+        "upstreamEvidence": "Worker note cites SQLite upstream fkey2.test fkey2-7.1..7.9. Full broad release parity still has 16 known failures."
     }
 }

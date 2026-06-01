@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 19:42:27 UTC",
-    "sourceCommit": "588082dd42562f7345fd30c61f5099534baf4f7e",
-    "sourceCommitShort": "588082dd4256",
+    "generated": "2026-06-01 19:47:21 UTC",
+    "sourceCommit": "99a2faf5648da6d68d02f40ddf196d913976b3f2",
+    "sourceCommitShort": "99a2faf5648d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "588082dd42562f7345fd30c61f5099534baf4f7e",
-    "dashboardCommitShort": "588082dd4256",
+    "dashboardCommit": "99a2faf5648da6d68d02f40ddf196d913976b3f2",
+    "dashboardCommitShort": "99a2faf5648d",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,195,392 pass / 16 fail",
+            "php": "6,210,522 pass / 16 fail",
             "phase": "current-base source integration accepted by supervisor with focused c...",
-            "audit": "2026-06-01 19:41 UTC supervisor integration: source commit 588082dd42...",
-            "currentWork": "SQLitePDO invalid DML native parity, window1 NATURAL JOIN/window row-value misuse cov...",
+            "audit": "2026-06-01 19:46 UTC supervisor integration: source commit 99a2faf564...",
+            "currentWork": "fkey2 INTEGER PRIMARY KEY child foreign-key coverage, source-neutral row-value savepo...",
             "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "588082d"
+            "commit": "99a2faf"
         },
         {
             "lane": "lightningcss",
