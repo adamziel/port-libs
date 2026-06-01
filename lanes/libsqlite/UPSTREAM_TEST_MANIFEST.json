@@ -3432,9 +3432,9 @@
         }
     },
     "latestFocusedSlice": "2026-06-01 PRAGMA/schema authorizer-clear plus source-neutral cleanup: +1002 PASS cases; full release/all still blocked by known memory/failure issues.",
-    "latestNativePhpVerification": "Source commit 0b3b727dd54d4f2e36854df953f8ccdc5940dd777: PHP lint, git diff --check, zero-domain source guard, focused combined gate 6 files / 13814 assertions / 0 failures, adjacent schema family 5 files / 67687 assertions / 0 failures, PDO parity gate 4 files / 608 assertions / 0 failures, and exact SQLitePDO invalid-column repro passed.",
+    "latestNativePhpVerification": "Source commit 0b3b727dd122141d074b8c7559435d640769c28b: PHP lint, git diff --check, zero-domain source guard, focused combined gate 6 files / 13814 assertions / 0 failures, adjacent schema family 5 files / 67687 assertions / 0 failures, PDO parity gate 4 files / 608 assertions / 0 failures, and exact SQLitePDO invalid-column repro passed.",
     "runnerStatus": "Focused libsqlite PRAGMA/schema and PDO gates passed. Broad release/all still has 16 known failures and the full-lane memory blocker remains.",
-    "latestCommit": "0b3b727dd54d4f2e36854df953f8ccdc5940dd777",
+    "latestCommit": "0b3b727dd122141d074b8c7559435d640769c28b",
     "latestFocusedCorpusBatch20260531T2250Z": {
         "sourceCommit": "48a678f72e367c869dc62452fbad34f36daa273b",
         "selectedPassIncrease": 2411,
@@ -3778,7 +3778,7 @@
         "upstreamEvidence": "Worker notes cite local SQLite upstream corpus files atof1.test, func2.test, and selectA.test. Full broad release parity still has 16 known failures."
     },
     "focusedPragmaSchemaNeutralCleanupBatch20260601T1931Z": {
-        "sourceCommit": "0b3b727dd54d4f2e36854df953f8ccdc5940dd777",
+        "sourceCommit": "0b3b727dd122141d074b8c7559435d640769c28b",
         "mappedSliceIncrease": 0,
         "mappedBefore": 1589,
         "mappedAfter": 1589,
