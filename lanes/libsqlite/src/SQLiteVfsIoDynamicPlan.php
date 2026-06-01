@@ -4994,6 +4994,169 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function sharedCacheVfsLockProtocolProfile(
+        string $scenario,
+        int $seedRows = 3,
+        string $primaryVfs = 'unix',
+        string $alternateVfs = 'unix-none',
+        bool $readUncommitted = false
+    ): array {
+        $scenario = trim($scenario);
+        $primaryVfs = trim($primaryVfs);
+        $alternateVfs = trim($alternateVfs);
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite shared6 scenario is required');
+        }
+        if ($seedRows < 1) {
+            throw new \InvalidArgumentException('SQLite shared6 profile requires at least one seed row');
+        }
+        if ($primaryVfs === '' || $alternateVfs === '') {
+            throw new \InvalidArgumentException('SQLite shared6 profile requires non-empty VFS names');
+        }
+
+        $base = [
+            'status' => 'ok',
+            'script' => 'shared6.test',
+            'scenario' => $scenario,
+            'shared_cache_enabled' => true,
+            'seed_rows' => $seedRows,
+            'primary_vfs' => $primaryVfs,
+            'alternate_vfs' => $alternateVfs,
+            'dependencies' => [
+                'sqlite-upstream-shared6-test',
+                'sqlite-shared-cache-lock-protocol',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+
+        if (str_starts_with($scenario, 'shared6-1.2')) {
+            return $base + [
+                'upstream' => [
+                    'shared6.test shared6-1.2.1 exclusive shared-cache transaction blocks peer cached read',
+                    'shared6.test shared6-1.2.2 exclusive transaction owner keeps read access',
+                    'shared6.test shared6-1.2.3 non-exclusive writer does not block peer table read',
+                ],
+                'exclusive_transaction' => true,
+                'exclusive_owner' => 'db1',
+                'cached_statement_connection' => 'db2',
+                'owner_select_result' => [0, []],
+                'peer_cached_select_result' => [1, 'database table is locked'],
+                'peer_cached_read_blocked' => true,
+                'nonexclusive_writer_transaction' => true,
+                'nonexclusive_writer_table' => 't2',
+                'peer_read_other_table_result' => [0, []],
+                'peer_read_other_table_blocked' => false,
+                'reason' => 'exclusive_shared_cache_transaction_blocks_peer_cached_statement_but_nonexclusive_writer_allows_unrelated_reads',
+            ];
+        }
+
+        if (str_starts_with($scenario, 'shared6-1.3') || str_starts_with($scenario, 'shared6-1.4')) {
+            $readUncommitted = $readUncommitted || str_starts_with($scenario, 'shared6-1.4');
+            $visibleRows = [1, 2, 5, 6];
+
+            return $base + [
+                'upstream' => $readUncommitted
+                    ? [
+                        'shared6.test shared6-1.4.1 read_uncommitted reader sees peer table write',
+                        'shared6.test shared6-1.4.2 schema write lock still blocks read_uncommitted',
+                        'shared6.test shared6-1.4.3 read-lock still blocks peer writer',
+                    ]
+                    : [
+                        'shared6.test shared6-1.3.1 writer can read its table lock',
+                        'shared6.test shared6-1.3.2 peer can read different table',
+                        'shared6.test shared6-1.3.3 peer cannot read writer table',
+                        'shared6.test shared6-1.3.4 peer writer is blocked',
+                        'shared6.test shared6-1.3.5 shared read-lock permits peer reader',
+                    ],
+                'read_uncommitted' => $readUncommitted,
+                'writer_table' => 't1',
+                'peer_table' => 't2',
+                'owner_write_result' => [0, []],
+                'owner_read_result' => [0, [1, 2]],
+                'peer_read_other_table_result' => [0, [3, 4]],
+                'peer_same_table_read_result' => $readUncommitted
+                    ? [0, $visibleRows]
+                    : [1, 'database table is locked: t1'],
+                'peer_same_table_read_blocked' => !$readUncommitted,
+                'peer_write_same_table_result' => [1, 'database table is locked: t1'],
+                'peer_write_blocked_by_read_lock' => true,
+                'schema_write_blocks_read_uncommitted' => $readUncommitted,
+                'schema_read_result_under_schema_write' => $readUncommitted
+                    ? [1, 'database table is locked']
+                    : null,
+                'reason' => $readUncommitted
+                    ? 'read_uncommitted_bypasses_table_write_lock_but_not_schema_write_lock'
+                    : 'shared_cache_table_write_and_read_locks_block_only_conflicting_peers',
+            ];
+        }
+
+        if (str_starts_with($scenario, 'shared6-2')) {
+            if ($primaryVfs === $alternateVfs) {
+                throw new \InvalidArgumentException('SQLite shared6 VFS partition profile requires distinct VFS names');
+            }
+
+            return $base + [
+                'upstream' => [
+                    'shared6.test shared6-2.1 same database opened through unix and unix-none VFS',
+                    'shared6.test shared6-2.2 same-VFS shared-cache peer is table locked',
+                    'shared6.test shared6-2.3 different VFS implementation does not share cache',
+                    'shared6.test shared6-2.4 original VFS sees only committed rows before alternate VFS commit',
+                ],
+                'same_vfs_shared_cache' => true,
+                'different_vfs_shared_cache' => false,
+                'same_vfs_peer_select_result' => [1, 'database table is locked: t1'],
+                'alternate_vfs_reader_rows' => [1, 2, 5, 6],
+                'original_vfs_rows_before_alternate_commit' => [1, 2, 5, 6, 9, 10],
+                'alternate_vfs_writer_rows_after_commit' => [1, 2, 5, 6, 11, 12],
+                'cross_vfs_dirty_rows_visible' => false,
+                'commit_required_for_cross_vfs_visibility' => true,
+                'reason' => 'shared_cache_identity_is_partitioned_by_vfs_implementation',
+            ];
+        }
+
+        if (str_starts_with($scenario, 'shared6-3')) {
+            return $base + [
+                'upstream' => [
+                    'shared6.test shared6-3.2 peer writer is blocked by active reader cursor',
+                    'shared6.test shared6-3.3 reader owner may begin exclusive transaction',
+                    'shared6.test shared6-3.6 peer reader prevents another connection from beginning exclusive',
+                    'shared6.test shared6-3.10 third connection is blocked while shared cache lock remains held',
+                ],
+                'read_lock_owner' => 'db1',
+                'read_lock_table' => 't1',
+                'owner_begin_exclusive_result' => [0, []],
+                'owner_exclusive_upgrade_allowed' => true,
+                'peer_insert_during_owner_read_result' => [1, 'database table is locked: t1'],
+                'peer_begin_exclusive_result' => [1, 'database table is locked'],
+                'third_connection_schema_result' => [1, 'database table is locked'],
+                'exclusive_upgrade_requires_owned_read_lock' => true,
+                'reason' => 'exclusive_transaction_upgrade_requires_the_same_connection_to_own_the_active_read_lock',
+            ];
+        }
+
+        if (str_starts_with($scenario, 'shared6-4')) {
+            return $base + [
+                'upstream' => [
+                    'shared6.test shared6-4.1 prepared statement remains valid while peer changes schema',
+                    'shared6.test shared6-4.2 finalizing prepared statement after peer schema change returns SQLITE_OK',
+                ],
+                'prepared_statement_connection' => 'db1',
+                'schema_writer_connection' => 'db2',
+                'prepared_sql' => 'SELECT * FROM t1',
+                'peer_schema_change_sql' => 'CREATE TABLE t5(a, b)',
+                'prepared_statement_survives_peer_schema_change' => true,
+                'finalize_result' => 'SQLITE_OK',
+                'schema_reload_required_on_next_prepare' => true,
+                'reason' => 'finalizing_shared_cache_statement_after_peer_schema_change_is_safe',
+            ];
+        }
+
+        throw new \InvalidArgumentException("Unsupported SQLite shared6 scenario: {$scenario}");
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function sharedCacheTableLockProfile(
         string $scenario,
         int $initialRows = 2,
