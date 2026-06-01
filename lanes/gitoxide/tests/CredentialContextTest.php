@@ -186,6 +186,43 @@ return [
         $t->same(null, $fileUrlClearsNetworkContext->username);
         $t->same('srv/wp-content.git', $fileUrlClearsNetworkContext->path);
 
+        $localPathClearsNetworkContext = (new CredentialContext(
+            url: '/srv/wp-content.git',
+            host: 'stale.example.test',
+            username: 'stale-user',
+            password: 'stale-token',
+        ))->destructureUrl(true);
+        $t->same('file', $localPathClearsNetworkContext->protocol);
+        $t->same(null, $localPathClearsNetworkContext->host);
+        $t->same(null, $localPathClearsNetworkContext->username);
+        $t->same(null, $localPathClearsNetworkContext->password);
+        $t->same('srv/wp-content.git', $localPathClearsNetworkContext->path);
+
+        $fileAuthority = (new CredentialContext(
+            url: 'file://Deploy@[::1]/var/cache/wp-content.git',
+        ))->destructureUrl(true);
+        $t->same('file', $fileAuthority->protocol);
+        $t->same('Deploy', $fileAuthority->username);
+        $t->same('[::1]', $fileAuthority->host);
+        $t->same('var/cache/wp-content.git', $fileAuthority->path);
+
+        $extensionPathless = (new CredentialContext(
+            url: 'rad://deploy@example.git',
+            path: 'stale/wp-content.git',
+        ))->destructureUrl(true);
+        $t->same('rad', $extensionPathless->protocol);
+        $t->same('deploy', $extensionPathless->username);
+        $t->same('example.git', $extensionPathless->host);
+        $t->same(null, $extensionPathless->path);
+
+        $extensionHostless = (new CredentialContext(
+            url: 'abc:///wp-content/site.git',
+            host: 'stale.example.test',
+        ))->destructureUrl(true);
+        $t->same('abc', $extensionHostless->protocol);
+        $t->same(null, $extensionHostless->host);
+        $t->same('wp-content/site.git', $extensionHostless->path);
+
         $composed = (new CredentialContext(
             protocol: 'https',
             host: 'github.com',
@@ -227,6 +264,26 @@ return [
         $t->same(true, $fixture['fileUrlClearedHost']);
         $t->same(true, $fixture['fileUrlClearedUsername']);
         $t->same('srv/wp-content.git', $fixture['fileUrlPath']);
+        $t->same(true, $fixture['localPathClearedHost']);
+        $t->same(true, $fixture['localPathClearedUsername']);
+        $t->same('srv/wp-content.git', $fixture['localPathPath']);
+        $t->same([
+            'protocol' => 'file',
+            'username' => 'Deploy',
+            'host' => '[::1]',
+            'path' => 'var/cache/wp-content.git',
+        ], $fixture['fileAuthorityContext']);
+        $t->same([
+            'protocol' => 'rad',
+            'username' => 'deploy',
+            'host' => 'example.git',
+            'path' => null,
+        ], $fixture['pathlessExtensionContext']);
+        $t->same([
+            'protocol' => 'abc',
+            'host' => null,
+            'path' => 'wp-content/site.git',
+        ], $fixture['hostlessExtensionContext']);
         $t->same(null, $fixture['clearedPassword']);
         $t->same(false, $fixture['emptyQuitFalse']);
         $t->same(1711398853, $fixture['passwordExpiryUtc']);
@@ -260,6 +317,10 @@ return [
         $t->same($fixture['credentialUrl'], $summary['credentialUrl']);
         $t->same($fixture['encodedContext']['path'], $summary['encodedPath']);
         $t->same(true, $summary['fileUrlClearedHost']);
+        $t->same(true, $summary['localPathClearedHost']);
+        $t->same($fixture['fileAuthorityContext'], $summary['fileAuthorityContext']);
+        $t->same($fixture['pathlessExtensionContext'], $summary['pathlessExtensionContext']);
+        $t->same($fixture['hostlessExtensionContext'], $summary['hostlessExtensionContext']);
         $t->same(true, $summary['rootHttpPathCleared']);
         $t->same($fixture['helperProgramProtocolHost'], $summary['helperProgramProtocolHost']);
         $t->same($fixture['helperProgramUrlOnly'], $summary['helperProgramUrlOnly']);

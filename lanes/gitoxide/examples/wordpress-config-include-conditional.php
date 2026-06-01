@@ -39,6 +39,8 @@ return [
     'tildeAloneGitdirPolicy' => $fixture['tildeAloneGitdirPolicy'],
     'doubleSlashGitdirPolicy' => $fixture['doubleSlashGitdirPolicy'],
     'dotDotGitdirPolicy' => $fixture['dotDotGitdirPolicy'],
+    'dotSlashRootPolicy' => $fixture['dotSlashRootPolicy'],
+    'dotSlashMissPolicy' => $fixture['dotSlashMissPolicy'],
     'absoluteWorktreePolicy' => $fixture['absoluteWorktreePolicy'],
     'absoluteGitdirPolicy' => $fixture['absoluteGitdirPolicy'],
     'absoluteWorktreeGlobPolicy' => $fixture['absoluteWorktreeGlobPolicy'],

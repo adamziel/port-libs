@@ -6,6 +6,8 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonImportRollbackWalPlan;
 use PortLibs\LibSqlite\SQLiteWal;
 
+ini_set('memory_limit', '1536M');
+
 $tailFailureScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailFailureScenarios(18);
 $tailRecoveryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryScenariosFromTailFailureScenarios($tailFailureScenarios);
 $tailRecoveryCheckpointScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryCheckpointScenariosFromTailRecoveryScenarios($tailRecoveryScenarios);

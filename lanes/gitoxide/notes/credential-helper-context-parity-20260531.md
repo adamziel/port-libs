@@ -553,3 +553,67 @@ selection, smart HTTP proxy credentials, SSH credential context metadata,
 receive-pack, pack/index, object database, reference, sparse-checkout,
 pathspec, merge-base, or tree-merge behavior. The old May 25 smart HTTP
 receive-pack rework notes remain stale for this slice.
+
+---
+
+Slice: `gitoxide-credential-helper-context-parity-20260601T055513Z`
+Base accepted HEAD: `7db0bee1b6d6b17fcc1ae3a0e1b10ac7a87ade2d`
+
+## Source Truth
+
+- Upstream `gix-credentials/src/protocol/context/mod.rs`
+  `Context::destructure_url_in_place()` delegates the byte-string `url` field
+  to `gix_url::parse()`, then copies the parsed scheme, user, host, non-default
+  port, and slash-trimmed path back into the credential context.
+- Upstream `gix-url/tests/url/parse/file.rs` covers local paths without a
+  protocol, `file:///...` paths, file URLs with user/authority, and file IPv6
+  authority preservation.
+- Upstream `gix-url` extension-scheme parser behavior allows pathless
+  extension remotes while hostless extension URLs keep their path bytes.
+
+## PHP Delta
+
+- Added focused `CredentialContextTest` assertions for local path URL
+  destructuring, file URL authority/user preservation, pathless extension
+  remotes clearing stale paths, and hostless extension remotes clearing stale
+  hosts while retaining repository paths.
+- Extended the WordPress credential-context fixture/example with deployment
+  diagnostics for local mirror remotes and extension-scheme remotes without
+  invoking `git credential` or reading any credential store.
+- No production source change was needed; the existing native
+  `CredentialContext::destructureUrl()` path already delegates through the
+  lane-local `GitUrl` parser. This patch locks that upstream-backed behavior
+  into focused Gitoxide lane coverage.
+
+## Verification
+
+- `php -l lanes/gitoxide/tests/CredentialContextTest.php`: no syntax errors.
+- `php -l lanes/gitoxide/fixtures/wordpress-credential-context.php`: no
+  syntax errors.
+- `php -l lanes/gitoxide/examples/wordpress-credential-context.php`: no syntax
+  errors.
+- `php tools/run-tests.php lanes/gitoxide/tests/CredentialContextTest.php`:
+  `1 test files, 171 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests/CredentialContextTest.php lanes/gitoxide/tests/CredentialHelperExchangeTest.php lanes/gitoxide/tests/CredentialCascadeTest.php lanes/gitoxide/tests/CredentialProgramTest.php`:
+  `4 test files, 342 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests`:
+  `40 test files, 7701 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-credential-context.php`: exited `0`.
+
+## Dependency Closure
+
+No new support component is needed. This slice reuses the existing native PHP
+credential context model and lane-local `GitUrl` parser. It does not read
+credential stores, provider config, OAuth/browser state, process environments,
+live remotes, external Git binaries, or helper processes.
+
+## Non-Overlap
+
+This does not repeat accepted credential signed-integer/boolean parsing,
+parse-time UTF-8 validation, CR-byte line parsing, HTTP root-path clearing,
+helper exchange stdin validation, raw next-action preservation, cascade quit
+ordering, platform helper selection, smart HTTP proxy credentials, SSH
+credential context metadata, receive-pack transport, pack/index, object
+database, reference transactions, sparse-checkout, pathspec, merge-base, or
+tree-merge behavior. It is a bounded credential-context URL destructuring
+coverage slice for local and extension-scheme remotes.

@@ -112,7 +112,7 @@ final class SQLiteJsonImportSavepointPlan
 
                 $savepoints->recordPageImageWrite($pageNumber, $beforeImage);
                 $workingRows[$rowKey]['key_value'] = $mutatedValue;
-                $workingDatabase = self::writePage(
+                self::writePage(
                     $workingDatabase,
                     $pageSize,
                     $pageNumber,
@@ -410,7 +410,7 @@ final class SQLiteJsonImportSavepointPlan
     {
         $database = str_repeat("\0", $pageSize * $maxPage);
         foreach ($pageImages as $pageNumber => $pageImage) {
-            $database = self::writePage($database, $pageSize, $pageNumber, $pageImage);
+            self::writePage($database, $pageSize, $pageNumber, $pageImage);
         }
 
         return $database;
@@ -426,7 +426,7 @@ final class SQLiteJsonImportSavepointPlan
         return substr($database, $offset, $pageSize);
     }
 
-    private static function writePage(string $database, int $pageSize, int $pageNumber, string $page): string
+    private static function writePage(string &$database, int $pageSize, int $pageNumber, string $page): void
     {
         if (strlen($page) !== $pageSize) {
             throw new \InvalidArgumentException('SQLite Application JSON import page image does not match page size');
@@ -437,7 +437,9 @@ final class SQLiteJsonImportSavepointPlan
             $database = str_pad($database, $offset + $pageSize, "\0");
         }
 
-        return substr_replace($database, $page, $offset, $pageSize);
+        for ($index = 0; $index < $pageSize; $index++) {
+            $database[$offset + $index] = $page[$index];
+        }
     }
 
     private static function pageImage(int $pageSize, int $pageNumber, string $label): string

@@ -1361,6 +1361,17 @@ final class ObjectDatabase
             return false;
         }
 
-        return in_array(strtolower(trim($value)), ['true', 'yes', 'on', '1'], true);
+        $normalized = strtolower(trim($value));
+        if (in_array($normalized, ['true', 'yes', 'on'], true)) {
+            return true;
+        }
+        if ($normalized === '' || in_array($normalized, ['false', 'no', 'off'], true)) {
+            return false;
+        }
+        if (preg_match('/^[+-]?\d+$/', $normalized) === 1) {
+            return preg_match('/^[+-]?0+$/', $normalized) !== 1;
+        }
+
+        return false;
     }
 }

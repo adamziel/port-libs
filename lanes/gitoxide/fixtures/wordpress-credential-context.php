@@ -40,6 +40,23 @@ $fileUrlContext = (new CredentialContext(
     host: 'stale.git.example.test',
     username: 'deploy-bot',
 ))->destructureUrl(true);
+$localPathContext = (new CredentialContext(
+    url: '/srv/wp-content.git',
+    host: 'stale.git.example.test',
+    username: 'deploy-bot',
+    password: 'stale-token',
+))->destructureUrl(true);
+$fileAuthorityContext = (new CredentialContext(
+    url: 'file://Deploy@[::1]/var/cache/wp-content.git',
+))->destructureUrl(true);
+$pathlessExtensionContext = (new CredentialContext(
+    url: 'rad://deploy@example.git',
+    path: 'stale/wp-content.git',
+))->destructureUrl(true);
+$hostlessExtensionContext = (new CredentialContext(
+    url: 'abc:///wp-content/site.git',
+    host: 'stale.git.example.test',
+))->destructureUrl(true);
 $duplicateInvalidStringRejected = false;
 try {
     CredentialContext::fromBytes("username=bad\xff\nusername=deploy-bot\n");
@@ -126,6 +143,27 @@ return [
     'fileUrlClearedHost' => $fileUrlContext->host === null,
     'fileUrlClearedUsername' => $fileUrlContext->username === null,
     'fileUrlPath' => $fileUrlContext->path,
+    'localPathClearedHost' => $localPathContext->host === null,
+    'localPathClearedUsername' => $localPathContext->username === null,
+    'localPathClearedPassword' => $localPathContext->password === null,
+    'localPathPath' => $localPathContext->path,
+    'fileAuthorityContext' => [
+        'protocol' => $fileAuthorityContext->protocol,
+        'username' => $fileAuthorityContext->username,
+        'host' => $fileAuthorityContext->host,
+        'path' => $fileAuthorityContext->path,
+    ],
+    'pathlessExtensionContext' => [
+        'protocol' => $pathlessExtensionContext->protocol,
+        'username' => $pathlessExtensionContext->username,
+        'host' => $pathlessExtensionContext->host,
+        'path' => $pathlessExtensionContext->path,
+    ],
+    'hostlessExtensionContext' => [
+        'protocol' => $hostlessExtensionContext->protocol,
+        'host' => $hostlessExtensionContext->host,
+        'path' => $hostlessExtensionContext->path,
+    ],
     'duplicateInvalidStringRejected' => $duplicateInvalidStringRejected,
     'duplicateBytePath' => $duplicateBytePath->path,
     'bareCarriageReturnPathPreserved' => $bareCarriageReturnPath->path === "wp-content\r",
@@ -142,5 +180,5 @@ return [
     'redactedBytes' => $redacted->storageBytes(),
     'clearedPassword' => $cleared->password,
     'clearedOauthRefreshToken' => $cleared->oauthRefreshToken,
-    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs.',
+    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, destructure local mirror and extension-scheme remotes, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs.',
 ];

@@ -5419,7 +5419,57 @@ final class CustomAtRuleTransformer
      */
     private function serializeComponentValueList(array $tokens): string
     {
-        return implode(' ', array_map(fn (mixed $token): string => $this->serializeDeclarationVisitorValue($token), $tokens));
+        return $this->serializeComponentSequence(
+            $tokens,
+            fn (mixed $token): string => $this->serializeDeclarationVisitorValue($token)
+        );
+    }
+
+    /**
+     * @param list<mixed> $components
+     */
+    private function serializeComponentSequence(array $components, callable $serializer): string
+    {
+        $output = '';
+        foreach ($components as $component) {
+            $css = $serializer($component);
+            if ($css === '') {
+                continue;
+            }
+            if ($this->isCommaDelimiterComponent($component, $css)) {
+                $output = rtrim($output) . ',';
+                continue;
+            }
+            if ($output !== '' && !str_ends_with($output, ',') && !$this->componentCssStartsWithoutSpace($css)) {
+                $output .= ' ';
+            }
+            $output .= $css;
+        }
+
+        return $output;
+    }
+
+    private function isCommaDelimiterComponent(mixed $component, string $css): bool
+    {
+        if ($css !== ',') {
+            return false;
+        }
+        if (!is_array($component)) {
+            return false;
+        }
+        if (($component['type'] ?? null) === 'token' && is_array($component['value'] ?? null)) {
+            return ($component['value']['type'] ?? null) === 'delim' && ($component['value']['value'] ?? null) === ',';
+        }
+
+        return ($component['type'] ?? null) === 'delim' && ($component['value'] ?? null) === ',';
+    }
+
+    private function componentCssStartsWithoutSpace(string $css): bool
+    {
+        return str_starts_with($css, ')')
+            || str_starts_with($css, ']')
+            || str_starts_with($css, ',')
+            || str_starts_with($css, '/');
     }
 
     /**
@@ -5429,7 +5479,7 @@ final class CustomAtRuleTransformer
     {
         return array_map(
             fn (string $token): mixed => $this->parseComponentValue($token),
-            $this->splitWhitespaceTokens($value)
+            $this->splitComponentValueTokens($value)
         );
     }
 
@@ -5537,6 +5587,17 @@ final class CustomAtRuleTransformer
     private function parseComponentValue(string $token): mixed
     {
         $token = trim($token);
+        if ($token === ',') {
+            return [
+                'type' => 'token',
+                'raw' => ',',
+                'value' => [
+                    'type' => 'delim',
+                    'value' => ',',
+                ],
+            ];
+        }
+
         if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z%]+)$/', $token, $matches) === 1) {
             return [
                 'type' => 'length',
@@ -7190,7 +7251,10 @@ final class CustomAtRuleTransformer
             return '';
         }
         if (array_is_list($value)) {
-            return implode(' ', array_map(fn (mixed $part): string => $this->serializeVisitorValue($part), $value));
+            return $this->serializeComponentSequence(
+                $value,
+                fn (mixed $part): string => $this->serializeVisitorValue($part)
+            );
         }
 
         if (isset($value['raw']) && is_string($value['raw'])) {
@@ -7211,7 +7275,10 @@ final class CustomAtRuleTransformer
             return implode(' ', array_map(fn (mixed $transform): string => $this->serializeVisitorValue($transform), $value['value']));
         }
         if ($type === 'token-list' && isset($value['value']) && is_array($value['value'])) {
-            return implode(' ', array_map(fn (mixed $component): string => $this->serializeVisitorValue($component), $value['value']));
+            return $this->serializeComponentSequence(
+                $value['value'],
+                fn (mixed $component): string => $this->serializeVisitorValue($component)
+            );
         }
         if ($type === 'repeated' && isset($value['value']) && is_array($value['value'])) {
             $components = $value['value']['components'] ?? [];
@@ -8308,6 +8375,72 @@ final class CustomAtRuleTransformer
                 'type' => 'raw',
                 'value' => $token,
             ];
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitComponentValueTokens(string $value): array
+    {
+        $tokens = [];
+        $current = '';
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $current .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $current .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $current .= $char;
+                continue;
+            }
+            if ($char === '\\' && $i + 1 < $length) {
+                $current .= $char . $value[++$i];
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            }
+
+            if ($parenDepth === 0 && $bracketDepth === 0 && ($char === ',' || ctype_space($char))) {
+                if (trim($current) !== '') {
+                    $tokens[] = trim($current);
+                    $current = '';
+                }
+                if ($char === ',') {
+                    $tokens[] = ',';
+                }
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        if (trim($current) !== '') {
+            $tokens[] = trim($current);
         }
 
         return $tokens;

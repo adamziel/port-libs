@@ -2183,7 +2183,7 @@ final class CssModulesTransformer
                 }
 
                 $output .= ':'
-                    . $forgivingSelectorFunction['rawName']
+                    . $forgivingSelectorFunction['canonicalName']
                     . '('
                     . implode(',', $rewrittenSelectors)
                     . ')';
@@ -2215,6 +2215,23 @@ final class CssModulesTransformer
                     . $this->rewriteForgivingSelectorList($selectorList, $mode, $locals)
                     . ')';
                 $i = $nthChildSelectorFunction['close'];
+                continue;
+            }
+
+            $negationSelectorFunction = $bracketDepth === 0 ? $this->negationSelectorFunctionAt($selector, $i) : null;
+            if ($negationSelectorFunction !== null) {
+                $inner = substr(
+                    $selector,
+                    $negationSelectorFunction['open'] + 1,
+                    $negationSelectorFunction['close'] - $negationSelectorFunction['open'] - 1
+                );
+
+                $output .= ':'
+                    . $negationSelectorFunction['canonicalName']
+                    . '('
+                    . $this->rewriteStrictSelectorList($inner, $mode, $locals)
+                    . ')';
+                $i = $negationSelectorFunction['close'];
                 continue;
             }
 
@@ -2340,6 +2357,36 @@ final class CssModulesTransformer
     private function rewriteForgivingSelectorList(string $selectorList, string $mode, array &$locals): string
     {
         return implode(',', $this->rewriteForgivingSelectorListParts($selectorList, $mode, $locals));
+    }
+
+    /**
+     * @param array<string, true> $locals
+     */
+    private function rewriteStrictSelectorList(string $selectorList, string $mode, array &$locals): string
+    {
+        $rewritten = [];
+
+        foreach ($this->splitTopLevel($selectorList, ',') as $selector) {
+            if (trim($selector) === '') {
+                throw new \InvalidArgumentException('Invalid CSS selector list');
+            }
+
+            $candidateLocals = [];
+            $rewrittenSelector = $this->rewriteSelectorFragment($selector, $mode, $candidateLocals);
+            if ($rewrittenSelector === '') {
+                throw new \InvalidArgumentException('Invalid CSS selector list');
+            }
+
+            foreach ($candidateLocals as $local => $enabled) {
+                if ($enabled) {
+                    $locals[(string) $local] = true;
+                }
+            }
+
+            $rewritten[] = $rewrittenSelector;
+        }
+
+        return implode(',', $rewritten);
     }
 
     /**
@@ -2472,7 +2519,7 @@ final class CssModulesTransformer
     }
 
     /**
-     * @return array{rawName:string,decodedName:string,open:int,close:int}|null
+     * @return array{rawName:string,decodedName:string,canonicalName:string,open:int,close:int}|null
      */
     private function forgivingSelectorFunctionAt(string $selector, int $offset): ?array
     {
@@ -2485,16 +2532,53 @@ final class CssModulesTransformer
             return null;
         }
 
-        if (!in_array(strtolower($token['decoded']), ['is', 'where', 'has', '-webkit-any', '-moz-any'], true)) {
+        $decodedName = strtolower($token['decoded']);
+        if (!in_array($decodedName, ['is', 'where', 'has', '-webkit-any', '-moz-any'], true)) {
             return null;
         }
 
         return [
             'rawName' => $token['raw'],
-            'decodedName' => strtolower($token['decoded']),
+            'decodedName' => $decodedName,
+            'canonicalName' => $this->canonicalSelectorFunctionName($decodedName),
             'open' => $token['end'],
             'close' => $this->findMatchingParen($selector, $token['end']),
         ];
+    }
+
+    /**
+     * @return array{canonicalName:string,open:int,close:int}|null
+     */
+    private function negationSelectorFunctionAt(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset] ?? '') !== ':' || ($selector[$offset + 1] ?? '') === ':') {
+            return null;
+        }
+
+        $token = $this->readCssIdentifierToken($selector, $offset + 1);
+        if ($token === null || ($selector[$token['end']] ?? '') !== '(') {
+            return null;
+        }
+
+        $decodedName = strtolower($token['decoded']);
+        if ($decodedName !== 'not') {
+            return null;
+        }
+
+        return [
+            'canonicalName' => $this->canonicalSelectorFunctionName($decodedName),
+            'open' => $token['end'],
+            'close' => $this->findMatchingParen($selector, $token['end']),
+        ];
+    }
+
+    private function canonicalSelectorFunctionName(string $decodedName): string
+    {
+        return match ($decodedName) {
+            '-moz-any' => '-moz-any',
+            '-webkit-any' => '-webkit-any',
+            default => $decodedName,
+        };
     }
 
     /**

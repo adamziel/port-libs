@@ -826,6 +826,32 @@ try {
     echo 'resolver-shape: rejected' . PHP_EOL;
 }
 
+try {
+    (new CssBundler())->bundle('/theme.css', [
+        '/theme.css' => '@import "tokens.css"; .wp-site-blocks { color: red }',
+        '/tokens.css' => ':root { --wp--style--block-gap: 1.5rem }',
+    ], static fn (): array => [
+        'external' => 'https://cdn.example/theme-tokens.css',
+        'file' => '/tokens.css',
+    ]);
+
+    fwrite(STDERR, "Expected ambiguous resolver object diagnostic for block-theme CSS\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'resolver-error'
+        || $exception->getMessage() !== 'data did not match any variant of untagged enum ResolveResult'
+        || $exception->sourceFile !== '/theme.css'
+        || $exception->sourceLine !== 1
+        || $exception->sourceColumn !== 1
+    ) {
+        fwrite(STDERR, 'Unexpected ambiguous resolver diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'resolver-ambiguous-shape: rejected' . PHP_EOL;
+}
+
 $invalidLayerReads = [];
 try {
     (new CssBundler())->bundleWithReader(

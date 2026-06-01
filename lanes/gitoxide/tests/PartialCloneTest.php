@@ -65,14 +65,14 @@ $buildThinPromisorBlobs = static function (string $label): array {
     ];
 };
 
-$writePromisorConfigFixture = static function (bool $promisor = true): string {
+$writePromisorConfigFixture = static function (bool|string $promisor = true): string {
     $gitDir = sys_get_temp_dir() . '/port-libs-git-promisor-config-' . bin2hex(random_bytes(4)) . '/.git';
     $packDir = $gitDir . '/objects/pack';
     if (!mkdir($packDir, 0777, true) && !is_dir($packDir)) {
         throw new RuntimeException("Unable to create promisor config fixture directory: {$packDir}");
     }
 
-    $promisorValue = $promisor ? 'true' : 'false';
+    $promisorValue = is_bool($promisor) ? ($promisor ? 'true' : 'false') : $promisor;
     file_put_contents($gitDir . '/config', <<<CFG
     [remote "origin"]
         url = https://git.example.test/wp-content.git
@@ -189,6 +189,44 @@ return [
         $t->same([], $database->promisorRemotes());
         $t->same('missing', $database->objectState($missingOid)['status']);
         $t->throws(RuntimeException::class, static fn () => $database->read($missingOid));
+    },
+    'object database hydrates numeric promisor remote config booleans like gix-config' => static function (TestRunner $t) use ($writePromisorConfigFixture): void {
+        $gitDir = $writePromisorConfigFixture('2');
+        $database = new ObjectDatabase($gitDir);
+        $templateBlob = new GitObject('blob', 'Hydrated from numeric remote.origin.promisor config');
+        $templateOid = $templateBlob->oid();
+        $resolver = new class([$templateOid => $templateBlob]) implements PromisorObjectResolver {
+            public array $requests = [];
+
+            public function __construct(private readonly array $objects)
+            {
+            }
+
+            public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
+            {
+                $this->requests[] = $oid;
+
+                return $this->objects[$oid] ?? null;
+            }
+        };
+
+        $t->same([[
+            'name' => 'origin',
+            'url' => 'https://git.example.test/wp-content.git',
+            'partialCloneFilter' => 'blob:none',
+        ]], $database->promisorRemotes());
+        $t->same('promised-missing', $database->objectState($templateOid)['status']);
+
+        $hydratingDatabase = $database->withPromisorResolver($resolver);
+        $t->same($templateBlob->body, $hydratingDatabase->read($templateOid)->body);
+        $t->same([$templateOid], $resolver->requests);
+        $t->same('present', $hydratingDatabase->objectState($templateOid)['status']);
+
+        $zeroGitDir = $writePromisorConfigFixture('0');
+        $zeroDatabase = new ObjectDatabase($zeroGitDir);
+        $notPromisedOid = (new GitObject('blob', 'remote.origin.promisor numeric zero is false'))->oid();
+        $t->same([], $zeroDatabase->promisorRemotes());
+        $t->same('missing', $zeroDatabase->objectState($notPromisedOid)['status']);
     },
     'object database can lazily resolve promised missing objects into loose storage' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
         [$gitDir] = $writePromisorPackFixture();

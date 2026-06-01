@@ -1270,6 +1270,120 @@ CSS;
             $seen['rule']['preludeAst']['value']
         ));
     },
+    'custom at-rules visit comma separated upstream token-list prelude components' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@plugin theme("card-gap"), var(--wp-gap), @--wp-accent, env(--wp-breakpoint);
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Function' => [
+                    'theme' => static function (array $arguments) use (&$seen): string {
+                        $seen['events'][] = 'function:theme:' . ($arguments[0] ?? '');
+
+                        return ($arguments[0] ?? '') === 'card-gap' ? '16px' : '0px';
+                    },
+                ],
+                'Variable' => [
+                    '--wp-gap' => static function (array $variable) use (&$seen): array {
+                        $seen['events'][] = 'variable:' . $variable['name']['ident'];
+
+                        return [
+                            'unit' => 'px',
+                            'value' => 24.0,
+                        ];
+                    },
+                ],
+                'EnvironmentVariable' => [
+                    '--wp-breakpoint' => static function (array $environmentVariable) use (&$seen): array {
+                        $seen['events'][] = 'environment:' . $environmentVariable['name']['ident'];
+
+                        return [
+                            'type' => 'length',
+                            'unit' => 'px',
+                            'value' => 782.0,
+                        ];
+                    },
+                ],
+                'Token' => [
+                    'at-keyword' => static function (array $token) use (&$seen): array {
+                        $seen['events'][] = 'token:at-keyword:' . $token['value'];
+
+                        return [
+                            'type' => 'color',
+                            'value' => [
+                                'type' => 'rgb',
+                                'r' => 5,
+                                'g' => 110,
+                                'b' => 240,
+                                'alpha' => 1,
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'plugin' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['name'] . ':' . $rule['prelude'];
+                            $seen['rule'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'plugin' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'function:theme:card-gap',
+            'variable:--wp-gap',
+            'token:at-keyword:--wp-accent',
+            'environment:--wp-breakpoint',
+            'rule:plugin:16px,24px,#056ef0,782px',
+        ], $seen['events']);
+        $t->same('16px,24px,#056ef0,782px', $seen['rule']['prelude']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same([
+            'length',
+            'token',
+            'length',
+            'token',
+            'color',
+            'token',
+            'length',
+        ], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['preludeAst']['value']
+        ));
+        $t->same([
+            'delim',
+            'delim',
+            'delim',
+        ], array_values(array_map(
+            static fn (array $component): string => $component['value']['type'],
+            array_filter(
+                $seen['rule']['preludeAst']['value'],
+                static fn (array $component): bool => ($component['type'] ?? null) === 'token' && (($component['value']['type'] ?? null) === 'delim')
+            )
+        )));
+    },
     'custom at-rules revisit upstream token-list prelude replacements before custom rule visitors' => static function (TestRunner $t): void {
         $events = [];
         $seenRule = null;

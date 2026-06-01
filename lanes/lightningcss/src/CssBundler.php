@@ -1941,14 +1941,14 @@ final class CssBundler
 
             if (is_array($result)) {
                 if (array_key_exists('external', $result)) {
-                    if (!is_string($result['external'])) {
+                    if (count($result) !== 1 || !is_string($result['external'])) {
                         $this->throwUnsupportedResolveResult($originatingFile, $loc);
                     }
 
                     return ['external' => $result['external']];
                 }
                 if (array_key_exists('file', $result)) {
-                    if (!is_string($result['file'])) {
+                    if (count($result) !== 1 || !is_string($result['file'])) {
                         $this->throwUnsupportedResolveResult($originatingFile, $loc);
                     }
 

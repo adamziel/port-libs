@@ -1659,3 +1659,27 @@ Smart HTTP upgrade redirect proxy/cookie parity slice prepared on 2026-06-01:
   `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace runner was
   not executed.
 - Expected mapped denominator movement: `1748 / 2886` to `1749 / 2886`.
+
+Partial-clone promisor numeric config boolean hydration slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-partial-clone-promisor-hydration-parity-20260601T055415Z`
+  on accepted base `7db0bee1b6d6b17fcc1ae3a0e1b10ac7a87ade2d` maps the
+  upstream `gix-config-value` boolean boundary used by
+  `remote.<name>.promisor`.
+- Source truth: upstream Gitoxide `gix-config-value/src/boolean.rs` treats
+  `yes`, `on`, and `true` as true, `no`, `off`, `false`, and empty values as
+  false, and numeric values as nonzero/zero booleans. Upstream
+  `src/plumbing/progress.rs` lists `remote.<name>.promisor` and
+  `remote.<name>.partialCloneFilter` as planned/required partial-clone config.
+- Native PHP delta: `ObjectDatabase::configBooleanIsTrue()` now treats
+  nonzero numeric promisor values as true and zero as false. The focused
+  `PartialCloneTest.php` case proves `promisor = 2` produces a promisor remote
+  and resolver hydration, while `promisor = 0` remains ordinary missing. The
+  WordPress lazy-promisor example now uses numeric promisor config.
+- Verification: red-first focused `PartialCloneTest.php` failed with 2
+  failures and `1 test files, 186 assertions`; after implementation, focused
+  `PartialCloneTest.php` passed `1 test files, 241 assertions, 0 failures`;
+  full Gitoxide lane passed `40 test files, 7682 assertions, 0 failures`;
+  changed PHP lint and example smoke passed; `git diff --check -- lanes/gitoxide`
+  passed. Full Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1749 / 2886` to `1750 / 2886`.

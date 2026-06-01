@@ -541,6 +541,44 @@ CSS);
             'child' => $export('EgL3uq_child'),
         ], $guarded['exports']);
     },
+    'css modules canonicalizes selector-valued pseudo names while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:w\68 ere(:global(.legacy), .soft) {
+  color: red;
+}
+
+.card:h\61 s(> .media, + :global(.wp-sibling)) {
+  color: yellow;
+}
+
+.card:n\6f t(.disabled, :global(.is-preview)) {
+  color: blue;
+}
+
+.card:-WEBKIT-ANY(:local(.wide)) {
+  color: green;
+}
+
+.button {
+  composes: card;
+  color: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_card:where(.legacy,.EgL3uq_soft){color:red}.EgL3uq_card:has(>.EgL3uq_media,+.wp-sibling){color:#ff0}.EgL3uq_card:not(.EgL3uq_disabled,.is-preview){color:#00f}.EgL3uq_card:-webkit-any(.EgL3uq_wide){color:green}.EgL3uq_button{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'soft' => $export('EgL3uq_soft'),
+            'media' => $export('EgL3uq_media'),
+            'disabled' => $export('EgL3uq_disabled'),
+            'wide' => $export('EgL3uq_wide'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform('.card:n\6f t(:global(.legacy, .wide), .kept) { color: red }'));
+    },
     'css modules leaves upstream host-context arguments public while preserving local composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 :host-context(.public-theme) .card {

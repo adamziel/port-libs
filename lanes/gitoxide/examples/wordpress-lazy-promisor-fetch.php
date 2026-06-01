@@ -23,7 +23,7 @@ file_put_contents($packDir . '/' . $basename . '.promisor', "blobless WordPress 
 file_put_contents($gitDir . '/config', <<<CFG
 [remote "origin"]
     url = https://git.example.test/wp-content.git
-    promisor = true
+    promisor = 2
     partialCloneFilter = blob:none
 CFG);
 

@@ -169,6 +169,16 @@ $write($repo . '/dotdot-gitdir.config', <<<CFG
 dotDotGitdir = should-not-load
 CFG);
 
+$write($root . '/dot-slash-root.config', <<<CFG
+[wordpress]
+dotSlashRoot = matched
+CFG);
+
+$write($root . '/dot-slash-miss.config', <<<CFG
+[wordpress]
+dotSlashMiss = should-not-load
+CFG);
+
 $write($repo . '/absolute-worktree.config', <<<CFG
 [wordpress]
 absoluteWorktree = should-not-load
@@ -331,6 +341,18 @@ $backslashConfig = GitConfig::fromFile($backslashGitDir . '/config', [
     'homeDir' => $root,
 ]);
 
+$write($root . '/.gitconfig', <<<CFG
+[includeIf "gitdir:./"]
+path = dot-slash-root.config
+[includeIf "gitdir:./missing/.git"]
+path = dot-slash-miss.config
+CFG);
+
+$dotSlashConfig = GitConfig::fromFile($root . '/.gitconfig', [
+    'gitDir' => $gitDir,
+    'homeDir' => $root,
+]);
+
 $drivePrefixSupported = false;
 $drivePrefixGitdirPolicy = null;
 if (DIRECTORY_SEPARATOR !== '\\') {
@@ -407,6 +429,8 @@ return [
     'tildeAloneGitdirPolicy' => $config->value('wordpress', null, 'tildeAloneGitdir'),
     'doubleSlashGitdirPolicy' => $config->value('wordpress', null, 'doubleSlashGitdir'),
     'dotDotGitdirPolicy' => $config->value('wordpress', null, 'dotDotGitdir'),
+    'dotSlashRootPolicy' => $dotSlashConfig->value('wordpress', null, 'dotSlashRoot'),
+    'dotSlashMissPolicy' => $dotSlashConfig->value('wordpress', null, 'dotSlashMiss'),
     'absoluteWorktreePolicy' => $config->value('wordpress', null, 'absoluteWorktree'),
     'absoluteGitdirPolicy' => $config->value('wordpress', null, 'absoluteGitdir'),
     'absoluteWorktreeGlobPolicy' => $config->value('wordpress', null, 'absoluteWorktreeGlob'),

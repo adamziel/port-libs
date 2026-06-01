@@ -205,6 +205,50 @@ return [
         $t->same('matched', $config->value('section', null, 'hidden'));
     },
 
+    'gitdir dot-slash includeIf conditions require an including config path like gix-config' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $root = $tmpDir();
+        $worktree = $root . '/worktree';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($root . '/dot-root.config', "[section]\ndotRoot = matched\n");
+        $write($root . '/miss.config', "[section]\nmiss = should-not-load\n");
+        $write($root . '/.gitconfig', <<<CFG
+        [includeIf "gitdir:./"]
+        path = dot-root.config
+        [includeIf "gitdir:./missing/.git"]
+        path = miss.config
+        CFG);
+        $config = GitConfig::fromFile($root . '/.gitconfig', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('matched', $config->value('section', null, 'dotRoot'));
+        $t->same(null, $config->value('section', null, 'miss'));
+
+        $escapedGitDir = str_replace('\\', '\\\\', $gitDir);
+        $absoluteInclude = $root . '/absolute.config';
+        $write($absoluteInclude, "[section]\nabsolute = should-not-load\n");
+        $t->throws(\RuntimeException::class, static fn () => GitConfig::fromString(<<<CFG
+        [includeIf "gitdir:{$escapedGitDir}"]
+        path = ./dot-root.config
+        CFG, null, ['gitDir' => $gitDir, 'homeDir' => $root]));
+
+        $t->throws(\RuntimeException::class, static fn () => GitConfig::fromString(<<<CFG
+        [includeIf "gitdir:./worktree/.git"]
+        path = {$absoluteInclude}
+        CFG, null, ['gitDir' => $gitDir, 'homeDir' => $root]));
+
+        $config = GitConfig::fromString(<<<CFG
+        [includeIf "gitdir:{$escapedGitDir}"]
+        path = ./dot-root.config
+        [includeIf "gitdir:./worktree/.git"]
+        path = {$absoluteInclude}
+        CFG, null, [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+            'errOnMissingConfigPath' => false,
+        ]);
+        $t->same(null, $config->value('section', null, 'dotRoot'));
+        $t->same(null, $config->value('section', null, 'absolute'));
+    },
+
     'drive-looking paths remain relative on unix like gix-config' => static function (TestRunner $t) use ($tmpDir, $write): void {
         if (DIRECTORY_SEPARATOR === '\\') {
             $t->same(true, true);
@@ -1139,6 +1183,8 @@ return [
         $t->same(null, $fixture['tildeAloneGitdirPolicy']);
         $t->same(null, $fixture['doubleSlashGitdirPolicy']);
         $t->same(null, $fixture['dotDotGitdirPolicy']);
+        $t->same('matched', $fixture['dotSlashRootPolicy']);
+        $t->same(null, $fixture['dotSlashMissPolicy']);
         $t->same(null, $fixture['absoluteWorktreePolicy']);
         $t->same('matched', $fixture['absoluteGitdirPolicy']);
         $t->same('matched', $fixture['absoluteWorktreeGlobPolicy']);
@@ -1178,6 +1224,8 @@ return [
         $t->same($fixture['tildeAloneGitdirPolicy'], $summary['tildeAloneGitdirPolicy']);
         $t->same($fixture['doubleSlashGitdirPolicy'], $summary['doubleSlashGitdirPolicy']);
         $t->same($fixture['dotDotGitdirPolicy'], $summary['dotDotGitdirPolicy']);
+        $t->same($fixture['dotSlashRootPolicy'], $summary['dotSlashRootPolicy']);
+        $t->same($fixture['dotSlashMissPolicy'], $summary['dotSlashMissPolicy']);
         $t->same($fixture['absoluteWorktreePolicy'], $summary['absoluteWorktreePolicy']);
         $t->same($fixture['absoluteGitdirPolicy'], $summary['absoluteGitdirPolicy']);
         $t->same($fixture['absoluteWorktreeGlobPolicy'], $summary['absoluteWorktreeGlobPolicy']);

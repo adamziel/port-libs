@@ -1849,6 +1849,9 @@ CSS,
         $assertResolverShapeError(static fn (): int => 1234, 2, 3);
         $assertResolverShapeError(static fn (): array => ['file' => 1234], 2, 3);
         $assertResolverShapeError(static fn (): array => ['external' => 1234], 2, 3);
+        $assertResolverShapeError(static fn (): array => ['external' => 'https://cdn.example/theme.css', 'file' => '/b.css'], 2, 3);
+        $assertResolverShapeError(static fn (): array => ['external' => 'https://cdn.example/theme.css', 'unused' => true], 2, 3);
+        $assertResolverShapeError(static fn (): array => ['file' => '/b.css', 'unused' => true], 2, 3);
     },
     'css bundler maps upstream source provider read callbacks' => static function (TestRunner $t): void {
         $files = [
