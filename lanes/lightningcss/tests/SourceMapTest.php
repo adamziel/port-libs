@@ -447,6 +447,41 @@ return [
             $map->toJson(null, false)
         );
     },
+    'source map imports separator-only raw vlq tables without generated spans' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $map->addVlqMap(
+            ';;;,,',
+            ['blocks/empty.css'],
+            ['.empty{}'],
+            ['emptyRule'],
+            4,
+            9
+        );
+
+        $t->same('', $map->writeVlq());
+        $t->same([], $map->getMappings());
+        $t->same(['blocks/empty.css'], $map->getSources());
+        $t->same(['.empty{}'], $map->getSourcesContent());
+        $t->same(['emptyRule'], $map->getNames());
+        $t->same(
+            '{"version":3,"mappings":"","sources":["blocks/empty.css"],"sourcesContent":[".empty{}"],"names":["emptyRule"]}',
+            $map->toJson(null, false)
+        );
+
+        $parent = new SourceMap();
+        $entry = $parent->addSource('entry.css');
+        $parent->setSourceContent($entry, ".entry{}\n");
+        $parent->addMapping(0, 0, $entry, 0, 0, 'entryRule');
+        $parent->addSourceMap($map, 2);
+
+        $t->same('AAAAA', $parent->writeVlq());
+        $t->same([0], array_column($parent->getMappings(), 'generatedLine'));
+        $t->same(['entry.css', 'blocks/empty.css'], $parent->getSources());
+        $t->same([".entry{}\n", '.empty{}'], $parent->getSourcesContent());
+        $t->same(['entryRule', 'emptyRule'], $parent->getNames());
+        $t->same([], $map->getSources());
+        $t->same('', $map->writeVlq());
+    },
     'source map imports raw vlq maps with upstream negative column offsets' => static function (TestRunner $t): void {
         $generatedOnly = new SourceMap();
         $generatedOnly->addVlqMap('K,I;O', ['generated.css'], ['.generated{}'], [], 0, -3);

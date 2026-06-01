@@ -123,6 +123,21 @@ $hydratedPromisorAfterBases = $hydratedPromisorFinder->mergeBases(
     $fixture['hydratedPromisorPluginReview'],
     $fixture['hydratedPromisorThemeReview'],
 );
+$generationHydrationCommits = $fixture['commits'];
+$generationHydrationIntermediateCommit = $generationHydrationCommits[$fixture['generationHydrationIntermediate']];
+unset($generationHydrationCommits[$fixture['generationHydrationIntermediate']]);
+$generationHydrationFinder = new MergeBaseFinder(static function (string $oid) use (&$generationHydrationCommits): ?Commit {
+    return $generationHydrationCommits[$oid] ?? null;
+});
+$generationHydrationBeforeBases = $generationHydrationFinder->mergeBases(
+    $fixture['generationHydrationPluginReview'],
+    $fixture['generationHydrationThemeReview'],
+);
+$generationHydrationCommits[$fixture['generationHydrationIntermediate']] = $generationHydrationIntermediateCommit;
+$generationHydrationAfterBases = $generationHydrationFinder->mergeBases(
+    $fixture['generationHydrationPluginReview'],
+    $fixture['generationHydrationThemeReview'],
+);
 
 return [
     'reviewHeads' => $fixture['heads'],
@@ -197,6 +212,16 @@ return [
     'hydratedPromisorAfterBases' => $hydratedPromisorAfterBases,
     'hydratedPromisorReusesFinderAfterMissingAncestor' => $hydratedPromisorBeforeBases === []
         && $hydratedPromisorAfterBases === [$fixture['hydratedPromisorReleaseBaseline']],
+    'generationHydrationHeads' => $fixture['generationHydrationHeads'],
+    'generationHydrationBeforeBases' => $generationHydrationBeforeBases,
+    'generationHydrationAfterBases' => $generationHydrationAfterBases,
+    'generationHydrationRecomputesIncompleteGraph' => $generationHydrationBeforeBases === [
+        $fixture['generationHydrationSecurityBase'],
+        $fixture['generationHydrationLegacyBase'],
+    ] && $generationHydrationAfterBases === [
+        $fixture['generationHydrationLegacyBase'],
+        $fixture['generationHydrationSecurityBase'],
+    ],
     'sha256ReviewHeads' => $fixture['sha256ReviewHeads'],
     'sha256ReviewBase' => $sha256ReviewBase,
     'sha256GraphWalkBase' => $sha256GraphWalkBase,

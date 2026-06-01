@@ -15626,11 +15626,17 @@ final class CssMinifier
 
     /**
      * @param array<string,float|int> $origin
+     * @param list<string> $disallowedChannels
      */
-    private function evaluateRelativeColorCalcExpression(string $expression, array $origin, float $percentageScale = 1.0): ?float
+    private function evaluateRelativeColorCalcExpression(
+        string $expression,
+        array $origin,
+        float $percentageScale = 1.0,
+        array $disallowedChannels = [],
+    ): ?float
     {
         $offset = 0;
-        $value = $this->parseRelativeColorCalcSum($expression, $offset, $origin, $percentageScale);
+        $value = $this->parseRelativeColorCalcSum($expression, $offset, $origin, $percentageScale, $disallowedChannels);
         if ($value === null) {
             return null;
         }
@@ -15642,10 +15648,17 @@ final class CssMinifier
 
     /**
      * @param array<string,float|int> $origin
+     * @param list<string> $disallowedChannels
      */
-    private function parseRelativeColorCalcSum(string $expression, int &$offset, array $origin, float $percentageScale): ?float
+    private function parseRelativeColorCalcSum(
+        string $expression,
+        int &$offset,
+        array $origin,
+        float $percentageScale,
+        array $disallowedChannels,
+    ): ?float
     {
-        $value = $this->parseRelativeColorCalcProduct($expression, $offset, $origin, $percentageScale);
+        $value = $this->parseRelativeColorCalcProduct($expression, $offset, $origin, $percentageScale, $disallowedChannels);
         if ($value === null) {
             return null;
         }
@@ -15658,7 +15671,7 @@ final class CssMinifier
             }
 
             $offset++;
-            $right = $this->parseRelativeColorCalcProduct($expression, $offset, $origin, $percentageScale);
+            $right = $this->parseRelativeColorCalcProduct($expression, $offset, $origin, $percentageScale, $disallowedChannels);
             if ($right === null) {
                 return null;
             }
@@ -15669,10 +15682,17 @@ final class CssMinifier
 
     /**
      * @param array<string,float|int> $origin
+     * @param list<string> $disallowedChannels
      */
-    private function parseRelativeColorCalcProduct(string $expression, int &$offset, array $origin, float $percentageScale): ?float
+    private function parseRelativeColorCalcProduct(
+        string $expression,
+        int &$offset,
+        array $origin,
+        float $percentageScale,
+        array $disallowedChannels,
+    ): ?float
     {
-        $value = $this->parseRelativeColorCalcFactor($expression, $offset, $origin, $percentageScale);
+        $value = $this->parseRelativeColorCalcFactor($expression, $offset, $origin, $percentageScale, $disallowedChannels);
         if ($value === null) {
             return null;
         }
@@ -15685,7 +15705,7 @@ final class CssMinifier
             }
 
             $offset++;
-            $right = $this->parseRelativeColorCalcFactor($expression, $offset, $origin, $percentageScale);
+            $right = $this->parseRelativeColorCalcFactor($expression, $offset, $origin, $percentageScale, $disallowedChannels);
             if ($right === null || ($operator === '/' && abs($right) < 0.000000000001)) {
                 return null;
             }
@@ -15696,21 +15716,28 @@ final class CssMinifier
 
     /**
      * @param array<string,float|int> $origin
+     * @param list<string> $disallowedChannels
      */
-    private function parseRelativeColorCalcFactor(string $expression, int &$offset, array $origin, float $percentageScale): ?float
+    private function parseRelativeColorCalcFactor(
+        string $expression,
+        int &$offset,
+        array $origin,
+        float $percentageScale,
+        array $disallowedChannels,
+    ): ?float
     {
         $this->skipRelativeColorCalcWhitespace($expression, $offset);
         $char = $expression[$offset] ?? '';
         if ($char === '+' || $char === '-') {
             $offset++;
-            $value = $this->parseRelativeColorCalcFactor($expression, $offset, $origin, $percentageScale);
+            $value = $this->parseRelativeColorCalcFactor($expression, $offset, $origin, $percentageScale, $disallowedChannels);
 
             return $value === null ? null : ($char === '-' ? -$value : $value);
         }
 
         if ($char === '(') {
             $offset++;
-            $value = $this->parseRelativeColorCalcSum($expression, $offset, $origin, $percentageScale);
+            $value = $this->parseRelativeColorCalcSum($expression, $offset, $origin, $percentageScale, $disallowedChannels);
             $this->skipRelativeColorCalcWhitespace($expression, $offset);
             if (($expression[$offset] ?? '') !== ')') {
                 return null;
@@ -15748,10 +15775,28 @@ final class CssMinifier
         if (preg_match('/\G[_a-zA-Z][_a-zA-Z0-9-]*/', $expression, $matches, 0, $offset) === 1) {
             $offset += strlen($matches[0]);
 
+            if ($this->relativeColorChannelIsDisallowed($matches[0], $origin, $disallowedChannels)) {
+                return null;
+            }
+
             return $this->relativeColorChannelValue($matches[0], $origin);
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string,float|int> $origin
+     * @param list<string> $disallowedChannels
+     */
+    private function relativeColorChannelIsDisallowed(string $token, array $origin, array $disallowedChannels): bool
+    {
+        $token = strtolower(trim($token));
+        if (!in_array($token, $disallowedChannels, true)) {
+            return false;
+        }
+
+        return array_key_exists($token, $origin);
     }
 
     /**
@@ -15794,13 +15839,17 @@ final class CssMinifier
             return 0.0;
         }
 
+        if ($this->relativeColorChannelIsDisallowed($token, $channels, ['h'])) {
+            return null;
+        }
+
         $channel = $this->relativeColorChannelValue($token, $channels);
         if ($channel !== null) {
             return $channel;
         }
 
         if (preg_match('/^calc\((.*)\)$/is', $token, $matches) === 1) {
-            return $this->evaluateRelativeColorCalcExpression($matches[1], $channels);
+            return $this->evaluateRelativeColorCalcExpression($matches[1], $channels, 1.0, ['h']);
         }
 
         if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {

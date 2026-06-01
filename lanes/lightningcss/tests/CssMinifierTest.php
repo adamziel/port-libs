@@ -361,6 +361,28 @@ CSS
             $t->same('.foo{color:' . $expectedColor . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
         }
     },
+    'css minifier preserves upstream invalid relative color channel positions' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $preserved = [
+            'rgb(from rebeccapurple r 10deg 10)',
+            'rgb(from rebeccapurple l g b)',
+            'hsl(from rebeccapurple s h l)',
+            'hsl(from rebeccapurple h calc(h) l)',
+        ];
+
+        foreach ($preserved as $input) {
+            $t->same('.foo{color:' . $input . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
+        }
+
+        $t->same(
+            '.foo{color:#bfaa40}',
+            $minifier->minify('.foo { color: hsl(from rebeccapurple s s s / s); }')
+        );
+        $t->same(
+            '.foo{color:#fff}',
+            $minifier->minify('.foo { color: hsl(from rebeccapurple calc(alpha * 100) calc(alpha * 100) calc(alpha * 100) / alpha); }')
+        );
+    },
     'css minifier maps upstream hwb relative color sRGB origins' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
         $cases = [

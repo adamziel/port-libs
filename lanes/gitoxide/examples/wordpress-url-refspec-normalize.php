@@ -26,6 +26,10 @@ $homeMirrorExpandedPath = GitUrl::expandHomePath(
 $relativeMirror = GitUrl::parse($fixture['relativeMirrorUrl']);
 $relativeMirrorCanonical = $relativeMirror->canonicalized($fixture['relativeMirrorCurrentDirectory']);
 $customHelperRemote = GitUrl::parse($fixture['customHelperRemoteUrl']);
+$credentialRemote = GitUrl::parse($fixture['credentialRemoteUrl'])
+    ->withUser($fixture['credentialRemoteUser'])
+    ->withPassword($fixture['credentialRemotePassword']);
+$credentialRemoteRoundtrip = GitUrl::parse($credentialRemote->toBytes());
 $fetch = array_map(
     static fn (string $spec): array => RefSpec::parseFetch($spec)->toArray(),
     $fixture['fetchRefspecs']
@@ -82,6 +86,9 @@ $summary = [
     'relativeMirrorCanonical' => $relativeMirrorCanonical->toArray(),
     'customHelperRemote' => $customHelperRemote->toArray(),
     'customHelperRemotePathArgumentSafe' => $customHelperRemote->pathArgumentSafe(),
+    'credentialRemote' => $credentialRemote->toArray(),
+    'credentialRemoteDisplay' => $credentialRemote->display(),
+    'credentialRemoteRoundtrip' => $credentialRemoteRoundtrip->toArray(),
     'fetch' => $fetch,
     'push' => $push,
     'oversizedRemoteRejected' => $oversizedRemoteRejected,
@@ -151,6 +158,21 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if ($summary['customHelperRemotePathArgumentSafe'] !== $fixture['expectedCustomHelperRemotePathArgumentSafe']) {
         throw new RuntimeException('Unexpected custom helper remote path safety');
+    }
+    if ($summary['credentialRemote']['normalized'] !== $fixture['expectedCredentialRemoteUrl']) {
+        throw new RuntimeException('Unexpected credential remote normalized URL');
+    }
+    if ($summary['credentialRemoteDisplay'] !== $fixture['expectedCredentialRemoteDisplay']) {
+        throw new RuntimeException('Unexpected credential remote display URL');
+    }
+    if ($summary['credentialRemoteRoundtrip']['normalized'] !== $fixture['expectedCredentialRemoteUrl']) {
+        throw new RuntimeException('Unexpected credential remote roundtrip URL');
+    }
+    if ($summary['credentialRemoteRoundtrip']['user'] !== $fixture['credentialRemoteUser']) {
+        throw new RuntimeException('Unexpected credential remote roundtrip user');
+    }
+    if ($summary['credentialRemoteRoundtrip']['password'] !== $fixture['credentialRemotePassword']) {
+        throw new RuntimeException('Unexpected credential remote roundtrip password');
     }
     if (array_column($summary['fetch'], 'instruction') !== $fixture['expectedFetchInstructions']) {
         throw new RuntimeException('Unexpected fetch refspec instructions');

@@ -171,6 +171,44 @@ return [
         $t->same('/ %', $percent->path());
         $t->same('https://%20@%40:example.org/%20%25', $percent->toBytes());
     },
+    'git url mutates credentials and roundtrips canonical bytes like gix-url access helpers' => static function (TestRunner $t): void {
+        $url = GitUrl::parse('https://user@host/path');
+        $mutated = $url
+            ->withUser('new user')
+            ->withPassword('p@ss:word');
+
+        $t->same('user', $url->user(), 'immutable setter leaves original user untouched');
+        $t->same(null, $url->password(), 'immutable setter leaves original password untouched');
+        $t->same('new user', $mutated->user());
+        $t->same('p@ss:word', $mutated->password());
+        $t->same('https://new%20user:p%40ss:word@host/path', $mutated->toBytes());
+        $t->same('https://new%20user:redacted@host/path', $mutated->display());
+
+        $roundtrip = GitUrl::parse($mutated->toBytes());
+        $t->same('new user', $roundtrip->user());
+        $t->same('p@ss:word', $roundtrip->password());
+        $t->same('host', $roundtrip->host());
+        $t->same('/path', $roundtrip->path());
+        $t->same($mutated->toBytes(), $roundtrip->toBytes());
+
+        $renamed = $mutated->withUser('deploy');
+        $t->same('deploy', $renamed->user());
+        $t->same('p@ss:word', $renamed->password());
+        $t->same('https://deploy:p%40ss:word@host/path', $renamed->toBytes());
+
+        $passwordCleared = $renamed->withPassword(null);
+        $t->same('deploy', $passwordCleared->user());
+        $t->same(null, $passwordCleared->password());
+        $t->same('https://deploy@host/path', $passwordCleared->toBytes());
+
+        $userCleared = $passwordCleared->withUser(null);
+        $t->same(null, $userCleared->user());
+        $t->same(null, $userCleared->password());
+        $t->same('https://host/path', $userCleared->toBytes());
+
+        $t->throws(InvalidArgumentException::class, static fn () => $url->withUser("bad\xFF"));
+        $t->throws(InvalidArgumentException::class, static fn () => $url->withPassword("bad\xFF"));
+    },
     'git url rejects invalid utf8 in url and scp forms while keeping raw local paths byte-safe' => static function (TestRunner $t): void {
         $internationalPath = GitUrl::parse('https://example.com/caf%C3%A9');
         $t->same("/caf\xC3\xA9", $internationalPath->path());
@@ -785,6 +823,11 @@ return [
         $t->same($fixture['expectedRelativeMirrorCanonicalPath'], $summary['relativeMirrorCanonical']['path']);
         $t->same($fixture['expectedRelativeMirrorCanonicalUrl'], $summary['relativeMirrorCanonical']['normalized']);
         $t->same(true, $summary['deploymentRemoteSafe']);
+        $t->same($fixture['expectedCredentialRemoteUrl'], $summary['credentialRemote']['normalized']);
+        $t->same($fixture['expectedCredentialRemoteDisplay'], $summary['credentialRemoteDisplay']);
+        $t->same($fixture['expectedCredentialRemoteUrl'], $summary['credentialRemoteRoundtrip']['normalized']);
+        $t->same($fixture['credentialRemoteUser'], $summary['credentialRemoteRoundtrip']['user']);
+        $t->same($fixture['credentialRemotePassword'], $summary['credentialRemoteRoundtrip']['password']);
         $t->same($fixture['expectedRemoteArgumentSafety'], $summary['remoteArgumentSafety']);
         $t->same($fixture['expectedUnsafeRemoteArgumentSafety'], $summary['unsafeRemoteArgumentSafety']);
         $t->same($fixture['expectedRootRemotePathIsRoot'], $summary['rootRemotePathIsRoot']);

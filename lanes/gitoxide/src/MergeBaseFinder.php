@@ -627,9 +627,23 @@ final class MergeBaseFinder
 
     private function commitGeneration(string $oid): ?int
     {
+        $generation = $this->commitGenerationInfo($oid);
+
+        return $generation === null ? null : $generation['generation'];
+    }
+
+    /**
+     * @param array<string, true> $visiting
+     * @return ?array{generation: int, complete: bool}
+     */
+    private function commitGenerationInfo(string $oid, array &$visiting = []): ?array
+    {
         $oid = strtolower($oid);
         if (isset($this->generationCache[$oid])) {
-            return $this->generationCache[$oid];
+            return [
+                'generation' => $this->generationCache[$oid],
+                'complete' => true,
+            ];
         }
 
         $hashLength = self::assertObjectId($oid);
@@ -638,19 +652,39 @@ final class MergeBaseFinder
             return null;
         }
 
-        $this->generationCache[$oid] = 1;
+        if (isset($visiting[$oid])) {
+            return [
+                'generation' => 1,
+                'complete' => false,
+            ];
+        }
+
+        $visiting[$oid] = true;
         $generation = 1;
+        $complete = true;
         foreach ($commit->parents as $parent) {
             $parent = strtolower($parent);
             self::assertSameObjectFormat($hashLength, $parent);
-            $parentGeneration = $this->commitGeneration($parent);
+            $parentGeneration = $this->commitGenerationInfo($parent, $visiting);
             if ($parentGeneration === null) {
+                $complete = false;
                 continue;
             }
-            $generation = max($generation, $parentGeneration + 1);
+            if (!$parentGeneration['complete']) {
+                $complete = false;
+            }
+            $generation = max($generation, $parentGeneration['generation'] + 1);
+        }
+        unset($visiting[$oid]);
+
+        if ($complete) {
+            $this->generationCache[$oid] = $generation;
         }
 
-        return $this->generationCache[$oid] = $generation;
+        return [
+            'generation' => $generation,
+            'complete' => $complete,
+        ];
     }
 
     private function commitTime(string $oid): int

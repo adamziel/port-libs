@@ -365,6 +365,22 @@ $fullySkippedRawVlqMap->addVlqMap(
     0
 );
 
+$separatorOnlyRawVlqMap = new SourceMap();
+$separatorOnlyRawVlqMap->addVlqMap(
+    ';;;,,',
+    ['wp-content/themes/example/source-map-empty-separators.css'],
+    ['.wp-block-empty-separators{}'],
+    ['empty-separators-rule'],
+    4,
+    9
+);
+$separatorOnlyRawVlqParent = new SourceMap();
+$separatorOnlyRawVlqEntry = $separatorOnlyRawVlqParent->addSource('wp-content/themes/example/source-map-entry.css');
+$separatorOnlyRawVlqParent->setSourceContent($separatorOnlyRawVlqEntry, ".wp-block-source-map-entry{}\n");
+$separatorOnlyRawVlqParent->addMapping(0, 0, $separatorOnlyRawVlqEntry, 0, 0, 'source-map-entry-rule');
+$separatorOnlyRawVlqParent->addSourceMap($separatorOnlyRawVlqMap, 2);
+$separatorOnlyRawVlqChildConsumed = $separatorOnlyRawVlqMap->toJson(null, false);
+
 $skippedInvalidSourceIndexMap = new SourceMap();
 $skippedInvalidSourceIndexGuard = false;
 try {
@@ -749,6 +765,8 @@ $actual = [
     'negativeOffsetRawMap' => $negativeOffsetRawMap->toJson(null, false),
     'skippedSameLineRawVlqMap' => $skippedSameLineRawVlqMap->toJson(null, false),
     'fullySkippedRawVlqMap' => $fullySkippedRawVlqMap->toJson(null, false),
+    'separatorOnlyRawVlqParent' => $separatorOnlyRawVlqParent->toJson(null, false),
+    'separatorOnlyRawVlqChildConsumed' => $separatorOnlyRawVlqChildConsumed,
     'skippedInvalidSourceIndexGuard' => $skippedInvalidSourceIndexGuard,
     'skippedInvalidSourceIndexMap' => $skippedInvalidSourceIndexMap->toJson(null, false),
     'skippedInvalidNameIndexGuard' => $skippedInvalidNameIndexGuard,
@@ -833,6 +851,8 @@ if (($argv[1] ?? null) === '--self-test') {
         'negativeOffsetRawMap' => '{"version":3,"mappings":"ICKMC","sources":["wp-content/themes/example/source-map-prelude.css","wp-content/themes/example/blocks/cover.css"],"sourcesContent":[".prelude{}",".wp-block-cover{}"],"names":["prelude-rule","cover-rule"]}',
         'skippedSameLineRawVlqMap' => '{"version":3,"mappings":"GCCGC","sources":["wp-content/themes/example/source-map-same-line-prelude.css","wp-content/themes/example/blocks/same-line-cover.css"],"sourcesContent":[".wp-block-same-line-prelude{}",".wp-block-same-line-cover{}"],"names":["same-line-prelude-rule","same-line-cover-rule"]}',
         'fullySkippedRawVlqMap' => '{"version":3,"mappings":"","sources":["wp-content/themes/example/source-map-skipped.scss","wp-content/themes/example/source-map-unused.scss"],"sourcesContent":[".wp-block-skipped{color:red}",".wp-block-unused{color:blue}"],"names":["skipped-rule","unused-rule"]}',
+        'separatorOnlyRawVlqParent' => '{"version":3,"mappings":"AAAAA","sources":["wp-content/themes/example/source-map-entry.css","wp-content/themes/example/source-map-empty-separators.css"],"sourcesContent":[".wp-block-source-map-entry{}\n",".wp-block-empty-separators{}"],"names":["source-map-entry-rule","empty-separators-rule"]}',
+        'separatorOnlyRawVlqChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'skippedInvalidSourceIndexGuard' => true,
         'skippedInvalidSourceIndexMap' => '{"version":3,"mappings":"","sources":["wp-content/themes/example/source-map-skipped-invalid-source.css"],"sourcesContent":[".wp-block-skipped-invalid-source{}"],"names":["skipped-invalid-source-rule"]}',
         'skippedInvalidNameIndexGuard' => true,

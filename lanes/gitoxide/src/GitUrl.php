@@ -129,6 +129,40 @@ final class GitUrl
         return $this->password;
     }
 
+    public function withUser(?string $user): self
+    {
+        if ($user !== null) {
+            self::assertValidUtf8($user, 'Git URL username');
+        }
+
+        return new self(
+            $this->scheme,
+            $user,
+            $this->password,
+            $this->host,
+            $this->port,
+            $this->path,
+            $this->alternativeForm
+        );
+    }
+
+    public function withPassword(?string $password): self
+    {
+        if ($password !== null) {
+            self::assertValidUtf8($password, 'Git URL password');
+        }
+
+        return new self(
+            $this->scheme,
+            $this->user,
+            $password,
+            $this->host,
+            $this->port,
+            $this->path,
+            $this->alternativeForm
+        );
+    }
+
     public function host(): ?string
     {
         return $this->host;

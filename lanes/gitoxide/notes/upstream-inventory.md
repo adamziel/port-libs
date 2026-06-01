@@ -1529,3 +1529,29 @@ Tree-merge super-2 resolve-tree parity slice prepared on 2026-06-01:
   changed Gitoxide PHP files passed, and `git diff --check -- lanes/gitoxide`
   passed. Full Cargo workspace runner was not executed.
 - Expected mapped denominator movement: `1703 / 2886` to `1704 / 2886`.
+
+URL/refspec credential mutation parity slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-url-refspec-parse-normalize-parity-20260601T025320Z`
+  on accepted base `515fa94ece8af5512b4751f4654c8d7fe66ba5ec` maps the
+  upstream `gix-url` access/mutation boundary where changed username and
+  password values serialize to canonical URL bytes, reparse cleanly, and redact
+  the password through display formatting.
+- Source truth: upstream Gitoxide
+  `gix-url/tests/url/access.rs::{user,password,mutation_roundtrip}` and
+  `gix-url/src/lib.rs::{set_user,set_password,write_canonical_form_to}` at
+  commit `87433ed33eee9ba974111d20b854f6acb07cd4a6`.
+- Native PHP delta: `GitUrl` now exposes immutable `withUser()` and
+  `withPassword()` helpers that validate UTF-8 credential strings, reuse the
+  existing userinfo percent-encoding/redaction boundary, and preserve canonical
+  round-trip parsing. The WordPress URL/refspec fixture/example now verifies
+  parsed deployment credentials injected after parse without reading any live
+  credential store.
+- Verification: the focused URL/refspec check before this patch passed `1 file
+  / 581 assertions / 0 failures`; after implementation it passed `1 file / 608
+  assertions / 0 failures`, and full Gitoxide lane verification passed `40
+  files / 7086 assertions / 0 failures`. PHP lint passed for changed Gitoxide
+  PHP files, and
+  `php lanes/gitoxide/examples/wordpress-url-refspec-normalize.php --self-test`
+  exited 0. Full Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1711 / 2886` to `1712 / 2886`.

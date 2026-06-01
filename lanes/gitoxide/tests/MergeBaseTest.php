@@ -916,6 +916,50 @@ BASELINE;
         $t->same($release, $mergeBase->mergeBase($pluginReview, $themeReview));
         $t->same(true, in_array($release, $reads, true));
     },
+    'maps upstream graph generation reuse after hydrated missing parent' => static function (TestRunner $t) use ($oid): void {
+        $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            "Ada <ada@example.test> {$seconds} +0000",
+            "CI <ci@example.test> {$seconds} +0000",
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ["Ada <ada@example.test> {$seconds} +0000"],
+                'committer' => ["CI <ci@example.test> {$seconds} +0000"],
+            ],
+        );
+        $root = $oid('1');
+        $intermediate = $oid('2');
+        $legacyDeepBase = $oid('3');
+        $securityShallowBase = $oid('4');
+        $pluginReview = $oid('5');
+        $themeReview = $oid('6');
+        $reads = [];
+        $commits = [
+            $root => $timedCommit(1700000000),
+            $legacyDeepBase => $timedCommit(1700000020, [$intermediate]),
+            $securityShallowBase => $timedCommit(1700000100, [$root]),
+            $pluginReview => $timedCommit(1700000200, [$legacyDeepBase, $securityShallowBase]),
+            $themeReview => $timedCommit(1700000300, [$securityShallowBase, $legacyDeepBase]),
+        ];
+        $mergeBase = new MergeBaseFinder(static function (string $oid) use (&$commits, &$reads): ?Commit {
+            $reads[] = $oid;
+
+            return $commits[$oid] ?? null;
+        });
+
+        $t->same([$securityShallowBase, $legacyDeepBase], $mergeBase->mergeBases($pluginReview, $themeReview));
+        $t->same(true, in_array($intermediate, $reads, true));
+
+        $commits[$intermediate] = $timedCommit(1700000010, [$root]);
+        $reads = [];
+
+        $t->same([$legacyDeepBase, $securityShallowBase], $mergeBase->mergeBases($pluginReview, $themeReview));
+        $t->same($legacyDeepBase, $mergeBase->mergeBaseAgainst($pluginReview, [$themeReview]));
+        $t->same(true, in_array($intermediate, $reads, true));
+    },
     'wordpress fixture finds shared release baseline for multiple review branches' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-merge-base.php';
         $example = require dirname(__DIR__) . '/examples/wordpress-merge-base.php';
@@ -1029,6 +1073,24 @@ BASELINE;
         $t->same([], $example['hydratedPromisorBeforeBases']);
         $t->same([$fixture['hydratedPromisorReleaseBaseline']], $example['hydratedPromisorAfterBases']);
         $t->same(true, $example['hydratedPromisorReusesFinderAfterMissingAncestor']);
+        $generationHydrationCommits = $fixture['commits'];
+        $generationHydrationIntermediateCommit = $generationHydrationCommits[$fixture['generationHydrationIntermediate']];
+        unset($generationHydrationCommits[$fixture['generationHydrationIntermediate']]);
+        $generationHydrationFinder = new MergeBaseFinder(static function (string $oid) use (&$generationHydrationCommits): ?Commit {
+            return $generationHydrationCommits[$oid] ?? null;
+        });
+        $t->same(
+            [$fixture['generationHydrationSecurityBase'], $fixture['generationHydrationLegacyBase']],
+            $generationHydrationFinder->mergeBases($fixture['generationHydrationPluginReview'], $fixture['generationHydrationThemeReview']),
+        );
+        $generationHydrationCommits[$fixture['generationHydrationIntermediate']] = $generationHydrationIntermediateCommit;
+        $t->same(
+            [$fixture['generationHydrationLegacyBase'], $fixture['generationHydrationSecurityBase']],
+            $generationHydrationFinder->mergeBases($fixture['generationHydrationPluginReview'], $fixture['generationHydrationThemeReview']),
+        );
+        $t->same([$fixture['generationHydrationSecurityBase'], $fixture['generationHydrationLegacyBase']], $example['generationHydrationBeforeBases']);
+        $t->same([$fixture['generationHydrationLegacyBase'], $fixture['generationHydrationSecurityBase']], $example['generationHydrationAfterBases']);
+        $t->same(true, $example['generationHydrationRecomputesIncompleteGraph']);
     },
     'object database reader requires commit objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-' . bin2hex(random_bytes(4)) . '/.git';
