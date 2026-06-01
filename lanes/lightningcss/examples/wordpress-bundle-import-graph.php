@@ -573,7 +573,7 @@ try {
             $badImportSupportsReads[] = $file;
 
             return $file === '/bad-import-supports.css'
-                ? '@import "blocks/card.css" supports((display: grid) and); .wp-site-blocks { color: red; }'
+                ? '@import "blocks/card.css" supports(not/**/display: grid); .wp-site-blocks { color: red; }'
                 : '.wp-block-card { color: green; }';
         }
     );
@@ -583,10 +583,10 @@ try {
 } catch (CssBundleException $exception) {
     if (
         $exception->kind !== 'parser-error'
-        || $exception->getMessage() !== 'Invalid @import supports condition'
+        || $exception->getMessage() !== 'Unexpected token Ident("display")'
         || $exception->sourceFile !== '/bad-import-supports.css'
         || $exception->sourceLine !== 1
-        || $exception->sourceColumn !== 1
+        || $exception->sourceColumn !== 39
         || $badImportSupportsReads !== ['/bad-import-supports.css']
     ) {
         fwrite(STDERR, 'Unexpected malformed import supports diagnostic: ' . $exception->getMessage() . PHP_EOL);

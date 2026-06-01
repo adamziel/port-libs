@@ -1474,8 +1474,9 @@ final class CssBundler
             } catch (CssBundleException $exception) {
                 throw new CssBundleException('parser-error', $exception->getMessage(), $file, $loc['line'], $loc['column']);
             }
-            $supports = $this->normalizeSupportsIdentifierEscapes(trim(substr($rest, $open + 1, $close - $open - 1)));
-            $this->validateImportSupportsCondition($supports, $file, $loc);
+            $rawSupports = substr($rest, $open + 1, $close - $open - 1);
+            $supports = $this->normalizeSupportsIdentifierEscapes(trim($rawSupports));
+            $this->validateImportSupportsCondition($supports, $file, $loc, $statement, $restStart + $open + 1, $rawSupports);
             $offset = $close + 1;
             $offset = $this->skipWhitespaceAndComments($rest, $offset);
         }
@@ -1651,7 +1652,14 @@ final class CssBundler
     /**
      * @param array{line:int,column:int} $loc
      */
-    private function validateImportSupportsCondition(string $condition, string $file, array $loc): void
+    private function validateImportSupportsCondition(
+        string $condition,
+        string $file,
+        array $loc,
+        ?string $statement = null,
+        int $conditionOffsetInStatement = 0,
+        ?string $rawCondition = null
+    ): void
     {
         try {
             $valid = $this->isValidImportSupportsCondition($condition);
@@ -1660,6 +1668,25 @@ final class CssBundler
         }
 
         if (!$valid) {
+            if ($statement !== null && $rawCondition !== null) {
+                $diagnostic = $this->invalidImportSupportsDiagnostic($rawCondition);
+                if ($diagnostic !== null) {
+                    $diagnosticLoc = $this->sourceLocationRelativeTo(
+                        $statement,
+                        $conditionOffsetInStatement + $diagnostic['offset'],
+                        $loc
+                    );
+
+                    throw new CssBundleException(
+                        'parser-error',
+                        $diagnostic['message'],
+                        $file,
+                        $diagnosticLoc['line'],
+                        $diagnosticLoc['column'],
+                    );
+                }
+            }
+
             throw new CssBundleException(
                 'parser-error',
                 'Invalid @import supports condition',
@@ -1668,6 +1695,168 @@ final class CssBundler
                 $loc['column'],
             );
         }
+    }
+
+    /**
+     * @return array{message:string,offset:int}|null
+     */
+    private function invalidImportSupportsDiagnostic(string $condition): ?array
+    {
+        $length = strlen($condition);
+        $first = $this->skipWhitespaceAndComments($condition, 0);
+        if ($first >= $length) {
+            return [
+                'message' => 'Unexpected end of input',
+                'offset' => $length,
+            ];
+        }
+
+        $firstIdentifier = $this->readCssIdentifierToken($condition, $first);
+        if ($firstIdentifier !== null && strcasecmp($firstIdentifier['name'], 'not') === 0) {
+            $operandStart = $firstIdentifier['end'];
+            $operandTokenStart = $this->skipWhitespaceAndComments($condition, $operandStart);
+            $operand = $this->readCssIdentifierToken($condition, $operandTokenStart);
+            if ($operand !== null) {
+                return [
+                    'message' => 'Unexpected token Ident("' . $operand['name'] . '")',
+                    'offset' => $operandStart,
+                ];
+            }
+
+            return [
+                'message' => 'Unexpected end of input',
+                'offset' => $length,
+            ];
+        }
+
+        $operators = $this->importSupportsLogicalOperators($condition);
+        if ($operators === []) {
+            return null;
+        }
+
+        $firstOperator = strtolower($operators[0]['name']);
+        foreach ($operators as $operator) {
+            if (strtolower($operator['name']) !== $firstOperator) {
+                return [
+                    'message' => 'Unexpected token Ident("' . $operator['name'] . '")',
+                    'offset' => $operator['offset'],
+                ];
+            }
+        }
+
+        $lastOperator = $operators[array_key_last($operators)];
+        $afterLastOperator = $this->skipWhitespaceAndComments($condition, $lastOperator['end']);
+        if ($afterLastOperator >= $length) {
+            return [
+                'message' => 'Unexpected token Ident("' . $lastOperator['name'] . '")',
+                'offset' => $lastOperator['offset'],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array{name:string,offset:int,end:int}>
+     */
+    private function importSupportsLogicalOperators(string $condition): array
+    {
+        $operators = [];
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($condition);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $condition[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '/' && ($condition[$i + 1] ?? '') === '*') {
+                $end = strpos($condition, '*/', $i + 2);
+                if ($end === false) {
+                    throw new CssBundleException('parser-error', 'CSS contains an unbalanced comment');
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '\\') {
+                if ($parenDepth === 0 && $bracketDepth === 0) {
+                    $identifier = $this->readCssIdentifierToken($condition, $i);
+                    if ($identifier !== null && $this->isSupportsLogicalOperator($identifier['name'])) {
+                        $operators[] = [
+                            'name' => strtolower($identifier['name']),
+                            'offset' => $this->leadingWhitespaceStart($condition, $i),
+                            'end' => $identifier['end'],
+                        ];
+                        $i = $identifier['end'] - 1;
+                        continue;
+                    }
+                }
+                $i = $this->cssEscapeEndOffset($condition, $i);
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($parenDepth !== 0 || $bracketDepth !== 0 || !$this->isIdentifierChar($char)) {
+                continue;
+            }
+
+            $identifier = $this->readCssIdentifierToken($condition, $i);
+            if ($identifier === null) {
+                continue;
+            }
+
+            if ($this->isSupportsLogicalOperator($identifier['name'])) {
+                $operators[] = [
+                    'name' => strtolower($identifier['name']),
+                    'offset' => $this->leadingWhitespaceStart($condition, $i),
+                    'end' => $identifier['end'],
+                ];
+            }
+
+            $i = $identifier['end'] - 1;
+        }
+
+        return $operators;
+    }
+
+    private function leadingWhitespaceStart(string $value, int $offset): int
+    {
+        while ($offset > 0 && ctype_space($value[$offset - 1])) {
+            $offset--;
+        }
+
+        return $offset;
     }
 
     private function isValidImportSupportsCondition(string $condition): bool

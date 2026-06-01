@@ -1727,6 +1727,104 @@ return [
         $t->same(['value' => '10px', 'important' => false], $block->getProperty('-webkit-flex: 2 10px', '-webkit-flex-basis'));
         $t->same(null, $block->getProperty('-webkit-flex: 2 10px', 'flex-basis'));
     },
+    'declaration block canonicalizes upstream direct flex cssom declarations' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'flex-flow: Row Wrap; flex: +1.00 .500 0PX; flex-grow: +2.00; flex-shrink: .2500; flex-basis: 0PX; order: +001; -webkit-flex-flow: Column NoWrap; -webkit-flex: +2.0 1.00 10PX; -webkit-order: -0003; --Flex-Flow: Row Wrap';
+
+        $t->same(
+            [
+                'flex-flow' => 'row wrap',
+                'flex' => '1 .5 0',
+                'flex-grow' => '2',
+                'flex-shrink' => '.25',
+                'flex-basis' => '0',
+                'order' => '1',
+                '-webkit-flex-flow' => 'column nowrap',
+                '-webkit-flex' => '2 10px',
+                '-webkit-order' => '-3',
+                '--Flex-Flow' => 'Row Wrap',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'row wrap', 'important' => false], $block->getProperty($declarations, 'flex-flow'));
+        $t->same(['value' => '2 .25 0', 'important' => false], $block->getProperty($declarations, 'flex'));
+        $t->same(['value' => '2', 'important' => false], $block->getProperty($declarations, 'flex-grow'));
+        $t->same(['value' => '0', 'important' => false], $block->getProperty($declarations, 'flex-basis'));
+        $t->same(['value' => '1', 'important' => false], $block->getProperty($declarations, 'order'));
+        $t->same(['value' => 'column nowrap', 'important' => false], $block->getProperty($declarations, '-webkit-flex-flow'));
+        $t->same(['value' => '2 10px', 'important' => false], $block->getProperty($declarations, '-webkit-flex'));
+        $t->same(['value' => 'Row Wrap', 'important' => false], $block->getProperty($declarations, '--Flex-Flow'));
+        $t->same(
+            'flex-flow: column wrap; color: red',
+            $block->setProperty('flex-flow: Row Wrap; color: red', 'flex-direction', 'Column')
+        );
+        $t->same(
+            'flex: 2 10px; color: red',
+            $block->setProperty('flex: +1.00 .500 0PX; color: red', 'flex', '+2.00 1.00 10PX')
+        );
+        $t->same(
+            'flex-grow: .5; color: red',
+            $block->setProperty('flex-grow: +1.00; color: red', 'flex-grow', '.500')
+        );
+        $t->same(
+            'color: red; order: -5 !important',
+            $block->setProperty('order: +001; color: red', 'order', '-0005', true)
+        );
+        $t->same(
+            'flex-flow: row wrap; flex: 1 .5 0; flex-grow: 2; flex-shrink: .25; flex-basis: 0; -webkit-flex-flow: column nowrap; -webkit-flex: 2 10px; -webkit-order: -3; --Flex-Flow: Row Wrap',
+            $block->removeProperty($declarations, 'order')
+        );
+    },
+    'declaration block canonicalizes upstream legacy flex cssom declarations' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $legacy = '-webkit-box-orient: Vertical; -moz-box-direction: Reverse; -webkit-box-align: Stretch; -moz-box-pack: Justify; -webkit-box-lines: Multiple; -webkit-box-flex: .500; -moz-box-flex: +1.00; -webkit-box-ordinal-group: +003; -ms-flex-pack: Distribute; -ms-flex-align: Baseline; -ms-flex-item-align: Auto; -ms-flex-line-pack: Stretch; -ms-flex-positive: +2.00; -ms-flex-negative: .2500; -ms-flex-preferred-size: 0PX; -ms-flex-order: -0002; --Legacy-Flex: Vertical';
+
+        $t->same(
+            [
+                '-webkit-box-orient' => 'vertical',
+                '-moz-box-direction' => 'reverse',
+                '-webkit-box-align' => 'stretch',
+                '-moz-box-pack' => 'justify',
+                '-webkit-box-lines' => 'multiple',
+                '-webkit-box-flex' => '.5',
+                '-moz-box-flex' => '1',
+                '-webkit-box-ordinal-group' => '3',
+                '-ms-flex-pack' => 'distribute',
+                '-ms-flex-align' => 'baseline',
+                '-ms-flex-item-align' => 'auto',
+                '-ms-flex-line-pack' => 'stretch',
+                '-ms-flex-positive' => '2',
+                '-ms-flex-negative' => '.25',
+                '-ms-flex-preferred-size' => '0',
+                '-ms-flex-order' => '-2',
+                '--Legacy-Flex' => 'Vertical',
+            ],
+            $block->parse($legacy)
+        );
+        $t->same(['value' => 'vertical', 'important' => false], $block->getProperty($legacy, '-webkit-box-orient'));
+        $t->same(['value' => 'stretch', 'important' => false], $block->getProperty($legacy, '-webkit-box-align'));
+        $t->same(['value' => '.5', 'important' => false], $block->getProperty($legacy, '-webkit-box-flex'));
+        $t->same(['value' => '3', 'important' => false], $block->getProperty($legacy, '-webkit-box-ordinal-group'));
+        $t->same(['value' => 'distribute', 'important' => false], $block->getProperty($legacy, '-ms-flex-pack'));
+        $t->same(['value' => '0', 'important' => false], $block->getProperty($legacy, '-ms-flex-preferred-size'));
+        $t->same(['value' => 'Vertical', 'important' => false], $block->getProperty($legacy, '--Legacy-Flex'));
+        $t->same(
+            '-webkit-box-orient: horizontal; color: red',
+            $block->setProperty('-webkit-box-orient: Vertical; color: red', '-webkit-box-orient', 'Horizontal')
+        );
+        $t->same(
+            '-ms-flex-preferred-size: 12px; color: red',
+            $block->setProperty('-ms-flex-preferred-size: 0PX; color: red', '-ms-flex-preferred-size', '12PX')
+        );
+        $t->same(
+            'color: red; -ms-flex-order: 4 !important',
+            $block->setProperty('-ms-flex-order: -0002; color: red', '-ms-flex-order', '+004', true)
+        );
+        $t->same(
+            '-webkit-box-orient: vertical; -moz-box-direction: reverse; -webkit-box-align: stretch; -webkit-box-lines: multiple; -webkit-box-flex: .5; -moz-box-flex: 1; -webkit-box-ordinal-group: 3; -ms-flex-pack: distribute; -ms-flex-align: baseline; -ms-flex-item-align: auto; -ms-flex-line-pack: stretch; -ms-flex-positive: 2; -ms-flex-negative: .25; -ms-flex-preferred-size: 0; -ms-flex-order: -2; --Legacy-Flex: Vertical',
+            $block->removeProperty($legacy, '-moz-box-pack')
+        );
+    },
     'declaration block reads upstream place alignment cssom shorthands and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

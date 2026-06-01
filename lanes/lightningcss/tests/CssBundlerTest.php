@@ -1166,7 +1166,11 @@ CSS,
         );
     },
     'css bundler rejects invalid import supports conditions before resolver reads' => static function (TestRunner $t): void {
-        $assertInvalidImportSupports = static function (string $css) use ($t): void {
+        $assertInvalidImportSupports = static function (
+            string $css,
+            string $message = 'Invalid @import supports condition',
+            int $column = 1
+        ) use ($t): void {
             $reads = [];
             try {
                 (new CssBundler())->bundleWithReader('/entry.css', static function (string $file) use (&$reads, $css): string {
@@ -1176,10 +1180,10 @@ CSS,
                 });
             } catch (CssBundleException $exception) {
                 $t->same('parser-error', $exception->kind);
-                $t->same('Invalid @import supports condition', $exception->getMessage());
+                $t->same($message, $exception->getMessage());
                 $t->same('/entry.css', $exception->sourceFile);
                 $t->same(1, $exception->sourceLine);
-                $t->same(1, $exception->sourceColumn);
+                $t->same($column, $exception->sourceColumn);
                 $t->same(['/entry.css'], $reads);
 
                 return;
@@ -1188,10 +1192,11 @@ CSS,
             throw new RuntimeException('Expected invalid @import supports condition exception');
         };
 
-        $assertInvalidImportSupports('@import "tokens.css" supports(); .entry { color: red }');
-        $assertInvalidImportSupports('@import "tokens.css" supports((display: grid) and); .entry { color: red }');
-        $assertInvalidImportSupports('@import "tokens.css" supports((display: grid) or (color: red) and (foo: bar)); .entry { color: red }');
-        $assertInvalidImportSupports('@import "tokens.css" supports(not display: grid); .entry { color: red }');
+        $assertInvalidImportSupports('@import "tokens.css" supports(); .entry { color: red }', 'Unexpected end of input', 31);
+        $assertInvalidImportSupports('@import "tokens.css" supports((display: grid) and); .entry { color: red }', 'Unexpected token Ident("and")', 46);
+        $assertInvalidImportSupports('@import "tokens.css" supports((display: grid) or (color: red) and (foo: bar)); .entry { color: red }', 'Unexpected token Ident("and")', 62);
+        $assertInvalidImportSupports('@import "tokens.css" supports(not display: grid); .entry { color: red }', 'Unexpected token Ident("display")', 34);
+        $assertInvalidImportSupports('@import "tokens.css" supports(not/**/display: grid); .entry { color: red }', 'Unexpected token Ident("display")', 34);
 
         $t->same(
             '@supports selector(.wp-block-query > .wp-block-post-title){:root{--gap:1rem}}.entry{color:red}',

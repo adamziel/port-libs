@@ -2170,6 +2170,43 @@ return [
         $t->same([], $child->getNames());
         $t->same('', $child->writeVlq());
     },
+    'source map drains child tables when upstream offset merge rejects remapped indexes' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $parentSource = $parent->addSource('parent.css');
+        $parent->setSourceContent($parentSource, ".parent{}\n");
+        $parent->addMapping(0, 0, $parentSource, 0, 0, 'parentRule');
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('blocks/broken.css');
+        $child->setSourceContent($childSource, ".broken{}\n");
+        $child->addMapping(0, 4, $childSource, 2, 1, 'brokenRule');
+
+        $corruptChildMapping = Closure::bind(static function (SourceMap $sourceMap): void {
+            $sourceMap->mappings[0]['sourceIndex'] = 99;
+        }, null, SourceMap::class);
+        if ($corruptChildMapping === null) {
+            throw new RuntimeException('Unable to bind SourceMap test helper.');
+        }
+
+        $corruptChildMapping($child);
+
+        $t->throws(InvalidArgumentException::class, static function () use ($parent, $child): void {
+            $parent->addSourceMap($child, 2);
+        });
+
+        $t->same(
+            '{"version":3,"mappings":"AAAAA","sources":["parent.css","blocks/broken.css"],"sourcesContent":[".parent{}\n",".broken{}\n"],"names":["parentRule","brokenRule"]}',
+            $parent->toJson(null, false)
+        );
+        $t->same(
+            [['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0]],
+            $parent->getMappings()
+        );
+        $t->same([], $child->getSources());
+        $t->same([], $child->getSourcesContent());
+        $t->same([], $child->getNames());
+        $t->same('', $child->writeVlq());
+    },
     'source map adds upstream empty line maps with line offsets' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $map->addEmptyMap('theme.css', ".wp-block-cover {}\n\n.wp-block-button {}\n", 2);

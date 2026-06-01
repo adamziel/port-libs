@@ -22,6 +22,11 @@ $siteAOld = str_repeat('6', 40);
 $siteANew = str_repeat('7', 40);
 $siteBOld = str_repeat('8', 40);
 $siteBNew = str_repeat('9', 40);
+$zeroOid = str_repeat('0', 40);
+$topicOld = str_repeat('a', 40);
+$topicNew = str_repeat('b', 40);
+$changeOld = str_repeat('c', 40);
+$changeNew = str_repeat('d', 40);
 
 return [
     'refs' => [
@@ -156,6 +161,30 @@ return [
         . $packet("option refname refs/heads/site-b\n")
         . $packet("option old-oid {$siteBOld}\n")
         . $packet("option new-oid {$siteBNew}\n")
+        . $flush,
+    'noRefnameMultiReportRef' => [
+        'requested' => 'refs/for/main/topic',
+        'actual' => [
+            'refs/for/main/topic',
+            'refs/changes/24/124/1',
+            'refs/changes/25/125/1',
+        ],
+        'oldObjects' => [$topicOld, $zeroOid, $changeOld],
+        'newObjects' => [$topicNew, $changeOld, $changeNew],
+    ],
+    'noRefnameMultiReportResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/for/main/topic\n")
+        . $packet("option old-oid {$topicOld}\n")
+        . $packet("option new-oid {$topicNew}\n")
+        . $packet("ok refs/for/main/topic\n")
+        . $packet("option refname refs/changes/24/124/1\n")
+        . $packet("option old-oid {$zeroOid}\n")
+        . $packet("option new-oid {$changeOld}\n")
+        . $packet("ok refs/for/main/topic\n")
+        . $packet("option refname refs/changes/25/125/1\n")
+        . $packet("option old-oid {$changeOld}\n")
+        . $packet("option new-oid {$changeNew}\n")
+        . $packet("option forced-update\n")
         . $flush,
     'missingExpectedResponse' => $packet("unpack ok\n")
         . $packet("ok refs/heads/ghost ignored by send-pack\n")

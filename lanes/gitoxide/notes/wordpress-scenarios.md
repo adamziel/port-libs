@@ -84,7 +84,7 @@ The latest namespace prefix slice uses `ReferenceName::intoNamespacedPrefix()` t
 
 ## WordPress Protocol V1 Push Response Example
 
-`examples/wordpress-protocol-v1-push-response.php` parses a deterministic sidebanded receive-pack response for a WordPress deployment push. It extracts progress messages, `unpack ok`, and accepted branch/tag ref statuses from nested report-status packet lines, ignores malformed report-status-v2 object-option diagnostics after matched refs, rejects malformed deployment-hook reports that attach report-status-v2 options to unrequested refs, and treats missing requested ref statuses as remote failures, so a PHP deployment tool can determine whether the remote accepted the push without invoking `git push`.
+`examples/wordpress-protocol-v1-push-response.php` parses a deterministic sidebanded receive-pack response for a WordPress deployment push. It extracts progress messages, `unpack ok`, and accepted branch/tag ref statuses from nested report-status packet lines, ignores malformed report-status-v2 object-option diagnostics after matched refs, preserves multi-report proc-receive rewrites even when one report omits `option refname`, rejects malformed deployment-hook reports that attach report-status-v2 options to unrequested refs, and treats missing requested ref statuses as remote failures, so a PHP deployment tool can determine whether the remote accepted the push without invoking `git push`.
 
 ## WordPress Send-Pack Session Example
 

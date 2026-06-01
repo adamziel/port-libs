@@ -363,6 +363,188 @@ final class SQLiteRealPagerBoundaryPlan
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function invalidPageRequestBoundary(string $phase, int $variant = 0, int $pageSize = 1024): array
+    {
+        $phase = strtolower(trim($phase));
+        if ($variant < 0) {
+            throw new \InvalidArgumentException('SQLite pager invalid-page variant must be non-negative');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite pager invalid-page page size must be a power of two at least 512 bytes');
+        }
+
+        $lockingPageNumber = intdiv(0x10000, $pageSize) + 1;
+        $payloadBytes = match ($phase) {
+            'interior-cell-zero-child' => 800 + ($variant % 17),
+            'locking-page-root', 'alter-rename-invalid-root' => 0,
+            default => 5000 + ($variant % 97),
+        };
+
+        $sections = [
+            'locking-page-root' => [
+                'pager1-18.2',
+                'select-count-rootpage-locking-page',
+                'SELECT count(*) FROM t1',
+                true,
+                false,
+                $lockingPageNumber,
+                'rootpage',
+                null,
+                [],
+                true,
+                false,
+            ],
+            'text-overflow-zero-typeof' => [
+                'pager1-18.3.1',
+                'metadata-typeof-text-overflow-zero',
+                'SELECT typeof(x) FROM t2',
+                false,
+                true,
+                0,
+                'overflow-next-page',
+                'text',
+                [['text']],
+                false,
+                true,
+            ],
+            'text-overflow-zero-concat-length' => [
+                'pager1-18.3.2',
+                'load-text-overflow-zero',
+                "SELECT length(x||'') FROM t2",
+                true,
+                false,
+                0,
+                'overflow-next-page',
+                'text',
+                [],
+                false,
+                false,
+            ],
+            'blob-overflow-zero-length-typeof' => [
+                'pager1-18.3.3',
+                'metadata-length-typeof-blob-overflow-zero',
+                'SELECT length(x), typeof(x) FROM t2',
+                false,
+                true,
+                0,
+                'overflow-next-page',
+                'blob',
+                [[$payloadBytes, 'blob']],
+                false,
+                true,
+            ],
+            'blob-overflow-zero-concat-length' => [
+                'pager1-18.3.4',
+                'load-blob-overflow-zero',
+                "SELECT length(x||'') FROM t2",
+                true,
+                false,
+                0,
+                'overflow-next-page',
+                'blob',
+                [],
+                false,
+                false,
+            ],
+            'blob-overflow-high-concat-length' => [
+                'pager1-18.4',
+                'load-blob-overflow-too-large',
+                "SELECT length(x||'') FROM t2",
+                true,
+                false,
+                0x90000000,
+                'overflow-next-page',
+                'blob',
+                [],
+                false,
+                false,
+            ],
+            'alter-rename-invalid-root' => [
+                'pager1-18.5',
+                'alter-rename-invalid-rootpage',
+                'SELECT * FROM x1',
+                true,
+                false,
+                5,
+                'rootpage',
+                null,
+                [],
+                true,
+                false,
+            ],
+            'interior-cell-zero-child' => [
+                'pager1-18.6',
+                'load-interior-cell-zero-child-page',
+                'SELECT length(x) FROM t1',
+                true,
+                false,
+                0,
+                'interior-child-page',
+                'text',
+                [],
+                false,
+                false,
+            ],
+        ];
+
+        if (!isset($sections[$phase])) {
+            throw new \InvalidArgumentException("Unsupported SQLite pager invalid-page phase: {$phase}");
+        }
+
+        [
+            $section,
+            $status,
+            $selectSql,
+            $loadsPayload,
+            $metadataOnlySafe,
+            $corruptPageNumber,
+            $corruptField,
+            $storageClass,
+            $rows,
+            $requiresDefensiveOff,
+            $lazyMetadataShortCircuit,
+        ] = $sections[$phase];
+
+        $malformed = !$metadataOnlySafe;
+        $resultCode = $malformed ? 1 : 0;
+        $error = $malformed ? 'database disk image is malformed' : null;
+
+        return [
+            'status' => $status,
+            'script' => 'pager1.test',
+            'section' => $section,
+            'phase' => $phase,
+            'variant' => $variant,
+            'page_size' => $pageSize,
+            'locking_page_number' => $lockingPageNumber,
+            'corrupt_page_number' => $corruptPageNumber,
+            'corrupt_field' => $corruptField,
+            'corrupt_pointer_is_zero' => $corruptPageNumber === 0,
+            'corrupt_pointer_exceeds_31bit' => $corruptPageNumber > 0x7fffffff,
+            'requires_defensive_off' => $requiresDefensiveOff,
+            'requires_direct_overflow_read_disabled' => true,
+            'select_sql' => $selectSql,
+            'loads_payload_content' => $loadsPayload,
+            'metadata_only_short_circuit' => $lazyMetadataShortCircuit,
+            'storage_class' => $storageClass,
+            'payload_bytes' => $payloadBytes,
+            'result_code' => $resultCode,
+            'error' => $error,
+            'expected_rows' => $rows,
+            'malformed_detected' => $malformed,
+            'database_handle_remains_usable' => true,
+            'source' => 'pager1.test pager1-18.1 through pager1-18.6 invalid b-tree page requests report SQLITE_CORRUPT only when payload/root content is read',
+            'dependencies' => [
+                'real-upstream-corpus-pager1',
+                'sqlite-pager-invalid-page-request',
+                'sqlite-pager-corrupt-overflow-boundary',
+            ],
+        ];
+    }
+
     private static function align(int $value, int $boundary): int
     {
         return intdiv($value + $boundary - 1, $boundary) * $boundary;

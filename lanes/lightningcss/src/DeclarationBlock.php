@@ -399,6 +399,38 @@ final class DeclarationBlock
         'flex-shrink',
         'flex-basis',
     ];
+    private const LEGACY_FLEX_KEYWORD_PROPERTIES = [
+        '-webkit-box-orient' => ['horizontal', 'vertical', 'inline-axis', 'block-axis'],
+        '-moz-box-orient' => ['horizontal', 'vertical', 'inline-axis', 'block-axis'],
+        '-webkit-box-direction' => ['normal', 'reverse'],
+        '-moz-box-direction' => ['normal', 'reverse'],
+        '-webkit-box-align' => ['start', 'end', 'center', 'baseline', 'stretch'],
+        '-moz-box-align' => ['start', 'end', 'center', 'baseline', 'stretch'],
+        '-webkit-box-pack' => ['start', 'end', 'center', 'justify'],
+        '-moz-box-pack' => ['start', 'end', 'center', 'justify'],
+        '-webkit-box-lines' => ['single', 'multiple'],
+        '-moz-box-lines' => ['single', 'multiple'],
+        '-ms-flex-pack' => ['start', 'end', 'center', 'justify', 'distribute'],
+        '-ms-flex-align' => ['start', 'end', 'center', 'baseline', 'stretch'],
+        '-ms-flex-item-align' => ['auto', 'start', 'end', 'center', 'baseline', 'stretch'],
+        '-ms-flex-line-pack' => ['start', 'end', 'center', 'justify', 'distribute', 'stretch'],
+    ];
+    private const FLEX_INTEGER_PROPERTIES = [
+        'order',
+        '-webkit-order',
+        '-webkit-box-ordinal-group',
+        '-moz-box-ordinal-group',
+        '-ms-flex-order',
+    ];
+    private const FLEX_NUMBER_PROPERTIES = [
+        '-webkit-box-flex',
+        '-moz-box-flex',
+        '-ms-flex-positive',
+        '-ms-flex-negative',
+    ];
+    private const FLEX_BASIS_PROPERTIES = [
+        '-ms-flex-preferred-size',
+    ];
     private const ANIMATION_DIRECTIONS = ['normal', 'reverse', 'alternate', 'alternate-reverse'];
     private const ANIMATION_FILL_MODES = ['none', 'forwards', 'backwards', 'both'];
     private const ANIMATION_PLAY_STATES = ['running', 'paused'];
@@ -6601,7 +6633,7 @@ final class DeclarationBlock
             return '0';
         }
 
-        return rtrim(rtrim(sprintf('%.6F', $number), '0'), '.');
+        return $this->normalizeCssNumberLiteral(rtrim(rtrim(sprintf('%.6F', $number), '0'), '.'));
     }
 
     private function isFlexBasisToken(string $value): bool
@@ -13931,6 +13963,11 @@ final class DeclarationBlock
             return $this->normalizeTransformDeclarationValue($property, $value);
         }
 
+        $flexValue = $this->normalizeFlexDeclarationValue($property, $value);
+        if ($flexValue !== null) {
+            return $flexValue;
+        }
+
         if ($property === 'animation-timeline') {
             return $this->normalizeAnimationTimelineList($value);
         }
@@ -14039,6 +14076,85 @@ final class DeclarationBlock
                 $parts
             )
         );
+    }
+
+    private function normalizeFlexDeclarationValue(string $property, string $value): ?string
+    {
+        $base = $this->baseFlexProperty($property);
+        if ($base !== null) {
+            return match ($base) {
+                'flex-direction' => $this->normalizeKeywordDeclarationValue($value, self::FLEX_DIRECTIONS),
+                'flex-wrap' => $this->normalizeKeywordDeclarationValue($value, self::FLEX_WRAPS),
+                'flex-flow' => $this->normalizeFlexFlowDeclarationValue($value),
+                'flex' => $this->normalizeFlexShorthandDeclarationValue($value),
+                'flex-grow', 'flex-shrink', 'flex-basis' => $this->normalizeFlexLonghandValue($base, $value) ?? trim($value),
+                default => null,
+            };
+        }
+
+        if (isset(self::LEGACY_FLEX_KEYWORD_PROPERTIES[$property])) {
+            return $this->normalizeKeywordDeclarationValue($value, self::LEGACY_FLEX_KEYWORD_PROPERTIES[$property]);
+        }
+
+        if (in_array($property, self::FLEX_INTEGER_PROPERTIES, true)) {
+            $trimmed = trim($value);
+
+            return preg_match('/^[+-]?\d+$/', $trimmed) === 1
+                ? $this->normalizeCssIntegerLiteral($trimmed)
+                : $trimmed;
+        }
+
+        if (in_array($property, self::FLEX_NUMBER_PROPERTIES, true)) {
+            return $this->isFlexNumberToken($value)
+                ? $this->normalizeFlexNumberValue($value)
+                : trim($value);
+        }
+
+        if (in_array($property, self::FLEX_BASIS_PROPERTIES, true)) {
+            return $this->isFlexBasisToken($value)
+                ? $this->normalizeFlexBasisValue($value)
+                : trim($value);
+        }
+
+        return null;
+    }
+
+    private function normalizeFlexFlowDeclarationValue(string $value): string
+    {
+        $trimmed = trim($value);
+        $tokens = $this->splitWhitespaceTopLevel($trimmed);
+        if ($tokens === []) {
+            return $trimmed;
+        }
+
+        $direction = null;
+        $wrap = null;
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            if ($direction === null && in_array($lower, self::FLEX_DIRECTIONS, true)) {
+                $direction = $lower;
+                continue;
+            }
+
+            if ($wrap === null && in_array($lower, self::FLEX_WRAPS, true)) {
+                $wrap = $lower;
+                continue;
+            }
+
+            return $trimmed;
+        }
+
+        return $this->composeFlexFlow($direction, $wrap);
+    }
+
+    private function normalizeFlexShorthandDeclarationValue(string $value): string
+    {
+        $components = $this->parseFlexShorthandComponents($value);
+        if ($components === null) {
+            return trim($value);
+        }
+
+        return $this->composeFlexShorthandValue($components);
     }
 
     private function normalizeColorSchemeDeclarationValue(string $value): string

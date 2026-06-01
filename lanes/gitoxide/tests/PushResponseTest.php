@@ -379,6 +379,73 @@ return [
         $t->same('refs/heads/main', $filtered->refStatuses()[2]->refName);
         $t->same('post-update hook accepted', $filtered->refStatuses()[2]->message);
     },
+    'preserves proc-receive rewrites without refname options like upstream send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
+        $zero = str_repeat('0', 40);
+        $old = str_repeat('a', 40);
+        $new = str_repeat('b', 40);
+        $changeOld = str_repeat('c', 40);
+        $changeNew = str_repeat('d', 40);
+        $response = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/main/topic\n")
+            . $packet("option old-oid {$old}\n")
+            . $packet("option new-oid {$new}\n")
+            . $packet("ok refs/for/main/topic\n")
+            . $packet("option refname refs/changes/24/124/1\n")
+            . $packet("option old-oid {$zero}\n")
+            . $packet("option new-oid {$changeOld}\n")
+            . $packet("ok refs/for/main/topic\n")
+            . $packet("option refname refs/changes/25/125/1\n")
+            . $packet("option old-oid {$changeOld}\n")
+            . $packet("option new-oid {$changeNew}\n")
+            . $packet("option forced-update\n")
+            . $flush
+        );
+        $sideband = PushResponse::fromSidebandPacketLines(
+            $packet("\x02remote: proc-receive reported three rewrite records\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/for/main/topic\n"))
+            . $packet("\x01" . $packet("option old-oid {$old}\n"))
+            . $packet("\x01" . $packet("option new-oid {$new}\n"))
+            . $packet("\x01" . $packet("ok refs/for/main/topic\n"))
+            . $packet("\x01" . $packet("option refname refs/changes/24/124/1\n"))
+            . $packet("\x01" . $packet("option old-oid {$zero}\n"))
+            . $packet("\x01" . $packet("option new-oid {$changeOld}\n"))
+            . $packet("\x01" . $packet("ok refs/for/main/topic\n"))
+            . $packet("\x01" . $packet("option refname refs/changes/25/125/1\n"))
+            . $packet("\x01" . $packet("option old-oid {$changeOld}\n"))
+            . $packet("\x01" . $packet("option new-oid {$changeNew}\n"))
+            . $packet("\x01" . $packet("option forced-update\n"))
+            . $packet("\x01" . $flush)
+            . $flush
+        )->forExpectedRefNames(['refs/for/main/topic']);
+        $filtered = $response->forExpectedRefNames(['refs/for/main/topic']);
+        $first = $filtered->refStatuses()[0];
+        $second = $filtered->refStatuses()[1];
+        $third = $filtered->refStatuses()[2];
+
+        $t->same(3, count($filtered->refStatuses()));
+        $t->same(true, $filtered->isSuccessful());
+        $t->same('refs/for/main/topic', $first->refName);
+        $t->same('refs/for/main/topic', $first->effectiveRefName());
+        $t->same($old, $first->oldObject);
+        $t->same($new, $first->newObject);
+        $t->same(false, $first->forcedUpdate);
+        $t->same('refs/changes/24/124/1', $second->effectiveRefName());
+        $t->same($zero, $second->oldObject);
+        $t->same($changeOld, $second->newObject);
+        $t->same(false, $second->forcedUpdate);
+        $t->same('refs/changes/25/125/1', $third->effectiveRefName());
+        $t->same($changeOld, $third->oldObject);
+        $t->same($changeNew, $third->newObject);
+        $t->same(true, $third->forcedUpdate);
+        $t->same(true, $sideband->isSuccessful());
+        $t->same(['remote: proc-receive reported three rewrite records'], $sideband->progressMessages());
+        $t->same(
+            ['refs/for/main/topic', 'refs/changes/24/124/1', 'refs/changes/25/125/1'],
+            array_map(static fn (PushRefStatus $status): string => $status->effectiveRefName(), $sideband->refStatuses())
+        );
+    },
     'marks missing requested receive-status refs as remote failures like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
         $response = PushResponse::fromReportStatusPacketLines(
             $packet("unpack ok\n")
@@ -756,6 +823,22 @@ return [
             static fn (array $status): string => $status['newObject'],
             $summary['multiReportRefs']
         ));
+        $t->same($fixture['noRefnameMultiReportRef']['actual'], array_map(
+            static fn (array $status): string => $status['effectiveRef'],
+            $summary['noRefnameMultiReportRefs']
+        ));
+        $t->same($fixture['noRefnameMultiReportRef']['oldObjects'], array_map(
+            static fn (array $status): string => $status['oldObject'],
+            $summary['noRefnameMultiReportRefs']
+        ));
+        $t->same($fixture['noRefnameMultiReportRef']['newObjects'], array_map(
+            static fn (array $status): string => $status['newObject'],
+            $summary['noRefnameMultiReportRefs']
+        ));
+        $t->same([false, false, true], array_map(
+            static fn (array $status): bool => $status['forcedUpdate'],
+            $summary['noRefnameMultiReportRefs']
+        ));
         $t->same(true, $summary['oversizedReportStatusRejected']);
         $t->same(true, $summary['fatalSidebandRejected']);
         $t->same(true, $summary['fallThroughAccepted']);
@@ -766,6 +849,7 @@ return [
         $t->same(true, $summary['expectedUnknownStatusIgnored']);
         $t->same(true, $summary['expectedLastStatusWon']);
         $t->same(true, $summary['multiReportStatusPreserved']);
+        $t->same(true, $summary['noRefnameMultiReportStatusPreserved']);
         $t->same(true, $summary['carriageReturnStatusRejected']);
         $t->same(true, $summary['emptyPacketLineRejected']);
         $t->same(true, $summary['unrequestedOptionRejected']);

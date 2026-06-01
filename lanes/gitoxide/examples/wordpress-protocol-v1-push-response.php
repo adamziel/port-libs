@@ -22,6 +22,8 @@ $expectedFilteredResponse = PushResponse::fromReportStatusPacketLines($fixture['
     ->forExpectedRefNames($fixture['expectedRefNames']);
 $multiReportResponse = PushResponse::fromReportStatusPacketLines($fixture['multiReportResponse'])
     ->forExpectedRefNames([$fixture['multiReportRef']['requested']]);
+$noRefnameMultiReportResponse = PushResponse::fromReportStatusPacketLines($fixture['noRefnameMultiReportResponse'])
+    ->forExpectedRefNames([$fixture['noRefnameMultiReportRef']['requested']]);
 $missingExpectedResponse = PushResponse::fromReportStatusPacketLines($fixture['missingExpectedResponse'])
     ->forExpectedRefNames(['refs/heads/main']);
 $unpackOnlyExpectedResponse = PushResponse::fromReportStatusPacketLines($fixture['unpackOnlyResponse'])
@@ -176,6 +178,16 @@ return [
         ],
         $multiReportResponse->refStatuses()
     ),
+    'noRefnameMultiReportRefs' => array_map(
+        static fn (PushRefStatus $status): array => [
+            'requestedRef' => $status->refName,
+            'effectiveRef' => $status->effectiveRefName(),
+            'oldObject' => $status->oldObject,
+            'newObject' => $status->newObject,
+            'forcedUpdate' => $status->forcedUpdate,
+        ],
+        $noRefnameMultiReportResponse->refStatuses()
+    ),
     'missingExpectedRefs' => array_map(
         static fn (PushRefStatus $status): array => [
             'requestedRef' => $status->refName,
@@ -233,6 +245,10 @@ return [
         static fn (PushRefStatus $status): string => $status->effectiveRefName(),
         $multiReportResponse->refStatuses()
     ) === $fixture['multiReportRef']['actual'],
+    'noRefnameMultiReportStatusPreserved' => array_map(
+        static fn (PushRefStatus $status): string => $status->effectiveRefName(),
+        $noRefnameMultiReportResponse->refStatuses()
+    ) === $fixture['noRefnameMultiReportRef']['actual'],
     'missingExpectedStatusRejected' => !$missingExpectedResponse->isSuccessful()
         && $missingExpectedResponse->rejectedRefs()[0]->message === 'remote failed to report status',
     'unpackOnlyExpectedRefsRejected' => $unpackOnlyExpectedRefsRejected,
