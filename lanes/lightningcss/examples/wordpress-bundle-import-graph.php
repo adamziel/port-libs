@@ -396,6 +396,41 @@ if (
 
 echo 'source-map-mixed-case-data-url: generated-source' . PHP_EOL;
 
+$sourceMapUrlDataMap = 'data:application/json;base64,' . base64_encode(json_encode([
+    'version' => 3,
+    'mappings' => '',
+    'sources' => ['blocks/source-map-url-inline.scss'],
+    'sourcesContent' => ['.wp-block-inline-card { color: $wp-green }'],
+    'names' => [],
+], JSON_THROW_ON_ERROR));
+$sourceMapUrlBundle = (new CssBundler())->bundleWithSourceMap('/theme.css', [
+    '/theme.css' => '@import "blocks/source-map-url-editor.css"; @import "blocks/source-map-url-inline.css"; @import "blocks/source-map-url-plain.css"; .wp-site-blocks { color: red }',
+    '/blocks/source-map-url-editor.css' => ".wp-block-editor-card { color: blue }\n/*# sourceMappingURL=source-map-url-editor.css.map */",
+    '/blocks/source-map-url-inline.css' => ".wp-block-inline-card { color: green }\n/*# sourceMappingURL={$sourceMapUrlDataMap} */",
+    '/blocks/source-map-url-plain.css' => '.wp-block-plain-card { color: purple }',
+], null, '/');
+$sourceMapUrlSources = $sourceMapUrlBundle['sourceMap']->toArray(null, false)['sources'];
+
+if (
+    $sourceMapUrlBundle['code'] !== '.wp-block-editor-card{color:#00f}.wp-block-inline-card{color:green}.wp-block-plain-card{color:purple}.wp-site-blocks{color:red}'
+    || $sourceMapUrlBundle['sourceMapUrls'] !== [
+        null,
+        'source-map-url-editor.css.map',
+        $sourceMapUrlDataMap,
+        null,
+    ]
+    || $sourceMapUrlSources !== [
+        'theme.css',
+        'blocks/source-map-url-editor.css',
+        'blocks/source-map-url-plain.css',
+    ]
+) {
+    fwrite(STDERR, "Expected bundled block stylesheets to preserve upstream source_map_urls metadata across imports\n");
+    exit(1);
+}
+
+echo 'source-map-url-import-graph: preserved' . PHP_EOL;
+
 $resolverTrace = [];
 $resolverRejected = false;
 try {

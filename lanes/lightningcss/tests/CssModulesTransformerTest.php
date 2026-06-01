@@ -672,6 +672,62 @@ CSS);
         $t->same([], $result['references']);
         $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
     },
+    'css modules minifies upstream nth type and column formulas while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:NTH-OF-TYPE(2n + 1) {
+  color: red;
+}
+
+.card:nth-\6f f-type(0n + 3) {
+  color: green;
+}
+
+.card:nth-last-of-type(odd) {
+  color: blue;
+}
+
+.card:nth-col(2n+1) {
+  color: yellow;
+}
+
+.card:nth-last-col(even) {
+  color: purple;
+}
+
+.button {
+  composes: card;
+  color: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_card:nth-of-type(odd){color:red}.EgL3uq_card:nth-of-type(3){color:green}.EgL3uq_card:nth-last-of-type(odd){color:#00f}.EgL3uq_card:nth-col(odd){color:#ff0}.EgL3uq_card:nth-last-col(2n){color:purple}.EgL3uq_button{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+    },
+    'css modules rejects upstream invalid nth type and column formulas before composing exports' => static function (TestRunner $t): void {
+        $transformer = new CssModulesTransformer();
+        $invalid = [
+            '.button { composes: card; color: white } .card:nth-of-type(:local(.foo)) { color: red } .card { color: blue }' => 'Unexpected token Colon',
+            '.button { composes: card; color: white } .card:nth-last-of-type(:glo\62 al(.foo)) { color: red } .card { color: blue }' => 'Unexpected token Colon',
+            '.button { composes: card; color: white } .card:nth-col(.ghost) { color: red } .card { color: blue }' => "Unexpected token Delim('.')",
+            '.button { composes: card; color: white } .card:nth-last-col(+ 2) { color: red } .card { color: blue }' => 'Unexpected token WhiteSpace(" ")',
+        ];
+
+        foreach ($invalid as $css => $message) {
+            try {
+                $transformer->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same($message, $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream invalid nth type/column formula exception');
+        }
+    },
     'css modules rejects upstream local global pseudos inside nth-child formulas before composing exports' => static function (TestRunner $t): void {
         $transformer = new CssModulesTransformer();
 

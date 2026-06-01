@@ -565,6 +565,29 @@ CSS,
         $t->same(strlen('.card{color:green}'), $decoded[0]['generatedColumn']);
         $t->same(false, in_array('blocks/mixed-case.scss', $data['sources'], true));
     },
+    'css bundler preserves upstream stylesheet source map urls across import graph' => static function (TestRunner $t): void {
+        $inlineDataMap = 'data:application/json;base64,' . base64_encode(json_encode([
+            'version' => 3,
+            'mappings' => '',
+            'sources' => ['blocks/inline-card.scss'],
+            'sourcesContent' => ['.inline { color: $wp-green }'],
+            'names' => [],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = (new CssBundler())->bundleWithSourceMap('/theme/entry.css', [
+            '/theme/entry.css' => '@import "blocks/external-card.css"; @import "blocks/inline-card.css"; @import "blocks/plain-card.css"; .entry { color: red }',
+            '/theme/blocks/external-card.css' => ".external { color: blue }\n/*# sourceMappingURL=external-card.css.map */",
+            '/theme/blocks/inline-card.css' => ".inline { color: green }\n/*# sourceMappingURL={$inlineDataMap} */",
+            '/theme/blocks/plain-card.css' => '.plain { color: purple }',
+        ], null, '/theme');
+
+        $data = $result['sourceMap']->toArray(null, false);
+
+        $t->same('.external{color:#00f}.inline{color:green}.plain{color:purple}.entry{color:red}', $result['code']);
+        $t->same([null, 'external-card.css.map', $inlineDataMap, null], $result['sourceMapUrls']);
+        $t->same(['entry.css', 'blocks/external-card.css', 'blocks/plain-card.css'], $data['sources']);
+        $t->same(false, in_array('blocks/inline-card.css', $data['sources'], true));
+    },
     'css bundler maps upstream EOF import without semicolon' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '.b{color:green}',

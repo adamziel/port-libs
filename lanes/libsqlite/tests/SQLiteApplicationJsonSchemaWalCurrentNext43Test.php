@@ -11,11 +11,11 @@ $tests = [];
 $pageSize = 512;
 $salt1 = 0x43434343;
 $salt2 = 0x43435656;
-$databasePath = 'wp-content/database/.ht.sqlite';
+$databasePath = 'data/app.sqlite';
 $page = static fn (string $label): string => str_pad($label, $pageSize, "\0");
 $databaseBytes = $page('sqlite header and app_settings root before json schema import')
-    . $page('current active_plugins json option before import')
-    . $page('current theme_mods json option before import')
+    . $page('current enabled_modules json setting before import')
+    . $page('current layout_palette json setting before import')
     . $page('current load_policy index before import');
 
 $walHeaderBytes = static function () use ($pageSize, $salt1, $salt2): string {
@@ -35,8 +35,8 @@ $appendFrame = static function (string $bytes, array &$seed, int $pageNumber, in
 $baseWalBytes = static function () use ($walHeaderBytes, $appendFrame, $page): string {
     $bytes = $walHeaderBytes();
     $seed = SQLiteWal::checksumPair(substr($bytes, 0, 24), false);
-    $bytes = $appendFrame($bytes, $seed, 2, 0, $page('wal draft active_plugins before json schema import'));
-    $bytes = $appendFrame($bytes, $seed, 3, 4, $page('wal committed theme_mods before json schema import'));
+    $bytes = $appendFrame($bytes, $seed, 2, 0, $page('wal draft enabled_modules before json schema import'));
+    $bytes = $appendFrame($bytes, $seed, 3, 4, $page('wal committed layout_palette before json schema import'));
 
     return $bytes;
 };
@@ -47,7 +47,7 @@ CREATE TABLE app_settings (
   key_name TEXT NOT NULL UNIQUE COLLATE NOCASE,
   key_value TEXT NOT NULL DEFAULT '',
   load_policy TEXT NOT NULL DEFAULT 'yes',
-  CHECK (json_valid(key_value) OR key_name NOT IN ('plugin_json_settings','theme_mods_twentytwentyfour'))
+  CHECK (json_valid(key_value) OR key_name NOT IN ('module_json_settings','layout_palette_settings'))
 );
 CREATE UNIQUE INDEX app_settings_key_name ON app_settings(key_name COLLATE NOCASE);
 CREATE INDEX app_settings_load_policy_name ON app_settings(load_policy, key_name);
@@ -56,17 +56,17 @@ SQL;
 
 $baseWal = static fn (): SQLiteWal => SQLiteWal::parse($baseWalBytes(), null, true);
 $currentRows = static fn (): array => [
-    ['setting_id' => 1, 'key_name' => 'active_plugins', 'key_value' => '["classic-editor/classic-editor.php"]', 'load_policy' => 'yes'],
-    ['setting_id' => 2, 'key_name' => 'theme_mods_twentytwentyfour', 'key_value' => '{"nav_menu_locations":[]}', 'load_policy' => 'yes'],
-    ['setting_id' => 3, 'key_name' => 'blog_public', 'key_value' => '1', 'load_policy' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'enabled_modules', 'key_value' => '["forms","exporter"]', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'layout_palette_settings', 'key_value' => '{"nav_items":[]}', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'public_profile', 'key_value' => '1', 'load_policy' => 'no'],
 ];
 $importRows = static fn (): array => [
-    ['key_name' => 'plugin_json_settings', 'key_value' => '{"enabled":true,"mode":"safe"}', 'load_policy' => 'no'],
-    ['key_name' => 'theme_mods_twentytwentyfour', 'key_value' => '{"custom_css_post_id":12}', 'load_policy' => 'yes'],
-    ['key_name' => 'broken_plugin_json', 'key_value' => '{"enabled":', 'load_policy' => 'no'],
-    ['key_name' => 'blog_public', 'key_value' => '0', 'load_policy' => 'no'],
+    ['key_name' => 'module_json_settings', 'key_value' => '{"enabled":true,"mode":"safe"}', 'load_policy' => 'no'],
+    ['key_name' => 'layout_palette_settings', 'key_value' => '{"accent_color":"blue"}', 'load_policy' => 'yes'],
+    ['key_name' => 'broken_module_json', 'key_value' => '{"enabled":', 'load_policy' => 'no'],
+    ['key_name' => 'public_profile', 'key_value' => '0', 'load_policy' => 'no'],
 ];
-$jsonNames = ['plugin_json_settings', 'theme_mods_twentytwentyfour', 'broken_plugin_json'];
+$jsonNames = ['module_json_settings', 'layout_palette_settings', 'broken_module_json'];
 $plan = static fn (): array => SQLiteJsonSchemaWalPlan::currentNext(
     $baseWal(),
     $databaseBytes,
@@ -99,13 +99,13 @@ $cases = [
     'json key names preserved' => [static fn (): mixed => $plan()['json_key_names'], $jsonNames],
     'accepted import count' => [static fn (): mixed => $plan()['accepted_import_count'], 3],
     'rejected import count' => [static fn (): mixed => $plan()['rejected_import_count'], 1],
-    'rejected name' => [static fn (): mixed => $plan()['rejected_rows'][0]['key_name'], 'broken_plugin_json'],
+    'rejected name' => [static fn (): mixed => $plan()['rejected_rows'][0]['key_name'], 'broken_module_json'],
     'rejected reason' => [static fn (): mixed => $plan()['rejected_rows'][0]['reason'], 'malformed_json_key_value'],
     'rejected json error' => [static fn (): mixed => $plan()['rejected_rows'][0]['error'], 'Syntax error'],
     'wal import status' => [static fn (): mixed => $plan()['wal_import']['status'], 'planned'],
-    'wal inserted names' => [static fn (): mixed => $plan()['inserted_key_names'], ['plugin_json_settings']],
-    'wal updated names' => [static fn (): mixed => $plan()['updated_key_names'], ['blog_public', 'theme_mods_twentytwentyfour']],
-    'load_policy names' => [static fn (): mixed => $plan()['load_policy_yes_key_names'], ['active_plugins', 'theme_mods_twentytwentyfour']],
+    'wal inserted names' => [static fn (): mixed => $plan()['inserted_key_names'], ['module_json_settings']],
+    'wal updated names' => [static fn (): mixed => $plan()['updated_key_names'], ['layout_palette_settings', 'public_profile']],
+    'load_policy names' => [static fn (): mixed => $plan()['load_policy_yes_key_names'], ['enabled_modules', 'layout_palette_settings']],
     'wal database page count' => [static fn (): mixed => $plan()['wal_database_page_count'], 6],
     'wal last commit frame' => [static fn (): mixed => $plan()['wal_last_commit_frame'], 7],
     'current reader sources' => [static fn (): mixed => $plan()['current_reader_sources'], ['wal', 'wal', 'database', 'error', 'error']],
@@ -115,21 +115,21 @@ $cases = [
     'wal append start frame' => [static fn (): mixed => $plan()['wal_import']['append']['start_frame'], 3],
     'wal append end frame' => [static fn (): mixed => $plan()['wal_import']['append']['end_frame'], 7],
     'wal append commit count' => [static fn (): mixed => $plan()['wal_import']['append']['committed_transaction_count'], 1],
-    'wal page active plugins retained' => [static fn (): mixed => str_contains($plan()['wal_import']['next_reader'][0]['image'], 'classic-editor'), true],
-    'wal page blog public updated' => [static fn (): mixed => str_contains($plan()['wal_import']['next_reader'][1]['image'], '"key_value":"0"'), true],
-    'wal page json settings inserted' => [static fn (): mixed => str_contains($plan()['wal_import']['next_reader'][2]['image'], 'plugin_json_settings'), true],
+    'wal page enabled modules retained' => [static fn (): mixed => str_contains($plan()['wal_import']['next_reader'][0]['image'], 'enabled_modules'), true],
+    'wal page layout palette updated' => [static fn (): mixed => str_contains($plan()['wal_import']['next_reader'][1]['image'], 'accent_color'), true],
+    'wal page json settings inserted' => [static fn (): mixed => str_contains($plan()['wal_import']['next_reader'][2]['image'], 'module_json_settings'), true],
     'wal page json settings value' => [static fn (): mixed => str_contains($plan()['wal_import']['next_reader'][2]['image'], '\\"mode\\":\\"safe\\"'), true],
-    'wal page theme mods updated' => [static fn (): mixed => str_contains($plan()['wal_import']['next_reader'][3]['image'], 'custom_css_post_id'), true],
-    'wal page rejected value absent' => [static fn (): mixed => !str_contains($plan()['wal_import']['append']['wal_bytes'], 'broken_plugin_json'), true],
-    'wal load_policy index excludes json settings' => [static fn (): mixed => !str_contains($plan()['wal_import']['next_reader'][4]['image'], 'plugin_json_settings'), true],
+    'wal page public profile updated' => [static fn (): mixed => str_contains($plan()['wal_import']['next_reader'][3]['image'], 'public_profile'), true],
+    'wal page rejected value absent' => [static fn (): mixed => !str_contains($plan()['wal_import']['append']['wal_bytes'], 'broken_module_json'), true],
+    'wal load_policy index excludes json settings' => [static fn (): mixed => !str_contains($plan()['wal_import']['next_reader'][4]['image'], 'module_json_settings'), true],
     'dependency has schema bulk import' => [static fn (): mixed => in_array('sqlite-schema-bulk-import', $plan()['dependencies'], true), true],
     'dependency has wal import' => [static fn (): mixed => in_array('application-settings-wal-import-current-next', $plan()['dependencies'], true), true],
     'dependency has current slice' => [static fn (): mixed => in_array('application-json-schema-wal-current-next', $plan()['dependencies'], true), true],
     'next wal frame count' => [static fn (): mixed => $nextWal()->frameCount(), 7],
     'next wal last commit' => [static fn (): mixed => $nextWal()->lastCommitFrame()?->index, 7],
     'next wal uncommitted count' => [static fn (): mixed => $nextWal()->uncommittedFrameCount(), 0],
-    'next wal page three image has blog public' => [static fn (): mixed => str_contains($nextWal()->readerSnapshotPageImage($databaseBytes, 3, 7)['image'], 'blog_public'), true],
-    'next wal page four image has plugin json' => [static fn (): mixed => str_contains($nextWal()->readerSnapshotPageImage($databaseBytes, 4, 7)['image'], 'plugin_json_settings'), true],
+    'next wal page three image has layout palette' => [static fn (): mixed => str_contains($nextWal()->readerSnapshotPageImage($databaseBytes, 3, 7)['image'], 'layout_palette_settings'), true],
+    'next wal page four image has module json' => [static fn (): mixed => str_contains($nextWal()->readerSnapshotPageImage($databaseBytes, 4, 7)['image'], 'module_json_settings'), true],
     'next wal page six image has load_policy index' => [static fn (): mixed => str_contains($nextWal()->readerSnapshotPageImage($databaseBytes, 6, 7)['image'], 'app_settings_load_policy'), true],
     'current wal cannot see inserted page' => [static function () use ($baseWal, $databaseBytes): mixed {
         try {
@@ -152,7 +152,7 @@ $tests['application json schema wal current next43 rejects invalid inputs'] = st
     $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, 'CREATE TABLE app_posts(id INTEGER);', $currentRows(), $importRows(), [2], $jsonNames));
     $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $schemaSql, $currentRows(), $importRows(), [2], []));
     $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $schemaSql, $currentRows(), $importRows(), [2], ['']));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $schemaSql, $currentRows(), [['key_name' => 'broken_plugin_json', 'key_value' => '{"bad":']], [2], ['broken_plugin_json']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $schemaSql, $currentRows(), [['key_name' => 'broken_module_json', 'key_value' => '{"bad":']], [2], ['broken_module_json']));
     $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $schemaSql, $currentRows(), [['key_name' => '', 'key_value' => '{}']], [2], $jsonNames));
 };
 

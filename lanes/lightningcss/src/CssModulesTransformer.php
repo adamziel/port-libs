@@ -2987,10 +2987,16 @@ final class CssModulesTransformer
                     $nthChildSelectorFunction['open'] + 1,
                     $nthChildSelectorFunction['close'] - $nthChildSelectorFunction['open'] - 1
                 );
-                $ofKeyword = $this->findNthChildOfKeyword($inner);
+                $ofKeyword = $nthChildSelectorFunction['allowsOf']
+                    ? $this->findNthChildOfKeyword($inner)
+                    : null;
                 if ($ofKeyword === null) {
                     $this->assertNoCssModulesModePseudoInNthChildFormula($inner);
-                    $output .= ':' . $nthChildSelectorFunction['rawName'] . '(' . $this->minifyNthChildFormula($inner) . ')';
+                    $output .= ':'
+                        . $nthChildSelectorFunction['canonicalName']
+                        . '('
+                        . $this->minifyNthChildFormula($inner)
+                        . ')';
                     $i = $nthChildSelectorFunction['close'];
                     continue;
                 }
@@ -3000,7 +3006,7 @@ final class CssModulesTransformer
                 $formula = $this->minifyNthChildFormula($formulaSource);
                 $selectorList = substr($inner, $ofKeyword['end']);
                 $output .= ':'
-                    . $nthChildSelectorFunction['rawName']
+                    . $nthChildSelectorFunction['canonicalName']
                     . '('
                     . $formula
                     . ' of '
@@ -3884,7 +3890,7 @@ final class CssModulesTransformer
     }
 
     /**
-     * @return array{rawName:string,open:int,close:int}|null
+     * @return array{canonicalName:string,allowsOf:bool,open:int,close:int}|null
      */
     private function nthChildSelectorFunctionAt(string $selector, int $offset): ?array
     {
@@ -3897,12 +3903,21 @@ final class CssModulesTransformer
             return null;
         }
 
-        if (!in_array(strtolower($token['decoded']), ['nth-child', 'nth-last-child'], true)) {
+        $decodedName = strtolower($token['decoded']);
+        if (!in_array($decodedName, [
+            'nth-child',
+            'nth-last-child',
+            'nth-of-type',
+            'nth-last-of-type',
+            'nth-col',
+            'nth-last-col',
+        ], true)) {
             return null;
         }
 
         return [
-            'rawName' => $token['raw'],
+            'canonicalName' => $decodedName,
+            'allowsOf' => in_array($decodedName, ['nth-child', 'nth-last-child'], true),
             'open' => $token['end'],
             'close' => $this->findMatchingParen($selector, $token['end']),
         ];

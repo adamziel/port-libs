@@ -83,6 +83,21 @@ final class PushRefStatus
         );
     }
 
+    public function withObjectFallbacks(string $oldObject, string $newObject): self
+    {
+        return new self(
+            $this->status,
+            $this->refName,
+            $this->message,
+            $this->reportedRefName,
+            $this->oldObject ?? strtolower($oldObject),
+            $this->newObject ?? strtolower($newObject),
+            $this->forcedUpdate,
+            $this->fallThrough,
+            $this->reportOptionSeen
+        );
+    }
+
     public function withOption(string $name, ?string $value = null, string $objectFormat = 'any'): self
     {
         if (!$this->isOk()) {

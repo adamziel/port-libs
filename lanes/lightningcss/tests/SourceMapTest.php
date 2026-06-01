@@ -1752,6 +1752,48 @@ return [
         $t->same([], $generatedOnlyChild->getSources());
         $t->same('', $generatedOnlyChild->writeVlq());
     },
+    'source map keeps source-backed input-map lines after pruned generated-only gaps' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $parentSource = $parent->addSource('entry.css');
+        $parent->setSourceContent($parentSource, ".entry{}\n");
+        $parent->addMapping(0, 0, $parentSource, 0, 0, 'entryRule');
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('blocks/card.scss');
+        $unusedSource = $child->addSource('blocks/unused.scss');
+        $child->setSourceContent($childSource, ".card{color:\$brand}\n.card__icon{display:block}\n");
+        $child->setSourceContent($unusedSource, ".unused{}\n");
+        $child->addGeneratedMapping(0, 5);
+        $child->addGeneratedMapping(0, 12);
+        $child->addMapping(1, 3, $childSource, 4, 2, 'cardRule');
+        $child->addMapping(1, 9, $childSource, 4, 8, 'cardDecl');
+        $child->addGeneratedMapping(2, 4);
+        $child->addMapping(3, 1, $childSource, 6, 0, 'cardAfter');
+        $child->addName('unusedName');
+
+        $parent->appendSourceMapWithGeneratedOffset($child, 2, 7, false);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $roundTrip = SourceMap::fromBuffer('/', $parent->toBuffer());
+        $data = $parent->toArray(null, false);
+
+        $t->same('AAAAA;;;GCIEC,MAAMC;;CAERC', $parent->writeVlq());
+        $t->same([0, 3, 3, 5], array_column($decoded, 'generatedLine'));
+        $t->same([0, 3, 9, 1], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 1, 1, 1], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 4, 4, 6], array_column($decoded, 'originalLine'));
+        $t->same([0, 2, 8, 0], array_column($decoded, 'originalColumn'));
+        $t->same([0, 1, 2, 3], array_column($decoded, 'nameIndex'));
+        $t->same(['entry.css', 'blocks/card.scss'], $data['sources']);
+        $t->same([".entry{}\n", ".card{color:\$brand}\n.card__icon{display:block}\n"], $data['sourcesContent']);
+        $t->same(['entryRule', 'cardRule', 'cardDecl', 'cardAfter'], $data['names']);
+        $t->same(null, $parent->findClosestMapping(2, 7));
+        $t->same(4, $parent->findClosestMapping(3, 6)['originalLine'] ?? null);
+        $t->same(6, $parent->findClosestMapping(5, 1)['originalLine'] ?? null);
+        $t->same('AAAAA;;;GCIEC,MAAMC;;CAERC', $roundTrip->writeVlq());
+        $t->same([], $child->getSources());
+        $t->same([], $child->getNames());
+        $t->same('', $child->writeVlq());
+    },
     'source map normalizes upstream project-root source paths' => static function (TestRunner $t): void {
         $map = new SourceMap('/srv/www/site/wp-content/themes/example');
         $style = $map->addSource('/srv/www/site/wp-content/themes/example/style.css');

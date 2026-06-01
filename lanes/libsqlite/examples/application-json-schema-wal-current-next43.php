@@ -9,26 +9,26 @@ use PortLibs\LibSqlite\SQLiteJsonSchemaWalPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $pageSize = 512;
-$databasePath = 'wp-content/database/.ht.sqlite';
+$databasePath = 'data/app.sqlite';
 $page = static fn (string $label): string => str_pad($label, $pageSize, "\0");
-$databaseBytes = $page('sqlite header and wp_options root')
-    . $page('current active_plugins')
-    . $page('current theme_mods')
-    . $page('current autoload index');
+$databaseBytes = $page('sqlite header and app_settings root')
+    . $page('current enabled_modules')
+    . $page('current layout_palette_settings')
+    . $page('current load_policy index');
 
 $prefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 43, 0x43434343, 0x56565656);
 $checksum = SQLiteWal::checksumPair($prefix, false);
 $wal = SQLiteWal::parse($prefix . pack('N*', $checksum[0], $checksum[1]), null, true);
 
 $schemaSql = <<<'SQL'
-CREATE TABLE wp_options (
-  option_id INTEGER PRIMARY KEY AUTOINCREMENT,
-  option_name TEXT NOT NULL UNIQUE COLLATE NOCASE,
-  option_value TEXT NOT NULL DEFAULT '',
-  autoload TEXT NOT NULL DEFAULT 'yes',
-  CHECK (json_valid(option_value) OR option_name NOT IN ('plugin_json_settings','theme_mods_twentytwentyfour'))
+CREATE TABLE app_settings (
+  setting_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key_name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  key_value TEXT NOT NULL DEFAULT '',
+  load_policy TEXT NOT NULL DEFAULT 'yes',
+  CHECK (json_valid(key_value) OR key_name NOT IN ('module_json_settings','layout_palette_settings'))
 );
-CREATE UNIQUE INDEX wp_options_option_name ON wp_options(option_name COLLATE NOCASE);
+CREATE UNIQUE INDEX app_settings_key_name ON app_settings(key_name COLLATE NOCASE);
 SQL;
 
 $plan = SQLiteJsonSchemaWalPlan::currentNext(
@@ -37,15 +37,15 @@ $plan = SQLiteJsonSchemaWalPlan::currentNext(
     $databasePath,
     $schemaSql,
     [
-        ['option_id' => 1, 'option_name' => 'active_plugins', 'option_value' => '[]', 'autoload' => 'yes'],
-        ['option_id' => 2, 'option_name' => 'theme_mods_twentytwentyfour', 'option_value' => '{"nav_menu_locations":[]}', 'autoload' => 'yes'],
+        ['setting_id' => 1, 'key_name' => 'enabled_modules', 'key_value' => '["forms","exporter"]', 'load_policy' => 'yes'],
+        ['setting_id' => 2, 'key_name' => 'layout_palette_settings', 'key_value' => '{"nav_items":[]}', 'load_policy' => 'yes'],
     ],
     [
-        ['option_name' => 'plugin_json_settings', 'option_value' => '{"enabled":true}', 'autoload' => 'no'],
-        ['option_name' => 'broken_plugin_json', 'option_value' => '{"enabled":', 'autoload' => 'no'],
+        ['key_name' => 'module_json_settings', 'key_value' => '{"enabled":true}', 'load_policy' => 'no'],
+        ['key_name' => 'broken_module_json', 'key_value' => '{"enabled":', 'load_policy' => 'no'],
     ],
     [2, 3, 4, 5],
-    ['plugin_json_settings', 'theme_mods_twentytwentyfour', 'broken_plugin_json'],
+    ['module_json_settings', 'layout_palette_settings', 'broken_module_json'],
     ['schema_version' => 43, 'data_version' => 7, 'next_rootpage' => 9],
 );
 
@@ -53,7 +53,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['status'] === 'planned');
     assert($plan['accepted_import_count'] === 1);
     assert($plan['rejected_import_count'] === 1);
-    assert($plan['inserted_names'] === ['plugin_json_settings']);
+    assert($plan['inserted_key_names'] === ['module_json_settings']);
 }
 
 echo json_encode([
@@ -61,6 +61,6 @@ echo json_encode([
     'schema_version_after' => $plan['schema_version_after'],
     'accepted_import_count' => $plan['accepted_import_count'],
     'rejected_rows' => $plan['rejected_rows'],
-    'inserted_names' => $plan['inserted_names'],
+    'inserted_key_names' => $plan['inserted_key_names'],
     'wal_last_commit_frame' => $plan['wal_last_commit_frame'],
 ], JSON_PRETTY_PRINT) . "\n";

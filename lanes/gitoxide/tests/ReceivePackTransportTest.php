@@ -399,6 +399,35 @@ return [
         $t->same($newPrefix, $response->refStatuses()[0]->newObject);
         $t->same(true, $response->refStatuses()[0]->hasReportOption());
     },
+    'receive-pack client falls back to requested objects for report-status-v2 reports without object options' => static function (TestRunner $t) use ($packet, $flush, $streamWith): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress proc-receive fallback status payload');
+        $advertisement = $packet("{$old} refs/for/wp-release\0report-status-v2 side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x02remote: proc-receive omitted object options\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/for/wp-release accepted without object options\n"))
+            . $packet("\x01" . $packet("option forced-update\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $client = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($advertisement . $responseBytes), $streamWith('')),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/for/wp-release', $blob->oid());
+
+        $response = $client->send($session->buildRequest([$blob]));
+        $status = $response->refStatuses()[0];
+
+        $t->same(true, $response->isSuccessful());
+        $t->same(['remote: proc-receive omitted object options'], $response->progressMessages());
+        $t->same('refs/for/wp-release', $status->effectiveRefName());
+        $t->same('accepted without object options', $status->message);
+        $t->same($old, $status->oldObject);
+        $t->same($blob->oid(), $status->newObject);
+        $t->same(true, $status->forcedUpdate);
+        $t->same(true, $status->hasReportOption());
+    },
     'receive-pack client preserves repeated proc-receive reports for one requested ref' => static function (TestRunner $t) use ($packet, $flush, $streamWith): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
         $siteAOld = str_repeat('6', 40);
@@ -5344,6 +5373,10 @@ return [
         $t->same('0001', $fixture['responseTerminator']);
         $t->same(['Writing objects: 100% (3/3), done.'], $fixture['progressMessages']);
         $t->same(['refs/heads/main'], $fixture['acceptedRefs']);
+        $t->same($fixture['oldCommit'], $fixture['fallbackStatusObjects']['oldObject']);
+        $t->same($fixture['newCommit'], $fixture['fallbackStatusObjects']['newObject']);
+        $t->same(true, $fixture['fallbackStatusObjects']['forcedUpdate']);
+        $t->same('accepted without object options', $fixture['fallbackStatusObjects']['message']);
         $t->contains($fixture['newCommit'], $commands[0]);
         $t->same(['ci.skip'], $options);
         $t->contains('PACK', $packBytes);

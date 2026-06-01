@@ -1433,6 +1433,11 @@ final class TransitionPrefixer
                 '-webkit-' => $targetOptions['boxSizingNeedsWebkit'] ?? false,
                 '-moz-' => $targetOptions['boxSizingNeedsMoz'] ?? false,
             ],
+            'border-image' => [
+                '-webkit-' => $targetOptions['borderImageNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['borderImageNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['borderImageNeedsO'] ?? false,
+            ],
             'print-color-adjust' => [
                 '-webkit-' => $targetOptions['printColorAdjustNeedsWebkit'] ?? false,
                 '-moz-' => $targetOptions['printColorAdjustNeedsMoz'] ?? false,

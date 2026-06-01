@@ -55,6 +55,7 @@ $jsonbCurrentSourceFiles = [
     $sourceRoot . '/SQLiteJsonbGeneratedPartialUpsertPlan.php',
     $sourceRoot . '/SQLiteJsonbPatchGeneratedIndexPlan.php',
     $sourceRoot . '/SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteJsonSchemaWalPlan.php',
     $sourceRoot . '/SQLiteJsonTablePlan.php',
 ];
 $keyValueFixtureFiles = [
@@ -62,6 +63,7 @@ $keyValueFixtureFiles = [
     $libsqliteRoot . '/examples/application-composite-indexed-generated-setting-insert-plan.php',
     $libsqliteRoot . '/examples/application-index-split-setting-replacement-plan.php',
     $libsqliteRoot . '/examples/application-json-operator-json-quote-rhs-forms.php',
+    $libsqliteRoot . '/examples/application-json-schema-wal-current-next43.php',
     $libsqliteRoot . '/examples/application-json-upsert-migration-current-next27.php',
     $libsqliteRoot . '/examples/application-json-path-validation-preflight.php',
     $libsqliteRoot . '/examples/application-malformed-text-current-next70.php',
@@ -71,6 +73,7 @@ $keyValueFixtureFiles = [
     $libsqliteRoot . '/examples/application-utf16-affinity-source-switch-current-source-next100.php',
     $libsqliteRoot . '/examples/application-utf16-collation-affinity-current-source-next85.php',
     $libsqliteRoot . '/tests/SQLiteApplicationCurrentSmokePlanTest.php',
+    $libsqliteRoot . '/tests/SQLiteApplicationJsonSchemaWalCurrentNext43Test.php',
     $libsqliteRoot . '/tests/SQLiteApplicationJsonUpsertMigrationCurrentNext27Test.php',
     $libsqliteRoot . '/tests/SQLiteApplicationSettingsImportWalCurrentNext34Test.php',
     $libsqliteRoot . '/tests/SQLiteApplicationSettingsTenantWalCurrentNext42Test.php',
@@ -154,7 +157,7 @@ $keyValueSourceTermMatches = static function () use ($keyValueSourceFiles, $rela
 
 $jsonbCurrentSourceTermMatches = static function () use ($jsonbCurrentSourceFiles, $relativePath): array {
     $matches = [];
-    $pattern = '/WordPress|wordpress|wordPress|wp_|wp_options|wp_sitemeta|blog_id|blogId|BlogId|option_id|option_name|option_value|OptionRow|optionRow|optionName|optionValue|optionId|Autoload|autoload/';
+    $pattern = '/WordPress|wordpress|wordPress|wp_|wp_options|wp_sitemeta|blog_id|blogId|BlogId|option_id|option_name|option name|option_value|OptionRow|optionRow|optionName|optionValue|optionId|Autoload|autoload/';
 
     foreach ($jsonbCurrentSourceFiles as $file) {
         $contents = file_get_contents($file);

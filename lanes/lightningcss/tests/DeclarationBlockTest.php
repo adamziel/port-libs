@@ -2221,6 +2221,55 @@ return [
             $block->getProperty('align-items: last baseline; justify-items: left legacy', 'place-items')
         );
     },
+    'declaration block canonicalizes upstream alignment cssom declarations across read write paths' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'align-content: FIRST Baseline; justify-content: UNSAFE Right; align-self: SAFE Flex-End; justify-self: SAFE Right; align-items: LAST Baseline; justify-items: right LEGACY; -webkit-align-content: SAFE Center; -webkit-justify-content: Space-Between; -webkit-align-self: SAFE Flex-End; -webkit-align-items: LAST Baseline; --Align-Content: FIRST Baseline';
+
+        $t->same(
+            [
+                'align-content' => 'baseline',
+                'justify-content' => 'unsafe right',
+                'align-self' => 'safe flex-end',
+                'justify-self' => 'safe right',
+                'align-items' => 'last baseline',
+                'justify-items' => 'legacy right',
+                '-webkit-align-content' => 'safe center',
+                '-webkit-justify-content' => 'space-between',
+                '-webkit-align-self' => 'safe flex-end',
+                '-webkit-align-items' => 'last baseline',
+                '--Align-Content' => 'FIRST Baseline',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'baseline', 'important' => false], $block->getProperty($declarations, 'align-content'));
+        $t->same(['value' => 'unsafe right', 'important' => false], $block->getProperty($declarations, 'justify-content'));
+        $t->same(['value' => 'safe flex-end', 'important' => false], $block->getProperty($declarations, 'align-self'));
+        $t->same(['value' => 'safe right', 'important' => false], $block->getProperty($declarations, 'justify-self'));
+        $t->same(['value' => 'last baseline', 'important' => false], $block->getProperty($declarations, 'align-items'));
+        $t->same(['value' => 'legacy right', 'important' => false], $block->getProperty($declarations, 'justify-items'));
+        $t->same(['value' => 'safe center', 'important' => false], $block->getProperty($declarations, '-webkit-align-content'));
+        $t->same(['value' => 'space-between', 'important' => false], $block->getProperty($declarations, '-webkit-justify-content'));
+        $t->same(['value' => 'safe flex-end', 'important' => false], $block->getProperty($declarations, '-webkit-align-self'));
+        $t->same(['value' => 'last baseline', 'important' => false], $block->getProperty($declarations, '-webkit-align-items'));
+        $t->same(['value' => 'FIRST Baseline', 'important' => false], $block->getProperty($declarations, '--Align-Content'));
+        $t->same(null, $block->getProperty('-webkit-align-content: SAFE Center', 'align-content'));
+        $t->same(null, $block->getProperty('align-content: SAFE Center', '-webkit-align-content'));
+        $t->same('align-content: baseline', $block->setProperty('', 'align-content', 'FIRST Baseline'));
+        $t->same('-webkit-justify-content: unsafe right', $block->setProperty('', '-webkit-justify-content', 'UNSAFE Right'));
+        $t->same(
+            'align-items: end; -webkit-align-items: last baseline',
+            $block->setProperty('align-items: end; -webkit-align-items: stretch', '-webkit-align-items', 'LAST Baseline')
+        );
+        $t->same('justify-items: legacy right', $block->setProperty('justify-items: legacy left', 'justify-items', 'right LEGACY'));
+        $t->same(
+            '-webkit-align-content: safe end',
+            $block->setProperty('-webkit-align-content: center !important', '-webkit-align-content', 'SAFE End')
+        );
+        $t->same(
+            'align-content: baseline; color: red',
+            $block->removeProperty('align-content: baseline; -webkit-align-content: safe center; color: red', '-webkit-align-content')
+        );
+    },
     'declaration block reads upstream gap cssom shorthand and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

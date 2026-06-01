@@ -11,6 +11,12 @@ $css = <<<'CSS'
 .wp-block-cover.is-style-framed {
   border-image: url("/wp-content/themes/acme/assets/frame.png") 30 fill / 12px / 4px round;
 }
+
+@supports (border-image: url("/wp-content/themes/acme/assets/frame.png") 30 fill / 12px / 4px round) {
+  .wp-block-cover.is-style-framed {
+    border-image: url("/wp-content/themes/acme/assets/frame.png") 30 fill / 12px / 4px round;
+  }
+}
 CSS;
 
 $actual = [
@@ -29,8 +35,8 @@ $actual = [
 ];
 
 $expected = [
-    'legacy_editor' => '.wp-block-cover.is-style-framed{-webkit-border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round;-moz-border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round;-o-border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round;border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round}',
-    'modern_frontend' => '.wp-block-cover.is-style-framed{border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round}',
+    'legacy_editor' => '.wp-block-cover.is-style-framed{-webkit-border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round;-moz-border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round;-o-border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round;border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round}@supports ((-webkit-border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round) or (-moz-border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round) or (-o-border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round) or (border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round)){.wp-block-cover.is-style-framed{-webkit-border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round;-moz-border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round;-o-border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round;border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round}}',
+    'modern_frontend' => '.wp-block-cover.is-style-framed{border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round}@supports (border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round){.wp-block-cover.is-style-framed{border-image:url("/wp-content/themes/acme/assets/frame.png") 30 fill/12px/4px round}}',
 ];
 
 if ($actual !== $expected) {

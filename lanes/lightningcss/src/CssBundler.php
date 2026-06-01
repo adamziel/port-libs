@@ -26,6 +26,9 @@ final class CssBundler
 
     private string $sourceMapProjectRoot = '/';
 
+    /** @var list<?string> */
+    private array $sourceMapUrls = [];
+
     private bool $cssModules = false;
 
     /** @var list<array{sourceIndex:int,sourceMap:SourceMap,generatedCss:string}> */
@@ -88,7 +91,7 @@ final class CssBundler
     }
 
     /**
-     * @return array{code:string, sourceMap:SourceMap}
+     * @return array{code:string, sourceMap:SourceMap, sourceMapUrls:list<?string>}
      *
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
@@ -100,11 +103,12 @@ final class CssBundler
         return [
             'code' => $result['code'],
             'sourceMap' => $result['sourceMap'],
+            'sourceMapUrls' => $result['sourceMapUrls'],
         ];
     }
 
     /**
-     * @return array{code:string, sourceMap:SourceMap}
+     * @return array{code:string, sourceMap:SourceMap, sourceMapUrls:list<?string>}
      *
      * @param callable(string): string $reader
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
@@ -120,13 +124,15 @@ final class CssBundler
         return [
             'code' => $result['code'],
             'sourceMap' => $result['sourceMap'],
+            'sourceMapUrls' => $result['sourceMapUrls'],
         ];
     }
 
     /**
      * @return array{
      *   code:string,
-     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
+     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>,
+     *   sourceMapUrls:list<?string>
      * }
      *
      * @param array<string, string> $files
@@ -142,7 +148,8 @@ final class CssBundler
      * @return array{
      *   code:string,
      *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>,
-     *   sourceMap:SourceMap
+     *   sourceMap:SourceMap,
+     *   sourceMapUrls:list<?string>
      * }
      *
      * @param array<string, string> $files
@@ -162,7 +169,8 @@ final class CssBundler
     /**
      * @return array{
      *   code:string,
-     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
+     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>,
+     *   sourceMapUrls:list<?string>
      * }
      *
      * @param callable(string): string $reader
@@ -178,7 +186,8 @@ final class CssBundler
      * @return array{
      *   code:string,
      *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>,
-     *   sourceMap:SourceMap
+     *   sourceMap:SourceMap,
+     *   sourceMapUrls:list<?string>
      * }
      *
      * @param callable(string): string $reader
@@ -198,7 +207,8 @@ final class CssBundler
     /**
      * @return array{
      *   code:string,
-     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
+     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>,
+     *   sourceMapUrls:list<?string>
      * }
      *
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
@@ -212,7 +222,9 @@ final class CssBundler
     /**
      * @return array{
      *   code:string,
-     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
+     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>,
+     *   sourceMapUrls:list<?string>,
+     *   sourceMap?:SourceMap
      * }
      *
      * @param array<string, string> $files
@@ -243,6 +255,7 @@ final class CssBundler
         $this->sourceIndexes = [];
         $this->sourceMap = $sourceMapProjectRoot === null ? null : new SourceMap($sourceMapProjectRoot);
         $this->sourceMapProjectRoot = $sourceMapProjectRoot ?? '/';
+        $this->sourceMapUrls = [];
         $this->pendingInputSourceMaps = [];
         $this->emittedSourceIndexes = [];
         $this->stylesheets = [];
@@ -275,6 +288,7 @@ final class CssBundler
         return [
             'code' => $code,
             'exports' => $exports,
+            'sourceMapUrls' => array_values($this->sourceMapUrls),
             ...($this->sourceMap === null ? [] : ['sourceMap' => $this->sourceMap]),
         ];
     }
@@ -316,8 +330,9 @@ final class CssBundler
         ];
 
         $source = $this->readFile($file, $rule);
+        $sourceMapUrl = $this->recordBundleSourceMapUrl($sourceIndex, $source);
         if ($this->sourceMap !== null) {
-            $this->addBundleSource($sourceIndex, $file, $source);
+            $this->addBundleSource($sourceIndex, $file, $source, $sourceMapUrl);
         }
 
         $cssModuleResult = null;
@@ -550,13 +565,20 @@ final class CssBundler
         return $this->files[$file];
     }
 
-    private function addBundleSource(int $sourceIndex, string $file, string $source): void
+    private function recordBundleSourceMapUrl(int $sourceIndex, string $source): ?string
+    {
+        $sourceMapUrl = $this->sourceMapUrl($source);
+        $this->sourceMapUrls[$sourceIndex] = $sourceMapUrl;
+
+        return $sourceMapUrl;
+    }
+
+    private function addBundleSource(int $sourceIndex, string $file, string $source, ?string $sourceMapUrl): void
     {
         if ($this->sourceMap === null) {
             return;
         }
 
-        $sourceMapUrl = $this->sourceMapUrl($source);
         if ($sourceMapUrl !== null && str_starts_with($sourceMapUrl, 'data')) {
             try {
                 $this->pendingInputSourceMaps[] = [

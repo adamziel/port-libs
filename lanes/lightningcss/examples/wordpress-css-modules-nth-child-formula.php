@@ -19,6 +19,18 @@ $css = <<<'CSS'
   color: green;
 }
 
+.card:NTH-OF-TYPE(2n + 1) {
+  border-color: red;
+}
+
+.card:nth-col(2n + 1) {
+  background: yellow;
+}
+
+.card:nth-last-col(even) {
+  outline-color: purple;
+}
+
 .button {
   composes: card;
   color: white;
@@ -35,6 +47,9 @@ foreach ([
     '.card:nth-last-child(2n + :global(.wp-block-post)) { color: red }',
     '.card:nth-child(.ghost) { color: red } .button { composes: card; color: white }',
     '.card:nth-child(+ 2) { color: red } .button { composes: card; color: white }',
+    '.card:nth-of-type(:local(.item)) { color: red }',
+    '.card:nth-col(.ghost) { color: red } .button { composes: card; color: white }',
+    '.card:nth-last-col(+ 2) { color: red } .button { composes: card; color: white }',
 ] as $invalidCss) {
     try {
         (new CssModulesTransformer())->transform($invalidCss, [
@@ -54,7 +69,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '.BlockA_card:nth-child(odd of .wp-block-post+.BlockA_child){color:red}.BlockA_card:nth-last-child(2n of .BlockA_slot,.is-layout-flow){color:#00f}.BlockA_card:nth-child(3 of .BlockA_item){color:green}.BlockA_button{color:#fff}',
+    'code' => '.BlockA_card:nth-child(odd of .wp-block-post+.BlockA_child){color:red}.BlockA_card:nth-last-child(2n of .BlockA_slot,.is-layout-flow){color:#00f}.BlockA_card:nth-child(3 of .BlockA_item){color:green}.BlockA_card:nth-of-type(odd){border-color:red}.BlockA_card:nth-col(odd){background:#ff0}.BlockA_card:nth-last-col(2n){outline-color:purple}.BlockA_button{color:#fff}',
     'exports' => [
         'card' => [
             'name' => 'BlockA_card',
@@ -93,6 +108,9 @@ $expected = [
         '.card:nth-last-child(2n + :global(.wp-block-post)) { color: red }' => 'Unexpected token Colon',
         '.card:nth-child(.ghost) { color: red } .button { composes: card; color: white }' => "Unexpected token Delim('.')",
         '.card:nth-child(+ 2) { color: red } .button { composes: card; color: white }' => 'Unexpected token WhiteSpace(" ")',
+        '.card:nth-of-type(:local(.item)) { color: red }' => 'Unexpected token Colon',
+        '.card:nth-col(.ghost) { color: red } .button { composes: card; color: white }' => "Unexpected token Delim('.')",
+        '.card:nth-last-col(+ 2) { color: red } .button { composes: card; color: white }' => 'Unexpected token WhiteSpace(" ")',
     ],
 ];
 

@@ -14426,6 +14426,11 @@ final class DeclarationBlock
             return $this->normalizeViewTransitionDeclarationValue($property, $value);
         }
 
+        $alignmentValue = $this->normalizeAlignmentDeclarationValue($property, $value);
+        if ($alignmentValue !== null) {
+            return $alignmentValue;
+        }
+
         if (isset(self::UI_DIRECT_ENUM_KEYWORDS[$property])) {
             return $this->normalizeKeywordDeclarationValue($value, self::UI_DIRECT_ENUM_KEYWORDS[$property]);
         }
@@ -14811,6 +14816,24 @@ final class DeclarationBlock
         }
 
         return $this->serializeCssIdentifier($identifier['name']);
+    }
+
+    private function normalizeAlignmentDeclarationValue(string $property, string $value): ?string
+    {
+        $slot = match ($property) {
+            'align-content', '-webkit-align-content' => ['shorthand' => 'place-content', 'slot' => 'align'],
+            'justify-content', '-webkit-justify-content' => ['shorthand' => 'place-content', 'slot' => 'justify'],
+            'align-self', '-webkit-align-self' => ['shorthand' => 'place-self', 'slot' => 'align'],
+            'justify-self' => ['shorthand' => 'place-self', 'slot' => 'justify'],
+            'align-items', '-webkit-align-items' => ['shorthand' => 'place-items', 'slot' => 'align'],
+            'justify-items' => ['shorthand' => 'place-items', 'slot' => 'justify'],
+            default => null,
+        };
+        if ($slot === null) {
+            return null;
+        }
+
+        return $this->normalizePlaceAlignmentComponent($slot['shorthand'], $slot['slot'], $value) ?? trim($value);
     }
 
     /**

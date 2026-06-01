@@ -21,6 +21,7 @@ $sourceFiles = [
     $sourceRoot . '/SQLiteJsonbGeneratedPartialUpsertPlan.php',
     $sourceRoot . '/SQLiteJsonbPatchGeneratedIndexPlan.php',
     $sourceRoot . '/SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteJsonSchemaWalPlan.php',
     $sourceRoot . '/SQLiteJsonTablePlan.php',
 ];
 
@@ -30,6 +31,7 @@ $legacyJsonbCheckMatches = static function () use ($sourceFiles, $libsqliteRoot)
         'wp' . '_options',
         'opt' . 'ion_id',
         'opt' . 'ion_name',
+        'opt' . 'ion name',
         'opt' . 'ion_value',
         'auto' . 'load',
         'blog' . '_id',

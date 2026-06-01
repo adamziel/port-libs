@@ -39,7 +39,8 @@ $commit = new GitObject(
 $progress = 'Writing objects: 100% (3/3), done.';
 $responseBytes = $packet("\x02{$progress}\n")
     . $packet("\x01" . $packet("unpack ok\n"))
-    . $packet("\x01" . $packet("ok refs/heads/main\n"))
+    . $packet("\x01" . $packet("ok refs/heads/main accepted without object options\n"))
+    . $packet("\x01" . $packet("option forced-update\n"))
     . $packet("\x01" . $flush)
     . '0001';
 
@@ -113,6 +114,12 @@ return [
         static fn ($status): string => $status->effectiveRefName(),
         $response->refStatuses()
     ),
+    'fallbackStatusObjects' => [
+        'oldObject' => $response->refStatuses()[0]->oldObject,
+        'newObject' => $response->refStatuses()[0]->newObject,
+        'forcedUpdate' => $response->refStatuses()[0]->forcedUpdate,
+        'message' => $response->refStatuses()[0]->message,
+    ],
     'sshTarget' => SshReceivePackTransport::parseRepositoryUrl('deploy@git.example.test:wp-content.git'),
     'sshIpv6Target' => SshReceivePackTransport::parseRepositoryUrl('ssh://deploy@[2001:db8::42]:2222/srv/wp-content.git'),
     'sshIpv6Context' => SshReceivePackTransport::connectorContext(

@@ -10,6 +10,7 @@ return [
     'oldCommit' => $fixture['oldCommit'],
     'newCommit' => $fixture['newCommit'],
     'acceptedRefs' => $fixture['acceptedRefs'],
+    'fallbackStatusObjects' => $fixture['fallbackStatusObjects'],
     'progressMessages' => $fixture['progressMessages'],
     'requestByteLength' => strlen($fixture['requestBytes']),
     'responseSuccessful' => $fixture['responseSuccessful'],

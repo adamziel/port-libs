@@ -41,7 +41,7 @@ final class ReceivePackClient
             ? PushResponse::fromSidebandPacketLines($responseBytes, $objectFormat)
             : PushResponse::fromReportStatusPacketLines($responseBytes, $objectFormat);
 
-        return $response->forExpectedRefNames(self::expectedRefNames($request->command()));
+        return $response->forExpectedUpdates($request->command()->updates());
     }
 
     public function run(callable $plan): PushResponse
@@ -86,14 +86,4 @@ final class ReceivePackClient
         return 'sha1';
     }
 
-    /**
-     * @return list<string>
-     */
-    private static function expectedRefNames(PushCommand $command): array
-    {
-        return array_map(
-            static fn (PushUpdate $update): string => $update->refName,
-            $command->updates()
-        );
-    }
 }

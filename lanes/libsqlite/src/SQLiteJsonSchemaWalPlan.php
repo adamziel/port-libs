@@ -25,7 +25,7 @@ final class SQLiteJsonSchemaWalPlan
         array $schemaOptions = [],
     ): array {
         if ($jsonKeyNames === []) {
-            throw new \InvalidArgumentException('Application JSON schema WAL planning requires at least one JSON option name');
+            throw new \InvalidArgumentException('Application JSON schema WAL planning requires at least one JSON setting name');
         }
 
         $schema = SQLiteSchemaBulkImportPlan::plan($schemaSql, [], $schemaOptions);
@@ -38,7 +38,7 @@ final class SQLiteJsonSchemaWalPlan
         foreach ($jsonKeyNames as $name) {
             $normalized = trim($name);
             if ($normalized === '') {
-                throw new \InvalidArgumentException('Application JSON schema WAL planning requires non-empty JSON option names');
+                throw new \InvalidArgumentException('Application JSON schema WAL planning requires non-empty JSON setting names');
             }
             $jsonNames[$normalized] = true;
         }

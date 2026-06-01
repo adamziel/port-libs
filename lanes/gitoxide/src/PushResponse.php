@@ -180,6 +180,37 @@ final class PushResponse
     }
 
     /**
+     * @param list<PushUpdate> $expectedUpdates
+     */
+    public function forExpectedUpdates(array $expectedUpdates): self
+    {
+        $expectedRefNames = [];
+        $updatesByRef = [];
+        foreach ($expectedUpdates as $update) {
+            if (!$update instanceof PushUpdate) {
+                throw new \InvalidArgumentException('push response: expected updates must be PushUpdate instances');
+            }
+            if (isset($updatesByRef[$update->refName])) {
+                continue;
+            }
+
+            $updatesByRef[$update->refName] = $update;
+            $expectedRefNames[] = $update->refName;
+        }
+
+        $filtered = $this->forExpectedRefNames($expectedRefNames);
+        $statuses = [];
+        foreach ($filtered->refStatuses as $status) {
+            $update = $updatesByRef[$status->refName] ?? null;
+            $statuses[] = $update !== null && $status->hasReportOption()
+                ? $status->withObjectFallbacks($update->oldObject, $update->newObject)
+                : $status;
+        }
+
+        return new self($filtered->unpackStatus, $statuses, $filtered->progressMessages, $filtered->errorMessages);
+    }
+
+    /**
      * @param non-empty-list<PushRefStatus> $statuses
      * @return non-empty-list<PushRefStatus>
      */

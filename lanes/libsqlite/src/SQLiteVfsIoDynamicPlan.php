@@ -821,6 +821,201 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    public static function pageCachePoolReservationProfile(array $options = []): array
+    {
+        $scenario = trim((string) ($options['scenario'] ?? 'pcache2-1.dynamic'));
+        if ($scenario === '' || preg_match('/[^A-Za-z0-9_.:-]/', $scenario) === 1) {
+            throw new \InvalidArgumentException('SQLite pcache2 pool reservation scenario must be identifier-like');
+        }
+
+        $intOption = static function (string $key, int $default) use ($options): int {
+            $value = $options[$key] ?? $default;
+            if (!is_int($value) && !(is_string($value) && preg_match('/^-?[0-9]+$/', $value) === 1)) {
+                throw new \InvalidArgumentException("SQLite pcache2 pool reservation {$key} must be an integer");
+            }
+
+            return (int) $value;
+        };
+
+        $slotBytes = $intOption('slot_bytes', 6000);
+        $poolSlots = $intOption('pool_slots', 100);
+        $primaryCache = $intOption('primary_cache_size', 10);
+        $peerCache = $intOption('peer_cache_size', 50);
+        $schemaPagesPerConnection = $intOption('schema_pages_per_connection', 2);
+        $createdTables = $intOption('created_tables', 2);
+        $seedRows = $intOption('seed_rows', 2);
+        $copyOperations = $intOption('copy_operations', 8);
+        $payloadBytes = $intOption('payload_bytes', 800);
+        $writerPressurePages = $intOption('writer_pressure_pages', max(1, $primaryCache - 1));
+
+        foreach ([
+            'slot_bytes' => $slotBytes,
+            'pool_slots' => $poolSlots,
+            'primary_cache_size' => $primaryCache,
+            'peer_cache_size' => $peerCache,
+            'schema_pages_per_connection' => $schemaPagesPerConnection,
+            'created_tables' => $createdTables,
+            'seed_rows' => $seedRows,
+            'copy_operations' => $copyOperations,
+            'payload_bytes' => $payloadBytes,
+            'writer_pressure_pages' => $writerPressurePages,
+        ] as $key => $value) {
+            if ($value < 1) {
+                throw new \InvalidArgumentException("SQLite pcache2 pool reservation {$key} must be positive");
+            }
+        }
+        if ($slotBytes < 512) {
+            throw new \InvalidArgumentException('SQLite pcache2 pool reservation slot bytes must be at least 512');
+        }
+        if ($copyOperations > 64) {
+            throw new \InvalidArgumentException('SQLite pcache2 pool reservation copy operations are unbounded');
+        }
+
+        $openConnectionPages = $schemaPagesPerConnection * 2;
+        if ($poolSlots <= $peerCache + $openConnectionPages) {
+            throw new \InvalidArgumentException('SQLite pcache2 pool reservation must leave slots outside the peer cache');
+        }
+        if (($openConnectionPages + $primaryCache) > ($poolSlots - $peerCache)) {
+            throw new \InvalidArgumentException('SQLite pcache2 pool reservation primary working set would consume peer slots');
+        }
+
+        $t1Rows = $seedRows;
+        $t2Rows = 0;
+        $writeSteps = [
+            [
+                'operation' => 'create-tables',
+                'tables' => $createdTables,
+                't1_rows' => 0,
+                't2_rows' => 0,
+            ],
+            [
+                'operation' => 'seed-t1',
+                'inserted_rows' => $seedRows,
+                't1_rows' => $t1Rows,
+                't2_rows' => $t2Rows,
+            ],
+        ];
+
+        for ($operation = 1; $operation <= $copyOperations; $operation++) {
+            if ($operation % 2 === 1) {
+                $insertedRows = $t1Rows;
+                $t2Rows += $insertedRows;
+                $destination = 't2';
+                $source = 't1';
+            } else {
+                $insertedRows = $t2Rows;
+                $t1Rows += $insertedRows;
+                $destination = 't1';
+                $source = 't2';
+            }
+
+            $writeSteps[] = [
+                'operation' => 'insert-select',
+                'copy_index' => $operation,
+                'source' => $source,
+                'destination' => $destination,
+                'inserted_rows' => $insertedRows,
+                't1_rows' => $t1Rows,
+                't2_rows' => $t2Rows,
+            ];
+        }
+
+        $retainedWriterPages = min(max(1, $primaryCache - 1), $writerPressurePages);
+        $primaryOpenUsed = $schemaPagesPerConnection;
+        $peerOpenUsed = $schemaPagesPerConnection;
+        $afterPeerOpen = $primaryOpenUsed + $peerOpenUsed;
+        $afterWrite = $afterPeerOpen + $retainedWriterPages;
+        $peerReserveBoundary = $poolSlots - $peerCache;
+        $estimatedPayloadBytes = ($t1Rows + $t2Rows) * $payloadBytes;
+        $estimatedPayloadSlots = (int) ceil($estimatedPayloadBytes / $slotBytes);
+        $events = [
+            [
+                'step' => 'reset-pagecache-pool',
+                'upstream' => 'pcache2.test pcache2-1.1 sqlite3_config_pagecache 6000 100 and status reset',
+                'sqlite_status' => [0, 0, 0],
+                'current_used_pages' => 0,
+                'highwater_used_pages' => 0,
+                'reason' => 'global_pagecache_pool_starts_empty_after_sqlite3_status_reset',
+            ],
+            [
+                'step' => 'open-primary',
+                'upstream' => 'pcache2.test pcache2-1.2 primary cache_size=10 opens schema pages',
+                'sqlite_status' => [0, $primaryOpenUsed, $primaryOpenUsed],
+                'current_used_pages' => $primaryOpenUsed,
+                'highwater_used_pages' => $primaryOpenUsed,
+                'reason' => 'primary_connection_uses_configured_pagecache_slots_for_schema_read',
+            ],
+            [
+                'step' => 'open-peer',
+                'upstream' => 'pcache2.test pcache2-1.3 peer cache_size=50 opens separate database',
+                'sqlite_status' => [0, $afterPeerOpen, $afterPeerOpen],
+                'current_used_pages' => $afterPeerOpen,
+                'highwater_used_pages' => $afterPeerOpen,
+                'reason' => 'second_connection_contributes_its_schema_pages_without_eviction',
+            ],
+            [
+                'step' => 'primary-write-burst',
+                'upstream' => 'pcache2.test pcache2-1.4 primary writes do not consume pagecache space reserved for peer',
+                'sqlite_status' => [0, $afterWrite, $afterWrite],
+                'current_used_pages' => $afterWrite,
+                'highwater_used_pages' => $afterWrite,
+                'reason' => 'dirty_primary_writer_is_capped_by_its_cache_size_and_leaves_peer_slots_available',
+            ],
+        ];
+
+        return [
+            'status' => 'ok',
+            'script' => 'pcache2.test',
+            'scenario' => $scenario,
+            'upstream' => [
+                'pcache2.test pcache2-1.1 configures SQLITE_STATUS_PAGECACHE_USED pool and resets highwater',
+                'pcache2.test pcache2-1.2 opens primary connection at two pagecache slots',
+                'pcache2.test pcache2-1.3 opens peer connection at four pagecache slots',
+                'pcache2.test pcache2-1.4 verifies dirty primary writes stop at thirteen slots instead of consuming peer cache space',
+            ],
+            'slot_bytes' => $slotBytes,
+            'pool_slots' => $poolSlots,
+            'pagecache_pool_bytes' => $slotBytes * $poolSlots,
+            'primary_cache_size' => $primaryCache,
+            'peer_cache_size' => $peerCache,
+            'schema_pages_per_connection' => $schemaPagesPerConnection,
+            'created_tables' => $createdTables,
+            'seed_rows' => $seedRows,
+            'copy_operations' => $copyOperations,
+            'payload_bytes' => $payloadBytes,
+            'estimated_payload_bytes' => $estimatedPayloadBytes,
+            'estimated_payload_slots' => $estimatedPayloadSlots,
+            'retained_writer_pages' => $retainedWriterPages,
+            'events' => $events,
+            'write_steps' => $writeSteps,
+            'row_counts' => [
+                't1' => $t1Rows,
+                't2' => $t2Rows,
+                'total' => $t1Rows + $t2Rows,
+            ],
+            'status_samples' => array_column($events, 'sqlite_status'),
+            'final_pagecache_used' => $afterWrite,
+            'final_highwater_used' => $afterWrite,
+            'peer_reserve_boundary' => $peerReserveBoundary,
+            'unconsumed_peer_reserved_slots' => $peerReserveBoundary - $afterWrite,
+            'primary_cache_cap_respected' => $retainedWriterPages <= max(1, $primaryCache - 1),
+            'peer_pagecache_space_preserved' => $afterWrite <= $peerReserveBoundary,
+            'pool_exhausted' => $afterWrite >= $poolSlots,
+            'reason' => 'pcache2_configured_pagecache_pool_keeps_primary_dirty_write_pressure_from_consuming_peer_cache_slots',
+            'dependencies' => [
+                'upstream-pcache2-test',
+                'sqlite-status-pagecache-used',
+                'sqlite-pcache-pagecache-pool',
+                'sqlite-pcache-peer-reservation',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function powersafeOverwriteJournalProfile(
