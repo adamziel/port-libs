@@ -176,11 +176,11 @@ final class CustomMediaTransformer
     private function normalizeImportPrefixSource(string $prefix): string
     {
         $offset = $this->skipWhitespaceAndComments($prefix, 0);
-        if (!$this->startsFunction($prefix, $offset, 'url')) {
+        $open = $this->cssFunctionOpenOffset($prefix, $offset, 'url');
+        if ($open === null) {
             return $prefix;
         }
 
-        $open = $offset + strlen($this->readIdentifier($prefix, $offset));
         $close = $this->findMatchingDelimiter($prefix, $open, '(', ')');
         $rawSource = trim(substr($prefix, $open + 1, $close - $open - 1));
         $source = (($rawSource[0] ?? '') === '"' || ($rawSource[0] ?? '') === "'")
@@ -195,8 +195,9 @@ final class CustomMediaTransformer
     private function importMediaTailOffset(string $rest): ?int
     {
         $offset = $this->skipWhitespaceAndComments($rest, 0);
-        if ($this->startsFunction($rest, $offset, 'url')) {
-            $offset = $this->findMatchingDelimiter($rest, $offset + strlen('url'), '(', ')') + 1;
+        $urlOpen = $this->cssFunctionOpenOffset($rest, $offset, 'url');
+        if ($urlOpen !== null) {
+            $offset = $this->findMatchingDelimiter($rest, $urlOpen, '(', ')') + 1;
         } elseif (($rest[$offset] ?? '') === '"' || ($rest[$offset] ?? '') === "'") {
             $offset = $this->readQuotedTokenEnd($rest, $offset);
         } else {
@@ -205,16 +206,22 @@ final class CustomMediaTransformer
 
         while (true) {
             $offset = $this->skipWhitespaceAndComments($rest, $offset);
-            if ($this->startsFunction($rest, $offset, 'supports') || $this->startsFunction($rest, $offset, 'layer')) {
-                $open = $offset + strlen($this->readIdentifier($rest, $offset));
+            $function = $this->readCssIdentifierToken($rest, $offset);
+            if (
+                $function !== null
+                && (($rest[$function['end']] ?? '') === '(')
+                && (strcasecmp($function['name'], 'supports') === 0 || strcasecmp($function['name'], 'layer') === 0)
+            ) {
+                $open = $function['end'];
                 $offset = $this->findMatchingDelimiter($rest, $open, '(', ')') + 1;
                 continue;
             }
 
-            if (strncasecmp(substr($rest, $offset, strlen('layer')), 'layer', strlen('layer')) === 0) {
-                $next = $rest[$offset + strlen('layer')] ?? '';
+            $identifier = $this->readCssIdentifierToken($rest, $offset);
+            if ($identifier !== null && strcasecmp($identifier['name'], 'layer') === 0) {
+                $next = $rest[$identifier['end']] ?? '';
                 if ($next === '' || !$this->isIdentifierChar($next)) {
-                    $offset += strlen('layer');
+                    $offset = $identifier['end'];
                     continue;
                 }
             }
@@ -251,15 +258,22 @@ final class CustomMediaTransformer
 
     private function startsFunction(string $value, int $offset, string $name): bool
     {
-        $length = strlen($name);
-        if (strncasecmp(substr($value, $offset, $length), $name, $length) !== 0) {
-            return false;
+        return $this->cssFunctionOpenOffset($value, $offset, $name) !== null;
+    }
+
+    private function cssFunctionOpenOffset(string $value, int $offset, string $name): ?int
+    {
+        $previous = $value[$offset - 1] ?? '';
+        if ($previous !== '' && $this->isIdentifierChar($previous)) {
+            return null;
         }
 
-        $previous = $value[$offset - 1] ?? '';
-        $next = $value[$offset + $length] ?? '';
+        $identifier = $this->readCssIdentifierToken($value, $offset);
+        if ($identifier === null || strcasecmp($identifier['name'], $name) !== 0) {
+            return null;
+        }
 
-        return ($previous === '' || !$this->isIdentifierChar($previous)) && $next === '(';
+        return ($value[$identifier['end']] ?? '') === '(' ? $identifier['end'] : null;
     }
 
     private function readQuotedTokenEnd(string $value, int $offset): int
@@ -374,6 +388,54 @@ final class CustomMediaTransformer
         }
 
         return $identifier;
+    }
+
+    /**
+     * @return array{name:string,end:int}|null
+     */
+    private function readCssIdentifierToken(string $value, int $offset): ?array
+    {
+        $length = strlen($value);
+        if ($offset >= $length) {
+            return null;
+        }
+
+        $cursor = $offset;
+        $raw = '';
+        while ($cursor < $length) {
+            $char = $value[$cursor];
+            if ($char === '\\') {
+                if ($cursor + 1 >= $length) {
+                    break;
+                }
+
+                $next = $value[$cursor + 1];
+                if ($next === "\n" || $next === "\r" || $next === "\f") {
+                    break;
+                }
+
+                $end = $this->cssEscapeEndOffset($value, $cursor);
+                $raw .= substr($value, $cursor, $end - $cursor + 1);
+                $cursor = $end + 1;
+                continue;
+            }
+
+            if (!$this->isIdentifierChar($char)) {
+                break;
+            }
+
+            $raw .= $char;
+            $cursor++;
+        }
+
+        if ($raw === '') {
+            return null;
+        }
+
+        return [
+            'name' => $this->decodeCssEscapes($raw),
+            'end' => $cursor,
+        ];
     }
 
     private function isIdentifierChar(string $char): bool

@@ -358,6 +358,7 @@ return [
         $blankClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/slot[[:blank:]]/photo.jpg']);
         $spaceClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/slot[[:space:]]/photo.jpg']);
         $invalidClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/[[:unknown:]]/photo.jpg']);
+        $malformedPosixClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/[[:alpha]/photo.jpg']);
 
         $t->same(true, $blankClass->isIncluded("wp-content/uploads/slot\v/photo.jpg", false));
         $t->same(true, $blankClass->isIncluded("wp-content/uploads/slot\t/photo.jpg", false));
@@ -366,6 +367,9 @@ return [
         $t->same(true, $spaceClass->isIncluded('wp-content/uploads/slot /photo.jpg', false));
         $t->same(true, $invalidClass->isIncluded('wp-content/uploads/[[:unknown:]]/photo.jpg', false));
         $t->same(false, $invalidClass->isIncluded('wp-content/uploads/unknown/photo.jpg', false));
+        $t->same(false, $malformedPosixClass->isIncluded('wp-content/uploads/a/photo.jpg', false));
+        $t->same(false, $malformedPosixClass->isIncluded('wp-content/uploads/[/photo.jpg', false));
+        $t->same(PathspecMatch::KIND_VERBATIM, $malformedPosixClass->match('wp-content/uploads/[[:alpha]/photo.jpg', false)?->kind);
 
         $objects = [];
         $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
@@ -381,6 +385,9 @@ return [
                     $tree("slot\v", new Tree([$blob('photo.jpg')])),
                     $tree('slot ', new Tree([$blob('photo.jpg')])),
                     $tree('[[:unknown:]]', new Tree([$blob('photo.jpg')])),
+                    $tree('a', new Tree([$blob('photo.jpg')])),
+                    $tree('[', new Tree([$blob('photo.jpg')])),
+                    $tree('[[:alpha]', new Tree([$blob('photo.jpg')])),
                 ])),
             ])),
         ]);
@@ -390,6 +397,7 @@ return [
             PathspecSearch::fromSpecs([
                 ':(glob)wp-content/uploads/slot[[:blank:]]/photo.jpg',
                 ':(glob)wp-content/uploads/[[:unknown:]]/photo.jpg',
+                ':(glob)wp-content/uploads/[[:alpha]/photo.jpg',
             ]),
             static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
                 if (!isset($objects[$entry->oid])) {
@@ -405,6 +413,7 @@ return [
             "wp-content/uploads/slot\v/photo.jpg",
             'wp-content/uploads/slot /photo.jpg',
             'wp-content/uploads/[[:unknown:]]/photo.jpg',
+            'wp-content/uploads/[[:alpha]/photo.jpg',
         ], $walkPaths($records));
     },
     'matches directory-only pathspecs as verbatim and prefix matches' => static function (TestRunner $t): void {
@@ -1076,5 +1085,11 @@ return [
             "wp-content/plugins/new\nline/block.json",
         ], $example['shellGlobNewlineContentPaths']);
         $t->same(true, $example['shellGlobNewlineIncluded']);
+        $t->same([
+            'wp-content/uploads/[[:alpha]/hero.jpg',
+        ], $example['malformedPosixClassContentPaths']);
+        $t->same(true, $example['malformedPosixClassLetterSkipped']);
+        $t->same(true, $example['malformedPosixClassBracketSkipped']);
+        $t->same(true, $example['malformedPosixClassLiteralIncluded']);
     },
 ];

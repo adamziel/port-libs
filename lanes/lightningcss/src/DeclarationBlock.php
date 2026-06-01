@@ -155,6 +155,44 @@ final class DeclarationBlock
             'textarea',
         ],
     ];
+    private const CURSOR_KEYWORDS = [
+        'auto',
+        'default',
+        'none',
+        'context-menu',
+        'help',
+        'pointer',
+        'progress',
+        'wait',
+        'cell',
+        'crosshair',
+        'text',
+        'vertical-text',
+        'alias',
+        'copy',
+        'move',
+        'no-drop',
+        'not-allowed',
+        'grab',
+        'grabbing',
+        'e-resize',
+        'n-resize',
+        'ne-resize',
+        'nw-resize',
+        's-resize',
+        'se-resize',
+        'sw-resize',
+        'w-resize',
+        'ew-resize',
+        'ns-resize',
+        'nesw-resize',
+        'nwse-resize',
+        'col-resize',
+        'row-resize',
+        'all-scroll',
+        'zoom-in',
+        'zoom-out',
+    ];
     private const TEXT_DIRECT_ENUM_KEYWORDS = [
         'white-space' => ['normal', 'pre', 'nowrap', 'pre-wrap', 'break-spaces', 'pre-line'],
         'word-break' => ['normal', 'keep-all', 'break-all', 'break-word'],
@@ -13662,6 +13700,10 @@ final class DeclarationBlock
             return $this->normalizeKeywordDeclarationValue($value, self::UI_DIRECT_ENUM_KEYWORDS[$property]);
         }
 
+        if ($property === 'cursor') {
+            return $this->normalizeCursorDeclarationValue($value);
+        }
+
         if ($property === 'text-transform') {
             return $this->normalizeTextTransformDeclarationValue($value);
         }
@@ -13766,6 +13808,57 @@ final class DeclarationBlock
         $keyword = strtolower($trimmed);
 
         return in_array($keyword, $keywords, true) ? $keyword : $trimmed;
+    }
+
+    private function normalizeCursorDeclarationValue(string $value): string
+    {
+        $parts = array_map('trim', $this->splitTopLevel($value, ','));
+        if ($parts === [] || in_array('', $parts, true)) {
+            return trim($value);
+        }
+
+        $normalized = [];
+        $last = count($parts) - 1;
+        foreach ($parts as $index => $part) {
+            if ($index === $last) {
+                $keyword = strtolower($part);
+                $normalized[] = in_array($keyword, self::CURSOR_KEYWORDS, true) ? $keyword : $part;
+                continue;
+            }
+
+            $image = $this->normalizeCursorImageValue($part);
+            if ($image === null) {
+                return trim($value);
+            }
+
+            $normalized[] = $image;
+        }
+
+        return implode(', ', $normalized);
+    }
+
+    private function normalizeCursorImageValue(string $value): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === [] || preg_match('/^url\(/i', $tokens[0]) !== 1) {
+            return null;
+        }
+
+        $url = $this->normalizeCssUrlToken($tokens[0]);
+        if (count($tokens) === 1) {
+            return $url;
+        }
+
+        if (count($tokens) !== 3 || !$this->isCssNumberLiteral($tokens[1]) || !$this->isCssNumberLiteral($tokens[2])) {
+            return null;
+        }
+
+        return $url . ' ' . $this->normalizeCssNumberLiteral($tokens[1]) . ' ' . $this->normalizeCssNumberLiteral($tokens[2]);
+    }
+
+    private function isCssNumberLiteral(string $value): bool
+    {
+        return preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', trim($value)) === 1;
     }
 
     private function normalizeTextTransformDeclarationValue(string $value): string

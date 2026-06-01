@@ -316,6 +316,33 @@ return [
             $block->removeProperty($declarations, 'appearance')
         );
     },
+    'declaration block canonicalizes upstream cursor cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'cursor: URL("drag.cur") 4.0 12.00, Grab !important; --Block-Cursor: URL("drag.cur") 4.0 12.00, Grab; color: red';
+
+        $t->same(
+            [
+                'cursor' => 'url(drag.cur) 4 12, grab !important',
+                '--Block-Cursor' => 'URL("drag.cur") 4.0 12.00, Grab',
+                'color' => 'red',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'url(drag.cur) 4 12, grab', 'important' => true], $block->getProperty($declarations, 'cursor'));
+        $t->same(['value' => 'URL("drag.cur") 4.0 12.00, Grab', 'important' => false], $block->getProperty($declarations, '--Block-Cursor'));
+        $t->same(
+            '--Block-Cursor: URL("drag.cur") 4.0 12.00, Grab; color: red; cursor: url(hand.cur), ew-resize',
+            $block->setProperty($declarations, 'cursor', 'url("hand.cur"), EW-RESIZE')
+        );
+        $t->same(
+            '--Block-Cursor: URL("drag.cur") 4.0 12.00, Grab; color: red; cursor: url(hand.cur) 2 4, zoom-in !important',
+            $block->setProperty($declarations, 'cursor', 'url("hand.cur") 2.0 4.00, Zoom-In', true)
+        );
+        $t->same(
+            '--Block-Cursor: URL("drag.cur") 4.0 12.00, Grab; color: red',
+            $block->removeProperty($declarations, 'cursor')
+        );
+    },
     'declaration block canonicalizes upstream text and writing direct cssom declarations' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'text-transform: UpperCase full-size-kana full-width; white-space: Pre-Wrap; word-break: Break-All; line-break: Anywhere; hyphens: Manual; -webkit-hyphens: AUTO; overflow-wrap: Break-Word; word-wrap: Anywhere; text-align: Match-Parent; text-align-last: Justify; -moz-text-align-last: CENTER; text-justify: Inter-Character; direction: RTL; unicode-bidi: Isolate-Override; box-decoration-break: Clone; -webkit-box-decoration-break: Slice; text-size-adjust: 100.0%; -webkit-text-size-adjust: NONE; marker-side: Match-Parent; --Text-Transform: UpperCase';

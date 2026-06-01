@@ -428,6 +428,70 @@ CSS;
             ],
         ]));
     },
+    'custom at-rules parse upstream repeated literal SyntaxString preludes' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@mode compact compact;
+@states editor, editor;
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'mode' => [
+                'prelude' => 'compact+',
+            ],
+            'states' => [
+                'prelude' => 'editor#',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'mode' => static function (array $rule) use (&$seen): array {
+                        $seen['mode'] = [
+                            'prelude' => $rule['prelude'],
+                            'preludeAst' => $rule['preludeAst'],
+                        ];
+
+                        return [];
+                    },
+                    'states' => static function (array $rule) use (&$seen): array {
+                        $seen['states'] = [
+                            'prelude' => $rule['prelude'],
+                            'preludeAst' => $rule['preludeAst'],
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same('compact compact', $seen['mode']['prelude']);
+        $t->same('repeated', $seen['mode']['preludeAst']['type']);
+        $t->same(['compact', 'compact'], array_column($seen['mode']['preludeAst']['value']['components'], 'value'));
+        $t->same(['literal', 'literal'], array_column($seen['mode']['preludeAst']['value']['components'], 'type'));
+        $t->same(['type' => 'space'], $seen['mode']['preludeAst']['value']['multiplier']);
+        $t->same('editor, editor', $seen['states']['prelude']);
+        $t->same('repeated', $seen['states']['preludeAst']['type']);
+        $t->same(['editor', 'editor'], array_column($seen['states']['preludeAst']['value']['components'], 'value'));
+        $t->same(['type' => 'comma'], $seen['states']['preludeAst']['value']['multiplier']);
+
+        $transformer = new CustomAtRuleTransformer();
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@mode compact comfortable;', [
+            'mode' => [
+                'prelude' => 'compact+',
+            ],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@states editor preview;', [
+            'states' => [
+                'prelude' => 'editor#',
+            ],
+        ]));
+    },
     'custom at-rules parse upstream extended SyntaxString component preludes' => static function (TestRunner $t): void {
         $seen = [];
         $css = <<<'CSS'

@@ -2969,12 +2969,24 @@ final class CustomAtRuleTransformer
             return $this->tryCustomComponentValueAst($prelude, $type);
         }
 
-        if (preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $grammar) === 1 && trim($prelude) === $grammar) {
+        if (preg_match('/^(-?[_a-zA-Z][-_a-zA-Z0-9]*)([+#]?)$/', $grammar, $matches) === 1) {
+            $literal = $matches[1];
+            $multiplier = $matches[2] ?? '';
+            if ($multiplier === '+') {
+                return $this->tryRepeatedLiteralSyntaxAst($prelude, $literal, 'space');
+            }
+            if ($multiplier === '#') {
+                return $this->tryRepeatedLiteralSyntaxAst($prelude, $literal, 'comma');
+            }
+            if (trim($prelude) !== $literal) {
+                return ['matched' => false, 'value' => null];
+            }
+
             return [
                 'matched' => true,
                 'value' => [
                     'type' => 'literal',
-                    'value' => $grammar,
+                    'value' => $literal,
                 ],
             ];
         }
@@ -3006,6 +3018,41 @@ final class CustomAtRuleTransformer
                 return ['matched' => false, 'value' => null];
             }
             $components[] = $parsed['value'];
+        }
+
+        return [
+            'matched' => true,
+            'value' => [
+                'type' => 'repeated',
+                'value' => [
+                    'components' => $components,
+                    'multiplier' => ['type' => $multiplier],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array{matched:bool,value:mixed}
+     */
+    private function tryRepeatedLiteralSyntaxAst(string $prelude, string $literal, string $multiplier): array
+    {
+        $parts = $multiplier === 'comma'
+            ? $this->splitTopLevelPreservingEmpty($prelude, ',')
+            : $this->splitWhitespaceTokens($prelude);
+        if ($parts === []) {
+            return ['matched' => false, 'value' => null];
+        }
+
+        $components = [];
+        foreach ($parts as $part) {
+            if (trim($part) !== $literal) {
+                return ['matched' => false, 'value' => null];
+            }
+            $components[] = [
+                'type' => 'literal',
+                'value' => $literal,
+            ];
         }
 
         return [

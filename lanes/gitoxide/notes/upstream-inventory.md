@@ -1607,3 +1607,26 @@ URL/refspec alternate serialization parity slice prepared on 2026-06-01:
   `php lanes/gitoxide/examples/wordpress-url-refspec-normalize.php --self-test`
   exited 0. Full Cargo workspace runner was not executed.
 - Expected mapped denominator movement: `1729 / 2886` to `1730 / 2886`.
+
+URL/refspec from-bytes parity slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-url-refspec-parse-normalize-parity-20260601T051230Z`
+  on accepted base `b6e9f0ce57867f58750508c9437be4ae03b4d9e1` maps the
+  upstream `gix-url` byte deserialization boundary where serialized URL bytes
+  can be turned back into `Url` values without losing canonical URL fields or
+  non-UTF-8 local path bytes.
+- Source truth: upstream Gitoxide `gix-url/src/lib.rs::Url::from_bytes` and
+  `gix-url/tests/url/access.rs::{from_bytes_roundtrip,from_bytes_with_non_utf8_path}`
+  at commit `87433ed33eee9ba974111d20b854f6acb07cd4a6`.
+- Native PHP delta: `GitUrl::fromBytes()` now exposes the explicit byte
+  deserialization API, with focused assertions proving canonical HTTPS bytes
+  match normal parse output and non-UTF-8 local path bytes remain byte-for-byte
+  stable. The WordPress URL/refspec fixture/example now round-trips a
+  deployment remote supplied as serialized URL bytes without invoking Git.
+- Verification: focused `UrlRefSpecTest.php` moved from `1 file / 629
+  assertions / 0 failures` before the slice to `1 file / 637 assertions / 0
+  failures` after implementation. Full Gitoxide lane passed `40 files / 7546
+  assertions / 0 failures`; changed PHP lint, touched example smoke, and
+  `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace runner was
+  not executed.
+- Expected mapped denominator movement: `1743 / 2886` to `1744 / 2886`.

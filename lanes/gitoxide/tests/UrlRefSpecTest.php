@@ -209,6 +209,23 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $url->withUser("bad\xFF"));
         $t->throws(InvalidArgumentException::class, static fn () => $url->withPassword("bad\xFF"));
     },
+    'git url deserializes bytes like gix-url from_bytes access helper' => static function (TestRunner $t): void {
+        $canonical = 'https://user:password@example.com:8080/path/to/repo';
+        $fromBytes = GitUrl::fromBytes($canonical);
+        $fromParse = GitUrl::parse($canonical);
+
+        $t->same($fromParse->toArray(), $fromBytes->toArray());
+        $t->same($canonical, $fromBytes->toBytes());
+
+        $rawLocalBytes = "/path/to\xFF/repo";
+        $rawLocal = GitUrl::parse($rawLocalBytes);
+        $rawFromBytes = GitUrl::fromBytes($rawLocal->toBytes());
+
+        $t->same(GitUrl::SCHEME_FILE, $rawFromBytes->scheme());
+        $t->same(true, $rawFromBytes->usesAlternativeForm());
+        $t->same($rawLocal->path(), $rawFromBytes->path());
+        $t->same($rawLocalBytes, $rawFromBytes->toBytes());
+    },
     'git url toggles alternate serialization like gix-url serialize_alternate_form' => static function (TestRunner $t): void {
         $file = GitUrl::parse('file:///var/cache/wp-content/site.git');
         $fileAlternate = $file->withAlternativeForm(true);
@@ -867,6 +884,8 @@ return [
         $t->same($fixture['expectedCredentialRemoteUrl'], $summary['credentialRemoteRoundtrip']['normalized']);
         $t->same($fixture['credentialRemoteUser'], $summary['credentialRemoteRoundtrip']['user']);
         $t->same($fixture['credentialRemotePassword'], $summary['credentialRemoteRoundtrip']['password']);
+        $t->same($fixture['expectedByteRoundtripRemoteUrl'], $summary['byteRoundtripRemote']['normalized']);
+        $t->same($summary['byteRoundtripRemoteFromParse']['normalized'], $summary['byteRoundtripRemote']['normalized']);
         $t->same($fixture['expectedRemoteArgumentSafety'], $summary['remoteArgumentSafety']);
         $t->same($fixture['expectedUnsafeRemoteArgumentSafety'], $summary['unsafeRemoteArgumentSafety']);
         $t->same($fixture['expectedRootRemotePathIsRoot'], $summary['rootRemotePathIsRoot']);

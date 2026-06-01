@@ -53,6 +53,11 @@ final class GitUrl
         return new self(self::SCHEME_FILE, null, null, null, null, $input, true);
     }
 
+    public static function fromBytes(string $bytes): self
+    {
+        return self::parse($bytes);
+    }
+
     /**
      * @return array{currentUser: bool, user: ?string, path: string}
      */

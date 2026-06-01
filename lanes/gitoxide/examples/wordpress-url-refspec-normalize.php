@@ -33,6 +33,8 @@ $credentialRemote = GitUrl::parse($fixture['credentialRemoteUrl'])
     ->withUser($fixture['credentialRemoteUser'])
     ->withPassword($fixture['credentialRemotePassword']);
 $credentialRemoteRoundtrip = GitUrl::parse($credentialRemote->toBytes());
+$byteRoundtripRemote = GitUrl::fromBytes($fixture['byteRoundtripRemoteUrl']);
+$byteRoundtripRemoteFromParse = GitUrl::parse($byteRoundtripRemote->toBytes());
 $fetch = array_map(
     static fn (string $spec): array => RefSpec::parseFetch($spec)->toArray(),
     $fixture['fetchRefspecs']
@@ -95,6 +97,8 @@ $summary = [
     'credentialRemote' => $credentialRemote->toArray(),
     'credentialRemoteDisplay' => $credentialRemote->display(),
     'credentialRemoteRoundtrip' => $credentialRemoteRoundtrip->toArray(),
+    'byteRoundtripRemote' => $byteRoundtripRemote->toArray(),
+    'byteRoundtripRemoteFromParse' => $byteRoundtripRemoteFromParse->toArray(),
     'fetch' => $fetch,
     'push' => $push,
     'oversizedRemoteRejected' => $oversizedRemoteRejected,
@@ -188,6 +192,12 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if ($summary['credentialRemoteRoundtrip']['password'] !== $fixture['credentialRemotePassword']) {
         throw new RuntimeException('Unexpected credential remote roundtrip password');
+    }
+    if ($summary['byteRoundtripRemote']['normalized'] !== $fixture['expectedByteRoundtripRemoteUrl']) {
+        throw new RuntimeException('Unexpected byte-roundtrip remote URL');
+    }
+    if ($summary['byteRoundtripRemoteFromParse']['normalized'] !== $summary['byteRoundtripRemote']['normalized']) {
+        throw new RuntimeException('Unexpected byte-roundtrip remote parse equivalence');
     }
     if (array_column($summary['fetch'], 'instruction') !== $fixture['expectedFetchInstructions']) {
         throw new RuntimeException('Unexpected fetch refspec instructions');

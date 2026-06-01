@@ -48,6 +48,8 @@ return [
     'credentialRemotePassword' => 'deploy token',
     'expectedCredentialRemoteUrl' => 'https://wp%20deploy:deploy%20token@git.example.test/wp-content/site.git',
     'expectedCredentialRemoteDisplay' => 'https://wp%20deploy:redacted@git.example.test/wp-content/site.git',
+    'byteRoundtripRemoteUrl' => 'ssh://Deploy.User@git.example.test/~wp-content/site.git',
+    'expectedByteRoundtripRemoteUrl' => 'ssh://Deploy.User@git.example.test/~wp-content/site.git',
     'localMirrorUrl' => 'file://Deploy@[::1]/var/cache/wp-content/site.git',
     'expectedLocalMirrorUrl' => 'file://Deploy@[::1]/var/cache/wp-content/site.git',
     'expectedLocalMirrorScheme' => 'file',

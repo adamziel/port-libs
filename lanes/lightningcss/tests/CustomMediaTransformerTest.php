@@ -220,6 +220,20 @@ CSS;
             $transformAndMinify($css)
         );
     },
+    'custom media transformer skips escaped import modifiers before resolving media tails' => static function (TestRunner $t) use ($transformAndMinify): void {
+        $css = <<<'CSS'
+@custom-media --wide (min-width: 782px);
+@custom-media --motion (prefers-reduced-motion: no-preference);
+
+@import \75rl(tokens.css) s\75pports((--wide)) screen and (--wide);
+@import \75rl(./blocks/cards.css) l\61yer(theme.blocks) s\75pports(display: grid) print and (--motion);
+CSS;
+
+        $t->same(
+            '@import "tokens.css" supports(--wide) screen and (width>=782px);@import "./blocks/cards.css" layer(theme.blocks) supports(display:grid) print and (prefers-reduced-motion:no-preference);',
+            $transformAndMinify($css)
+        );
+    },
     'custom media transformer maps upstream negated range aliases' => static function (TestRunner $t) use ($transformAndMinify): void {
         $css = <<<'CSS'
 @custom-media --not-width not (min-width: 300px);

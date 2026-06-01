@@ -48,6 +48,9 @@ $root = new Tree([
         ])),
         $blob('theme.?son'),
         $tree('uploads', new Tree([
+            $tree('a', new Tree([$blob('hero.jpg')])),
+            $tree('[', new Tree([$blob('hero.jpg')])),
+            $tree('[[:alpha]', new Tree([$blob('hero.jpg')])),
             $tree('2026', new Tree([
                 $blob('[hero].jpg'),
                 $tree('05', new Tree([$blob('hero.jpg')])),
@@ -129,6 +132,9 @@ $rawComponentGuardPathspecs = PathspecSearch::fromSpecs([
 ]);
 $shellNewlinePathspecs = PathspecSearch::fromSpecs([
     'wp-content/plugins/new?line/block.json',
+]);
+$malformedPosixClassPathspecs = PathspecSearch::fromSpecs([
+    ':(glob)wp-content/uploads/[[:alpha]/hero.jpg',
 ]);
 $deploymentAttributes = GitAttributes::fromString(
     "wp-content/plugins/gutenberg/** deploy=plugin merge=union\n"
@@ -357,6 +363,18 @@ $shellNewlineRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$malformedPosixClassRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $malformedPosixClassPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 
 return [
     'matchedContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $records),
@@ -404,6 +422,10 @@ return [
     'rawBackslashComponentSkipped' => $rawComponentGuardPathspecs->match('wp-content/plugins/weird\\name.php', false) === null,
     'shellGlobNewlineContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $shellNewlineRecords),
     'shellGlobNewlineIncluded' => $shellNewlinePathspecs->isIncluded("wp-content/plugins/new\nline/block.json", false),
+    'malformedPosixClassContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $malformedPosixClassRecords),
+    'malformedPosixClassLetterSkipped' => !$malformedPosixClassPathspecs->isIncluded('wp-content/uploads/a/hero.jpg', false),
+    'malformedPosixClassBracketSkipped' => !$malformedPosixClassPathspecs->isIncluded('wp-content/uploads/[/hero.jpg', false),
+    'malformedPosixClassLiteralIncluded' => $malformedPosixClassPathspecs->isIncluded('wp-content/uploads/[[:alpha]/hero.jpg', false),
     'attrFilteredContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $attrFilteredRecords),
     'attrFilteredWithoutProviderEmpty' => $attrFilteredWithoutProviderRecords === [],
     'rootEscapingPathspecRejected' => $rootEscapingPathspecRejected,
