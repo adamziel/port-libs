@@ -7,7 +7,7 @@ namespace PortLibs\LightningCSS;
 final class MediaQueryParser
 {
     private const UNITLESS_LENGTH_MATH_MARKER = 'lcssunitless';
-    private const MEDIA_MATH_FUNCTION_PATTERN = 'calc|clamp|max|min|round|rem|mod|hypot|sqrt|pow|log|exp|abs|sign';
+    private const MEDIA_MATH_FUNCTION_PATTERN = 'calc|clamp|max|min|round|rem|mod|hypot|sqrt|pow|log|exp|sin|cos|tan|abs|sign';
 
     public function minifyList(string $queryList, bool $allowCompactedNegation = false, bool $recoverInvalidFeatureValues = false): string
     {
@@ -837,7 +837,12 @@ final class MediaQueryParser
                 return in_array($type, ['length', 'number', 'ratio', 'unknown'], true)
                     && $this->foldSimpleMathFunction($value, $type) !== $value;
             }
-            if ($this->containsInvalidMediaMathDimension($value, $type)) {
+            if (preg_match('/^(?:sin|cos|tan)\(/i', $value) === 1) {
+                return in_array($type, ['length', 'number', 'ratio', 'unknown'], true)
+                    && $this->foldSimpleMathFunction($value, $type) !== $value;
+            }
+            $dimensionValue = $this->minifyNestedAdvancedUnitlessMathFunctions($value);
+            if ($this->containsInvalidMediaMathDimension($dimensionValue, $type)) {
                 return false;
             }
 
@@ -1014,7 +1019,7 @@ final class MediaQueryParser
             return $value;
         }
 
-        if (preg_match('/^(min|max|clamp|round|rem|mod|hypot|sqrt|pow|log|exp|abs|sign)\(/i', $value, $matches) !== 1) {
+        if (preg_match('/^(min|max|clamp|round|rem|mod|hypot|sqrt|pow|log|exp|sin|cos|tan|abs|sign)\(/i', $value, $matches) !== 1) {
             return $value;
         }
 
@@ -1136,6 +1141,10 @@ final class MediaQueryParser
             }
 
             $values[0]['number'] = sqrt($sum);
+            $rounded = round($values[0]['number']);
+            if (abs($values[0]['number'] - $rounded) < 0.000001) {
+                $values[0]['number'] = $rounded;
+            }
 
             return $this->formatComparableMathValue($values[0], $type);
         }
@@ -1217,6 +1226,25 @@ final class MediaQueryParser
             return is_finite($result) ? $this->formatComputedUnitlessMathNumber($result) : $value;
         }
 
+        if ($function === 'sin' || $function === 'cos' || $function === 'tan') {
+            if (count($args) !== 1) {
+                return $value;
+            }
+
+            $radians = $this->trigonometricArgumentRadians($args[0]);
+            if ($radians === null) {
+                return $value;
+            }
+
+            $result = match ($function) {
+                'cos' => cos($radians),
+                'tan' => tan($radians),
+                default => sin($radians),
+            };
+
+            return is_finite($result) ? $this->formatComputedUnitlessMathNumber($result) : $value;
+        }
+
         if ($function === 'sign') {
             if (count($args) !== 1) {
                 return $value;
@@ -1241,7 +1269,7 @@ final class MediaQueryParser
     {
         $length = strlen($value);
         for ($i = 0; $i < $length; $i++) {
-            if (preg_match('/\G(sqrt|pow|log|exp)\(/Ai', $value, $matches, 0, $i) !== 1) {
+            if (preg_match('/\G(sqrt|pow|log|exp|sin|cos|tan)\(/Ai', $value, $matches, 0, $i) !== 1) {
                 continue;
             }
 
@@ -1289,7 +1317,7 @@ final class MediaQueryParser
                 continue;
             }
 
-            if (preg_match('/\G(sqrt|pow|log|exp)\(/Ai', $value, $matches, 0, $i) !== 1) {
+            if (preg_match('/\G(sqrt|pow|log|exp|sin|cos|tan)\(/Ai', $value, $matches, 0, $i) !== 1) {
                 $output .= $char;
                 continue;
             }
@@ -1317,7 +1345,7 @@ final class MediaQueryParser
     private function containsAdvancedUnitlessMathFunctionArgument(array $args): bool
     {
         foreach ($args as $arg) {
-            if (preg_match('/\b(?:sqrt|pow|log|exp)\s*\(/i', $arg) === 1) {
+            if (preg_match('/\b(?:sqrt|pow|log|exp|sin|cos|tan)\s*\(/i', $arg) === 1) {
                 return true;
             }
         }
@@ -1365,6 +1393,213 @@ final class MediaQueryParser
             'e' => M_E,
             'pi' => 3.141593,
             default => null,
+        };
+    }
+
+    private function trigonometricArgumentRadians(string $argument): ?float
+    {
+        $value = $this->trigonometricExpressionValue($argument);
+
+        return $value === null ? null : $value['number'];
+    }
+
+    /**
+     * @return array{kind:string,number:float}|null
+     */
+    private function trigonometricExpressionValue(string $expression): ?array
+    {
+        $expression = trim($expression);
+        if ($expression === '') {
+            return null;
+        }
+
+        if (preg_match('/^calc\(/i', $expression) === 1) {
+            $expression = $this->normalizeSimpleCalcWrapper($expression);
+            try {
+                if ($this->findMatchingDelimiter($expression, 4, '(', ')') !== strlen($expression) - 1) {
+                    return null;
+                }
+            } catch (\InvalidArgumentException) {
+                return null;
+            }
+
+            $expression = trim(substr($expression, 5, -1));
+        }
+
+        try {
+            while (($stripped = $this->stripOneBalancedParentheses($expression)) !== null) {
+                $expression = trim($stripped);
+            }
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
+
+        $additive = $this->splitTopLevelMathOperator($expression, ['+', '-']);
+        if ($additive !== null) {
+            $left = $this->trigonometricExpressionValue($additive['left']);
+            $right = $this->trigonometricExpressionValue($additive['right']);
+            if ($left === null || $right === null || $left['kind'] !== $right['kind']) {
+                return null;
+            }
+
+            return [
+                'kind' => $left['kind'],
+                'number' => $additive['operator'] === '+'
+                    ? $left['number'] + $right['number']
+                    : $left['number'] - $right['number'],
+            ];
+        }
+
+        $multiplicative = $this->splitTopLevelMathOperator($expression, ['*', '/']);
+        if ($multiplicative !== null) {
+            $left = $this->trigonometricExpressionValue($multiplicative['left']);
+            $right = $this->trigonometricExpressionValue($multiplicative['right']);
+            if ($left === null || $right === null) {
+                return null;
+            }
+
+            if ($multiplicative['operator'] === '/') {
+                if ($right['kind'] !== 'number' || abs($right['number']) < PHP_FLOAT_EPSILON) {
+                    return null;
+                }
+
+                return [
+                    'kind' => $left['kind'],
+                    'number' => $left['number'] / $right['number'],
+                ];
+            }
+
+            if ($left['kind'] === 'angle' && $right['kind'] === 'angle') {
+                return null;
+            }
+
+            return [
+                'kind' => $left['kind'] === 'angle' || $right['kind'] === 'angle' ? 'angle' : 'number',
+                'number' => $left['number'] * $right['number'],
+            ];
+        }
+
+        return $this->trigonometricFactorValue($expression);
+    }
+
+    /**
+     * @param list<string> $operators
+     * @return array{left:string,operator:string,right:string}|null
+     */
+    private function splitTopLevelMathOperator(string $value, array $operators): ?array
+    {
+        $quote = null;
+        $parenDepth = 0;
+        for ($i = strlen($value) - 1; $i >= 0; $i--) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                if ($char === '\\') {
+                    $i--;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth++;
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+            if ($parenDepth !== 0 || !in_array($char, $operators, true)) {
+                continue;
+            }
+            if (!$this->isBinaryCalcAdditiveOperator($value, $i)) {
+                continue;
+            }
+
+            return [
+                'left' => trim(substr($value, 0, $i)),
+                'operator' => $char,
+                'right' => trim(substr($value, $i + 1)),
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{kind:string,number:float}|null
+     */
+    private function trigonometricFactorValue(string $value): ?array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (strcasecmp($value, 'pi') === 0) {
+            return [
+                'kind' => 'number',
+                'number' => M_PI,
+            ];
+        }
+
+        $constant = $this->mathConstant($value);
+        if ($constant !== null) {
+            return [
+                'kind' => 'number',
+                'number' => $constant,
+            ];
+        }
+
+        if (preg_match('/^(' . $this->cssNumberPattern() . ')([a-zA-Z]+)?$/', $value, $matches) === 1) {
+            $number = (float) $matches[1];
+            $unit = strtolower($matches[2] ?? '');
+            if ($unit === '') {
+                return [
+                    'kind' => 'number',
+                    'number' => $number,
+                ];
+            }
+            if ($this->isCssAngleUnit($unit)) {
+                return [
+                    'kind' => 'angle',
+                    'number' => $this->angleDimensionToRadians($number, $unit),
+                ];
+            }
+
+            return null;
+        }
+
+        if (preg_match('/^(' . self::MEDIA_MATH_FUNCTION_PATTERN . ')\(/i', $value) === 1) {
+            $folded = $this->foldSimpleMathFunction($value, 'number');
+            if ($folded !== $value && preg_match('/^' . $this->cssNumberPattern() . '$/', $folded) === 1) {
+                return [
+                    'kind' => 'number',
+                    'number' => (float) $folded,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private function isCssAngleUnit(string $unit): bool
+    {
+        return in_array(strtolower($unit), ['deg', 'grad', 'rad', 'turn'], true);
+    }
+
+    private function angleDimensionToRadians(float $number, string $unit): float
+    {
+        return match (strtolower($unit)) {
+            'deg' => $number * M_PI / 180.0,
+            'grad' => $number * M_PI / 200.0,
+            'turn' => $number * 2.0 * M_PI,
+            default => $number,
         };
     }
 

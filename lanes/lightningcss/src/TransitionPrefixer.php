@@ -1455,6 +1455,18 @@ final class TransitionPrefixer
             'box-decoration-break' => [
                 '-webkit-' => $targetOptions['boxDecorationBreakNeedsWebkit'] ?? false,
             ],
+            'text-emphasis' => [
+                '-webkit-' => $targetOptions['textEmphasisNeedsWebkit'] ?? false,
+            ],
+            'text-emphasis-style' => [
+                '-webkit-' => $targetOptions['textEmphasisNeedsWebkit'] ?? false,
+            ],
+            'text-emphasis-color' => [
+                '-webkit-' => $targetOptions['textEmphasisNeedsWebkit'] ?? false,
+            ],
+            'text-emphasis-position' => [
+                '-webkit-' => $targetOptions['textEmphasisNeedsWebkit'] ?? false,
+            ],
             'font-feature-settings' => [
                 '-webkit-' => $targetOptions['fontFeatureSettingsNeedsWebkit'] ?? false,
                 '-moz-' => $targetOptions['fontFeatureSettingsNeedsMoz'] ?? false,

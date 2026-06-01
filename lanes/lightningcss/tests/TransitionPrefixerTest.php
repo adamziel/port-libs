@@ -3929,6 +3929,30 @@ CSS;
             $prefixer->prefixForTargets('.foo { -webkit-text-emphasis-style: filled; text-emphasis-style: filled; }', ['safari' => 10, 'firefox' => 45])
         );
         $t->same(
+            '@supports ((-webkit-text-emphasis-style:filled) or (text-emphasis-style:filled)){.foo{-webkit-text-emphasis-style:filled;text-emphasis-style:filled}}',
+            $prefixer->prefixForTargets('@supports (text-emphasis-style: filled) { .foo { text-emphasis-style: filled; } }', ['chrome' => 98])
+        );
+        $t->same(
+            '@supports (text-emphasis-style:filled){.foo{text-emphasis-style:filled}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-text-emphasis-style: filled) or (text-emphasis-style: filled)) { .foo { -webkit-text-emphasis-style: filled; text-emphasis-style: filled; } }', ['chrome' => 99])
+        );
+        $t->same(
+            '@supports ((-webkit-text-emphasis:filled) or (text-emphasis:filled)){.foo{-webkit-text-emphasis:filled;text-emphasis:filled}}',
+            $prefixer->prefixForTargets('@supports (text-emphasis: filled) { .foo { text-emphasis: filled; } }', ['edge' => 98])
+        );
+        $t->same(
+            '@supports (text-emphasis:filled){.foo{text-emphasis:filled}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-text-emphasis: filled) or (text-emphasis: filled)) { .foo { -webkit-text-emphasis: filled; text-emphasis: filled; } }', ['edge' => 99])
+        );
+        $t->same(
+            '@supports ((-webkit-text-emphasis-color:#123) or (text-emphasis-color:#123)){.foo{-webkit-text-emphasis-color:#123;text-emphasis-color:#123}}',
+            $prefixer->prefixForTargets('@supports (text-emphasis-color: #123) { .foo { text-emphasis-color: #123; } }', ['safari' => 7])
+        );
+        $t->same(
+            '@supports (text-emphasis-color:#123){.foo{text-emphasis-color:#123}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-text-emphasis-color: #123) or (text-emphasis-color: #123)) { .foo { -webkit-text-emphasis-color: #123; text-emphasis-color: #123; } }', ['safari' => 8])
+        );
+        $t->same(
             '.foo{-webkit-text-emphasis-position:over;text-emphasis-position:over}',
             $prefixer->prefixForTargets('.foo { text-emphasis-position: over; }', ['chrome' => 30, 'safari' => 10, 'firefox' => 45])
         );

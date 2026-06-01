@@ -868,6 +868,54 @@ return [
             $t->contains('Did not find 0 byte in header', $exception->getMessage());
         }
     },
+    'object database loose integrity rejects unknown object kinds before missing-NUL across stores' => static function (TestRunner $t) use ($writeCompressedLooseBytes, $looseObjectPath): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-unknown-kind-header-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateGitDir = $root . '/shared-cache/.git';
+        $alternateObjectsDir = $alternateGitDir . '/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+
+        $primaryOid = str_repeat('b', 40);
+        $alternateOid = str_repeat('c', 40);
+        $writeCompressedLooseBytes($gitDir, $primaryOid, 'wordpress 4');
+        $writeCompressedLooseBytes($alternateGitDir, $alternateOid, "wordpress nope\0alternate");
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $database = new ObjectDatabase($gitDir);
+        foreach ([
+            'primary header' => static fn () => $database->readHeader($primaryOid),
+            'primary body' => static fn () => $database->read($primaryOid),
+            'alternate header' => static fn () => $database->readHeader($alternateOid),
+            'alternate body' => static fn () => $database->read($alternateOid),
+        ] as $operation => $callback) {
+            try {
+                $callback();
+                throw new RuntimeException("Expected unknown-kind loose object {$operation} to fail");
+            } catch (InvalidArgumentException $exception) {
+                $t->same('Unknown object kind: wordpress', $exception->getMessage());
+            }
+        }
+
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected primary unknown-kind loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$primaryOid} could not be read exactly", $exception->getMessage());
+            $t->contains('Unknown object kind: wordpress', $exception->getMessage());
+        }
+
+        unlink($looseObjectPath($gitDir, $primaryOid));
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected alternate unknown-kind loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$alternateOid} could not be read exactly", $exception->getMessage());
+            $t->contains('Unknown object kind: wordpress', $exception->getMessage());
+        }
+    },
     'object database loose integrity reports missing type-size delimiters across primary and alternate stores' => static function (TestRunner $t) use ($writeCompressedLooseBytes, $looseObjectPath): void {
         $root = sys_get_temp_dir() . '/port-libs-git-odb-no-type-size-delimiter-' . bin2hex(random_bytes(4));
         $gitDir = $root . '/site/.git';

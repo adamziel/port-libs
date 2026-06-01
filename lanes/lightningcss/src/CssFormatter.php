@@ -49,7 +49,13 @@ final class CssFormatter
             }
 
             if (!preg_match('/^@page(?:\s|:|$)/i', $prelude)) {
-                throw new \InvalidArgumentException('CssFormatter currently supports @page, @counter-style, @property, @media, and @layer rules only');
+                if (str_starts_with($prelude, '@')) {
+                    throw new \InvalidArgumentException('CssFormatter currently supports style rules, @page, @counter-style, @property, @media, and @layer rules only');
+                }
+
+                $rules[] = $this->formatStyleRule($prelude, substr($css, $open + 1, $close - $open - 1), 0);
+                $cursor = $close + 1;
+                continue;
             }
 
             $rules[] = $this->formatPageRule($prelude, substr($css, $open + 1, $close - $open - 1), 0);
@@ -260,6 +266,41 @@ final class CssFormatter
         return implode("\n", $lines);
     }
 
+    private function formatStyleRule(string $prelude, string $body, int $indentLevel): string
+    {
+        $selector = trim(preg_replace('/\s+/', ' ', $prelude) ?? $prelude);
+        if ($selector === '') {
+            throw new \InvalidArgumentException('Invalid empty style rule selector');
+        }
+
+        $indent = $this->indent($indentLevel);
+        $declarations = $this->parseDeclarations($body);
+        if ($declarations === []) {
+            return $indent . $selector . ' {}';
+        }
+
+        $lines = [];
+        foreach ($declarations as [$property, $value]) {
+            $lines[] = $this->formatStyleDeclaration($property, $value, $indentLevel + 1);
+        }
+
+        return $indent . $selector . " {\n"
+            . implode("\n", $lines) . "\n"
+            . $indent . '}';
+    }
+
+    private function formatStyleDeclaration(string $property, string $value, int $indentLevel): string
+    {
+        $indent = $this->indent($indentLevel);
+        $prefix = $indent . $property . ': ';
+        $formatted = match ($property) {
+            'grid', 'grid-template' => $this->formatGridTemplateDeclarationValue($property, $value, strlen($prefix)),
+            default => $this->formatDeclarationValue($value),
+        };
+
+        return $prefix . $formatted . ';';
+    }
+
     private function formatDeclarations(string $body, int $indentLevel): string
     {
         $lines = [];
@@ -268,6 +309,274 @@ final class CssFormatter
         }
 
         return implode("\n", $lines);
+    }
+
+    private function formatGridTemplateDeclarationValue(string $property, string $value, int $continuationIndent): string
+    {
+        $parts = $this->splitTopLevel($value, '/');
+        if (count($parts) > 2) {
+            return $this->formatDeclarationValue($value);
+        }
+
+        $rows = $this->formatGridTemplateAreaRows(trim($parts[0]));
+        if ($rows === null) {
+            return $this->formatDeclarationValue($value);
+        }
+
+        $continuation = "\n" . str_repeat(' ', $continuationIndent);
+        if (count($parts) === 1) {
+            return implode($continuation, $rows);
+        }
+
+        $columns = $this->formatDeclarationValue(trim($parts[1]));
+        if ($columns === '') {
+            return $this->formatDeclarationValue($value);
+        }
+
+        return implode($continuation, $rows) . $continuation . '/ ' . $columns;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function formatGridTemplateAreaRows(string $rows): ?array
+    {
+        $tokens = $this->splitGridTemplateTokens($rows);
+        if ($tokens === [] || !$this->gridTemplateTokensContainAreaString($tokens)) {
+            return null;
+        }
+
+        $lines = [];
+        $pendingLineNames = [];
+        $index = 0;
+        $count = count($tokens);
+
+        while ($index < $count) {
+            $token = $tokens[$index];
+            if ($this->isGridLineNameToken($token)) {
+                $pendingLineNames[] = $token;
+                $index++;
+                continue;
+            }
+
+            if (!$this->isCssStringToken($token)) {
+                return null;
+            }
+
+            $segments = array_merge($pendingLineNames, [$this->formatGridTemplateAreaString($token)]);
+            $pendingLineNames = [];
+            $index++;
+
+            $between = [];
+            while ($index < $count && !$this->isCssStringToken($tokens[$index])) {
+                $between[] = $tokens[$index++];
+            }
+
+            $hasNextArea = $index < $count;
+            [$suffix, $nextPrefix] = $this->formatGridTemplateRowTail($between, $hasNextArea);
+            $segments = array_merge($segments, $suffix);
+            $pendingLineNames = $nextPrefix;
+            $lines[] = implode(' ', $segments);
+        }
+
+        if ($pendingLineNames !== []) {
+            $last = array_key_last($lines);
+            if ($last === null) {
+                return null;
+            }
+            $lines[$last] .= ' ' . implode(' ', $pendingLineNames);
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{0:list<string>,1:list<string>}
+     */
+    private function formatGridTemplateRowTail(array $tokens, bool $hasNextArea): array
+    {
+        if ($tokens === []) {
+            return [[], []];
+        }
+
+        $trackIndex = null;
+        foreach ($tokens as $index => $token) {
+            if (!$this->isGridLineNameToken($token)) {
+                $trackIndex = $index;
+                break;
+            }
+        }
+
+        if ($trackIndex === null) {
+            if (!$hasNextArea) {
+                return [$tokens, []];
+            }
+
+            return $this->splitGridTemplateBoundaryLineNames($tokens);
+        }
+
+        $suffix = array_slice($tokens, 0, $trackIndex);
+        $track = $tokens[$trackIndex];
+        if (strcasecmp($track, 'auto') !== 0) {
+            $suffix[] = $this->formatDeclarationValue($track);
+        }
+
+        foreach (array_slice($tokens, $trackIndex + 1) as $token) {
+            $suffix[] = $token;
+        }
+
+        return [$suffix, []];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{0:list<string>,1:list<string>}
+     */
+    private function splitGridTemplateBoundaryLineNames(array $tokens): array
+    {
+        if ($tokens === []) {
+            return [[], []];
+        }
+
+        $firstNames = $this->gridLineNameTokenNames($tokens[0]);
+        if (count($firstNames) > 1) {
+            return [
+                [$this->gridLineNameToken([$firstNames[0]])],
+                [$this->gridLineNameToken(array_slice($firstNames, 1))],
+            ];
+        }
+
+        if (count($tokens) === 1) {
+            return [[], $tokens];
+        }
+
+        return [[$tokens[0]], array_slice($tokens, 1)];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitGridTemplateTokens(string $value): array
+    {
+        $tokens = [];
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            if (ctype_space($value[$i])) {
+                continue;
+            }
+
+            if ($value[$i] === '[') {
+                $end = strpos($value, ']', $i + 1);
+                if ($end === false) {
+                    return [];
+                }
+                $tokens[] = trim(substr($value, $i, $end - $i + 1));
+                $i = $end;
+                continue;
+            }
+
+            if ($value[$i] === '"' || $value[$i] === "'") {
+                $quote = $value[$i];
+                $start = $i;
+                for ($i++; $i < $length; $i++) {
+                    if ($value[$i] === '\\') {
+                        $i++;
+                        continue;
+                    }
+                    if ($value[$i] === $quote) {
+                        $tokens[] = substr($value, $start, $i - $start + 1);
+                        break;
+                    }
+                }
+                if ($i >= $length) {
+                    return [];
+                }
+                continue;
+            }
+
+            $start = $i;
+            $parenDepth = 0;
+            for (; $i < $length; $i++) {
+                $char = $value[$i];
+                if ($char === '(') {
+                    $parenDepth++;
+                    continue;
+                }
+                if ($char === ')' && $parenDepth > 0) {
+                    $parenDepth--;
+                    continue;
+                }
+                if ($parenDepth === 0 && (ctype_space($char) || $char === '[' || $char === '"' || $char === "'")) {
+                    break;
+                }
+            }
+
+            $tokens[] = trim(substr($value, $start, $i - $start));
+            $i--;
+        }
+
+        return array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function gridTemplateTokensContainAreaString(array $tokens): bool
+    {
+        foreach ($tokens as $token) {
+            if ($this->isCssStringToken($token)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function formatGridTemplateAreaString(string $token): string
+    {
+        $quote = $token[0];
+        $content = substr($token, 1, -1);
+        $cells = preg_split('/\s+/', trim($content)) ?: [];
+        $cells = array_values(array_filter($cells, static fn (string $cell): bool => $cell !== ''));
+        $cells = array_map(static fn (string $cell): string => preg_match('/^\.+$/', $cell) === 1 ? '.' : $cell, $cells);
+
+        return $quote . implode(' ', $cells) . $quote;
+    }
+
+    private function isCssStringToken(string $token): bool
+    {
+        $token = trim($token);
+
+        return strlen($token) >= 2
+            && (($token[0] === '"' && substr($token, -1) === '"')
+                || ($token[0] === "'" && substr($token, -1) === "'"));
+    }
+
+    private function isGridLineNameToken(string $token): bool
+    {
+        $token = trim($token);
+
+        return str_starts_with($token, '[') && str_ends_with($token, ']');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function gridLineNameTokenNames(string $token): array
+    {
+        $names = preg_split('/\s+/', trim(substr($token, 1, -1))) ?: [];
+
+        return array_values(array_filter($names, static fn (string $name): bool => $name !== ''));
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    private function gridLineNameToken(array $names): string
+    {
+        return '[' . implode(' ', $names) . ']';
     }
 
     /**

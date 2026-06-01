@@ -377,6 +377,46 @@ return [
             $t->contains("Expected '<type> <size>'", $exception->getMessage());
         }
     },
+    'loose object integrity rejects unknown object kinds before missing-NUL and size parsing' => static function (TestRunner $t) use ($writeLooseStorage): void {
+        foreach ([
+            'unknownNoNul' => ['storage' => 'wordpress 123', 'oid' => str_repeat('b', 40)],
+            'unknownInvalidSize' => ['storage' => "wordpress nope\0block-body", 'oid' => str_repeat('c', 40)],
+            'unknownWithBody' => ['storage' => "wordpress 4\0body", 'oid' => str_repeat('d', 40)],
+        ] as $case => $fixture) {
+            $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-unknown-loose-kind-' . $case . '-' . bin2hex(random_bytes(4)) . '/objects';
+            $writeLooseStorage($objectsDirectory, $fixture['oid'], $fixture['storage']);
+            $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+
+            foreach ([
+                'decodeLooseHeader' => static fn () => GitObject::decodeLooseHeader($fixture['storage']),
+                'readHeader' => static fn () => $store->readHeader($fixture['oid']),
+                'tryReadHeader' => static fn () => $store->tryReadHeader($fixture['oid']),
+                'read' => static fn () => $store->read($fixture['oid']),
+            ] as $operation => $callback) {
+                try {
+                    $callback();
+                    throw new RuntimeException("Expected unknown loose object kind {$operation} to fail for {$case}");
+                } catch (InvalidArgumentException $exception) {
+                    $t->same('Unknown object kind: wordpress', $exception->getMessage());
+                }
+            }
+
+            try {
+                $store->verifyIntegrity();
+                throw new RuntimeException("Expected unknown loose object kind integrity failure for {$case}");
+            } catch (RuntimeException $exception) {
+                $t->contains("Loose object {$fixture['oid']} could not be read exactly", $exception->getMessage());
+                $t->contains('Unknown object kind: wordpress', $exception->getMessage());
+            }
+        }
+
+        try {
+            GitObject::decodeLooseHeader("blob nope\0body");
+            throw new RuntimeException('Expected invalid loose object size to keep size parsing diagnostics');
+        } catch (InvalidArgumentException $exception) {
+            $t->same('Invalid Git object header: blob nope', $exception->getMessage());
+        }
+    },
     'loose object header rejects truncated first inflate windows before trusting size' => static function (TestRunner $t) use ($writeLooseCompressed, $truncatedBeforeHeaderWindowCompletes): void {
         $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-truncated-header-window-' . bin2hex(random_bytes(4)) . '/objects';
         $oid = str_repeat('7', 40);
@@ -1011,6 +1051,11 @@ return [
         $t->same(true, $summary['noTypeSizeDelimiterReadRejected']);
         $t->same(true, $summary['noTypeSizeDelimiterIntegrityRejected']);
         $t->contains("Expected '<type> <size>'", $summary['noTypeSizeDelimiterIntegrityMessage']);
+        $t->same(true, $summary['unknownKindHeaderRejected']);
+        $t->same('Unknown object kind: wordpress', $summary['unknownKindHeaderMessage']);
+        $t->same(true, $summary['unknownKindReadRejected']);
+        $t->same(true, $summary['unknownKindIntegrityRejected']);
+        $t->contains('Unknown object kind: wordpress', $summary['unknownKindIntegrityMessage']);
         $t->same($fixture['allocationLimitBytes'], $summary['allocationLimitBytes']);
         $t->same(4096, $summary['oversizedHeaderSize']);
         $t->same(true, $summary['allocationLimitRejected']);

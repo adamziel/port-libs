@@ -529,6 +529,42 @@ CSS,
         $t->same(0, $decoded[0]['originalLine']);
         $t->same(0, $decoded[0]['originalColumn']);
     },
+    'css bundler treats mixed-case data source map urls as generated sources like upstream' => static function (TestRunner $t): void {
+        $mixedCaseDataMap = 'Data:application/json;base64,' . base64_encode(json_encode([
+            'version' => 3,
+            'mappings' => 'AAAA',
+            'sources' => ['blocks/mixed-case.scss'],
+            'sourcesContent' => ['.card { color: $wp-green }'],
+            'names' => [],
+        ], JSON_THROW_ON_ERROR));
+        $lowercaseDataMap = 'data:application/json;base64,' . base64_encode(json_encode([
+            'version' => 3,
+            'mappings' => 'AAAA',
+            'sources' => ['blocks/lowercase.scss'],
+            'sourcesContent' => ['.lower { color: $wp-blue }'],
+            'names' => [],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = (new CssBundler())->bundleWithSourceMap('/theme/entry.css', [
+            '/theme/entry.css' => '@import "blocks/mixed-case.css"; @import "blocks/lowercase.css"; .entry { color: red }',
+            '/theme/blocks/mixed-case.css' => ".card { color: green }\n/*# sourceMappingURL={$mixedCaseDataMap} */",
+            '/theme/blocks/lowercase.css' => ".lower { color: blue }\n/*# sourceMappingURL={$lowercaseDataMap} */",
+        ], null, '/theme');
+
+        $data = $result['sourceMap']->toArray(null, false);
+        $decoded = SourceMap::decodeVlq($data['mappings']);
+
+        $t->same('.card{color:green}.lower{color:#00f}.entry{color:red}', $result['code']);
+        $t->same(['entry.css', 'blocks/mixed-case.css', 'blocks/lowercase.scss'], $data['sources']);
+        $t->same([
+            '@import "blocks/mixed-case.css"; @import "blocks/lowercase.css"; .entry { color: red }',
+            ".card { color: green }\n/*# sourceMappingURL={$mixedCaseDataMap} */",
+            '.lower { color: $wp-blue }',
+        ], $data['sourcesContent']);
+        $t->same(2, $decoded[0]['sourceIndex']);
+        $t->same(strlen('.card{color:green}'), $decoded[0]['generatedColumn']);
+        $t->same(false, in_array('blocks/mixed-case.scss', $data['sources'], true));
+    },
     'css bundler maps upstream EOF import without semicolon' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '.b{color:green}',

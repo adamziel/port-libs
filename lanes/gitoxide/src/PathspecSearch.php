@@ -661,7 +661,7 @@ final class PathspecSearch
         return match ($class) {
             'alnum' => 'A-Za-z0-9',
             'alpha' => 'A-Za-z',
-            'blank' => '\\x09-\\x0d ',
+            'blank' => '\\x09\\x0a\\x0c\\x0d ',
             'cntrl' => '\\x00-\\x1f\\x7f',
             'digit' => '0-9',
             'graph' => '\\x21-\\x7e',

@@ -421,6 +421,17 @@ return [
         $t->same('(-webkit-device-pixel-ratio>=1)', $parser->minifyList('(-webkit-device-pixel-ratio >= exp(0))'));
         $t->same('(width>=1.64872)', $parser->minifyList('(width >= sqrt(e))'));
         $t->same('(width>=9.86961)', $parser->minifyList('(width >= pow(pi, 2))'));
+        $t->same('(width>=.841471)', $parser->minifyList('(width >= sin(1rad))'));
+        $t->same('(width>=1)', $parser->minifyList('(width >= cos(0deg))'));
+        $t->same('(width>=1)', $parser->minifyList('(width >= tan(45deg))'));
+        $t->same('(width>=1)', $parser->minifyList('(width >= sin(pi / 2))'));
+        $t->same('(width>=1)', $parser->minifyList('(width >= sin(.25turn))'));
+        $t->same('(width>=.909297)', $parser->minifyList('(width >= sin(calc(1rad + 1rad)))'));
+        $t->same('(width>=max(.841471,4px))', $parser->minifyList('(width >= max(sin(1rad), 4px))'));
+        $t->same('(width>=1)', $parser->minifyList('(width >= hypot(sin(1rad), cos(1rad)))'));
+        $t->same('(theme-breakpoint>=1)', $parser->minifyList('(theme-breakpoint >= sin(90deg))'));
+        $t->same('(aspect-ratio>=1)', $parser->minifyList('(aspect-ratio >= sin(90deg))'));
+        $t->same('(-webkit-device-pixel-ratio>=1)', $parser->minifyList('(-webkit-device-pixel-ratio >= sin(90deg))'));
 
         $t->same('(min-width:1.41421)', $parser->lowerRangeSyntaxList('(width >= sqrt(2))'));
         $t->same('(min-width:8)', $parser->lowerRangeSyntaxList('(width >= pow(2, 3))'));
@@ -429,6 +440,11 @@ return [
         $t->same('(min-theme-breakpoint:1)', $parser->lowerRangeSyntaxList('(theme-breakpoint >= exp(0))'));
         $t->same('(min---wp-breakpoint:8)', $parser->lowerRangeSyntaxList('(--wp-breakpoint >= pow(2, 3))'));
         $t->same('(-webkit-min-device-pixel-ratio:1)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio >= exp(0))'));
+        $t->same('(min-width:.841471)', $parser->lowerRangeSyntaxList('(width >= sin(1rad))'));
+        $t->same('(min-width:1)', $parser->lowerRangeSyntaxList('(width >= sin(90deg))'));
+        $t->same('(min-width:max(.841471,4px))', $parser->lowerRangeSyntaxList('(width >= max(sin(1rad), 4px))'));
+        $t->same('(min-theme-breakpoint:1)', $parser->lowerRangeSyntaxList('(theme-breakpoint >= cos(0deg))'));
+        $t->same('(min-aspect-ratio:1)', $parser->lowerRangeSyntaxList('(aspect-ratio >= tan(45deg))'));
 
         $t->same(
             '@layer blocks{@media (width>=2.71828){.wp-block-query{color:#ff0}}}',
@@ -446,10 +462,25 @@ return [
             '@layer blocks{@media (aspect-ratio>=2){.wp-block-query{color:#ff0}}}',
             $minifier->minify('@layer blocks { @media (aspect-ratio >= sqrt(4)) { .wp-block-query { color: yellow; } } }')
         );
+        $t->same(
+            '@layer blocks{@media (width>=1){.wp-block-query{color:#ff0}}}',
+            $minifier->minify('@layer blocks { @media (width >= sin(90deg)) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (width>=max(.841471,4px)){.wp-block-query{color:#ff0}}}',
+            $minifier->minify('@layer blocks { @media (width >= max(sin(1rad), 4px)) { .wp-block-query { color: yellow; } } }')
+        );
 
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(width >= pow(2px, 2))'));
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(width >= sqrt(4px))'));
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(width >= exp(1px))'));
+        $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(width >= sin(1px))'));
+        $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(width >= sin(10%))'));
+        $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(width >= sin(var(--angle)))'));
+        $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(width >= asin(1))'));
+        $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(width >= atan2(1, 1))'));
+        $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(resolution >= sin(90deg))'));
+        $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(color >= sin(90deg))'));
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(resolution >= exp(0))'));
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(color >= pow(2, 3))'));
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(width >= max(pow(2px, 2), 4px))'));

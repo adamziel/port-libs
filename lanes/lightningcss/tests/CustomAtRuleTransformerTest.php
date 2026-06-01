@@ -6550,6 +6550,106 @@ CSS;
         $t->same('live', $seen['rules'][1]['preludeAst']['value'][0]['value']['fallback'][1]['value']['value']);
         $t->same([1], $seen['rules'][1]['preludeAst']['value'][0]['value']['indices']);
     },
+    'custom at-rules expose upstream selector match tokens in universal preludes' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-block-variant [data-state~=draft] [lang|=en] [href^=shop] [file$=pdf] [class*=wp-block];
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'include-match' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                    'dash-match' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                    'prefix-match' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                    'suffix-match' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                    'substring-match' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'wp-block-variant' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['prelude'];
+                            $seen['rule'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [
+                                'type' => 'unknown',
+                                'value' => [
+                                    'name' => 'wp-variant',
+                                    'prelude' => $rule['preludeAst'],
+                                    'hasBlock' => false,
+                                ],
+                            ];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-block-variant' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('@wp-variant[data-state~=draft][lang|=en][href^=shop][file$=pdf][class*=wp-block];.wp-block-card{color:red}', $result);
+        $t->same([
+            'token:include-match:~=',
+            'token:dash-match:|=',
+            'token:prefix-match:^=',
+            'token:suffix-match:$=',
+            'token:substring-match:*=',
+            'rule:[data-state~=draft] [lang|=en] [href^=shop] [file$=pdf] [class*=wp-block]',
+        ], $seen['events']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+
+        $operatorTokens = array_values(array_filter(
+            $seen['rule']['preludeAst']['value'] ?? [],
+            static fn (array $component): bool => ($component['type'] ?? null) === 'token'
+                && in_array(($component['value']['type'] ?? null), ['include-match', 'dash-match', 'prefix-match', 'suffix-match', 'substring-match'], true)
+        ));
+        $t->same([
+            'include-match',
+            'dash-match',
+            'prefix-match',
+            'suffix-match',
+            'substring-match',
+        ], array_map(
+            static fn (array $component): string => $component['value']['type'],
+            $operatorTokens
+        ));
+    },
     'custom at-rules expose upstream attribute selectors to parser bodies and Selector visitors' => static function (TestRunner $t): void {
         $seen = [
             'customAttribute' => null,

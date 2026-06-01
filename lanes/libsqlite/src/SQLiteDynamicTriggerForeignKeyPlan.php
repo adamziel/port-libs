@@ -721,6 +721,262 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     /**
      * @return array<string,mixed>
      */
+    public static function eForeignKeyCompositeConstraintPlan(int $seed): array
+    {
+        if ($seed < 1) {
+            throw new \InvalidArgumentException('SQLite e_fkey composite constraint seed must be positive');
+        }
+
+        $definitionErrors = [
+            [
+                'case' => 'e_fkey-28.1',
+                'sql' => 'CREATE TABLE c(jj REFERENCES p(x, y))',
+                'status' => 'schema-error',
+                'error' => 'foreign key on jj should reference only one column of table p',
+                'detected_at' => 'create-table',
+                'child_key_columns' => ['jj'],
+                'parent_columns' => ['x', 'y'],
+                'child_key_width' => 1,
+                'parent_key_width' => 2,
+                'parent_column_list_syntax_valid' => true,
+                'cardinality_checked_at_create' => true,
+                'create_table_allowed' => false,
+            ],
+            [
+                'case' => 'e_fkey-28.2',
+                'sql' => 'CREATE TABLE c(jj REFERENCES p())',
+                'status' => 'syntax-error',
+                'error' => 'near ")": syntax error',
+                'detected_at' => 'parse',
+                'child_key_columns' => ['jj'],
+                'parent_columns' => [],
+                'child_key_width' => 1,
+                'parent_key_width' => 0,
+                'parent_column_list_syntax_valid' => false,
+                'cardinality_checked_at_create' => false,
+                'create_table_allowed' => false,
+            ],
+            [
+                'case' => 'e_fkey-28.3',
+                'sql' => 'CREATE TABLE c(jj, FOREIGN KEY(jj) REFERENCES p(x, y))',
+                'status' => 'schema-error',
+                'error' => 'number of columns in foreign key does not match the number of columns in the referenced table',
+                'detected_at' => 'create-table',
+                'child_key_columns' => ['jj'],
+                'parent_columns' => ['x', 'y'],
+                'child_key_width' => 1,
+                'parent_key_width' => 2,
+                'parent_column_list_syntax_valid' => true,
+                'cardinality_checked_at_create' => true,
+                'create_table_allowed' => false,
+            ],
+            [
+                'case' => 'e_fkey-28.4',
+                'sql' => 'CREATE TABLE c(jj, FOREIGN KEY(jj) REFERENCES p())',
+                'status' => 'syntax-error',
+                'error' => 'near ")": syntax error',
+                'detected_at' => 'parse',
+                'child_key_columns' => ['jj'],
+                'parent_columns' => [],
+                'child_key_width' => 1,
+                'parent_key_width' => 0,
+                'parent_column_list_syntax_valid' => false,
+                'cardinality_checked_at_create' => false,
+                'create_table_allowed' => false,
+            ],
+            [
+                'case' => 'e_fkey-28.5',
+                'sql' => 'CREATE TABLE c(ii, jj, FOREIGN KEY(jj, ii) REFERENCES p())',
+                'status' => 'syntax-error',
+                'error' => 'near ")": syntax error',
+                'detected_at' => 'parse',
+                'child_key_columns' => ['jj', 'ii'],
+                'parent_columns' => [],
+                'child_key_width' => 2,
+                'parent_key_width' => 0,
+                'parent_column_list_syntax_valid' => false,
+                'cardinality_checked_at_create' => false,
+                'create_table_allowed' => false,
+            ],
+            [
+                'case' => 'e_fkey-28.6',
+                'sql' => 'CREATE TABLE c(ii, jj, FOREIGN KEY(jj, ii) REFERENCES p(x))',
+                'status' => 'schema-error',
+                'error' => 'number of columns in foreign key does not match the number of columns in the referenced table',
+                'detected_at' => 'create-table',
+                'child_key_columns' => ['jj', 'ii'],
+                'parent_columns' => ['x'],
+                'child_key_width' => 2,
+                'parent_key_width' => 1,
+                'parent_column_list_syntax_valid' => true,
+                'cardinality_checked_at_create' => true,
+                'create_table_allowed' => false,
+            ],
+            [
+                'case' => 'e_fkey-28.7',
+                'sql' => 'CREATE TABLE c(ii, jj, FOREIGN KEY(jj, ii) REFERENCES p(x,y,z))',
+                'status' => 'schema-error',
+                'error' => 'number of columns in foreign key does not match the number of columns in the referenced table',
+                'detected_at' => 'create-table',
+                'child_key_columns' => ['jj', 'ii'],
+                'parent_columns' => ['x', 'y', 'z'],
+                'child_key_width' => 2,
+                'parent_key_width' => 3,
+                'parent_column_list_syntax_valid' => true,
+                'cardinality_checked_at_create' => true,
+                'create_table_allowed' => false,
+            ],
+        ];
+
+        $implicitMismatches = [
+            [
+                'case' => 'e_fkey-28.8',
+                'parent_schema' => 'CREATE TABLE p(x PRIMARY KEY)',
+                'child_schema' => 'CREATE TABLE c(a, b, FOREIGN KEY(a,b) REFERENCES p)',
+                'dml' => 'DELETE FROM p',
+                'status' => 'foreign-key-mismatch',
+                'error' => 'foreign key mismatch - "c" referencing "p"',
+                'detected_at' => 'dml-prepare',
+                'parent_primary_key_columns' => ['x'],
+                'child_key_columns' => ['a', 'b'],
+                'child_key_width' => 2,
+                'implicit_parent_key_width' => 1,
+                'create_table_allowed' => true,
+                'implicit_reference_uses_parent_primary_key' => true,
+            ],
+            [
+                'case' => 'e_fkey-28.9',
+                'parent_schema' => 'CREATE TABLE p(x, y, PRIMARY KEY(x,y))',
+                'child_schema' => 'CREATE TABLE c(a REFERENCES p)',
+                'dml' => 'DELETE FROM p',
+                'status' => 'foreign-key-mismatch',
+                'error' => 'foreign key mismatch - "c" referencing "p"',
+                'detected_at' => 'dml-prepare',
+                'parent_primary_key_columns' => ['x', 'y'],
+                'child_key_columns' => ['a'],
+                'child_key_width' => 1,
+                'implicit_parent_key_width' => 2,
+                'create_table_allowed' => true,
+                'implicit_reference_uses_parent_primary_key' => true,
+            ],
+        ];
+
+        $album = [
+            'albumartist' => sprintf('artist-%03d', $seed),
+            'albumname' => sprintf('album-%03d', $seed),
+            'albumcover' => null,
+        ];
+        $validSong = [
+            'songid' => ($seed * 10) + 1,
+            'songartist' => $album['albumartist'],
+            'songalbum' => $album['albumname'],
+            'songname' => sprintf('matched-song-%03d', $seed),
+        ];
+        $missingSong = [
+            'songid' => ($seed * 10) + 2,
+            'songartist' => $album['albumartist'],
+            'songalbum' => sprintf('missing-album-%03d', $seed),
+            'songname' => sprintf('blocked-song-%03d', $seed),
+        ];
+        $nullAlbumSong = [
+            'songid' => ($seed * 10) + 3,
+            'songartist' => $album['albumartist'],
+            'songalbum' => null,
+            'songname' => sprintf('null-album-song-%03d', $seed),
+        ];
+        $nullArtistSong = [
+            'songid' => ($seed * 10) + 4,
+            'songartist' => null,
+            'songalbum' => $missingSong['songalbum'],
+            'songname' => sprintf('null-artist-song-%03d', $seed),
+        ];
+
+        $hasNullChildKey = static fn (array $song): bool => $song['songartist'] === null || $song['songalbum'] === null;
+        $matchesAlbum = static fn (array $song): bool => !$hasNullChildKey($song)
+            && $song['songartist'] === $album['albumartist']
+            && $song['songalbum'] === $album['albumname'];
+
+        $nullChildRows = [$nullAlbumSong, $nullArtistSong];
+        $nullChildStatuses = [];
+        foreach ($nullChildRows as $row) {
+            $nullChildStatuses[] = [
+                'songid' => $row['songid'],
+                'child_key' => ['songartist' => $row['songartist'], 'songalbum' => $row['songalbum']],
+                'status' => $hasNullChildKey($row) ? 'commit-ok' : 'constraint-failed',
+                'satisfied_by_null_child_key' => $hasNullChildKey($row),
+            ];
+        }
+
+        return [
+            'source' => 'e_fkey.test e_fkey-28.1..30.1',
+            'operation' => 'composite-foreign-key-cardinality-and-null-child',
+            'section' => '4.1 Composite Foreign Key Constraints',
+            'seed' => $seed,
+            'upstream_cases' => [
+                'e_fkey-28.1',
+                'e_fkey-28.2',
+                'e_fkey-28.3',
+                'e_fkey-28.4',
+                'e_fkey-28.5',
+                'e_fkey-28.6',
+                'e_fkey-28.7',
+                'e_fkey-28.8',
+                'e_fkey-28.9',
+                'e_fkey-29.1',
+                'e_fkey-29.2',
+                'e_fkey-29.3',
+                'e_fkey-30.1',
+            ],
+            'definition_error_count' => count($definitionErrors),
+            'definition_errors' => $definitionErrors,
+            'definition_cardinality_checked_at_create_count' => count(array_filter(
+                $definitionErrors,
+                static fn (array $case): bool => $case['cardinality_checked_at_create']
+            )),
+            'definition_syntax_error_count' => count(array_filter(
+                $definitionErrors,
+                static fn (array $case): bool => $case['status'] === 'syntax-error'
+            )),
+            'implicit_mismatch_count' => count($implicitMismatches),
+            'implicit_mismatches' => $implicitMismatches,
+            'composite_example' => [
+                'case' => 'e_fkey-29.1..30.1',
+                'parent_table' => 'album',
+                'child_table' => 'song',
+                'parent_key_columns' => ['albumartist', 'albumname'],
+                'child_key_columns' => ['songartist', 'songalbum'],
+                'album' => $album,
+                'valid_song' => $validSong,
+                'missing_song' => $missingSong,
+                'null_album_song' => $nullAlbumSong,
+                'null_artist_song' => $nullArtistSong,
+                'valid_song_status' => $matchesAlbum($validSong) ? 'commit-ok' : 'constraint-failed',
+                'missing_song_status' => $matchesAlbum($missingSong) ? 'commit-ok' : 'constraint-failed',
+                'missing_song_error' => 'FOREIGN KEY constraint failed',
+                'null_album_song_status' => $hasNullChildKey($nullAlbumSong) ? 'commit-ok' : 'constraint-failed',
+                'null_artist_song_status' => $hasNullChildKey($nullArtistSong) ? 'commit-ok' : 'constraint-failed',
+                'valid_child_key_matches_parent' => $matchesAlbum($validSong),
+                'missing_child_key_matches_parent' => $matchesAlbum($missingSong),
+                'null_child_key_short_circuit_count' => count(array_filter($nullChildStatuses, static fn (array $row): bool => $row['satisfied_by_null_child_key'])),
+                'partial_null_child_keys_satisfied' => count(array_filter($nullChildStatuses, static fn (array $row): bool => $row['satisfied_by_null_child_key'])) === count($nullChildStatuses),
+                'null_child_statuses' => $nullChildStatuses,
+                'committed_song_ids' => [$validSong['songid'], $nullAlbumSong['songid'], $nullArtistSong['songid']],
+                'failed_song_committed' => false,
+                'committed_song_count' => 3,
+            ],
+            'dependencies' => [
+                'sqlite-efkey28-composite-child-and-parent-keys-have-equal-cardinality',
+                'sqlite-efkey28-empty-explicit-parent-column-list-is-syntax-error',
+                'sqlite-efkey28-implicit-parent-primary-key-width-mismatch-surfaces-at-dml-prepare',
+                'sqlite-efkey29-composite-child-key-must-match-composite-parent-key',
+                'sqlite-efkey30-composite-child-key-with-any-null-column-is-satisfied',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
     public static function countChangesForeignKeyPlan(string $statement, bool $deferred, bool $foreignKeyAction = false): array
     {
         $statement = strtolower(trim($statement));

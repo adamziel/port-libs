@@ -358,6 +358,44 @@ if (
 
 echo 'source-map-directive-tokenization: matched' . PHP_EOL;
 
+$mixedCaseDataMap = 'Data:application/json;base64,' . base64_encode(json_encode([
+    'version' => 3,
+    'mappings' => 'AAAA',
+    'sources' => ['blocks/mixed-case-card.scss'],
+    'sourcesContent' => ['.wp-block-card { color: $wp-green }'],
+    'names' => [],
+], JSON_THROW_ON_ERROR));
+$lowercaseDataMap = 'data:application/json;base64,' . base64_encode(json_encode([
+    'version' => 3,
+    'mappings' => 'AAAA',
+    'sources' => ['blocks/lowercase-card.scss'],
+    'sourcesContent' => ['.wp-block-lowercase-card { color: $wp-blue }'],
+    'names' => [],
+], JSON_THROW_ON_ERROR));
+$mixedCaseDataBundle = (new CssBundler())->bundleWithSourceMap('/theme.css', [
+    '/theme.css' => '@import "blocks/mixed-case-card.css"; @import "blocks/lowercase-card.css"; .wp-site-blocks { color: red }',
+    '/blocks/mixed-case-card.css' => ".wp-block-card { color: green }\n/*# sourceMappingURL={$mixedCaseDataMap} */",
+    '/blocks/lowercase-card.css' => ".wp-block-lowercase-card { color: blue }\n/*# sourceMappingURL={$lowercaseDataMap} */",
+], null, '/');
+$mixedCaseDataSourceMap = $mixedCaseDataBundle['sourceMap']->toArray(null, false);
+$mixedCaseDataDecoded = SourceMap::decodeVlq($mixedCaseDataSourceMap['mappings']);
+
+if (
+    $mixedCaseDataBundle['code'] !== '.wp-block-card{color:green}.wp-block-lowercase-card{color:#00f}.wp-site-blocks{color:red}'
+    || $mixedCaseDataSourceMap['sources'] !== [
+        'theme.css',
+        'blocks/mixed-case-card.css',
+        'blocks/lowercase-card.scss',
+    ]
+    || ($mixedCaseDataDecoded[0]['sourceIndex'] ?? null) !== 2
+    || ($mixedCaseDataDecoded[0]['generatedColumn'] ?? null) !== strlen('.wp-block-card{color:green}')
+) {
+    fwrite(STDERR, "Expected mixed-case Data: source-map URL to keep generated block CSS source while lowercase data: remaps\n");
+    exit(1);
+}
+
+echo 'source-map-mixed-case-data-url: generated-source' . PHP_EOL;
+
 $resolverTrace = [];
 $resolverRejected = false;
 try {

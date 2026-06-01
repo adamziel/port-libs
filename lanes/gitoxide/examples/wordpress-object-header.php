@@ -39,6 +39,11 @@ $noTypeSizeDelimiterHeaderMessage = null;
 $noTypeSizeDelimiterReadRejected = false;
 $noTypeSizeDelimiterIntegrityRejected = false;
 $noTypeSizeDelimiterIntegrityMessage = null;
+$unknownKindHeaderRejected = false;
+$unknownKindHeaderMessage = null;
+$unknownKindReadRejected = false;
+$unknownKindIntegrityRejected = false;
+$unknownKindIntegrityMessage = null;
 $allocationLimitRejected = false;
 $allocationLimitMessage = null;
 $trailingStreamIgnored = false;
@@ -209,6 +214,35 @@ try {
     $noTypeSizeDelimiterIntegrityMessage = $exception->getMessage();
 }
 
+$unknownKindDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-unknown-kind-' . bin2hex(random_bytes(4)) . '/objects';
+$unknownKindPath = $unknownKindDirectory . '/' . substr($fixture['unknownKindNoNulOid'], 0, 2) . '/' . substr($fixture['unknownKindNoNulOid'], 2);
+if (!is_dir(dirname($unknownKindPath)) && !mkdir(dirname($unknownKindPath), 0777, true) && !is_dir(dirname($unknownKindPath))) {
+    throw new RuntimeException('Unable to create object-header unknown-kind fixture directory');
+}
+$unknownKindCompressed = gzcompress($fixture['unknownKindNoNulStorage']);
+if ($unknownKindCompressed === false) {
+    throw new RuntimeException('Unable to compress object-header unknown-kind fixture');
+}
+file_put_contents($unknownKindPath, $unknownKindCompressed);
+$unknownKindStore = LooseObjectStore::fromObjectsDirectory($unknownKindDirectory);
+try {
+    $unknownKindStore->readHeader($fixture['unknownKindNoNulOid']);
+} catch (InvalidArgumentException $exception) {
+    $unknownKindHeaderRejected = true;
+    $unknownKindHeaderMessage = $exception->getMessage();
+}
+try {
+    $unknownKindStore->read($fixture['unknownKindNoNulOid']);
+} catch (InvalidArgumentException $exception) {
+    $unknownKindReadRejected = $exception->getMessage() === 'Unknown object kind: wordpress';
+}
+try {
+    $unknownKindStore->verifyIntegrity();
+} catch (RuntimeException $exception) {
+    $unknownKindIntegrityRejected = true;
+    $unknownKindIntegrityMessage = $exception->getMessage();
+}
+
 $trailingObjectsDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-trailing-' . bin2hex(random_bytes(4)) . '/objects';
 $trailingPath = $trailingObjectsDirectory . '/' . substr($object->oid(), 0, 2) . '/' . substr($object->oid(), 2);
 if (!is_dir(dirname($trailingPath)) && !mkdir(dirname($trailingPath), 0777, true) && !is_dir(dirname($trailingPath))) {
@@ -362,6 +396,11 @@ return [
     'noTypeSizeDelimiterReadRejected' => $noTypeSizeDelimiterReadRejected,
     'noTypeSizeDelimiterIntegrityRejected' => $noTypeSizeDelimiterIntegrityRejected,
     'noTypeSizeDelimiterIntegrityMessage' => $noTypeSizeDelimiterIntegrityMessage,
+    'unknownKindHeaderRejected' => $unknownKindHeaderRejected,
+    'unknownKindHeaderMessage' => $unknownKindHeaderMessage,
+    'unknownKindReadRejected' => $unknownKindReadRejected,
+    'unknownKindIntegrityRejected' => $unknownKindIntegrityRejected,
+    'unknownKindIntegrityMessage' => $unknownKindIntegrityMessage,
     'allocationLimitBytes' => $boundedStore->allocationLimitBytes(),
     'oversizedHeaderSize' => $oversizedHeader['size'],
     'allocationLimitRejected' => $allocationLimitRejected,

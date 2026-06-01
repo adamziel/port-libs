@@ -174,6 +174,27 @@ CSS, $formatter->format(<<<'CSS'
 }
 CSS));
     },
+    'css formatter maps upstream grid template printer cases' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+.foo {
+  grid-template: [header-top] "a a a" [header-bottom]
+                 [main-top] "b b b" 1fr [main-bottom]
+                 / auto 1fr auto;
+}
+
+CSS, $formatter->format('.foo{grid-template:[header-top]"a a a"[header-bottom main-top]"b b b"1fr[main-bottom]/auto 1fr auto}'));
+
+        $t->same(<<<'CSS'
+.foo {
+  grid-template: [header-top] "a a a"
+                 [main-top] "b b b" 1fr
+                 / auto 1fr auto;
+}
+
+CSS, $formatter->format('.foo{grid-template:[header-top]"a a a"[main-top]"b b b"1fr/auto 1fr auto}'));
+    },
     'wordpress property registration formatting preserves design token blocks' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 @layer theme.tokens {

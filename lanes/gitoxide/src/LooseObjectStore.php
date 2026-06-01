@@ -465,14 +465,14 @@ final class LooseObjectStore
                 }
 
                 if (strlen($inflated) < self::HEADER_MAX_SIZE) {
-                    self::throwNoTypeSizeDelimiterOrMissingNul($inflated);
+                    self::throwNoTypeSizeDelimiterUnknownKindOrMissingNul($inflated);
                 }
 
                 throw new \InvalidArgumentException('Loose object header exceeds maximum size of 64 bytes');
             }
         }
 
-        self::throwNoTypeSizeDelimiterOrMissingNul($inflated);
+        self::throwNoTypeSizeDelimiterUnknownKindOrMissingNul($inflated);
     }
 
     private static function inflateStorageBytesExactly(string $compressed, string $oid): string
@@ -514,7 +514,7 @@ final class LooseObjectStore
                         throw new \InvalidArgumentException('Loose object header exceeds maximum size of 64 bytes');
                     }
                     if ($status === ZLIB_STREAM_END) {
-                        self::throwNoTypeSizeDelimiterOrMissingNul($inflated);
+                        self::throwNoTypeSizeDelimiterUnknownKindOrMissingNul($inflated);
                     }
                     continue;
                 }
@@ -546,7 +546,7 @@ final class LooseObjectStore
         }
 
         if ($expectedLength === null) {
-            self::throwNoTypeSizeDelimiterOrMissingNul($inflated);
+            self::throwNoTypeSizeDelimiterUnknownKindOrMissingNul($inflated);
         }
 
         $actualLength = strlen($inflated);
@@ -571,10 +571,16 @@ final class LooseObjectStore
         }
     }
 
-    private static function throwNoTypeSizeDelimiterOrMissingNul(string $inflated): never
+    private static function throwNoTypeSizeDelimiterUnknownKindOrMissingNul(string $inflated): never
     {
-        if (!str_contains($inflated, ' ')) {
+        $space = strpos($inflated, ' ');
+        if ($space === false) {
             throw new \InvalidArgumentException("Expected '<type> <size>'");
+        }
+
+        $type = substr($inflated, 0, $space);
+        if (!in_array($type, ['blob', 'tree', 'commit', 'tag'], true)) {
+            throw new \InvalidArgumentException("Unknown object kind: {$type}");
         }
 
         throw new \InvalidArgumentException('Did not find 0 byte in header');

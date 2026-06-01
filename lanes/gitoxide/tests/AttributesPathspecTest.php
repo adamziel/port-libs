@@ -87,15 +87,29 @@ return [
         $attributes = GitAttributes::fromString("\"wp-content/uploads/slot[[:blank:]]/**\" whitespace-upload\n"
             . "\"wp-content/uploads/[[:unknown:]]/**\" invalid-upload\n", withBuiltInMacros: false);
 
-        $t->same(['whitespace-upload' => true], $attributes->attributesForPath("wp-content/uploads/slot\v/photo.jpg", ['whitespace-upload']));
+        $t->same(['whitespace-upload' => null], $attributes->attributesForPath("wp-content/uploads/slot\v/photo.jpg", ['whitespace-upload']));
         $t->same(['whitespace-upload' => true], $attributes->attributesForPath("wp-content/uploads/slot\t/photo.jpg", ['whitespace-upload']));
+        $t->same(['whitespace-upload' => true], $attributes->attributesForPath("wp-content/uploads/slot\n/photo.jpg", ['whitespace-upload']));
+        $t->same(['whitespace-upload' => true], $attributes->attributesForPath("wp-content/uploads/slot\f/photo.jpg", ['whitespace-upload']));
+        $t->same(['whitespace-upload' => true], $attributes->attributesForPath("wp-content/uploads/slot\r/photo.jpg", ['whitespace-upload']));
         $t->same(['whitespace-upload' => true], $attributes->attributesForPath('wp-content/uploads/slot /photo.jpg', ['whitespace-upload']));
         $t->same(['whitespace-upload' => null], $attributes->attributesForPath('wp-content/uploads/slotx/photo.jpg', ['whitespace-upload']));
         $t->same(['invalid-upload' => null], $attributes->attributesForPath('wp-content/uploads/[[:unknown:]]/photo.jpg', ['invalid-upload']));
 
         $search = PathspecSearch::fromSpecs([':(attr:whitespace-upload)wp-content/uploads/**']);
-        $t->same(true, $search->isIncluded("wp-content/uploads/slot\v/photo.jpg", false, $attributes));
+        $t->same(false, $search->isIncluded("wp-content/uploads/slot\v/photo.jpg", false, $attributes));
+        $t->same(true, $search->isIncluded("wp-content/uploads/slot\f/photo.jpg", false, $attributes));
         $t->same(false, $search->isIncluded('wp-content/uploads/slotx/photo.jpg', false, $attributes));
+        $t->same(false, PathspecMatcher::matchesOne(
+            ':(glob)wp-content/uploads/slot[[:blank:]]/photo.jpg',
+            "wp-content/uploads/slot\v/photo.jpg",
+            false,
+        ));
+        $t->same(true, PathspecMatcher::matchesOne(
+            ':(glob)wp-content/uploads/slot[[:blank:]]/photo.jpg',
+            "wp-content/uploads/slot\f/photo.jpg",
+            false,
+        ));
         $t->same(false, PathspecMatcher::matchesOne(
             ':(attr:invalid-upload)wp-content/uploads/**',
             'wp-content/uploads/[[:unknown:]]/photo.jpg',
@@ -939,6 +953,9 @@ return [
         $t->same(true, $example['rootEscapingCandidateRejected']);
         $t->same(['dated-upload' => true], $example['datedUploadAttributes']);
         $t->same(true, $example['datedUploadPathspecMatches']);
+        $t->same(true, $example['whitespaceUploadPathspecMatches']);
+        $t->same(true, $example['verticalTabBlankUploadSkipped']);
+        $t->same(true, $example['formFeedBlankPathspecMatches']);
         $t->same(true, $example['slashClassDoesNotCrossDirectory']);
         $t->same(['malformed-posix' => true], $example['malformedPosixAttributeMatchesLiteralOpen']);
         $t->same(true, $example['malformedPosixPathspecSearchResumes']);

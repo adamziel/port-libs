@@ -707,6 +707,11 @@ final class CustomAtRuleTransformer
                 'number' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'number', $token, $transformer),
                 'percentage' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'percentage', $token, $transformer),
                 'dimension' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'dimension', $token, $transformer),
+                'include-match' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'include-match', $token, $transformer),
+                'dash-match' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'dash-match', $token, $transformer),
+                'prefix-match' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'prefix-match', $token, $transformer),
+                'suffix-match' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'suffix-match', $token, $transformer),
+                'substring-match' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'substring-match', $token, $transformer),
             ],
             'Selector' => static function (array $selector, self $transformer) use ($visitors): mixed {
                 $current = $selector;
@@ -6705,7 +6710,24 @@ final class CustomAtRuleTransformer
             ];
         }
 
-        if (in_array($token, ['=', '/', ':', ';', '~=', '|=', '^=', '$=', '*='], true)) {
+        $matchOperators = [
+            '~=' => 'include-match',
+            '|=' => 'dash-match',
+            '^=' => 'prefix-match',
+            '$=' => 'suffix-match',
+            '*=' => 'substring-match',
+        ];
+        if (isset($matchOperators[$token])) {
+            return [
+                'type' => 'token',
+                'raw' => $token,
+                'value' => [
+                    'type' => $matchOperators[$token],
+                ],
+            ];
+        }
+
+        if (in_array($token, ['=', '/', ':', ';'], true)) {
             return [
                 'type' => 'token',
                 'raw' => $token,
@@ -8914,6 +8936,9 @@ final class CustomAtRuleTransformer
             if (($token['type'] ?? null) === 'delim') {
                 return (string) ($token['value'] ?? '');
             }
+            if (($matchOperator = $this->serializeMatchOperatorTokenType((string) ($token['type'] ?? ''))) !== null) {
+                return $matchOperator;
+            }
             if (($token['type'] ?? null) === 'parenthesis-block') {
                 return '(';
             }
@@ -8991,6 +9016,18 @@ final class CustomAtRuleTransformer
         }
 
         return (string) ($value['value'] ?? '');
+    }
+
+    private function serializeMatchOperatorTokenType(string $type): ?string
+    {
+        return match ($type) {
+            'include-match' => '~=',
+            'dash-match' => '|=',
+            'prefix-match' => '^=',
+            'suffix-match' => '$=',
+            'substring-match' => '*=',
+            default => null,
+        };
     }
 
     /**

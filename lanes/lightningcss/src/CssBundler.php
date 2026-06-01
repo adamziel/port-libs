@@ -557,7 +557,7 @@ final class CssBundler
         }
 
         $sourceMapUrl = $this->sourceMapUrl($source);
-        if ($sourceMapUrl !== null && str_starts_with(strtolower($sourceMapUrl), 'data:')) {
+        if ($sourceMapUrl !== null && str_starts_with($sourceMapUrl, 'data')) {
             try {
                 $this->pendingInputSourceMaps[] = [
                     'sourceIndex' => $sourceIndex,

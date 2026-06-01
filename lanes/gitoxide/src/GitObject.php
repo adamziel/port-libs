@@ -50,8 +50,14 @@ final class GitObject
      */
     public static function decodeLooseHeader(string $bytes): array
     {
-        if (strpos($bytes, ' ') === false) {
+        $space = strpos($bytes, ' ');
+        if ($space === false) {
             throw new \InvalidArgumentException("Expected '<type> <size>'");
+        }
+
+        $type = substr($bytes, 0, $space);
+        if (!self::isSupportedType($type)) {
+            throw new \InvalidArgumentException("Unknown object kind: {$type}");
         }
 
         $nul = strpos($bytes, "\0");
@@ -60,13 +66,14 @@ final class GitObject
         }
 
         $header = substr($bytes, 0, $nul);
-        if (!preg_match('/\A(blob|tree|commit|tag) ([+-]?[0-9]+)\z/', $header, $matches)) {
+        $sizeBytes = substr($bytes, $space + 1, $nul - $space - 1);
+        if (!preg_match('/\A[+-]?[0-9]+\z/', $sizeBytes)) {
             throw new \InvalidArgumentException('Invalid Git object header: ' . $header);
         }
-        $size = self::parseLooseHeaderSize($matches[2], $header);
+        $size = self::parseLooseHeaderSize($sizeBytes, $header);
 
         return [
-            'type' => $matches[1],
+            'type' => $type,
             'size' => $size,
             'headerLength' => $nul + 1,
         ];
@@ -84,9 +91,14 @@ final class GitObject
 
     private static function assertType(string $type): void
     {
-        if (!in_array($type, ['blob', 'tree', 'commit', 'tag'], true)) {
+        if (!self::isSupportedType($type)) {
             throw new \InvalidArgumentException("Unsupported Git object type: {$type}");
         }
+    }
+
+    private static function isSupportedType(string $type): bool
+    {
+        return in_array($type, ['blob', 'tree', 'commit', 'tag'], true);
     }
 
     private static function parseLooseHeaderSize(string $size, string $header): int

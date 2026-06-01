@@ -313,9 +313,19 @@ return [
         $classAttributes,
     ),
     'whitespaceUploadPathspecMatches' => $whitespaceUploadSearch->isIncluded(
+        "wp-content/uploads/slot\t/photo.jpg",
+        false,
+        $classAttributes,
+    ),
+    'verticalTabBlankUploadSkipped' => !$whitespaceUploadSearch->isIncluded(
         "wp-content/uploads/slot\v/photo.jpg",
         false,
         $classAttributes,
+    ),
+    'formFeedBlankPathspecMatches' => PathspecMatcher::matchesOne(
+        ':(glob)wp-content/uploads/slot[[:blank:]]/photo.jpg',
+        "wp-content/uploads/slot\f/photo.jpg",
+        false,
     ),
     'invalidClassDoesNotMatchLiteral' => !PathspecMatcher::matchesOne(
         ':(attr:invalid-upload)wp-content/uploads/**',

@@ -468,8 +468,10 @@ return [
         $invalidClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/[[:unknown:]]/photo.jpg']);
         $malformedPosixClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/[[:alpha]/photo.jpg']);
 
-        $t->same(true, $blankClass->isIncluded("wp-content/uploads/slot\v/photo.jpg", false));
+        $t->same(false, $blankClass->isIncluded("wp-content/uploads/slot\v/photo.jpg", false));
         $t->same(true, $blankClass->isIncluded("wp-content/uploads/slot\t/photo.jpg", false));
+        $t->same(true, $blankClass->isIncluded("wp-content/uploads/slot\f/photo.jpg", false));
+        $t->same(true, $blankClass->isIncluded("wp-content/uploads/slot\r/photo.jpg", false));
         $t->same(true, $blankClass->isIncluded('wp-content/uploads/slot /photo.jpg', false));
         $t->same(false, $spaceClass->isIncluded("wp-content/uploads/slot\t/photo.jpg", false));
         $t->same(true, $spaceClass->isIncluded('wp-content/uploads/slot /photo.jpg', false));
@@ -491,6 +493,8 @@ return [
             $tree('wp-content', new Tree([
                 $tree('uploads', new Tree([
                     $tree("slot\v", new Tree([$blob('photo.jpg')])),
+                    $tree("slot\t", new Tree([$blob('photo.jpg')])),
+                    $tree("slot\f", new Tree([$blob('photo.jpg')])),
                     $tree('slot ', new Tree([$blob('photo.jpg')])),
                     $tree('[[:unknown:]]', new Tree([$blob('photo.jpg')])),
                     $tree('a', new Tree([$blob('photo.jpg')])),
@@ -518,7 +522,8 @@ return [
         );
 
         $t->same([
-            "wp-content/uploads/slot\v/photo.jpg",
+            "wp-content/uploads/slot\t/photo.jpg",
+            "wp-content/uploads/slot\f/photo.jpg",
             'wp-content/uploads/slot /photo.jpg',
             'wp-content/uploads/[[:unknown:]]/photo.jpg',
             'wp-content/uploads/a/photo.jpg',
