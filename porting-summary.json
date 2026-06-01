@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 20:01:34 UTC",
-    "sourceCommit": "46668358203bb572570f56f2ef1c2c1596b171c7",
-    "sourceCommitShort": "46668358203b",
+    "generated": "2026-06-01 20:09:11 UTC",
+    "sourceCommit": "287e36260b651a5e9c2cbd5a6899c6dc389dbbb4",
+    "sourceCommitShort": "287e36260b65",
     "sourceBranch": "unknown",
-    "dashboardCommit": "46668358203bb572570f56f2ef1c2c1596b171c7",
-    "dashboardCommitShort": "46668358203b",
+    "dashboardCommit": "287e36260b651a5e9c2cbd5a6899c6dc389dbbb4",
+    "dashboardCommitShort": "287e36260b65",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,210,522 pass / 16 fail",
-            "phase": "current-base source integration accepted by supervisor with focused s...",
-            "audit": "2026-06-01 19:59 UTC supervisor integration: source commit ae8575247f...",
-            "currentWork": "source-neutral UTF-16 NOCASE LIKE/RTRIM cleanup, PDO invalid DML native parity, fkey2...",
+            "php": "6,247,535 pass / 16 fail",
+            "phase": "current-base source integration accepted by supervisor with focused J...",
+            "audit": "2026-06-01 20:13 UTC supervisor integration: source commit 287e36260b...",
+            "currentWork": "JSON subtype lazy if()/iif() semantics, UPSERT RETURNING quote()/IS NULL projection p...",
             "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "ae85752"
+            "commit": "287e362"
         },
         {
             "lane": "lightningcss",
