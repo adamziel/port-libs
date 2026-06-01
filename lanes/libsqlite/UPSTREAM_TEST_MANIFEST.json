@@ -169,7 +169,7 @@
         }
     },
     "benchmarkDenominator": {
-        "status": "current-base libsqlite selectA reversed UNION ORDER BY collation-inheritance follow-up",
+        "status": "current-base libsqlite pager/WAL peer-lock rollback-journal cleanup plus PDO invalid-column parity",
         "total": 1589,
         "mapped": 1589,
         "latestMappedAddition": "Source commit b377ea5b2fa3ea8bf0b90afbb451893100795e29 adds real upstream selectA reversed UNION ORDER BY c collation inheritance evidence. Mapped denominator remains complete at 1589 / 1589; focused gate passed 4 files / 45562 assertions / 0 failures.",
