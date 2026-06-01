@@ -1,18 +1,18 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 98.3,
-    "suiteProgress": "Supervisor-integrated Gitoxide smart HTTP non-default-port proxy credential context, SSH receive-pack host normalization, and prepared loose-reference nested rename parity. Full Gitoxide PHP lane passed 40 files / 10501 assertions / 0 failures.",
-    "phpPass": 10501,
+    "estimatedProgress": 98.4,
+    "suiteProgress": "Supervisor-integrated Gitoxide pack/MIDX invalid-byte prefix parity, partial-clone promisor keep-sidecar resume parity, and tree-merge rename-delete same-side fixture parity on current main. Full PHP lane passed 40 files / 10542 assertions / 0 failures.",
+    "phpPass": 10542,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed workflows remain covered; latest accepted source adds receive-pack uppercase service-header pkt-line parity for deployment push transport review, plus send-pack receive-status, protocol-v2 fetch sideband, and merge-base graph-tail parity.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 18:34 UTC supervisor integration: source commit c072310f1758058693cde21705f1a367c2df319a accepted smart HTTP non-default-port proxy credential context, SSH receive-pack host normalization boundaries, and prepared loose-reference nested rename lock/reflog parity. Changed PHP lint passed; git diff --check passed; focused ReceivePackTransportTest + ReferenceStoreTest passed 2 files / 2268 assertions / 0 failures; changed examples exited 0; full Gitoxide lane passed 40 files / 10501 assertions / 0 failures. phpPass moves 10434 -> 10501 (+67); mapped coverage moves 1810 -> 1812 / 2886. Full upstream Cargo workspace was not executed.",
-    "currentWork": "Smart HTTP non-default-port proxy credential context, SSH receive-pack host normalization, prepared loose-reference nested rename lock/reflog parity, receive-pack uppercase service-header pkt-line parity, send-pack receive-status malformed option parity, tree-merge conflict fixtures, pack/index prefix boundaries, reference transactions, partial-clone/promisor hydration, protocol-v2 fetch/ls-refs, sparse-checkout/pathspec, and URL/refspec parity.",
+    "audit": "2026-06-01 18:48 UTC supervisor integration: source commit 77840ac9f7fbca46d3cc01eef0979871aeec36b9 accepted three Gitoxide current-base handoffs: pack/MIDX invalid-byte prefix validation, partial-clone promisor index resume without stale keep sidecar, and gix-merge tree-baseline rename-delete same-side fixtures. Changed PHP lint passed; git diff --check passed; changed examples passed; focused combined gate passed 5 files / 2068 assertions / 0 failures; full Gitoxide lane passed 40 files / 10542 assertions / 0 failures. phpPass moves 10501 -> 10542 (+41); mapped coverage moves 1812 -> 1815 / 2886. Full upstream Cargo workspace was not executed.",
+    "currentWork": "Pack/MIDX invalid-byte prefix validation, partial-clone promisor keep-sidecar resume parity, tree-merge rename-delete same-side fixtures, Smart HTTP proxy credential context, SSH receive-pack host normalization, prepared loose-reference nested rename lock/reflog parity, receive-pack uppercase service-header pkt-line parity, send-pack receive-status malformed option parity, tree-merge conflict fixtures, pack/index prefix boundaries, reference transactions, partial-clone/promisor hydration, protocol-v2 fetch/ls-refs, sparse-checkout/pathspec, and URL/refspec parity.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "c072310f1758058693cde21705f1a367c2df319a",
-    "nextTask": "Keep Gitoxide workers on current-base non-overlapping partial-clone, pack/index/MIDX, object database, tree-merge, merge-base, reference transaction, smart-HTTP/SSH, sparse-checkout/pathspec, credential/config, protocol-v2, receive-pack/send-pack, and URL/refspec parity slices.",
-    "commit": "c072310f1758058693cde21705f1a367c2df319a",
-    "latestFocusedSlice": "2026-06-01 supervisor batch: smart HTTP non-default-port proxy credential context, SSH receive-pack host normalization, and prepared loose-reference nested rename lock/reflog parity. Focused Gitoxide gate passed 2 files / 2268 assertions / 0 failures; changed examples passed; full lane passed 40 files / 10501 assertions / 0 failures; phpPass moves 10434 -> 10501 (+67); mapped coverage moves 1810 -> 1812 / 2886. Full upstream Cargo workspace was not executed.",
-    "wordpressScenarioLatest": "Latest Gitoxide batch deepens deployment-relevant receive-pack proxy/SSH behavior and prepared reference transaction safety without shelling out to git."
+    "latestCommit": "77840ac9f7fbca46d3cc01eef0979871aeec36b9",
+    "nextTask": "Continue non-overlapping Gitoxide upstream-backed slices in attributes/pathspec, credential helper contexts, config includeIf edge cases, pack index/MIDX traversal, partial-clone alternates hydration, tree merge conflict fixtures, and reference transaction parity; keep full PHP lane green after each batch.",
+    "commit": "77840ac9f7fbca46d3cc01eef0979871aeec36b9",
+    "latestFocusedSlice": "2026-06-01 supervisor batch: pack/MIDX invalid-byte prefix parity, partial-clone promisor keep-sidecar resume parity, and tree-merge rename-delete same-side fixtures. Focused gate passed 5 files / 2068 assertions / 0 failures; full Gitoxide lane passed 40 files / 10542 assertions / 0 failures; phpPass +41; mapped +3.",
+    "wordpressScenarioLatest": "Latest Gitoxide batch covers deployment pack lookup validation, lazy partial-clone promisor resume sidecars, and tree-merge same-side rename/delete fixture behavior without shelling out to git."
 }
