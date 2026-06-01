@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 16:25:02 UTC",
-    "sourceCommit": "dbf4938a67264f7be161d5fb7c266551eadee8f2",
-    "sourceCommitShort": "dbf4938a6726",
+    "generated": "2026-06-01 16:33:38 UTC",
+    "sourceCommit": "972055a15e687a9c6759bc63564c9908c26fcf9d",
+    "sourceCommitShort": "972055a15e68",
     "sourceBranch": "main",
-    "dashboardCommit": "dbf4938a67264f7be161d5fb7c266551eadee8f2",
-    "dashboardCommitShort": "dbf4938a6726",
+    "dashboardCommit": "972055a15e687a9c6759bc63564c9908c26fcf9d",
+    "dashboardCommitShort": "972055a15e68",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,045,175 pass / 16 fail",
+            "php": "6,055,992 pass / 16 fail",
             "phase": "current-base source integration accepted; broad full-lane/release par...",
-            "audit": "2026-06-01 16:27 UTC supervisor integration: source commit dbf4938a67...",
-            "currentWork": "SQLitePDO bad-column, missing-table, and file-backed persistence parity integrated on...",
+            "audit": "2026-06-01 16:40 UTC supervisor integration: source commit 972055a15e...",
+            "currentWork": "SQLitePDO bad-column, missing-table, file-backed persistence parity, and dynamic trig...",
             "nextTarget": "Prioritize broad full-lane memory exhaustion and the 16 obser...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "dbf4938"
+            "commit": "972055a"
         },
         {
             "lane": "lightningcss",
@@ -45,13 +45,13 @@
             "coverage": "2,398 / 3,532 (67.9%)",
             "mapPercent": "67.9%",
             "unmapped": "1,134",
-            "php": "8,694 pass / 0 fail",
+            "php": "8,737 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 16:20 UTC supervisor integration: source commit 2bc9980684...",
-            "currentWork": "Bundle import graph, CSS Modules, CSSOM background clip, source-map VLQ offset, and t...",
+            "audit": "2026-06-01 16:40 UTC supervisor integration: source commit 972055a15e...",
+            "currentWork": "Bundle import graph, custom at-rule selector tokens, media-query range/layer math, gr...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, bundle...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "2bc9980"
+            "commit": "972055a"
         },
         {
             "lane": "gitoxide",
@@ -68,13 +68,13 @@
             "coverage": "1,807 / 2,886 (62.6%)",
             "mapPercent": "62.6%",
             "unmapped": "1,079",
-            "php": "10,127 pass / 0 fail",
+            "php": "10,170 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 16:20 UTC supervisor integration: source commit 2bc9980684...",
-            "currentWork": "Config include quoted path and inline comment parsing parity integrated on current main.",
+            "audit": "2026-06-01 16:40 UTC supervisor integration: source commit 972055a15e...",
+            "currentWork": "Attributes/pathspec blank vertical-tab boundary parity and loose object unknown-kind...",
             "nextTarget": "Keep Gitoxide workers on current-base non-overlapping referen...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "2bc9980"
+            "commit": "972055a"
         },
         {
             "lane": "readability",
