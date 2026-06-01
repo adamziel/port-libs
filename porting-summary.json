@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 05:31:43 UTC",
-    "sourceCommit": "2b507a68454193d5c6f7980f7f71151a7209f29f",
-    "sourceCommitShort": "2b507a684541",
+    "generated": "2026-06-01 05:41:56 UTC",
+    "sourceCommit": "759c229a919c62c7024605352e8bd074ac615adf",
+    "sourceCommitShort": "759c229a919c",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2b507a68454193d5c6f7980f7f71151a7209f29f",
-    "dashboardCommitShort": "2b507a684541",
+    "dashboardCommit": "759c229a919c62c7024605352e8bd074ac615adf",
+    "dashboardCommitShort": "759c229a919c",
     "averageProgressPercent": "88.4",
     "lanes": [
         {
@@ -60,20 +60,20 @@
         },
         {
             "library": "gitoxide",
-            "progressPercent": "94.4",
+            "progressPercent": "94.5",
             "suite": "current-base Gitoxide merge-base replay",
             "benchmark": "current-base Gitoxide merge-base replay",
             "denominator": "2886",
             "mapped": "1749",
             "coverage": "1749 / 2886",
-            "php": "7602 pass / 0 fail",
+            "php": "7629 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
             "audit": "2026-06-01 supervisor batch: full Gitoxid...",
-            "currentWork": "Merge-base walk-start de-dup stale-bit clearing parity integrated on current base.",
+            "currentWork": "Protocol-v2 fetch sideband trim-end parity and send-pack receive-status malformed object-...",
             "nextTarget": "Keep three Gitoxide workers on current-base non-overlapping fetch sideband, send-pack, re...",
             "blocker": "Full upstream Cargo workspace remains unexecuted.",
-            "commit": "2b507a6"
+            "commit": "759c229"
         },
         {
             "library": "libsqlite",
@@ -83,31 +83,31 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "5603060 pass / 7 fail",
+            "php": "5618074 pass / 7 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "focused real-corpus and source-neutral coverage accepte...",
             "audit": "2026-06-01 supervisor batch: accepted sou...",
-            "currentWork": "Real upstream json101 quoted-path SELECT dynamic corpus coverage integrated on current base.",
+            "currentWork": "Real upstream upsert1 count_changes UPSERT dynamic corpus coverage integrated on current...",
             "nextTarget": "Continue broad release/all parity blockers, source-neutral cleanup of pre-existing wp_ fi...",
             "blocker": "Broad libsqlite full-lane/release parity is not green: sampled failures r...",
-            "commit": "2b507a6"
+            "commit": "759c229"
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "99.1",
+            "progressPercent": "99.2",
             "suite": "current-base LightningCSS import/grid/target replay",
             "benchmark": "current-base LightningCSS import/grid/target replay",
             "denominator": "3532",
             "mapped": "2359",
             "coverage": "2359 / 3532",
-            "php": "6237 pass / 0 fail",
+            "php": "6267 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
             "audit": "2026-06-01 supervisor batch: full Lightni...",
-            "currentWork": "Repeated import-position, residual grid value, and box-shadow target-boundary parity inte...",
+            "currentWork": "CSS Modules nth-child formula local/global compose parity, media-query redundant boolean...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph,...",
             "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-            "commit": "2b507a6"
+            "commit": "759c229"
         },
         {
             "library": "markerPDF",
