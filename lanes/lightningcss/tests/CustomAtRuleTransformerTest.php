@@ -4969,6 +4969,133 @@ CSS;
         $t->same('@supports (display:flex){.card{color:red}.supports-ready{color:#ff0}}', $result);
         $t->same(['supports:grid', 'supports:flex'], $seen);
     },
+    'custom at-rules map upstream Rule container visitors for native container rules' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Rule' => [
+                'container' => static function (array $rule) use (&$seen): array {
+                    $feature = $rule['value']['condition']['value'] ?? [];
+                    $featureValue = is_array($feature) ? ($feature['value'] ?? []) : [];
+                    $seen = [
+                        'type' => $rule['type'] ?? null,
+                        'name' => $rule['value']['name'] ?? null,
+                        'conditionType' => $rule['value']['condition']['type'] ?? null,
+                        'featureType' => is_array($feature) ? ($feature['type'] ?? null) : null,
+                        'featureName' => is_array($feature) ? ($feature['name'] ?? null) : null,
+                        'operator' => is_array($feature) ? ($feature['operator'] ?? null) : null,
+                        'unit' => is_array($featureValue) ? ($featureValue['unit'] ?? null) : null,
+                        'value' => is_array($featureValue) ? ($featureValue['value'] ?? null) : null,
+                        'childType' => $rule['value']['rules'][0]['type'] ?? null,
+                        'childSelector' => $rule['value']['rules'][0]['value']['selectors'][0][0]['name'] ?? null,
+                    ];
+                    $rule['value']['name'] = 'wp-theme-card';
+                    $rule['value']['condition'] = ['raw' => '(inline-size > 48rem)'];
+                    $rule['value']['rules'][0]['value']['selectors'][0][0]['name'] = 'wp-card';
+
+                    return $rule;
+                },
+            ],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('@container wp-card (inline-size > 45em) { .card { width: 16px; } }', [], $visitor);
+
+        $t->same('@container wp-theme-card (inline-size>48rem){.wp-card{width:16px}}', $result);
+        $t->same([
+            'type' => 'container',
+            'name' => 'wp-card',
+            'conditionType' => 'feature',
+            'featureType' => 'range',
+            'featureName' => 'inline-size',
+            'operator' => 'greater-than',
+            'unit' => 'em',
+            'value' => 45.0,
+            'childType' => 'style',
+            'childSelector' => 'card',
+        ], $seen);
+    },
+    'custom at-rules apply upstream RuleExit container visitors after children' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Length' => static function (array $length): ?array {
+                return $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null;
+            },
+            'RuleExit' => [
+                'container' => static function (array $rule) use (&$seen): array {
+                    $seen = [
+                        'type' => $rule['type'] ?? null,
+                        'name' => $rule['value']['name'] ?? null,
+                        'childRaw' => $rule['value']['rules'][0]['value']['declarations']['declarations'][0]['raw'] ?? null,
+                    ];
+                    $rule['value']['condition'] = ['raw' => '(inline-size > 48rem)'];
+
+                    return $rule;
+                },
+            ],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('@container wp-card (inline-size > 45em) { .card { width: 16px; } }', [], $visitor);
+
+        $t->same('@container wp-card (inline-size>48rem){.card{width:1rem}}', $result);
+        $t->same([
+            'type' => 'container',
+            'name' => 'wp-card',
+            'childRaw' => '1rem',
+        ], $seen);
+    },
+    'custom at-rules compose upstream Rule container visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'container' => static function (array $rule) use (&$seen): array {
+                        $seen[] = 'container:' . ($rule['value']['name'] ?? '') . ':' . ($rule['value']['condition']['value']['value']['value'] ?? '');
+                        $rule['value']['condition']['value']['value']['value'] = 48.0;
+
+                        return $rule;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'container' => static function (array $rule) use (&$seen): array {
+                        $seen[] = 'container:' . ($rule['value']['name'] ?? '') . ':' . ($rule['value']['condition']['value']['value']['value'] ?? '');
+                        $rule['value']['rules'][] = [
+                            'type' => 'style',
+                            'value' => [
+                                'selectors' => [
+                                    [
+                                        ['type' => 'class', 'name' => 'container-ready'],
+                                    ],
+                                ],
+                                'declarations' => [
+                                    'declarations' => [[
+                                        'property' => 'color',
+                                        'value' => [
+                                            'type' => 'rgb',
+                                            'r' => 255,
+                                            'g' => 255,
+                                            'b' => 0,
+                                            'alpha' => 1,
+                                        ],
+                                    ]],
+                                    'importantDeclarations' => [],
+                                ],
+                            ],
+                        ];
+
+                        return $rule;
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@container wp-card (inline-size > 45em) { .card { color: red; } }', [], $visitor);
+
+        $t->same('@container wp-card (inline-size>48em){.card{color:red}.container-ready{color:#ff0}}', $result);
+        $t->same(['container:wp-card:45', 'container:wp-card:48'], $seen);
+    },
     'custom at-rules compose upstream Selector prefix visitors' => static function (TestRunner $t): void {
         $seenSelectorTypes = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([

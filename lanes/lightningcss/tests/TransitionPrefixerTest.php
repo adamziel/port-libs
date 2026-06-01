@@ -4335,6 +4335,38 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media (width >= 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
+            '@layer blocks{@media (min-width:1){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= sign(10px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (width>=1){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= sign(10px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 64])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:-1){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= sign(-10px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= abs(-2)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:5){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= hypot(3, 4)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:10px) and (max-width:1){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (10px <= width <= sign(20px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media (min-theme-breakpoint:1){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (theme-breakpoint >= sign(10rem)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-aspect-ratio:1){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (aspect-ratio >= sign(10 / 2)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
             '@layer blocks{@media (min-aspect-ratio:.5){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (aspect-ratio >= max(1 / 2, 1 / 3)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
@@ -4627,6 +4659,14 @@ CSS;
         $t->throws(
             InvalidArgumentException::class,
             static fn () => $prefixer->prefixForTargets('@layer blocks { @media (resolution >= round(2dppx, 1dppx)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $prefixer->prefixForTargets('@layer blocks { @media (width >= sign(10%)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $prefixer->prefixForTargets('@layer blocks { @media (width >= sign(10dppx)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->throws(
             InvalidArgumentException::class,

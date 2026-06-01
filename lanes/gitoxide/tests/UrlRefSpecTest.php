@@ -1071,6 +1071,47 @@ return [
         $t->same('refs/tags/v1.0', $pattern[0]['remote']);
         $t->same(null, $pattern[0]['local']);
 
+        $slashLiteral = RefSpec::matchFetchRemoteRefs(['refs/heads/*/release/*'], [
+            ['name' => 'refs/heads/plugin/release/stable', 'target' => str_repeat('9', 40)],
+            ['name' => 'refs/heads/plugin/extra/release/stable', 'target' => str_repeat('a', 40)],
+            ['name' => 'refs/heads/plugin/release/stable/extra', 'target' => str_repeat('b', 40)],
+            ['name' => 'refs/heads/theme/release/candidate', 'target' => str_repeat('c', 40)],
+        ]);
+        $t->same([
+            'refs/heads/plugin/release/stable',
+            'refs/heads/theme/release/candidate',
+        ], array_column($slashLiteral, 'remote'));
+        $t->same([0, 3], array_column($slashLiteral, 'itemIndex'));
+
+        $questionSlashLiteral = RefSpec::matchFetchRemoteRefs(['refs/heads/release-?/*'], [
+            ['name' => 'refs/heads/release-a/stable', 'target' => str_repeat('d', 40)],
+            ['name' => 'refs/heads/release-ab/stable', 'target' => str_repeat('e', 40)],
+            ['name' => 'refs/heads/release-/stable', 'target' => str_repeat('f', 40)],
+            ['name' => 'refs/heads/release-x/extra/stable', 'target' => str_repeat('1', 40)],
+        ]);
+        $t->same(['refs/heads/release-a/stable'], array_column($questionSlashLiteral, 'remote'));
+
+        $classSlashLiteral = RefSpec::matchFetchRemoteRefs(['refs/heads/[!x]*'], [
+            ['name' => 'refs/heads/a-stable', 'target' => str_repeat('2', 40)],
+            ['name' => 'refs/heads/x-stable', 'target' => str_repeat('3', 40)],
+            ['name' => 'refs/heads//stable', 'target' => str_repeat('4', 40)],
+        ]);
+        $t->same(['refs/heads/a-stable'], array_column($classSlashLiteral, 'remote'));
+        $t->same([0], array_column($classSlashLiteral, 'itemIndex'));
+
+        $globstar = RefSpec::matchFetchRemoteRefs(['refs/heads/**/release'], [
+            ['name' => 'refs/heads/release', 'target' => str_repeat('5', 40)],
+            ['name' => 'refs/heads/plugin/release', 'target' => str_repeat('6', 40)],
+            ['name' => 'refs/heads/plugin/extra/release', 'target' => str_repeat('7', 40)],
+            ['name' => 'refs/heads/plugin/release/stable', 'target' => str_repeat('8', 40)],
+        ]);
+        $t->same([
+            'refs/heads/release',
+            'refs/heads/plugin/release',
+            'refs/heads/plugin/extra/release',
+        ], array_column($globstar, 'remote'));
+        $t->same([0, 1, 2], array_column($globstar, 'itemIndex'));
+
         $negative = RefSpec::matchFetchRemoteRefs([
             'refs/heads/*:refs/remotes/origin/*',
             '^refs/heads/f2',
@@ -1166,6 +1207,7 @@ return [
         $t->same($fixture['expectedPushNormalized'], array_column($summary['push'], 'normalized'));
         $t->same($fixture['expectedMatchedFetchRemotes'], array_column($summary['matchedFetchRefs'], 'remote'));
         $t->same($fixture['expectedMatchedFetchLocals'], array_column($summary['matchedFetchRefs'], 'local'));
+        $t->same($fixture['expectedSlashLiteralMatchedFetchRemotes'], array_column($summary['slashLiteralMatchedFetchRefs'], 'remote'));
         $t->same($fixture['expectedPushInstructionIdentityUniqueCount'], $summary['pushInstructionIdentityUniqueCount']);
         $t->same($fixture['expectedSameNamedPushEquivalent'], $summary['sameNamedPushEquivalent']);
         $t->same($fixture['expectedDeleteForceEquivalent'], $summary['deleteForceEquivalent']);

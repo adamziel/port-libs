@@ -32,6 +32,19 @@ final class SQLiteRollbackJournalHeader
 
     public static function parse(string $bytes): self
     {
+        return self::fromFields(self::parseFields($bytes), null);
+    }
+
+    public static function parseWithDatabasePageSize(string $bytes, int $databasePageSize): self
+    {
+        return self::fromFields(self::parseFields($bytes), $databasePageSize);
+    }
+
+    /**
+     * @return array{pageCount:int,nonce:int,databasePages:int,sectorSize:int,pageSize:int}
+     */
+    private static function parseFields(string $bytes): array
+    {
         if (strlen($bytes) < 28) {
             throw new \InvalidArgumentException('SQLite rollback journal header requires 28 bytes');
         }
@@ -42,12 +55,25 @@ final class SQLiteRollbackJournalHeader
         /** @var array{pageCount:int,nonce:int,databasePages:int,sectorSize:int,pageSize:int} $fields */
         $fields = unpack('NpageCount/Nnonce/NdatabasePages/NsectorSize/NpageSize', substr($bytes, 8, 20));
 
+        return $fields;
+    }
+
+    /**
+     * @param array{pageCount:int,nonce:int,databasePages:int,sectorSize:int,pageSize:int} $fields
+     */
+    private static function fromFields(array $fields, ?int $databasePageSize): self
+    {
+        $pageSize = $fields['pageSize'];
+        if ($pageSize === 0 && $databasePageSize !== null) {
+            $pageSize = $databasePageSize;
+        }
+
         return new self(
             $fields['pageCount'],
             $fields['nonce'],
             $fields['databasePages'],
             $fields['sectorSize'],
-            $fields['pageSize'],
+            $pageSize,
         );
     }
 

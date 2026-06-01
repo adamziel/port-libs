@@ -7,6 +7,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\Gitoxide\Commit;
 use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\LooseObjectStore;
+use PortLibs\Gitoxide\MergeBaseCommand;
 use PortLibs\Gitoxide\MergeBaseFinder;
 use PortLibs\Gitoxide\ObjectDatabase;
 
@@ -71,6 +72,17 @@ $sha256DeployBase = $finder->mergeBaseMany([
 ]);
 $hotfixBases = $finder->mergeBases($fixture['pluginHotfixReview'], $fixture['themeHotfixReview']);
 $hotfixBase = $hotfixBases[0] ?? null;
+$hotfixCommandOutput = MergeBaseCommand::humanOutput(
+    $finder,
+    $fixture['pluginHotfixReview'],
+    [$fixture['themeHotfixReview']],
+);
+$archiveCommandError = null;
+try {
+    MergeBaseCommand::humanOutput($finder, $fixture['pluginHotfixReview'], [$fixture['archivedPluginReview']]);
+} catch (RuntimeException $exception) {
+    $archiveCommandError = $exception->getMessage();
+}
 $compatibilityCommitGraphBases = $finder->mergeBases(
     $fixture['pluginCompatibilityReview'],
     $fixture['themeCompatibilityReview'],
@@ -286,6 +298,10 @@ return [
     'hotfixBases' => $hotfixBases,
     'hotfixBase' => $hotfixBase,
     'hotfixBasePrefersNewerSecurityBaseline' => $hotfixBase === $fixture['securityBaseline'],
+    'hotfixCommandOutput' => $hotfixCommandOutput,
+    'hotfixCommandPrintsAllBases' => $hotfixCommandOutput === $fixture['securityBaseline'] . "\n"
+        . $fixture['legacyBaseline'] . "\n",
+    'archiveCommandError' => $archiveCommandError,
     'compatibilityHeads' => $fixture['compatibilityHeads'],
     'compatibilityCommitGraphBases' => $compatibilityCommitGraphBases,
     'compatibilityNoCommitGraphBases' => $compatibilityNoCommitGraphBases,

@@ -545,6 +545,55 @@ final class SQLiteRealPagerBoundaryPlan
         ];
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function zeroPageSizeJournalHeaderRows(int $count = 1000): array
+    {
+        if ($count < 1) {
+            throw new \InvalidArgumentException('SQLite pager zero-page-size journal corpus row count must be positive');
+        }
+
+        $pageSizes = [512, 1024, 2048, 4096, 8192];
+        $sectorSizes = [512, 1024, 2048, 4096];
+        $rows = [];
+
+        for ($case = 1; $case <= $count; $case++) {
+            $pageSize = $pageSizes[($case - 1) % count($pageSizes)];
+            $sectorSize = $sectorSizes[intdiv($case - 1, count($pageSizes)) % count($sectorSizes)];
+            $initialPageCount = 8 + (($case * 7) % 23);
+            $currentPageCount = $initialPageCount + 1 + (($case * 5) % 6);
+            $journalRecordCount = 1 + ($case % min(6, $initialPageCount));
+            $nonce = (0x50310000 + ($case * 2654435761)) & 0xffffffff;
+
+            $rows[] = [
+                'case' => $case,
+                'script' => 'pager1.test',
+                'section' => 'pager1-31.1',
+                'upstream' => sprintf('pager1.test pager1-31.1 zero page-size journal header dynamic case %04d', $case),
+                'page_size' => $pageSize,
+                'sector_size' => $sectorSize,
+                'journal_header_page_size_field' => 0,
+                'database_page_size_fallback' => $pageSize,
+                'initial_database_page_count' => $initialPageCount,
+                'current_database_page_count' => $currentPageCount,
+                'journal_record_count' => $journalRecordCount,
+                'checksum_nonce' => $nonce,
+                'expected_status' => 'zero-page-size-header-fallback',
+                'expected_integrity_check' => 'ok',
+                'rollback_truncates_to_initial_database_size' => true,
+                'source' => 'pager1.test pager1-31.1 rolls back legacy rollback journals whose page-size header field is zero by using the database page size',
+                'dependencies' => [
+                    'real-upstream-corpus-pager1',
+                    'sqlite-rollback-journal-zero-page-size-header',
+                    'sqlite-pager-hot-journal-legacy-compatibility',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
     private static function align(int $value, int $boundary): int
     {
         return intdiv($value + $boundary - 1, $boundary) * $boundary;

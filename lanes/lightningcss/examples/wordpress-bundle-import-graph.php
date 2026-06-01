@@ -2241,6 +2241,49 @@ if (
 
 echo 'css-modules-var-dependency: resolved' . PHP_EOL;
 
+$conditionalVarReads = [];
+$conditionalVarResolverCalled = false;
+$conditionalVarBundle = (new CssBundler())->bundleCssModulesWithReader(
+    '/blocks/conditional-card.css',
+    static function (string $file) use (&$conditionalVarReads): string {
+        $conditionalVarReads[] = $file;
+        if ($file === '/blocks/conditional-card.css') {
+            return <<<'CSS'
+@media screen {
+  .wp-block-card {
+    margin: var(--wp-card-gap from "pkg:missing.css", 1rem);
+    color: blue;
+  }
+}
+CSS;
+        }
+
+        throw new RuntimeException("Unexpected conditional var() dependency read for {$file}");
+    },
+    static function () use (&$conditionalVarResolverCalled): string {
+        $conditionalVarResolverCalled = true;
+        throw new RuntimeException('Unexpected conditional var() dependency resolution');
+    },
+    [
+        'hashes' => [
+            '/blocks/conditional-card.css' => 'card',
+        ],
+        'dashedIdents' => true,
+    ]
+);
+
+if (
+    $conditionalVarBundle['code'] !== '@media screen{.card_wp-block-card{margin:var(--card_wp-card-gap,1rem);color:#00f}}'
+    || $conditionalVarReads !== ['/blocks/conditional-card.css']
+    || $conditionalVarResolverCalled
+    || ($conditionalVarBundle['exports']['--wp-card-gap']['name'] ?? null) !== '--card_wp-card-gap'
+) {
+    fwrite(STDERR, "Expected conditional CSS Modules var() from syntax to scope locally without dependency resolution\n");
+    exit(1);
+}
+
+echo 'css-modules-conditional-var-dependency: scoped-without-resolve' . PHP_EOL;
+
 $conditionalComposesFiles = [
     '/modules/conditional-card.css' => '@import "blocks/card.css" layer(theme.blocks) screen; .wp-site-blocks { color: red }',
     '/modules/blocks/card.css' => '.wp-block-card { composes: token from "tokens.css"; color: green }',

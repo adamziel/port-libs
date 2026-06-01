@@ -1113,8 +1113,13 @@ final class SparseCheckoutSpec
             $parts[] = ['part' => $part, 'fromPrefix' => true];
         }
 
+        $pathHadComponents = false;
         foreach (explode('/', $path) as $part) {
-            if ($part === '' || $part === '.') {
+            if ($part === '') {
+                continue;
+            }
+            $pathHadComponents = true;
+            if ($part === '.') {
                 continue;
             }
             if ($part === '..') {
@@ -1136,6 +1141,9 @@ final class SparseCheckoutSpec
         }
 
         $normalized = implode('/', array_map(static fn (array $part): string => $part['part'], $parts));
+        if ($normalized === '' && $pathHadComponents) {
+            $normalized = '.';
+        }
 
         if ($absolute) {
             $caseSensitivePrefix = self::absoluteCaseSensitivePrefix($normalized, $directoryOnly, $literal, $ignoreCase);

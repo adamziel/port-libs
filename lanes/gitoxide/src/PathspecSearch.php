@@ -262,7 +262,9 @@ final class PathspecSearch
     {
         if ($pattern->nil || $pattern->path === '') {
             if ($prefix !== '' && !$pattern->top) {
-                return $pattern->withPath($prefix, strlen($prefix));
+                [$path, $prefixLength, $nil] = self::normalizePrefixedPatternPath($prefix, $pattern->path, $pattern->mustBeDirectory);
+
+                return $pattern->withPath($path, $prefixLength, $pattern->nil || $nil);
             }
 
             return $pattern;

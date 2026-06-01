@@ -82,6 +82,10 @@ $prefixedPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(top)wp-config.php',
     ':(exclude,glob)build/**',
 ], prefix: 'wp-content/plugins/gutenberg');
+$rootDotPathspec = SparseCheckoutSpec::fromPathspecs(['.']);
+$topRootDotPathspec = SparseCheckoutSpec::fromPathspecs([':(top).'], prefix: 'wp-content/plugins');
+$parentToRootDotPathspec = SparseCheckoutSpec::fromPathspecs(['../..'], prefix: 'wp-content/plugins');
+$prefixedDotPathspec = SparseCheckoutSpec::fromPathspecs(['.'], prefix: 'wp-content/plugins');
 $directoryExcludePathspec = SparseCheckoutSpec::fromPathspecs([
     ':/wp-content',
     ':!/wp-content/cache/',
@@ -297,6 +301,13 @@ return [
     'prefixedPathspecIcaseFileIncluded' => $prefixedPathspec->includesPath('wp-content/plugins/gutenberg/block.json', false),
     'prefixedPathspecUpperPrefixSkipped' => $prefixedPathspec->skipWorktree('WP-CONTENT/plugins/gutenberg/block.json', false),
     'prefixedTopConfigIncluded' => $prefixedPathspec->includesPath('wp-config.php', false),
+    'rootDotPathspecIndexSkipped' => $rootDotPathspec->skipWorktree('index.php', false),
+    'rootDotPathspecEntriesToMaterialize' => $entryNames($rootDotPathspec->includedTreeEntries($root)),
+    'topRootDotPathspecPluginSkipped' => $topRootDotPathspec->skipWorktree('wp-content/plugins/gutenberg/block.json', false),
+    'parentToRootDotPathspecContentSkipped' => $parentToRootDotPathspec->skipWorktree('wp-content/plugins/gutenberg/block.json', false),
+    'prefixedDotPathspecRootEntriesToMaterialize' => $entryNames($prefixedDotPathspec->includedTreeEntries($root)),
+    'prefixedDotPathspecPluginBlockIncluded' => $prefixedDotPathspec->includesPath('wp-content/plugins/gutenberg/block.json', false),
+    'prefixedDotPathspecAdminSkipped' => $prefixedDotPathspec->skipWorktree('wp-admin/admin.php', false),
     'directoryOnlyCacheDirectorySkipped' => $directoryExcludePathspec->skipWorktree('wp-content/cache', true),
     'directoryOnlyCacheFileNameIncluded' => $directoryExcludePathspec->includesPath('wp-content/cache', false),
     'directoryOnlyCacheDescendantSkipped' => $directoryExcludePathspec->skipWorktree('wp-content/cache/page.html', false),

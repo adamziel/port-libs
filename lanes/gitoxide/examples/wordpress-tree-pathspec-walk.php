@@ -66,6 +66,8 @@ $root = new Tree([
     ])),
     $tree('WP-CONTENT', new Tree([
         $tree('mu-plugins', new Tree([$blob('Loader.PHP')])),
+        $tree('plugins', new Tree([$blob('Safe.PHP')])),
+        $tree('PLUGINS', new Tree([$blob('SAFE.PHP')])),
     ])),
 ]);
 
@@ -163,6 +165,7 @@ $negativeWildcardCachePathspecs = PathspecSearch::fromSpecs([
     ':(glob)wp-content/*-cache/manifest.json',
     ':!wp-content/*-cache',
 ]);
+$emptyIcasePrefixPathspecs = PathspecSearch::fromSpecs([':(icase)'], 'WP-CONTENT/plugins');
 $deploymentAttributes = GitAttributes::fromString(
     "wp-content/plugins/gutenberg/** deploy=plugin merge=union\n"
     . "wp-content/plugins/gutenberg/build/** !deploy\n"
@@ -502,6 +505,18 @@ $negativeWildcardCacheRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$emptyIcasePrefixRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $emptyIcasePrefixPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 
 return [
     'matchedContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $records),
@@ -581,6 +596,11 @@ return [
     'negativeWildcardCacheReadPaths' => $negativeWildcardCacheReadPaths,
     'negativeWildcardCacheContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $negativeWildcardCacheRecords),
     'negativeWildcardCacheStaleSkipped' => !$negativeWildcardCachePathspecs->isIncluded('wp-content/generated-cache/stale.tmp', false),
+    'emptyIcasePrefixDirectory' => $emptyIcasePrefixPathspecs->patterns()[0]->prefixDirectory(),
+    'emptyIcaseCommonPrefix' => $emptyIcasePrefixPathspecs->commonPrefix(),
+    'emptyIcasePrefixContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $emptyIcasePrefixRecords),
+    'emptyIcaseFoldedFinalPrefixIncluded' => $emptyIcasePrefixPathspecs->isIncluded('WP-CONTENT/PLUGINS/SAFE.PHP', false),
+    'emptyIcaseLowerRootSkipped' => !$emptyIcasePrefixPathspecs->isIncluded('wp-content/plugins/safe.php', false),
     'attrFilteredContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $attrFilteredRecords),
     'attrFilteredWithoutProviderEmpty' => $attrFilteredWithoutProviderRecords === [],
     'rootEscapingPathspecRejected' => $rootEscapingPathspecRejected,

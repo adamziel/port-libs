@@ -3337,7 +3337,7 @@ CSS,
             '--inline-size' => $moduleDashed('--entry_inline-size', true),
         ], $result['exports']);
     },
-    'css bundler maps upstream css module var dependency graph and rejects env from syntax' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
+    'css bundler maps upstream css module var dependency graph and rejects env from syntax' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleDashed): void {
         $resolved = [];
         $result = $bundleModules([
             '/entry.css' => <<<'CSS'
@@ -3385,6 +3385,45 @@ CSS,
         $t->same([
             'card' => $moduleExport('entry_card'),
         ], $result['exports']);
+
+        $conditionalReads = [];
+        $conditionalResolverCalled = false;
+        $conditional = (new CssBundler())->bundleCssModulesWithReader(
+            '/entry.css',
+            static function (string $file) use (&$conditionalReads): string {
+                $conditionalReads[] = $file;
+                if ($file === '/entry.css') {
+                    return <<<'CSS'
+@media screen {
+  .card {
+    margin: var(--wp-card-gap from "pkg:missing.css", 1rem);
+    color: blue;
+  }
+}
+CSS;
+                }
+
+                throw new RuntimeException("Unexpected read for {$file}");
+            },
+            static function () use (&$conditionalResolverCalled): string {
+                $conditionalResolverCalled = true;
+                throw new RuntimeException('Unexpected conditional dashed-ident dependency resolution');
+            },
+            [
+                'hashes' => [
+                    '/entry.css' => 'entry',
+                ],
+                'dashedIdents' => true,
+            ]
+        );
+
+        $t->same('@media screen{.entry_card{margin:var(--entry_wp-card-gap,1rem);color:#00f}}', $conditional['code']);
+        $t->same(['/entry.css'], $conditionalReads);
+        $t->same(false, $conditionalResolverCalled);
+        $t->same([
+            'card' => $moduleExport('entry_card'),
+            '--wp-card-gap' => $moduleDashed('--entry_wp-card-gap', true),
+        ], $conditional['exports']);
 
         try {
             $bundleModules([

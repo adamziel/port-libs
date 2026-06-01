@@ -87,7 +87,7 @@ final class CssModulesTransformer
         $this->rawAtRuleBodies = [];
 
         [$css, $licenseComments] = $this->stripComments($css);
-        $code = $this->transformRuleList($css, 0, false);
+        $code = $this->transformRuleList($css, 0, false, true);
         if ($minify) {
             $code = (new NestingTransformer())->lower($code);
             $code = $this->rewriteAttributeSelectorsInCss($code);
@@ -115,7 +115,12 @@ final class CssModulesTransformer
         ];
     }
 
-    private function transformRuleList(string $css, int $styleNestingDepth, bool $composesNestedContext): string
+    private function transformRuleList(
+        string $css,
+        int $styleNestingDepth,
+        bool $composesNestedContext,
+        bool $recordDependencyReferences
+    ): string
     {
         $output = '';
         $cursor = 0;
@@ -154,7 +159,12 @@ final class CssModulesTransformer
             if ($this->pure && !$skipPureCheck && $styleNestingDepth === 0) {
                 $this->assertPureSelectorList($prelude);
             }
-            [$rewrittenBody, $composes] = $this->rewriteStyleBody($body, $styleNestingDepth, $composesNestedContext);
+            [$rewrittenBody, $composes] = $this->rewriteStyleBody(
+                $body,
+                $styleNestingDepth,
+                $composesNestedContext,
+                $recordDependencyReferences
+            );
             $this->assertValidComposesSelector($prelude, $composes);
             $this->addComposesToLocals($locals, $composes);
             $rewrittenBody = $this->preserveEmptyComposesRuleBody($rewrittenBody, $composes);
@@ -188,7 +198,7 @@ final class CssModulesTransformer
             $this->assertNoNestedComposesInAtRuleDeclarations($body);
         }
 
-        return $this->transformRuleList($body, $styleNestingDepth, true);
+        return $this->transformRuleList($body, $styleNestingDepth, true, false);
     }
 
     private function cssModulesAtRuleBodyIsParsed(string $prelude): bool
@@ -335,7 +345,7 @@ final class CssModulesTransformer
         }
 
         if ($this->dashedIdents && preg_match('/^\s*@media\b/i', $trimmedPrelude) === 1) {
-            return $this->rewriteDashedIdentReferences($prelude);
+            return $this->rewriteDashedIdentReferences($prelude, false);
         }
 
         return $prelude;
@@ -546,7 +556,12 @@ final class CssModulesTransformer
     /**
      * @return array{0:string,1:list<array{type:string, name:string, specifier?:string}>}
      */
-    private function rewriteStyleBody(string $body, int $styleNestingDepth, bool $composesNestedContext): array
+    private function rewriteStyleBody(
+        string $body,
+        int $styleNestingDepth,
+        bool $composesNestedContext,
+        bool $recordDependencyReferences
+    ): array
     {
         $output = '';
         $composes = [];
@@ -558,19 +573,37 @@ final class CssModulesTransformer
 
             if ($nextStatement !== null && ($nextBlock === null || $nextStatement < $nextBlock)) {
                 $statement = substr($body, $cursor, $nextStatement - $cursor + 1);
-                $output .= $this->rewriteDeclarationStatement($statement, $composes, $styleNestingDepth, $composesNestedContext);
+                $output .= $this->rewriteDeclarationStatement(
+                    $statement,
+                    $composes,
+                    $styleNestingDepth,
+                    $composesNestedContext,
+                    $recordDependencyReferences
+                );
                 $cursor = $nextStatement + 1;
                 continue;
             }
 
             if ($nextBlock === null) {
-                $output .= $this->rewriteTrailingDeclarations(substr($body, $cursor), $composes, $styleNestingDepth, $composesNestedContext);
+                $output .= $this->rewriteTrailingDeclarations(
+                    substr($body, $cursor),
+                    $composes,
+                    $styleNestingDepth,
+                    $composesNestedContext,
+                    $recordDependencyReferences
+                );
                 break;
             }
 
             $prefix = substr($body, $cursor, $nextBlock - $cursor);
             [$declarations, $nestedPrelude] = $this->splitDeclarationsAndNestedPrelude($prefix);
-            $output .= $this->rewriteTrailingDeclarations($declarations, $composes, $styleNestingDepth, $composesNestedContext);
+            $output .= $this->rewriteTrailingDeclarations(
+                $declarations,
+                $composes,
+                $styleNestingDepth,
+                $composesNestedContext,
+                $recordDependencyReferences
+            );
             $output = $this->preserveEmptyComposesRuleBody($output, $composes);
             $trimmedNested = trim($nestedPrelude);
             $close = $this->findMatchingBrace($body, $nextBlock);
@@ -580,7 +613,7 @@ final class CssModulesTransformer
                 $output .= $this->rewriteAtRulePrelude($nestedPrelude, $trimmedNested) . '{' . $this->transformAtRuleBody($trimmedNested, $nestedBody, $styleNestingDepth + 1) . '}';
             } else {
                 [$selector, $locals] = $this->rewriteSelectorList($nestedPrelude);
-                [$rewrittenNestedBody, $nestedComposes] = $this->rewriteStyleBody($nestedBody, $styleNestingDepth + 1, true);
+                [$rewrittenNestedBody, $nestedComposes] = $this->rewriteStyleBody($nestedBody, $styleNestingDepth + 1, true, false);
                 $this->assertValidComposesSelector($nestedPrelude, $nestedComposes);
                 $this->addComposesToLocals($locals, $nestedComposes);
                 $rewrittenNestedBody = $this->preserveEmptyComposesRuleBody($rewrittenNestedBody, $nestedComposes);
@@ -625,7 +658,13 @@ final class CssModulesTransformer
     /**
      * @param list<array{type:string, name:string, specifier?:string}> $composes
      */
-    private function rewriteDeclarationStatement(string $statement, array &$composes, int $styleNestingDepth, bool $composesNestedContext): string
+    private function rewriteDeclarationStatement(
+        string $statement,
+        array &$composes,
+        int $styleNestingDepth,
+        bool $composesNestedContext,
+        bool $recordDependencyReferences
+    ): string
     {
         $trimmed = trim($statement);
         if ($trimmed === '') {
@@ -659,7 +698,7 @@ final class CssModulesTransformer
 
             $rewrittenValue = $this->rewriteCssModuleDeclarationValue($property, $value);
             if ($this->dashedIdents) {
-                $rewrittenValue = $this->rewriteDashedIdentReferences($rewrittenValue ?? $value);
+                $rewrittenValue = $this->rewriteDashedIdentReferences($rewrittenValue ?? $value, $recordDependencyReferences);
             }
 
             if ($rewrittenValue === null && $rewrittenProperty === $rawProperty) {
@@ -815,20 +854,38 @@ final class CssModulesTransformer
     /**
      * @param list<array{type:string, name:string, specifier?:string}> $composes
      */
-    private function rewriteTrailingDeclarations(string $source, array &$composes, int $styleNestingDepth, bool $composesNestedContext): string
+    private function rewriteTrailingDeclarations(
+        string $source,
+        array &$composes,
+        int $styleNestingDepth,
+        bool $composesNestedContext,
+        bool $recordDependencyReferences
+    ): string
     {
         $output = '';
         $cursor = 0;
 
         while (($semicolon = $this->findNextTopLevel($source, ';', $cursor)) !== null) {
             $statement = substr($source, $cursor, $semicolon - $cursor + 1);
-            $output .= $this->rewriteDeclarationStatement($statement, $composes, $styleNestingDepth, $composesNestedContext);
+            $output .= $this->rewriteDeclarationStatement(
+                $statement,
+                $composes,
+                $styleNestingDepth,
+                $composesNestedContext,
+                $recordDependencyReferences
+            );
             $cursor = $semicolon + 1;
         }
 
         $tail = substr($source, $cursor);
         if (trim($tail) !== '') {
-            $output .= $this->rewriteDeclarationStatement($tail, $composes, $styleNestingDepth, $composesNestedContext);
+            $output .= $this->rewriteDeclarationStatement(
+                $tail,
+                $composes,
+                $styleNestingDepth,
+                $composesNestedContext,
+                $recordDependencyReferences
+            );
         } else {
             $output .= $tail;
         }
@@ -1563,7 +1620,7 @@ final class CssModulesTransformer
 
         $composes = [];
 
-        return $this->rewriteTrailingDeclarations($body, $composes, 1, true);
+        return $this->rewriteTrailingDeclarations($body, $composes, 1, true, false);
     }
 
     private function assertNoNestedComposesInAtRuleDeclarations(string $body): void
@@ -1584,7 +1641,7 @@ final class CssModulesTransformer
     private function assertNoNestedComposesInDeclarationSource(string $source): void
     {
         $composes = [];
-        $this->rewriteTrailingDeclarations($source, $composes, 1, true);
+        $this->rewriteTrailingDeclarations($source, $composes, 1, true, false);
     }
 
     /**
@@ -2446,7 +2503,10 @@ final class CssModulesTransformer
                 if (
                     $forgivingSelectorFunction['decodedName'] === 'is'
                     && count($rewrittenSelectors) === 1
-                    && $this->shouldUnwrapIsSelector($rewrittenSelectors[0])
+                    && (
+                        $this->shouldUnwrapIsSelector($rewrittenSelectors[0])
+                        || $this->isTransparentCssModulesModeSelectorFunction($inner)
+                    )
                 ) {
                     $output .= $rewrittenSelectors[0];
                     $i = $forgivingSelectorFunction['close'];
@@ -2979,6 +3039,29 @@ final class CssModulesTransformer
 
         return !$this->selectorHasTopLevelCombinator($selector)
             && !$this->selectorStartsWithTypeSelector($selector);
+    }
+
+    private function isTransparentCssModulesModeSelectorFunction(string $selectorList): bool
+    {
+        $parts = $this->splitTopLevel($selectorList, ',');
+        if (count($parts) !== 1) {
+            return false;
+        }
+
+        $selector = trim($parts[0]);
+        if ($selector === '') {
+            return false;
+        }
+
+        $modePseudo = $this->cssModulesPseudoFunctionAt($selector, 0, 'global')
+            ?? $this->cssModulesPseudoFunctionAt($selector, 0, 'local');
+        if ($modePseudo === null) {
+            return false;
+        }
+
+        $close = $this->findMatchingParen($selector, $modePseudo['open']);
+
+        return $this->skipCssWhitespace($selector, $close + 1) === strlen($selector);
     }
 
     private function selectorHasTopLevelCombinator(string $selector): bool
@@ -5115,7 +5198,7 @@ final class CssModulesTransformer
         return '--' . $this->scopedName(substr($name, 2));
     }
 
-    private function rewriteDashedIdentReferences(string $value): string
+    private function rewriteDashedIdentReferences(string $value, bool $recordDependencyReferences = true): string
     {
         $output = '';
         $cursor = 0;
@@ -5168,7 +5251,7 @@ final class CssModulesTransformer
             $output .= substr($value, $cursor, $i - $cursor)
                 . $functionName
                 . '('
-                . $this->rewriteDashedFunctionArguments($inner, $functionName)
+                . $this->rewriteDashedFunctionArguments($inner, $functionName, $recordDependencyReferences)
                 . ')';
             $cursor = $close + 1;
             $i = $close;
@@ -5177,23 +5260,31 @@ final class CssModulesTransformer
         return $output . substr($value, $cursor);
     }
 
-    private function rewriteDashedFunctionArguments(string $inner, string $functionName): string
+    private function rewriteDashedFunctionArguments(string $inner, string $functionName, bool $recordDependencyReferences): string
     {
         $comma = $this->findNextTopLevel($inner, ',', 0);
         $head = $comma === null ? trim($inner) : trim(substr($inner, 0, $comma));
         $tail = $comma === null ? null : substr($inner, $comma + 1);
-        $rewrittenHead = $this->rewriteDashedReferenceToken($head, strcasecmp($functionName, 'env') !== 0);
+        $rewrittenHead = $this->rewriteDashedReferenceToken(
+            $head,
+            strcasecmp($functionName, 'env') !== 0,
+            $recordDependencyReferences
+        );
 
         if ($tail === null) {
             return $rewrittenHead ?? $inner;
         }
 
-        $rewrittenTail = $this->rewriteDashedIdentReferences(trim($tail));
+        $rewrittenTail = $this->rewriteDashedIdentReferences(trim($tail), $recordDependencyReferences);
 
         return ($rewrittenHead ?? $head) . ',' . $rewrittenTail;
     }
 
-    private function rewriteDashedReferenceToken(string $token, bool $allowDependencyFrom = true): ?string
+    private function rewriteDashedReferenceToken(
+        string $token,
+        bool $allowDependencyFrom = true,
+        bool $recordDependencyReferences = true
+    ): ?string
     {
         $parts = $this->splitWhitespaceTopLevel($token);
         if ($parts === [] || !str_starts_with($parts[0], '--')) {
@@ -5226,6 +5317,10 @@ final class CssModulesTransformer
         $specifier = $this->parseQuotedSpecifier($parts[2]);
         if ($specifier === null) {
             return null;
+        }
+
+        if (!$recordDependencyReferences) {
+            return $this->scopeDashedIdent($name, true);
         }
 
         $placeholder = $this->dashedDependencyPlaceholder($name, $specifier);

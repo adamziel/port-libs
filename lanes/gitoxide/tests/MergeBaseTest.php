@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Gitoxide\Commit;
 use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\LooseObjectStore;
+use PortLibs\Gitoxide\MergeBaseCommand;
 use PortLibs\Gitoxide\MergeBaseFinder;
 use PortLibs\Gitoxide\ObjectDatabase;
 
@@ -157,6 +158,58 @@ return [
         $t->same([$shared], $mergeBase->mergeBasesAgainst($first, [$relatedOther, $unrelatedOther]));
         $t->same($shared, $mergeBase->mergeBaseAgainst($first, [$unrelatedOther, $relatedOther]));
         $t->same([], $mergeBase->mergeBasesMany([$first, $relatedOther, $unrelatedOther]));
+    },
+    'maps upstream repository merge-base human output over graph walk' => static function (TestRunner $t) use ($oid, $finder): void {
+        $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            "Ada <ada@example.test> {$seconds} +0000",
+            "CI <ci@example.test> {$seconds} +0000",
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ["Ada <ada@example.test> {$seconds} +0000"],
+                'committer' => ["CI <ci@example.test> {$seconds} +0000"],
+            ],
+        );
+        $release = $oid('1');
+        $legacyBase = $oid('2');
+        $securityBase = $oid('3');
+        $pluginHotfix = $oid('4');
+        $themeHotfix = $oid('5');
+        $archivedReview = $oid('9');
+        $mergeBase = $finder([
+            $release => $timedCommit(1700000000),
+            $legacyBase => $timedCommit(1700000010, [$release]),
+            $securityBase => $timedCommit(1700000020, [$release]),
+            $pluginHotfix => $timedCommit(1700000030, [$legacyBase, $securityBase]),
+            $themeHotfix => $timedCommit(1700000040, [$securityBase, $legacyBase]),
+            $archivedReview => $timedCommit(1700000050),
+        ]);
+
+        $t->same(
+            $securityBase . "\n" . $legacyBase . "\n",
+            MergeBaseCommand::humanOutput($mergeBase, $pluginHotfix, [$themeHotfix]),
+        );
+        $t->same($pluginHotfix . "\n", MergeBaseCommand::humanOutput($mergeBase, $pluginHotfix, []));
+        $t->same(
+            $pluginHotfix . "\n",
+            MergeBaseCommand::humanOutput($mergeBase, $pluginHotfix, [$archivedReview, $pluginHotfix]),
+        );
+
+        try {
+            MergeBaseCommand::humanOutput($mergeBase, $pluginHotfix, [$archivedReview]);
+        } catch (RuntimeException $exception) {
+            $t->contains(
+                "No base found for {$pluginHotfix} and {$archivedReview}",
+                $exception->getMessage(),
+            );
+
+            return;
+        }
+
+        throw new RuntimeException('Expected no-base merge-base command output to fail');
     },
     'maps upstream graph walk shortcuts without reading commits' => static function (TestRunner $t) use ($oid): void {
         $first = $oid('1');
@@ -1144,6 +1197,12 @@ BASELINE;
         $t->same([$fixture['releaseBaseline']], $finder->mergeBasesAgainst($fixture['pluginReview'], $fixture['graphWalkOthers']));
         $t->same([$fixture['pluginReview']], $example['disjointShortcutBases']);
         $t->same(true, $example['disjointShortcutAvoidsGraphReads']);
+        $t->same(
+            $fixture['securityBaseline'] . "\n" . $fixture['legacyBaseline'] . "\n",
+            $example['hotfixCommandOutput'],
+        );
+        $t->same(true, $example['hotfixCommandPrintsAllBases']);
+        $t->contains('No base found for ', $example['archiveCommandError']);
         $t->same([], $finder->mergeBasesMany($fixture['graphWalkHeads']));
         $t->same($fixture['releaseBaseline'], $example['reviewBase']);
         $t->same([$fixture['releaseBaseline']], $example['reviewBases']);

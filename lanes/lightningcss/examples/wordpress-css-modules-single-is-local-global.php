@@ -23,6 +23,14 @@ $css = <<<'CSS'
   color: purple;
 }
 
+.card:is(:global(.wp-block-group .is-layout-flow)) {
+  border-color: blue;
+}
+
+.card:is(:local(.editorVariant .toolbarIcon)) {
+  outline-color: yellow;
+}
+
 .button {
   composes: card;
   color: white;
@@ -40,7 +48,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '.BlockA_card.BlockA_featured{color:red}.BlockA_card.wp-block-button{color:#00f}.BlockA_card[data-align=wide]{margin:0}.BlockA_card:is(.BlockA_wrapper .BlockA_child){color:purple}.BlockA_button{color:#fff}',
+    'code' => '.BlockA_card.BlockA_featured{color:red}.BlockA_card.wp-block-button{color:#00f}.BlockA_card[data-align=wide]{margin:0}.BlockA_card:is(.BlockA_wrapper .BlockA_child){color:purple}.BlockA_card.wp-block-group .is-layout-flow{border-color:#00f}.BlockA_card.BlockA_editorVariant .BlockA_toolbarIcon{outline-color:#ff0}.BlockA_button{color:#fff}',
     'exports' => [
         'card' => [
             'name' => 'BlockA_card',
@@ -59,6 +67,16 @@ $expected = [
         ],
         'child' => [
             'name' => 'BlockA_child',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'editorVariant' => [
+            'name' => 'BlockA_editorVariant',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'toolbarIcon' => [
+            'name' => 'BlockA_toolbarIcon',
             'composes' => [],
             'isReferenced' => false,
         ],

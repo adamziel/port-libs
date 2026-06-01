@@ -1980,6 +1980,46 @@ CSS
             )
         );
     },
+    'css minifier maps upstream grid column auto-flow area shorthand tails' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{grid-template:".aa."".bb."1fr/10px 1fr 1fr 10px}',
+            $minifier->minify(
+                '.foo { grid-template-areas: ". a a ." ". b b ."; grid-template-rows: auto 1fr; grid-template-columns: 10px 1fr 1fr 10px; }'
+            )
+        );
+        $t->same(
+            '.foo{grid-template-areas:"a a a""b b b";grid-template-columns:auto 1fr auto;grid-template-rows:repeat(2,1fr)}',
+            $minifier->minify(
+                '.foo { grid-template-areas: "a a a" "b b b"; grid-template-columns: auto 1fr auto; grid-template-rows: repeat(2, 1fr); }'
+            )
+        );
+        $t->same(
+            '.foo{grid-template:none/auto 1fr auto;grid-auto-rows:1fr;grid-auto-columns:1fr;grid-auto-flow:column}',
+            $minifier->minify(
+                '.foo { grid-template-rows: none; grid-template-columns: auto 1fr auto; grid-template-areas: none; grid-auto-flow: column; grid-auto-rows: 1fr; grid-auto-columns: 1fr; }'
+            )
+        );
+        $t->same(
+            '.test-auto-flow-column-1{grid:300px/auto-flow;grid-template-areas:".one."}',
+            $minifier->minify(
+                '.test-auto-flow-column-1 { grid: 300px / auto-flow; grid-template-areas: "  .   one  .  "; }'
+            )
+        );
+        $t->same(
+            '.test-auto-flow-column-2{grid:200px 1fr/auto-flow;grid-template-areas:".one."}',
+            $minifier->minify(
+                '.test-auto-flow-column-2 { grid: 200px 1fr / auto-flow auto; grid-template-areas: "  .   one  .  "; }'
+            )
+        );
+        $t->same(
+            '.test-auto-flow-column-dense{grid:1fr 2fr/auto-flow dense;grid-template-areas:".content."}',
+            $minifier->minify(
+                '.test-auto-flow-column-dense { grid: 1fr 2fr / dense auto-flow; grid-template-areas: "  .   content  .  "; }'
+            )
+        );
+    },
     'css minifier maps upstream property rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

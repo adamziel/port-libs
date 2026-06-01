@@ -254,6 +254,20 @@ return [
         $t->same('(width>=3px)', $parser->minifyList('(width >= mod(18px, 5px))'));
         $t->same('(width>=5px)', $parser->minifyList('(width >= hypot(3px, 4px))'));
         $t->same('(width>=2px)', $parser->minifyList('(width >= abs(-2px))'));
+        $t->same('(width>=2)', $parser->minifyList('(width >= abs(-2))'));
+        $t->same('(width>=2)', $parser->minifyList('(width >= round(2, 1))'));
+        $t->same('(width>=1)', $parser->minifyList('(width >= rem(5, 2))'));
+        $t->same('(width>=1)', $parser->minifyList('(width >= mod(5, 2))'));
+        $t->same('(width>=5)', $parser->minifyList('(width >= hypot(3, 4))'));
+        $t->same('(width>=1)', $parser->minifyList('(width >= sign(10px))'));
+        $t->same('(width>=-1)', $parser->minifyList('(width >= sign(-10px))'));
+        $t->same('(width>=0)', $parser->minifyList('(width >= sign(-0px))'));
+        $t->same('(width>=1)', $parser->minifyList('(width >= sign(10 / 2))'));
+        $t->same('(width>=-1)', $parser->minifyList('(width >= sign(calc(1px - 2px)))'));
+        $t->same('(10px<=width<=1)', $parser->minifyList('(10px <= width <= sign(20px))'));
+        $t->same('(theme-breakpoint>=1)', $parser->minifyList('(theme-breakpoint >= sign(10rem))'));
+        $t->same('(aspect-ratio>=1)', $parser->minifyList('(aspect-ratio >= sign(10 / 2))'));
+        $t->same('(-webkit-device-pixel-ratio>=1)', $parser->minifyList('(-webkit-device-pixel-ratio >= sign(10 / 2))'));
         $t->same('(20px<=width<=25px)', $parser->minifyList('(round(22px, 5px) <= width <= round(up, 22px, 5px))'));
         $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= calc(1 + 1))'));
         $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= max(1, 2))'));
@@ -273,6 +287,18 @@ return [
         $t->same('(min-width:3px)', $parser->lowerRangeSyntaxList('(width >= mod(18px, 5px))'));
         $t->same('(min-width:5px)', $parser->lowerRangeSyntaxList('(width >= hypot(3px, 4px))'));
         $t->same('(min-width:2px)', $parser->lowerRangeSyntaxList('(width >= abs(-2px))'));
+        $t->same('(min-width:2)', $parser->lowerRangeSyntaxList('(width >= abs(-2))'));
+        $t->same('(min-width:2)', $parser->lowerRangeSyntaxList('(width >= round(2, 1))'));
+        $t->same('(min-width:1)', $parser->lowerRangeSyntaxList('(width >= rem(5, 2))'));
+        $t->same('(min-width:1)', $parser->lowerRangeSyntaxList('(width >= mod(5, 2))'));
+        $t->same('(min-width:5)', $parser->lowerRangeSyntaxList('(width >= hypot(3, 4))'));
+        $t->same('(min-width:1)', $parser->lowerRangeSyntaxList('(width >= sign(10px))'));
+        $t->same('(min-width:-1)', $parser->lowerRangeSyntaxList('(width >= sign(-10px))'));
+        $t->same('(min-width:0)', $parser->lowerRangeSyntaxList('(width >= sign(0px))'));
+        $t->same('(min-width:10px) and (max-width:1)', $parser->lowerRangeSyntaxList('(10px <= width <= sign(20px))'));
+        $t->same('(min-theme-breakpoint:1)', $parser->lowerRangeSyntaxList('(theme-breakpoint >= sign(10rem))'));
+        $t->same('(min-aspect-ratio:1)', $parser->lowerRangeSyntaxList('(aspect-ratio >= sign(10 / 2))'));
+        $t->same('(-webkit-min-device-pixel-ratio:1)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio >= sign(10 / 2))'));
         $t->same('(min-width:20px) and (max-width:25px)', $parser->lowerRangeSyntaxList('(round(22px, 5px) <= width <= round(up, 22px, 5px))'));
         $t->same('(min-width:round(22px,5vw))', $parser->lowerRangeSyntaxList('(width >= round(22px, 5vw))'));
         $t->same('(not (max-width:100px)) and (not (min-width:calc(100vw - 50px)))', $parser->lowerRangeSyntaxList('(100px < width < calc(100vw-50px))'));
@@ -298,6 +324,14 @@ return [
         $t->same(
             '@layer blocks{@media (20px<=width<=25px){.wp-block-query{color:#ff0}}}',
             (new CssMinifier())->minify('@layer blocks { @media (round(22px, 5px) <= width <= round(up, 22px, 5px)) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (width>=1){.wp-block-query{color:#ff0}}}',
+            (new CssMinifier())->minify('@layer blocks { @media (width >= sign(10px)) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (width>=5){.wp-block-query{color:#ff0}}}',
+            (new CssMinifier())->minify('@layer blocks { @media (width >= hypot(3, 4)) { .wp-block-query { color: yellow; } } }')
         );
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('&test, speech'));
     },
@@ -593,6 +627,12 @@ return [
             '(aspect-ratio >= max(1/2, 1px))',
             '(aspect-ratio >= max(1px, 2px))',
             '(aspect-ratio >= calc(1px + 1em))',
+            '(width >= sign(10%))',
+            '(width >= sign(10dppx))',
+            '(width >= sign(var(--theme-breakpoint)))',
+            '(color >= sign(10))',
+            '(resolution >= sign(10dppx))',
+            '(aspect-ratio >= sign(10px))',
             '(100px < width > 200px)',
             '(100px <= width > 200px)',
             '(100px > width < 200px)',

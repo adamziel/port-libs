@@ -801,6 +801,47 @@ CSS);
             'child' => $export('EgL3uq_child'),
         ], $guarded['exports']);
     },
+    'css modules unwraps transparent local global is selector arguments while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:is(:global(.wp-block .is-layout-flow)) {
+  color: red;
+}
+
+.card:is(:local(.variant .icon)) {
+  color: blue;
+}
+
+.card:is(:global(.wp-block > .button)) {
+  border-color: green;
+}
+
+.card:is(:local(.variant + .sibling)) {
+  outline-color: yellow;
+}
+
+.card:is(.wrapper .child) {
+  margin: 0;
+}
+
+.button {
+  composes: card;
+  color: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_card.wp-block .is-layout-flow{color:red}.EgL3uq_card.EgL3uq_variant .EgL3uq_icon{color:#00f}.EgL3uq_card.wp-block>.button{border-color:green}.EgL3uq_card.EgL3uq_variant+.EgL3uq_sibling{outline-color:#ff0}.EgL3uq_card:is(.EgL3uq_wrapper .EgL3uq_child){margin:0}.EgL3uq_button{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'variant' => $export('EgL3uq_variant'),
+            'icon' => $export('EgL3uq_icon'),
+            'sibling' => $export('EgL3uq_sibling'),
+            'wrapper' => $export('EgL3uq_wrapper'),
+            'child' => $export('EgL3uq_child'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+    },
     'css modules canonicalizes selector-valued pseudo names while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card:w\68 ere(:global(.legacy), .soft) {
@@ -3014,6 +3055,27 @@ CSS;
         }
 
         throw new RuntimeException('Expected env() from syntax to be rejected before CSS Modules references are recorded');
+    },
+    'css modules scopes conditional var from dashed idents without dependency references' => static function (TestRunner $t) use ($export, $dashed): void {
+        $css = <<<'CSS'
+@media screen {
+  .card {
+    color: var(--gap from "./tokens.css", red);
+    background: var(--fallback from global, blue);
+  }
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css, [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('@media screen{.EgL3uq_card{color:var(--EgL3uq_gap,red);background:var(--fallback,#00f)}}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            '--gap' => $dashed('--EgL3uq_gap', true),
+        ], $result['exports']);
+        $t->same([], $result['references']);
     },
     'css modules scopes upstream media env dashed idents without nested composes' => static function (TestRunner $t) use ($export, $dashed): void {
         $css = <<<'CSS'

@@ -820,6 +820,58 @@ return [
 
         $t->same([], $warnings);
     },
+    'pathspec sparse checkout keeps root dot pathspecs from becoming nil matchers' => static function (TestRunner $t) use ($entryNames): void {
+        $rootDot = SparseCheckoutSpec::fromPathspecs(['.']);
+        $topDot = SparseCheckoutSpec::fromPathspecs([':(top).'], prefix: 'wp-content/plugins');
+        $parentToRootDot = SparseCheckoutSpec::fromPathspecs(['../..'], prefix: 'wp-content/plugins');
+        $prefixedDot = SparseCheckoutSpec::fromPathspecs(['.'], prefix: 'wp-content/plugins');
+
+        $blob = str_repeat('1', 40);
+        $tree = str_repeat('2', 40);
+        $root = new Tree([
+            new TreeEntry('100644', 'index.php', $blob),
+            new TreeEntry('100644', 'wp-config.php', $blob),
+            new TreeEntry('040000', 'wp-admin', $tree),
+            new TreeEntry('040000', 'wp-content', $tree),
+        ]);
+        $wpContent = new Tree([
+            new TreeEntry('040000', 'plugins', $tree),
+            new TreeEntry('040000', 'themes', $tree),
+        ]);
+        $plugins = new Tree([
+            new TreeEntry('040000', 'akismet', $tree),
+            new TreeEntry('040000', 'gutenberg', $tree),
+        ]);
+
+        $t->same(true, $rootDot->includesPath('', true));
+        $t->same(false, $rootDot->includesPath('index.php', false));
+        $t->same(false, $rootDot->includesPath('wp-content', true));
+        $t->same(true, $rootDot->skipWorktree('index.php', false));
+        $t->same([], $entryNames($rootDot->includedTreeEntries($root)));
+
+        $t->same(true, $topDot->includesPath('', true));
+        $t->same(false, $topDot->includesPath('wp-config.php', false));
+        $t->same(false, $topDot->includesPath('wp-content/plugins', true));
+        $t->same(true, $topDot->skipWorktree('wp-content/plugins/gutenberg/block.json', false));
+        $t->same([], $entryNames($topDot->includedTreeEntries($root)));
+
+        $t->same(true, $parentToRootDot->includesPath('', true));
+        $t->same(false, $parentToRootDot->includesPath('wp-content', true));
+        $t->same(false, $parentToRootDot->includesPath('wp-content/plugins/gutenberg/block.json', false));
+        $t->same(true, $parentToRootDot->skipWorktree('wp-content/plugins/gutenberg/block.json', false));
+        $t->same([], $entryNames($parentToRootDot->includedTreeEntries($root)));
+
+        $t->same(false, $prefixedDot->includesPath('index.php', false));
+        $t->same(true, $prefixedDot->includesPath('wp-content', true));
+        $t->same(true, $prefixedDot->includesPath('wp-content/plugins', true));
+        $t->same(true, $prefixedDot->includesPath('wp-content/plugins/gutenberg/block.json', false));
+        $t->same(true, $prefixedDot->includesPath('wp-content/plugins/akismet/akismet.php', false));
+        $t->same(false, $prefixedDot->includesPath('wp-content/themes/twentytwenty/style.css', false));
+        $t->same(true, $prefixedDot->skipWorktree('wp-admin/admin.php', false));
+        $t->same(['wp-content'], $entryNames($prefixedDot->includedTreeEntries($root)));
+        $t->same(['plugins'], $entryNames($prefixedDot->includedTreeEntries($wpContent, 'wp-content')));
+        $t->same(['akismet', 'gutenberg'], $entryNames($prefixedDot->includedTreeEntries($plugins, 'wp-content/plugins')));
+    },
     'pathspec sparse checkout normalizes worktree prefixes with case sensitive prefix matching' => static function (TestRunner $t): void {
         $spec = SparseCheckoutSpec::fromPathspecs([
             ':(glob)*.php',

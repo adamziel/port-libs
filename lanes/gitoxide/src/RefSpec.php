@@ -605,12 +605,31 @@ final class RefSpec
         for ($i = 0; $i < $length;) {
             $char = $pattern[$i];
             if ($char === '*') {
-                $regex .= '.*';
-                ++$i;
+                $runStart = $i;
+                while ($i < $length && $pattern[$i] === '*') {
+                    ++$i;
+                }
+                $runLength = $i - $runStart;
+                if ($runLength > 1) {
+                    $atComponentStart = $runStart === 0 || $pattern[$runStart - 1] === '/';
+                    $nextIsEnd = $i >= $length;
+                    $nextIsSlash = !$nextIsEnd && $pattern[$i] === '/';
+                    $nextIsEscapedSlash = !$nextIsEnd && $pattern[$i] === '\\' && $i + 1 < $length && $pattern[$i + 1] === '/';
+                    if ($atComponentStart && ($nextIsEnd || $nextIsSlash || $nextIsEscapedSlash)) {
+                        if ($nextIsEnd) {
+                            $regex .= '.*';
+                        } else {
+                            $regex .= '(?:.*/)?';
+                            $i += $nextIsSlash ? 1 : 2;
+                        }
+                        continue;
+                    }
+                }
+                $regex .= '[^/]*';
                 continue;
             }
             if ($char === '?') {
-                $regex .= '.';
+                $regex .= '[^/]';
                 ++$i;
                 continue;
             }
@@ -630,7 +649,7 @@ final class RefSpec
                             $class = '\\^' . substr($class, 1);
                         }
                         $class = str_replace(['\\', '~'], ['\\\\', '\\~'], $class);
-                        $regex .= '[' . $class . ']';
+                        $regex .= '(?!/)[' . $class . ']';
                         $i = $end + 1;
                         continue;
                     }

@@ -19,6 +19,19 @@ final class SQLiteRollbackJournal
     public static function parse(string $bytes, bool $validateChecksums = false): self
     {
         $header = SQLiteRollbackJournalHeader::parse($bytes);
+
+        return self::parseWithHeader($bytes, $header, $validateChecksums);
+    }
+
+    public static function parseWithDatabasePageSize(string $bytes, int $databasePageSize, bool $validateChecksums = false): self
+    {
+        $header = SQLiteRollbackJournalHeader::parseWithDatabasePageSize($bytes, $databasePageSize);
+
+        return self::parseWithHeader($bytes, $header, $validateChecksums);
+    }
+
+    private static function parseWithHeader(string $bytes, SQLiteRollbackJournalHeader $header, bool $validateChecksums): self
+    {
         if (strlen($bytes) < $header->sectorSize) {
             throw new \InvalidArgumentException('SQLite rollback journal is truncated before the first sector');
         }
@@ -225,6 +238,14 @@ final class SQLiteRollbackJournal
         ?bool $superJournalExists = null,
     ): array {
         $hotJournal = self::hotJournalCandidate($journalBytes, $databaseReservedLock, $requiresSuperJournal, $superJournalExists);
+        if (!$hotJournal['hot'] && $hotJournal['reason'] === 'invalid_journal_header') {
+            $hotJournal = $this->hotJournalCandidateWithDatabasePageSize(
+                $journalBytes,
+                $databaseReservedLock,
+                $requiresSuperJournal,
+                $superJournalExists
+            );
+        }
         if (!$hotJournal['hot']) {
             return [
                 'hot_journal' => $hotJournal,
@@ -249,6 +270,85 @@ final class SQLiteRollbackJournal
             'journal_action' => 'delete_journal_after_recovery',
             'recovery_plan' => $recoveryPlan,
         ];
+    }
+
+    /**
+     * @return array{hot:bool,reason:string,journal_bytes:int,header_valid:bool,page_count:int|null,initial_database_page_count:int|null,requires_super_journal:bool,super_journal_exists:bool|null,database_reserved_lock:bool}
+     */
+    private function hotJournalCandidateWithDatabasePageSize(
+        string $bytes,
+        bool $databaseReservedLock,
+        bool $requiresSuperJournal,
+        ?bool $superJournalExists
+    ): array {
+        $journalBytes = strlen($bytes);
+        $base = [
+            'hot' => false,
+            'reason' => 'invalid_journal_header',
+            'journal_bytes' => $journalBytes,
+            'header_valid' => false,
+            'page_count' => null,
+            'initial_database_page_count' => null,
+            'requires_super_journal' => $requiresSuperJournal,
+            'super_journal_exists' => $superJournalExists,
+            'database_reserved_lock' => $databaseReservedLock,
+        ];
+
+        if ($journalBytes <= 512) {
+            $base['reason'] = 'journal_too_small';
+            return $base;
+        }
+        if ($databaseReservedLock) {
+            $base['reason'] = 'database_has_reserved_lock';
+            return $base;
+        }
+
+        try {
+            $journal = self::parseWithDatabasePageSize($bytes, $this->header->pageSize, false);
+        } catch (\InvalidArgumentException) {
+            return $base;
+        }
+        if (!$this->matchesParsedJournal($journal)) {
+            return $base;
+        }
+
+        $base['header_valid'] = true;
+        $base['page_count'] = $journal->header->pageCount;
+        $base['initial_database_page_count'] = $journal->header->initialDatabasePageCount;
+
+        if ($base['requires_super_journal'] && $superJournalExists !== true) {
+            $base['reason'] = $superJournalExists === false ? 'missing_super_journal' : 'super_journal_status_unknown';
+            return $base;
+        }
+
+        $base['hot'] = true;
+        $base['reason'] = 'hot_journal_recovery_required';
+
+        return $base;
+    }
+
+    private function matchesParsedJournal(self $journal): bool
+    {
+        if ($journal->header->toArray() !== $this->header->toArray()) {
+            return false;
+        }
+        if (count($journal->pages) !== count($this->pages)) {
+            return false;
+        }
+
+        foreach ($journal->pages as $index => $page) {
+            $currentPage = $this->pages[$index];
+            if (
+                $page->index !== $currentPage->index
+                || $page->pageNumber !== $currentPage->pageNumber
+                || $page->pageImage !== $currentPage->pageImage
+                || $page->checksum !== $currentPage->checksum
+            ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

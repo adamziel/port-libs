@@ -130,6 +130,19 @@ return [
         'refs/remotes/origin/release',
         null,
     ],
+    'slashLiteralFetchRefspecs' => [
+        'refs/heads/*/release/*',
+    ],
+    'slashLiteralRemoteAdvertisedRefs' => [
+        ['name' => 'refs/heads/plugin/release/stable', 'target' => str_repeat('5', 40)],
+        ['name' => 'refs/heads/plugin/extra/release/stable', 'target' => str_repeat('6', 40)],
+        ['name' => 'refs/heads/plugin/release/stable/extra', 'target' => str_repeat('7', 40)],
+        ['name' => 'refs/heads/theme/release/candidate', 'target' => str_repeat('8', 40)],
+    ],
+    'expectedSlashLiteralMatchedFetchRemotes' => [
+        'refs/heads/plugin/release/stable',
+        'refs/heads/theme/release/candidate',
+    ],
     'pushRefspecs' => [
         '+refs/heads/release:refs/heads/wp-release',
         '+:refs/heads/stale-preview',

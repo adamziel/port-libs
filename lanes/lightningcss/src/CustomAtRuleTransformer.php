@@ -60,6 +60,12 @@ final class CustomAtRuleTransformer
     private $supportsRuleExitVisitor = null;
 
     /** @var callable|null */
+    private $containerRuleVisitor = null;
+
+    /** @var callable|null */
+    private $containerRuleExitVisitor = null;
+
+    /** @var callable|null */
     private $mediaQueryVisitor = null;
 
     /** @var callable|null */
@@ -349,6 +355,41 @@ final class CustomAtRuleTransformer
 
                     return count($rules) === 1 ? $rules[0] : $rules;
                 },
+                'container' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    $rules = [$rule];
+                    $changed = false;
+                    foreach ($visitors as $visitor) {
+                        $callback = self::containerRuleVisitorCallback($visitor);
+                        if ($callback === null) {
+                            continue;
+                        }
+
+                        $nextRules = [];
+                        foreach ($rules as $currentRule) {
+                            $replacement = $callback($currentRule, $transformer);
+                            if ($replacement === null) {
+                                $nextRules[] = $currentRule;
+                                continue;
+                            }
+
+                            $changed = true;
+                            foreach (self::normalizeRuleVisitorReplacement($replacement, 'Rule.container') as $nextRule) {
+                                $nextRules[] = $nextRule;
+                            }
+                        }
+
+                        $rules = $nextRules;
+                        if ($rules === []) {
+                            break;
+                        }
+                    }
+
+                    if (!$changed) {
+                        return null;
+                    }
+
+                    return count($rules) === 1 ? $rules[0] : $rules;
+                },
             ],
             'RuleExit' => [
                 'custom' => static function (array $rule, self $transformer) use ($visitors): mixed {
@@ -459,6 +500,41 @@ final class CustomAtRuleTransformer
 
                             $changed = true;
                             foreach (self::normalizeRuleVisitorReplacement($replacement, 'RuleExit.supports') as $nextRule) {
+                                $nextRules[] = $nextRule;
+                            }
+                        }
+
+                        $rules = $nextRules;
+                        if ($rules === []) {
+                            break;
+                        }
+                    }
+
+                    if (!$changed) {
+                        return null;
+                    }
+
+                    return count($rules) === 1 ? $rules[0] : $rules;
+                },
+                'container' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    $rules = [$rule];
+                    $changed = false;
+                    foreach ($visitors as $visitor) {
+                        $callback = self::containerRuleExitVisitorCallback($visitor);
+                        if ($callback === null) {
+                            continue;
+                        }
+
+                        $nextRules = [];
+                        foreach ($rules as $currentRule) {
+                            $replacement = $callback($currentRule, $transformer);
+                            if ($replacement === null) {
+                                $nextRules[] = $currentRule;
+                                continue;
+                            }
+
+                            $changed = true;
+                            foreach (self::normalizeRuleVisitorReplacement($replacement, 'RuleExit.container') as $nextRule) {
                                 $nextRules[] = $nextRule;
                             }
                         }
@@ -1043,6 +1119,11 @@ final class CustomAtRuleTransformer
         return ['kind' => 'media', 'query' => trim($query), 'body' => $body];
     }
 
+    public function container(string $prelude, string|array $body): array
+    {
+        return ['kind' => 'container', 'prelude' => trim($prelude), 'body' => $body];
+    }
+
     /**
      * @param string|array<string, string>|list<array{property:string, value:string, important?:bool}> $declarations
      * @return array{kind:string, selector:string, declarations:mixed}
@@ -1085,7 +1166,7 @@ final class CustomAtRuleTransformer
             }
         }
         foreach ($visitor as $name => $callback) {
-            if (is_string($name) && is_callable($callback) && !in_array($name, ['Rule', 'Function', 'Token', 'custom', 'unknown', 'media'], true)) {
+            if (is_string($name) && is_callable($callback) && !in_array($name, ['Rule', 'Function', 'Token', 'custom', 'unknown', 'media', 'container'], true)) {
                 $this->ruleVisitors[$this->normalizeAtRuleName($name)] = $callback;
             }
         }
@@ -1167,6 +1248,18 @@ final class CustomAtRuleTransformer
         $supportsExitVisitor = $ruleExitSubVisitors['supports'] ?? null;
         if (is_callable($supportsExitVisitor)) {
             $this->supportsRuleExitVisitor = $supportsExitVisitor;
+        }
+
+        $this->containerRuleVisitor = null;
+        $containerVisitor = $ruleSubVisitors['container'] ?? $visitor['container'] ?? null;
+        if (is_callable($containerVisitor)) {
+            $this->containerRuleVisitor = $containerVisitor;
+        }
+
+        $this->containerRuleExitVisitor = null;
+        $containerExitVisitor = $ruleExitSubVisitors['container'] ?? null;
+        if (is_callable($containerExitVisitor)) {
+            $this->containerRuleExitVisitor = $containerExitVisitor;
         }
 
         $this->mediaQueryVisitor = is_callable($visitor['MediaQuery'] ?? null) ? $visitor['MediaQuery'] : null;
@@ -1434,6 +1527,9 @@ final class CustomAtRuleTransformer
                     'rules' => $this->parseReturnedRuleList($body, null),
                 ],
             ];
+        }
+        if ($name === 'container') {
+            return $this->buildContainerRule($atPrelude, $body, null, $loc);
         }
         if ($this->isCustomAtRule($name)) {
             return ['type' => 'custom', 'value' => $this->buildCustomRule($name, $atPrelude, $body, null, false, $loc)];
@@ -1772,6 +1868,9 @@ final class CustomAtRuleTransformer
         if (($rule['type'] ?? null) === 'supports' && isset($rule['value']) && is_array($rule['value'])) {
             return $this->stylesheetSupportsRuleToCss($rule['value']);
         }
+        if (($rule['type'] ?? null) === 'container' && isset($rule['value']) && is_array($rule['value'])) {
+            return $this->stylesheetContainerRuleToCss($rule['value']);
+        }
         if (($rule['type'] ?? null) !== 'style' && ($rule['kind'] ?? null) !== 'style-rule') {
             return isset($rule['raw']) && is_string($rule['raw']) ? $rule['raw'] : '';
         }
@@ -1852,6 +1951,21 @@ final class CustomAtRuleTransformer
         }
 
         return '@supports ' . $condition . '{' . $body . '}';
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function stylesheetContainerRuleToCss(array $value): string
+    {
+        $prelude = $this->returnedContainerPreludeToCss($value);
+        $rules = is_array($value['rules'] ?? null) ? $value['rules'] : [];
+        $body = '';
+        foreach ($rules as $rule) {
+            $body .= $this->stylesheetVisitorRuleToCss($rule);
+        }
+
+        return '@container' . ($prelude === '' ? '' : ' ' . $prelude) . '{' . $body . '}';
     }
 
     /**
@@ -2224,6 +2338,8 @@ final class CustomAtRuleTransformer
                     $output .= $this->processMediaRule($atPrelude, $body, null, $ruleLocation);
                 } elseif ($name === 'supports') {
                     $output .= $this->processSupportsRule($atPrelude, $body, null, $ruleLocation);
+                } elseif ($name === 'container') {
+                    $output .= $this->processContainerRule($atPrelude, $body, null, $ruleLocation);
                 } elseif ($this->isCustomAtRule($name)) {
                     $output .= $this->processCustomAtRule($prelude, $body, null, $ruleLocation);
                 } else {
@@ -2369,6 +2485,8 @@ final class CustomAtRuleTransformer
                     $output .= $this->processMediaRule($atPrelude, $nestedBody, $selectors, $nestedLocation);
                 } elseif ($name === 'supports') {
                     $output .= $this->processSupportsRule($atPrelude, $nestedBody, $selectors, $nestedLocation);
+                } elseif ($name === 'container') {
+                    $output .= $this->processContainerRule($atPrelude, $nestedBody, $selectors, $nestedLocation);
                 } elseif ($this->isCustomAtRule($name)) {
                     $output .= $this->processCustomAtRule($nestedPrelude, $nestedBody, $selectors, $nestedLocation);
                 } elseif (str_starts_with($nestedPrelude, '@nest ')) {
@@ -2586,6 +2704,38 @@ final class CustomAtRuleTransformer
     /**
      * @param list<string>|null $parentSelectors
      */
+    private function processContainerRule(string $prelude, string $body, ?array $parentSelectors, ?array $loc = null): string
+    {
+        if ($this->ruleVisitor !== null) {
+            $replacement = $this->callAnyRuleVisitor($this->buildContainerRule($prelude, $body, $parentSelectors, $loc));
+            if ($replacement !== null) {
+                return $this->emitReplacement($replacement, $parentSelectors);
+            }
+        }
+
+        if ($this->containerRuleVisitor !== null) {
+            $rule = $this->buildContainerRule($prelude, $body, $parentSelectors, $loc);
+            $replacement = ($this->containerRuleVisitor)($rule, $this);
+            if ($replacement !== null) {
+                return $this->emitReplacement($replacement, $parentSelectors);
+            }
+        }
+
+        $preludeCss = $this->minifyContainerPreludeForVisitor($prelude);
+        $bodyCss = $parentSelectors === null
+            ? $this->processRuleList($body)
+            : $this->processStyleBody($body, $parentSelectors);
+        $exitReplacement = $this->applyContainerRuleExit($this->buildVisitedContainerRule($preludeCss, $bodyCss, $parentSelectors, $loc), $parentSelectors);
+        if ($exitReplacement !== null) {
+            return $exitReplacement;
+        }
+
+        return '@container' . ($preludeCss === '' ? '' : ' ' . $preludeCss) . '{' . $bodyCss . '}';
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     */
     private function processCustomAtRule(string $prelude, string $body, ?array $parentSelectors, ?array $loc = null): string
     {
         [$name, $atPrelude] = $this->parseAtPrelude($prelude);
@@ -2790,6 +2940,108 @@ final class CustomAtRuleTransformer
             'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
             'parentSelectors' => $parentSelectors ?? [],
         ];
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     * @return array{type:string,value:array<string, mixed>,context:string,parentSelectors:list<string>}
+     */
+    private function buildContainerRule(string $prelude, string $body, ?array $parentSelectors, ?array $loc = null): array
+    {
+        return [
+            'type' => 'container',
+            'value' => array_replace(
+                ['loc' => $loc ?? $this->defaultSourceLocation()],
+                $this->parseContainerPreludeForVisitor($prelude),
+                ['rules' => $this->parseReturnedRuleList($body, $parentSelectors)]
+            ),
+            'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
+            'parentSelectors' => $parentSelectors ?? [],
+        ];
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     * @return array{type:string,value:array<string, mixed>,context:string,parentSelectors:list<string>}
+     */
+    private function buildVisitedContainerRule(string $prelude, string $body, ?array $parentSelectors, ?array $loc = null): array
+    {
+        return [
+            'type' => 'container',
+            'value' => array_replace(
+                ['loc' => $loc ?? $this->defaultSourceLocation()],
+                $this->parseContainerPreludeForVisitor($prelude),
+                ['rules' => $this->parseReturnedRuleList($body, null)]
+            ),
+            'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
+            'parentSelectors' => $parentSelectors ?? [],
+        ];
+    }
+
+    /**
+     * @return array{prelude:string,name:string|null,condition:array<string, mixed>|null}
+     */
+    private function parseContainerPreludeForVisitor(string $prelude): array
+    {
+        $prelude = trim($prelude);
+        [$name, $conditionCss] = $this->splitContainerPreludeForVisitor($prelude);
+
+        return [
+            'prelude' => $this->minifyContainerPreludeForVisitor($prelude),
+            'name' => $name,
+            'condition' => $conditionCss === '' ? null : $this->parseContainerConditionForVisitor($conditionCss),
+        ];
+    }
+
+    /**
+     * @return array{0:string|null,1:string}
+     */
+    private function splitContainerPreludeForVisitor(string $prelude): array
+    {
+        $prelude = trim($prelude);
+        if ($prelude === '') {
+            return [null, ''];
+        }
+        if ($prelude[0] === '(' || preg_match('/^(?:not\b|style\s*\(|scroll-state\s*\()/i', $prelude) === 1) {
+            return [null, $prelude];
+        }
+
+        $parts = preg_split('/\s+/', $prelude, 2);
+        $name = $this->decodeCssIdentifierToken((string) ($parts[0] ?? ''));
+        if ($name === null || str_contains($name, '(') || str_contains($name, ')')) {
+            return [null, $prelude];
+        }
+
+        return [$name, trim((string) ($parts[1] ?? ''))];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseContainerConditionForVisitor(string $condition): array
+    {
+        $condition = $this->minifyContainerPreludeForVisitor($condition);
+        $parsed = $this->parseMediaConditionForVisitor($condition);
+
+        return $parsed ?? ['raw' => $condition];
+    }
+
+    private function minifyContainerPreludeForVisitor(string $prelude): string
+    {
+        $prelude = trim($prelude);
+        if ($prelude === '') {
+            return '';
+        }
+
+        try {
+            $minified = $this->minifier->minify('@container ' . $prelude . '{}');
+            if (preg_match('/^@container\s*([^{]*)\{/', $minified, $matches) === 1) {
+                return trim($matches[1]);
+            }
+        } catch (\InvalidArgumentException) {
+        }
+
+        return $this->rewriteAtRulePreludeValue($prelude);
     }
 
     /**
@@ -4024,6 +4276,26 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * @param array<string, mixed> $rule
+     * @param list<string>|null $parentSelectors
+     */
+    private function applyContainerRuleExit(array $rule, ?array $parentSelectors): ?string
+    {
+        $genericReplacement = $this->callAnyRuleExitVisitor($rule);
+        if ($genericReplacement !== null) {
+            return $this->emitReplacementFromRuleExit($genericReplacement, $parentSelectors);
+        }
+
+        if ($this->containerRuleExitVisitor === null) {
+            return null;
+        }
+
+        $replacement = ($this->containerRuleExitVisitor)($rule, $this);
+
+        return $replacement === null ? null : $this->emitReplacementFromRuleExit($replacement, $parentSelectors);
+    }
+
+    /**
      * @param list<string>|null $parentSelectors
      */
     private function emitReplacementFromRuleExit(mixed $replacement, ?array $parentSelectors): string
@@ -4094,6 +4366,9 @@ final class CustomAtRuleTransformer
         if (($replacement['type'] ?? null) === 'supports' && isset($replacement['value']) && is_array($replacement['value'])) {
             return $this->emitReturnedSupportsRule($replacement['value'], $parentSelectors);
         }
+        if (($replacement['type'] ?? null) === 'container' && isset($replacement['value']) && is_array($replacement['value'])) {
+            return $this->emitReturnedContainerRule($replacement['value'], $parentSelectors);
+        }
 
         $kind = (string) ($replacement['kind'] ?? '');
         if ($kind === 'remove') {
@@ -4120,6 +4395,15 @@ final class CustomAtRuleTransformer
                 : (string) $body;
 
             return '@media ' . $query . '{' . $bodyCss . '}';
+        }
+        if ($kind === 'container') {
+            $prelude = (string) ($replacement['prelude'] ?? '');
+            $body = $replacement['body'] ?? '';
+            $bodyCss = is_array($body)
+                ? $this->emitReplacement($body, $parentSelectors)
+                : (string) $body;
+
+            return '@container' . (trim($prelude) === '' ? '' : ' ' . trim($prelude)) . '{' . $bodyCss . '}';
         }
         if ($kind === 'style-rule') {
             $selector = (string) ($replacement['selector'] ?? '');
@@ -4236,6 +4520,33 @@ final class CustomAtRuleTransformer
         }
 
         return '@supports ' . $condition . '{' . $body . '}';
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @param list<string>|null $parentSelectors
+     */
+    private function emitReturnedContainerRule(array $value, ?array $parentSelectors): string
+    {
+        $prelude = $this->returnedContainerPreludeToCss($value);
+        $rules = $value['rules'] ?? [];
+        if (!is_array($rules)) {
+            $rules = [];
+        }
+
+        $body = '';
+        foreach ($rules as $rule) {
+            $body .= $this->emitReturnedChildRule($rule, $parentSelectors);
+        }
+
+        if (!$this->suppressReturnedRuleExitVisitors) {
+            $exitReplacement = $this->applyContainerRuleExit($this->buildVisitedContainerRule($prelude, $body, $parentSelectors), $parentSelectors);
+            if ($exitReplacement !== null) {
+                return $exitReplacement;
+            }
+        }
+
+        return '@container' . ($prelude === '' ? '' : ' ' . $prelude) . '{' . $body . '}';
     }
 
     /**
@@ -4364,6 +4675,34 @@ final class CustomAtRuleTransformer
         }
 
         return trim((string) ($condition['raw'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function returnedContainerPreludeToCss(array $value): string
+    {
+        $name = isset($value['name']) && is_string($value['name']) ? trim($value['name']) : '';
+        $conditionAst = $value['condition'] ?? null;
+        $condition = is_array($conditionAst) ? $this->returnedContainerConditionToCss($conditionAst) : '';
+        $prelude = trim($name . ($condition === '' ? '' : ' ' . $condition));
+        if ($prelude === '' && isset($value['prelude']) && is_string($value['prelude'])) {
+            $prelude = $value['prelude'];
+        }
+
+        return $this->minifyContainerPreludeForVisitor($prelude);
+    }
+
+    /**
+     * @param array<string, mixed> $condition
+     */
+    private function returnedContainerConditionToCss(array $condition): string
+    {
+        if (($condition['type'] ?? null) === 'unknown') {
+            return trim((string) ($condition['value'] ?? $condition['raw'] ?? ''));
+        }
+
+        return $this->returnedMediaConditionToCss($condition);
     }
 
     private function mediaComparisonOperator(string $operator): string
@@ -4855,7 +5194,7 @@ final class CustomAtRuleTransformer
             return $callback === null ? null : ['callback' => $callback, 'argument' => $rule['value']];
         }
 
-        foreach (['style', 'media'] as $legacyType) {
+        foreach (['style', 'media', 'supports', 'container'] as $legacyType) {
             if ($type !== $legacyType) {
                 continue;
             }
@@ -5085,6 +5424,45 @@ final class CustomAtRuleTransformer
 
         if (is_array($ruleConfig) && is_callable($ruleConfig['supports'] ?? null)) {
             return $ruleConfig['supports'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function containerRuleVisitorCallback(array $visitor): ?callable
+    {
+        $ruleConfig = $visitor['Rule'] ?? null;
+        if (is_callable($ruleConfig)) {
+            return $ruleConfig;
+        }
+
+        if (is_array($ruleConfig) && is_callable($ruleConfig['container'] ?? null)) {
+            return $ruleConfig['container'];
+        }
+
+        $containerConfig = $visitor['container'] ?? null;
+        if (is_callable($containerConfig)) {
+            return $containerConfig;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function containerRuleExitVisitorCallback(array $visitor): ?callable
+    {
+        $ruleConfig = $visitor['RuleExit'] ?? null;
+        if (is_callable($ruleConfig)) {
+            return $ruleConfig;
+        }
+
+        if (is_array($ruleConfig) && is_callable($ruleConfig['container'] ?? null)) {
+            return $ruleConfig['container'];
         }
 
         return null;
@@ -9053,6 +9431,8 @@ final class CustomAtRuleTransformer
                             'rules' => $this->parseReturnedRuleList($body, $parentSelectors),
                         ],
                     ];
+                } elseif ($name === 'container') {
+                    $rules[] = $this->buildContainerRule($atPrelude, $body, $parentSelectors, $ruleLocation);
                 } elseif ($this->isCustomAtRule($name)) {
                     $rules[] = ['type' => 'custom', 'value' => $this->buildCustomRule($name, $atPrelude, $body, $parentSelectors, true, $ruleLocation)];
                 } else {

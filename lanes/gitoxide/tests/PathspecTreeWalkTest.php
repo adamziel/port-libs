@@ -765,6 +765,57 @@ return [
         $t->same(['WP-CONTENT/plugins/Plugin.PHP'], $walkPaths($records));
         $t->same(['WP-CONTENT', 'WP-CONTENT/plugins'], $readPaths);
     },
+    'empty icase pathspecs keep only parent prefixes case-sensitive during tree walks' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
+        $objects = [];
+        $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
+        $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
+            $object = $tree->toObject();
+            $objects[$object->oid()] = $object;
+
+            return new TreeEntry('040000', $name, $object->oid());
+        };
+        $root = new Tree([
+            $tree('WP-CONTENT', new Tree([
+                $tree('plugins', new Tree([$blob('Safe.PHP')])),
+                $tree('PLUGINS', new Tree([$blob('SAFE.PHP')])),
+                $tree('themes', new Tree([$blob('style.css')])),
+            ])),
+            $tree('wp-content', new Tree([
+                $tree('plugins', new Tree([$blob('safe.php')])),
+            ])),
+        ]);
+        $search = PathspecSearch::fromSpecs([':(icase)'], 'WP-CONTENT/plugins');
+
+        $t->same('WP-CONTENT/plugins', $search->patterns()[0]->path);
+        $t->same('WP-CONTENT', $search->patterns()[0]->prefixDirectory());
+        $t->same('WP-CONTENT', $search->commonPrefix());
+        $t->same(true, $search->isIncluded('WP-CONTENT/plugins/Safe.PHP', false));
+        $t->same(true, $search->isIncluded('WP-CONTENT/PLUGINS/SAFE.PHP', false));
+        $t->same(false, $search->isIncluded('wp-content/plugins/safe.php', false));
+        $t->same(false, $search->isIncluded('WP-CONTENT/themes/style.css', false));
+        $t->same(true, $search->canMatch('WP-CONTENT/PLUGINS', true));
+        $t->same(false, $search->canMatch('wp-content/plugins', true));
+        $t->same(true, $search->directoryMatchesPrefix('WP-CONTENT/PLUGINS', true));
+        $t->same(false, $search->directoryMatchesPrefix('wp-content/plugins', true));
+
+        $readPaths = [];
+        $records = TreePathspecWalk::breadthFirst(
+            $root,
+            $search,
+            static function (TreeEntry $entry, string $path) use (&$objects, &$readPaths): GitObject {
+                $readPaths[] = $path;
+
+                return $objects[$entry->oid];
+            },
+            includeTrees: false,
+        );
+
+        $t->same([
+            'WP-CONTENT/plugins/Safe.PHP',
+            'WP-CONTENT/PLUGINS/SAFE.PHP',
+        ], $walkPaths($records));
+        $t->same(['WP-CONTENT', 'WP-CONTENT/plugins', 'WP-CONTENT/PLUGINS'], $readPaths);
+    },
     'mixed top pathspecs keep icase caller prefixes case sensitive during tree walks' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
         $objects = [];
         $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
@@ -1435,5 +1486,13 @@ return [
             'wp-content/generated-cache/manifest.json',
         ], $example['negativeWildcardCacheContentPaths']);
         $t->same(true, $example['negativeWildcardCacheStaleSkipped']);
+        $t->same('WP-CONTENT', $example['emptyIcasePrefixDirectory']);
+        $t->same('WP-CONTENT', $example['emptyIcaseCommonPrefix']);
+        $t->same([
+            'WP-CONTENT/plugins/Safe.PHP',
+            'WP-CONTENT/PLUGINS/SAFE.PHP',
+        ], $example['emptyIcasePrefixContentPaths']);
+        $t->same(true, $example['emptyIcaseFoldedFinalPrefixIncluded']);
+        $t->same(true, $example['emptyIcaseLowerRootSkipped']);
     },
 ];

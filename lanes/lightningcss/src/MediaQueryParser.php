@@ -46,7 +46,7 @@ final class MediaQueryParser
     public function markUnitlessLengthMathRangeValuesForLowering(string $queryList): string
     {
         $lengthFeature = '(?:device-width|device-height|width|height)';
-        $mathFunction = '(?:calc|clamp|max|min)\((?:[^()]|\([^()]*\))*\)';
+        $mathFunction = '(?:calc|clamp|max|min|round|rem|mod|hypot|abs|sign)\((?:[^()]|\([^()]*\))*\)';
 
         $queryList = preg_replace_callback(
             '/(\b' . $lengthFeature . '\b\s*(?:<=|>=|<|>|=)\s*)(' . $mathFunction . ')/i',
@@ -813,9 +813,12 @@ final class MediaQueryParser
             return false;
         }
 
-        if (preg_match('/^(?:calc|clamp|max|min|round|rem|mod|hypot|abs)\(/i', $value) === 1) {
+        if (preg_match('/^(?:calc|clamp|max|min|round|rem|mod|hypot|abs|sign)\(/i', $value) === 1) {
             if (preg_match('/^calc\(/i', $value) === 1 && $this->isInvalidSimpleMultiplicativeCalc($value)) {
                 return false;
+            }
+            if (preg_match('/^sign\(/i', $value) === 1) {
+                return $this->foldSimpleMathFunction($value, $type) !== $value;
             }
 
             return match ($type) {
@@ -923,7 +926,7 @@ final class MediaQueryParser
     private function minifyValue(string $value, ?string $type = null): string
     {
         $value = trim($value);
-        $wasMathFunction = preg_match('/^(?:calc|clamp|max|min)\(/i', $value) === 1;
+        $wasMathFunction = preg_match('/^(?:calc|clamp|max|min|round|rem|mod|hypot|abs|sign)\(/i', $value) === 1;
         if ($wasMathFunction && $type === 'length') {
             $unitlessMathValue = $this->unitlessLengthMathValue($value);
             if ($unitlessMathValue !== null) {
@@ -959,7 +962,7 @@ final class MediaQueryParser
             return $value;
         }
 
-        if (preg_match('/^(min|max|clamp|round|rem|mod|hypot|abs)\(/i', $value, $matches) !== 1) {
+        if (preg_match('/^(min|max|clamp|round|rem|mod|hypot|abs|sign)\(/i', $value, $matches) !== 1) {
             return $value;
         }
 
@@ -1089,7 +1092,100 @@ final class MediaQueryParser
             return $this->formatComparableMathValue($values[0], $type);
         }
 
+        if ($function === 'sign') {
+            if (count($args) !== 1) {
+                return $value;
+            }
+
+            $signValue = $this->comparableSignMathValue($args[0], $type);
+            if ($signValue === null) {
+                return $value;
+            }
+
+            if (abs($signValue['number']) < PHP_FLOAT_EPSILON) {
+                return '0';
+            }
+
+            return $signValue['number'] < 0 ? '-1' : '1';
+        }
+
         return $value;
+    }
+
+    /**
+     * @return array{number:float,unit:string,ratio:bool}|null
+     */
+    private function comparableSignMathValue(string $value, ?string $type): ?array
+    {
+        if (!in_array($type, ['length', 'number', 'ratio', 'unknown'], true)) {
+            return null;
+        }
+
+        $comparable = $this->comparableMathValue($value, 'unknown');
+        if ($comparable === null) {
+            return null;
+        }
+
+        if ($comparable['ratio']) {
+            return $comparable;
+        }
+
+        return match ($type) {
+            'number', 'ratio' => $comparable['unit'] === '' ? $comparable : null,
+            'length', 'unknown' => $comparable['unit'] === '' || $this->isCssLengthUnit($comparable['unit']) ? $comparable : null,
+            default => null,
+        };
+    }
+
+    private function isCssLengthUnit(string $unit): bool
+    {
+        return in_array(strtolower($unit), [
+            'cap',
+            'ch',
+            'cm',
+            'cqb',
+            'cqh',
+            'cqi',
+            'cqmax',
+            'cqmin',
+            'cqw',
+            'dvb',
+            'dvh',
+            'dvi',
+            'dvmax',
+            'dvmin',
+            'dvw',
+            'em',
+            'ex',
+            'ic',
+            'in',
+            'lh',
+            'lvb',
+            'lvh',
+            'lvi',
+            'lvmax',
+            'lvmin',
+            'lvw',
+            'mm',
+            'pc',
+            'pt',
+            'px',
+            'q',
+            'rem',
+            'rlh',
+            'svb',
+            'svh',
+            'svi',
+            'svmax',
+            'svmin',
+            'svw',
+            'vb',
+            'vh',
+            'vi',
+            'vmax',
+            'vmin',
+            'vw',
+        ], true);
     }
 
     /**
@@ -2318,7 +2414,9 @@ final class MediaQueryParser
     {
         $value = trim($value);
         $value = $this->foldSimpleCalc($value);
-        $value = $this->foldSimpleMathFunction($value, 'number');
+        $value = preg_match('/^sign\(/i', $value) === 1
+            ? $this->foldSimpleMathFunction($value, 'length')
+            : $this->foldSimpleMathFunction($value, 'number');
         $value = $this->minifyNumericValue($value);
 
         return preg_match('/^' . $this->cssNumberPattern() . '$/', $value) === 1 ? $value : null;
