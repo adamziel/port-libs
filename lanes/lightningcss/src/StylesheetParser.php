@@ -73,6 +73,7 @@ final class StylesheetParser
                         throw new \InvalidArgumentException("Top-level CSS statement is not an at-rule: {$statement}");
                     }
                     [$name, $prelude] = $this->parseAtPrelude($statement);
+                    $prelude = $this->normalizeAtRulePrelude($name, $prelude);
                     $rules[] = new CssRule(CssRule::TYPE_AT_RULE, $name, $prelude, [], [], []);
                 }
                 $cursor = $nextStatement + 1;
@@ -167,6 +168,7 @@ final class StylesheetParser
             $trimmed = trim($statement);
             if ($trimmed !== '' && str_starts_with($trimmed, '@')) {
                 [$name, $prelude] = $this->parseAtPrelude($trimmed);
+                $prelude = $this->normalizeAtRulePrelude($name, $prelude);
                 $rules[] = new CssRule(CssRule::TYPE_AT_RULE, $name, $prelude, [], [], []);
             } else {
                 $declarations .= substr($source, $cursor, $semicolon - $cursor + 1);
@@ -215,11 +217,52 @@ final class StylesheetParser
 
     private function normalizeAtRulePrelude(string $name, string $prelude): string
     {
-        if ($name !== 'media' || $prelude === '') {
+        if ($prelude === '') {
+            return '';
+        }
+
+        if ($name === 'media') {
+            return (new MediaQueryParser())->minifyList($prelude, true);
+        }
+
+        if ($name === 'import') {
+            return $this->normalizeImportMediaTail($prelude);
+        }
+
+        return $prelude;
+    }
+
+    private function normalizeImportMediaTail(string $prelude): string
+    {
+        $offset = $this->skipWhitespace($prelude, 0);
+        $length = strlen($prelude);
+        if ($offset >= $length) {
             return $prelude;
         }
 
-        return (new MediaQueryParser())->minifyList($prelude, true);
+        if ($prelude[$offset] === '"' || $prelude[$offset] === "'") {
+            $offset = $this->consumeCssStringToken($prelude, $offset) + 1;
+        } elseif ($this->cssFunctionOpenOffset($prelude, $offset, 'url') !== null) {
+            $offset = $this->consumeCssFunctionToken($prelude, $offset) + 1;
+        } else {
+            return $prelude;
+        }
+
+        $offset = $this->skipWhitespaceAndComments($prelude, $offset, $length);
+        if ($this->consumeImportLayerModifier($prelude, $offset)) {
+            $offset = $this->skipWhitespaceAndComments($prelude, $offset, $length);
+        }
+        if ($this->cssFunctionOpenOffset($prelude, $offset, 'supports') !== null) {
+            $offset = $this->consumeCssFunctionToken($prelude, $offset) + 1;
+            $offset = $this->skipWhitespaceAndComments($prelude, $offset, $length);
+        }
+
+        $media = trim(substr($prelude, $offset));
+        if ($media === '') {
+            return $prelude;
+        }
+
+        return rtrim(substr($prelude, 0, $offset)) . ' ' . (new MediaQueryParser())->minifyList($media, true);
     }
 
     /**
@@ -406,6 +449,47 @@ final class StylesheetParser
         return $last;
     }
 
+    private function findMatchingDelimiter(string $value, int $open, string $openChar, string $closeChar): int
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($value);
+        for ($i = $open; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '\\') {
+                $i++;
+            } elseif ($char === '/' && ($value[$i + 1] ?? '') === '*') {
+                $commentEnd = strpos($value, '*/', $i + 2);
+                if ($commentEnd === false) {
+                    throw new \InvalidArgumentException('CSS comment is missing a closing marker');
+                }
+                $i = $commentEnd + 1;
+            } elseif ($char === $openChar) {
+                $depth++;
+            } elseif ($char === $closeChar) {
+                $depth--;
+                if ($depth === 0) {
+                    return $i;
+                }
+            }
+        }
+
+        throw new \InvalidArgumentException('CSS delimiter is missing a closing marker');
+    }
+
     private function findMatchingBrace(string $css, int $open): int
     {
         $quote = null;
@@ -453,6 +537,80 @@ final class StylesheetParser
         }
 
         return $offset;
+    }
+
+    private function consumeCssStringToken(string $value, int $start): int
+    {
+        $quote = $value[$start];
+        $length = strlen($value);
+        for ($i = $start + 1; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($char === '\\') {
+                $i++;
+                continue;
+            }
+            if ($char === $quote) {
+                return $i;
+            }
+        }
+
+        return $length - 1;
+    }
+
+    private function consumeCssFunctionToken(string $value, int $start): int
+    {
+        $open = strpos($value, '(', $start);
+        if ($open === false) {
+            return $start;
+        }
+
+        return $this->findMatchingDelimiter($value, $open, '(', ')');
+    }
+
+    private function consumeImportLayerModifier(string $value, int &$position): bool
+    {
+        if ($this->cssFunctionOpenOffset($value, $position, 'layer') !== null) {
+            $position = $this->consumeCssFunctionToken($value, $position) + 1;
+            return true;
+        }
+
+        if (!$this->startsWithCssKeyword($value, $position, 'layer')) {
+            return false;
+        }
+
+        $position += strlen('layer');
+        return true;
+    }
+
+    private function cssFunctionOpenOffset(string $value, int $position, string $name): ?int
+    {
+        if (!$this->startsWithCssKeyword($value, $position, $name)) {
+            return null;
+        }
+
+        $open = $position + strlen($name);
+        $open = $this->skipWhitespace($value, $open);
+
+        return isset($value[$open]) && $value[$open] === '(' ? $open : null;
+    }
+
+    private function startsWithCssKeyword(string $value, int $position, string $keyword): bool
+    {
+        $length = strlen($keyword);
+        if (strncasecmp(substr($value, $position, $length), $keyword, $length) !== 0) {
+            return false;
+        }
+
+        $before = $position > 0 ? $value[$position - 1] : '';
+        $after = $value[$position + $length] ?? '';
+
+        return ($before === '' || !$this->isIdentifierChar($before))
+            && ($after === '' || !$this->isIdentifierChar($after));
+    }
+
+    private function isIdentifierChar(string $char): bool
+    {
+        return preg_match('/[-_a-zA-Z0-9]/', $char) === 1;
     }
 
     private function skipWhitespaceAndComments(string $css, int $offset, int $end): int

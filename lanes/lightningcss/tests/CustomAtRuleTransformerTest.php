@@ -5693,6 +5693,99 @@ CSS;
         $t->same('@keyframes prefix-test{0%{color:red}to{color:green}}.foo{animation:prefix-test}', $result);
         $t->same(['test', 'test'], $seen);
     },
+    'custom at-rules map upstream Rule keyframes visitors for native keyframes' => static function (TestRunner $t): void {
+        $seen = [];
+        $seenColors = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'keyframes' => static function (array $rule) use (&$seen): array {
+                        $seen['enter'] = [
+                            'type' => $rule['type'] ?? null,
+                            'nameType' => $rule['value']['name']['type'] ?? null,
+                            'name' => $rule['value']['name']['value'] ?? null,
+                            'vendorPrefix' => $rule['value']['vendorPrefix'] ?? null,
+                            'selectors' => array_map(
+                                static fn (array $selector): string => ($selector['type'] ?? '') . (isset($selector['value']) ? ':' . $selector['value'] : ''),
+                                $rule['value']['keyframes'][1]['selectors'] ?? []
+                            ),
+                        ];
+                        $rule['value']['name']['value'] = 'wp-card-live';
+
+                        return $rule;
+                    },
+                ],
+            ],
+            [
+                'Color' => static function (array $color) use (&$seenColors): ?array {
+                    $seenColors[] = $color;
+                    if (($color['type'] ?? null) !== 'rgb') {
+                        return null;
+                    }
+
+                    return [
+                        'type' => 'rgb',
+                        'r' => 0,
+                        'g' => 0,
+                        'b' => 255,
+                        'alpha' => 1,
+                    ];
+                },
+                'Length' => static fn (array $length): ?array => ($length['unit'] ?? null) === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null,
+                'RuleExit' => [
+                    'keyframes' => static function (array $rule) use (&$seen): ?array {
+                        $seen['exit'] = [
+                            'name' => $rule['value']['name']['value'] ?? null,
+                            'firstColor' => $rule['value']['keyframes'][0]['declarations']['declarations'][0]['raw'] ?? null,
+                            'firstLeft' => $rule['value']['keyframes'][0]['declarations']['declarations'][1]['raw'] ?? null,
+                        ];
+
+                        return null;
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@keyframes wp-card {
+  from {
+    color: red;
+    left: 16px;
+  }
+
+  50%, to {
+    color: green;
+    left: 32px;
+  }
+}
+
+.wp-block-card {
+  animation-name: wp-card;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('@keyframes wp-card-live{0%{color:#00f;left:1rem}50%,to{color:#00f;left:2rem}}.wp-block-card{animation-name:wp-card}', $result);
+        $t->same([
+            'type' => 'keyframes',
+            'nameType' => 'ident',
+            'name' => 'wp-card',
+            'vendorPrefix' => [],
+            'selectors' => ['percentage:50', 'to'],
+        ], $seen['enter']);
+        $t->same([
+            'name' => 'wp-card-live',
+            'firstColor' => '#00f',
+            'firstLeft' => '1rem',
+        ], $seen['exit']);
+        $t->same([
+            ['type' => 'rgb', 'r' => 255, 'g' => 0, 'b' => 0, 'alpha' => 1],
+            ['type' => 'rgb', 'r' => 0, 'g' => 128, 'b' => 0, 'alpha' => 1],
+        ], $seenColors);
+    },
     'custom at-rules map upstream generic Rule visitor currentColor passthrough' => static function (TestRunner $t): void {
         $seen = [];
         $result = (new CustomAtRuleTransformer())->transform('.foo { color: currentColor; }', [], [

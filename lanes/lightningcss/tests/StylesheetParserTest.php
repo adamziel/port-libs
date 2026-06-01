@@ -23,6 +23,20 @@ return [
         $t->same('url("theme.css") layer(theme)', $rules[0]->prelude);
         $t->same(CssRule::TYPE_STYLE, $rules[1]->type);
     },
+    'stylesheet parser normalizes layered import media range tails' => static function (TestRunner $t): void {
+        $rules = (new StylesheetParser())->parse('@import url("blocks/query.css") layer(theme.blocks) screen and (min-width: 48rem), (hover); @import "blocks/window.css" layer supports(display: grid) (100px <= width <= 200px); @import url("blocks/commented.css") /* source */ layer(theme.blocks) /* layer */ supports(display: grid) /* supports */ screen and (min-width: 48rem); .site { color: blue; }');
+
+        $t->same(CssRule::TYPE_AT_RULE, $rules[0]->type);
+        $t->same('import', $rules[0]->name);
+        $t->same('url("blocks/query.css") layer(theme.blocks) screen and (width>=48rem),(hover)', $rules[0]->prelude);
+        $t->same(CssRule::TYPE_AT_RULE, $rules[1]->type);
+        $t->same('import', $rules[1]->name);
+        $t->same('"blocks/window.css" layer supports(display: grid) (100px<=width<=200px)', $rules[1]->prelude);
+        $t->same(CssRule::TYPE_AT_RULE, $rules[2]->type);
+        $t->same('import', $rules[2]->name);
+        $t->same('url("blocks/commented.css")  layer(theme.blocks)  supports(display: grid) screen and (width>=48rem)', $rules[2]->prelude);
+        $t->same(CssRule::TYPE_STYLE, $rules[3]->type);
+    },
     'stylesheet parser parses media at-rule blocks with nested style rules' => static function (TestRunner $t): void {
         $rules = (new StylesheetParser())->parse('@media (min-width: 600px) { .wp-site-blocks { padding: 2rem; } }');
 

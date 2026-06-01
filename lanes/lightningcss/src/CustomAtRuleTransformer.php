@@ -78,6 +78,12 @@ final class CustomAtRuleTransformer
     private $layerStatementRuleExitVisitor = null;
 
     /** @var callable|null */
+    private $keyframesRuleVisitor = null;
+
+    /** @var callable|null */
+    private $keyframesRuleExitVisitor = null;
+
+    /** @var callable|null */
     private $mediaQueryVisitor = null;
 
     /** @var callable|null */
@@ -408,6 +414,9 @@ final class CustomAtRuleTransformer
                 'layer-statement' => static function (array $rule, self $transformer) use ($visitors): mixed {
                     return self::applyComposedTypedRuleVisitors($visitors, $rule, $transformer, 'layer-statement', false);
                 },
+                'keyframes' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    return self::applyComposedTypedRuleVisitors($visitors, $rule, $transformer, 'keyframes', false);
+                },
             ],
             'RuleExit' => [
                 'custom' => static function (array $rule, self $transformer) use ($visitors): mixed {
@@ -574,6 +583,9 @@ final class CustomAtRuleTransformer
                 },
                 'layer-statement' => static function (array $rule, self $transformer) use ($visitors): mixed {
                     return self::applyComposedTypedRuleVisitors($visitors, $rule, $transformer, 'layer-statement', true);
+                },
+                'keyframes' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    return self::applyComposedTypedRuleVisitors($visitors, $rule, $transformer, 'keyframes', true);
                 },
             ],
             'StyleSheet' => static function (array $stylesheet, self $transformer) use ($visitors): mixed {
@@ -1195,7 +1207,7 @@ final class CustomAtRuleTransformer
             }
         }
         foreach ($visitor as $name => $callback) {
-            if (is_string($name) && is_callable($callback) && !in_array($name, ['Rule', 'Function', 'Token', 'custom', 'unknown', 'media', 'container', 'layer-block', 'layer-statement'], true)) {
+            if (is_string($name) && is_callable($callback) && !in_array($name, ['Rule', 'Function', 'Token', 'custom', 'unknown', 'media', 'container', 'layer-block', 'layer-statement', 'keyframes'], true)) {
                 $this->ruleVisitors[$this->normalizeAtRuleName($name)] = $callback;
             }
         }
@@ -1313,6 +1325,18 @@ final class CustomAtRuleTransformer
         $layerStatementExitVisitor = $ruleExitSubVisitors['layer-statement'] ?? null;
         if (is_callable($layerStatementExitVisitor)) {
             $this->layerStatementRuleExitVisitor = $layerStatementExitVisitor;
+        }
+
+        $this->keyframesRuleVisitor = null;
+        $keyframesVisitor = $ruleSubVisitors['keyframes'] ?? $visitor['keyframes'] ?? null;
+        if (is_callable($keyframesVisitor)) {
+            $this->keyframesRuleVisitor = $keyframesVisitor;
+        }
+
+        $this->keyframesRuleExitVisitor = null;
+        $keyframesExitVisitor = $ruleExitSubVisitors['keyframes'] ?? null;
+        if (is_callable($keyframesExitVisitor)) {
+            $this->keyframesRuleExitVisitor = $keyframesExitVisitor;
         }
 
         $this->mediaQueryVisitor = is_callable($visitor['MediaQuery'] ?? null) ? $visitor['MediaQuery'] : null;
@@ -2431,6 +2455,8 @@ final class CustomAtRuleTransformer
                     $output .= $this->processContainerRule($atPrelude, $body, null, $ruleLocation);
                 } elseif ($name === 'layer') {
                     $output .= $this->processLayerBlockRule($atPrelude, $body, null, $ruleLocation);
+                } elseif ($this->isKeyframesAtRule($name)) {
+                    $output .= $this->processKeyframesRule($name, $atPrelude, $body, null, $ruleLocation);
                 } elseif ($this->isCustomAtRule($name)) {
                     $output .= $this->processCustomAtRule($prelude, $body, null, $ruleLocation);
                 } else {
@@ -2583,6 +2609,8 @@ final class CustomAtRuleTransformer
                     $output .= $this->processContainerRule($atPrelude, $nestedBody, $selectors, $nestedLocation);
                 } elseif ($name === 'layer') {
                     $output .= $this->processLayerBlockRule($atPrelude, $nestedBody, $selectors, $nestedLocation);
+                } elseif ($this->isKeyframesAtRule($name)) {
+                    $output .= $this->processKeyframesRule($name, $atPrelude, $nestedBody, $selectors, $nestedLocation);
                 } elseif ($this->isCustomAtRule($name)) {
                     $output .= $this->processCustomAtRule($nestedPrelude, $nestedBody, $selectors, $nestedLocation);
                 } elseif (str_starts_with($nestedPrelude, '@nest ')) {
@@ -2888,6 +2916,38 @@ final class CustomAtRuleTransformer
         }
 
         return '@layer' . ($nameCss === '' ? '' : ' ' . $nameCss) . '{' . $bodyCss . '}';
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     */
+    private function processKeyframesRule(string $name, string $prelude, string $body, ?array $parentSelectors, ?array $loc = null): string
+    {
+        if ($this->ruleVisitor !== null) {
+            $replacement = $this->callAnyRuleVisitor($this->buildKeyframesRule($name, $prelude, $body, $parentSelectors, false, $loc));
+            if ($replacement !== null) {
+                return $this->emitReplacement($replacement, $parentSelectors);
+            }
+        }
+
+        if ($this->keyframesRuleVisitor !== null) {
+            $rule = $this->buildKeyframesRule($name, $prelude, $body, $parentSelectors, false, $loc);
+            $replacement = ($this->keyframesRuleVisitor)($rule, $this);
+            if ($replacement !== null) {
+                return $this->emitReplacement($replacement, $parentSelectors);
+            }
+        }
+
+        $visitedFrames = $this->parseKeyframeBlocks($body, true);
+        $nameCss = $this->rewriteKeyframesPrelude($this->rewriteAtRulePreludeValue($prelude));
+        $bodyCss = $this->serializeProcessedKeyframes($visitedFrames);
+        $visitedRule = $this->buildKeyframesRuleFromCss($name, $nameCss, $bodyCss, $parentSelectors, $loc);
+        $exitReplacement = $this->applyKeyframesRuleExit($visitedRule, $parentSelectors);
+        if ($exitReplacement !== null) {
+            return $exitReplacement;
+        }
+
+        return '@' . $name . ($nameCss === '' ? '' : ' ' . $nameCss) . '{' . $bodyCss . '}';
     }
 
     /**
@@ -3237,6 +3297,44 @@ final class CustomAtRuleTransformer
                 'loc' => $loc ?? $this->defaultSourceLocation(),
                 'name' => $name,
                 'rules' => $this->parseReturnedRuleList($body, null),
+            ],
+            'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
+            'parentSelectors' => $parentSelectors ?? [],
+        ];
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     * @return array{type:string,value:array<string, mixed>,context:string,parentSelectors:list<string>}
+     */
+    private function buildKeyframesRule(string $name, string $prelude, string $body, ?array $parentSelectors, bool $visitDeclarations = false, ?array $loc = null): array
+    {
+        return [
+            'type' => 'keyframes',
+            'value' => [
+                'loc' => $loc ?? $this->defaultSourceLocation(),
+                'name' => $this->parseKeyframesNameForVisitor($prelude),
+                'vendorPrefix' => $this->keyframesVendorPrefix($name),
+                'keyframes' => $this->parseKeyframeBlocks($body, $visitDeclarations),
+            ],
+            'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
+            'parentSelectors' => $parentSelectors ?? [],
+        ];
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     * @return array{type:string,value:array<string, mixed>,context:string,parentSelectors:list<string>}
+     */
+    private function buildKeyframesRuleFromCss(string $name, string $prelude, string $body, ?array $parentSelectors, ?array $loc = null): array
+    {
+        return [
+            'type' => 'keyframes',
+            'value' => [
+                'loc' => $loc ?? $this->defaultSourceLocation(),
+                'name' => $this->parseKeyframesNameForVisitor($prelude),
+                'vendorPrefix' => $this->keyframesVendorPrefix($name),
+                'keyframes' => $this->parseKeyframeBlocks($body, false),
             ],
             'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
             'parentSelectors' => $parentSelectors ?? [],
@@ -4672,6 +4770,26 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * @param array<string, mixed> $rule
+     * @param list<string>|null $parentSelectors
+     */
+    private function applyKeyframesRuleExit(array $rule, ?array $parentSelectors): ?string
+    {
+        $genericReplacement = $this->callAnyRuleExitVisitor($rule);
+        if ($genericReplacement !== null) {
+            return $this->emitReplacementFromRuleExit($genericReplacement, $parentSelectors);
+        }
+
+        if ($this->keyframesRuleExitVisitor === null) {
+            return null;
+        }
+
+        $replacement = ($this->keyframesRuleExitVisitor)($rule, $this);
+
+        return $replacement === null ? null : $this->emitReplacementFromRuleExit($replacement, $parentSelectors);
+    }
+
+    /**
      * @param list<string>|null $parentSelectors
      */
     private function emitReplacementFromRuleExit(mixed $replacement, ?array $parentSelectors): string
@@ -4750,6 +4868,9 @@ final class CustomAtRuleTransformer
         }
         if (($replacement['type'] ?? null) === 'layer-block' && isset($replacement['value']) && is_array($replacement['value'])) {
             return $this->emitReturnedLayerBlockRule($replacement['value'], $parentSelectors);
+        }
+        if (($replacement['type'] ?? null) === 'keyframes' && isset($replacement['value']) && is_array($replacement['value'])) {
+            return $this->emitReturnedKeyframesRule($replacement['value'], $parentSelectors);
         }
 
         $kind = (string) ($replacement['kind'] ?? '');
@@ -4974,6 +5095,53 @@ final class CustomAtRuleTransformer
         return '@layer' . ($name === '' ? '' : ' ' . $name) . '{' . $body . '}';
     }
 
+    /**
+     * @param array<string, mixed> $value
+     * @param list<string>|null $parentSelectors
+     */
+    private function emitReturnedKeyframesRule(array $value, ?array $parentSelectors): string
+    {
+        $atRuleName = $this->keyframesAtRuleNameFromVendorPrefix($value['vendorPrefix'] ?? []);
+        $name = $this->serializeReturnedKeyframesName($value['name'] ?? '');
+        $frames = $value['keyframes'] ?? [];
+        if (!is_array($frames)) {
+            $frames = [];
+        }
+
+        $body = '';
+        foreach ($frames as $frame) {
+            if (!is_array($frame)) {
+                continue;
+            }
+
+            $selectors = $this->serializeKeyframeSelectors(is_array($frame['selectors'] ?? null) ? $frame['selectors'] : []);
+            if ($selectors === '') {
+                continue;
+            }
+
+            $declarationBlock = $frame['declarations'] ?? [];
+            $declarations = '';
+            if (is_array($declarationBlock)) {
+                foreach ($this->returnedDeclarationBlockEntries($declarationBlock) as $entry) {
+                    foreach ($this->returnedDeclarationToCss($entry) as $declarationCss) {
+                        $declarations .= $declarationCss;
+                    }
+                }
+            }
+
+            $body .= $selectors . '{' . rtrim($declarations, ';') . '}';
+        }
+
+        if (!$this->suppressReturnedRuleExitVisitors) {
+            $exitReplacement = $this->applyKeyframesRuleExit($this->buildKeyframesRuleFromCss($atRuleName, $name, $body, $parentSelectors), $parentSelectors);
+            if ($exitReplacement !== null) {
+                return $exitReplacement;
+            }
+        }
+
+        return '@' . $atRuleName . ($name === '' ? '' : ' ' . $name) . '{' . $body . '}';
+    }
+
     private function serializeLayerName(mixed $name): string
     {
         if ($name === null) {
@@ -4998,6 +5166,218 @@ final class CustomAtRuleTransformer
         }
 
         return implode('.', $segments);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function parseKeyframeBlocks(string $body, bool $visitDeclarations): array
+    {
+        $frames = [];
+        $cursor = 0;
+        $length = strlen($body);
+
+        while (true) {
+            $cursor = $this->skipWhitespace($body, $cursor);
+            if ($cursor >= $length) {
+                break;
+            }
+
+            $nextBlock = $this->findNextTopLevel($body, '{', $cursor);
+            if ($nextBlock === null) {
+                break;
+            }
+
+            $prelude = trim(substr($body, $cursor, $nextBlock - $cursor));
+            $close = $this->findMatchingBrace($body, $nextBlock);
+            $frameBody = substr($body, $nextBlock + 1, $close - $nextBlock - 1);
+            $declarationCss = null;
+            if ($visitDeclarations) {
+                $entries = $this->processDeclarationEntries($this->declarationBlock->parseEntries($frameBody));
+                $declarationCss = $this->emitDeclarationEntriesBody($entries);
+            }
+
+            $frames[] = [
+                'selectors' => $this->parseKeyframeSelectors($prelude),
+                'declarations' => [
+                    'declarations' => $this->parseReturnedDeclarations($declarationCss ?? $frameBody),
+                    'importantDeclarations' => [],
+                ],
+                'declarationCss' => $declarationCss,
+            ];
+
+            $cursor = $close + 1;
+        }
+
+        return $frames;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $frames
+     */
+    private function serializeProcessedKeyframes(array $frames): string
+    {
+        $body = '';
+        foreach ($frames as $frame) {
+            $selectors = $this->serializeKeyframeSelectors(is_array($frame['selectors'] ?? null) ? $frame['selectors'] : []);
+            if ($selectors === '') {
+                continue;
+            }
+
+            $declarationCss = is_string($frame['declarationCss'] ?? null) ? $frame['declarationCss'] : '';
+            $body .= $selectors . '{' . $declarationCss . '}';
+        }
+
+        return $body;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function parseKeyframeSelectors(string $prelude): array
+    {
+        $selectors = [];
+        foreach ($this->splitTopLevel($prelude, ',') as $selector) {
+            $selector = trim($selector);
+            if ($selector === '') {
+                continue;
+            }
+
+            $lower = strtolower($selector);
+            if ($lower === 'from') {
+                $selectors[] = ['type' => 'from'];
+                continue;
+            }
+            if ($lower === 'to') {
+                $selectors[] = ['type' => 'to'];
+                continue;
+            }
+            if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $selector, $matches) === 1) {
+                $selectors[] = [
+                    'type' => 'percentage',
+                    'value' => (float) $matches[1],
+                ];
+                continue;
+            }
+
+            $selectors[] = [
+                'type' => 'raw',
+                'value' => $selector,
+            ];
+        }
+
+        return $selectors;
+    }
+
+    /**
+     * @param list<mixed> $selectors
+     */
+    private function serializeKeyframeSelectors(array $selectors): string
+    {
+        $serialized = [];
+        foreach ($selectors as $selector) {
+            if (is_string($selector)) {
+                $selector = trim($selector);
+                if ($selector !== '') {
+                    $serialized[] = $selector;
+                }
+                continue;
+            }
+            if (!is_array($selector)) {
+                continue;
+            }
+
+            $type = strtolower((string) ($selector['type'] ?? ''));
+            if ($type === 'from') {
+                $serialized[] = 'from';
+            } elseif ($type === 'to') {
+                $serialized[] = 'to';
+            } elseif ($type === 'percentage') {
+                $value = $selector['value'] ?? 0;
+                $serialized[] = $this->formatNumber(is_int($value) || is_float($value) ? $value : (float) $value) . '%';
+            } elseif ($type === 'raw') {
+                $raw = trim((string) ($selector['value'] ?? ''));
+                if ($raw !== '') {
+                    $serialized[] = $raw;
+                }
+            }
+        }
+
+        return implode(',', $serialized);
+    }
+
+    /**
+     * @return array{type:string,value:string}
+     */
+    private function parseKeyframesNameForVisitor(string $prelude): array
+    {
+        $prelude = trim($prelude);
+        if (
+            strlen($prelude) >= 2
+            && (($prelude[0] === '"' && $prelude[strlen($prelude) - 1] === '"') || ($prelude[0] === "'" && $prelude[strlen($prelude) - 1] === "'"))
+        ) {
+            return [
+                'type' => 'custom',
+                'value' => stripcslashes(substr($prelude, 1, -1)),
+            ];
+        }
+
+        return [
+            'type' => 'ident',
+            'value' => $this->decodeCssIdentifierToken($prelude) ?? $prelude,
+        ];
+    }
+
+    private function serializeReturnedKeyframesName(mixed $name): string
+    {
+        if (is_array($name)) {
+            $value = (string) ($name['value'] ?? '');
+            if (($name['type'] ?? null) === 'custom' && $this->isCssReservedKeyframesName($value)) {
+                return '"' . addcslashes($value, "\\\"") . '"';
+            }
+
+            return $this->isCssIdentifierToken($value) ? $this->escapeSelectorIdentifier($value) : '"' . addcslashes($value, "\\\"") . '"';
+        }
+
+        $value = trim((string) $name);
+
+        return $this->isCssIdentifierToken($value) ? $this->escapeSelectorIdentifier($value) : $value;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function keyframesVendorPrefix(string $name): array
+    {
+        return match (strtolower($name)) {
+            '-webkit-keyframes' => ['webkit'],
+            '-moz-keyframes' => ['moz'],
+            default => [],
+        };
+    }
+
+    private function keyframesAtRuleNameFromVendorPrefix(mixed $vendorPrefix): string
+    {
+        if (!is_array($vendorPrefix)) {
+            return 'keyframes';
+        }
+
+        foreach ($vendorPrefix as $prefix) {
+            $prefix = strtolower((string) $prefix);
+            if ($prefix === 'webkit') {
+                return '-webkit-keyframes';
+            }
+            if ($prefix === 'moz') {
+                return '-moz-keyframes';
+            }
+        }
+
+        return 'keyframes';
+    }
+
+    private function isCssReservedKeyframesName(string $name): bool
+    {
+        return in_array(strtolower($name), ['none', 'initial', 'inherit', 'unset', 'default', 'revert', 'revert-layer'], true);
     }
 
     /**
@@ -10300,6 +10680,8 @@ final class CustomAtRuleTransformer
                     $rules[] = $this->buildContainerRule($atPrelude, $body, $parentSelectors, $ruleLocation);
                 } elseif ($name === 'layer') {
                     $rules[] = $this->buildLayerBlockRule($atPrelude, $body, $parentSelectors, $ruleLocation);
+                } elseif ($this->isKeyframesAtRule($name)) {
+                    $rules[] = $this->buildKeyframesRule($name, $atPrelude, $body, $parentSelectors, false, $ruleLocation);
                 } elseif ($this->isCustomAtRule($name)) {
                     $rules[] = ['type' => 'custom', 'value' => $this->buildCustomRule($name, $atPrelude, $body, $parentSelectors, true, $ruleLocation)];
                 } else {
