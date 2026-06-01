@@ -1,8 +1,8 @@
 | Project | Queue | State | Progress | PHP Tests | Mapped | Remaining Gate | Commit |
 | --- | --- | --- | ---: | ---: | ---: | --- | --- |
 | [libsqlite](lanes/libsqlite/lane-status.json) | Primary | 7 failures open | 99.6% | 5,791,113 pass / 7 fail | [1,589 / 1,589](lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json) | Broad release/all still has 7 known failures | 87df2af |
-| [LightningCSS](lanes/lightningcss/lane-status.json) | Active | PHP green; upstream gap | 99.8% | 7,172 pass / 0 fail | [2,365 / 3,532](lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json) | Rust/Node/WASM upstream runners not run | 87df2af |
-| [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 96.2% | 8,501 pass / 0 fail | [1,778 / 2,886](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | Cargo workspace not run | 87df2af |
+| [LightningCSS](lanes/lightningcss/lane-status.json) | Active | PHP green; upstream gap | 99.8% | 7,192 pass / 0 fail | [2,365 / 3,532](lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json) | Rust/Node/WASM upstream runners not run | 93ca749 |
+| [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 96.2% | 8,524 pass / 0 fail | [1,778 / 2,886](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | Cargo workspace not run | 93ca749 |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | No local blocker | cd2e8a0 |
 | [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 95.0% | 239 pass / 0 fail | [660 / 2,276](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | No local blocker | cd2e8a0 |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | No local blocker | cd2e8a0 |

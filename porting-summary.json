@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 09:32:16 UTC",
-    "sourceCommit": "87df2af69228f75752e0877649015b5339271443",
-    "sourceCommitShort": "87df2af69228",
+    "generated": "2026-06-01 09:34:34 UTC",
+    "sourceCommit": "93ca7494c896f5d719fa34b29c45044d51d9751c",
+    "sourceCommitShort": "93ca7494c896",
     "sourceBranch": "unknown",
-    "dashboardCommit": "87df2af69228f75752e0877649015b5339271443",
-    "dashboardCommitShort": "87df2af69228",
+    "dashboardCommit": "93ca7494c896f5d719fa34b29c45044d51d9751c",
+    "dashboardCommitShort": "93ca7494c896",
     "averageProgressPercent": "88.6",
     "lanes": [
         {
@@ -37,13 +37,13 @@
             "denominator": "3532",
             "mapped": "2365",
             "coverage": "2,365 / 3,532",
-            "php": "7,172 pass / 0 fail",
+            "php": "7,192 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor batch: accepted source 87df2af69228 with bundle...",
-            "currentWork": "Bundle/import literal-null handling, color-token minification...",
+            "audit": "2026-06-01 supervisor batch: accepted source 93ca7494c896 with media-...",
+            "currentWork": "Media-query range/layer calc multiplication/division parity a...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, CSS Mo...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "87df2af"
+            "commit": "93ca749"
         },
         {
             "lane": "gitoxide",
@@ -56,13 +56,13 @@
             "denominator": "2886",
             "mapped": "1778",
             "coverage": "1,778 / 2,886",
-            "php": "8,501 pass / 0 fail",
+            "php": "8,524 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor batch: accepted source 87df2af69228 with pack-i...",
-            "currentWork": "Pack-index/MIDX large-offset boundary parity integrated on cu...",
+            "audit": "2026-06-01 supervisor batch: accepted source 93ca7494c896 with refere...",
+            "currentWork": "Reference transaction Windows device-name guard parity integr...",
             "nextTarget": "Keep Gitoxide workers on current-base non-overlapping sparse-...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "87df2af"
+            "commit": "93ca749"
         },
         {
             "lane": "readability",
