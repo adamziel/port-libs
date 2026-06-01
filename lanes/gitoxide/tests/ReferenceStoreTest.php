@@ -1561,6 +1561,40 @@ return [
         $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/log-only'));
         $t->same(false, $store->reflogExists('refs/heads/log-only'));
     },
+    'prepared reflog-only deletes ignore store write mode and always remove logs like upstream' => static function (TestRunner $t) use ($old, $new): void {
+        foreach ([ReferenceStore::WRITE_REFLOG_NORMAL, ReferenceStore::WRITE_REFLOG_DISABLE] as $writeMode) {
+            $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-delete-write-mode-' . $writeMode . '-' . bin2hex(random_bytes(4));
+            $setup = new ReferenceStore($dir);
+            $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+            $setup->looseStore()->writeSymbolic('HEAD', 'refs/heads/main');
+            $setup->looseStore()->writeDirect('refs/heads/main', $old);
+            $setup->appendReflog('HEAD', ReferenceTarget::object($old), ReferenceTarget::object($new), $committer, 'checkout main', true);
+            $setup->appendReflog('refs/heads/main', ReferenceTarget::object($old), ReferenceTarget::object($new), $committer, 'branch audit', true);
+
+            $store = new ReferenceStore($dir, null, null, $writeMode);
+            $transaction = $store->prepareLooseDeleteTransaction(
+                ['HEAD'],
+                ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+                ReferenceTarget::symbolic('refs/heads/main'),
+                false,
+                'sha1',
+                ReferenceTransactionEdit::REFLOG_ONLY,
+            );
+
+            $t->same(true, is_file($dir . '/HEAD.lock'), "prepared delete holds HEAD lock in {$writeMode} mode");
+            $edits = $transaction->commit();
+
+            $t->same(['HEAD'], array_map(static fn ($edit): string => $edit->name, $edits));
+            $t->same([ReferenceTransactionEdit::REFLOG_ONLY], array_map(static fn ($edit): string => $edit->reflogMode, $edits));
+            $t->same([false], array_map(static fn ($edit): bool => $edit->updatesReference, $edits));
+            $t->same(false, is_file($dir . '/HEAD.lock'));
+            $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/HEAD'));
+            $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/main'));
+            $t->same(false, $store->reflogExists('HEAD'), "write mode {$writeMode} does not protect the deleted HEAD reflog");
+            $t->same(true, $store->reflogExists('refs/heads/main'), 'non-deref reflog-only delete leaves the referent reflog untouched');
+            $t->same(false, is_file($dir . '/packed-refs.lock'));
+        }
+    },
     'reference store recovers empty directory blockers when creating loose refs' => static function (TestRunner $t): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-empty-dir-blocker-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -1688,12 +1722,19 @@ return [
         $t->same($fixture['reviewCommit'], $summary['preparedReferentProductionCommit']);
         $t->same($fixture['expectedPreparedReferentHeadReflog'], $summary['preparedReferentHeadReflog']);
         $t->contains($fixture['expectedPreparedReferentReflogLine'], (string) $summary['preparedReferentProductionReflog']);
+        $t->same($fixture['expectedPreparedDisabledDeleteEditNames'], $summary['preparedDisabledDeleteEditNames']);
+        $t->same($fixture['expectedPreparedDisabledDeleteHadLock'], $summary['preparedDisabledDeleteHadLock']);
+        $t->same($fixture['expectedPreparedDisabledDeleteCleanedLock'], $summary['preparedDisabledDeleteCleanedLock']);
+        $t->same($fixture['expectedPreparedDisabledDeleteHeadContents'], $summary['preparedDisabledDeleteHeadContents']);
+        $t->same($fixture['expectedPreparedDisabledDeleteReflogExists'], $summary['preparedDisabledDeleteReflogExists']);
+        $t->same($fixture['expectedPreparedDisabledDeleteReferentReflogExists'], $summary['preparedDisabledDeleteReferentReflogExists']);
         $t->contains('idempotent prepared writes', $summary['wordpressUse']);
         $t->contains('packed-ref transaction locks', $summary['wordpressUse']);
         $t->contains('clone-style symbolic review pointer', $summary['wordpressUse']);
         $t->contains('dereferenced symbolic HEAD publish', $summary['wordpressUse']);
         $t->contains('direct production referent publish', $summary['wordpressUse']);
         $t->contains('quiet publish previews', $summary['wordpressUse']);
+        $t->contains('disabled write-mode audit cleanup', $summary['wordpressUse']);
     },
     'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-deref-reference-transaction.php';

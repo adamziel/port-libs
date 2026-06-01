@@ -3423,9 +3423,9 @@
       "focusedUpstreamVeryquickShardCurrentSourceNext431": "The 2026-05-28 isolated current-source next431 suite veryquick-shard runner slice maps one additional runner-countability blocker row for launcher Base accepted HEAD fca16e3d, current integration source 8a447f44, lane-local zero-error guarded runner artifact rows, duplicate-runner gates, exact 96 focused PASS-line admission, focused current-source veryquick shard scope, and no release/all parity claim."
     }
   },
-  "latestFocusedSlice": "2026-06-01T00:58Z supervisor batch: real upstream btree WHERE-B affinity, pager WAL savepoint2, pragma malformed leaf integrity, trigger/FK create-table validation, and windowB named CTE dynamic corpus behavior. Focused libsqlite PHP evidence is 6 files / 92490 assertions / 0 failures including SQLiteNoDomainSpecificApiTest. Mapped denominator remains 1589 / 1589; full release/all parity remains unclaimed.",
-  "latestNativePhpVerification": "Source commit 256829a937e910d6e9fcc40d24eedf8ae3406131 passed php -l on changed libsqlite PHP files, focused libsqlite gate 3 files / 603023 assertions / 0 failures including SQLiteNoDomainSpecificApiTest, and git diff --check. Full release/all-runner parity remains open.",
-  "runnerStatus": "2026-05-31 supervisor batch at source 1989e5a96: focused accepted-file libsqlite gate passed 3 files / 57493 assertions / 0 failures including SQLiteNoDomainSpecificApiTest. Mapped coverage remains 1589 / 1589; release/all-runner parity remains open.",
+  "latestFocusedSlice": "2026-06-01 supervisor batch: application WAL post-checkpoint tail followup plus real upstream atof1 REAL suffix 7000..7999 parity. Focused libsqlite gate passed 2 files / 17019 assertions / 0 failures with memory_limit=2048M; mapped denominator remains 1589 / 1589.",
+  "latestNativePhpVerification": "Source commit pending in current supervisor batch passed php -l on 32 changed/new PHP files across Gitoxide, LightningCSS, and libsqlite; focused libsqlite gate passed 2 files / 17019 assertions / 0 failures with memory_limit=2048M; application WAL example exited 0; git diff --check and libsqlite source guard found no new WordPress-specific or numbered production source names.",
+  "runnerStatus": "2026-06-01 supervisor batch: focused libsqlite gate passed 2 files / 17019 assertions / 0 failures with memory_limit=2048M after accepting application WAL post-checkpoint tail followup and atof1 REAL suffix 7000..7999 parity. Mapped coverage remains 1589 / 1589; release/all-runner parity remains open.",
   "latestCommit": "dc6ff07aec68e1e84e6a2666ec51a11acc59324c",
   "latestFocusedCorpusBatch20260531T2250Z": {
     "sourceCommit": "48a678f72e367c869dc62452fbad34f36daa273b",
@@ -3468,5 +3468,17 @@
     "upstreamEvidence": "hydrated SQLite upstream corpus source sections for btree, pager WAL/savepoint, pragma malformed leaf, trigger/fkey, and windowB behavior; full release/all runner not executed for this micro-batch",
     "cleanupDebt": "pre-existing wp_ fixture strings and CurrentSourceNext/CurrentNext/numbered-plan source names remain; latest batch introduced none"
   },
-  "currentSlice": "2026-06-01 source 256829a937e910d6e9fcc40d24eedf8ae3406131: JSON101 hidden-root SELECT dynamic corpus and returning1 INSERT SELECT RETURNING transfer corpus."
+  "currentSlice": "2026-06-01 source 256829a937e910d6e9fcc40d24eedf8ae3406131: JSON101 hidden-root SELECT dynamic corpus and returning1 INSERT SELECT RETURNING transfer corpus.",
+  "latestFocusedCorpusBatch20260601T0124Z": {
+    "sourceCommit": "pending-current-supervisor-batch",
+    "selectedPassIncrease": 14718,
+    "selectedPassBefore": 5224352,
+    "selectedPassAfter": 5239070,
+    "acceptedSlices": [
+      "application WAL post-checkpoint tail followup parity",
+      "atof1 decimal REAL suffix 7000..7999 dynamic corpus"
+    ],
+    "nativeVerification": "php -l on 32 changed/new PHP files across accepted batch; git diff --check; focused libsqlite gate 2 files / 17019 assertions / 0 failures with memory_limit=2048M; application WAL example exits 0; libsqlite source guard found no new WordPress-specific or numbered production source names",
+    "upstreamEvidence": "hydrated SQLite upstream atof1.test decimal REAL affinity suffix corpus plus source-neutral application WAL rollback/checkpoint parity; full release/all runner not executed"
+  }
 }

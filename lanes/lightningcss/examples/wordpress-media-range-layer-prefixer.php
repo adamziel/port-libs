@@ -98,6 +98,10 @@ $actual = [
         '@layer theme.blocks { @media (0.5x <= resolution <= 1.5x) { .wp-block-query.is-low-density-window { color: yellow; } } }',
         ['safari' => 15, 'firefox' => 10]
     ),
+    'mixedEnvResolutionPrefixFallback' => $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (min-resolution: 2dppx) and (min-resolution: env(--wp-density-floor)) { .wp-block-query.is-density-env-window { color: yellow; } } }',
+        ['safari' => 15, 'firefox' => 10]
+    ),
     'numericCalcRangeFallback' => $prefixer->prefixForTargets(
         <<<'CSS'
 @layer theme.blocks {
@@ -257,6 +261,7 @@ $expected = [
     'xResolutionPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query.is-density-aware{color:#ff0}}}',
     'resolutionEqualityPrefixFallback' => '@layer theme.blocks{@media (-webkit-device-pixel-ratio:2),(-moz-device-pixel-ratio:2),(resolution:2dppx){.wp-block-query.is-density-exact{color:#ff0}}}',
     'xResolutionIntervalPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query.is-low-density-window{color:#ff0}}}',
+    'mixedEnvResolutionPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2) and (min-resolution:env(--wp-density-floor)),(min--moz-device-pixel-ratio:2) and (min-resolution:env(--wp-density-floor)),(min-resolution:2dppx) and (min-resolution:env(--wp-density-floor)){.wp-block-query.is-density-env-window{color:#ff0}}}',
     'numericCalcRangeFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2){.wp-block-query.is-density-calc{color:#ff0}}@media (min--moz-device-pixel-ratio:1) and (max--moz-device-pixel-ratio:2){.wp-block-query.is-density-calc-window{color:#ff0}}}',
     'negatedRangeGroup' => '@layer theme.blocks{@media not (((min-width:100px) and (max-width:200px)) or (hover)){.wp-block-query.is-not-compact-hover{color:#ff0}}}',
     'negatedIntervalWithHover' => '@layer theme.blocks{@media (hover) and (not ((min-width:200px) and (not (min-width:500px)))){.wp-block-query.is-not-middle-hover{color:#ff0}}}',

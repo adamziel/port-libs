@@ -27,6 +27,8 @@ $media = $database->read($fixture['objectsByRole']['media']['oid']);
 $shared = $database->read($fixture['objectsByRole']['shared']['oid']);
 $loosePrefixCandidateOid = (new LooseObjectStore($gitDir))->write(new GitObject('blob', 'midx-prefix-candidate-128814'));
 $contentPrefixCandidates = $database->lookupPrefix(substr($fixture['objectsByRole']['content']['oid'], 0, 4), true);
+$contentShortestPrefix = $database->disambiguatePrefix($fixture['objectsByRole']['content']['oid'], 4);
+$contentFullPrefix = $database->lookupPrefix($fixture['objectsByRole']['content']['oid'], true);
 
 return [
     'packedObjects' => $database->packedObjectCount(),
@@ -41,5 +43,8 @@ return [
     'loosePrefixCandidateOid' => $loosePrefixCandidateOid,
     'contentPrefixCandidateStatus' => $contentPrefixCandidates['status'],
     'contentPrefixCandidates' => $contentPrefixCandidates['candidates'],
+    'contentShortestPrefixAfterLooseCandidate' => $contentShortestPrefix,
+    'contentFullPrefixStatus' => $contentFullPrefix['status'],
+    'contentFullPrefixCandidates' => $contentFullPrefix['candidates'],
     'packOffsetOrder' => $database->objectIds(ObjectDatabase::ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL),
 ];

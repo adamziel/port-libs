@@ -200,6 +200,8 @@ return [
         $t->same('(width<=env(unknown))', $parser->minifyList('(max-width: env(unknown))'));
         $t->same('(max-width:env(--branding-small 1,20px))', $parser->lowerRangeSyntaxList('(max-width: env(--branding-small 1, 20px))'));
         $t->same('(max-width:env(safe-area-inset-top))', $parser->lowerRangeSyntaxList('(max-width: env(safe-area-inset-top))'));
+        $t->same('(resolution>=env(--wp-density-floor))', $parser->minifyList('(min-resolution: env(--wp-density-floor))'));
+        $t->same('(min-resolution:env(--wp-density-floor)) and (max-resolution:2dppx)', $parser->lowerRangeSyntaxList('(env(--wp-density-floor) <= resolution <= 2dppx)'));
     },
     'media query parser rejects upstream invalid range and feature syntax' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();

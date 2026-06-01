@@ -118,6 +118,15 @@ final class CustomAtRuleTransformer
     private $lengthVisitor = null;
 
     /** @var callable|null */
+    private $angleVisitor = null;
+
+    /** @var callable|null */
+    private $timeVisitor = null;
+
+    /** @var callable|null */
+    private $resolutionVisitor = null;
+
+    /** @var callable|null */
     private $urlVisitor = null;
 
     /** @var callable|null */
@@ -150,7 +159,7 @@ final class CustomAtRuleTransformer
 
     public function __construct()
     {
-        $this->declarationBlock = new DeclarationBlock();
+        $this->declarationBlock = new DeclarationBlock(false);
         $this->minifier = new CssMinifier();
     }
 
@@ -717,6 +726,15 @@ final class CustomAtRuleTransformer
 
                 return $changed ? $value : null;
             },
+            'Angle' => static function (array $angle, self $transformer) use ($visitors): mixed {
+                return self::callComposedUnitVariantVisitors($visitors, 'Angle', $angle, $transformer);
+            },
+            'Time' => static function (array $time, self $transformer) use ($visitors): mixed {
+                return self::callComposedUnitVariantVisitors($visitors, 'Time', $time, $transformer);
+            },
+            'Resolution' => static function (array $resolution, self $transformer) use ($visitors): mixed {
+                return self::callComposedUnitVariantVisitors($visitors, 'Resolution', $resolution, $transformer);
+            },
             'Color' => static function (array $color, self $transformer) use ($visitors): mixed {
                 $value = $color;
                 $changed = false;
@@ -1180,6 +1198,9 @@ final class CustomAtRuleTransformer
         }
 
         $this->lengthVisitor = is_callable($visitor['Length'] ?? null) ? $visitor['Length'] : null;
+        $this->angleVisitor = is_callable($visitor['Angle'] ?? null) ? $visitor['Angle'] : null;
+        $this->timeVisitor = is_callable($visitor['Time'] ?? null) ? $visitor['Time'] : null;
+        $this->resolutionVisitor = is_callable($visitor['Resolution'] ?? null) ? $visitor['Resolution'] : null;
         $this->colorVisitor = is_callable($visitor['Color'] ?? null) ? $visitor['Color'] : null;
         $this->urlVisitor = is_callable($visitor['Url'] ?? null) ? $visitor['Url'] : null;
         $this->imageVisitor = is_callable($visitor['Image'] ?? null) ? $visitor['Image'] : null;
@@ -4158,6 +4179,29 @@ final class CustomAtRuleTransformer
 
     /**
      * @param list<array<string, mixed>> $visitors
+     * @param array<string, mixed> $value
+     */
+    private static function callComposedUnitVariantVisitors(array $visitors, string $visitorName, array $value, self $transformer): mixed
+    {
+        $changed = false;
+        foreach ($visitors as $visitor) {
+            $callback = self::unitVariantVisitorCallback($visitor, $visitorName);
+            if ($callback === null) {
+                continue;
+            }
+
+            $replacement = $callback($value, $transformer);
+            if ($replacement !== null) {
+                $value = $transformer->normalizeUnitVariantVisitorValue($replacement, $visitorName);
+                $changed = true;
+            }
+        }
+
+        return $changed ? $value : null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $visitors
      * @param array<string, mixed> $declaration
      * @return list<array<string, mixed>>|null
      */
@@ -4640,6 +4684,16 @@ final class CustomAtRuleTransformer
         $lengthConfig = $visitor['Length'] ?? null;
 
         return is_callable($lengthConfig) ? $lengthConfig : null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function unitVariantVisitorCallback(array $visitor, string $visitorName): ?callable
+    {
+        $config = $visitor[$visitorName] ?? null;
+
+        return is_callable($config) ? $config : null;
     }
 
     /**
@@ -6178,6 +6232,24 @@ final class CustomAtRuleTransformer
             }
         }
 
+        foreach ([
+            'angle' => $this->angleVisitor,
+            'time' => $this->timeVisitor,
+            'resolution' => $this->resolutionVisitor,
+        ] as $type => $visitor) {
+            if (($value['type'] ?? null) !== $type || $visitor === null || !is_array($value['value'] ?? null)) {
+                continue;
+            }
+
+            $replacement = $visitor($value['value'], $this);
+            if ($replacement !== null) {
+                return [
+                    'type' => $type,
+                    'value' => $this->normalizeUnitVariantVisitorValue($replacement, ucfirst($type)),
+                ];
+            }
+        }
+
         $color = $this->colorComponents($value);
         if ($color !== null && $this->colorVisitor !== null) {
             $replacement = ($this->colorVisitor)($color, $this);
@@ -6187,6 +6259,37 @@ final class CustomAtRuleTransformer
         }
 
         return $value;
+    }
+
+    /**
+     * @return array{type:string,value:int|float}
+     */
+    private function normalizeUnitVariantVisitorValue(mixed $value, string $visitorName): array
+    {
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException($visitorName . ' visitor must return a unit variant array or null');
+        }
+
+        $outerType = $value['type'] ?? null;
+        if (in_array($outerType, ['angle', 'time', 'resolution'], true) && is_array($value['value'] ?? null)) {
+            $expectedType = strtolower($visitorName);
+            if ($outerType !== $expectedType) {
+                throw new \InvalidArgumentException($visitorName . ' visitor must return a ' . $expectedType . ' unit variant');
+            }
+
+            $value = $value['value'];
+        }
+
+        $type = $value['type'] ?? null;
+        $number = $value['value'] ?? null;
+        if (!is_string($type) || (!is_int($number) && !is_float($number))) {
+            throw new \InvalidArgumentException($visitorName . ' visitor must return a typed numeric unit variant');
+        }
+
+        return [
+            'type' => strtolower($type),
+            'value' => $number,
+        ];
     }
 
     /**

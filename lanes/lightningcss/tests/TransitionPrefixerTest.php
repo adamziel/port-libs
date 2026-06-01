@@ -3244,6 +3244,18 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media (0.5dppx <= resolution <= 1.5dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
         );
         $t->same(
+            '@layer blocks{@media (-webkit-min-device-pixel-ratio:2) and (min-resolution:env(--wp-density-floor)),(min--moz-device-pixel-ratio:2) and (min-resolution:env(--wp-density-floor)),(min-resolution:2dppx) and (min-resolution:env(--wp-density-floor)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2dppx) and (min-resolution: env(--wp-density-floor)) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@layer blocks{@media (not (-webkit-max-device-pixel-ratio:2)) and (not (min-resolution:env(--wp-density-ceiling))),(not (max--moz-device-pixel-ratio:2)) and (not (min-resolution:env(--wp-density-ceiling))),(not (max-resolution:2dppx)) and (not (min-resolution:env(--wp-density-ceiling))){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (resolution > 2dppx) and (resolution < env(--wp-density-ceiling)) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@layer blocks{@media (min-resolution:env(--wp-density-floor)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: env(--wp-density-floor)) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
             '@media only screen and (-webkit-min-device-pixel-ratio:.5),only screen and (min--moz-device-pixel-ratio:.5),only screen and (min-resolution:48dpi){.foo{color:#ff0}}',
             $prefixer->prefixForTargets('@media only screen and (min-resolution: 48dpi) { .foo { color: yellow; } }', ['safari' => 15, 'firefox' => 10])
         );

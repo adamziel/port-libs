@@ -233,6 +233,23 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $index->lookup($first . '0'));
         $t->throws(InvalidArgumentException::class, static fn () => PackIndex::fromBytes('', 'blake3'));
     },
+    'resets odd-length missing pack index prefixes and treats full ids as one-entry ranges' => static function (TestRunner $t) use ($buildIndex, $entries, $packChecksum): void {
+        $index = PackIndex::fromBytes($buildIndex($entries, $packChecksum));
+
+        $missing = $index->lookupPrefix('0000000');
+        $t->same('missing', $missing['status']);
+        $t->same(['start' => 0, 'end' => 0], $missing['candidateRange']);
+
+        $first = $index->lookupPrefix(strtoupper($entries[0]['oid']));
+        $t->same('found', $first['status']);
+        $t->same($entries[0]['oid'], $first['entry']->oid);
+        $t->same(['start' => 0, 'end' => 1], $first['candidateRange']);
+
+        $last = $index->lookupPrefix(strtoupper($entries[2]['oid']));
+        $t->same('found', $last['status']);
+        $t->same($entries[2]['oid'], $last['entry']->oid);
+        $t->same(['start' => 2, 'end' => 3], $last['candidateRange']);
+    },
     'rejects corrupt pack index headers fanout sizes and checksums' => static function (TestRunner $t) use ($buildIndex, $entries, $packChecksum): void {
         $valid = $buildIndex($entries, $packChecksum);
         $t->throws(InvalidArgumentException::class, static fn () => PackIndex::fromBytes('not an index'));

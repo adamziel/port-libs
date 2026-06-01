@@ -4999,7 +4999,7 @@ final class CssMinifier
     private function minifyTransformValue(string $property, string $value): string
     {
         return match (strtolower($property)) {
-            'transform', '-webkit-transform', '-moz-transform' => $this->minifyTransformFunctionList($value),
+            'transform', '-webkit-transform', '-moz-transform', '-ms-transform', '-o-transform' => $this->minifyTransformFunctionList($value),
             'translate' => $this->minifyTransformTranslateLonghand($value),
             'rotate' => $this->minifyTransformRotateLonghand($value),
             'scale' => $this->minifyTransformScaleLonghand($value),

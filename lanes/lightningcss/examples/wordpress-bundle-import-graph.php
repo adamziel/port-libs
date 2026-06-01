@@ -403,6 +403,37 @@ try {
     echo 'malformed-import-media: rejected-before-read' . PHP_EOL;
 }
 
+$badImportSupportsReads = [];
+try {
+    (new CssBundler())->bundleWithReader(
+        '/bad-import-supports.css',
+        static function (string $file) use (&$badImportSupportsReads): string {
+            $badImportSupportsReads[] = $file;
+
+            return $file === '/bad-import-supports.css'
+                ? '@import "blocks/card.css" supports((display: grid) and); .wp-site-blocks { color: red; }'
+                : '.wp-block-card { color: green; }';
+        }
+    );
+
+    fwrite(STDERR, "Expected malformed import supports condition to be rejected before reading block CSS\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== 'Invalid @import supports condition'
+        || $exception->sourceFile !== '/bad-import-supports.css'
+        || $exception->sourceLine !== 1
+        || $exception->sourceColumn !== 1
+        || $badImportSupportsReads !== ['/bad-import-supports.css']
+    ) {
+        fwrite(STDERR, 'Unexpected malformed import supports diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'malformed-import-supports: rejected-before-read' . PHP_EOL;
+}
+
 $mediaBooleanBundle = (new CssBundler())->bundle('/entry.css', [
     '/entry.css' => '@import "print.css" layer(theme.blocks) print; .entry { color: red }',
     '/print.css' => '@import "wide.css" not screen and (width >= 240px); .wp-block-query { color: blue }',

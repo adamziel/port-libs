@@ -958,6 +958,59 @@ CSS);
         ], $dependencyResult['exports']);
         $t->same([], $dependencyResult['references']);
     },
+    'css modules treats comments as token separators after escaped composes properties' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
+        $localResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  c\6f mposes: base/* comment */tone;
+  color: red;
+}
+
+.base {
+  color: blue;
+}
+
+.tone {
+  color: green;
+}
+CSS);
+
+        $t->same('.EgL3uq_card{color:red}.EgL3uq_base{color:#00f}.EgL3uq_tone{color:green}', $localResult['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base'), $local('EgL3uq_tone')]),
+            'base' => $export('EgL3uq_base'),
+            'tone' => $export('EgL3uq_tone'),
+        ], $localResult['exports']);
+        $t->same([], $localResult['references']);
+
+        $globalResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  c\6f mposes: wp-block/* comment */is-wide from g\6c obal;
+  color: red;
+}
+CSS);
+
+        $t->same('.EgL3uq_card{color:red}', $globalResult['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$global('wp-block'), $global('is-wide')]),
+        ], $globalResult['exports']);
+        $t->same([], $globalResult['references']);
+
+        $dependencyResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  C\6f MPOSES: token/* comment */shadow from "./tokens.css";
+  color: red;
+}
+CSS);
+
+        $t->same('.EgL3uq_card{color:red}', $dependencyResult['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [
+                $dependency('token', './tokens.css'),
+                $dependency('shadow', './tokens.css'),
+            ]),
+        ], $dependencyResult['exports']);
+        $t->same([], $dependencyResult['references']);
+    },
     'css modules decodes escaped dependency specifiers in composes metadata' => static function (TestRunner $t) use ($export, $dependency): void {
         $css = <<<'CSS'
 .test {

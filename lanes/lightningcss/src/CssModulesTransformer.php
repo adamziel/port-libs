@@ -4293,7 +4293,9 @@ final class CssModulesTransformer
                     $inDeclarationValue = false;
                     $inComposesDeclarationValue = false;
                 } elseif ($char === ':' && !$inDeclarationValue) {
-                    $inComposesDeclarationValue = strcasecmp(trim($declarationHead), 'composes') === 0;
+                    $property = trim($declarationHead);
+                    $inComposesDeclarationValue = $property !== ''
+                        && $this->normalizedDeclarationPropertyName($property) === 'composes';
                     $declarationHead = '';
                     $inDeclarationValue = true;
                 } elseif (!$inDeclarationValue) {

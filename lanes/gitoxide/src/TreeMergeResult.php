@@ -125,6 +125,18 @@ final class TreeMergeResult
                 $tree = $subtreeReplacement;
                 continue;
             }
+            if ($isContentConflict && $resolutionForConflict === self::RESOLVE_ANCESTOR) {
+                $ancestorContentResolution = self::resolveContentConflictAncestorEntries(
+                    $tree,
+                    $conflict,
+                    $readObject,
+                    $writeObject,
+                );
+                if ($ancestorContentResolution !== null) {
+                    $tree = $ancestorContentResolution;
+                    continue;
+                }
+            }
 
             $resolvedTree = !$isContentConflict
                 ? self::mergedTreeEntryForResolvedConflict(
@@ -245,6 +257,17 @@ final class TreeMergeResult
             if (isset($context[$key]) && is_string($context[$key]) && $context[$key] !== '') {
                 $context[$key] = self::joinPath($prefix, $context[$key]);
             }
+        }
+
+        $ancestorEntries = $context['ancestorEntries'] ?? null;
+        if (is_array($ancestorEntries)) {
+            $rebased = [];
+            foreach ($ancestorEntries as $path => $entry) {
+                if (is_string($path) && $path !== '' && $entry instanceof TreeEntry) {
+                    $rebased[self::joinPath($prefix, $path)] = $entry;
+                }
+            }
+            $context['ancestorEntries'] = $rebased;
         }
 
         return $context;
@@ -378,6 +401,37 @@ final class TreeMergeResult
             $readObject,
             $writeObject,
         );
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     */
+    private static function resolveContentConflictAncestorEntries(
+        Tree $tree,
+        TreeMergeConflict $conflict,
+        callable $readObject,
+        callable $writeObject,
+    ): ?Tree {
+        $ancestorEntries = $conflict->context['ancestorEntries'] ?? null;
+        if (!is_array($ancestorEntries) || $ancestorEntries === []) {
+            return null;
+        }
+
+        $resolved = self::removeEntryAtPath($tree, $conflict->path, $readObject, $writeObject);
+        $paths = array_keys($ancestorEntries);
+        sort($paths, SORT_STRING);
+        $applied = false;
+        foreach ($paths as $path) {
+            $entry = $ancestorEntries[$path] ?? null;
+            if (!is_string($path) || $path === '' || !$entry instanceof TreeEntry) {
+                continue;
+            }
+            $resolved = self::setEntryAtPath($resolved, $path, $entry, $readObject, $writeObject);
+            $applied = true;
+        }
+
+        return $applied ? $resolved : null;
     }
 
     /**

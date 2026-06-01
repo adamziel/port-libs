@@ -2581,6 +2581,20 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicPostCheckpointTailRecoveryCheckpointFollowupScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL post-checkpoint tail recovery checkpoint followup dynamic parity requires at least one scenario');
+        }
+
+        return self::dynamicPostCheckpointTailRecoveryCheckpointFollowupScenariosFromCheckpointScenarios(
+            self::dynamicPostCheckpointTailRecoveryCheckpointScenarios($scenarioCount)
+        );
+    }
+
+    /**
      * @param list<array<string,mixed>> $baseScenarios
      * @return list<array<string,mixed>>
      */
@@ -3355,6 +3369,96 @@ final class SQLiteJsonImportRollbackWalPlan
                 'tail_recovery_superseded_page_numbers' => array_values(array_unique($supersededPageNumbers)),
                 'tail_recovery_inserted_key_retained_after_checkpoint' => in_array($base['expected_post_checkpoint_recovery_inserted_key'], $finalKeys, true),
                 'tail_recovery_rejected_tail_key_retained_after_checkpoint' => in_array($base['rejected_post_checkpoint_tail_inserted_key'], $finalKeys, true),
+            ]);
+        }
+
+        return $scenarios;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $baseScenarios
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicPostCheckpointTailRecoveryCheckpointFollowupScenariosFromCheckpointScenarios(array $baseScenarios): array
+    {
+        if ($baseScenarios === []) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL post-checkpoint tail recovery checkpoint followup dynamic parity requires at least one checkpoint scenario');
+        }
+
+        $scenarios = [];
+        foreach ($baseScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $tenantId = (int) $base['tenant_id'];
+            $pageSize = (int) $base['page_size'];
+            $jsonbMode = (bool) $base['jsonb_mode'];
+            $releasedCheckpoint = $base['tail_recovery_released_checkpoint'];
+            $checkpointedDatabase = (string) $releasedCheckpoint['database_bytes'];
+            $checkpointWalBytes = (string) $releasedCheckpoint['wal_bytes'];
+            $startedNewWalHeader = $checkpointWalBytes === '';
+            if ($startedNewWalHeader) {
+                $checkpointWalBytes = self::emptyCheckpointWalBytes(
+                    $pageSize,
+                    $releasedCheckpoint['next_wal_header_salt'] ?? [0x51, 0x52],
+                    1
+                );
+            }
+
+            $recoveryPages = $base['expected_post_checkpoint_recovery_pages'];
+            $catalogPage = (int) $recoveryPages[0];
+            $followupInsertPage = 2220 + $seed;
+            $followupRows = $base['post_checkpoint_tail_recovery_plan']['import_plan']['final_rows'];
+            $followupMutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'tail_recovery_checkpoint_followup_catalog_' . $seed,
+                    'key_name' => 'disabled_rollback_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.after_tail_recovery_checkpoint',
+                    'value' => 'after-tail-recovery-checkpoint-' . $seed,
+                    'wal_frame_index' => 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'tail_recovery_checkpoint_followup_insert_' . $seed,
+                    'key_name' => 'tail_recovery_checkpoint_followup_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.complete',
+                    'value' => true,
+                    'on_missing' => 'insert',
+                    'insert_setting_id' => $seed * 10000 + 12,
+                    'insert_load_policy' => 'auto',
+                    'initial_value' => '{}',
+                    'page_number' => $followupInsertPage,
+                    'wal_frame_index' => 2,
+                ],
+            ];
+
+            $followupPlan = self::plan($followupRows, $followupMutations, [
+                'database_bytes' => $checkpointedDatabase,
+                'page_size' => $pageSize,
+                'wal_bytes' => $checkpointWalBytes,
+                'transaction' => 'application_tail_recovery_checkpoint_followup_json_import_' . $seed,
+                'savepoint' => 'tail_recovery_checkpoint_followup_json_batch_' . $seed,
+                'pre_savepoint_wal_pages' => [],
+                'materialize_success_wal_frames' => true,
+            ]);
+
+            $finalKeys = array_column($followupPlan['import_plan']['final_rows'], 'key_name');
+            $scenarios[] = array_merge($base, [
+                'tail_recovery_checkpoint_followup_input_database_hash' => hash('sha256', $checkpointedDatabase),
+                'tail_recovery_checkpoint_followup_input_wal_hash' => hash('sha256', $checkpointWalBytes),
+                'tail_recovery_checkpoint_followup_wal_bytes' => $checkpointWalBytes,
+                'tail_recovery_checkpoint_followup_started_new_wal_header' => $startedNewWalHeader,
+                'tail_recovery_checkpoint_followup_wal_header_length' => strlen($checkpointWalBytes),
+                'tail_recovery_checkpoint_followup_base_row_count' => count($followupRows),
+                'expected_tail_recovery_checkpoint_followup_pages' => [$catalogPage, $followupInsertPage],
+                'expected_tail_recovery_checkpoint_followup_inserted_key' => 'tail_recovery_checkpoint_followup_payload_' . $seed,
+                'expected_tail_recovery_checkpoint_followup_inserted_id' => $seed * 10000 + 12,
+                'tail_recovery_checkpoint_followup_plan' => $followupPlan,
+                'tail_recovery_checkpoint_followup_inserted_key_retained' => in_array('tail_recovery_checkpoint_followup_payload_' . $seed, $finalKeys, true),
+                'tail_recovery_checkpoint_followup_recovery_key_retained' => in_array($base['expected_post_checkpoint_recovery_inserted_key'], $finalKeys, true),
+                'tail_recovery_checkpoint_followup_prior_followup_key_retained' => in_array($base['expected_followup_inserted_key'], $finalKeys, true),
+                'tail_recovery_checkpoint_followup_rejected_tail_key_retained' => in_array($base['rejected_post_checkpoint_tail_inserted_key'], $finalKeys, true),
             ]);
         }
 

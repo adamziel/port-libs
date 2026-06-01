@@ -598,6 +598,96 @@ CSS;
             $seen['rules']['tokens']['preludeAst']['value']['components'],
         ));
     },
+    'custom at-rules visit upstream unit component preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'angles' => [],
+            'times' => [],
+            'resolutions' => [],
+            'rules' => [],
+        ];
+        $css = <<<'CSS'
+@tilt 90deg;
+@delays 250ms 1s;
+@density 2dppx;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Angle' => static function (array $angle) use (&$seen): array {
+                    $seen['angles'][] = $angle;
+
+                    return [
+                        'type' => 'turn',
+                        'value' => $angle['value'] / 360,
+                    ];
+                },
+            ],
+            [
+                'Time' => static function (array $time) use (&$seen): array {
+                    $seen['times'][] = $time;
+
+                    return [
+                        'type' => 'seconds',
+                        'value' => $time['type'] === 'milliseconds' ? $time['value'] / 1000 : $time['value'] * 2,
+                    ];
+                },
+                'Resolution' => static function (array $resolution) use (&$seen): array {
+                    $seen['resolutions'][] = $resolution;
+
+                    return [
+                        'type' => 'resolution',
+                        'value' => [
+                            'type' => 'dpi',
+                            'value' => $resolution['value'] * 96,
+                        ],
+                    ];
+                },
+            ],
+            [
+                'Rule' => [
+                    'custom' => static function (array $rule) use (&$seen): array {
+                        $seen['rules'][$rule['name']] = [
+                            'prelude' => $rule['prelude'],
+                            'preludeAst' => $rule['preludeAst'],
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tilt' => ['prelude' => '<angle>'],
+            'delays' => ['prelude' => '<time>+'],
+            'density' => ['prelude' => '<resolution>'],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([['type' => 'deg', 'value' => 90.0]], $seen['angles']);
+        $t->same([
+            ['type' => 'milliseconds', 'value' => 250.0],
+            ['type' => 'seconds', 'value' => 1.0],
+        ], $seen['times']);
+        $t->same([['type' => 'dppx', 'value' => 2.0]], $seen['resolutions']);
+        $t->same('0.25turn', $seen['rules']['tilt']['prelude']);
+        $t->same(['type' => 'turn', 'value' => 0.25], $seen['rules']['tilt']['preludeAst']['value']);
+        $t->same('0.25s 2s', $seen['rules']['delays']['prelude']);
+        $t->same(['seconds', 'seconds'], array_map(
+            static fn (array $component): string => $component['value']['type'],
+            $seen['rules']['delays']['preludeAst']['value']['components']
+        ));
+        $t->same([0.25, 2.0], array_map(
+            static fn (array $component): float => $component['value']['value'],
+            $seen['rules']['delays']['preludeAst']['value']['components']
+        ));
+        $t->same('192dpi', $seen['rules']['density']['prelude']);
+        $t->same(['type' => 'dpi', 'value' => 192.0], $seen['rules']['density']['preludeAst']['value']);
+    },
     'custom at-rules map upstream bundler mixin visitor after import resolution' => static function (TestRunner $t) use ($customDefinitions, $mixinVisitor): void {
         $mixins = [];
         $result = (new CustomAtRuleTransformer())->bundle('/apply.css', [

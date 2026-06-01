@@ -235,6 +235,45 @@ $preparedReferentEdits = $preparedReferent->commit();
 $preparedReferentCleanedLock = !is_file($preparedReferentDir . '/' . $preparedReferentPrefix . $fixture['preparedReferentRef'] . '.lock');
 $preparedReferentHeadReflogAfter = $preparedReferentStore->reflogContents('HEAD');
 
+$preparedDisabledDeleteDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-disabled-delete-' . bin2hex(random_bytes(4));
+$preparedDisabledDeleteSetup = new ReferenceStore($preparedDisabledDeleteDir, null, $fixture['namespace']);
+$preparedDisabledDeletePrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedDisabledDeleteCommitter = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+$preparedDisabledDeleteSetup->looseStore()->writeSymbolic(
+    $preparedDisabledDeletePrefix . $fixture['preparedDisabledDeleteHeadRef'],
+    $preparedDisabledDeletePrefix . $fixture['preparedDisabledDeleteTargetRef'],
+);
+$preparedDisabledDeleteSetup->looseStore()->writeDirect($preparedDisabledDeletePrefix . $fixture['preparedDisabledDeleteTargetRef'], $fixture['productionCommit']);
+$preparedDisabledDeleteSetup->appendReflog(
+    $fixture['preparedDisabledDeleteHeadRef'],
+    ReferenceTarget::object($fixture['reviewCommit']),
+    ReferenceTarget::object($fixture['productionCommit']),
+    $preparedDisabledDeleteCommitter,
+    $fixture['preparedDisabledDeleteReflogMessage'],
+    true,
+);
+$preparedDisabledDeleteSetup->appendReflog(
+    $fixture['preparedDisabledDeleteTargetRef'],
+    ReferenceTarget::object($fixture['reviewCommit']),
+    ReferenceTarget::object($fixture['productionCommit']),
+    $preparedDisabledDeleteCommitter,
+    'production branch audit stays',
+    true,
+);
+$preparedDisabledDeleteStore = new ReferenceStore($preparedDisabledDeleteDir, null, $fixture['namespace'], ReferenceStore::WRITE_REFLOG_DISABLE);
+$preparedDisabledDelete = $preparedDisabledDeleteStore->prepareLooseDeleteTransaction(
+    [$fixture['preparedDisabledDeleteHeadRef']],
+    ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+    ReferenceTarget::symbolic($fixture['preparedDisabledDeleteTargetRef']),
+    false,
+    'sha1',
+    ReferenceTransactionEdit::REFLOG_ONLY,
+);
+$preparedDisabledDeletePath = $preparedDisabledDeleteDir . '/' . $preparedDisabledDeletePrefix . $fixture['preparedDisabledDeleteHeadRef'];
+$preparedDisabledDeleteHadLock = is_file($preparedDisabledDeletePath . '.lock');
+$preparedDisabledDeleteEdits = $preparedDisabledDelete->commit();
+$preparedDisabledDeleteCleanedLock = !is_file($preparedDisabledDeletePath . '.lock');
+
 return [
     'namespace' => $fixture['namespace'],
     'productionCommit' => $production->targetObjectId(),
@@ -310,5 +349,11 @@ return [
     'preparedReferentProductionCommit' => $preparedReferentStore->find($fixture['preparedReferentRef'])->targetObjectId(),
     'preparedReferentHeadReflog' => $preparedReferentHeadReflogAfter,
     'preparedReferentProductionReflog' => $preparedReferentStore->reflogContents($fixture['preparedReferentRef']),
+    'preparedDisabledDeleteEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedDisabledDeleteEdits),
+    'preparedDisabledDeleteHadLock' => $preparedDisabledDeleteHadLock,
+    'preparedDisabledDeleteCleanedLock' => $preparedDisabledDeleteCleanedLock,
+    'preparedDisabledDeleteHeadContents' => file_get_contents($preparedDisabledDeletePath),
+    'preparedDisabledDeleteReflogExists' => $preparedDisabledDeleteStore->reflogExists($fixture['preparedDisabledDeleteHeadRef']),
+    'preparedDisabledDeleteReferentReflogExists' => $preparedDisabledDeleteStore->reflogExists($fixture['preparedDisabledDeleteTargetRef']),
     'wordpressUse' => $fixture['wordpressUse'],
 ];

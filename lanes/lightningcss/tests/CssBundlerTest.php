@@ -883,6 +883,49 @@ CSS,
             'CSS contains an unbalanced () pair'
         );
     },
+    'css bundler rejects invalid import supports conditions before resolver reads' => static function (TestRunner $t): void {
+        $assertInvalidImportSupports = static function (string $css) use ($t): void {
+            $reads = [];
+            try {
+                (new CssBundler())->bundleWithReader('/entry.css', static function (string $file) use (&$reads, $css): string {
+                    $reads[] = $file;
+
+                    return $file === '/entry.css' ? $css : '.bad { color: red }';
+                });
+            } catch (CssBundleException $exception) {
+                $t->same('parser-error', $exception->kind);
+                $t->same('Invalid @import supports condition', $exception->getMessage());
+                $t->same('/entry.css', $exception->sourceFile);
+                $t->same(1, $exception->sourceLine);
+                $t->same(1, $exception->sourceColumn);
+                $t->same(['/entry.css'], $reads);
+
+                return;
+            }
+
+            throw new RuntimeException('Expected invalid @import supports condition exception');
+        };
+
+        $assertInvalidImportSupports('@import "tokens.css" supports(); .entry { color: red }');
+        $assertInvalidImportSupports('@import "tokens.css" supports((display: grid) and); .entry { color: red }');
+        $assertInvalidImportSupports('@import "tokens.css" supports((display: grid) or (color: red) and (foo: bar)); .entry { color: red }');
+        $assertInvalidImportSupports('@import "tokens.css" supports(not display: grid); .entry { color: red }');
+
+        $t->same(
+            '@supports selector(.wp-block-query > .wp-block-post-title){:root{--gap:1rem}}.entry{color:red}',
+            (new CssBundler())->bundle('/entry.css', [
+                '/entry.css' => '@import "tokens.css" supports(selector(.wp-block-query > .wp-block-post-title)); .entry { color: red }',
+                '/tokens.css' => ':root { --gap: 1rem }',
+            ])
+        );
+        $t->same(
+            '@supports (unknown){:root{--gap:1rem}}.entry{color:red}',
+            (new CssBundler())->bundle('/entry.css', [
+                '/entry.css' => '@import "tokens.css" supports((unknown)); .entry { color: red }',
+                '/tokens.css' => ':root { --gap: 1rem }',
+            ])
+        );
+    },
     'css bundler combines nested media conditions across import graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print and (color){.c{color:green}}@media print{.b{color:#ff0}}.a{color:red}',

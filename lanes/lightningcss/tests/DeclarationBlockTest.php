@@ -287,6 +287,48 @@ return [
             $block->removeProperty('box-shadow: 12px 12px rgba(0,0,0,0.4); text-shadow: 1px 1px yellow', 'box-shadow')
         );
     },
+    'declaration block canonicalizes upstream transform cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'transform: translateX(10px) scale3d(100%, 100%, 100%); translate: 0px 12px 0px; rotate: 10deg 0 0 -1; scale: 100% 105% 1; color: red';
+
+        $t->same(
+            [
+                'transform' => 'translate(10px)scale(1)',
+                'translate' => '0 12px',
+                'rotate' => '-10deg',
+                'scale' => '1 1.05',
+                'color' => 'red',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(
+            ['value' => 'translate(10px)scale(1)', 'important' => false],
+            $block->getProperty($declarations, 'transform')
+        );
+        $t->same(['value' => '0 12px', 'important' => false], $block->getProperty($declarations, 'translate'));
+        $t->same(['value' => '-10deg', 'important' => false], $block->getProperty($declarations, 'rotate'));
+        $t->same(['value' => '1 1.05', 'important' => false], $block->getProperty($declarations, 'scale'));
+        $t->same(
+            'transform: translate(2px)scaleY(2); color: red',
+            $block->setProperty('transform: rotateZ(20deg); color: red', 'transform', 'translate3d(2px, 0px, 0px) scale(100%, 200%)')
+        );
+        $t->same(
+            'color: red; -ms-transform: translate(2px)rotate(20deg) !important',
+            $block->setProperty('color: red; -ms-transform: translateX(1px)', '-ms-transform', 'translate3d(2px, 0px, 0px) rotateZ(20deg)', true)
+        );
+        $t->same(
+            'color: red; rotate: x 20deg',
+            $block->setProperty('color: red; rotate: 10deg', 'rotate', '1 0 0 20deg')
+        );
+        $t->same(
+            'color: red; scale: 2',
+            $block->setProperty('color: red; scale: 100% 200% 1', 'scale', '200% 200% 100%')
+        );
+        $t->same(
+            'translate: 12px; rotate: 0deg; scale: 1.05; color: red',
+            $block->removeProperty('transform: translate(10px); translate: 12px 0; rotate: 0; scale: 105%; color: red', 'transform')
+        );
+    },
     'declaration block enumerates upstream cssom length and item order' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'color: red !important; background: white; --Block-Accent: blue; margin: 1rem !important; color: green';

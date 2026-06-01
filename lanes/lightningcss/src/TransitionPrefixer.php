@@ -542,11 +542,12 @@ final class TransitionPrefixer
     private function replaceResolutionMediaQueryConditions(string $query, array $matches, string $vendor): ?string
     {
         $rewritten = $query;
+        $changed = false;
         for ($i = count($matches) - 1; $i >= 0; $i--) {
             $match = $matches[$i];
             $ratio = $this->resolutionValueToDevicePixelRatio($match['value']);
             if ($ratio === null) {
-                return null;
+                continue;
             }
 
             $rewritten = substr_replace(
@@ -555,9 +556,10 @@ final class TransitionPrefixer
                 $match['offset'],
                 $match['length']
             );
+            $changed = true;
         }
 
-        return $rewritten;
+        return $changed ? $rewritten : null;
     }
 
     private function resolutionPrefixCondition(string $bound, string $ratio, string $vendor, bool $negated): string

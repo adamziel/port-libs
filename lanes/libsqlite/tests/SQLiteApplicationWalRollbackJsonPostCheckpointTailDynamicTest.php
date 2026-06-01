@@ -9,6 +9,7 @@ use PortLibs\LibSqlite\SQLiteWal;
 $tailFailureScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailFailureScenarios(18);
 $tailRecoveryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryScenariosFromTailFailureScenarios($tailFailureScenarios);
 $tailRecoveryCheckpointScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryCheckpointScenariosFromTailRecoveryScenarios($tailRecoveryScenarios);
+$tailRecoveryCheckpointFollowupScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryCheckpointFollowupScenariosFromCheckpointScenarios($tailRecoveryCheckpointScenarios);
 
 $tests = [
     'sqlite application wal rollback json post checkpoint tail dynamic failure exposes requested scenario count' => static function (TestRunner $t) use ($tailFailureScenarios): void {
@@ -67,6 +68,29 @@ $tests = [
         $jsonModes = array_values(array_unique(array_column($tailRecoveryCheckpointScenarios, 'jsonb_mode')));
         sort($jsonModes);
         $t->same([false, true], $jsonModes);
+    },
+    'sqlite application wal rollback json post checkpoint tail recovery checkpoint followup exposes requested scenario count' => static function (TestRunner $t) use ($tailRecoveryCheckpointFollowupScenarios): void {
+        $t->same(18, count($tailRecoveryCheckpointFollowupScenarios));
+    },
+    'sqlite application wal rollback json post checkpoint tail recovery checkpoint followup covers checkpoint reset modes' => static function (TestRunner $t) use ($tailRecoveryCheckpointFollowupScenarios): void {
+        $modes = array_values(array_unique(array_column($tailRecoveryCheckpointFollowupScenarios, 'checkpoint_mode')));
+        sort($modes);
+        $t->same(['restart', 'truncate'], $modes);
+    },
+    'sqlite application wal rollback json post checkpoint tail recovery checkpoint followup covers both page sizes' => static function (TestRunner $t) use ($tailRecoveryCheckpointFollowupScenarios): void {
+        $pageSizes = array_values(array_unique(array_column($tailRecoveryCheckpointFollowupScenarios, 'page_size')));
+        sort($pageSizes);
+        $t->same([512, 1024], $pageSizes);
+    },
+    'sqlite application wal rollback json post checkpoint tail recovery checkpoint followup covers json text and jsonb rows' => static function (TestRunner $t) use ($tailRecoveryCheckpointFollowupScenarios): void {
+        $jsonModes = array_values(array_unique(array_column($tailRecoveryCheckpointFollowupScenarios, 'jsonb_mode')));
+        sort($jsonModes);
+        $t->same([false, true], $jsonModes);
+    },
+    'sqlite application wal rollback json post checkpoint tail recovery checkpoint followup creates headers only after truncate' => static function (TestRunner $t) use ($tailRecoveryCheckpointFollowupScenarios): void {
+        $started = array_values(array_unique(array_column($tailRecoveryCheckpointFollowupScenarios, 'tail_recovery_checkpoint_followup_started_new_wal_header')));
+        sort($started);
+        $t->same([false, true], $started);
     },
     'sqlite application wal rollback json post checkpoint tail dynamic rejects zero failure scenarios' => static function (TestRunner $t): void {
         try {
@@ -128,6 +152,26 @@ $tests = [
 
         $t->same('rejected', 'accepted');
     },
+    'sqlite application wal rollback json post checkpoint tail dynamic rejects zero recovery checkpoint followup scenarios' => static function (TestRunner $t): void {
+        try {
+            SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryCheckpointFollowupScenarios(0);
+        } catch (InvalidArgumentException) {
+            $t->same('rejected', 'rejected');
+            return;
+        }
+
+        $t->same('rejected', 'accepted');
+    },
+    'sqlite application wal rollback json post checkpoint tail dynamic rejects empty recovery checkpoint followup base scenarios' => static function (TestRunner $t): void {
+        try {
+            SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryCheckpointFollowupScenariosFromCheckpointScenarios([]);
+        } catch (InvalidArgumentException) {
+            $t->same('rejected', 'rejected');
+            return;
+        }
+
+        $t->same('rejected', 'accepted');
+    },
     'sqlite application wal rollback json post checkpoint tail dynamic small failure batch remains deterministic' => static function (TestRunner $t): void {
         $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailFailureScenarios(4);
         $t->same([8101, 8102, 8103, 8104], array_column($smallBatch, 'tenant_id'));
@@ -150,6 +194,14 @@ $tests = [
         $t->same([[3, 4, 5], [3, 4, 5], [3, 4, 5], [3, 4, 5]], array_column($smallBatch, 'tail_recovery_applied_frame_indexes'));
         $t->same([[1321, 1941, 2021], [1322, 1942, 2022], [1323, 1943, 2023], [1324, 1944, 2024]], array_column($smallBatch, 'tail_recovery_applied_page_numbers'));
         $t->same(['restart_wal', 'truncate_wal', 'restart_wal', 'truncate_wal'], array_column($smallBatch, 'expected_tail_recovery_checkpoint_action'));
+    },
+    'sqlite application wal rollback json post checkpoint tail dynamic small recovery checkpoint followup batch remains deterministic' => static function (TestRunner $t): void {
+        $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryCheckpointFollowupScenarios(4);
+        $t->same([8101, 8102, 8103, 8104], array_column($smallBatch, 'tenant_id'));
+        $t->same(['restart', 'truncate', 'restart', 'truncate'], array_column($smallBatch, 'checkpoint_mode'));
+        $t->same([false, true, false, true], array_column($smallBatch, 'tail_recovery_checkpoint_followup_started_new_wal_header'));
+        $t->same([[1321, 2221], [1322, 2222], [1323, 2223], [1324, 2224]], array_column($smallBatch, 'expected_tail_recovery_checkpoint_followup_pages'));
+        $t->same([2, 2, 2, 2], array_map(static fn (array $scenario): int => $scenario['tail_recovery_checkpoint_followup_plan']['wal_frame_count_after'], $smallBatch));
     },
 ];
 
@@ -478,6 +530,109 @@ foreach ($tailRecoveryCheckpointScenarios as $scenario) {
     $tests[$prefix . 'records durable checkpoint dependencies'] = static function (TestRunner $t) use ($releasedCheckpoint): void {
         $t->same(true, in_array('sqlite-wal-checkpoint', $releasedCheckpoint['dependencies'], true));
         $t->same(true, in_array('durable-sidecar-write', $releasedCheckpoint['dependencies'], true));
+    };
+}
+
+foreach ($tailRecoveryCheckpointFollowupScenarios as $scenario) {
+    $seed = (int) $scenario['seed'];
+    $releasedCheckpoint = $scenario['tail_recovery_released_checkpoint'];
+    $recoveryPlan = $scenario['post_checkpoint_tail_recovery_plan'];
+    $followupPlan = $scenario['tail_recovery_checkpoint_followup_plan'];
+    $prefix = 'sqlite application wal rollback json post checkpoint tail recovery checkpoint followup seed ' . $seed . ' ';
+
+    $tests[$prefix . 'starts from released tail recovery checkpoint bytes'] = static function (TestRunner $t) use ($scenario, $releasedCheckpoint): void {
+        $t->same(false, $releasedCheckpoint['busy']);
+        $t->same(true, $scenario['tail_recovery_checkpointed_pages_match']);
+        $t->same($scenario['tail_recovery_checkpoint_followup_input_database_hash'], hash('sha256', (string) $releasedCheckpoint['database_bytes']));
+    };
+    $tests[$prefix . 'uses reset or truncated checkpoint wal header'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same(0, $followupPlan['wal_frame_count_before']);
+        $t->same(32, $scenario['tail_recovery_checkpoint_followup_wal_header_length']);
+        $t->same($scenario['checkpoint_mode'] === 'truncate', $scenario['tail_recovery_checkpoint_followup_started_new_wal_header']);
+    };
+    $tests[$prefix . 'commits a fresh two frame followup transaction'] = static function (TestRunner $t) use ($followupPlan): void {
+        $t->same('ready', $followupPlan['status']);
+        $t->same(false, $followupPlan['rollback_required']);
+        $t->same(2, $followupPlan['materialized_wal_frame_count']);
+        $t->same(2, $followupPlan['wal_frame_count_after']);
+    };
+    $tests[$prefix . 'uses tail recovery checkpoint followup names'] = static function (TestRunner $t) use ($followupPlan, $seed): void {
+        $t->same('application_tail_recovery_checkpoint_followup_json_import_' . $seed, $followupPlan['transaction']);
+        $t->same('tail_recovery_checkpoint_followup_json_batch_' . $seed, $followupPlan['savepoint']);
+    };
+    $tests[$prefix . 'starts from released checkpoint database image'] = static function (TestRunner $t) use ($followupPlan, $releasedCheckpoint): void {
+        $t->same((string) $releasedCheckpoint['database_bytes'], $followupPlan['database_bytes_before']);
+    };
+    $tests[$prefix . 'records followup applied pages'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same($scenario['expected_tail_recovery_checkpoint_followup_pages'], array_column($followupPlan['import_plan']['applied'], 'page_number'));
+    };
+    $tests[$prefix . 'retains tenant id and jsonb mode in catalog row'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same([$scenario['tenant_id'], $scenario['tenant_id']], array_column($followupPlan['import_plan']['applied'], 'tenant_id'));
+        $value = $followupPlan['import_plan']['applied'][0]['key_value'];
+        $t->same($scenario['jsonb_mode'], $value instanceof SQLiteBlobValue);
+    };
+    $tests[$prefix . 'inserts only one new durable followup row'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same($scenario['tail_recovery_checkpoint_followup_base_row_count'] + 1, count($followupPlan['import_plan']['final_rows']));
+        $t->same($scenario['expected_tail_recovery_checkpoint_followup_inserted_key'], $followupPlan['import_plan']['applied'][1]['key_name']);
+        $rowsByKey = [];
+        foreach ($followupPlan['import_plan']['final_rows'] as $row) {
+            $rowsByKey[$row['key_name']] = $row;
+        }
+        $t->same($scenario['expected_tail_recovery_checkpoint_followup_inserted_id'], $rowsByKey[$scenario['expected_tail_recovery_checkpoint_followup_inserted_key']]['setting_id']);
+    };
+    $tests[$prefix . 'keeps corrected recovery rows and excludes rolled back tail'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same(true, $scenario['tail_recovery_checkpoint_followup_inserted_key_retained']);
+        $t->same(true, $scenario['tail_recovery_checkpoint_followup_recovery_key_retained']);
+        $t->same(true, $scenario['tail_recovery_checkpoint_followup_prior_followup_key_retained']);
+        $t->same(false, $scenario['tail_recovery_checkpoint_followup_rejected_tail_key_retained']);
+    };
+    $tests[$prefix . 'does not inherit failed statements from previous tail rollback'] = static function (TestRunner $t) use ($followupPlan, $recoveryPlan): void {
+        $t->same([], $followupPlan['failed_statements']);
+        $t->same([], $followupPlan['import_plan']['failed']);
+        $t->same([], $recoveryPlan['failed_statements']);
+    };
+    $tests[$prefix . 'rollback preview begins at empty checkpoint wal generation'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same(0, $followupPlan['wal_rollback_to_savepoint']['rollback_to_frame']);
+        $t->same($scenario['expected_tail_recovery_checkpoint_followup_pages'], $followupPlan['wal_rollback_to_savepoint']['discarded_page_numbers']);
+    };
+    $tests[$prefix . 'followup wal frame pages start at frame one'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        foreach ($scenario['expected_tail_recovery_checkpoint_followup_pages'] as $index => $pageNumber) {
+            $frameOffset = 32 + ($index * $frameSize);
+            $frameHeader = unpack('Npage_number', substr($followupPlan['wal_bytes_after'], $frameOffset, 4));
+            $t->same($pageNumber, (int) $frameHeader['page_number']);
+        }
+    };
+    $tests[$prefix . 'followup wal checksums start from reset checkpoint header'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $walBytes = (string) $followupPlan['wal_bytes_after'];
+        $checksumSeed = SQLiteWal::checksumPair(substr($walBytes, 0, 24), false);
+        foreach ($scenario['expected_tail_recovery_checkpoint_followup_pages'] as $index => $pageNumber) {
+            $frameOffset = 32 + ($index * $frameSize);
+            $frame = substr($walBytes, $frameOffset, $frameSize);
+            $checksumSeed = SQLiteWal::checksumPair(substr($frame, 0, 8) . substr($frame, 24), false, $checksumSeed[0], $checksumSeed[1]);
+            $frameHeader = unpack('Npage_number/Ncommit/Nsalt_1/Nsalt_2/Nchecksum_1/Nchecksum_2', substr($frame, 0, 24));
+            $t->same($pageNumber, (int) $frameHeader['page_number']);
+            $t->same($checksumSeed, [(int) $frameHeader['checksum_1'], (int) $frameHeader['checksum_2']]);
+        }
+    };
+    $tests[$prefix . 'only final followup frame is a commit frame'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $commits = [];
+        foreach ($scenario['expected_tail_recovery_checkpoint_followup_pages'] as $index => $_pageNumber) {
+            $frameOffset = 32 + ($index * $frameSize);
+            $frameHeader = unpack('Npage_number/Ncommit', substr($followupPlan['wal_bytes_after'], $frameOffset, 8));
+            $commits[] = (int) $frameHeader['commit'];
+        }
+        $t->same([0, intdiv(strlen($followupPlan['database_bytes_after_import']), $pageSize)], $commits);
+    };
+    $tests[$prefix . 'records source hashes and dependencies'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same($scenario['tail_recovery_checkpoint_followup_input_wal_hash'], hash('sha256', $scenario['tail_recovery_checkpoint_followup_wal_bytes']));
+        $t->same(true, in_array('sqlite-application-json-import-savepoint-current', $followupPlan['dependencies'], true));
+        $t->same(true, in_array('sqlite-wal-current-batch-byte-truncation', $followupPlan['dependencies'], true));
     };
 }
 

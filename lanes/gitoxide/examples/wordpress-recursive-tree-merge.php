@@ -388,6 +388,50 @@ $directoryRenameResolvedPlugins = $treeAtPath($directoryRenameConflictResolved->
 $directoryRenameResolvedPlugin = $treeAtPath($directoryRenameConflictResolved->tree, 'wp-content/plugins/acme-pro');
 $directoryRenameResolvedIncludes = $treeAtPath($directoryRenameConflictResolved->tree, 'wp-content/plugins/acme-pro/includes');
 $directoryRenameResolvedRoute = $read($directoryRenameResolvedIncludes->entryNamed('rest.php')?->oid ?? '')->body;
+$reciprocalRenameBase = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('mu-plugins', new Tree([
+            $blob('bar-loader.php', "<?php\n// Loader B\n"),
+            $blob('foo-loader.php', "<?php\n// Loader A\n"),
+        ])),
+    ])),
+]);
+$reciprocalRenameOurs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('mu-plugins', new Tree([
+            $blob('shared-loader.php', "<?php\n// Loader A\n"),
+        ])),
+    ])),
+]);
+$reciprocalRenameTheirs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('mu-plugins', new Tree([
+            $blob('shared-loader.php', "<?php\n// Loader B\n"),
+        ])),
+    ])),
+]);
+$reciprocalRenameResult = TreeMerge::mergeRecursive(
+    $reciprocalRenameBase,
+    $reciprocalRenameOurs,
+    $reciprocalRenameTheirs,
+    $read,
+    $write,
+);
+$reciprocalRenameAncestorResolved = $reciprocalRenameResult->resolveTreeConflicts(
+    $read,
+    $write,
+    TreeMergeResult::RESOLVE_ANCESTOR,
+    TreeMergeResult::RESOLVE_ANCESTOR,
+);
+$reciprocalRenameOursResolved = $reciprocalRenameResult->resolveTreeConflicts(
+    $read,
+    $write,
+    TreeMergeResult::RESOLVE_OURS,
+    TreeMergeResult::RESOLVE_OURS,
+);
+$reciprocalAncestorMuPlugins = $treeAtPath($reciprocalRenameAncestorResolved->tree, 'wp-content/mu-plugins');
+$reciprocalOursMuPlugins = $treeAtPath($reciprocalRenameOursResolved->tree, 'wp-content/mu-plugins');
+$reciprocalOursSharedLoader = $reciprocalOursMuPlugins->entryNamed('shared-loader.php');
 $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
 $metadata = $read($contentTree->entryNamed('post.meta')?->oid ?? '');
 $demoRoot = sys_get_temp_dir() . '/port-libs-recursive-merge-' . bin2hex(random_bytes(4));
@@ -583,5 +627,19 @@ echo json_encode([
         'routeIncludesOtherSidePermissionCallback' => str_contains($directoryRenameResolvedRoute, 'permission_callback'),
         'routeContent' => $directoryRenameResolvedRoute,
         'indexStagesAfterResolution' => count($directoryRenameConflictResolved->indexEntries()),
+    ],
+    'reciprocalRenameDeleteResolution' => [
+        'cleanBeforeResolution' => $reciprocalRenameResult->isClean(),
+        'conflicts' => array_map(
+            static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
+            $reciprocalRenameResult->conflicts,
+        ),
+        'ancestorResolvedClean' => $reciprocalRenameAncestorResolved->isClean(),
+        'ancestorMuPluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $reciprocalAncestorMuPlugins->entries),
+        'oursResolvedClean' => $reciprocalRenameOursResolved->isClean(),
+        'oursMuPluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $reciprocalOursMuPlugins->entries),
+        'oursSharedLoaderBody' => $reciprocalOursSharedLoader === null ? null : $read($reciprocalOursSharedLoader->oid)->body,
+        'indexStagesAfterAncestorResolution' => count($reciprocalRenameAncestorResolved->indexEntries()),
+        'indexStagesAfterOursResolution' => count($reciprocalRenameOursResolved->indexEntries()),
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

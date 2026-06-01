@@ -753,6 +753,30 @@ return [
         ], $uniqueContentCandidates);
         $t->same(['status' => 'missing', 'candidates' => []], $database->lookupPrefix('ffff', true));
     },
+    'object database disambiguates multi-pack-index prefixes after collecting loose candidates' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
+        [$gitDir, $fixture] = $writeWordPressMultiPackFixture();
+        $database = new ObjectDatabase($gitDir);
+        $contentOid = $fixture['objectsByRole']['content']['oid'];
+        $looseCandidateOid = (new LooseObjectStore($gitDir))->write(new GitObject('blob', 'midx-prefix-candidate-128814'));
+
+        $ambiguous = $database->lookupPrefix(substr($contentOid, 0, 4), true);
+        $t->same('ambiguous', $ambiguous['status']);
+        $t->same([$contentOid, $looseCandidateOid], $ambiguous['candidates']);
+
+        $shortest = $database->disambiguatePrefix(strtoupper($contentOid), 4);
+        $t->true($shortest !== null);
+        $t->same(substr($contentOid, 0, strlen($shortest)), $shortest);
+        $t->true(strlen($shortest) > 4);
+        $t->same(['status' => 'found', 'oid' => $contentOid], $database->lookupPrefix($shortest));
+
+        $full = $database->lookupPrefix(strtoupper($contentOid), true);
+        $t->same([
+            'status' => 'found',
+            'oid' => $contentOid,
+            'candidates' => [$contentOid],
+        ], $full);
+        $t->same(['status' => 'missing', 'candidates' => []], $database->lookupPrefix('0000000', true));
+    },
     'object database rejects multi-pack-index entries that reference missing packs' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
         [$gitDir] = $writeWordPressMultiPackFixture(true);
         $database = new ObjectDatabase($gitDir);
@@ -818,6 +842,13 @@ return [
             $summary['contentOid'],
             $summary['loosePrefixCandidateOid'],
         ], $summary['contentPrefixCandidates']);
+        $t->same('found', $summary['contentFullPrefixStatus']);
+        $t->same([$summary['contentOid']], $summary['contentFullPrefixCandidates']);
+        $t->true(strlen($summary['contentShortestPrefixAfterLooseCandidate']) > 4);
+        $t->same(
+            substr($summary['contentOid'], 0, strlen($summary['contentShortestPrefixAfterLooseCandidate'])),
+            $summary['contentShortestPrefixAfterLooseCandidate']
+        );
         $t->same(3, $summary['packedObjects']);
         $t->same(4, $summary['rawPackIndexObjects']);
     },

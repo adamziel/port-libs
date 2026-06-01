@@ -1087,6 +1087,11 @@ final class TreeMerge
                                 $writeObject,
                                 $conflictStyle,
                                 $bigFileThreshold,
+                                self::ancestorEntriesForTargetRenameCollision(
+                                    $pathPrefix,
+                                    $baseEntries,
+                                    [$path, $theirRenamesByTarget[$ourRename['path']] ?? null],
+                                ),
                             );
                             if ($targetAddMerge !== null) {
                                 $merged[] = $targetAddMerge['entry'];
@@ -1214,6 +1219,11 @@ final class TreeMerge
                                 $writeObject,
                                 $conflictStyle,
                                 $bigFileThreshold,
+                                self::ancestorEntriesForTargetRenameCollision(
+                                    $pathPrefix,
+                                    $baseEntries,
+                                    [$ourRenamesByTarget[$theirRename['path']] ?? null, $path],
+                                ),
                             );
                             if ($targetAddMerge !== null) {
                                 $merged[] = $targetAddMerge['entry'];
@@ -1369,9 +1379,10 @@ final class TreeMerge
             return null;
         }
 
-        return self::tryMergeChangedEntry(
+        $fullPath = self::joinPath($pathPrefix, $targetPath);
+        $merge = self::tryMergeChangedEntry(
             $targetPath,
-            self::joinPath($pathPrefix, $targetPath),
+            $fullPath,
             new TreeEntry($baseEntry->mode, $targetPath, $baseEntry->oid),
             new TreeEntry($ourEntry->mode, $targetPath, $ourEntry->oid),
             new TreeEntry($theirEntry->mode, $targetPath, $theirEntry->oid),
@@ -1381,6 +1392,58 @@ final class TreeMerge
             [],
             $bigFileThreshold,
         );
+        if ($merge === null || $merge['conflicts'] === []) {
+            return $merge;
+        }
+
+        $ancestorEntries = self::ancestorEntriesForTargetRenameCollision(
+            $pathPrefix,
+            $baseEntries,
+            [$ourSource, $theirSource],
+        );
+        if ($ancestorEntries === []) {
+            return $merge;
+        }
+
+        $conflicts = [];
+        foreach ($merge['conflicts'] as $conflict) {
+            if ($conflict->path === $fullPath && in_array($conflict->reason, ['content-conflict', 'add-add'], true)) {
+                $conflicts[] = new TreeMergeConflict(
+                    $conflict->path,
+                    $conflict->reason,
+                    $conflict->base,
+                    $conflict->ours,
+                    $conflict->theirs,
+                    $conflict->context + ['ancestorEntries' => $ancestorEntries],
+                );
+                continue;
+            }
+            $conflicts[] = $conflict;
+        }
+        $merge['conflicts'] = $conflicts;
+
+        return $merge;
+    }
+
+    /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param list<?string> $sourcePaths
+     * @return array<string, TreeEntry>
+     */
+    private static function ancestorEntriesForTargetRenameCollision(string $pathPrefix, array $baseEntries, array $sourcePaths): array
+    {
+        $ancestorEntries = [];
+        foreach ($sourcePaths as $sourcePath) {
+            if ($sourcePath === null || $sourcePath === '') {
+                continue;
+            }
+            $sourceEntry = $baseEntries[$sourcePath] ?? null;
+            if ($sourceEntry !== null) {
+                $ancestorEntries[self::joinPath($pathPrefix, $sourcePath)] = $sourceEntry;
+            }
+        }
+
+        return count($ancestorEntries) > 1 ? $ancestorEntries : [];
     }
 
     /**
@@ -1914,6 +1977,7 @@ final class TreeMerge
     /**
      * @param null|callable(string): GitObject $readObject
      * @param null|callable(GitObject): string $writeObject
+     * @param array<string, TreeEntry> $ancestorEntries
      * @return null|array{entry:TreeEntry,conflicts:list<TreeMergeConflict>}
      */
     private static function tryMergeRenameTargetAdd(
@@ -1925,6 +1989,7 @@ final class TreeMerge
         ?callable $writeObject,
         string $conflictStyle,
         ?int $bigFileThreshold = null,
+        array $ancestorEntries = [],
     ): ?array {
         if ($readObject === null || $writeObject === null) {
             return null;
@@ -1950,7 +2015,8 @@ final class TreeMerge
 
         $conflicts = [];
         if (!$merge->isClean()) {
-            $conflicts[] = new TreeMergeConflict($fullPath, 'content-conflict', null, $ourEntry, $theirEntry);
+            $context = $ancestorEntries === [] ? [] : ['ancestorEntries' => $ancestorEntries];
+            $conflicts[] = new TreeMergeConflict($fullPath, 'content-conflict', null, $ourEntry, $theirEntry, $context);
         }
 
         return [

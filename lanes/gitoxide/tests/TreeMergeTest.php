@@ -2999,6 +2999,55 @@ return [
             $result->indexEntries(),
         ));
         $t->same(['baz'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
+
+        $bodyOf = static function (Tree $tree, string $path) use ($read): ?string {
+            $entry = $tree->entryNamed($path);
+
+            return $entry === null ? null : $read($entry->oid)->body;
+        };
+        $ancestorResolved = $result->resolveTreeConflicts(
+            $read,
+            $write,
+            TreeMergeResult::RESOLVE_ANCESTOR,
+            TreeMergeResult::RESOLVE_ANCESTOR,
+        );
+        $oursResolved = $result->resolveTreeConflicts(
+            $read,
+            $write,
+            TreeMergeResult::RESOLVE_OURS,
+            TreeMergeResult::RESOLVE_OURS,
+        );
+        $reverseResult = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write);
+        $reverseAncestorResolved = $reverseResult->resolveTreeConflicts(
+            $read,
+            $write,
+            TreeMergeResult::RESOLVE_ANCESTOR,
+            TreeMergeResult::RESOLVE_ANCESTOR,
+        );
+        $reverseOursResolved = $reverseResult->resolveTreeConflicts(
+            $read,
+            $write,
+            TreeMergeResult::RESOLVE_OURS,
+            TreeMergeResult::RESOLVE_OURS,
+        );
+
+        $t->true($ancestorResolved->isClean());
+        $t->same(['bar', 'foo'], $names($ancestorResolved->tree));
+        $t->same("bar\n", $bodyOf($ancestorResolved->tree, 'bar'));
+        $t->same("foo\n", $bodyOf($ancestorResolved->tree, 'foo'));
+        $t->same([], $ancestorResolved->indexEntries());
+        $t->true($oursResolved->isClean());
+        $t->same(['baz'], $names($oursResolved->tree));
+        $t->same("foo\n", $bodyOf($oursResolved->tree, 'baz'));
+        $t->same([], $oursResolved->indexEntries());
+        $t->true($reverseAncestorResolved->isClean());
+        $t->same(['bar', 'foo'], $names($reverseAncestorResolved->tree));
+        $t->same("bar\n", $bodyOf($reverseAncestorResolved->tree, 'bar'));
+        $t->same("foo\n", $bodyOf($reverseAncestorResolved->tree, 'foo'));
+        $t->true($reverseOursResolved->isClean());
+        $t->same(['baz'], $names($reverseOursResolved->tree));
+        $t->same("bar\n", $bodyOf($reverseOursResolved->tree, 'baz'));
+        $t->same([], $reverseOursResolved->indexEntries());
     },
     'recursive tree merge reports directory rename content conflicts at new path' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();

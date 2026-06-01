@@ -1092,6 +1092,7 @@ final class CssBundler
                 throw new CssBundleException('parser-error', $exception->getMessage(), $file, $loc['line'], $loc['column']);
             }
             $supports = trim(substr($rest, $open + 1, $close - $open - 1));
+            $this->validateImportSupportsCondition($supports, $file, $loc);
             $offset = $close + 1;
             $offset = $this->skipWhitespaceAndComments($rest, $offset);
         }
@@ -1149,6 +1150,245 @@ final class CssBundler
         } catch (\InvalidArgumentException $exception) {
             throw new CssBundleException('parser-error', $exception->getMessage(), $file, $loc['line'], $loc['column']);
         }
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function validateImportSupportsCondition(string $condition, string $file, array $loc): void
+    {
+        try {
+            $valid = $this->isValidImportSupportsCondition($condition);
+        } catch (CssBundleException $exception) {
+            throw new CssBundleException('parser-error', $exception->getMessage(), $file, $loc['line'], $loc['column']);
+        }
+
+        if (!$valid) {
+            throw new CssBundleException(
+                'parser-error',
+                'Invalid @import supports condition',
+                $file,
+                $loc['line'],
+                $loc['column'],
+            );
+        }
+    }
+
+    private function isValidImportSupportsCondition(string $condition): bool
+    {
+        $condition = $this->trimWhitespaceAndComments($condition);
+        if ($condition === '') {
+            return false;
+        }
+
+        $logical = $this->splitSupportsConditionByLogicalOperator($condition);
+        if ($logical !== null) {
+            if (count(array_unique($logical['operators'])) > 1) {
+                return false;
+            }
+
+            foreach ($logical['parts'] as $part) {
+                if (!$this->isValidSupportsInParens($part)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        $identifier = $this->readCssIdentifierToken($condition, 0);
+        if ($identifier !== null && strcasecmp($identifier['name'], 'not') === 0) {
+            $rest = $this->trimWhitespaceAndComments(substr($condition, $identifier['end']));
+
+            return $this->isValidSupportsInParens($rest);
+        }
+
+        return $this->isValidSupportsInParens($condition)
+            || $this->isSupportsDeclaration($condition);
+    }
+
+    /**
+     * @return array{parts:list<string>,operators:list<string>}|null
+     */
+    private function splitSupportsConditionByLogicalOperator(string $condition): ?array
+    {
+        $parts = [];
+        $operators = [];
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $start = 0;
+        $length = strlen($condition);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $condition[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '/' && ($condition[$i + 1] ?? '') === '*') {
+                $end = strpos($condition, '*/', $i + 2);
+                if ($end === false) {
+                    throw new CssBundleException('parser-error', 'CSS contains an unbalanced comment');
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '\\') {
+                if ($parenDepth === 0 && $bracketDepth === 0) {
+                    $identifier = $this->readCssIdentifierToken($condition, $i);
+                    if ($identifier !== null && $this->isSupportsLogicalOperator($identifier['name'])) {
+                        $parts[] = $this->trimWhitespaceAndComments(substr($condition, $start, $i - $start));
+                        $operators[] = strtolower($identifier['name']);
+                        $start = $identifier['end'];
+                        $i = $identifier['end'] - 1;
+                        continue;
+                    }
+                }
+                $i = $this->cssEscapeEndOffset($condition, $i);
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($parenDepth !== 0 || $bracketDepth !== 0 || !$this->isIdentifierChar($char)) {
+                continue;
+            }
+
+            $identifier = $this->readCssIdentifierToken($condition, $i);
+            if ($identifier === null) {
+                continue;
+            }
+
+            if ($this->isSupportsLogicalOperator($identifier['name'])) {
+                $parts[] = $this->trimWhitespaceAndComments(substr($condition, $start, $i - $start));
+                $operators[] = strtolower($identifier['name']);
+                $start = $identifier['end'];
+            }
+
+            $i = $identifier['end'] - 1;
+        }
+
+        if ($operators === []) {
+            return null;
+        }
+
+        $parts[] = $this->trimWhitespaceAndComments(substr($condition, $start));
+
+        return [
+            'parts' => $parts,
+            'operators' => $operators,
+        ];
+    }
+
+    private function isSupportsLogicalOperator(string $identifier): bool
+    {
+        return strcasecmp($identifier, 'and') === 0 || strcasecmp($identifier, 'or') === 0;
+    }
+
+    private function isValidSupportsInParens(string $value): bool
+    {
+        $value = $this->trimWhitespaceAndComments($value);
+        if ($value === '') {
+            return false;
+        }
+
+        if (($value[0] ?? '') === '(') {
+            try {
+                $close = $this->findMatchingDelimiter($value, 0, '(', ')');
+            } catch (CssBundleException) {
+                return false;
+            }
+
+            if ($this->skipWhitespaceAndComments($value, $close + 1) < strlen($value)) {
+                return false;
+            }
+
+            $inner = substr($value, 1, $close - 1);
+            if ($this->trimWhitespaceAndComments($inner) === '') {
+                return false;
+            }
+
+            return $this->isValidImportSupportsCondition($inner)
+                || $this->isSingleSupportsUnknownToken($inner);
+        }
+
+        return $this->isValidSupportsFunctionCondition($value);
+    }
+
+    private function isValidSupportsFunctionCondition(string $value): bool
+    {
+        $identifier = $this->readCssIdentifierToken($value, 0);
+        if ($identifier === null || ($value[$identifier['end']] ?? '') !== '(') {
+            return false;
+        }
+
+        try {
+            $close = $this->findMatchingDelimiter($value, $identifier['end'], '(', ')');
+        } catch (CssBundleException) {
+            return false;
+        }
+
+        if ($this->skipWhitespaceAndComments($value, $close + 1) < strlen($value)) {
+            return false;
+        }
+
+        return $this->trimWhitespaceAndComments(substr($value, $identifier['end'] + 1, $close - $identifier['end'] - 1)) !== '';
+    }
+
+    private function isSupportsDeclaration(string $value): bool
+    {
+        $colon = $this->findNextTopLevel($value, ':', 0);
+        if ($colon === null) {
+            return false;
+        }
+
+        $property = $this->trimWhitespaceAndComments(substr($value, 0, $colon));
+        $declarationValue = $this->trimWhitespaceAndComments(substr($value, $colon + 1));
+        if ($property === '' || $declarationValue === '') {
+            return false;
+        }
+
+        $identifier = $this->readCssIdentifierToken($property, 0);
+
+        return $identifier !== null
+            && $this->skipWhitespaceAndComments($property, $identifier['end']) === strlen($property);
+    }
+
+    private function isSingleSupportsUnknownToken(string $value): bool
+    {
+        $value = $this->trimWhitespaceAndComments($value);
+        $identifier = $this->readCssIdentifierToken($value, 0);
+
+        return $identifier !== null
+            && $this->skipWhitespaceAndComments($value, $identifier['end']) === strlen($value);
     }
 
     /**

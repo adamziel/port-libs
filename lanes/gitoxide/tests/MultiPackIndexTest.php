@@ -253,6 +253,38 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $sha256->lookupPrefix(str_repeat('f', 65)));
         $t->throws(InvalidArgumentException::class, static fn () => $sha256->disambiguatePrefix($sha256First, 3));
     },
+    'resets odd-length missing multi-pack-index prefixes and treats full ids as one-entry ranges' => static function (TestRunner $t) use ($buildMultiIndex, $entries, $indexNames): void {
+        $index = MultiPackIndex::fromBytes($buildMultiIndex($entries, $indexNames));
+
+        $missing = $index->lookupPrefix('0000000');
+        $t->same('missing', $missing['status']);
+        $t->same(['start' => 0, 'end' => 0], $missing['candidateRange']);
+
+        $first = $index->lookupPrefix(strtoupper('0034111111111111111111111111111111111111'));
+        $t->same('found', $first['status']);
+        $t->same('0034111111111111111111111111111111111111', $first['entry']->oid);
+        $t->same(['start' => 0, 'end' => 1], $first['candidateRange']);
+
+        $last = $index->lookupPrefix(strtoupper('fabc111111111111111111111111111111111111'));
+        $t->same('found', $last['status']);
+        $t->same('fabc111111111111111111111111111111111111', $last['entry']->oid);
+        $t->same(['start' => 3, 'end' => 4], $last['candidateRange']);
+
+        $sha256First = '1111' . str_repeat('a', 60);
+        $sha256Second = '2222' . str_repeat('b', 60);
+        $sha256 = MultiPackIndex::fromBytes($buildMultiIndex([
+            ['oid' => $sha256Second, 'packIndex' => 0, 'offset' => 24],
+            ['oid' => $sha256First, 'packIndex' => 0, 'offset' => 12],
+        ], [$indexNames[0]], 'sha256'));
+        $sha256Missing = $sha256->lookupPrefix('0000000');
+        $t->same('missing', $sha256Missing['status']);
+        $t->same(['start' => 0, 'end' => 0], $sha256Missing['candidateRange']);
+
+        $sha256Full = $sha256->lookupPrefix(strtoupper($sha256Second));
+        $t->same('found', $sha256Full['status']);
+        $t->same($sha256Second, $sha256Full['entry']->oid);
+        $t->same(['start' => 1, 'end' => 2], $sha256Full['candidateRange']);
+    },
     'supports raw high-bit offsets when no large-offset chunk is present' => static function (TestRunner $t) use ($buildMultiIndex, $indexNames): void {
         $index = MultiPackIndex::fromBytes($buildMultiIndex([
             ['oid' => '0034111111111111111111111111111111111111', 'packIndex' => 0, 'offset' => 0x80000005],

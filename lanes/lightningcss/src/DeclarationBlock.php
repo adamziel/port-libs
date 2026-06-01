@@ -355,6 +355,13 @@ final class DeclarationBlock
         'border-end-start-radius',
     ];
 
+    private bool $normalizeTransformDeclarations;
+
+    public function __construct(bool $normalizeTransformDeclarations = true)
+    {
+        $this->normalizeTransformDeclarations = $normalizeTransformDeclarations;
+    }
+
     /**
      * @return array<string, string>
      */
@@ -13001,7 +13008,31 @@ final class DeclarationBlock
             return $this->normalizeShadowListValue($value);
         }
 
+        if ($this->normalizeTransformDeclarations && $this->isTransformDeclarationProperty($property)) {
+            return $this->normalizeTransformDeclarationValue($property, $value);
+        }
+
         return $value;
+    }
+
+    private function isTransformDeclarationProperty(string $property): bool
+    {
+        return in_array(
+            $property,
+            ['transform', '-webkit-transform', '-moz-transform', '-ms-transform', '-o-transform', 'translate', 'rotate', 'scale'],
+            true
+        );
+    }
+
+    private function normalizeTransformDeclarationValue(string $property, string $value): string
+    {
+        $minified = (new CssMinifier())->minify('.x{' . $property . ':' . $value . '}');
+        $prefix = '.x{' . $property . ':';
+        if (str_starts_with($minified, $prefix) && str_ends_with($minified, '}')) {
+            return substr($minified, strlen($prefix), -1);
+        }
+
+        return trim($value);
     }
 
     private function isShadowDeclarationProperty(string $property): bool
