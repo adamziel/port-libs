@@ -1325,6 +1325,121 @@ CSS;
             $seen['rule']['preludeAst']['value']
         ));
     },
+    'custom at-rules visit upstream universal token-list component preludes' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@design-token --wp-gap 90deg 250ms 2dppx url(blocks/card/icon.svg);
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'DashedIdent' => static function (string $ident) use (&$seen): string {
+                    $seen['events'][] = 'dashed:' . $ident;
+
+                    return '--theme-' . substr($ident, 2);
+                },
+                'Angle' => static function (array $angle) use (&$seen): array {
+                    if ($angle['type'] !== 'deg') {
+                        return $angle;
+                    }
+                    $seen['events'][] = 'angle:' . $angle['value'] . $angle['type'];
+
+                    return [
+                        'type' => 'turn',
+                        'value' => $angle['value'] / 360,
+                    ];
+                },
+                'Time' => static function (array $time) use (&$seen): array {
+                    if ($time['type'] !== 'milliseconds') {
+                        return $time;
+                    }
+                    $seen['events'][] = 'time:' . $time['value'] . $time['type'];
+
+                    return [
+                        'type' => 'seconds',
+                        'value' => $time['type'] === 'milliseconds' ? $time['value'] / 1000 : $time['value'],
+                    ];
+                },
+            ],
+            [
+                'Resolution' => static function (array $resolution) use (&$seen): array {
+                    if ($resolution['type'] !== 'dppx') {
+                        return $resolution;
+                    }
+                    $seen['events'][] = 'resolution:' . $resolution['value'] . $resolution['type'];
+
+                    return [
+                        'type' => 'dpi',
+                        'value' => $resolution['value'] * 96,
+                    ];
+                },
+                'Url' => static function (array $url) use (&$seen): array {
+                    if (str_starts_with($url['url'], 'theme/')) {
+                        return $url;
+                    }
+                    $seen['events'][] = 'url:' . $url['url'];
+                    $url['url'] = 'theme/' . $url['url'];
+
+                    return $url;
+                },
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'design-token' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['prelude'];
+                            $seen['rule'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'design-token' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'dashed:--wp-gap',
+            'angle:90deg',
+            'time:250milliseconds',
+            'resolution:2dppx',
+            'url:blocks/card/icon.svg',
+            'rule:--theme-wp-gap 0.25turn 0.25s 192dpi url(theme/blocks/card/icon.svg)',
+        ], $seen['events']);
+        $t->same('--theme-wp-gap 0.25turn 0.25s 192dpi url(theme/blocks/card/icon.svg)', $seen['rule']['prelude']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same([
+            'dashed-ident',
+            'angle',
+            'time',
+            'resolution',
+            'url',
+        ], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['preludeAst']['value']
+        ));
+        $t->same('--theme-wp-gap', $seen['rule']['preludeAst']['value'][0]['value']);
+        $t->same(['type' => 'turn', 'value' => 0.25], $seen['rule']['preludeAst']['value'][1]['value']);
+        $t->same(['type' => 'seconds', 'value' => 0.25], $seen['rule']['preludeAst']['value'][2]['value']);
+        $t->same(['type' => 'dpi', 'value' => 192.0], $seen['rule']['preludeAst']['value'][3]['value']);
+        $t->same('theme/blocks/card/icon.svg', $seen['rule']['preludeAst']['value'][4]['value']['url']);
+    },
     'custom at-rules visit comma separated upstream token-list prelude components' => static function (TestRunner $t): void {
         $seen = [];
         $css = <<<'CSS'
@@ -2072,7 +2187,7 @@ CSS;
             ],
             [
                 'Token' => [
-                    'at-keyword' => static function (array $token) use (&$aliases, &$seenValueTokens): ?string {
+                    'at-keyword' => static function (array $token) use (&$aliases, &$seenValueTokens): mixed {
                         $seenValueTokens[] = $token;
 
                         return $aliases[$token['value']] ?? null;
@@ -2093,8 +2208,53 @@ CSS;
 
         $t->same('.wp-block-card{outline-color:#056ef0}', $result);
         $t->same(['type' => 'dashed-ident', 'value' => '--wp-accent'], $seenPreludeTokens[0]);
-        $t->same(['type' => 'raw', 'value' => '#056ef0'], $seenPreludeTokens[1]);
+        $t->same(['type' => 'color', 'value' => ['type' => 'rgb', 'r' => 5, 'g' => 110, 'b' => 240, 'alpha' => 1]], $seenPreludeTokens[1]);
         $t->same(['type' => 'at-keyword', 'value' => '--wp-accent', 'raw' => '@--wp-accent'], $seenValueTokens[0]);
+    },
+    'custom at-rules expose upstream unknown prelude component token lists' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@wp-token --wp-gap #056ef0 90deg 250ms 2dppx url(blocks/card/icon.svg);
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => [
+                    'wp-token' => static function (array $rule) use (&$seen): array {
+                        $seen = [
+                            'prelude' => $rule['prelude'],
+                            'tokens' => $rule['preludeTokens'],
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same('--wp-gap #056ef0 90deg 250ms 2dppx url(blocks/card/icon.svg)', $seen['prelude']);
+        $t->same([
+            'dashed-ident',
+            'color',
+            'angle',
+            'time',
+            'resolution',
+            'url',
+        ], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['tokens']
+        ));
+        $t->same('--wp-gap', $seen['tokens'][0]['value']);
+        $t->same(['type' => 'rgb', 'r' => 5, 'g' => 110, 'b' => 240, 'alpha' => 1], $seen['tokens'][1]['value']);
+        $t->same(['type' => 'deg', 'value' => 90.0], $seen['tokens'][2]['value']);
+        $t->same(['type' => 'milliseconds', 'value' => 250.0], $seen['tokens'][3]['value']);
+        $t->same(['type' => 'dppx', 'value' => 2.0], $seen['tokens'][4]['value']);
+        $t->same('blocks/card/icon.svg', $seen['tokens'][5]['value']['url']);
     },
     'custom at-rules compose upstream Token scalar visitors in declaration values' => static function (TestRunner $t): void {
         $seen = [];
@@ -3034,6 +3194,91 @@ CSS;
             ['type' => 'custom', 'ident' => '--branding-small'],
             ['type' => 'custom', 'ident' => '--branding-padding'],
         ], $seenNames);
+    },
+    'custom at-rules expose upstream EnvironmentVariable indices before visitor lookup' => static function (TestRunner $t): void {
+        $tokens = [
+            '--branding-small' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 600,
+                ],
+            ],
+            '--branding-padding' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 20,
+                ],
+            ],
+        ];
+        $seenVariables = [];
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'EnvironmentVariable' => [
+                    '--branding-small' => static function (array $environmentVariable) use (&$seenVariables, $tokens): array {
+                        $seenVariables[] = [
+                            'name' => $environmentVariable['name'],
+                            'indices' => $environmentVariable['indices'] ?? [],
+                            'fallback' => $environmentVariable['fallback'][0]['value'] ?? null,
+                        ];
+
+                        return $tokens['--branding-small'];
+                    },
+                ],
+            ],
+            [
+                'EnvironmentVariable' => [
+                    '--branding-padding' => static function (array $environmentVariable) use (&$seenVariables, $tokens): array {
+                        $seenVariables[] = [
+                            'name' => $environmentVariable['name'],
+                            'indices' => $environmentVariable['indices'] ?? [],
+                            'fallback' => $environmentVariable['fallback'][0]['value'] ?? null,
+                        ];
+
+                        return $tokens['--branding-padding'];
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@media (max-width: env(--branding-small 1, 20px)) {
+  body {
+    padding: env(--branding-padding 2, 10px);
+    margin: env(safe-area-inset-top 0 1);
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('@media (width<=600px){body{padding:20px;margin:env(safe-area-inset-top 0 1)}}', $result);
+        $t->same([
+            [
+                'name' => ['type' => 'custom', 'ident' => '--branding-small'],
+                'indices' => [1],
+                'fallback' => '20px',
+            ],
+            [
+                'name' => ['type' => 'custom', 'ident' => '--branding-padding'],
+                'indices' => [2],
+                'fallback' => '10px',
+            ],
+        ], $seenVariables);
+
+        $seenDashedIdents = [];
+        $renamed = (new CustomAtRuleTransformer())->transform('.foo { padding: env(--gap 1, 20px); }', [], [
+            'DashedIdent' => static function (string $ident) use (&$seenDashedIdents): string {
+                $seenDashedIdents[] = $ident;
+
+                return '--theme-' . substr($ident, 2);
+            },
+        ]);
+
+        $t->same('.foo{padding:env(--theme-gap 1,20px)}', $renamed);
+        $t->same(['--gap'], $seenDashedIdents);
     },
     'custom at-rules compose upstream Variable visitors in declaration values' => static function (TestRunner $t): void {
         $tokens = [

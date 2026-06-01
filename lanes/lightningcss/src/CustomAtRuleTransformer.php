@@ -2585,7 +2585,7 @@ final class CustomAtRuleTransformer
 
     /**
      * @param list<string>|null $parentSelectors
-     * @return array{name:string, prelude:string, preludeTokens:list<array{type:string,value:mixed}>, block:list<mixed>|null, body:string, hasBlock:bool, context:string, parentSelectors:list<string>}
+     * @return array{name:string, prelude:string, preludeTokens:list<mixed>, block:list<mixed>|null, body:string, hasBlock:bool, context:string, parentSelectors:list<string>}
      */
     private function buildUnknownRule(string $name, string $prelude, ?string $body, ?array $parentSelectors): array
     {
@@ -5757,16 +5757,6 @@ final class CustomAtRuleTransformer
             ];
         }
 
-        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z]+)$/', $token, $matches) === 1) {
-            return [
-                'type' => 'length',
-                'value' => [
-                    'unit' => strtolower($matches[2]),
-                    'value' => (float) $matches[1],
-                ],
-            ];
-        }
-
         if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(--[-_a-zA-Z0-9]+)$/', $token, $matches) === 1) {
             return [
                 'type' => 'token',
@@ -5777,6 +5767,10 @@ final class CustomAtRuleTransformer
                     'unit' => $matches[2],
                 ],
             ];
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z]+)$/', $token, $matches) === 1) {
+            return $this->parseComponentDimensionValue((float) $matches[1], $matches[2]);
         }
 
         if (($rgb = $this->parseHexColorValue($token)) !== null) {
@@ -5824,10 +5818,25 @@ final class CustomAtRuleTransformer
             $close = $this->findMatchingParen($token, $open);
             if ($close === strlen($token) - 1) {
                 $argumentsCss = substr($token, $open + 1, $close - $open - 1);
+                $lowerName = strtolower($name);
+
+                if ($lowerName === 'url') {
+                    return [
+                        'type' => 'url',
+                        'value' => $this->parseUrlValue($argumentsCss, $token),
+                    ];
+                }
+
+                if ($lowerName === 'env') {
+                    return [
+                        'type' => 'env',
+                        'value' => $this->parseEnvironmentVariable($argumentsCss, $token),
+                    ];
+                }
 
                 return [
-                    'type' => strtolower($name) === 'var' ? 'var' : 'function',
-                    'value' => strtolower($name) === 'var'
+                    'type' => $lowerName === 'var' ? 'var' : 'function',
+                    'value' => $lowerName === 'var'
                         ? $this->parseVariable($argumentsCss, $token)
                         : [
                             'name' => $name,
@@ -5838,6 +5847,13 @@ final class CustomAtRuleTransformer
                         ],
                 ];
             }
+        }
+
+        if (preg_match('/^--[-_a-zA-Z0-9]+$/', $token) === 1) {
+            return [
+                'type' => 'dashed-ident',
+                'value' => $token,
+            ];
         }
 
         if (preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $token) === 1) {
@@ -5851,6 +5867,52 @@ final class CustomAtRuleTransformer
         }
 
         return ['type' => 'raw', 'value' => $token];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseComponentDimensionValue(float $number, string $unit): array
+    {
+        $unit = strtolower($unit);
+
+        return match ($unit) {
+            'deg', 'grad', 'rad', 'turn' => [
+                'type' => 'angle',
+                'value' => [
+                    'type' => $unit,
+                    'value' => $number,
+                ],
+            ],
+            'ms' => [
+                'type' => 'time',
+                'value' => [
+                    'type' => 'milliseconds',
+                    'value' => $number,
+                ],
+            ],
+            's' => [
+                'type' => 'time',
+                'value' => [
+                    'type' => 'seconds',
+                    'value' => $number,
+                ],
+            ],
+            'dpi', 'dpcm', 'dppx' => [
+                'type' => 'resolution',
+                'value' => [
+                    'type' => $unit,
+                    'value' => $number,
+                ],
+            ],
+            default => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => $unit,
+                    'value' => $number,
+                ],
+            ],
+        };
     }
 
     /**
@@ -6890,6 +6952,19 @@ final class CustomAtRuleTransformer
             }
         }
 
+        if ($type === 'dashed-ident' && is_string($component['value'] ?? null)) {
+            $replacement = $this->applyDashedIdentVisitor($component['value']);
+            if ($replacement !== $component['value']) {
+                return [
+                    'value' => [[
+                        'type' => 'dashed-ident',
+                        'value' => $replacement,
+                    ]],
+                    'changed' => true,
+                ];
+            }
+        }
+
         if ($type === 'token' && isset($component['value']) && is_array($component['value'])) {
             $token = $component['value'];
             $tokenType = (string) ($token['type'] ?? '');
@@ -6945,12 +7020,34 @@ final class CustomAtRuleTransformer
     private function environmentVariableArgumentsCss(array $environmentVariable): string
     {
         $name = self::environmentVariableCallbackName($environmentVariable);
+        $indices = $this->environmentVariableIndicesCss($environmentVariable);
+        $head = $indices === '' ? $name : $name . ' ' . $indices;
         $fallback = $environmentVariable['fallback'] ?? null;
         if (!is_array($fallback) || $fallback === []) {
-            return $name;
+            return $head;
         }
 
-        return $name . ',' . implode(',', array_map(fn (mixed $value): string => $this->serializeVisitorValue($value), $fallback));
+        return $head . ',' . implode(',', array_map(fn (mixed $value): string => $this->serializeVisitorValue($value), $fallback));
+    }
+
+    /**
+     * @param array<string, mixed> $environmentVariable
+     */
+    private function environmentVariableIndicesCss(array $environmentVariable): string
+    {
+        $indices = $environmentVariable['indices'] ?? [];
+        if (!is_array($indices) || $indices === []) {
+            return '';
+        }
+
+        $parts = [];
+        foreach ($indices as $index) {
+            if (is_int($index) || (is_string($index) && preg_match('/^[+-]?\d+$/', $index) === 1)) {
+                $parts[] = (string) (int) $index;
+            }
+        }
+
+        return implode(' ', $parts);
     }
 
     /**
@@ -7082,6 +7179,16 @@ final class CustomAtRuleTransformer
             $replacement = $this->callStructuredValueVisitor('env', $argumentsCss, 'env(' . $argumentsCss . ')', $skipStructuredTypes);
             if ($replacement !== null) {
                 return $replacement;
+            }
+        }
+
+        if (($value['type'] ?? null) === 'url' && is_array($value['value'] ?? null) && $this->urlVisitor !== null) {
+            $replacement = ($this->urlVisitor)($value['value'], $this);
+            if ($replacement !== null) {
+                return [
+                    'type' => 'url',
+                    'value' => $this->normalizeUrlVisitorValue($replacement, $value['value']),
+                ];
             }
         }
 
@@ -8111,20 +8218,52 @@ final class CustomAtRuleTransformer
     }
 
     /**
-     * @return array{name:array<string, string>, fallback:list<mixed>|null, raw:string}
+     * @return array{name:array<string, string>, indices:list<int>, fallback:list<mixed>|null, raw:string}
      */
     private function parseEnvironmentVariable(string $argumentsCss, string $raw): array
     {
         $parts = $this->splitTopLevel($argumentsCss, ',');
-        $name = trim($parts[0] ?? '');
+        [$name, $indices] = $this->parseEnvironmentVariableNameAndIndices(trim($parts[0] ?? ''));
 
         return [
             'name' => str_starts_with($name, '--')
                 ? ['type' => 'custom', 'ident' => $name]
                 : ['type' => 'ua', 'value' => $name],
+            'indices' => $indices,
             'fallback' => count($parts) > 1 ? $this->parseFallbackTokenList(implode(',', array_slice($parts, 1))) : null,
             'raw' => $raw,
         ];
+    }
+
+    /**
+     * @return array{0:string,1:list<int>}
+     */
+    private function parseEnvironmentVariableNameAndIndices(string $head): array
+    {
+        if ($head === '') {
+            return ['', []];
+        }
+
+        $tokens = preg_split('/\s+/', $head);
+        if (!is_array($tokens) || count($tokens) <= 1) {
+            return [$head, []];
+        }
+
+        $name = array_shift($tokens);
+        if (!is_string($name) || $name === '') {
+            return [$head, []];
+        }
+
+        $indices = [];
+        foreach ($tokens as $token) {
+            if (!is_string($token) || preg_match('/^[+-]?\d+$/', $token) !== 1) {
+                return [$head, []];
+            }
+
+            $indices[] = (int) $token;
+        }
+
+        return [$name, $indices];
     }
 
     /**
@@ -8514,12 +8653,14 @@ final class CustomAtRuleTransformer
         if (str_starts_with($name, '--')) {
             $name = $this->applyDashedIdentVisitor($name);
         }
+        $indices = $this->environmentVariableIndicesCss($environmentVariable);
+        $head = $indices === '' ? $name : $name . ' ' . $indices;
         $fallback = $environmentVariable['fallback'] ?? null;
         if (!is_array($fallback) || $fallback === []) {
-            return 'env(' . $name . ')';
+            return 'env(' . $head . ')';
         }
 
-        return 'env(' . $name . ',' . implode(',', array_map(fn (mixed $value): string => $this->serializeVisitorValue($value), $fallback)) . ')';
+        return 'env(' . $head . ',' . implode(',', array_map(fn (mixed $value): string => $this->serializeVisitorValue($value), $fallback)) . ')';
     }
 
     /**
@@ -8549,52 +8690,11 @@ final class CustomAtRuleTransformer
     }
 
     /**
-     * @return list<array{type:string,value:mixed}>
+     * @return list<mixed>
      */
     private function parseUnknownPreludeTokens(string $prelude): array
     {
-        $tokens = [];
-        foreach ($this->splitWhitespaceTokens($prelude) as $token) {
-            if (
-                strlen($token) >= 2
-                && (($token[0] === '"' && $token[strlen($token) - 1] === '"') || ($token[0] === "'" && $token[strlen($token) - 1] === "'"))
-            ) {
-                $tokens[] = [
-                    'type' => 'token',
-                    'value' => [
-                        'type' => 'string',
-                        'value' => stripcslashes(substr($token, 1, -1)),
-                    ],
-                ];
-                continue;
-            }
-
-            if (preg_match('/^--[-_a-zA-Z0-9]+$/', $token) === 1) {
-                $tokens[] = [
-                    'type' => 'dashed-ident',
-                    'value' => $token,
-                ];
-                continue;
-            }
-
-            if (preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $token) === 1) {
-                $tokens[] = [
-                    'type' => 'token',
-                    'value' => [
-                        'type' => 'ident',
-                        'value' => $token,
-                    ],
-                ];
-                continue;
-            }
-
-            $tokens[] = [
-                'type' => 'raw',
-                'value' => $token,
-            ];
-        }
-
-        return $tokens;
+        return $this->parseComponentValueList($prelude);
     }
 
     /**

@@ -862,7 +862,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nextoneSixFive',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE',
             'caseSensitiveLike' => false,
             'asciiNocaseOnly' => true,
             'rtrimTrimsOnlyAsciiSpace' => true,
@@ -949,18 +949,18 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     {
         $texts = [];
         foreach ($rows as $row) {
-            if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextOneSixFive rows require integer option_id');
+            if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextOneSixFive rows require integer setting_id');
             }
-            if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextOneSixFive rows require option_name_bytes');
+            if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextOneSixFive rows require key_name_bytes');
             }
             if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
                 throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextOneSixFive rows require integer text_encoding');
             }
 
             try {
-                $texts[$row['option_id']] = rtrim(SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']), ' ');
+                $texts[$row['setting_id']] = rtrim(SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['text_encoding']), ' ');
             } catch (\InvalidArgumentException) {
             }
         }

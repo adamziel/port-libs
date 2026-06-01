@@ -451,15 +451,13 @@ final class LooseObjectStore
                 throw new \RuntimeException("Unable to inflate loose object header: {$oid}");
             }
 
-            $nul = strpos($inflated, "\0");
-            if ($nul !== false) {
-                if ($nul + 1 > self::HEADER_MAX_SIZE) {
-                    throw new \InvalidArgumentException('Loose object header exceeds maximum size of 64 bytes');
+            if ($status === ZLIB_STREAM_END || strlen($inflated) >= self::HEADER_MAX_SIZE) {
+                $window = substr($inflated, 0, self::HEADER_MAX_SIZE);
+                $nul = strpos($window, "\0");
+                if ($nul !== false) {
+                    return substr($window, 0, $nul + 1);
                 }
 
-                return substr($inflated, 0, $nul + 1);
-            }
-            if (strlen($inflated) >= self::HEADER_MAX_SIZE) {
                 throw new \InvalidArgumentException('Loose object header exceeds maximum size of 64 bytes');
             }
         }

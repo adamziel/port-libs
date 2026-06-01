@@ -595,7 +595,7 @@ final class TransitionPrefixer
     }
 
     /**
-     * @return list<array{offset:int,length:int,bound:string,value:string,negated:bool}>
+     * @return list<array{offset:int,length:int,bound:string,value:string,negated:bool,operator?:string}>
      */
     private function matchResolutionEqualityRangeConditions(string $query): array
     {
@@ -608,6 +608,7 @@ final class TransitionPrefixer
                     'offset' => $match[0][1],
                     'length' => strlen($match[0][0]),
                     'bound' => '',
+                    'operator' => '=',
                     'value' => trim($match[2][0] !== '' ? $match[2][0] : $match[3][0]),
                     'negated' => $negated,
                 ];

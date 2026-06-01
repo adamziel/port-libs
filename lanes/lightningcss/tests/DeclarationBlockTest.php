@@ -1907,6 +1907,47 @@ return [
             $block->getProperty('animation: fade 200ms; animation-duration: 400ms !important', 'animation-duration')
         );
     },
+    'declaration block canonicalizes upstream animation composition cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'animation-composition: ADD, Accumulate, replace !important; animation-name: wp-cover; --Animation-Composition: ADD';
+
+        $t->same(
+            [
+                'animation-composition' => 'add, accumulate, replace !important',
+                'animation-name' => 'wp-cover',
+                '--Animation-Composition' => 'ADD',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(
+            ['value' => 'add, accumulate, replace', 'important' => true],
+            $block->getProperty($declarations, 'animation-composition')
+        );
+        $t->same(
+            ['value' => 'replace, var(--wp--custom--composition)', 'important' => false],
+            $block->getProperty('animation-composition: Replace, var(--wp--custom--composition)', 'animation-composition')
+        );
+        $t->same(
+            ['value' => 'ADD', 'important' => false],
+            $block->getProperty($declarations, '--Animation-Composition')
+        );
+        $t->same(
+            'animation-name: wp-cover; --Animation-Composition: ADD; animation-composition: accumulate, add',
+            $block->setProperty($declarations, 'animation-composition', 'Accumulate, ADD')
+        );
+        $t->same(
+            'color: red; animation-composition: add, accumulate !important',
+            $block->setProperty('animation-composition: replace; color: red', 'animation-composition', 'ADD, Accumulate', true)
+        );
+        $t->same(
+            'color: red; animation-composition: replace',
+            $block->setProperty('color: red', 'animation-composition', 'Replace')
+        );
+        $t->same(
+            'animation-name: wp-cover; --Animation-Composition: ADD',
+            $block->removeProperty($declarations, 'animation-composition')
+        );
+    },
     'declaration block reads upstream prefixed animation cssom longhands and shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

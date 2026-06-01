@@ -154,6 +154,14 @@ $actual = [
         '@layer theme.blocks { @media (resolution = 2dppx) { .wp-block-query.is-density-exact { color: yellow; } } }',
         ['safari' => 15, 'firefox' => 10]
     ),
+    'resolutionEqualityModernSyntax' => $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (resolution = 2e0dppx) { .wp-block-query.is-density-modern-exact { color: yellow; } } }',
+        [
+            'safari' => 15,
+            'firefox' => 10,
+            'exclude' => ['MediaRangeSyntax'],
+        ]
+    ),
     'resolutionRangePrefixModernSyntax' => $prefixer->prefixForTargets(
         '@layer theme.blocks { @media (resolution >= 2dppx) { .wp-block-query.is-density-modern-range { color: yellow; } } }',
         [
@@ -447,6 +455,7 @@ $expected = [
     'xResolutionLegacyUnit' => '@layer theme.blocks{@media (resolution:1dppx){.wp-block-query.is-density-aware{background:red}}}',
     'xResolutionPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query.is-density-aware{color:#ff0}}}',
     'resolutionEqualityPrefixFallback' => '@layer theme.blocks{@media (-webkit-device-pixel-ratio:2),(-moz-device-pixel-ratio:2),(resolution:2dppx){.wp-block-query.is-density-exact{color:#ff0}}}',
+    'resolutionEqualityModernSyntax' => '@layer theme.blocks{@media (-webkit-device-pixel-ratio=2),(-moz-device-pixel-ratio=2),(resolution=2dppx){.wp-block-query.is-density-modern-exact{color:#ff0}}}',
     'resolutionRangePrefixModernSyntax' => '@layer theme.blocks{@media (-webkit-device-pixel-ratio>=2),(-moz-device-pixel-ratio>=2),(resolution>=2dppx){.wp-block-query.is-density-modern-range{color:#ff0}}}',
     'xResolutionIntervalPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query.is-low-density-window{color:#ff0}}}',
     'mixedEnvResolutionPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2) and (min-resolution:env(--wp-density-floor)),(min--moz-device-pixel-ratio:2) and (min-resolution:env(--wp-density-floor)),(min-resolution:2dppx) and (min-resolution:env(--wp-density-floor)){.wp-block-query.is-density-env-window{color:#ff0}}}',

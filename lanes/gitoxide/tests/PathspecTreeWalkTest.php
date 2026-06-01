@@ -466,6 +466,52 @@ return [
             'wp-content/uploads/[[:alpha]/photo.jpg',
         ], $walkPaths($records));
     },
+    'all ascii whitespace directory pathspecs follow gix glob fallback during tree walks' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
+        $spaces = PathspecSearch::fromSpecs(['   /']);
+        $formFeed = PathspecSearch::fromSpecs(["\f/"]);
+
+        $t->same(true, $spaces->patterns()[0]->mustBeDirectory);
+        $t->same(PathspecMatch::KIND_VERBATIM, $spaces->match('   ', false)?->kind);
+        $t->same(true, $spaces->isIncluded('   ', false));
+        $t->same(PathspecMatch::KIND_PREFIX, $spaces->match('   /index.php', false)?->kind);
+        $t->same(false, $spaces->canMatch('   ', false));
+        $t->same(PathspecMatch::KIND_VERBATIM, $formFeed->match("\f", false)?->kind);
+        $t->same(true, $formFeed->isIncluded("\f", false));
+
+        $objects = [];
+        $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
+        $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
+            $object = $tree->toObject();
+            $objects[$object->oid()] = $object;
+
+            return new TreeEntry('040000', $name, $object->oid());
+        };
+        $root = new Tree([
+            $blob('   '),
+            $blob("\f"),
+            $tree('wp-content', new Tree([$blob('index.php')])),
+        ]);
+        $readPaths = [];
+        $records = TreePathspecWalk::breadthFirst(
+            $root,
+            PathspecSearch::fromSpecs(['   /', "\f/"]),
+            static function (TreeEntry $entry, string $path) use (&$objects, &$readPaths): GitObject {
+                $readPaths[] = $path;
+                if (!isset($objects[$entry->oid])) {
+                    throw new RuntimeException("Missing tree object for {$path}");
+                }
+
+                return $objects[$entry->oid];
+            },
+            includeTrees: false,
+        );
+
+        $t->same([
+            '   ',
+            "\f",
+        ], $walkPaths($records));
+        $t->same([], $readPaths);
+    },
     'matches directory-only pathspecs as verbatim and prefix matches' => static function (TestRunner $t): void {
         $search = PathspecSearch::fromSpecs(['wp-content/plugins/gutenberg/']);
 
@@ -1185,5 +1231,12 @@ return [
         $t->same(true, $example['malformedPosixClassLetterSkipped']);
         $t->same(true, $example['malformedPosixClassBracketSkipped']);
         $t->same(true, $example['malformedPosixClassLiteralIncluded']);
+        $t->same([
+            '   ',
+            "\f",
+        ], $example['whitespaceDirectoryOnlyContentPaths']);
+        $t->same(true, $example['whitespaceDirectoryOnlySpaceFileIncluded']);
+        $t->same(true, $example['whitespaceDirectoryOnlyFormFeedFileIncluded']);
+        $t->same(PathspecMatch::KIND_VERBATIM, $example['whitespaceDirectoryOnlySpaceMatchKind']);
     },
 ];

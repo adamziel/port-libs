@@ -667,6 +667,36 @@ return [
 
         $t->same(["slot\v", '[[:unknown:]]*.jpg'], $entryNames($combined->includedTreeEntries($uploads, 'wp-content/uploads')));
     },
+    'pathspec sparse checkout falls back verbatim for malformed POSIX classes' => static function (TestRunner $t): void {
+        $warnings = [];
+        set_error_handler(static function (int $errno, string $message) use (&$warnings): bool {
+            if (str_contains($message, 'preg_match()')) {
+                $warnings[] = $message;
+
+                return true;
+            }
+
+            return false;
+        });
+
+        try {
+            $malformed = SparseCheckoutSpec::fromPathspecs([
+                ':(glob)wp-content/uploads/[[:alpha]/photo.jpg',
+            ]);
+
+            $t->same(false, $malformed->includesPath('wp-content/uploads/a/photo.jpg', false));
+            $t->same(false, $malformed->includesPath('wp-content/uploads/A/photo.jpg', false));
+            $t->same(false, $malformed->includesPath('wp-content/uploads/[/photo.jpg', false));
+            $t->same(true, $malformed->includesPath('wp-content/uploads/[[:alpha]/photo.jpg', false));
+            $t->same(true, $malformed->skipWorktree('wp-content/uploads/a/photo.jpg', false));
+            $t->same(false, $malformed->skipWorktree('wp-content/uploads/[[:alpha]/photo.jpg', false));
+            $t->same(true, $malformed->includesPath('wp-content/uploads', true));
+        } finally {
+            restore_error_handler();
+        }
+
+        $t->same([], $warnings);
+    },
     'pathspec sparse checkout follows gix reversed character range boundaries' => static function (TestRunner $t) use ($entryNames): void {
         $warnings = [];
         set_error_handler(static function (int $errno, string $message) use (&$warnings): bool {

@@ -14,8 +14,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $encoding,
 ];
 
@@ -30,7 +30,7 @@ $nextRows = [
     $row(4, 'plugin_cache_new  ', 2),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::optionRowNameEscapePlan(
+$plan = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::keyValueRowKeyEscapePlan(
     $currentRows,
     $nextRows,
     $enc('plugin!_cache%   ', 2),
@@ -44,7 +44,7 @@ $plan = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::optionRowNameEsca
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($plan['status'] === 'utf16-nocase-like-rtrim-escape-current-source-next166');
+    assert($plan['status'] === 'utf16-nocase-like-rtrim-escape-current-source-nextoneSixSix');
     assert($plan['currentTrimmedEscape'] === '!');
     assert($plan['nextTrimmedEscape'] === '!');
     assert($plan['currentMatchedRowids'] === [1, 2]);

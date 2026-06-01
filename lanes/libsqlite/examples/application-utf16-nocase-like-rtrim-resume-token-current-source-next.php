@@ -16,8 +16,8 @@ require_once dirname(__DIR__) . '/src/SQLiteUtf16NocaseLikeRtrimResumeTokenCurre
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $encoding,
 ];
 
@@ -35,7 +35,7 @@ $nextRows = [
     $row(4, "plugin_cache_tab\t", 3),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan::optionRowNameResumeTokenPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan::keyValueRowKeyResumeTokenPlan(
     $currentRows,
     $nextRows,
     $enc('plugin\\_cache%', 2),
@@ -59,7 +59,7 @@ $plan = SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan::optionRowNam
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($plan['status'] === 'utf16-nocase-like-rtrim-resume-token-current-source-next170');
+    assert($plan['status'] === 'utf16-nocase-like-rtrim-resume-token-current-source-nextoneSevenZero');
     assert($plan['sameDecodedToken'] === true);
     assert($plan['byteOnlyTokenReprepare'] === true);
     assert($plan['safeToResumeFromToken'] === true);

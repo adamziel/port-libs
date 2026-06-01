@@ -326,6 +326,56 @@ return [
             $t->contains("Unable to inflate loose object: {$oid}", $exception->getMessage());
         }
     },
+    'loose object header validates corrupt first inflate window before exposing size' => static function (TestRunner $t) use ($writeLooseCompressed): void {
+        $smallObjectsDirectory = sys_get_temp_dir() . '/port-libs-git-corrupt-header-window-' . bin2hex(random_bytes(4)) . '/objects';
+        $smallOid = str_repeat('8', 40);
+        $smallCompressed = gzcompress("blob 3\0abc");
+        if ($smallCompressed === false) {
+            throw new RuntimeException('Unable to compress corrupt first-window loose-object fixture');
+        }
+        $smallCompressed[strlen($smallCompressed) - 1] = chr(ord($smallCompressed[strlen($smallCompressed) - 1]) ^ 0xff);
+        $writeLooseCompressed($smallObjectsDirectory, $smallOid, $smallCompressed);
+        $smallStore = LooseObjectStore::fromObjectsDirectory($smallObjectsDirectory);
+
+        $t->same(true, $smallStore->contains($smallOid));
+        foreach (['readHeader' => static fn () => $smallStore->readHeader($smallOid), 'tryReadHeader' => static fn () => $smallStore->tryReadHeader($smallOid)] as $operation => $callback) {
+            try {
+                $callback();
+                throw new RuntimeException("Expected corrupt first-window loose object {$operation} to fail");
+            } catch (RuntimeException $exception) {
+                $t->same("Unable to inflate loose object header: {$smallOid}", $exception->getMessage());
+            }
+        }
+        try {
+            $smallStore->verifyIntegrity();
+            throw new RuntimeException('Expected corrupt first-window loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$smallOid} could not be read exactly", $exception->getMessage());
+            $t->contains("Unable to inflate loose object: {$smallOid}", $exception->getMessage());
+        }
+
+        $largeObjectsDirectory = sys_get_temp_dir() . '/port-libs-git-corrupt-after-header-window-' . bin2hex(random_bytes(4)) . '/objects';
+        $largeBody = str_repeat('L', 96);
+        $largeObject = new GitObject('blob', $largeBody);
+        $largeCompressed = gzcompress($largeObject->storageBytes());
+        if ($largeCompressed === false) {
+            throw new RuntimeException('Unable to compress corrupt after-window loose-object fixture');
+        }
+        $largeCompressed[strlen($largeCompressed) - 1] = chr(ord($largeCompressed[strlen($largeCompressed) - 1]) ^ 0xff);
+        $writeLooseCompressed($largeObjectsDirectory, $largeObject->oid(), $largeCompressed);
+        $largeStore = LooseObjectStore::fromObjectsDirectory($largeObjectsDirectory);
+
+        $t->same([
+            'type' => 'blob',
+            'size' => strlen($largeBody),
+            'headerLength' => strlen('blob ' . strlen($largeBody) . "\0"),
+        ], $largeStore->readHeader($largeObject->oid()));
+        $t->same($largeBody, $largeStore->read($largeObject->oid())->body);
+        $t->same([
+            'numObjects' => 1,
+            'verifiedObjectIds' => [$largeObject->oid()],
+        ], $largeStore->verifyIntegrity());
+    },
     'loose object integrity ignores trailing compressed streams after the declared object' => static function (TestRunner $t) use ($writeLooseCompressed): void {
         $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-trailing-loose-stream-' . bin2hex(random_bytes(4)) . '/objects';
         $object = new GitObject('blob', 'WordPress deployment loose object');
@@ -785,6 +835,8 @@ return [
         $t->same($fixture['lateSameStreamOid'], (new GitObject('blob', $fixture['lateSameStreamBody']))->oid());
         $t->same(true, $summary['truncatedHeaderInflateRejected']);
         $t->contains('Unable to inflate loose object header: ' . $fixture['truncatedHeaderOid'], $summary['truncatedHeaderMessage']);
+        $t->same(true, $summary['corruptFirstWindowHeaderRejected']);
+        $t->contains('Unable to inflate loose object header: ' . str_repeat('8', 40), $summary['corruptFirstWindowHeaderMessage']);
         $t->same(true, $summary['finalizedReadOnly']);
         $t->same(true, $summary['finalizedExistingObjectPreserved']);
         $t->same(true, $summary['integrityInterruptHandled']);

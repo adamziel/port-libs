@@ -47,6 +47,9 @@ $posixClassPathspec = SparseCheckoutSpec::fromPathspecs([
 $posixSpaceClassPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)wp-content/uploads/slot[[:space:]]/**',
 ]);
+$malformedPosixClassPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content/uploads/[[:alpha]/photo.jpg',
+]);
 $reversedRangePathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)wp-content/uploads/[z-a]/**',
 ]);
@@ -246,6 +249,9 @@ return [
     'pathspecPosixSpaceTabSkipped' => $posixSpaceClassPathspec->skipWorktree("wp-content/uploads/slot\t/photo.jpg", false),
     'pathspecInvalidClassLiteralFallbackIncluded' => $posixClassPathspec->includesPath('wp-content/uploads/[[:unknown:]]*.jpg', false),
     'pathspecInvalidClassWildcardExpansionSkipped' => $posixClassPathspec->skipWorktree('wp-content/uploads/[[:unknown:]]hero.jpg', false),
+    'pathspecMalformedPosixAlphaSkipped' => $malformedPosixClassPathspec->skipWorktree('wp-content/uploads/a/photo.jpg', false),
+    'pathspecMalformedPosixOpenBracketSkipped' => $malformedPosixClassPathspec->skipWorktree('wp-content/uploads/[/photo.jpg', false),
+    'pathspecMalformedPosixLiteralFallbackIncluded' => $malformedPosixClassPathspec->includesPath('wp-content/uploads/[[:alpha]/photo.jpg', false),
     'pathspecReversedRangeStartIncluded' => $reversedRangePathspec->includesPath('wp-content/uploads/z/photo.jpg', false),
     'pathspecReversedRangeMiddleSkipped' => $reversedRangePathspec->skipWorktree('wp-content/uploads/m/photo.jpg', false),
     'pathspecNegatedReversedRangeStartSkipped' => $negatedReversedRangePathspec->skipWorktree('wp-content/uploads/z/photo.jpg', false),

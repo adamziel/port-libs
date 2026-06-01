@@ -25,6 +25,8 @@ $lateSameStreamOverrunIgnored = false;
 $lateSameStreamIntegrityVerified = false;
 $truncatedHeaderInflateRejected = false;
 $truncatedHeaderMessage = null;
+$corruptFirstWindowHeaderRejected = false;
+$corruptFirstWindowHeaderMessage = null;
 $finalizedReadOnly = false;
 $finalizedExistingObjectPreserved = false;
 $integrityInterruptHandled = false;
@@ -115,6 +117,26 @@ try {
     $truncatedHeaderMessage = $exception->getMessage();
 }
 
+$corruptHeaderDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-corrupt-window-' . bin2hex(random_bytes(4)) . '/objects';
+$corruptHeaderOid = str_repeat('8', 40);
+$corruptHeaderPath = $corruptHeaderDirectory . '/' . substr($corruptHeaderOid, 0, 2) . '/' . substr($corruptHeaderOid, 2);
+if (!is_dir(dirname($corruptHeaderPath)) && !mkdir(dirname($corruptHeaderPath), 0777, true) && !is_dir(dirname($corruptHeaderPath))) {
+    throw new RuntimeException('Unable to create object-header corrupt first-window fixture directory');
+}
+$corruptHeaderCompressed = gzcompress("blob 3\0abc");
+if ($corruptHeaderCompressed === false) {
+    throw new RuntimeException('Unable to compress object-header corrupt first-window fixture');
+}
+$corruptHeaderCompressed[strlen($corruptHeaderCompressed) - 1] = chr(ord($corruptHeaderCompressed[strlen($corruptHeaderCompressed) - 1]) ^ 0xff);
+file_put_contents($corruptHeaderPath, $corruptHeaderCompressed);
+$corruptHeaderStore = LooseObjectStore::fromObjectsDirectory($corruptHeaderDirectory);
+try {
+    $corruptHeaderStore->readHeader($corruptHeaderOid);
+} catch (RuntimeException $exception) {
+    $corruptFirstWindowHeaderRejected = true;
+    $corruptFirstWindowHeaderMessage = $exception->getMessage();
+}
+
 $finalizedObjectsDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-finalized-' . bin2hex(random_bytes(4)) . '/objects';
 $finalizedStore = LooseObjectStore::fromObjectsDirectory($finalizedObjectsDirectory);
 $finalizedObject = new GitObject('blob', "Read-only WordPress export object\n");
@@ -185,6 +207,8 @@ return [
     'lateSameStreamIntegrityVerified' => $lateSameStreamIntegrityVerified,
     'truncatedHeaderInflateRejected' => $truncatedHeaderInflateRejected,
     'truncatedHeaderMessage' => $truncatedHeaderMessage,
+    'corruptFirstWindowHeaderRejected' => $corruptFirstWindowHeaderRejected,
+    'corruptFirstWindowHeaderMessage' => $corruptFirstWindowHeaderMessage,
     'finalizedReadOnly' => $finalizedReadOnly,
     'finalizedExistingObjectPreserved' => $finalizedExistingObjectPreserved,
     'integrityInterruptHandled' => $integrityInterruptHandled,

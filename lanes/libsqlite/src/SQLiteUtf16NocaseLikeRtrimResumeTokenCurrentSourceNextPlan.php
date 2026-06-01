@@ -83,7 +83,7 @@ final class SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-resume-token-current-source-nextoneSevenZero',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ?',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ?',
             'baseStatus' => $base['status'],
             'caseSensitiveLike' => false,
             'asciiNocaseOnly' => true,

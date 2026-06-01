@@ -36,7 +36,7 @@ $token = [
     'encoding' => 'UTF-16BE',
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::optionRowNameEscapeReplayPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::keyValueRowKeyEscapeReplayPlan(
     $current,
     $next,
     $enc('plugin!_!%!_cache%', 2),
@@ -61,13 +61,13 @@ $summary = [
     'escapeReasons' => $plan['operandInvalidationReasons'],
     'replayMode' => $plan['replayPlanMode'],
     'dependencyClosure' => $plan['dependency_closure'],
-    'applicationUse' => 'Copied wp_options LIKE ESCAPE scans over UTF-16 option_name rows validate decoded ESCAPE operands before replaying a saved RTRIM/NOCASE cursor, preventing stale escaped-wildcard imports after source changes.',
+    'applicationUse' => 'Application setting LIKE ESCAPE scans over UTF-16 key_name rows validate decoded ESCAPE operands before replaying a saved RTRIM/NOCASE cursor, preventing stale escaped-wildcard imports after source changes.',
 ];
 
 echo json_encode($summary, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . "\n";
 
 if (in_array('--self-test', $argv, true)) {
-    assert($summary['status'] === 'utf16-nocase-like-rtrim-escape-current-source-next182');
+    assert($summary['status'] === 'utf16-nocase-like-rtrim-escape-current-source-nextoneEightTwo');
     assert($summary['nextMatchedRowids'] === [1, 3, 5]);
     assert(in_array('escape-encoding-changed', $summary['escapeReasons'], true));
     assert($summary['replayMode'] === 'reprepare-from-decoded-escape-start');

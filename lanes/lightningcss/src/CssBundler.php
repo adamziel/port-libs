@@ -3746,7 +3746,7 @@ final class CssBundler
 
     private function codepointToUtf8(int $codepoint): string
     {
-        if ($codepoint <= 0 || $codepoint > 0x10ffff) {
+        if ($codepoint <= 0 || ($codepoint >= 0xd800 && $codepoint <= 0xdfff) || $codepoint > 0x10ffff) {
             $codepoint = 0xfffd;
         }
 

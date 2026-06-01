@@ -3910,6 +3910,14 @@ CSS;
             ])
         );
         $t->same(
+            '@layer blocks{@media (-webkit-device-pixel-ratio=2),(-moz-device-pixel-ratio=2),(resolution=2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (resolution = 2e0dppx) { .wp-block-query { color: yellow; } } }', [
+                'safari' => 15,
+                'firefox' => 10,
+                'exclude' => ['MediaRangeSyntax'],
+            ])
+        );
+        $t->same(
             '@media only screen and (-webkit-device-pixel-ratio>=1.3),only screen and (-moz-device-pixel-ratio>=1.3),only screen and (resolution>=124.8dpi){.foo{color:#ff0}}',
             $prefixer->prefixForTargets('@media only screen and (resolution >= 124.8dpi) { .foo { color: yellow; } }', [
                 'safari' => 15,

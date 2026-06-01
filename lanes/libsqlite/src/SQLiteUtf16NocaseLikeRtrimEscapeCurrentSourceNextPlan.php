@@ -107,7 +107,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl
         return [
             'status' => 'utf16-nocase-like-rtrim-escape-current-source-nextoneSixSix',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE rtrim(?) ESCAPE rtrim(?)',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE rtrim(?) ESCAPE rtrim(?)',
             'caseSensitiveLike' => false,
             'collation' => 'NOCASE',
             'currentSource' => $base['currentSource'],
@@ -291,7 +291,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextReplayImpl
         return [
             'status' => 'utf16-nocase-like-rtrim-escape-current-source-nextoneEightTwo',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE',
             'baseStatus' => $base['status'] ?? null,
             'currentPattern' => $pattern['value'],
             'nextPattern' => $nextPattern['value'],

@@ -13934,6 +13934,9 @@ final class DeclarationBlock
         if ($property === 'animation-timeline') {
             return $this->normalizeAnimationTimelineList($value);
         }
+        if ($property === 'animation-composition') {
+            return $this->normalizeAnimationCompositionList($value);
+        }
 
         $transitionBase = $this->baseTransitionProperty($property);
         if ($transitionBase === 'transition') {
@@ -14019,6 +14022,22 @@ final class DeclarationBlock
         return implode(
             ', ',
             array_map(fn (string $part): string => $this->canonicalTransitionTime($part), $parts)
+        );
+    }
+
+    private function normalizeAnimationCompositionList(string $value): string
+    {
+        $parts = array_map('trim', $this->splitTopLevel($value, ','));
+        if ($parts === [] || in_array('', $parts, true)) {
+            return trim($value);
+        }
+
+        return implode(
+            ', ',
+            array_map(
+                fn (string $part): string => $this->normalizeKeywordDeclarationValue($part, self::ANIMATION_COMPOSITIONS),
+                $parts
+            )
         );
     }
 

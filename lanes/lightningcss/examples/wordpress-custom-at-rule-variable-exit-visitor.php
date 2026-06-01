@@ -7,7 +7,7 @@ use PortLibs\LightningCSS\CustomAtRuleTransformer;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $css = <<<'CSS'
-@media (max-width: env(--block-card-breakpoint)) {
+@media (max-width: env(--block-card-breakpoint 1, 640px)) {
   .wp-block-card {
     padding: var(--block-card-gap);
   }
@@ -19,7 +19,12 @@ $visitor = CustomAtRuleTransformer::composeVisitors([
     [
         'EnvironmentVariableExit' => [
             '--block-card-breakpoint' => static function (array $environmentVariable) use (&$seen): array {
-                $seen[] = ['EnvironmentVariableExit', $environmentVariable['name']['ident']];
+                $seen[] = [
+                    'EnvironmentVariableExit',
+                    $environmentVariable['name']['ident'],
+                    $environmentVariable['indices'] ?? [],
+                    $environmentVariable['fallback'][0]['value'] ?? null,
+                ];
 
                 return [
                     'type' => 'length',
@@ -52,7 +57,7 @@ if (($argv[1] ?? null) === '--self-test') {
     }
 
     if ($seen !== [
-        ['EnvironmentVariableExit', '--block-card-breakpoint'],
+        ['EnvironmentVariableExit', '--block-card-breakpoint', [1], '640px'],
         ['VariableExit', '--block-card-gap'],
     ]) {
         fwrite(STDERR, "Unexpected variable exit visitor state:\n" . json_encode($seen) . "\n");

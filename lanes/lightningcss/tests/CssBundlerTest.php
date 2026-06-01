@@ -851,6 +851,36 @@ CSS,
             ['pkg:icon.css', '/entry.css'],
         ], $resolved);
     },
+    'css bundler replaces surrogate import source escapes before resolver traversal' => static function (TestRunner $t) use ($bundle): void {
+        $replacement = "\xEF\xBF\xBD";
+        $resolved = [];
+
+        $t->same(
+            '.card{color:green}.icon{color:#00f}.entry{color:red}',
+            $bundle([
+                '/entry.css' => <<<'CSS'
+@import "pkg:\d800.css";
+@import url(pkg:icon\dfff.css);
+.entry { color: red }
+CSS,
+                '/vendor/replacement.css' => '.card { color: green }',
+                '/vendor/icon.css' => '.icon { color: blue }',
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved, $replacement): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return match ($specifier) {
+                    'pkg:' . $replacement . '.css' => '/vendor/replacement.css',
+                    'pkg:icon' . $replacement . '.css' => '/vendor/icon.css',
+                    default => throw new RuntimeException("Unexpected replacement import specifier {$specifier}"),
+                };
+            })
+        );
+
+        $t->same([
+            ['pkg:' . $replacement . '.css', '/entry.css'],
+            ['pkg:icon' . $replacement . '.css', '/entry.css'],
+        ], $resolved);
+    },
     'css bundler rejects upstream bad unquoted url import sources before resolution' => static function (TestRunner $t): void {
         $assertBadUrlImport = static function (string $css) use ($t): void {
             $reads = [];

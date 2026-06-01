@@ -7,7 +7,7 @@ use PortLibs\LightningCSS\CustomAtRuleTransformer;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $css = <<<'CSS'
-@wp-token-list theme("card-gap") var(--wp-gap) env(--wp-breakpoint) 2--wp-fluid-step @--wp-accent;
+@wp-token-list theme("card-gap") var(--wp-gap) env(--wp-breakpoint) 2--wp-fluid-step @--wp-accent --wp-gap-alias 90deg 250ms 2dppx url(blocks/card/icon.svg);
 
 .wp-block-card {
   color: red;
@@ -38,6 +38,24 @@ $result = $transformer->transform($css, [
                 'value' => 782.0,
             ],
         ],
+        'Angle' => static fn (array $angle): array => ($angle['type'] ?? null) === 'deg'
+            ? ['type' => 'turn', 'value' => $angle['value'] / 360]
+            : $angle,
+        'Time' => static fn (array $time): array => ($time['type'] ?? null) === 'milliseconds'
+            ? ['type' => 'seconds', 'value' => $time['value'] / 1000]
+            : $time,
+        'Resolution' => static fn (array $resolution): array => ($resolution['type'] ?? null) === 'dppx'
+            ? ['type' => 'dpi', 'value' => $resolution['value'] * 96]
+            : $resolution,
+        'Url' => static function (array $url): array {
+            if (str_starts_with($url['url'], 'theme/')) {
+                return $url;
+            }
+
+            $url['url'] = 'theme/' . $url['url'];
+
+            return $url;
+        },
         'Token' => [
             'dimension' => static fn (array $token): array => [
                 'type' => 'function',
@@ -88,7 +106,7 @@ $result = $transformer->transform($css, [
     ],
 ]));
 
-$expected = ':root{--wp-token-list:24px 1rem 782px calc(2*var(--wp-fluid-step)) #056ef0}.wp-block-card{color:red}';
+$expected = ':root{--wp-token-list:24px 1rem 782px calc(2*var(--wp-fluid-step)) #056ef0 --wp-gap-alias 0.25turn 0.25s 192dpi url(theme/blocks/card/icon.svg)}.wp-block-card{color:red}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {
@@ -103,7 +121,7 @@ if (($argv[1] ?? null) === '--self-test') {
         static fn (array $component): string => (string) ($component['type'] ?? ''),
         $seenPreludeAst['value'] ?? []
     );
-    if ($componentTypes !== ['length', 'length', 'length', 'function', 'color']) {
+    if ($componentTypes !== ['length', 'length', 'length', 'function', 'color', 'dashed-ident', 'angle', 'time', 'resolution', 'url']) {
         fwrite(STDERR, "Unexpected token-list component types:\n" . json_encode($componentTypes) . "\n");
         exit(1);
     }

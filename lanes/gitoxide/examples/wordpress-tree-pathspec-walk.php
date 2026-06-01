@@ -25,6 +25,8 @@ $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
 };
 
 $root = new Tree([
+    $blob('   '),
+    $blob("\f"),
     $blob('index.php'),
     $tree('wp-admin', new Tree([$blob('admin.php')])),
     $tree('wp-content', new Tree([
@@ -147,6 +149,10 @@ $danglingBackslashPathspecs = PathspecSearch::fromSpecs([
 ]);
 $malformedPosixClassPathspecs = PathspecSearch::fromSpecs([
     ':(glob)wp-content/uploads/[[:alpha]/hero.jpg',
+]);
+$whitespaceDirectoryOnlyPathspecs = PathspecSearch::fromSpecs([
+    '   /',
+    "\f/",
 ]);
 $deploymentAttributes = GitAttributes::fromString(
     "wp-content/plugins/gutenberg/** deploy=plugin merge=union\n"
@@ -411,6 +417,18 @@ $malformedPosixClassRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$whitespaceDirectoryOnlyRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $whitespaceDirectoryOnlyPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 
 return [
     'matchedContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $records),
@@ -473,6 +491,10 @@ return [
     'malformedPosixClassLetterSkipped' => !$malformedPosixClassPathspecs->isIncluded('wp-content/uploads/a/hero.jpg', false),
     'malformedPosixClassBracketSkipped' => !$malformedPosixClassPathspecs->isIncluded('wp-content/uploads/[/hero.jpg', false),
     'malformedPosixClassLiteralIncluded' => $malformedPosixClassPathspecs->isIncluded('wp-content/uploads/[[:alpha]/hero.jpg', false),
+    'whitespaceDirectoryOnlyContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $whitespaceDirectoryOnlyRecords),
+    'whitespaceDirectoryOnlySpaceFileIncluded' => $whitespaceDirectoryOnlyPathspecs->isIncluded('   ', false),
+    'whitespaceDirectoryOnlyFormFeedFileIncluded' => $whitespaceDirectoryOnlyPathspecs->isIncluded("\f", false),
+    'whitespaceDirectoryOnlySpaceMatchKind' => $whitespaceDirectoryOnlyPathspecs->match('   ', false)?->kind,
     'attrFilteredContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $attrFilteredRecords),
     'attrFilteredWithoutProviderEmpty' => $attrFilteredWithoutProviderRecords === [],
     'rootEscapingPathspecRejected' => $rootEscapingPathspecRejected,

@@ -303,6 +303,35 @@ if ($hexEscapedCrlfBundle !== '.wp-block-card{color:green}.wp-block-navigation{c
 
 echo 'escaped-crlf-imports: resolved' . PHP_EOL;
 
+$replacementCharacter = "\xEF\xBF\xBD";
+$surrogateResolved = [];
+$surrogateEscapeBundle = (new CssBundler())->bundle('/surrogate-import.css', [
+    '/surrogate-import.css' => <<<'CSS'
+@import "pkg:theme\d800-tokens.css";
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/vendor/theme-tokens.css' => ':root { --wp--preset--spacing--block-gap: 1rem; }',
+], static function (string $specifier, string $originatingFile) use (&$surrogateResolved, $replacementCharacter): string {
+    $surrogateResolved[] = [$specifier, $originatingFile];
+    if ($specifier !== 'pkg:theme' . $replacementCharacter . '-tokens.css') {
+        throw new RuntimeException("Unexpected surrogate import specifier {$specifier}");
+    }
+
+    return '/vendor/theme-tokens.css';
+});
+
+if (
+    $surrogateEscapeBundle !== ':root{--wp--preset--spacing--block-gap:1rem}.wp-site-blocks{color:red}'
+    || $surrogateResolved !== [['pkg:theme' . $replacementCharacter . '-tokens.css', '/surrogate-import.css']]
+) {
+    fwrite(STDERR, "Expected surrogate import escapes to resolve with replacement characters\n");
+    exit(1);
+}
+
+echo 'surrogate-import-escape: resolved' . PHP_EOL;
+
 $escapedImportKeywordBundle = (new CssBundler())->bundle('/escaped-import-keywords.css', [
     '/escaped-import-keywords.css' => <<<'CSS'
 @import u\72l(pkg:card.css) l\61yer(theme.blocks) s\75pports(display: grid) screen;

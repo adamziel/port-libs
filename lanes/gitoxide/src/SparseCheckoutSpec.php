@@ -725,6 +725,9 @@ final class SparseCheckoutSpec
             $negated = true;
             $class = substr($class, 1);
         }
+        if (str_starts_with($class, '[:') && strpos($class, ':]', 2) === false) {
+            return null;
+        }
 
         $body = '';
         $previousRangeByte = null;

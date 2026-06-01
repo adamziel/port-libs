@@ -332,7 +332,9 @@ final class PathspecSearch
         if (!$matchIsAllowed) {
             return null;
         }
-        $patternRequirementIsMet = !$pattern->mustBeDirectory || $relativePathHasSlashAtPatternLength || $isDirectory;
+        $patternRequirementIsMet = !$this->enforcesDirectoryRequirement($pattern)
+            || $relativePathHasSlashAtPatternLength
+            || $isDirectory;
         if (!$patternRequirementIsMet) {
             return null;
         }
@@ -402,6 +404,32 @@ final class PathspecSearch
     private function samePath(PathspecPattern $pattern, string $left, string $right): bool
     {
         return $pattern->ignoreCase ? strcasecmp($left, $right) === 0 : $left === $right;
+    }
+
+    private function enforcesDirectoryRequirement(PathspecPattern $pattern): bool
+    {
+        if (!$pattern->mustBeDirectory) {
+            return false;
+        }
+
+        // gix-glob's all-whitespace parser fallback loses MUST_BE_DIR before verbatim matching.
+        return !self::isAsciiWhitespaceOnly($pattern->path);
+    }
+
+    private static function isAsciiWhitespaceOnly(string $value): bool
+    {
+        if ($value === '') {
+            return false;
+        }
+
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            if (!in_array($value[$i], ["\t", "\n", "\v", "\f", "\r", ' '], true)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static function globRegex(string $pattern, bool $pathAware, bool $ignoreCase = false): string
