@@ -63,7 +63,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $reasons[] = 'utf16-byte-order';
         }
 
-        $plan['expression'] = 'rtrim(option_name) COLLATE NOCASE /* UTF-16 source */';
+        $plan['expression'] = 'rtrim(key_name) COLLATE NOCASE /* UTF-16 source */';
         $plan['sourceTextEncoding'] = 'UTF-16';
         $plan['acceptedTextEncodings'] = ['UTF-16LE', 'UTF-16BE'];
         $plan['utf16ByteOrderSensitive'] = true;

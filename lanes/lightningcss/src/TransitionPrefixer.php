@@ -6009,51 +6009,10 @@ final class TransitionPrefixer
      */
     private function rewritePrintColorAdjustPrefixEntries(array &$entries, array $targetOptions): bool
     {
-        $needsWebkit = $targetOptions['printColorAdjustNeedsWebkit'] ?? false;
-        $needsMoz = $targetOptions['printColorAdjustNeedsMoz'] ?? false;
-        if (!$needsWebkit && !$needsMoz) {
-            return false;
-        }
-
-        $hasWebkit = false;
-        $hasMoz = false;
-        foreach ($entries as $entry) {
-            if ($entry['property'] === '-webkit-print-color-adjust' && !$entry['important']) {
-                $hasWebkit = true;
-                continue;
-            }
-            if ($entry['property'] === '-moz-print-color-adjust' && !$entry['important']) {
-                $hasMoz = true;
-            }
-        }
-
-        if (($hasWebkit || !$needsWebkit) && ($hasMoz || !$needsMoz)) {
-            return false;
-        }
-
-        $rewritten = [];
-        $changed = false;
-        foreach ($entries as $entry) {
-            if ($entry['property'] === 'print-color-adjust' && !$entry['important']) {
-                if ($needsWebkit && !$hasWebkit) {
-                    $rewritten[] = $this->declarationEntry('-webkit-print-color-adjust', $entry['value']);
-                    $changed = true;
-                }
-                if ($needsMoz && !$hasMoz) {
-                    $rewritten[] = $this->declarationEntry('-moz-print-color-adjust', $entry['value']);
-                    $changed = true;
-                }
-            }
-
-            $rewritten[] = $entry;
-        }
-
-        if (!$changed) {
-            return false;
-        }
-
-        $entries = $rewritten;
-        return true;
+        return $this->rewriteVendorPrefixedDeclarationGroup($entries, 'print-color-adjust', [
+            '-webkit-' => $targetOptions['printColorAdjustNeedsWebkit'] ?? false,
+            '-moz-' => $targetOptions['printColorAdjustNeedsMoz'] ?? false,
+        ]);
     }
 
     /**

@@ -12,53 +12,53 @@ use PortLibs\LibSqlite\SQLiteIndexPredicate;
 use PortLibs\LibSqlite\SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan;
 
 $prepared = [
-    'name' => 'prepared-main.wp_options',
+    'name' => 'prepared-main.app_settings',
     'schemaCookie' => 1490,
     'stat4Generation' => 71,
-    'indexName' => 'idx_wp_options_autoload_lower_name',
+    'indexName' => 'idx_app_settings_load_policy_lower_key',
     'rootPage' => 14901,
-    'skippedColumn' => 'autoload',
-    'rangeColumn' => 'option_name',
-    'rangeExpression' => 'lower(option_name)',
-    'rangeExpressionColumn' => '__expr_lower_option_name_range_recheck',
-    'lowerInclusive' => 'plugin_',
-    'upperBound' => 'plugin_t',
+    'skippedColumn' => 'load_policy',
+    'rangeColumn' => 'key_name',
+    'rangeExpression' => 'lower(key_name)',
+    'rangeExpressionColumn' => '__expr_lower_key_name_range_recheck',
+    'lowerInclusive' => 'module_',
+    'upperBound' => 'module_t',
     'upperInclusive' => false,
     'collation' => 'BINARY',
-    'coveringColumns' => ['autoload', 'option_name', 'option_value', 'kind'],
+    'coveringColumns' => ['load_policy', 'key_name', 'key_value', 'kind'],
     'rows' => [
-        ['rowid' => 1, 'autoload' => 'auto', 'option_name' => 'plugin_alpha', 'option_value' => 'a:1', 'kind' => 'plugin'],
-        ['rowid' => 2, 'autoload' => 'no', 'option_name' => 'plugin_mail', 'option_value' => 'a:2', 'kind' => 'plugin'],
+        ['rowid' => 1, 'load_policy' => 'auto', 'key_name' => 'module_alpha', 'key_value' => 'a:1', 'kind' => 'module'],
+        ['rowid' => 2, 'load_policy' => 'no', 'key_name' => 'module_mail', 'key_value' => 'a:2', 'kind' => 'module'],
     ],
     'stat4Samples' => [
-        ['prefix' => 'auto', 'suffix' => 'plugin_alpha', 'nEq' => 1, 'nLt' => 0, 'nDLt' => 0],
-        ['prefix' => 'no', 'suffix' => 'plugin_mail', 'nEq' => 1, 'nLt' => 0, 'nDLt' => 0],
+        ['prefix' => 'auto', 'suffix' => 'module_alpha', 'nEq' => 1, 'nLt' => 0, 'nDLt' => 0],
+        ['prefix' => 'no', 'suffix' => 'module_mail', 'nEq' => 1, 'nLt' => 0, 'nDLt' => 0],
     ],
 ];
 
 $current = array_replace($prepared, [
-    'name' => 'current-main.wp_options',
+    'name' => 'current-main.app_settings',
     'schemaCookie' => 1491,
     'stat4Generation' => 72,
     'rootPage' => 14909,
-    'lowerInclusive' => 'plugin_d',
-    'upperBound' => 'plugin_zeta',
+    'lowerInclusive' => 'module_d',
+    'upperBound' => 'module_zeta',
     'upperInclusive' => true,
     'rows' => [
-        ['rowid' => 1, 'autoload' => 'auto', 'option_name' => 'plugin_delta', 'option_value' => 'a:3', 'kind' => 'plugin'],
-        ['rowid' => 2, 'autoload' => 'no', 'option_name' => 'plugin_zeta', 'option_value' => 'a:4', 'kind' => 'plugin'],
-        ['rowid' => 3, 'autoload' => 'yes', 'option_name' => 'plugin_delta', 'option_value' => 'stale', 'kind' => 'plugin', '__expr_lower_option_name_range_recheck' => 'theme_mods_old_cache'],
+        ['rowid' => 1, 'load_policy' => 'auto', 'key_name' => 'module_delta', 'key_value' => 'a:3', 'kind' => 'module'],
+        ['rowid' => 2, 'load_policy' => 'no', 'key_name' => 'module_zeta', 'key_value' => 'a:4', 'kind' => 'module'],
+        ['rowid' => 3, 'load_policy' => 'yes', 'key_name' => 'module_delta', 'key_value' => 'stale', 'kind' => 'module', '__expr_lower_key_name_range_recheck' => 'module_archive_old_cache'],
     ],
     'stat4Samples' => [
-        ['prefix' => 'auto', 'suffix' => 'plugin_delta', 'nEq' => 1, 'nLt' => 0, 'nDLt' => 0],
-        ['prefix' => 'no', 'suffix' => 'plugin_zeta', 'nEq' => 1, 'nLt' => 0, 'nDLt' => 0],
-        ['prefix' => 'yes', 'suffix' => 'plugin_delta', 'nEq' => 1, 'nLt' => 0, 'nDLt' => 0],
+        ['prefix' => 'auto', 'suffix' => 'module_delta', 'nEq' => 1, 'nLt' => 0, 'nDLt' => 0],
+        ['prefix' => 'no', 'suffix' => 'module_zeta', 'nEq' => 1, 'nLt' => 0, 'nDLt' => 0],
+        ['prefix' => 'yes', 'suffix' => 'module_delta', 'nEq' => 1, 'nLt' => 0, 'nDLt' => 0],
     ],
 ]);
 
 $partial = new SQLiteIndexPredicate('', SQLiteIndexPredicate::AND, [
-    new SQLiteIndexPredicate('kind', SQLiteIndexPredicate::EQUALS, 'plugin'),
-    new SQLiteIndexPredicate('option_name', SQLiteIndexPredicate::IS_NOT_NULL),
+    new SQLiteIndexPredicate('kind', SQLiteIndexPredicate::EQUALS, 'module'),
+    new SQLiteIndexPredicate('key_name', SQLiteIndexPredicate::IS_NOT_NULL),
 ]);
 
 $plan = SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan::materializeExpressionRangeRecheck(
@@ -66,12 +66,12 @@ $plan = SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan::materializeEx
     $current,
     $partial,
     [
-        ['operator' => '=', 'left' => ['column' => 'kind'], 'right' => 'plugin'],
-        ['operator' => 'IS NOT NULL', 'left' => ['column' => 'option_name']],
-        ['operator' => '>=', 'left' => ['expression' => 'lower(option_name)'], 'right' => 'plugin_'],
+        ['operator' => '=', 'left' => ['column' => 'kind'], 'right' => 'module'],
+        ['operator' => 'IS NOT NULL', 'left' => ['column' => 'key_name']],
+        ['operator' => '>=', 'left' => ['expression' => 'lower(key_name)'], 'right' => 'module_'],
     ],
-    [['expression' => 'autoload'], ['expression' => 'lower(option_name)']],
-    ['option_name', 'option_value', 'kind'],
+    [['expression' => 'load_policy'], ['expression' => 'lower(key_name)']],
+    ['key_name', 'key_value', 'kind'],
 );
 
 echo json_encode([

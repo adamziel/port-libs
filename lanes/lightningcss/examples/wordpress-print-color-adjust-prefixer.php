@@ -12,6 +12,14 @@ $css = <<<'CSS'
 }
 CSS;
 
+$staleCss = <<<'CSS'
+.wp-block-post-content .print-cover {
+  -webkit-print-color-adjust: exact;
+  -moz-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+CSS;
+
 $prefixer = new TransitionPrefixer();
 $actual = [
     'chrome135' => $prefixer->prefixForTargets($css, ['chrome' => 135]),
@@ -22,6 +30,9 @@ $actual = [
     'samsung28' => $prefixer->prefixForTargets($css, ['samsung' => 28]),
     'samsung29' => $prefixer->prefixForTargets($css, ['samsung' => 29]),
     'chrome135_firefox96' => $prefixer->prefixForTargets($css, ['chrome' => 135, 'firefox' => 96]),
+    'modern_stale_cleanup' => $prefixer->prefixForTargets($staleCss, ['chrome' => 136, 'firefox' => 97]),
+    'chrome135_stale_cleanup' => $prefixer->prefixForTargets($staleCss, ['chrome' => 135]),
+    'firefox96_stale_cleanup' => $prefixer->prefixForTargets($staleCss, ['firefox' => 96]),
 ];
 
 $expected = [
@@ -33,6 +44,9 @@ $expected = [
     'samsung28' => '.wp-block-post-content .print-cover{-webkit-print-color-adjust:exact;print-color-adjust:exact}',
     'samsung29' => '.wp-block-post-content .print-cover{print-color-adjust:exact}',
     'chrome135_firefox96' => '.wp-block-post-content .print-cover{-webkit-print-color-adjust:exact;-moz-print-color-adjust:exact;print-color-adjust:exact}',
+    'modern_stale_cleanup' => '.wp-block-post-content .print-cover{print-color-adjust:exact}',
+    'chrome135_stale_cleanup' => '.wp-block-post-content .print-cover{-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+    'firefox96_stale_cleanup' => '.wp-block-post-content .print-cover{-moz-print-color-adjust:exact;print-color-adjust:exact}',
 ];
 
 if ($actual !== $expected) {

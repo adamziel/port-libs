@@ -96,7 +96,7 @@ final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
                 $row = $rowsByRowid[$rowid] ?? null;
                 if ($row === null) {
                     $rejected[] = $rowid;
-                    $tape[] = self::auditRow($rowid, null, null, $lower, $upper, false, 'missing-current-row');
+                    $tape[] = self::auditRow($rowid, null, $column, null, $lower, $upper, false, 'missing-current-row');
                     continue;
                 }
                 $value = self::expressionValue($expression, $column, $rangeColumn, $row);
@@ -109,7 +109,7 @@ final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
                 } else {
                     $rejected[] = $rowid;
                 }
-                $tape[] = self::auditRow($rowid, $row, $value, $lower, $upper, $matched, $matched ? 'accepted' : 'range-filtered');
+                $tape[] = self::auditRow($rowid, $row, $column, $value, $lower, $upper, $matched, $matched ? 'accepted' : 'range-filtered');
             }
 
             return [
@@ -130,11 +130,11 @@ final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
          * @param array<string,mixed>|null $row
          * @return array<string,mixed>
          */
-        private static function auditRow(int $rowid, ?array $row, mixed $value, mixed $lower, mixed $upper, bool $matched, string $reason): array
+        private static function auditRow(int $rowid, ?array $row, string $sourceColumn, mixed $value, mixed $lower, mixed $upper, bool $matched, string $reason): array
         {
             return [
                 'rowid' => $rowid,
-                'option_name' => $row['option_name'] ?? null,
+                'sourceValue' => $row === null ? null : self::rowColumn($row, $sourceColumn),
                 'expressionValue' => $value,
                 'lower' => $lower,
                 'upper' => $upper,

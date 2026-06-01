@@ -142,6 +142,53 @@ $helperProgramOutput = CredentialHelperExchange::invoke(
         return new CredentialContext(username: 'deploy-bot', password: 'wp-deploy-token');
     },
 );
+$helperProgramFirstArgOnly = [];
+$helperProgramFirstArgOnlyOutput = CredentialHelperExchange::invoke(
+    ['get', 'ignored-by-program-main'],
+    "url=https://git.example.test/wp-content.git\n",
+    static function (string $action, CredentialContext $context) use (&$helperProgramFirstArgOnly): CredentialContext {
+        $helperProgramFirstArgOnly = [
+            'action' => $action,
+            'url' => $context->url,
+        ];
+
+        return new CredentialContext(username: 'deploy-bot', password: 'wp-deploy-token');
+    },
+);
+$helperProgramMissingActionRejected = false;
+try {
+    CredentialHelperExchange::invoke(
+        [],
+        "url=https://git.example.test/wp-content.git\n",
+        static function (): ?CredentialContext {
+            throw new RuntimeException('missing helper action must reject before callback execution');
+        },
+    );
+} catch (InvalidArgumentException) {
+    $helperProgramMissingActionRejected = true;
+}
+$helperProgramInvalidActionRejected = false;
+try {
+    CredentialHelperExchange::invoke(
+        ['credential-store'],
+        "url=https://git.example.test/wp-content.git\n",
+        static function (): ?CredentialContext {
+            throw new RuntimeException('invalid helper action must reject before callback execution');
+        },
+    );
+} catch (InvalidArgumentException) {
+    $helperProgramInvalidActionRejected = true;
+}
+$helperProgramStoreContextRejected = false;
+try {
+    CredentialHelperExchange::invoke(
+        ['store'],
+        "url=https://git.example.test/wp-content.git\nusername=deploy-bot\npassword=wp-deploy-token\n",
+        static fn (): CredentialContext => new CredentialContext(username: 'unexpected', password: 'unexpected'),
+    );
+} catch (LogicException) {
+    $helperProgramStoreContextRejected = true;
+}
 $helperInvocationCalls = [];
 $helperInvocationOutcome = CredentialHelperInvocation::get(
     new CredentialContext(url: 'https://git.example.test/wp-content.git'),
@@ -304,6 +351,11 @@ return [
     'helperProgramMissingCredential' => $helperProgramMissingCredential,
     'helperProgramUrlOnly' => $helperProgramUrlOnly,
     'helperProgramOutput' => $helperProgramOutput,
+    'helperProgramFirstArgOnly' => $helperProgramFirstArgOnly,
+    'helperProgramFirstArgOnlyOutput' => $helperProgramFirstArgOnlyOutput,
+    'helperProgramMissingActionRejected' => $helperProgramMissingActionRejected,
+    'helperProgramInvalidActionRejected' => $helperProgramInvalidActionRejected,
+    'helperProgramStoreContextRejected' => $helperProgramStoreContextRejected,
     'helperInvocationIdentity' => $helperInvocationOutcome->identity(),
     'helperRequiredIdentity' => $helperRequiredIdentity,
     'helperInvocationQuit' => $helperInvocationOutcome->quit,
@@ -318,5 +370,5 @@ return [
     'redactedBytes' => $redacted->storageBytes(),
     'clearedPassword' => $cleared->password,
     'clearedOauthRefreshToken' => $cleared->oauthRefreshToken,
-    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, destructure local mirror and extension-scheme remotes, preserve an explicit repository path when HTTP path matching is disabled, distinguish empty HTTP userinfo from password-only helper URLs, preserve byte-oriented and whitespace-bearing local mirror paths without username expansion, enforce string-field UTF-8 boundaries, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs.',
+    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, destructure local mirror and extension-scheme remotes, preserve an explicit repository path when HTTP path matching is disabled, distinguish empty HTTP userinfo from password-only helper URLs, preserve byte-oriented and whitespace-bearing local mirror paths without username expansion, enforce string-field UTF-8 and helper action boundaries before callbacks, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs.',
 ];

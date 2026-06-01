@@ -9509,15 +9509,72 @@ final class DeclarationBlock
         };
     }
 
+    private function normalizeFontShorthandValue(string $value): string
+    {
+        $components = $this->parseFontComponents($value);
+
+        return $components === null ? trim($value) : $this->serializeFontComponents($components);
+    }
+
     private function normalizeFontStyleValue(string $value): string
     {
         $parts = $this->splitWhitespaceTopLevel($value);
         if ($parts === []) {
             return '';
         }
-        $parts[0] = strtolower($parts[0]);
+        $keyword = strtolower($parts[0]);
+        if ($keyword !== 'oblique') {
+            $parts[0] = $keyword;
+
+            return implode(' ', $parts);
+        }
+
+        if (count($parts) === 1) {
+            return 'oblique';
+        }
+
+        if (count($parts) === 2) {
+            $angle = $this->normalizeFontStyleAngleValue($parts[1]);
+            if ($angle !== null) {
+                return $angle === '' ? 'oblique' : 'oblique ' . $angle;
+            }
+        }
+
+        $parts[0] = 'oblique';
 
         return implode(' ', $parts);
+    }
+
+    private function normalizeFontStyleAngleValue(string $token): ?string
+    {
+        $token = trim($token);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(deg|grad|rad|turn)$/i', $token, $matches) !== 1) {
+            return null;
+        }
+
+        $number = (float) $matches[1];
+        $unit = strtolower($matches[2]);
+        $degrees = match ($unit) {
+            'grad' => $number * 0.9,
+            'rad' => $number * 180 / pi(),
+            'turn' => $number * 360,
+            default => $number,
+        };
+
+        if (abs($degrees - 14.0) < 0.000001) {
+            return '';
+        }
+
+        if ($unit === 'rad') {
+            return $this->normalizeComputedCssNumberLiteral($degrees) . 'deg';
+        }
+
+        return $this->normalizeCssNumericLiteral($matches[1]) . $unit;
+    }
+
+    private function normalizeComputedCssNumberLiteral(float $number): string
+    {
+        return $this->normalizeCssNumericLiteral(rtrim(rtrim(sprintf('%.6F', $number), '0'), '.'));
     }
 
     private function normalizeFontWeightValue(string $value): string
@@ -14070,6 +14127,14 @@ final class DeclarationBlock
 
         if (in_array($property, self::TEXT_SIZE_ADJUST_PROPERTIES, true)) {
             return $this->normalizeTextSizeAdjustDeclarationValue($value);
+        }
+
+        if ($property === 'font') {
+            return $this->normalizeFontShorthandValue($value);
+        }
+
+        if ($property === 'font-style') {
+            return $this->normalizeFontStyleValue($value);
         }
 
         if ($property === 'font-palette') {

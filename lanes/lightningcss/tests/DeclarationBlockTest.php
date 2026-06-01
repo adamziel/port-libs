@@ -2524,6 +2524,19 @@ return [
         $t->same(['value' => 'condensed', 'important' => false], $block->getProperty($font, 'font-stretch'));
         $t->same(['value' => '1.5', 'important' => false], $block->getProperty($font, 'line-height'));
         $t->same(['value' => 'small-caps', 'important' => false], $block->getProperty($font, 'font-variant-caps'));
+        $oblique = 'font-style: Oblique 14deg; font: oblique +014.000deg 600 16px Inter; --Font-Style: Oblique 14deg';
+        $t->same(
+            [
+                'font-style' => 'oblique',
+                'font' => 'oblique 600 16px Inter',
+                '--Font-Style' => 'Oblique 14deg',
+            ],
+            $block->parse($oblique)
+        );
+        $t->same(['value' => 'oblique', 'important' => false], $block->getProperty($oblique, 'font-style'));
+        $t->same(['value' => 'oblique 600 16px Inter', 'important' => false], $block->getProperty($oblique, 'font'));
+        $t->same(['value' => 'oblique 40deg', 'important' => false], $block->getProperty('font-style: OBLIQUE 40.000deg', 'font-style'));
+        $t->same(['value' => 'oblique .25turn', 'important' => false], $block->getProperty('font-style: oblique +0.2500TURN', 'font-style'));
         $t->same(
             ['value' => '700 clamp(1.25rem, 2vw, 2rem)/1.2 Inter var, system-ui', 'important' => true],
             $block->getProperty(
@@ -3602,6 +3615,18 @@ return [
         $t->same(
             'font: italic 600 expanded 16px/1.5 Inter, sans-serif',
             $block->setProperty('font: italic 600 16px/1.5 Inter, sans-serif', 'font-stretch', 'expanded')
+        );
+        $t->same(
+            'font: oblique 40deg 600 16px/1.5 Inter, sans-serif',
+            $block->setProperty('font: italic 600 16px/1.5 Inter, sans-serif', 'font-style', 'Oblique 40.000deg')
+        );
+        $t->same(
+            'font: oblique 600 16px Inter; color: red',
+            $block->setProperty('font: italic 600 16px Inter; color: red', 'font-style', 'oblique +014.000deg')
+        );
+        $t->same(
+            'color: red; font: oblique 600 16px Inter',
+            $block->setProperty('color: red', 'font', 'oblique +014.000deg 600 16px Inter')
         );
         $t->same(
             'font-family: Inter; font: italic 600 16px Inter !important',

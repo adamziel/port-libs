@@ -221,4 +221,69 @@ return [
             ['erase', 'https://github.com/byron/gitoxide', 'user', 'pass'],
         ], $actions);
     },
+    'credential helper exchange applies upstream action argument boundaries' => static function (TestRunner $t): void {
+        $called = false;
+        $t->throws(
+            InvalidArgumentException::class,
+            static function () use (&$called): void {
+                CredentialHelperExchange::invoke(
+                    [],
+                    "url=https://github.com/byron/gitoxide\n",
+                    static function () use (&$called): ?CredentialContext {
+                        $called = true;
+
+                        return null;
+                    },
+                );
+            },
+        );
+        $t->same(false, $called, 'missing action fails before callback invocation');
+
+        $called = false;
+        $t->throws(
+            InvalidArgumentException::class,
+            static function () use (&$called): void {
+                CredentialHelperExchange::invoke(
+                    ['credential-store'],
+                    "url=https://github.com/byron/gitoxide\n",
+                    static function () use (&$called): ?CredentialContext {
+                        $called = true;
+
+                        return null;
+                    },
+                );
+            },
+        );
+        $t->same(false, $called, 'invalid action fails before callback invocation');
+
+        $observedAction = null;
+        $output = CredentialHelperExchange::invoke(
+            ['get', 'ignored-extra-arg'],
+            "url=https://github.com/byron/gitoxide\n",
+            static function (string $action) use (&$observedAction): CredentialContext {
+                $observedAction = $action;
+
+                return new CredentialContext(username: 'user', password: 'pass');
+            },
+        );
+        $t->same('get', $observedAction, 'program-main uses only the first action argument');
+        $t->same("username=user\npassword=pass\n", $output);
+
+        $t->throws(
+            LogicException::class,
+            static fn () => CredentialHelperExchange::invoke(
+                ['store'],
+                "url=https://github.com/byron/gitoxide\nusername=user\npassword=pass\n",
+                static fn (): CredentialContext => new CredentialContext(username: 'unexpected', password: 'unexpected'),
+            ),
+        );
+        $t->throws(
+            LogicException::class,
+            static fn () => CredentialHelperExchange::invoke(
+                ['erase'],
+                "url=https://github.com/byron/gitoxide\nusername=user\npassword=pass\n",
+                static fn (): CredentialContext => new CredentialContext(username: 'unexpected', password: 'unexpected'),
+            ),
+        );
+    },
 ];

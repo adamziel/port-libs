@@ -113,6 +113,25 @@ $refreshDisabledPrefixAfterExternalHydration = $refreshDisabledDatabase->lookupP
 $refreshDisabledAfterExternalHydration = $refreshDisabledDatabase->objectState($templateOid);
 $refreshDisabledPromisorPacksAfterExternalHydration = $refreshDisabledDatabase->promisorPackNames();
 
+$emptyPromisorPack = PackBuilder::build([]);
+$emptyPromisorPackBase = 'pack-' . $emptyPromisorPack->packChecksum();
+$emptyPromisorPacksBefore = $database->promisorPackNames();
+$emptyPromisorObjectIdsBefore = $database->promisorObjectIds();
+$emptyPromisorPackedObjectCountBefore = $database->packedObjectCount();
+$emptyPromisorWrite = $database->writePromisorPackBundle(
+    $emptyPromisorPack,
+    "WordPress empty filtered fetch response\n"
+);
+$emptyPromisorPacksAfter = $database->promisorPackNames();
+$emptyPromisorObjectIdsAfter = $database->promisorObjectIds();
+$emptyPromisorPackedObjectCountAfter = $database->packedObjectCount();
+$emptyPromisorFiles = [
+    'pack' => is_file($packDir . '/' . $emptyPromisorPackBase . '.pack'),
+    'index' => is_file($packDir . '/' . $emptyPromisorPackBase . '.idx'),
+    'promisor' => is_file($packDir . '/' . $emptyPromisorPackBase . '.promisor'),
+    'keep' => is_file($packDir . '/' . $emptyPromisorPackBase . '.keep'),
+];
+
 $refreshNeverReturnedBlob = new GitObject('blob', 'Refresh-never resolver returned WordPress template bytes');
 $refreshNeverReturnedOid = $refreshNeverReturnedBlob->oid();
 $refreshNeverReturnedResolver = new class($refreshNeverReturnedBlob, $gitDir) implements PromisorObjectResolver {
@@ -332,6 +351,21 @@ return [
     'refreshDisabledPrefixAfterExternalHydration' => $refreshDisabledPrefixAfterExternalHydration,
     'refreshDisabledAfterExternalHydration' => $refreshDisabledAfterExternalHydration,
     'refreshDisabledPromisorPacksAfterExternalHydration' => $refreshDisabledPromisorPacksAfterExternalHydration,
+    'emptyPromisorPackName' => $emptyPromisorWrite['packName'],
+    'emptyPromisorIndexName' => $emptyPromisorWrite['indexName'],
+    'emptyPromisorMarkerName' => $emptyPromisorWrite['promisorName'],
+    'emptyPromisorKeepName' => $emptyPromisorWrite['keepName'],
+    'emptyPromisorMaterialized' => $emptyPromisorWrite['materialized'],
+    'emptyPromisorAlreadyPresent' => $emptyPromisorWrite['alreadyPresent'],
+    'emptyPromisorObjectCount' => $emptyPromisorWrite['objectCount'],
+    'emptyPromisorObjects' => $emptyPromisorWrite['objectIds'],
+    'emptyPromisorFiles' => $emptyPromisorFiles,
+    'emptyPromisorPacksBefore' => $emptyPromisorPacksBefore,
+    'emptyPromisorPacksAfter' => $emptyPromisorPacksAfter,
+    'emptyPromisorObjectIdsBefore' => $emptyPromisorObjectIdsBefore,
+    'emptyPromisorObjectIdsAfter' => $emptyPromisorObjectIdsAfter,
+    'emptyPromisorPackedObjectCountBefore' => $emptyPromisorPackedObjectCountBefore,
+    'emptyPromisorPackedObjectCountAfter' => $emptyPromisorPackedObjectCountAfter,
     'refreshNeverReturnedObject' => $refreshNeverReturnedOid,
     'refreshNeverReturnedBefore' => $refreshNeverReturnedBefore,
     'refreshNeverReturnedRequests' => $refreshNeverReturnedResolver->requests,

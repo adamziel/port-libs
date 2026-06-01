@@ -267,6 +267,11 @@ $write($repo . '/depth-grandchild.config', <<<CFG
 depthNested = matched
 CFG);
 
+$write($repo . '/nonexisting-realpath-gitdir.config', <<<CFG
+[wordpress]
+nonexistingRealpathGitdir = matched
+CFG);
+
 $backslashRepo = $root . '/legacy\\checkout';
 $backslashGitDir = $backslashRepo . '/.git';
 mkdir($backslashGitDir, 0777, true);
@@ -448,6 +453,17 @@ $dotSlashConfig = GitConfig::fromFile($root . '/.gitconfig', [
     'homeDir' => $root,
 ]);
 
+$plannedGitDir = $root . '/planned/wp-content.git/.git';
+$write($root . '/planned-gitdir.config', <<<CFG
+[includeIf "gitdir:{$plannedGitDir}"]
+path = sites/wp-content.git/nonexisting-realpath-gitdir.config
+CFG);
+
+$plannedGitDirConfig = GitConfig::fromFile($root . '/planned-gitdir.config', [
+    'gitDir' => $root . '/scratch/../planned/wp-content.git/./.git',
+    'homeDir' => $root,
+]);
+
 $environmentConfig = GitConfig::fromEnvironmentPairs([
     ['key' => 'includeIf.onbranch:deploy/*.path', 'value' => $repo . '/environment-branch.config'],
     ['key' => 'includeIf.onbranch:deploy*.path', 'value' => $repo . '/environment-branch-boundary.config'],
@@ -544,6 +560,7 @@ return [
     'dotDotGitdirPolicy' => $config->value('wordpress', null, 'dotDotGitdir'),
     'dotSlashRootPolicy' => $dotSlashConfig->value('wordpress', null, 'dotSlashRoot'),
     'dotSlashMissPolicy' => $dotSlashConfig->value('wordpress', null, 'dotSlashMiss'),
+    'nonexistingRealpathGitdirPolicy' => $plannedGitDirConfig->value('wordpress', null, 'nonexistingRealpathGitdir'),
     'absoluteWorktreePolicy' => $config->value('wordpress', null, 'absoluteWorktree'),
     'absoluteGitdirPolicy' => $config->value('wordpress', null, 'absoluteGitdir'),
     'absoluteWorktreeGlobPolicy' => $config->value('wordpress', null, 'absoluteWorktreeGlob'),

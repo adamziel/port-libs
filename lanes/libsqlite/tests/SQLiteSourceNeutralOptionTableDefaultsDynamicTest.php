@@ -34,6 +34,44 @@ $triggerForeignKeyDefaultSourceFiles = [
     $sourceRoot . '/SQLiteTriggerReturningForeignKeySavepointPlan.php',
 ];
 
+$utf16KeyValuePlanLegacyDefaultMatches = static function () use ($libsqliteRoot): array {
+    $reflection = new ReflectionClass(SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::class);
+    $file = $reflection->getFileName();
+    if ($file === false) {
+        throw new RuntimeException('Unable to locate UTF-16 NOCASE LIKE RTRIM source file');
+    }
+
+    $lines = file($file);
+    if ($lines === false) {
+        throw new RuntimeException("Unable to read {$file}");
+    }
+
+    $method = $reflection->getMethod('keyValueRowKeyPlan');
+    $source = implode('', array_slice(
+        $lines,
+        $method->getStartLine() - 1,
+        $method->getEndLine() - $method->getStartLine() + 1
+    ));
+    $terms = [
+        'wp' . '_',
+        'wp' . '_options',
+        'wp' . '_option',
+        'option_id',
+        'option_name',
+        'option_value',
+        'autoload',
+        'blog_id',
+    ];
+    $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
+    if (preg_match_all($pattern, $source, $matches) < 1) {
+        return [];
+    }
+
+    $relative = str_replace($libsqliteRoot . '/', '', $file);
+
+    return array_map(static fn (string $match): string => "{$relative}: {$match}", $matches[0]);
+};
+
 $legacyOptionTableDefaultMatches = static function () use ($optionTableDefaultSourceFiles, $libsqliteRoot): array {
     $terms = [
         'wp' . '_',
@@ -169,6 +207,7 @@ $triggerNewRow = [
 
 return [
     'source-neutral option table default source files contain no hardcoded wp table defaults' => static fn (TestRunner $t) => $t->same([], $legacyOptionTableDefaultMatches()),
+    'utf16 key value byte-order plan source uses neutral setting defaults' => static fn (TestRunner $t) => $t->same([], $utf16KeyValuePlanLegacyDefaultMatches()),
     'source-neutral json path defaults use generic setting keys in source' => static fn (TestRunner $t) => $t->same([], $jsonPathLegacyDefaultMatches()),
     'source-neutral trigger foreign key returning defaults use generic setting rowids in source' => static fn (TestRunner $t) => $t->same([], $triggerForeignKeyLegacyDefaultMatches()),
     'trigger foreign key returning default rowid is setting id' => static function (TestRunner $t): void {
@@ -367,5 +406,18 @@ return [
         );
 
         $t->same('rtrim(key_name) COLLATE NOCASE LIKE (SELECT key_value FROM app_settings WHERE key_name = ?)', $plan['expression']);
+    },
+    'utf16 byte-order default expression uses application setting key names' => static function (TestRunner $t): void {
+        $encode = static fn (string $value, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($value, $encoding);
+        $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan(
+            [['setting_id' => 1, 'key_name_bytes' => $encode('module_cache', 2), 'text_encoding' => 2]],
+            [['setting_id' => 1, 'key_name_bytes' => $encode('module_cache', 3), 'text_encoding' => 3]],
+            'module\_%',
+            '\\',
+        );
+
+        $t->same('rtrim(key_name) COLLATE NOCASE /* UTF-16 source */', $plan['expression']);
+        $t->same('ascii_lower(rtrim(key_name, space))', $plan['indexKey']);
+        $t->same([1], $plan['changedByteOrderRowids']);
     },
 ];

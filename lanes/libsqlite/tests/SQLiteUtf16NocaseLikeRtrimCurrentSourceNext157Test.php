@@ -9,8 +9,8 @@ $tests = [];
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
@@ -19,8 +19,8 @@ $row = static function (int $id, string $name, string $encoding): array {
     ];
 };
 $bad = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -85,7 +85,7 @@ $valueAt = static function (array $value, string $path): mixed {
 
 $cases = [
     'operator' => ['operator', 'LIKE'],
-    'expression marks utf16 source' => ['expression', 'rtrim(option_name) COLLATE NOCASE /* UTF-16 source */'],
+    'expression marks utf16 source' => ['expression', 'rtrim(key_name) COLLATE NOCASE /* UTF-16 source */'],
     'collation' => ['collation', 'NOCASE'],
     'source encoding' => ['sourceTextEncoding', 'UTF-16'],
     'accepted encoding le' => ['acceptedTextEncodings.0', 'UTF-16LE'],
@@ -100,7 +100,7 @@ $cases = [
     'like ascii prefix' => ['likePlan.prefixIsAscii', true],
     'like index usable' => ['likePlan.indexUsable', true],
     'range usable' => ['rangeUsable', true],
-    'index key' => ['indexKey', 'ascii_lower(rtrim(option_name, space))'],
+    'index key' => ['indexKey', 'ascii_lower(rtrim(key_name, space))'],
     'residual rtrim text' => ['residualUsesRtrimText', true],
     'nocase ascii marker' => ['nocaseIsAsciiOnly', true],
     'rtrim ascii space marker' => ['rtrimTrimsOnlyAsciiSpace', true],
@@ -211,11 +211,11 @@ $tests['utf16 nocase like rtrim current source nextOneFiveSeven stable byte orde
 };
 
 $tests['utf16 nocase like rtrim current source nextOneFiveSeven rejects utf8 rows'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name_bytes' => 'plugin', 'text_encoding' => 1]], [], 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1, 'key_name_bytes' => 'plugin', 'text_encoding' => 1]], [], 'plugin%'));
 };
 
 $tests['utf16 nocase like rtrim current source nextOneFiveSeven rejects missing text encoding'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name_bytes' => 'plugin']], [], 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1, 'key_name_bytes' => 'plugin']], [], 'plugin%'));
 };
 
 $tests['utf16 nocase like rtrim current source nextOneFiveSeven rejects bad escape'] = static function (TestRunner $t) use ($currentRows): void {

@@ -335,6 +335,34 @@ return [
         );
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('&test, speech'));
     },
+    'media query parser maps upstream redundant calc parentheses in ranges' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+        $minifier = new CssMinifier();
+
+        $t->same('(width>=6px)', $parser->minifyList('(width >= calc((2px + 4px)))'));
+        $t->same('(width>=6px)', $parser->minifyList('(width >= calc((2 * 3px)))'));
+        $t->same('(6px<=width<=12px)', $parser->minifyList('(calc((2px + 4px)) <= width <= calc((10px + 2px)))'));
+        $t->same('(width>calc(1px + 1rem))', $parser->minifyList('(width > calc((1px + 1rem)))'));
+        $t->same('(aspect-ratio>=.5)', $parser->minifyList('(aspect-ratio >= calc((1 / 2)))'));
+        $t->same('(theme-ratio>=.5)', $parser->minifyList('(theme-ratio >= calc((1 / 2)))'));
+        $t->same('(min-width:6px)', $parser->lowerRangeSyntaxList('(width >= calc((2px + 4px)))'));
+        $t->same('(min-width:6px) and (max-width:12px)', $parser->lowerRangeSyntaxList('(calc((2px + 4px)) <= width <= calc((10px + 2px)))'));
+        $t->same('not (max-width:calc(1px + 1rem))', $parser->lowerRangeSyntaxList('(width > calc((1px + 1rem)))'));
+        $t->same('(min-aspect-ratio:.5)', $parser->lowerRangeSyntaxList('(aspect-ratio >= calc((1 / 2)))'));
+        $t->same('(min-theme-ratio:.5)', $parser->lowerRangeSyntaxList('(theme-ratio >= calc((1 / 2)))'));
+        $t->same(
+            '@layer blocks{@media (width>=6px){.wp-block-query{color:#ff0}}}',
+            $minifier->minify('@layer blocks { @media (width >= calc((2px + 4px))) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (6px<=width<=12px){.wp-block-query{color:#ff0}}}',
+            $minifier->minify('@layer blocks { @media (calc((2px + 4px)) <= width <= calc((10px + 2px))) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (aspect-ratio>=.5){.wp-block-query{color:#ff0}}}',
+            $minifier->minify('@layer blocks { @media (aspect-ratio >= calc((1 / 2))) { .wp-block-query { color: yellow; } } }')
+        );
+    },
     'media query parser maps upstream environment variable range values' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 
@@ -632,11 +660,15 @@ return [
             '(width >= calc(6px / 2px))',
             '(width >= calc(6 / 2px))',
             '(width >= calc(6px * 2px))',
+            '(width >= calc((6px / 2px)))',
+            '(width >= calc((6 / 2px)))',
+            '(width >= calc((6px * 2px)))',
             '(width >= max(10%, 20%))',
             '(width >= calc(50% + 1px))',
             '(aspect-ratio >= max(1/2, 1px))',
             '(aspect-ratio >= max(1px, 2px))',
             '(aspect-ratio >= calc(1px + 1em))',
+            '(aspect-ratio >= calc((1px + 1em)))',
             '(width >= sign(10%))',
             '(width >= sign(10dppx))',
             '(width >= sign(var(--theme-breakpoint)))',

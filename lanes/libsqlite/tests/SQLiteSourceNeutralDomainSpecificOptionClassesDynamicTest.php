@@ -25,6 +25,7 @@ $sourceRoot = $libsqliteRoot . '/src';
 $sourceFiles = [
     $sourceRoot . '/SQLiteDmlTriggerCurrentNextPlan.php',
     $sourceRoot . '/SQLiteJsonUpsertMigrationPlan.php',
+    $sourceRoot . '/SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteRecursiveUpsertConflictYieldPlan.php',
     $sourceRoot . '/SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan.php',
@@ -42,7 +43,9 @@ $sourceFiles = [
     $sourceRoot . '/SQLiteUpsertReturningTriggerPlan.php',
 ];
 $fixtureFiles = [
+    $libsqliteRoot . '/examples/application-skipscan-expression-range-recheck.php',
     $libsqliteRoot . '/examples/application-trigger-upsert-savepoint-current-next.php',
+    $libsqliteRoot . '/tests/SQLitePlannerSkipScanExpressionRangeRecheckTest.php',
     $libsqliteRoot . '/tests/SQLiteTriggerUpsertSavepointCurrentNextTest.php',
 ];
 

@@ -642,8 +642,7 @@ final class GitConfig
             return true;
         }
 
-        $real = realpath($gitDir);
-        return is_string($real) && self::wildmatch($pattern, self::normalizePath($real), $ignoreCase);
+        return self::wildmatch($pattern, self::realpathLikeGitoxide($gitDir), $ignoreCase);
     }
 
     /**
@@ -794,6 +793,71 @@ final class GitConfig
         }
 
         return DIRECTORY_SEPARATOR === '\\' && preg_match('/^[A-Za-z]:\//', $path) === 1;
+    }
+
+    private static function realpathLikeGitoxide(string $path): string
+    {
+        $real = realpath($path);
+        if (is_string($real)) {
+            return self::normalizePath($real);
+        }
+
+        $path = self::normalizePath($path);
+        if (!self::isAbsolutePath($path)) {
+            $cwd = getcwd();
+            if ($cwd !== false && $cwd !== '') {
+                $path = rtrim(self::normalizePath($cwd), '/') . '/' . $path;
+            }
+        }
+
+        return self::collapsePathComponents($path);
+    }
+
+    private static function collapsePathComponents(string $path): string
+    {
+        $prefix = '';
+        $absolute = false;
+
+        if (str_starts_with($path, '/')) {
+            $absolute = true;
+        } elseif (DIRECTORY_SEPARATOR === '\\' && preg_match('/^[A-Za-z]:\//', $path) === 1) {
+            $absolute = true;
+            $prefix = substr($path, 0, 2);
+            $path = substr($path, 2);
+        }
+
+        $components = [];
+        foreach (explode('/', $path) as $component) {
+            if ($component === '' || $component === '.') {
+                continue;
+            }
+
+            if ($component === '..') {
+                if ($components !== [] && end($components) !== '..') {
+                    array_pop($components);
+                    continue;
+                }
+                if ($absolute) {
+                    throw new \RuntimeException('Git config gitdir realpath cannot resolve parent above root');
+                }
+                if (!$absolute) {
+                    $components[] = '..';
+                }
+                continue;
+            }
+
+            $components[] = $component;
+        }
+
+        $collapsed = implode('/', $components);
+        if ($prefix !== '') {
+            return $prefix . '/' . $collapsed;
+        }
+        if ($absolute) {
+            return '/' . $collapsed;
+        }
+
+        return $collapsed === '' ? '.' : $collapsed;
     }
 
     private static function wildmatch(string $pattern, string $text, bool $ignoreCase): bool

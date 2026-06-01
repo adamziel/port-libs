@@ -1422,6 +1422,7 @@ final class MediaQueryParser
 
     private function foldSimpleCalc(string $value): string
     {
+        $value = $this->normalizeSimpleCalcWrapper($value);
         $unitless = $this->foldSimpleUnitlessCalc($value);
         if ($unitless !== null) {
             return $unitless;
@@ -1450,6 +1451,7 @@ final class MediaQueryParser
 
     private function foldSimpleMultiplicativeCalc(string $value): ?string
     {
+        $value = $this->normalizeSimpleCalcWrapper($value);
         $number = $this->cssNumberPattern();
         if (preg_match('/^calc\(\s*(' . $number . ')([a-zA-Z%]+)?\s*([*\/])\s*(' . $number . ')([a-zA-Z%]+)?\s*\)$/', $value, $matches) !== 1) {
             return null;
@@ -1486,6 +1488,7 @@ final class MediaQueryParser
 
     private function isInvalidSimpleMultiplicativeCalc(string $value): bool
     {
+        $value = $this->normalizeSimpleCalcWrapper($value);
         $number = $this->cssNumberPattern();
         if (preg_match('/^calc\(\s*(' . $number . ')([a-zA-Z%]+)?\s*([*\/])\s*(' . $number . ')([a-zA-Z%]+)?\s*\)$/', $value, $matches) !== 1) {
             return false;
@@ -1505,6 +1508,7 @@ final class MediaQueryParser
 
     private function foldSimpleUnitlessCalc(string $value): ?string
     {
+        $value = $this->normalizeSimpleCalcWrapper($value);
         $number = $this->cssNumberPattern();
         if (preg_match('/^calc\(\s*(' . $number . ')\s*([+\-*\/])\s*(' . $number . ')\s*\)$/', $value, $matches) !== 1) {
             return null;
@@ -1528,6 +1532,35 @@ final class MediaQueryParser
         }
 
         return $this->trimNumber(rtrim(rtrim(sprintf('%.8F', $result), '0'), '.'));
+    }
+
+    private function normalizeSimpleCalcWrapper(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^calc\(/i', $value) !== 1) {
+            return $value;
+        }
+
+        try {
+            $close = $this->findMatchingDelimiter($value, 4, '(', ')');
+        } catch (\InvalidArgumentException) {
+            return $value;
+        }
+
+        if ($close !== strlen($value) - 1) {
+            return $value;
+        }
+
+        $inner = trim(substr($value, 5, -1));
+        try {
+            while (($stripped = $this->stripOneBalancedParentheses($inner)) !== null) {
+                $inner = trim($stripped);
+            }
+        } catch (\InvalidArgumentException) {
+            return $value;
+        }
+
+        return 'calc(' . $inner . ')';
     }
 
     private function normalizeCalcOperatorSpacing(string $value): string

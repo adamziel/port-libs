@@ -43,6 +43,7 @@ return [
     'dotDotGitdirPolicy' => $fixture['dotDotGitdirPolicy'],
     'dotSlashRootPolicy' => $fixture['dotSlashRootPolicy'],
     'dotSlashMissPolicy' => $fixture['dotSlashMissPolicy'],
+    'nonexistingRealpathGitdirPolicy' => $fixture['nonexistingRealpathGitdirPolicy'],
     'absoluteWorktreePolicy' => $fixture['absoluteWorktreePolicy'],
     'absoluteGitdirPolicy' => $fixture['absoluteGitdirPolicy'],
     'absoluteWorktreeGlobPolicy' => $fixture['absoluteWorktreeGlobPolicy'],

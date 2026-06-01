@@ -265,6 +265,32 @@ return [
         $t->same('matched', $config->value('section', null, 'hidden'));
     },
 
+    'gitdir includeIf falls back to gix realpath normalization for missing path components' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $root = $tmpDir();
+        $normalizedGitDir = $root . '/worktree/.git';
+        $providedGitDir = $root . '/missing/../worktree/./.git';
+        $write($root . '/canonical.config', "[section]\ncanonical = matched\n");
+        $write($root . '/miss.config', "[section]\nmiss = should-not-load\n");
+        $write($root . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:{$normalizedGitDir}"]
+        path = canonical.config
+        [includeIf "gitdir:{$root}/missing/.git"]
+        path = miss.config
+        CFG);
+
+        $config = GitConfig::fromFile($root . '/config', [
+            'gitDir' => $providedGitDir,
+            'homeDir' => $root,
+        ]);
+
+        $t->same('base', $config->value('section', null, 'value'));
+        $t->same('matched', $config->value('section', null, 'canonical'));
+        $t->same(null, $config->value('section', null, 'miss'));
+        $t->same(false, is_dir($normalizedGitDir));
+    },
+
     'gitdir dot-slash includeIf conditions require an including config path like gix-config' => static function (TestRunner $t) use ($tmpDir, $write): void {
         $root = $tmpDir();
         $worktree = $root . '/worktree';
@@ -1433,6 +1459,7 @@ return [
         $t->same(null, $fixture['dotDotGitdirPolicy']);
         $t->same('matched', $fixture['dotSlashRootPolicy']);
         $t->same(null, $fixture['dotSlashMissPolicy']);
+        $t->same('matched', $fixture['nonexistingRealpathGitdirPolicy']);
         $t->same(null, $fixture['absoluteWorktreePolicy']);
         $t->same('matched', $fixture['absoluteGitdirPolicy']);
         $t->same('matched', $fixture['absoluteWorktreeGlobPolicy']);
@@ -1487,6 +1514,7 @@ return [
         $t->same($fixture['dotDotGitdirPolicy'], $summary['dotDotGitdirPolicy']);
         $t->same($fixture['dotSlashRootPolicy'], $summary['dotSlashRootPolicy']);
         $t->same($fixture['dotSlashMissPolicy'], $summary['dotSlashMissPolicy']);
+        $t->same($fixture['nonexistingRealpathGitdirPolicy'], $summary['nonexistingRealpathGitdirPolicy']);
         $t->same($fixture['absoluteWorktreePolicy'], $summary['absoluteWorktreePolicy']);
         $t->same($fixture['absoluteGitdirPolicy'], $summary['absoluteGitdirPolicy']);
         $t->same($fixture['absoluteWorktreeGlobPolicy'], $summary['absoluteWorktreeGlobPolicy']);

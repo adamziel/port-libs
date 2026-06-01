@@ -593,7 +593,7 @@ final class ObjectDatabase
     }
 
     /**
-     * @return array{packName:string,indexName:string,promisorName:string,keepName:?string,packChecksum:string,indexChecksum:string,objectIds:list<string>,objectCount:int,alreadyPresent:bool}
+     * @return array{packName:?string,indexName:?string,promisorName:?string,keepName:?string,packChecksum:string,indexChecksum:string,objectIds:list<string>,objectCount:int,alreadyPresent:bool,materialized:bool}
      */
     public function writePromisorPackBundle(PackBuildResult $pack, string $promisorNote = '', bool $keep = true, bool $repairThinPack = false): array
     {
@@ -606,6 +606,24 @@ final class ObjectDatabase
         }
 
         $this->assertPromisorPackExternalBasesResolvable($pack);
+        $objectIds = array_values(array_map(
+            static fn (array $entry): string => $entry['oid'],
+            $pack->entries()
+        ));
+        if ($objectIds === []) {
+            return [
+                'packName' => null,
+                'indexName' => null,
+                'promisorName' => null,
+                'keepName' => null,
+                'packChecksum' => $pack->packChecksum(),
+                'indexChecksum' => $pack->indexChecksum(),
+                'objectIds' => [],
+                'objectCount' => 0,
+                'alreadyPresent' => false,
+                'materialized' => false,
+            ];
+        }
 
         $packDirectory = $this->primaryPackDirectory();
         $basename = 'pack-' . $pack->packChecksum();
@@ -643,12 +661,10 @@ final class ObjectDatabase
             'keepName' => $needsPackBundleMaterialization && $keep ? $keepName : null,
             'packChecksum' => $pack->packChecksum(),
             'indexChecksum' => $pack->indexChecksum(),
-            'objectIds' => array_values(array_map(
-                static fn (array $entry): string => $entry['oid'],
-                $pack->entries()
-            )),
-            'objectCount' => count($pack->entries()),
+            'objectIds' => $objectIds,
+            'objectCount' => count($objectIds),
             'alreadyPresent' => $packAlreadyExists && $indexAlreadyExists,
+            'materialized' => true,
         ];
     }
 

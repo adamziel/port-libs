@@ -451,6 +451,14 @@ return [
             'host' => null,
         ], $fixture['helperProgramUrlOnly']);
         $t->same("username=deploy-bot\npassword=wp-deploy-token\n", $fixture['helperProgramOutput']);
+        $t->same([
+            'action' => 'get',
+            'url' => 'https://git.example.test/wp-content.git',
+        ], $fixture['helperProgramFirstArgOnly']);
+        $t->same("username=deploy-bot\npassword=wp-deploy-token\n", $fixture['helperProgramFirstArgOnlyOutput']);
+        $t->same(true, $fixture['helperProgramMissingActionRejected']);
+        $t->same(true, $fixture['helperProgramInvalidActionRejected']);
+        $t->same(true, $fixture['helperProgramStoreContextRejected']);
         $t->same(['username' => 'deploy-bot', 'password' => 'wp-deploy-token', 'oauthRefreshToken' => null], $fixture['helperInvocationIdentity']);
         $t->same(true, $fixture['helperInvocationQuit']);
         $t->same(true, $fixture['helperInvocationNextQuit']);
@@ -477,6 +485,10 @@ return [
         $t->same(true, $summary['rootHttpPathCleared']);
         $t->same($fixture['helperProgramProtocolHost'], $summary['helperProgramProtocolHost']);
         $t->same($fixture['helperProgramUrlOnly'], $summary['helperProgramUrlOnly']);
+        $t->same($fixture['helperProgramFirstArgOnly'], $summary['helperProgramFirstArgOnly']);
+        $t->same(true, $summary['helperProgramMissingActionRejected']);
+        $t->same(true, $summary['helperProgramInvalidActionRejected']);
+        $t->same(true, $summary['helperProgramStoreContextRejected']);
         $t->same($fixture['helperInvocationIdentity'], $summary['helperInvocationIdentity']);
         $t->same($fixture['helperRequiredIdentity'], $summary['helperRequiredIdentity']);
         $t->same(true, $summary['helperInvocationQuit']);

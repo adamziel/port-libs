@@ -960,6 +960,35 @@ CSS;
             $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['chrome' => 137])
         );
     },
+    'transition prefixer prunes stale print-color-adjust target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $stale = '.foo { -webkit-print-color-adjust: exact; -moz-print-color-adjust: exact; print-color-adjust: exact; }';
+
+        $t->same(
+            '.foo{print-color-adjust:exact}',
+            $prefixer->prefixForTargets($stale, ['chrome' => 136, 'firefox' => 97])
+        );
+        $t->same(
+            '.foo{-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+            $prefixer->prefixForTargets($stale, ['chrome' => 135])
+        );
+        $t->same(
+            '.foo{-moz-print-color-adjust:exact;print-color-adjust:exact}',
+            $prefixer->prefixForTargets($stale, ['firefox' => 96])
+        );
+        $t->same(
+            '@supports (print-color-adjust:exact){.foo{print-color-adjust:exact}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-print-color-adjust: exact) or (-moz-print-color-adjust: exact) or (print-color-adjust: exact)) { .foo { -webkit-print-color-adjust: exact; -moz-print-color-adjust: exact; print-color-adjust: exact; } }', ['chrome' => 136, 'firefox' => 97])
+        );
+        $t->same(
+            '@supports (-webkit-print-color-adjust:exact) or (print-color-adjust:exact){.foo{-webkit-print-color-adjust:exact;print-color-adjust:exact}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-print-color-adjust: exact) or (-moz-print-color-adjust: exact) or (print-color-adjust: exact)) { .foo { -webkit-print-color-adjust: exact; -moz-print-color-adjust: exact; print-color-adjust: exact; } }', ['chrome' => 135])
+        );
+        $t->same(
+            '@supports (-moz-print-color-adjust:exact) or (print-color-adjust:exact){.foo{-moz-print-color-adjust:exact;print-color-adjust:exact}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-print-color-adjust: exact) or (-moz-print-color-adjust: exact) or (print-color-adjust: exact)) { .foo { -webkit-print-color-adjust: exact; -moz-print-color-adjust: exact; print-color-adjust: exact; } }', ['firefox' => 96])
+        );
+    },
     'transition prefixer maps upstream image-rendering pixelated browser boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $css = '.foo { image-rendering: pixelated; }';
@@ -4351,6 +4380,14 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media (width >= calc(2 * 3px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
+            '@layer blocks{@media (min-width:6px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= calc((2px + 4px))) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (width>=6px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= calc((2px + 4px))) { .wp-block-query { color: yellow; } } }', ['firefox' => 64])
+        );
+        $t->same(
             '@layer blocks{@media (min-width:3px){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width >= calc(6px / 2)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
@@ -4387,6 +4424,10 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media (10px <= width <= sign(20px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
         );
         $t->same(
+            '@layer blocks{@media (min-width:6px) and (max-width:12px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (calc((2px + 4px)) <= width <= calc((10px + 2px))) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
             '@layer blocks{@media (min-theme-breakpoint:1){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (theme-breakpoint >= sign(10rem)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
@@ -4399,12 +4440,20 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media (aspect-ratio >= max(1 / 2, 1 / 3)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
+            '@layer blocks{@media (min-aspect-ratio:.5){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (aspect-ratio >= calc((1 / 2))) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
             '@layer blocks{@media (1<=aspect-ratio<=3){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (1 <= aspect-ratio <= max(2, 3)) { .wp-block-query { color: yellow; } } }', ['firefox' => 102])
         );
         $t->same(
             '@layer blocks{@media (min-theme-ratio:.5){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (theme-ratio >= clamp(1 / 4, 1 / 2, 3 / 4)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-theme-ratio:.5){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (theme-ratio >= calc((1 / 2))) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
             '@layer blocks{@media not (min-width:240px){.wp-block-query{color:#ff0}}}',
@@ -4421,6 +4470,10 @@ CSS;
         $t->same(
             '@layer blocks{@media not (max-width:calc(1px + 1rem)){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width > calc(1px + 1rem)) { .wp-block-query { color: yellow; } } }', ['chrome' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media not (max-width:calc(1px + 1rem)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width > calc((1px + 1rem))) { .wp-block-query { color: yellow; } } }', ['chrome' => 85])
         );
         $t->same(
             '@layer blocks{@media (width>calc(1px + 1rem)){.wp-block-query{color:#ff0}}}',

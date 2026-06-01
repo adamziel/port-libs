@@ -530,6 +530,36 @@ return [
         $t->same("duplicate filtered pack marker\n", file_get_contents($packDir . '/' . $write['promisorName']));
         $t->same(count($beforePacks) + 1, count($database->promisorPackNames()));
     },
+    'object database treats empty promisor pack bundles as no-op filtered responses' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $database = new ObjectDatabase($gitDir);
+        $packDir = $gitDir . '/objects/pack';
+        $emptyPack = PackBuilder::build([]);
+        $emptyPackBase = 'pack-' . $emptyPack->packChecksum();
+        $beforePacks = $database->promisorPackNames();
+        $beforeObjectIds = $database->promisorObjectIds();
+        $beforePackedObjectCount = $database->packedObjectCount();
+
+        $write = $database->writePromisorPackBundle($emptyPack, "empty filtered fetch response\n");
+
+        $t->same(null, $write['packName']);
+        $t->same(null, $write['indexName']);
+        $t->same(null, $write['promisorName']);
+        $t->same(null, $write['keepName']);
+        $t->same(false, $write['alreadyPresent']);
+        $t->same(false, $write['materialized']);
+        $t->same($emptyPack->packChecksum(), $write['packChecksum']);
+        $t->same($emptyPack->indexChecksum(), $write['indexChecksum']);
+        $t->same([], $write['objectIds']);
+        $t->same(0, $write['objectCount']);
+        $t->same(false, is_file($packDir . '/' . $emptyPackBase . '.pack'));
+        $t->same(false, is_file($packDir . '/' . $emptyPackBase . '.idx'));
+        $t->same(false, is_file($packDir . '/' . $emptyPackBase . '.promisor'));
+        $t->same(false, is_file($packDir . '/' . $emptyPackBase . '.keep'));
+        $t->same($beforePacks, $database->promisorPackNames());
+        $t->same($beforeObjectIds, $database->promisorObjectIds());
+        $t->same($beforePackedObjectCount, $database->packedObjectCount());
+    },
     'object database keeps interrupted promisor pack resume protected while writing a missing index' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
         [$gitDir] = $writePromisorPackFixture();
         $database = new ObjectDatabase($gitDir);
@@ -1035,6 +1065,23 @@ return [
         $t->same('promised-missing', $summary['refreshDisabledAfterExternalHydration']['status']);
         $t->same(false, in_array($summary['externalHydrationPack'], $summary['refreshDisabledPromisorPacksAfterExternalHydration'], true));
         $t->same(true, str_ends_with($summary['externalHydrationKeep'], '.keep'));
+        $t->same(null, $summary['emptyPromisorPackName']);
+        $t->same(null, $summary['emptyPromisorIndexName']);
+        $t->same(null, $summary['emptyPromisorMarkerName']);
+        $t->same(null, $summary['emptyPromisorKeepName']);
+        $t->same(false, $summary['emptyPromisorMaterialized']);
+        $t->same(false, $summary['emptyPromisorAlreadyPresent']);
+        $t->same(0, $summary['emptyPromisorObjectCount']);
+        $t->same([], $summary['emptyPromisorObjects']);
+        $t->same([
+            'pack' => false,
+            'index' => false,
+            'promisor' => false,
+            'keep' => false,
+        ], $summary['emptyPromisorFiles']);
+        $t->same($summary['emptyPromisorPacksBefore'], $summary['emptyPromisorPacksAfter']);
+        $t->same($summary['emptyPromisorObjectIdsBefore'], $summary['emptyPromisorObjectIdsAfter']);
+        $t->same($summary['emptyPromisorPackedObjectCountBefore'], $summary['emptyPromisorPackedObjectCountAfter']);
         $t->same(true, in_array($summary['externalHydratedObject'], $summary['objectIdsAfterExternalHydration'], true));
         $t->same($summary['packedObjectCountBeforeExternalHydration'] + 1, $summary['packedObjectCountAfterExternalHydration']);
         $t->same(true, in_array($summary['externalHydrationPack'], $summary['promisorPacksAfterExternalHydration'], true));

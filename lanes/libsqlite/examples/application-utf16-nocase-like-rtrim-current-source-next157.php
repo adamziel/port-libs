@@ -9,8 +9,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
@@ -29,7 +29,7 @@ $nextRows = [
     $row(4, 'plugin_cache_new ', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan(
     $currentRows,
     $nextRows,
     'plugin\_%',
@@ -38,7 +38,7 @@ $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePlan(
 
 $summary = [
     'scenario' => 'application-utf16-nocase-like-rtrim-current-source-next157',
-    'applicationUse' => 'Copied wp_options scans can keep UTF-16 option_name source rows on an ASCII NOCASE LIKE prefix range over RTRIM index keys, while detecting byte-order changes that invalidate stale import cursors.',
+    'applicationUse' => 'Application setting scans can keep UTF-16 key_name source rows on an ASCII NOCASE LIKE prefix range over RTRIM index keys, while detecting byte-order changes that invalidate stale import cursors.',
     'expression' => $plan['expression'],
     'range' => $plan['range'],
     'currentMatchedRowids' => $plan['currentMatchedRowids'],
@@ -49,7 +49,7 @@ $summary = [
     'dependencyClosure' => $plan['dependency_closure'],
 ];
 
-assert($summary['expression'] === 'rtrim(option_name) COLLATE NOCASE /* UTF-16 source */');
+assert($summary['expression'] === 'rtrim(key_name) COLLATE NOCASE /* UTF-16 source */');
 assert($summary['range'] === ['lowerInclusive' => 'plugin_', 'upperBound' => 'plugin`']);
 assert($summary['currentMatchedRowids'] === [1, 2]);
 assert($summary['nextMatchedRowids'] === [1, 2, 4]);
