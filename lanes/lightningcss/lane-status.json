@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "library": "LightningCSS",
     "estimatedProgress": 99.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS bundle import graph, custom at-rule selector tokens, media-query range/layer math, grid-template formatter, and text-emphasis target-prefix parity. Verification passed changed PHP lint, git diff --check, changed example smokes, focused LightningCSS gate 5 files / 3473 assertions / 0 failures, and full LightningCSS lane 13 files / 8737 assertions / 0 failures.",
-    "phpPass": 8737,
+    "suiteProgress": "Supervisor-integrated LightningCSS CSS Modules container-name scoping, CSSOM object-fit/object-position read-write canonicalization, and source-map negative-column reset parity. Verification passed changed PHP lint, git diff --check, changed example smokes, focused LightningCSS gate 3 files / 3043 assertions / 0 failures, and full LightningCSS lane 13 files / 8776 assertions / 0 failures.",
+    "phpPass": 8776,
     "phpFail": 0,
     "wordpressScenarios": "LightningCSS examples remain generic coverage plus existing fixture smokes; latest accepted source adds CSS Modules local/global dangling-combinator parity, prefixed 3D transform layout CSSOM read-write parity, and source-map VLQ generated-only child pruning.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 16:40 UTC supervisor integration: source commit 972055a15e687a9c6759bc63564c9908c26fcf9d accepted bundle import graph, custom at-rule selector tokens, media-query range/layer math, grid-template formatter, and text-emphasis target-prefix parity. Changed PHP lint passed; git diff --check passed; changed example smokes passed; focused LightningCSS gate passed 5 files / 3473 assertions / 0 failures; full LightningCSS PHP lane passed 13 files / 8737 assertions / 0 failures. Rust/Node/WASM runners were not run.",
-    "currentWork": "Bundle import graph, custom at-rule selector tokens, media-query range/layer math, grid-template formatter, and text-emphasis target-prefix parity integrated on current main.",
+    "audit": "2026-06-01 16:58 UTC supervisor integration: source commit 8317749d4fda691b6f5e8274ab622327a8df0b38 accepted CSS Modules container-name scoping, CSSOM object-fit/object-position read-write canonicalization, and source-map negative-column reset parity. Changed PHP lint passed; git diff --check passed; changed example smokes passed; focused LightningCSS gate passed 3 files / 3043 assertions / 0 failures; full LightningCSS PHP lane passed 13 files / 8776 assertions / 0 failures. Rust/Node/WASM runners were not run.",
+    "currentWork": "CSS Modules container-name scoping, CSSOM object-fit/object-position read-write canonicalization, and source-map negative-column reset parity integrated on current main.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "972055a15e687a9c6759bc63564c9908c26fcf9d",
+    "latestCommit": "8317749d4fda691b6f5e8274ab622327a8df0b38",
     "nextTask": "Keep LightningCSS workers on current-base source maps, bundle/import graph, media query, property value, CSSOM, CSS Modules, custom-at-rule, target-prefix, selector, parser recovery, and upstream Rust/Node/WASM parity gaps that can be expressed in PHP.",
-    "commit": "972055a15e687a9c6759bc63564c9908c26fcf9d",
-    "latestFocusedSlice": "2026-06-01 supervisor batch: bundle import graph, custom at-rule selector tokens, media-query range/layer math, grid-template formatter, and text-emphasis target-prefix parity add 43 accepted assertions on the current supervisor full-lane count. Full LightningCSS lane passed 13 files / 8737 assertions / 0 failures; phpPass moves 8694 -> 8737; mapped coverage remains 2398 / 3532; Rust/Node/WASM upstream runners were not executed."
+    "commit": "8317749d4fda691b6f5e8274ab622327a8df0b38",
+    "latestFocusedSlice": "2026-06-01 supervisor batch: CSS Modules container-name, CSSOM object-fit/object-position, and source-map negative-column reset parity add 39 accepted full-lane assertions on the current supervisor count. Full LightningCSS lane passed 13 files / 8776 assertions / 0 failures; phpPass moves 8737 -> 8776; mapped coverage remains 2398 / 3532; Rust/Node/WASM upstream runners were not executed."
 }

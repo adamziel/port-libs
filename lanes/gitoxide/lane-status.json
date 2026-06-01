@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "library": "gitoxide",
     "estimatedProgress": 98.2,
-    "suiteProgress": "Supervisor-integrated Gitoxide attributes/pathspec blank vertical-tab boundary parity and loose object unknown-kind header integrity parity. Verification passed changed PHP lint, git diff --check, focused Gitoxide gate 5 files / 1818 assertions / 0 failures, example smokes, and full Gitoxide lane 40 files / 10170 assertions / 0 failures.",
-    "phpPass": 10170,
+    "suiteProgress": "Supervisor-integrated Gitoxide sparse-checkout index mode, tree/pathspec rootless absolute guard, and URL/refspec match-rhs parity. Verification passed changed PHP lint, git diff --check, focused Gitoxide gate 3 files / 1660 assertions / 0 failures, example smokes, and full Gitoxide lane 40 files / 10193 assertions / 0 failures.",
+    "phpPass": 10193,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed workflows remain covered; latest accepted source adds merge-base commit-graph cache lookup, URL/refspec Unix colon-path classification, and attributes/pathspec parent-traversal rejection parity.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 16:40 UTC supervisor integration: source commit 972055a15e687a9c6759bc63564c9908c26fcf9d accepted attributes/pathspec blank vertical-tab boundary parity and loose object unknown-kind header integrity parity. Changed PHP lint passed; git diff --check passed; focused Gitoxide gate passed 5 files / 1818 assertions / 0 failures; example smokes exited 0; full Gitoxide PHP lane passed 40 files / 10170 assertions / 0 failures. Cargo workspace was not run.",
-    "currentWork": "Attributes/pathspec blank vertical-tab boundary parity and loose object unknown-kind header integrity parity integrated on current main.",
+    "audit": "2026-06-01 16:58 UTC supervisor integration: source commit 8317749d4fda691b6f5e8274ab622327a8df0b38 accepted sparse-checkout index mode, tree/pathspec rootless absolute guard, and URL/refspec match-rhs parity. Changed PHP lint passed; git diff --check passed; focused Gitoxide gate passed 3 files / 1660 assertions / 0 failures; example smokes exited 0; full Gitoxide PHP lane passed 40 files / 10193 assertions / 0 failures. Cargo workspace was not run.",
+    "currentWork": "Sparse-checkout index mode, tree/pathspec rootless absolute guard, and URL/refspec match-rhs parity integrated on current main.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "972055a15e687a9c6759bc63564c9908c26fcf9d",
+    "latestCommit": "8317749d4fda691b6f5e8274ab622327a8df0b38",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping reference transaction, partial-clone, credential/config, pack/index, object database, tree-merge, merge-base, protocol-v2, receive-pack/send-pack, smart-HTTP/SSH, sparse-checkout/pathspec, and URL/refspec parity slices.",
-    "commit": "972055a15e687a9c6759bc63564c9908c26fcf9d",
-    "latestFocusedSlice": "2026-06-01 supervisor batch: attributes/pathspec blank vertical-tab boundary parity and loose object unknown-kind header integrity parity add 43 accepted assertions. Full Gitoxide lane passed 40 files / 10170 assertions / 0 failures; phpPass moves 10127 -> 10170; mapped coverage remains 1807 / 2886; full upstream Cargo workspace was not executed."
+    "commit": "8317749d4fda691b6f5e8274ab622327a8df0b38",
+    "latestFocusedSlice": "2026-06-01 supervisor batch: sparse-checkout index mode, tree/pathspec rootless absolute guard, and URL/refspec match-rhs parity add 23 accepted full-lane assertions on the current supervisor count. Full Gitoxide lane passed 40 files / 10193 assertions / 0 failures; phpPass moves 10170 -> 10193; mapped coverage remains 1807 / 2886; full upstream Cargo workspace was not executed."
 }
