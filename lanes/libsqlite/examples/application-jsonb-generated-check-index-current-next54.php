@@ -16,32 +16,32 @@ CREATE TABLE app_settings(
   key_name TEXT NOT NULL,
   key_value BLOB,
   load_policy TEXT,
-  plugin_slug TEXT GENERATED ALWAYS AS (jsonb_extract(key_value, '$.plugin.slug')) STORED CHECK(plugin_slug <> ''),
-  plugin_enabled INTEGER GENERATED ALWAYS AS (jsonb_extract(key_value, '$.plugin.enabled')) VIRTUAL CHECK(plugin_enabled >= 0),
-  plugin_rank INTEGER GENERATED ALWAYS AS (jsonb_extract(key_value, '$.plugin.rank')) VIRTUAL CHECK(plugin_rank BETWEEN 1 AND 99)
+  module_slug TEXT GENERATED ALWAYS AS (jsonb_extract(key_value, '$.module.slug')) STORED CHECK(module_slug <> ''),
+  module_enabled INTEGER GENERATED ALWAYS AS (jsonb_extract(key_value, '$.module.enabled')) VIRTUAL CHECK(module_enabled >= 0),
+  module_rank INTEGER GENERATED ALWAYS AS (jsonb_extract(key_value, '$.module.rank')) VIRTUAL CHECK(module_rank BETWEEN 1 AND 99)
 )
 SQL;
 
 $rows = [
-    ['setting_id' => 101, 'key_name' => 'plugin_alpha_settings', 'key_value' => $jsonb(['plugin' => ['slug' => 'alpha', 'enabled' => 1, 'rank' => 10]]), 'load_policy' => 'yes'],
-    ['setting_id' => 102, 'key_name' => 'plugin_beta_settings', 'key_value' => $jsonb(['plugin' => ['slug' => 'beta', 'enabled' => 0, 'rank' => 20]]), 'load_policy' => 'yes'],
-    ['setting_id' => 103, 'key_name' => 'plugin_gamma_settings', 'key_value' => $jsonb(['plugin' => ['slug' => 'gamma', 'enabled' => 1, 'rank' => 30]]), 'load_policy' => 'no'],
+    ['setting_id' => 101, 'key_name' => 'module_alpha_settings', 'key_value' => $jsonb(['module' => ['slug' => 'alpha', 'enabled' => 1, 'rank' => 10]]), 'load_policy' => 'yes'],
+    ['setting_id' => 102, 'key_name' => 'module_beta_settings', 'key_value' => $jsonb(['module' => ['slug' => 'beta', 'enabled' => 0, 'rank' => 20]]), 'load_policy' => 'yes'],
+    ['setting_id' => 103, 'key_name' => 'module_gamma_settings', 'key_value' => $jsonb(['module' => ['slug' => 'gamma', 'enabled' => 1, 'rank' => 30]]), 'load_policy' => 'no'],
 ];
 
 $plan = SQLiteJsonbGeneratedCheckIndexPlan::plan($schema, $rows, [
-    ['name' => 'idx_plugin_slug_checked54', 'rootPage' => 54, 'unique' => true, 'sql' => 'CREATE UNIQUE INDEX idx_plugin_slug_checked54 ON app_settings(plugin_slug COLLATE NOCASE) WHERE plugin_slug IS NOT NULL'],
-    ['name' => 'idx_plugin_enabled_checked54', 'rootPage' => 55, 'sql' => 'CREATE INDEX idx_plugin_enabled_checked54 ON app_settings(plugin_enabled) WHERE plugin_enabled = 1'],
-    ['name' => 'idx_plugin_rank_checked54', 'rootPage' => 56, 'sql' => 'CREATE INDEX idx_plugin_rank_checked54 ON app_settings(plugin_rank DESC) WHERE plugin_rank IS NOT NULL'],
+    ['name' => 'idx_module_slug_checked54', 'rootPage' => 54, 'unique' => true, 'sql' => 'CREATE UNIQUE INDEX idx_module_slug_checked54 ON app_settings(module_slug COLLATE NOCASE) WHERE module_slug IS NOT NULL'],
+    ['name' => 'idx_module_enabled_checked54', 'rootPage' => 55, 'sql' => 'CREATE INDEX idx_module_enabled_checked54 ON app_settings(module_enabled) WHERE module_enabled = 1'],
+    ['name' => 'idx_module_rank_checked54', 'rootPage' => 56, 'sql' => 'CREATE INDEX idx_module_rank_checked54 ON app_settings(module_rank DESC) WHERE module_rank IS NOT NULL'],
 ], [
     ['rowid' => 101, 'mutations' => [
-        ['function' => 'jsonb_set', 'path' => '$.plugin.rank', 'value' => 15],
-        ['function' => 'jsonb_set', 'path' => '$.plugin.enabled', 'value' => 0],
+        ['function' => 'jsonb_set', 'path' => '$.module.rank', 'value' => 15],
+        ['function' => 'jsonb_set', 'path' => '$.module.enabled', 'value' => 0],
     ]],
     ['rowid' => 102, 'mutations' => [
-        ['function' => 'jsonb_set', 'path' => '$.plugin.rank', 'value' => 120],
+        ['function' => 'jsonb_set', 'path' => '$.module.rank', 'value' => 120],
     ]],
     ['rowid' => 103, 'mutations' => [
-        ['function' => 'jsonb_set', 'path' => '$.plugin.slug', 'value' => 'epsilon'],
+        ['function' => 'jsonb_set', 'path' => '$.module.slug', 'value' => 'epsilon'],
     ]],
 ]);
 
@@ -51,6 +51,6 @@ echo json_encode([
     'acceptedRowids' => array_column($plan['accepted_updates'], 'rowid'),
     'rejectedRowids' => array_column($plan['rejected_updates'], 'rowid'),
     'indexActions' => $plan['index_action_count'],
-    'finalSlugs' => array_column($plan['after'], 'plugin_slug'),
+    'finalSlugs' => array_column($plan['after'], 'module_slug'),
     'applicationUse' => 'Preflight application settings JSONB imports so generated-column CHECK constraints reject bad current/next rows before partial generated indexes are rewritten.',
 ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;

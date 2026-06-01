@@ -15,34 +15,34 @@ CREATE TABLE app_settings(
   key_value BLOB,
   load_policy TEXT,
   CHECK(json_valid(key_value, 8)),
-  CHECK(json_extract(key_value, '$.plugin.channel') = 'stable' OR json_extract(key_value, '$.plugin.channel') = 'beta'),
-  CHECK(NOT json_extract(key_value, '$.plugin.deprecated')),
-  CHECK(json_extract(key_value, '$.plugin.requires') IS NULL OR json_extract(key_value, '$.plugin.requires') <= 6.7),
-  CHECK(NOT (json_extract(key_value, '$.plugin.channel') = 'beta' AND json_extract(key_value, '$.plugin.rank') > 50))
+  CHECK(json_extract(key_value, '$.module.channel') = 'stable' OR json_extract(key_value, '$.module.channel') = 'beta'),
+  CHECK(NOT json_extract(key_value, '$.module.deprecated')),
+  CHECK(json_extract(key_value, '$.module.requires') IS NULL OR json_extract(key_value, '$.module.requires') <= 6.7),
+  CHECK(NOT (json_extract(key_value, '$.module.channel') = 'beta' AND json_extract(key_value, '$.module.rank') > 50))
 )
 SQL;
 
 $rows67 = [
-    ['setting_id' => 301, 'key_name' => 'plugin_alpha_settings', 'key_value' => $jsonb67(['plugin' => ['channel' => 'stable', 'rank' => 10, 'deprecated' => false, 'requires' => 6.5]]), 'load_policy' => 'yes'],
-    ['setting_id' => 302, 'key_name' => 'plugin_beta_settings', 'key_value' => $jsonb67(['plugin' => ['channel' => 'beta', 'rank' => 40, 'deprecated' => false]]), 'load_policy' => 'yes'],
-    ['setting_id' => 303, 'key_name' => 'plugin_legacy_settings', 'key_value' => $jsonb67(['plugin' => ['channel' => 'stable', 'rank' => 45, 'deprecated' => false, 'requires' => 6.4]]), 'load_policy' => 'no'],
+    ['setting_id' => 301, 'key_name' => 'module_alpha_settings', 'key_value' => $jsonb67(['module' => ['channel' => 'stable', 'rank' => 10, 'deprecated' => false, 'requires' => 6.5]]), 'load_policy' => 'yes'],
+    ['setting_id' => 302, 'key_name' => 'module_beta_settings', 'key_value' => $jsonb67(['module' => ['channel' => 'beta', 'rank' => 40, 'deprecated' => false]]), 'load_policy' => 'yes'],
+    ['setting_id' => 303, 'key_name' => 'module_legacy_settings', 'key_value' => $jsonb67(['module' => ['channel' => 'stable', 'rank' => 45, 'deprecated' => false, 'requires' => 6.4]]), 'load_policy' => 'no'],
 ];
 
 $changes67 = [
     ['op' => 'UPDATE', 'rowid' => 301, 'mutations' => [
-        ['function' => 'jsonb_set', 'path' => '$.plugin.channel', 'value' => 'beta'],
-        ['function' => 'jsonb_set', 'path' => '$.plugin.rank', 'value' => 35],
+        ['function' => 'jsonb_set', 'path' => '$.module.channel', 'value' => 'beta'],
+        ['function' => 'jsonb_set', 'path' => '$.module.rank', 'value' => 35],
     ]],
     ['op' => 'UPDATE', 'rowid' => 302, 'mutations' => [
-        ['function' => 'jsonb_set', 'path' => '$.plugin.rank', 'value' => 75],
+        ['function' => 'jsonb_set', 'path' => '$.module.rank', 'value' => 75],
     ]],
     ['op' => 'UPDATE', 'rowid' => 303, 'mutations' => [
-        ['function' => 'jsonb_set', 'path' => '$.plugin.deprecated', 'value' => true],
+        ['function' => 'jsonb_set', 'path' => '$.module.deprecated', 'value' => true],
     ]],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 304, 'key_name' => 'plugin_future_settings', 'key_value' => $jsonb67(['plugin' => ['channel' => 'stable', 'rank' => 12, 'deprecated' => false, 'requires' => 6.8]]), 'load_policy' => 'no']],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 305, 'key_name' => 'plugin_release_settings', 'key_value' => $jsonb67(['plugin' => ['channel' => 'stable', 'rank' => 15, 'deprecated' => false]]), 'load_policy' => 'yes']],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 306, 'key_name' => 'plugin_nightly_settings', 'key_value' => $jsonb67(['plugin' => ['channel' => 'nightly', 'rank' => 15, 'deprecated' => false]]), 'load_policy' => 'no']],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 307, 'key_name' => 'plugin_beta_import_settings', 'key_value' => $jsonb67(['plugin' => ['channel' => 'beta', 'rank' => 50, 'deprecated' => false, 'requires' => 6.7]]), 'load_policy' => 'yes']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 304, 'key_name' => 'module_future_settings', 'key_value' => $jsonb67(['module' => ['channel' => 'stable', 'rank' => 12, 'deprecated' => false, 'requires' => 6.8]]), 'load_policy' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 305, 'key_name' => 'module_release_settings', 'key_value' => $jsonb67(['module' => ['channel' => 'stable', 'rank' => 15, 'deprecated' => false]]), 'load_policy' => 'yes']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 306, 'key_name' => 'module_nightly_settings', 'key_value' => $jsonb67(['module' => ['channel' => 'nightly', 'rank' => 15, 'deprecated' => false]]), 'load_policy' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 307, 'key_name' => 'module_beta_import_settings', 'key_value' => $jsonb67(['module' => ['channel' => 'beta', 'rank' => 50, 'deprecated' => false, 'requires' => 6.7]]), 'load_policy' => 'yes']],
 ];
 
 $plan67 = static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan($schema67, $rows67, $changes67);
@@ -59,8 +59,8 @@ $tests = [
     },
     'jsonb check current next67 preserves or and not sql text' => static function (TestRunner $t) use ($plan67): void {
         $checks = array_column($plan67()['checks'], 'sql');
-        $t->same("CHECK(json_extract(key_value, '$.plugin.channel') = 'stable' OR json_extract(key_value, '$.plugin.channel') = 'beta')", $checks[1]);
-        $t->same("CHECK(NOT json_extract(key_value, '$.plugin.deprecated'))", $checks[2]);
+        $t->same("CHECK(json_extract(key_value, '$.module.channel') = 'stable' OR json_extract(key_value, '$.module.channel') = 'beta')", $checks[1]);
+        $t->same("CHECK(NOT json_extract(key_value, '$.module.deprecated'))", $checks[2]);
     },
     'jsonb check current next67 current rows satisfy logical checks' => static function (TestRunner $t) use ($plan67): void {
         $t->same([true, true, true], array_column($plan67()['current'], 'ok'));
@@ -78,7 +78,7 @@ $tests = [
     'jsonb check current next67 after rows preserve rejected current images' => static function (TestRunner $t) use ($plan67, $decode67): void {
         $after = $plan67()['after'];
         $payloads = array_map(static fn (array $row): array => $decode67($row['key_value']), $after);
-        $t->same([35, 40, 45, 15, 50], array_map(static fn (array $payload): int => $payload['plugin']['rank'], $payloads));
+        $t->same([35, 40, 45, 15, 50], array_map(static fn (array $payload): int => $payload['module']['rank'], $payloads));
     },
 ];
 
@@ -138,7 +138,7 @@ foreach ($childCases67 as $name => [$change, $check, $child, $ok, $actual]) {
 }
 
 $afterCases67 = [
-    'after names reflect accepted inserts only' => ['key_name', ['plugin_alpha_settings', 'plugin_beta_settings', 'plugin_legacy_settings', 'plugin_release_settings', 'plugin_beta_import_settings']],
+    'after names reflect accepted inserts only' => ['key_name', ['module_alpha_settings', 'module_beta_settings', 'module_legacy_settings', 'module_release_settings', 'module_beta_import_settings']],
     'after load_policy values keep accepted order' => ['load_policy', ['yes', 'yes', 'no', 'yes', 'yes']],
 ];
 foreach ($afterCases67 as $name => [$column, $expected]) {

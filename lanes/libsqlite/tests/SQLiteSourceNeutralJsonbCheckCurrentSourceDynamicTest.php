@@ -24,6 +24,18 @@ $sourceFiles = [
     $sourceRoot . '/SQLiteJsonSchemaWalPlan.php',
     $sourceRoot . '/SQLiteJsonTablePlan.php',
 ];
+$jsonbCheckFixtureFiles = [
+    $libsqliteRoot . '/examples/application-jsonb-check-current-next64.php',
+    $libsqliteRoot . '/examples/application-jsonb-check-current-next67.php',
+    $libsqliteRoot . '/examples/application-jsonb-check-current-next68.php',
+    $libsqliteRoot . '/examples/application-jsonb-check-current-next69.php',
+    $libsqliteRoot . '/examples/application-jsonb-generated-check-index-current-next54.php',
+    $libsqliteRoot . '/tests/SQLiteJsonbCheckCurrentNext64Test.php',
+    $libsqliteRoot . '/tests/SQLiteJsonbCheckCurrentNext67Test.php',
+    $libsqliteRoot . '/tests/SQLiteJsonbCheckCurrentNext68Test.php',
+    $libsqliteRoot . '/tests/SQLiteJsonbCheckCurrentNext69Test.php',
+    $libsqliteRoot . '/tests/SQLiteJsonbGeneratedCheckIndexCurrentNext54Test.php',
+];
 
 $legacyJsonbCheckMatches = static function () use ($sourceFiles, $libsqliteRoot): array {
     $terms = [
@@ -40,6 +52,39 @@ $legacyJsonbCheckMatches = static function () use ($sourceFiles, $libsqliteRoot)
     $matches = [];
 
     foreach ($sourceFiles as $file) {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read {$file}");
+        }
+        if (preg_match_all($pattern, $contents, $fileMatches) < 1) {
+            continue;
+        }
+        $relative = str_replace($libsqliteRoot . '/', '', $file);
+        foreach ($fileMatches[0] as $match) {
+            $matches[] = "{$relative}: {$match}";
+        }
+    }
+
+    return $matches;
+};
+
+$legacyJsonbCheckFixtureMatches = static function () use ($jsonbCheckFixtureFiles, $libsqliteRoot): array {
+    $terms = [
+        'wp' . '_',
+        'wp' . '_options',
+        'opt' . 'ion_id',
+        'opt' . 'ion_name',
+        'opt' . 'ion value',
+        'opt' . 'ion_value',
+        'auto' . 'load',
+        'blog' . '_id',
+        'plug' . 'in',
+        'Plug' . 'in',
+    ];
+    $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
+    $matches = [];
+
+    foreach ($jsonbCheckFixtureFiles as $file) {
         $contents = file_get_contents($file);
         if ($contents === false) {
             throw new RuntimeException("Unable to read {$file}");
@@ -94,6 +139,7 @@ $updates = [
 
 return [
     'source-neutral jsonb check current-source files contain no legacy domain strings' => static fn (TestRunner $t) => $t->same([], $legacyJsonbCheckMatches()),
+    'source-neutral jsonb check direct fixtures use generic module names' => static fn (TestRunner $t) => $t->same([], $legacyJsonbCheckFixtureMatches()),
     'jsonb generated check index uses schema-derived setting rowid' => static function (TestRunner $t) use ($schema, $rows, $indexes, $updates): void {
         $plan = SQLiteJsonbGeneratedCheckIndexPlan::plan($schema, $rows, $indexes, $updates, 512);
 

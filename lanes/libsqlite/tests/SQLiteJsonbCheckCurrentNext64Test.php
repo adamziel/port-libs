@@ -15,37 +15,37 @@ CREATE TABLE app_settings(
   key_value BLOB,
   load_policy TEXT,
   CHECK(json_valid(key_value, 8)),
-  CHECK(json_type(key_value, '$.plugin') = 'object'),
-  CHECK(json_type(key_value, '$.plugin.slug') = 'text'),
-  CHECK(json_extract(key_value, '$.plugin.slug') <> ''),
-  CHECK(json_extract(key_value, '$.plugin.rank') >= 1 AND json_extract(key_value, '$.plugin.rank') <= 99),
-  CHECK(json_extract(key_value, '$.plugin.channel') IN ('stable','beta','nightly')),
-  CHECK(json_array_length(key_value, '$.plugin.rules') >= 1),
-  CHECK(json_type(key_value, '$.plugin.enabled') IN ('true','false')),
-  CHECK(json_extract(key_value, '$.plugin.version') IS NOT NULL)
+  CHECK(json_type(key_value, '$.module') = 'object'),
+  CHECK(json_type(key_value, '$.module.slug') = 'text'),
+  CHECK(json_extract(key_value, '$.module.slug') <> ''),
+  CHECK(json_extract(key_value, '$.module.rank') >= 1 AND json_extract(key_value, '$.module.rank') <= 99),
+  CHECK(json_extract(key_value, '$.module.channel') IN ('stable','beta','nightly')),
+  CHECK(json_array_length(key_value, '$.module.rules') >= 1),
+  CHECK(json_type(key_value, '$.module.enabled') IN ('true','false')),
+  CHECK(json_extract(key_value, '$.module.version') IS NOT NULL)
 )
 SQL;
 
 $rows64 = [
-    ['setting_id' => 201, 'key_name' => 'plugin_alpha_settings', 'key_value' => $jsonb64(['plugin' => ['slug' => 'alpha', 'rank' => 10, 'channel' => 'stable', 'rules' => ['cache'], 'enabled' => true, 'version' => '1.0']]), 'load_policy' => 'yes'],
-    ['setting_id' => 202, 'key_name' => 'plugin_beta_settings', 'key_value' => $jsonb64(['plugin' => ['slug' => 'beta', 'rank' => 20, 'channel' => 'beta', 'rules' => ['seo', 'media'], 'enabled' => false, 'version' => '2.0']]), 'load_policy' => 'yes'],
-    ['setting_id' => 203, 'key_name' => 'plugin_gamma_settings', 'key_value' => $jsonb64(['plugin' => ['slug' => 'gamma', 'rank' => 30, 'channel' => 'nightly', 'rules' => ['debug'], 'enabled' => true, 'version' => '3.0']]), 'load_policy' => 'no'],
+    ['setting_id' => 201, 'key_name' => 'module_alpha_settings', 'key_value' => $jsonb64(['module' => ['slug' => 'alpha', 'rank' => 10, 'channel' => 'stable', 'rules' => ['cache'], 'enabled' => true, 'version' => '1.0']]), 'load_policy' => 'yes'],
+    ['setting_id' => 202, 'key_name' => 'module_beta_settings', 'key_value' => $jsonb64(['module' => ['slug' => 'beta', 'rank' => 20, 'channel' => 'beta', 'rules' => ['seo', 'media'], 'enabled' => false, 'version' => '2.0']]), 'load_policy' => 'yes'],
+    ['setting_id' => 203, 'key_name' => 'module_gamma_settings', 'key_value' => $jsonb64(['module' => ['slug' => 'gamma', 'rank' => 30, 'channel' => 'nightly', 'rules' => ['debug'], 'enabled' => true, 'version' => '3.0']]), 'load_policy' => 'no'],
 ];
 
 $changes64 = [
     ['op' => 'UPDATE', 'rowid' => 201, 'mutations' => [
-        ['function' => 'jsonb_set', 'path' => '$.plugin.rank', 'value' => 15],
-        ['function' => 'jsonb_set', 'path' => '$.plugin.channel', 'value' => 'beta'],
+        ['function' => 'jsonb_set', 'path' => '$.module.rank', 'value' => 15],
+        ['function' => 'jsonb_set', 'path' => '$.module.channel', 'value' => 'beta'],
     ]],
     ['op' => 'UPDATE', 'rowid' => 202, 'mutations' => [
-        ['function' => 'jsonb_set', 'path' => '$.plugin.rank', 'value' => 120],
+        ['function' => 'jsonb_set', 'path' => '$.module.rank', 'value' => 120],
     ]],
     ['op' => 'UPDATE', 'rowid' => 203, 'mutations' => [
-        ['function' => 'jsonb_set', 'path' => '$.plugin.rules', 'value' => $jsonb64([])],
+        ['function' => 'jsonb_set', 'path' => '$.module.rules', 'value' => $jsonb64([])],
     ]],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 204, 'key_name' => 'plugin_delta_settings', 'key_value' => $jsonb64(['plugin' => ['slug' => 'delta', 'rank' => 40, 'channel' => 'stable', 'rules' => ['import'], 'enabled' => false, 'version' => '4.0']]), 'load_policy' => 'yes']],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 205, 'key_name' => 'plugin_empty_slug_settings', 'key_value' => $jsonb64(['plugin' => ['slug' => '', 'rank' => 50, 'channel' => 'stable', 'rules' => ['import'], 'enabled' => true, 'version' => '5.0']]), 'load_policy' => 'yes']],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 206, 'key_name' => 'plugin_missing_version_settings', 'key_value' => $jsonb64(['plugin' => ['slug' => 'missing-version', 'rank' => 60, 'channel' => 'stable', 'rules' => ['import'], 'enabled' => true]]), 'load_policy' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 204, 'key_name' => 'module_delta_settings', 'key_value' => $jsonb64(['module' => ['slug' => 'delta', 'rank' => 40, 'channel' => 'stable', 'rules' => ['import'], 'enabled' => false, 'version' => '4.0']]), 'load_policy' => 'yes']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 205, 'key_name' => 'module_empty_slug_settings', 'key_value' => $jsonb64(['module' => ['slug' => '', 'rank' => 50, 'channel' => 'stable', 'rules' => ['import'], 'enabled' => true, 'version' => '5.0']]), 'load_policy' => 'yes']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 206, 'key_name' => 'module_missing_version_settings', 'key_value' => $jsonb64(['module' => ['slug' => 'missing-version', 'rank' => 60, 'channel' => 'stable', 'rules' => ['import'], 'enabled' => true]]), 'load_policy' => 'no']],
 ];
 
 $plan64 = static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan($schema64, $rows64, $changes64);
@@ -63,7 +63,7 @@ $tests = [
     'jsonb check current next64 preserves check sql order' => static function (TestRunner $t) use ($plan64): void {
         $checks = array_column($plan64()['checks'], 'sql');
         $t->same('CHECK(json_valid(key_value, 8))', $checks[0]);
-        $t->same('CHECK(json_extract(key_value, \'$.plugin.version\') IS NOT NULL)', $checks[8]);
+        $t->same('CHECK(json_extract(key_value, \'$.module.version\') IS NOT NULL)', $checks[8]);
     },
     'jsonb check current next64 validates all current rows' => static function (TestRunner $t) use ($plan64): void {
         $t->same([true, true, true], array_column($plan64()['current'], 'ok'));
@@ -87,27 +87,27 @@ $tests = [
     },
     'jsonb check current next64 decodes accepted updated jsonb payload' => static function (TestRunner $t) use ($plan64, $decode64): void {
         $alpha = $decode64($plan64()['after'][0]['key_value']);
-        $t->same(15, $alpha['plugin']['rank']);
-        $t->same('beta', $alpha['plugin']['channel']);
+        $t->same(15, $alpha['module']['rank']);
+        $t->same('beta', $alpha['module']['channel']);
     },
     'jsonb check current next64 preserves rejected rank update payload' => static function (TestRunner $t) use ($plan64, $decode64): void {
         $beta = $decode64($plan64()['after'][1]['key_value']);
-        $t->same(20, $beta['plugin']['rank']);
+        $t->same(20, $beta['module']['rank']);
     },
     'jsonb check current next64 preserves rejected empty rules payload' => static function (TestRunner $t) use ($plan64, $decode64): void {
         $gamma = $decode64($plan64()['after'][2]['key_value']);
-        $t->same(['debug'], $gamma['plugin']['rules']);
+        $t->same(['debug'], $gamma['module']['rules']);
     },
     'jsonb check current next64 appends accepted insert row' => static function (TestRunner $t) use ($plan64): void {
         $after = $plan64()['after'];
         $t->same(204, $after[3]['setting_id']);
-        $t->same('plugin_delta_settings', $after[3]['key_name']);
+        $t->same('module_delta_settings', $after[3]['key_name']);
     },
 ];
 
 $termCases64 = [
     'valid jsonb flag term accepts strict blob' => [0, 0, 1, true],
-    'plugin object type term accepts object root' => [0, 1, 'object', true],
+    'module object type term accepts object root' => [0, 1, 'object', true],
     'slug type term accepts text slug' => [0, 2, 'text', true],
     'slug non empty term accepts alpha' => [0, 3, 'alpha', true],
     'rank lower-bound term accepts updated rank' => [0, 4, 15, true],
@@ -147,11 +147,11 @@ foreach ($statusCases64 as $name => [$section, $column, $expected]) {
 }
 
 $afterCases64 = [
-    'after slugs reflect accepted only' => ['plugin.slug', ['alpha', 'beta', 'gamma', 'delta']],
-    'after ranks reflect accepted only' => ['plugin.rank', [15, 20, 30, 40]],
-    'after channels reflect accepted only' => ['plugin.channel', ['beta', 'beta', 'nightly', 'stable']],
-    'after versions remain required' => ['plugin.version', ['1.0', '2.0', '3.0', '4.0']],
-    'after rules preserve rejected empty array update' => ['plugin.rules.count', [1, 2, 1, 1]],
+    'after slugs reflect accepted only' => ['module.slug', ['alpha', 'beta', 'gamma', 'delta']],
+    'after ranks reflect accepted only' => ['module.rank', [15, 20, 30, 40]],
+    'after channels reflect accepted only' => ['module.channel', ['beta', 'beta', 'nightly', 'stable']],
+    'after versions remain required' => ['module.version', ['1.0', '2.0', '3.0', '4.0']],
+    'after rules preserve rejected empty array update' => ['module.rules.count', [1, 2, 1, 1]],
 ];
 foreach ($afterCases64 as $name => [$path, $expected]) {
     $tests['jsonb check current next64 ' . $name] = static function (TestRunner $t) use ($plan64, $decode64, $path, $expected): void {
@@ -174,7 +174,7 @@ $guardCases64 = [
     'rejects update missing current row' => static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan($schema64, $rows64, [['op' => 'UPDATE', 'rowid' => 999, 'set' => ['load_policy' => 'no']]]),
     'rejects insert without row' => static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan($schema64, $rows64, [['op' => 'INSERT']]),
     'rejects delete op as out of scope' => static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan($schema64, $rows64, [['op' => 'DELETE', 'rowid' => 201]]),
-    'rejects rows without rowid alias' => static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan($schema64, [['key_name' => 'bad', 'key_value' => $jsonb64(['plugin' => []])]], []),
+    'rejects rows without rowid alias' => static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan($schema64, [['key_name' => 'bad', 'key_value' => $jsonb64(['module' => []])]], []),
 ];
 foreach ($guardCases64 as $name => $callable) {
     $tests['jsonb check current next64 ' . $name] = static function (TestRunner $t) use ($callable): void {

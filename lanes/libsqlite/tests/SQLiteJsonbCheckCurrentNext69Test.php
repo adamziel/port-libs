@@ -15,37 +15,37 @@ CREATE TABLE app_settings(
   key_value BLOB,
   load_policy TEXT,
   CHECK(json_valid(key_value, 8)),
-  CHECK(json_extract(key_value, '$.plugin.channel') NOT IN ('nightly','dev','blocked')),
-  CHECK(json_extract(key_value, '$.plugin.rank') NOT BETWEEN 51 AND 99),
-  CHECK(json_extract(key_value, '$.plugin.min_app') NOT BETWEEN 6.8 AND 7.9),
-  CHECK(json_extract(key_value, '$.plugin.family') NOT IN ('legacy','insecure')),
-  CHECK(json_extract(key_value, '$.plugin.channel') NOT IN ('nightly','dev') AND json_extract(key_value, '$.plugin.rank') NOT BETWEEN 80 AND 90)
+  CHECK(json_extract(key_value, '$.module.channel') NOT IN ('nightly','dev','blocked')),
+  CHECK(json_extract(key_value, '$.module.rank') NOT BETWEEN 51 AND 99),
+  CHECK(json_extract(key_value, '$.module.min_app') NOT BETWEEN 6.8 AND 7.9),
+  CHECK(json_extract(key_value, '$.module.family') NOT IN ('legacy','insecure')),
+  CHECK(json_extract(key_value, '$.module.channel') NOT IN ('nightly','dev') AND json_extract(key_value, '$.module.rank') NOT BETWEEN 80 AND 90)
 )
 SQL;
 
 $rows69 = [
-    ['setting_id' => 401, 'key_name' => 'plugin_alpha_settings', 'key_value' => $jsonb69(['plugin' => ['channel' => 'stable', 'rank' => 25, 'min_app' => 6.5, 'family' => 'modern']]), 'load_policy' => 'yes'],
-    ['setting_id' => 402, 'key_name' => 'plugin_beta_settings', 'key_value' => $jsonb69(['plugin' => ['channel' => 'beta', 'rank' => 50, 'min_app' => 6.7, 'family' => 'modern']]), 'load_policy' => 'yes'],
-    ['setting_id' => 403, 'key_name' => 'plugin_archive_settings', 'key_value' => $jsonb69(['plugin' => ['channel' => 'stable', 'rank' => 100, 'min_app' => 8.0, 'family' => 'archive']]), 'load_policy' => 'no'],
+    ['setting_id' => 401, 'key_name' => 'module_alpha_settings', 'key_value' => $jsonb69(['module' => ['channel' => 'stable', 'rank' => 25, 'min_app' => 6.5, 'family' => 'modern']]), 'load_policy' => 'yes'],
+    ['setting_id' => 402, 'key_name' => 'module_beta_settings', 'key_value' => $jsonb69(['module' => ['channel' => 'beta', 'rank' => 50, 'min_app' => 6.7, 'family' => 'modern']]), 'load_policy' => 'yes'],
+    ['setting_id' => 403, 'key_name' => 'module_archive_settings', 'key_value' => $jsonb69(['module' => ['channel' => 'stable', 'rank' => 100, 'min_app' => 8.0, 'family' => 'archive']]), 'load_policy' => 'no'],
 ];
 
 $changes69 = [
     ['op' => 'UPDATE', 'rowid' => 401, 'mutations' => [
-        ['function' => 'jsonb_set', 'path' => '$.plugin.rank', 'value' => 45],
-        ['function' => 'jsonb_set', 'path' => '$.plugin.channel', 'value' => 'beta'],
+        ['function' => 'jsonb_set', 'path' => '$.module.rank', 'value' => 45],
+        ['function' => 'jsonb_set', 'path' => '$.module.channel', 'value' => 'beta'],
     ]],
     ['op' => 'UPDATE', 'rowid' => 402, 'mutations' => [
-        ['function' => 'jsonb_set', 'path' => '$.plugin.channel', 'value' => 'nightly'],
+        ['function' => 'jsonb_set', 'path' => '$.module.channel', 'value' => 'nightly'],
     ]],
     ['op' => 'UPDATE', 'rowid' => 403, 'mutations' => [
-        ['function' => 'jsonb_set', 'path' => '$.plugin.rank', 'value' => 75],
+        ['function' => 'jsonb_set', 'path' => '$.module.rank', 'value' => 75],
     ]],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 404, 'key_name' => 'plugin_future_settings', 'key_value' => $jsonb69(['plugin' => ['channel' => 'stable', 'rank' => 10, 'min_app' => 7.0, 'family' => 'modern']]), 'load_policy' => 'no']],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 405, 'key_name' => 'plugin_legacy_settings', 'key_value' => $jsonb69(['plugin' => ['channel' => 'stable', 'rank' => 10, 'min_app' => 6.6, 'family' => 'legacy']]), 'load_policy' => 'no']],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 406, 'key_name' => 'plugin_safe_settings', 'key_value' => $jsonb69(['plugin' => ['channel' => 'stable', 'rank' => 100, 'min_app' => 8.0, 'family' => 'modern']]), 'load_policy' => 'yes']],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 407, 'key_name' => 'plugin_high_rank_settings', 'key_value' => $jsonb69(['plugin' => ['channel' => 'stable', 'rank' => 85, 'min_app' => 8.0, 'family' => 'modern']]), 'load_policy' => 'yes']],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 408, 'key_name' => 'plugin_blocked_settings', 'key_value' => $jsonb69(['plugin' => ['channel' => 'blocked', 'rank' => 20, 'min_app' => 6.6, 'family' => 'modern']]), 'load_policy' => 'no']],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 409, 'key_name' => 'plugin_low_rank_settings', 'key_value' => $jsonb69(['plugin' => ['channel' => 'beta', 'rank' => 1, 'min_app' => 6.4, 'family' => 'modern']]), 'load_policy' => 'yes']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 404, 'key_name' => 'module_future_settings', 'key_value' => $jsonb69(['module' => ['channel' => 'stable', 'rank' => 10, 'min_app' => 7.0, 'family' => 'modern']]), 'load_policy' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 405, 'key_name' => 'module_legacy_settings', 'key_value' => $jsonb69(['module' => ['channel' => 'stable', 'rank' => 10, 'min_app' => 6.6, 'family' => 'legacy']]), 'load_policy' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 406, 'key_name' => 'module_safe_settings', 'key_value' => $jsonb69(['module' => ['channel' => 'stable', 'rank' => 100, 'min_app' => 8.0, 'family' => 'modern']]), 'load_policy' => 'yes']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 407, 'key_name' => 'module_high_rank_settings', 'key_value' => $jsonb69(['module' => ['channel' => 'stable', 'rank' => 85, 'min_app' => 8.0, 'family' => 'modern']]), 'load_policy' => 'yes']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 408, 'key_name' => 'module_blocked_settings', 'key_value' => $jsonb69(['module' => ['channel' => 'blocked', 'rank' => 20, 'min_app' => 6.6, 'family' => 'modern']]), 'load_policy' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 409, 'key_name' => 'module_low_rank_settings', 'key_value' => $jsonb69(['module' => ['channel' => 'beta', 'rank' => 1, 'min_app' => 6.4, 'family' => 'modern']]), 'load_policy' => 'yes']],
 ];
 
 $plan69 = static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan($schema69, $rows69, $changes69);
@@ -62,8 +62,8 @@ $tests = [
     },
     'jsonb check current next69 preserves not-in and not-between sql text' => static function (TestRunner $t) use ($plan69): void {
         $checks = array_column($plan69()['checks'], 'sql');
-        $t->same("CHECK(json_extract(key_value, '$.plugin.channel') NOT IN ('nightly','dev','blocked'))", $checks[1]);
-        $t->same("CHECK(json_extract(key_value, '$.plugin.rank') NOT BETWEEN 51 AND 99)", $checks[2]);
+        $t->same("CHECK(json_extract(key_value, '$.module.channel') NOT IN ('nightly','dev','blocked'))", $checks[1]);
+        $t->same("CHECK(json_extract(key_value, '$.module.rank') NOT BETWEEN 51 AND 99)", $checks[2]);
     },
     'jsonb check current next69 validates all current rows' => static function (TestRunner $t) use ($plan69): void {
         $t->same([true, true, true], array_column($plan69()['current'], 'ok'));
@@ -85,8 +85,8 @@ $tests = [
         $after = $plan69()['after'];
         $beta = $decode69($after[1]['key_value']);
         $archive = $decode69($after[2]['key_value']);
-        $t->same('beta', $beta['plugin']['channel']);
-        $t->same(100, $archive['plugin']['rank']);
+        $t->same('beta', $beta['module']['channel']);
+        $t->same(100, $archive['module']['rank']);
     },
 ];
 
@@ -146,7 +146,7 @@ foreach ($andTermCases69 as $name => [$change, $termIndex, $operator, $actual, $
 }
 
 $afterCases69 = [
-    'after names reflect accepted only' => ['key_name', ['plugin_alpha_settings', 'plugin_beta_settings', 'plugin_archive_settings', 'plugin_safe_settings', 'plugin_low_rank_settings']],
+    'after names reflect accepted only' => ['key_name', ['module_alpha_settings', 'module_beta_settings', 'module_archive_settings', 'module_safe_settings', 'module_low_rank_settings']],
     'after load_policy reflects accepted inserts' => ['load_policy', ['yes', 'yes', 'no', 'yes', 'yes']],
 ];
 foreach ($afterCases69 as $name => [$column, $expected]) {
@@ -156,10 +156,10 @@ foreach ($afterCases69 as $name => [$column, $expected]) {
 }
 
 $decodedAfterCases69 = [
-    'after channels reflect accepted only' => ['plugin.channel', ['beta', 'beta', 'stable', 'stable', 'beta']],
-    'after ranks reflect accepted only' => ['plugin.rank', [45, 50, 100, 100, 1]],
-    'after min app values reflect accepted only' => ['plugin.min_app', [6.5, 6.7, 8.0, 8.0, 6.4]],
-    'after families remain outside denied list' => ['plugin.family', ['modern', 'modern', 'archive', 'modern', 'modern']],
+    'after channels reflect accepted only' => ['module.channel', ['beta', 'beta', 'stable', 'stable', 'beta']],
+    'after ranks reflect accepted only' => ['module.rank', [45, 50, 100, 100, 1]],
+    'after min app values reflect accepted only' => ['module.min_app', [6.5, 6.7, 8.0, 8.0, 6.4]],
+    'after families remain outside denied list' => ['module.family', ['modern', 'modern', 'archive', 'modern', 'modern']],
 ];
 foreach ($decodedAfterCases69 as $name => [$path, $expected]) {
     $tests['jsonb check current next69 ' . $name] = static function (TestRunner $t) use ($plan69, $decode69, $path, $expected): void {
@@ -194,8 +194,8 @@ $tests['jsonb check current next69 grouped check keeps two top-level AND terms']
 };
 
 $guardCases69 = [
-    'rejects non literal NOT IN list entry' => static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan("CREATE TABLE app_settings(setting_id INTEGER PRIMARY KEY, key_value BLOB, CHECK(json_extract(key_value, '$.plugin.channel') NOT IN (lower('dev'))))", $rows69, []),
-    'rejects non literal NOT BETWEEN lower bound' => static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan("CREATE TABLE app_settings(setting_id INTEGER PRIMARY KEY, key_value BLOB, CHECK(json_extract(key_value, '$.plugin.rank') NOT BETWEEN json_extract(key_value, '$.a') AND 9))", $rows69, []),
+    'rejects non literal NOT IN list entry' => static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan("CREATE TABLE app_settings(setting_id INTEGER PRIMARY KEY, key_value BLOB, CHECK(json_extract(key_value, '$.module.channel') NOT IN (lower('dev'))))", $rows69, []),
+    'rejects non literal NOT BETWEEN lower bound' => static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan("CREATE TABLE app_settings(setting_id INTEGER PRIMARY KEY, key_value BLOB, CHECK(json_extract(key_value, '$.module.rank') NOT BETWEEN json_extract(key_value, '$.a') AND 9))", $rows69, []),
 ];
 foreach ($guardCases69 as $name => $callable) {
     $tests['jsonb check current next69 ' . $name] = static function (TestRunner $t) use ($callable): void {

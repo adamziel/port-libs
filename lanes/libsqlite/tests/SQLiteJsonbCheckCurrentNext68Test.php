@@ -15,37 +15,37 @@ CREATE TABLE app_settings(
   key_value BLOB,
   load_policy TEXT,
   CHECK(json_valid(key_value, 8)),
-  CHECK(json_type(key_value, '$.plugin.slug') = 'text'),
-  CHECK(json_type(key_value, '$.plugin.description') = 'text'),
-  CHECK(json_extract(key_value, '$.plugin.channel') IN ('stable','beta') OR json_extract(key_value, '$.plugin.channel') IS NULL),
-  CHECK(json_extract(key_value, '$.plugin.priority') IS NULL OR json_extract(key_value, '$.plugin.priority') >= 0),
-  CHECK(json_extract(key_value, '$.plugin.priority') IS NULL OR json_extract(key_value, '$.plugin.priority') <= 10),
-  CHECK(json_type(key_value, '$.plugin.rules') = 'array' OR json_extract(key_value, '$.plugin.rules') IS NULL)
+  CHECK(json_type(key_value, '$.module.slug') = 'text'),
+  CHECK(json_type(key_value, '$.module.description') = 'text'),
+  CHECK(json_extract(key_value, '$.module.channel') IN ('stable','beta') OR json_extract(key_value, '$.module.channel') IS NULL),
+  CHECK(json_extract(key_value, '$.module.priority') IS NULL OR json_extract(key_value, '$.module.priority') >= 0),
+  CHECK(json_extract(key_value, '$.module.priority') IS NULL OR json_extract(key_value, '$.module.priority') <= 10),
+  CHECK(json_type(key_value, '$.module.rules') = 'array' OR json_extract(key_value, '$.module.rules') IS NULL)
 )
 SQL;
 
 $rows68 = [
-    ['setting_id' => 301, 'key_name' => 'plugin_alpha_settings', 'key_value' => $jsonb68(['plugin' => ['slug' => 'alpha', 'channel' => 'stable', 'priority' => 5, 'rules' => ['cache']]]), 'load_policy' => 'yes'],
-    ['setting_id' => 302, 'key_name' => 'plugin_beta_settings', 'key_value' => $jsonb68(['plugin' => ['slug' => 'beta', 'description' => 'Beta import', 'priority' => 0]]), 'load_policy' => 'no'],
-    ['setting_id' => 303, 'key_name' => 'plugin_gamma_settings', 'key_value' => $jsonb68(['plugin' => ['slug' => 'gamma']]), 'load_policy' => 'yes'],
+    ['setting_id' => 301, 'key_name' => 'module_alpha_settings', 'key_value' => $jsonb68(['module' => ['slug' => 'alpha', 'channel' => 'stable', 'priority' => 5, 'rules' => ['cache']]]), 'load_policy' => 'yes'],
+    ['setting_id' => 302, 'key_name' => 'module_beta_settings', 'key_value' => $jsonb68(['module' => ['slug' => 'beta', 'description' => 'Beta import', 'priority' => 0]]), 'load_policy' => 'no'],
+    ['setting_id' => 303, 'key_name' => 'module_gamma_settings', 'key_value' => $jsonb68(['module' => ['slug' => 'gamma']]), 'load_policy' => 'yes'],
 ];
 
 $changes68 = [
     ['op' => 'UPDATE', 'rowid' => 301, 'mutations' => [
-        ['function' => 'jsonb_set', 'path' => '$.plugin.description', 'value' => 'Alpha updated'],
-        ['function' => 'jsonb_set', 'path' => '$.plugin.priority', 'value' => 10],
+        ['function' => 'jsonb_set', 'path' => '$.module.description', 'value' => 'Alpha updated'],
+        ['function' => 'jsonb_set', 'path' => '$.module.priority', 'value' => 10],
     ]],
     ['op' => 'UPDATE', 'rowid' => 302, 'mutations' => [
-        ['function' => 'jsonb_set', 'path' => '$.plugin.channel', 'value' => 'nightly'],
+        ['function' => 'jsonb_set', 'path' => '$.module.channel', 'value' => 'nightly'],
     ]],
     ['op' => 'UPDATE', 'rowid' => 303, 'mutations' => [
-        ['function' => 'jsonb_set', 'path' => '$.plugin.description', 'value' => 42],
+        ['function' => 'jsonb_set', 'path' => '$.module.description', 'value' => 42],
     ]],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 304, 'key_name' => 'plugin_delta_settings', 'key_value' => $jsonb68(['plugin' => ['slug' => 'delta', 'channel' => 'beta', 'priority' => 7]]), 'load_policy' => 'yes']],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 305, 'key_name' => 'plugin_bad_priority_high', 'key_value' => $jsonb68(['plugin' => ['slug' => 'high', 'priority' => 11]]), 'load_policy' => 'no']],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 306, 'key_name' => 'plugin_bad_priority_low', 'key_value' => $jsonb68(['plugin' => ['slug' => 'low', 'priority' => -1]]), 'load_policy' => 'no']],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 307, 'key_name' => 'plugin_bad_rules_type', 'key_value' => $jsonb68(['plugin' => ['slug' => 'rules', 'rules' => 'cache']]), 'load_policy' => 'no']],
-    ['op' => 'INSERT', 'row' => ['setting_id' => 308, 'key_name' => 'plugin_malformed_jsonb', 'key_value' => new SQLiteBlobValue("\x8c\xff"), 'load_policy' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 304, 'key_name' => 'module_delta_settings', 'key_value' => $jsonb68(['module' => ['slug' => 'delta', 'channel' => 'beta', 'priority' => 7]]), 'load_policy' => 'yes']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 305, 'key_name' => 'module_bad_priority_high', 'key_value' => $jsonb68(['module' => ['slug' => 'high', 'priority' => 11]]), 'load_policy' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 306, 'key_name' => 'module_bad_priority_low', 'key_value' => $jsonb68(['module' => ['slug' => 'low', 'priority' => -1]]), 'load_policy' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 307, 'key_name' => 'module_bad_rules_type', 'key_value' => $jsonb68(['module' => ['slug' => 'rules', 'rules' => 'cache']]), 'load_policy' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 308, 'key_name' => 'module_malformed_jsonb', 'key_value' => new SQLiteBlobValue("\x8c\xff"), 'load_policy' => 'no']],
 ];
 
 $plan68 = static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan($schema68, $rows68, $changes68);
@@ -62,8 +62,8 @@ $tests = [
     },
     'jsonb check current next68 preserves optional check sql order' => static function (TestRunner $t) use ($plan68): void {
         $checks = array_column($plan68()['checks'], 'sql');
-        $t->same('CHECK(json_type(key_value, \'$.plugin.description\') = \'text\')', $checks[2]);
-        $t->same('CHECK(json_type(key_value, \'$.plugin.rules\') = \'array\' OR json_extract(key_value, \'$.plugin.rules\') IS NULL)', $checks[6]);
+        $t->same('CHECK(json_type(key_value, \'$.module.description\') = \'text\')', $checks[2]);
+        $t->same('CHECK(json_type(key_value, \'$.module.rules\') = \'array\' OR json_extract(key_value, \'$.module.rules\') IS NULL)', $checks[6]);
     },
     'jsonb check current next68 admits current rows with missing optional json paths' => static function (TestRunner $t) use ($plan68): void {
         $t->same([true, true, true], array_column($plan68()['current'], 'ok'));
@@ -86,21 +86,21 @@ $tests = [
     },
     'jsonb check current next68 applies accepted jsonb updates to after image' => static function (TestRunner $t) use ($plan68, $decode68): void {
         $alpha = $decode68($plan68()['after'][0]['key_value']);
-        $t->same('Alpha updated', $alpha['plugin']['description']);
-        $t->same(10, $alpha['plugin']['priority']);
+        $t->same('Alpha updated', $alpha['module']['description']);
+        $t->same(10, $alpha['module']['priority']);
     },
     'jsonb check current next68 appends accepted optional insert' => static function (TestRunner $t) use ($plan68, $decode68): void {
         $delta = $decode68($plan68()['after'][3]['key_value']);
-        $t->same('delta', $delta['plugin']['slug']);
-        $t->same('beta', $delta['plugin']['channel']);
+        $t->same('delta', $delta['module']['slug']);
+        $t->same('beta', $delta['module']['channel']);
     },
     'jsonb check current next68 preserves rejected channel update' => static function (TestRunner $t) use ($plan68, $decode68): void {
         $beta = $decode68($plan68()['after'][1]['key_value']);
-        $t->same(false, isset($beta['plugin']['channel']));
+        $t->same(false, isset($beta['module']['channel']));
     },
     'jsonb check current next68 preserves rejected description update' => static function (TestRunner $t) use ($plan68, $decode68): void {
         $gamma = $decode68($plan68()['after'][2]['key_value']);
-        $t->same(false, isset($gamma['plugin']['description']));
+        $t->same(false, isset($gamma['module']['description']));
     },
 ];
 
@@ -169,10 +169,10 @@ foreach ($childCases68 as $name => [$row, $check, $child, $actual, $result, $ok]
 }
 
 $afterCases68 = [
-    'after slugs reflect accepted changes only' => ['plugin.slug', ['alpha', 'beta', 'gamma', 'delta']],
-    'after priorities reflect accepted changes only' => ['plugin.priority', [10, 0, null, 7]],
-    'after channels reflect accepted changes only' => ['plugin.channel', ['stable', null, null, 'beta']],
-    'after descriptions reflect accepted changes only' => ['plugin.description', ['Alpha updated', 'Beta import', null, null]],
+    'after slugs reflect accepted changes only' => ['module.slug', ['alpha', 'beta', 'gamma', 'delta']],
+    'after priorities reflect accepted changes only' => ['module.priority', [10, 0, null, 7]],
+    'after channels reflect accepted changes only' => ['module.channel', ['stable', null, null, 'beta']],
+    'after descriptions reflect accepted changes only' => ['module.description', ['Alpha updated', 'Beta import', null, null]],
 ];
 foreach ($afterCases68 as $name => [$path, $expected]) {
     $tests['jsonb check current next68 ' . $name] = static function (TestRunner $t) use ($plan68, $decode68, $path, $expected): void {
