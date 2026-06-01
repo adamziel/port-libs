@@ -55,6 +55,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (AO cleanup audit + tree/pack/CSS
+  parity batch 00:30 UTC): audited the active-session concern from live tmux,
+  process, worktree, disk, and team-check state. There is still one attached
+  tmux session (`main`), not multiple independent live sessions. The visible
+  pool is intentional capacity: one supervisor, one shell, and `10` active lane
+  workers (`6` LightningCSS, `2` Gitoxide, `2` libsqlite at the sample point),
+  all `gpt-5.5` xhigh priority Codex workers with no long sleepers. AO cleanup
+  should prune completed/stale panes, consumed handoff artifacts, stale scratch
+  worktrees, and old logs, but must not cut the active pool below the requested
+  `10-11` visible development lanes. Source commit
+  `72855f74e1100686e920348cb344103358c192d4` (`ports: extend git tree pack
+  and css parity`) landed eight screened handoffs. Verification passed
+  `git diff --check`, PHP lint on `24` changed/new PHP files, full Gitoxide
+  `40 files / 6485 assertions / 0 failures`, full LightningCSS `13 files /
+  5135 assertions / 0 failures`, focused Gitoxide/LightningCSS gate `9 files /
+  4554 assertions / 0 failures`, accepted Gitoxide example, and accepted
+  LightningCSS example self-tests. Dashboard evidence should now report
+  Gitoxide `1680 / 2886` mapped and `6485 pass / 0 fail`, LightningCSS
+  `2238 / 3532` mapped and `5135 pass / 0 fail`, and libsqlite unchanged at
+  `1589 / 1589` mapped with `4479562 pass / 0 fail`. Full upstream Cargo,
+  Rust/Node/WASM, and libsqlite release/all runners were not executed for this
+  isolated batch, so those remain honest completion risks.
+
 - 2026-06-01 supervisor continuation (AO session cleanup audit + Git/CSS
   parity batch 00:15 UTC): audited the active-session concern from live tmux,
   process, disk, and team-check state. There is one attached tmux session
