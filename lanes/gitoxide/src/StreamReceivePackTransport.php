@@ -71,7 +71,14 @@ final class StreamReceivePackTransport implements ReceivePackTransport
     {
         $bytes = '';
         while (true) {
-            $header = self::readExactly($this->readStream, 4, "{$label} packet length");
+            $header = self::readPacketHeader(
+                $this->readStream,
+                "{$label} packet length",
+                $label === 'response' && $bytes !== ''
+            );
+            if ($header === null) {
+                break;
+            }
             if (preg_match('/^[0-9a-fA-F]{4}$/', $header) !== 1) {
                 throw new \InvalidArgumentException("receive-pack transport: invalid {$label} packet length {$header}");
             }
@@ -96,6 +103,39 @@ final class StreamReceivePackTransport implements ReceivePackTransport
             }
 
             $bytes .= self::readExactly($this->readStream, $length - 4, "{$label} packet payload");
+        }
+
+        return $bytes;
+    }
+
+    /**
+     * @param resource $stream
+     */
+    private static function readPacketHeader(mixed $stream, string $label, bool $allowCompletePacketEof): ?string
+    {
+        $bytes = '';
+        while (strlen($bytes) < 4) {
+            $chunk = fread($stream, 4 - strlen($bytes));
+            if ($chunk === false) {
+                $metadata = stream_get_meta_data($stream);
+                if (!empty($metadata['timed_out'])) {
+                    throw new \RuntimeException("receive-pack transport timed out while reading {$label}");
+                }
+
+                throw new \RuntimeException("receive-pack transport failed while reading {$label}");
+            }
+            if ($chunk === '') {
+                $metadata = stream_get_meta_data($stream);
+                if (!empty($metadata['timed_out'])) {
+                    throw new \RuntimeException("receive-pack transport timed out while reading {$label}");
+                }
+                if ($allowCompletePacketEof && $bytes === '') {
+                    return null;
+                }
+
+                throw new \RuntimeException("receive-pack transport ended while reading {$label}");
+            }
+            $bytes .= $chunk;
         }
 
         return $bytes;

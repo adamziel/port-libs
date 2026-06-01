@@ -294,6 +294,54 @@ return [
         $t->contains('refs/heads/main', $streamBytes($write));
         $t->contains('PACK', $streamBytes($write));
     },
+    'receive-pack client accepts eof-terminated sideband status responses like upstream Gitoxide' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress eof-terminated sideband status payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status-v2 side-band-64k object-format=sha1\n") . $flush;
+        $advisory = "\nGitHub found 1 vulnerability on the-lean-crate/criner's default branch (1 high). To find out more, visit:\n"
+            . "     https://github.com/the-lean-crate/criner/security/dependabot/1\n\n";
+        $responseBytes = $packet("\x02Resolving deltas:   0% (0/2)\r")
+            . $packet("\x02Resolving deltas:  50% (1/2)\r")
+            . $packet("\x02Resolving deltas: 100% (2/2)\r")
+            . $packet("\x02Resolving deltas: 100% (2/2), completed with 2 local objects.\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x02" . $advisory)
+            . $packet("\x01" . $flush);
+        $write = $streamWith('');
+        $client = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($advertisement . $responseBytes), $write),
+            'port-libs/0.1'
+        );
+
+        $response = $client->run(static function (SendPackSession $session) use ($blob): mixed {
+            $session->createOrUpdate('refs/heads/main', $blob->oid());
+
+            return $session->buildRequest([$blob]);
+        });
+
+        $t->same(true, $response->isSuccessful());
+        $t->same(5, count($response->progressMessages()));
+        $t->same("Resolving deltas:   0% (0/2)\r", $response->progressMessages()[0]);
+        $t->same("Resolving deltas: 100% (2/2), completed with 2 local objects.", $response->progressMessages()[3]);
+        $t->same(true, str_contains($response->progressMessages()[4], 'GitHub found 1 vulnerability'));
+        $t->same('refs/heads/main', $response->refStatuses()[0]->effectiveRefName());
+        $t->same(null, $response->refStatuses()[0]->oldObject);
+        $t->same(null, $response->refStatuses()[0]->newObject);
+        $t->contains('refs/heads/main', $streamBytes($write));
+        $t->contains('PACK', $streamBytes($write));
+
+        $truncatedClient = new ReceivePackClient(
+            new StreamReceivePackTransport(
+                $streamWith($advertisement . $packet("\x01" . $packet("unpack ok\n"))),
+                $streamWith('')
+            ),
+            'port-libs/0.1'
+        );
+        $truncatedSession = $truncatedClient->handshake();
+        $truncatedSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $t->throws(InvalidArgumentException::class, static fn () => $truncatedClient->send($truncatedSession->buildRequest([$blob])));
+    },
     'receive-pack client sends sha256 delete-only requests without pack data' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes, $readPacketSequence): void {
         $old = str_repeat('a', 64);
         $zero = str_repeat('0', 64);

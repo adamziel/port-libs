@@ -781,6 +781,30 @@ return [
         $t->same(true, str_contains($response->progressMessages()[4], 'GitHub found 1 vulnerability'));
         $t->same('refs/heads/main', $response->refStatuses()[0]->refName);
     },
+    'accepts eof-terminated upstream Gitoxide sideband push response' => static function (TestRunner $t) use ($packet, $flush, $invalidArgumentMessage): void {
+        $advisory = "\nGitHub found 1 vulnerability on the-lean-crate/criner's default branch (1 high). To find out more, visit:\n"
+            . "     https://github.com/the-lean-crate/criner/security/dependabot/1\n\n";
+        $response = PushResponse::fromSidebandPacketLines(
+            $packet("\x02Resolving deltas:   0% (0/2)\r")
+            . $packet("\x02Resolving deltas:  50% (1/2)\r")
+            . $packet("\x02Resolving deltas: 100% (2/2)\r")
+            . $packet("\x02Resolving deltas: 100% (2/2), completed with 2 local objects.\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x02" . $advisory)
+            . $packet("\x01" . $flush)
+        );
+
+        $t->same(true, $response->isSuccessful());
+        $t->same(5, count($response->progressMessages()));
+        $t->same("Resolving deltas:   0% (0/2)\r", $response->progressMessages()[0]);
+        $t->same("Resolving deltas: 100% (2/2), completed with 2 local objects.", $response->progressMessages()[3]);
+        $t->same(true, str_contains($response->progressMessages()[4], 'GitHub found 1 vulnerability'));
+        $t->same('refs/heads/main', $response->refStatuses()[0]->refName);
+        $t->contains('missing report-status flush packet', $invalidArgumentMessage(
+            static fn () => PushResponse::fromSidebandPacketLines($packet("\x01" . $packet("unpack ok\n")))
+        ));
+    },
     'ignores empty progress sideband keepalives around receive-status bytes' => static function (TestRunner $t) use ($packet, $flush): void {
         $direct = PushResponse::fromSidebandPacketLines(
             $packet("\x02")
@@ -941,6 +965,7 @@ return [
         $objectPrefixDiagnostic = PushResponse::fromReportStatusPacketLines($fixture['objectPrefixDiagnosticResponse'])->refStatuses()[0];
         $sha1ObjectPrefix = PushResponse::fromReportStatusPacketLines($fixture['sha1ObjectPrefixResponse'], 'sha1')->refStatuses()[0];
         $emptyUnpackStatus = PushResponse::fromReportStatusPacketLines($fixture['emptyUnpackStatusResponse']);
+        $eofTerminatedSideband = PushResponse::fromSidebandPacketLines($fixture['eofTerminatedSidebandResponse']);
 
         $t->same(true, $response->isSuccessful());
         $t->same('ok', $response->unpackStatus());
@@ -996,6 +1021,9 @@ return [
         $t->same('', $emptyUnpackStatus->unpackStatus());
         $t->same(false, $emptyUnpackStatus->unpackOk());
         $t->same($fixture['emptyUnpackStatusRef']['message'], $emptyUnpackStatus->rejectedRefs()[0]->message);
+        $t->same(true, $eofTerminatedSideband->isSuccessful());
+        $t->same($fixture['eofTerminatedSidebandProgress'], $eofTerminatedSideband->progressMessages());
+        $t->same('refs/heads/main', $eofTerminatedSideband->refStatuses()[0]->refName);
 
         $summary = require dirname(__DIR__) . '/examples/wordpress-protocol-v1-push-response.php';
         $t->same($fixture['expectedFilteredRefs'], array_map(
@@ -1069,6 +1097,7 @@ return [
         $t->same(true, $summary['fatalAfterStatusRejected']);
         $t->same(true, $summary['emptyErrorSidebandAccepted']);
         $t->same(true, $summary['emptyProgressSidebandIgnored']);
+        $t->same(true, $summary['eofTerminatedSidebandAccepted']);
         $t->same(true, $summary['responseEndTerminatedAccepted']);
         $t->same(true, $summary['delimiterTerminatedAccepted']);
         $t->same(true, $summary['valuelessReportStatusOptionsAccepted']);

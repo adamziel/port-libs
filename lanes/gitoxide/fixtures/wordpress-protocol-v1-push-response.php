@@ -277,6 +277,22 @@ return [
         . $packet("\x01" . $packet("ok refs/heads/main\n"))
         . $packet("\x01" . $flush)
         . $flush,
+    'eofTerminatedSidebandProgress' => [
+        "Resolving deltas:   0% (0/2)\r",
+        "Resolving deltas:  50% (1/2)\r",
+        "Resolving deltas: 100% (2/2)\r",
+        'Resolving deltas: 100% (2/2), completed with 2 local objects.',
+        "\nGitHub found 1 vulnerability on the-lean-crate/criner's default branch (1 high). To find out more, visit:\n"
+            . "     https://github.com/the-lean-crate/criner/security/dependabot/1\n",
+    ],
+    'eofTerminatedSidebandResponse' => $packet("\x02Resolving deltas:   0% (0/2)\r")
+        . $packet("\x02Resolving deltas:  50% (1/2)\r")
+        . $packet("\x02Resolving deltas: 100% (2/2)\r")
+        . $packet("\x02Resolving deltas: 100% (2/2), completed with 2 local objects.\n")
+        . $packet("\x01" . $packet("unpack ok\n"))
+        . $packet("\x01" . $packet("ok refs/heads/main\n"))
+        . $packet("\x02\nGitHub found 1 vulnerability on the-lean-crate/criner's default branch (1 high). To find out more, visit:\n     https://github.com/the-lean-crate/criner/security/dependabot/1\n\n")
+        . $packet("\x01" . $flush),
     'responseEndTerminatedResponse' => $packet("unpack ok\n")
         . $packet("ok refs/heads/wp-release\n")
         . '0002',

@@ -64,6 +64,7 @@ try {
 }
 $emptyErrorSidebandResponse = PushResponse::fromSidebandPacketLines($fixture['emptyErrorSidebandResponse']);
 $emptyProgressSidebandResponse = PushResponse::fromSidebandPacketLines($fixture['emptyProgressSidebandResponse']);
+$eofTerminatedSidebandResponse = PushResponse::fromSidebandPacketLines($fixture['eofTerminatedSidebandResponse']);
 $responseEndTerminatedResponse = PushResponse::fromReportStatusPacketLines($fixture['responseEndTerminatedResponse']);
 $delimiterTerminatedResponse = PushResponse::fromReportStatusPacketLines($fixture['delimiterTerminatedResponse']);
 $carriageReturnStatusRejected = false;
@@ -273,6 +274,9 @@ return [
         && $emptyErrorSidebandResponse->errorMessages() === [],
     'emptyProgressSidebandIgnored' => $emptyProgressSidebandResponse->isSuccessful()
         && $emptyProgressSidebandResponse->progressMessages() === ['remote: WordPress deployment accepted'],
+    'eofTerminatedSidebandAccepted' => $eofTerminatedSidebandResponse->isSuccessful()
+        && $eofTerminatedSidebandResponse->progressMessages() === $fixture['eofTerminatedSidebandProgress']
+        && $eofTerminatedSidebandResponse->refStatuses()[0]->refName === 'refs/heads/main',
     'responseEndTerminatedAccepted' => $responseEndTerminatedResponse->isSuccessful()
         && $responseEndTerminatedResponse->refStatuses()[0]->refName === 'refs/heads/wp-release',
     'delimiterTerminatedAccepted' => $delimiterTerminatedResponse->isSuccessful()

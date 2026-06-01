@@ -94,7 +94,7 @@ final class PushResponse
             }
         }
 
-        if (!$sawFlush) {
+        if (!$sawFlush && $statusBytes === '' && $errorMessages === []) {
             throw new \InvalidArgumentException('push response: missing sideband flush packet');
         }
         if ($errorMessages !== []) {
