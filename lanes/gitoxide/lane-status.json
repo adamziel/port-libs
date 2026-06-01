@@ -2,15 +2,15 @@
     "schemaVersion": 1,
     "library": "gitoxide",
     "estimatedProgress": 96.2,
-    "suiteProgress": "Supervisor-integrated Gitoxide named-user config include interpolation and partial-clone promisor alternate-base hydration. Verification passed PHP lint, git diff --check, changed example smokes, and full Gitoxide lane 40 files / 8298 assertions / 0 failures.",
-    "phpPass": 8298,
+    "suiteProgress": "Supervisor-integrated Gitoxide credential-context constructor String/BString parity. Verification passed PHP lint, git diff --check, changed example smokes, and full Gitoxide lane 40 files / 8311 assertions / 0 failures.",
+    "phpPass": 8311,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions including caller-supplied environment-style key/value pairs, attributes/pathspec filtering including NUL-field boundaries, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 supervisor batch: accepted source c9f412583369 with config include named-user interpolation and partial-clone alternate-base promisor hydration. Full Gitoxide lane passed 40 files / 8298 assertions / 0 failures; full Cargo workspace was not executed.",
-    "currentWork": "Named-user config include/gitdir interpolation and partial-clone promisor alternate-base hydration integrated on current base.",
+    "audit": "2026-06-01 supervisor batch: accepted source 003a6cf12f2f with credential-context constructor UTF-8 string validation and byte-preserving URL/path fields. Full Gitoxide lane passed 40 files / 8311 assertions / 0 failures; full Cargo workspace was not executed.",
+    "currentWork": "Credential-context constructor String/BString parity integrated on current base; config include and partial-clone followups remain in the accepted baseline.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "c9f4125833691346cec619e91e0e3588674de80f",
-    "nextTask": "Keep Gitoxide workers on current-base non-overlapping attributes/pathspec, credential, config, partial-clone, transport/protocol, pack/index, reference, tree-merge, and object-database parity slices; integrate only full-lane-green batches.",
-    "commit": "c9f4125833691346cec619e91e0e3588674de80f"
+    "latestCommit": "003a6cf12f2f391f74550d547f03de1f43af9ba7",
+    "nextTask": "Keep Gitoxide workers on current-base non-overlapping sparse-checkout, attributes/pathspec, credential, config, partial-clone, transport/protocol, pack/index, reference, tree-merge, and object-database parity slices; integrate only full-lane-green batches.",
+    "commit": "003a6cf12f2f391f74550d547f03de1f43af9ba7"
 }

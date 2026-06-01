@@ -169,7 +169,7 @@
         }
     },
     "benchmarkDenominator": {
-        "status": "current-base libsqlite source-neutral database key-value API cleanup",
+        "status": "current-base libsqlite upstream capi3 PRAGMA prepare-tail batch",
         "total": 1589,
         "mapped": 1589,
         "latestMappedAddition": "Mapped denominator remains complete at 1589 / 1589. Accepted source commit 4fbc50ac adds focused PHP evidence for real upstream e_fkey runtime intro dynamic corpus coverage and source-neutral STAT4 planner key-field cleanup without claiming release/all parity.",
@@ -2537,7 +2537,7 @@
         "focusedBatch102103CurrentSourceSubset": "Accepted implementation commit 04a264da4f1be4df0404eeca51f4e3ee3e697828 adds the batch102/103 clean current-source libsqlite subset. Verification: php -l for 44 changed/untracked PHP files; 14 Application examples/self-tests emitted valid JSON; git diff --check; focused changed/regression tests 25 files / 2642 assertions / 0 failures / 1478 PASS lines; full libsqlite 724 files / 82738 assertions / 0 failures / 40990 PASS lines; root 937 files / 107206 assertions / 0 failures / 44018 PASS lines with memory_limit=512M.",
         "focusedBatch104105CurrentSourceSubset": "Accepted implementation commit b3c4ecbf768d15d978a740cbb75a8109bca7e0f1 adds the batch104/105 clean current-source libsqlite subset. Verification: php -l for 44 changed/untracked PHP files; 14 Application examples/self-tests emitted valid JSON; git diff --check; focused changed tests 15 files / 1640 assertions / 0 failures / 895 PASS lines; full libsqlite 739 files / 84366 assertions / 0 failures / 41873 PASS lines; root 952 files / 108834 assertions / 0 failures / 44901 PASS lines with memory_limit=512M."
     },
-    "currentWork": "Source-neutral SQLiteDatabase key-value write-index helper cleanup integrated; no domain-specific libsqlite declarations accepted.",
+    "currentWork": "Real upstream capi3 PRAGMA schema prepare-tail behavior integrated on current base.",
     "upstreamRuns": {
         "focusedResults": {
             "focusedCoreConcatScalarFunction": "The 2026-05-26 isolated dependency-suite scalar slice adds concat()/concat_ws() dispatch for copied wp_options string assembly, reusing accepted SQL expression/scalar evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers concat() NULL-as-empty behavior, all-NULL empty-string output, BLOB byte text coercion, concat_ws() NULL separator propagation, skipped NULL fields, empty output when all fields are NULL, arity/type errors, and Application option-key assembly diagnostics without requiring ext/sqlite.",
@@ -3430,10 +3430,10 @@
             "focusedUpstreamVeryquickShardCurrentSourceNext431": "The 2026-05-28 isolated current-source next431 suite veryquick-shard runner slice maps one additional runner-countability blocker row for launcher Base accepted HEAD fca16e3d, current integration source 8a447f44, lane-local zero-error guarded runner artifact rows, duplicate-runner gates, exact 96 focused PASS-line admission, focused current-source veryquick shard scope, and no release/all parity claim."
         }
     },
-    "latestFocusedSlice": "2026-06-01 supervisor batch removes remaining mixed-case domain-specific key-value helper naming in SQLiteDatabase. This cleanup claims no new PASS-row or mapped-coverage movement; mapped coverage remains 1589 / 1589 and broad release/all still has 7 known failures.",
-    "latestNativePhpVerification": "2026-06-01 supervisor batch: PHP lint, git diff --check, changed example smokes, and SQLiteNoDomainSpecificApiTest 1 file / 5 assertions / 0 failures passed on source c9f412583369.",
-    "runnerStatus": "Focused libsqlite source-neutral guard passed 1 file / 5 assertions / 0 failures after renaming the remaining mixed-case domain-specific SQLiteDatabase key-value write-index helper. Broad release/all still has 7 known failures.",
-    "latestCommit": "c9f4125833691346cec619e91e0e3588674de80f",
+    "latestFocusedSlice": "2026-06-01 supervisor batch maps upstream capi3.test PRAGMA prepare-tail behavior with 1001 additional PASS rows; mapped denominator remains 1589 / 1589 because the manifest is already fully mapped.",
+    "latestNativePhpVerification": "2026-06-01 supervisor batch: PHP lint, git diff --check, changed example smokes, SQLiteNoDomainSpecificApiTest, and SQLiteRealUpstreamPragmaSchemaPrepareTailDynamicTest passed as 2 files / 7510 assertions / 0 failures on source 003a6cf12f2f.",
+    "runnerStatus": "Focused libsqlite PRAGMA/no-domain PHP gate passed 2 files / 7510 assertions / 0 failures after integrating upstream capi3 PRAGMA prepare-tail first-statement behavior. Broad release/all still has 7 known failures; no full release/all green claim is made.",
+    "latestCommit": "003a6cf12f2f391f74550d547f03de1f43af9ba7",
     "latestFocusedCorpusBatch20260531T2250Z": {
         "sourceCommit": "48a678f72e367c869dc62452fbad34f36daa273b",
         "selectedPassIncrease": 2411,
@@ -3604,7 +3604,7 @@
         "upstreamEvidence": "hydrated SQLite upstream e_fkey runtime intro source sections plus source-neutral STAT4 planner handoff evidence; full release/all runner not executed for this micro-batch"
     },
     "latestMappedAddition": "Accepted source commit 6574fff7314e adds source-neutral JSONB generated CHECK/generated path guard coverage with +4 PASS cases. Mapped denominator remains 1589 / 1589; broad release/all still has 7 known failures.",
-    "audit": "2026-06-01 supervisor accepted source c9f412583369 with no-domain guard 1 file / 5 assertions / 0 failures; broad release/all still has 7 known failures.",
+    "audit": "2026-06-01 supervisor accepted source 003a6cf12f2f with PRAGMA/no-domain focused gate 2 files / 7510 assertions / 0 failures; broad release/all still has 7 known failures.",
     "latestFocusedCorpusBatch20260601T0820Z": {
         "sourceCommit": "2922247b0e6dda4df9c4afc836a7272ae2b0136e",
         "acceptedPassDelta": 2263,
@@ -3631,5 +3631,18 @@
         ],
         "nativeVerification": "PHP lint on changed/new PHP; git diff --check; changed example smokes; SQLiteNoDomainSpecificApiTest 1 file / 5 assertions / 0 failures.",
         "upstreamEvidence": "Source-neutral cleanup over existing native API; no new upstream denominator row claimed. Full release/all remains open with 7 known failures."
+    },
+    "focusedPragmaPrepareTailBatch20260601T0836Z": {
+        "sourceCommit": "003a6cf12f2f391f74550d547f03de1f43af9ba7",
+        "acceptedPassDelta": 1001,
+        "mappedSliceIncrease": 0,
+        "mappedBefore": 1589,
+        "mappedAfter": 1589,
+        "acceptedSlices": [
+            "capi3.test capi3-2.6 through capi3-2.8 PRAGMA prepare-tail first-statement behavior",
+            "schema and table-valued PRAGMA cursor execution ignores semicolon-tailed excess SQL"
+        ],
+        "nativeVerification": "PHP lint on changed/new PHP; git diff --check; focused PRAGMA/no-domain gate 2 files / 7510 assertions / 0 failures.",
+        "upstreamEvidence": "Worker note cites capi3.test capi3-2.6 through capi3-2.8. Broad release/all remains open with 7 known failures."
     }
 }
