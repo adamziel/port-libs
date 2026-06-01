@@ -123,6 +123,21 @@ foreach ([$syntheticSharedPrefix . '1', $syntheticSharedPrefix . '2'] as $synthe
 }
 $syntheticMissingCandidate = $syntheticSharedPrefix . '3';
 $absentMediaCandidate = substr($fixture['objectsByRole']['media']['oid'], 0, 8) . str_repeat('f', 32);
+$rejectsInvalidArgument = static function (callable $operation): bool {
+    try {
+        $operation();
+    } catch (InvalidArgumentException) {
+        return true;
+    }
+
+    return false;
+};
+$contentNewlinePrefixRejected = $rejectsInvalidArgument(
+    static fn (): array => $database->lookupPrefix(substr($fixture['objectsByRole']['content']['oid'], 0, 8) . "\n")
+);
+$contentNewlineObjectIdRejected = $rejectsInvalidArgument(
+    static fn (): bool => $database->contains($fixture['objectsByRole']['content']['oid'] . "\n")
+);
 
 return [
     'packedObjects' => $database->packedObjectCount(),
@@ -147,6 +162,8 @@ return [
     'contentShortestPrefixAfterLooseCandidate' => $contentShortestPrefix,
     'contentFullPrefixStatus' => $contentFullPrefix['status'],
     'contentFullPrefixCandidates' => $contentFullPrefix['candidates'],
+    'contentNewlinePrefixRejected' => $contentNewlinePrefixRejected,
+    'contentNewlineObjectIdRejected' => $contentNewlineObjectIdRejected,
     'contentDirectoryCandidateOid' => $contentDirectoryCandidateOid,
     'contentDirectoryCandidateExists' => $database->contains($contentDirectoryCandidateOid),
     'contentDirectoryPrefixStatus' => $contentDirectoryPrefixCandidates['status'],

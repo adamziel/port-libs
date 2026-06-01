@@ -383,6 +383,7 @@ final class SourceMap
 
         try {
             $sourceIndexes = [];
+            $sourceIndexIsNew = [];
             $nameIndexes = [];
 
             if ($preserveUnusedTables) {
@@ -431,9 +432,19 @@ final class SourceMap
                             throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $mapping['sourceIndex']);
                         }
 
-                        $sourceIndex = $sourceIndexes[$mapping['sourceIndex']] ??= $this->addSource($sourceMap->sources[$mapping['sourceIndex']]);
+                        if (!array_key_exists($mapping['sourceIndex'], $sourceIndexes)) {
+                            $knownSourceIndex = $this->getSourceIndex($sourceMap->sources[$mapping['sourceIndex']]);
+                            $sourceIndexIsNew[$mapping['sourceIndex']] = $knownSourceIndex === null;
+                            $sourceIndexes[$mapping['sourceIndex']] = $knownSourceIndex ?? $this->addSource($sourceMap->sources[$mapping['sourceIndex']]);
+                        }
 
-                        if (!$preserveUnusedTables && array_key_exists($mapping['sourceIndex'], $sourceMap->sourcesContent)) {
+                        $sourceIndex = $sourceIndexes[$mapping['sourceIndex']];
+
+                        if (
+                            !$preserveUnusedTables
+                            && ($sourceIndexIsNew[$mapping['sourceIndex']] ?? false)
+                            && array_key_exists($mapping['sourceIndex'], $sourceMap->sourcesContent)
+                        ) {
                             $this->setSourceContent($sourceIndex, $sourceMap->sourcesContent[$mapping['sourceIndex']]);
                         }
                     }

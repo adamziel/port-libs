@@ -252,7 +252,7 @@ final class MultiPackIndex
     {
         $oid = strtolower($oid);
         $hexLength = $this->hashBytes * 2;
-        if (preg_match('/^[0-9a-f]{' . $hexLength . '}$/', $oid) !== 1) {
+        if (preg_match('/\A[0-9a-f]{' . $hexLength . '}\z/', $oid) !== 1) {
             throw new \InvalidArgumentException("Lookup object id must be a {$hexLength}-character {$this->hashName} hex string");
         }
 
@@ -297,7 +297,7 @@ final class MultiPackIndex
     public function disambiguatePrefix(string $oid, int $minimumHexLength): ?string
     {
         $hexLength = $this->hashBytes * 2;
-        if (preg_match('/^[0-9a-fA-F]{' . $hexLength . '}$/', $oid) !== 1) {
+        if (preg_match('/\A[0-9a-fA-F]{' . $hexLength . '}\z/', $oid) !== 1) {
             throw new \InvalidArgumentException("Disambiguation object id must be a {$hexLength}-character {$this->hashName} hex string");
         }
         if ($minimumHexLength < 4 || $minimumHexLength > $hexLength) {
@@ -462,7 +462,7 @@ final class MultiPackIndex
     {
         $prefix = strtolower($prefix);
         $hexLength = $this->hashBytes * 2;
-        if (preg_match('/^[0-9a-f]{4,' . $hexLength . '}$/', $prefix) !== 1) {
+        if (preg_match('/\A[0-9a-f]{4,' . $hexLength . '}\z/', $prefix) !== 1) {
             throw new \InvalidArgumentException("Lookup prefix must be 4 to {$hexLength} hexadecimal characters");
         }
 

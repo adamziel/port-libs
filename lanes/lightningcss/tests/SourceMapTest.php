@@ -1794,6 +1794,38 @@ return [
         $t->same([], $child->getNames());
         $t->same('', $child->writeVlq());
     },
+    'source map keeps first input sourcesContent for reused remapped sources' => static function (TestRunner $t): void {
+        $parent = new SourceMap('/theme');
+        $entry = $parent->addSource('entry.css');
+        $parent->setSourceContent($entry, ".entry{}\n");
+        $parent->addMapping(0, 0, $entry, 0, 0, 'entryRule');
+
+        $first = new SourceMap('/theme');
+        $firstSource = $first->addSource('src/shared.scss');
+        $first->setSourceContent($firstSource, ".shared { color: \$first; }\n");
+        $first->addMapping(0, 0, $firstSource, 10, 1, 'firstShared');
+
+        $second = new SourceMap('/theme');
+        $secondSource = $second->addSource('src/./shared.scss');
+        $second->setSourceContent($secondSource, ".shared { color: \$second; }\n");
+        $second->addMapping(0, 5, $secondSource, 20, 2, 'secondShared');
+
+        $parent->appendSourceMapWithGeneratedOffset($first, 1, 2, false);
+        $parent->appendSourceMapWithGeneratedOffset($second, 2, 3, false);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $data = $parent->toArray(null, false);
+
+        $t->same('AAAAA;ECUCC;QAUCC', $parent->writeVlq());
+        $t->same([0, 1, 2], array_column($decoded, 'generatedLine'));
+        $t->same([0, 2, 8], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 1, 1], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 10, 20], array_column($decoded, 'originalLine'));
+        $t->same(['entry.css', 'src/shared.scss'], $data['sources']);
+        $t->same([".entry{}\n", ".shared { color: \$first; }\n"], $data['sourcesContent']);
+        $t->same(['entryRule', 'firstShared', 'secondShared'], $data['names']);
+        $t->same([], $first->getSources());
+        $t->same([], $second->getSources());
+    },
     'source map normalizes upstream project-root source paths' => static function (TestRunner $t): void {
         $map = new SourceMap('/srv/www/site/wp-content/themes/example');
         $style = $map->addSource('/srv/www/site/wp-content/themes/example/style.css');

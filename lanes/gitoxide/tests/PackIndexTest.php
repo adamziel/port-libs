@@ -148,6 +148,14 @@ return [
         $t->same('3b18e512dba79e4c8300dd08aeb37f8e728b8dad', $prefix['entry']->oid);
         $t->same('missing', $index->lookupPrefix('fffffff')['status']);
     },
+    'rejects newline-tailed pack index prefixes and object ids like gix hash parsing' => static function (TestRunner $t) use ($buildIndex, $entries, $packChecksum): void {
+        $index = PackIndex::fromBytes($buildIndex($entries, $packChecksum));
+        $oid = $entries[1]['oid'];
+
+        $t->throws(InvalidArgumentException::class, static fn () => $index->lookup($oid . "\n"));
+        $t->throws(InvalidArgumentException::class, static fn () => $index->lookupPrefix(substr($oid, 0, 8) . "\n"));
+        $t->throws(InvalidArgumentException::class, static fn () => $index->disambiguatePrefix($oid . "\n", 4));
+    },
     'reports ambiguous pack index prefixes' => static function (TestRunner $t) use ($buildIndex, $packChecksum): void {
         $index = PackIndex::fromBytes($buildIndex([
             ['oid' => '3b18e512dba79e4c8300dd08aeb37f8e728b8dad', 'offset' => 12, 'crc32' => 1],

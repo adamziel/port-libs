@@ -66,6 +66,17 @@ $writeOrphanPromisorIndex = static function (string $gitDir, GitObject $object, 
     return $basename . '.promisor';
 };
 
+$writeKeptOrphanIndex = static function (string $gitDir, GitObject $object): string {
+    $pack = PackBuilder::build([$object]);
+    $packDir = $gitDir . '/objects/pack';
+    $basename = 'pack-' . $pack->packChecksum();
+
+    file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
+    file_put_contents($packDir . '/' . $basename . '.keep', '');
+
+    return $basename . '.keep';
+};
+
 $buildThinPromisorBlobs = static function (string $label): array {
     $stable = '';
     for ($i = 0; $i < 72; $i++) {
@@ -772,6 +783,60 @@ return [
         $t->same($hydratedBlob->body, $database->read($hydratedBlob->oid())->body);
         $t->same('pack', $database->readHeader($hydratedBlob->oid())['source']);
     },
+    'object database skips kept orphan indexes in promisor configured repositories' => static function (TestRunner $t) use ($writePromisorConfigFixture, $writePromisorPackForObject, $writeKeptOrphanIndex): void {
+        $gitDir = $writePromisorConfigFixture();
+        $database = new ObjectDatabase($gitDir);
+        $keptBlob = new GitObject('blob', 'Interrupted kept promisor index without pack bytes');
+        $hydratedBlob = new GitObject('blob', 'Hydrated WordPress asset after a kept orphan index');
+        $keptSidecar = $writeKeptOrphanIndex($gitDir, $keptBlob);
+        $hydrationPromisor = $writePromisorPackForObject($gitDir, $hydratedBlob, "valid promisor hydration after kept orphan index\n");
+
+        $promisorPacks = $database->promisorPackNames();
+        $promisorObjectIds = $database->promisorObjectIds();
+
+        $t->same(false, in_array(substr($keptSidecar, 0, -5) . '.promisor', $promisorPacks, true));
+        $t->same(false, in_array($keptBlob->oid(), $promisorObjectIds, true));
+        $t->same(false, $database->isPromisorObject($keptBlob->oid()));
+        $t->same('promised-missing', $database->objectState($keptBlob->oid())['status']);
+        $t->same(true, in_array($hydrationPromisor, $promisorPacks, true));
+        $t->same(true, in_array($hydratedBlob->oid(), $promisorObjectIds, true));
+        $t->same('promisor-present', $database->objectState($hydratedBlob->oid())['status']);
+        $t->same('pack', $database->readHeader($hydratedBlob->oid())['source']);
+        $t->same($hydratedBlob->body, $database->read($hydratedBlob->oid())->body);
+    },
+    'object database skips stale multi-pack-indexes that reference kept orphan indexes' => static function (TestRunner $t) use ($writePromisorConfigFixture, $writePromisorPackResult, $writeKeptOrphanIndex, $buildMultiPackIndex): void {
+        $gitDir = $writePromisorConfigFixture();
+        $database = new ObjectDatabase($gitDir);
+        $packDir = $gitDir . '/objects/pack';
+        $hydratedBlob = new GitObject('blob', 'Hydrated WordPress asset beside kept stale MIDX metadata');
+        $hydratedPack = PackBuilder::build([$hydratedBlob]);
+        $hydratedPromisor = $writePromisorPackResult($gitDir, $hydratedPack, "valid promisor pack beside kept MIDX\n");
+        $hydratedIndexName = substr($hydratedPromisor, 0, -9) . '.idx';
+        $keptBlob = new GitObject('blob', 'Interrupted kept MIDX index without pack bytes');
+        $keptPack = PackBuilder::build([$keptBlob]);
+        $keptSidecar = $writeKeptOrphanIndex($gitDir, $keptBlob);
+        $keptIndexName = substr($keptSidecar, 0, -5) . '.idx';
+
+        file_put_contents($packDir . '/multi-pack-index', $buildMultiPackIndex([
+            $hydratedIndexName => $hydratedPack,
+            $keptIndexName => $keptPack,
+        ]));
+
+        $promisorPacks = $database->promisorPackNames();
+        $promisorObjectIds = $database->promisorObjectIds();
+        $hydratedPrefix = $database->lookupPrefix(strtoupper(substr($hydratedBlob->oid(), 0, 12)));
+
+        $t->same(true, in_array($hydratedPromisor, $promisorPacks, true));
+        $t->same(false, in_array(substr($keptSidecar, 0, -5) . '.promisor', $promisorPacks, true));
+        $t->same(true, in_array($hydratedBlob->oid(), $promisorObjectIds, true));
+        $t->same(false, in_array($keptBlob->oid(), $promisorObjectIds, true));
+        $t->same('promisor-present', $database->objectState($hydratedBlob->oid())['status']);
+        $t->same('promised-missing', $database->objectState($keptBlob->oid())['status']);
+        $t->same('found', $hydratedPrefix['status']);
+        $t->same($hydratedBlob->oid(), $hydratedPrefix['oid']);
+        $t->same($hydratedBlob->body, $database->read($hydratedBlob->oid())->body);
+        $t->same('pack', $database->readHeader($hydratedBlob->oid())['source']);
+    },
     'object database writes promisor thin pack bundles using alternate bases' => static function (TestRunner $t) use ($writePromisorPackFixture, $buildThinPromisorBlobs): void {
         [$gitDir] = $writePromisorPackFixture();
         [$baseBlob, $targetBlob] = $buildThinPromisorBlobs('alternate-base');
@@ -1303,6 +1368,12 @@ return [
         $t->same(false, in_array($summary['orphanPromisorObject'], $summary['orphanPromisorObjectIdsAfterRefresh'], true));
         $t->same(false, $summary['orphanPromisorIsPromisor']);
         $t->same('promised-missing', $summary['orphanPromisorState']['status']);
+        $t->same(true, str_ends_with($summary['keptOrphanIndex'], '.idx'));
+        $t->same(true, str_ends_with($summary['keptOrphanKeep'], '.keep'));
+        $t->same(false, in_array($summary['keptOrphanPromisorPack'], $summary['keptOrphanPromisorPacksAfterRefresh'], true));
+        $t->same(false, in_array($summary['keptOrphanObject'], $summary['keptOrphanPromisorObjectIdsAfterRefresh'], true));
+        $t->same(false, $summary['keptOrphanIsPromisor']);
+        $t->same('promised-missing', $summary['keptOrphanState']['status']);
         $t->same(true, in_array($summary['staleMidxValidPromisorPack'], $summary['staleMidxPromisorPacksAfterRefresh'], true));
         $t->same(false, in_array($summary['staleMidxOrphanPromisorPack'], $summary['staleMidxPromisorPacksAfterRefresh'], true));
         $t->same(true, in_array($summary['staleMidxValidObject'], $summary['staleMidxPromisorObjectIdsAfterRefresh'], true));

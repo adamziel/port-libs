@@ -395,6 +395,16 @@ $orphanPromisorObjectIdsAfterRefresh = $database->promisorObjectIds();
 $orphanPromisorIsPromisor = $database->isPromisorObject($orphanBlob->oid());
 $orphanPromisorState = $database->objectState($orphanBlob->oid());
 
+$keptOrphanBlob = new GitObject('blob', 'WordPress interrupted kept promisor index without pack bytes');
+$keptOrphanPack = PackBuilder::build([$keptOrphanBlob]);
+$keptOrphanBase = 'pack-' . $keptOrphanPack->packChecksum();
+file_put_contents($packDir . '/' . $keptOrphanBase . '.idx', $keptOrphanPack->indexBytes());
+file_put_contents($packDir . '/' . $keptOrphanBase . '.keep', '');
+$keptOrphanPromisorPacksAfterRefresh = $database->promisorPackNames();
+$keptOrphanPromisorObjectIdsAfterRefresh = $database->promisorObjectIds();
+$keptOrphanIsPromisor = $database->isPromisorObject($keptOrphanBlob->oid());
+$keptOrphanState = $database->objectState($keptOrphanBlob->oid());
+
 $staleMidxValidBlob = new GitObject('blob', 'WordPress stale MIDX valid promisor pack bytes');
 $staleMidxValidPack = PackBuilder::build([$staleMidxValidBlob]);
 $staleMidxValidWrite = $database->writePromisorPackBundle(
@@ -589,6 +599,14 @@ return [
     'orphanPromisorObjectIdsAfterRefresh' => $orphanPromisorObjectIdsAfterRefresh,
     'orphanPromisorIsPromisor' => $orphanPromisorIsPromisor,
     'orphanPromisorState' => $orphanPromisorState,
+    'keptOrphanObject' => $keptOrphanBlob->oid(),
+    'keptOrphanIndex' => $keptOrphanBase . '.idx',
+    'keptOrphanKeep' => $keptOrphanBase . '.keep',
+    'keptOrphanPromisorPack' => $keptOrphanBase . '.promisor',
+    'keptOrphanPromisorPacksAfterRefresh' => $keptOrphanPromisorPacksAfterRefresh,
+    'keptOrphanPromisorObjectIdsAfterRefresh' => $keptOrphanPromisorObjectIdsAfterRefresh,
+    'keptOrphanIsPromisor' => $keptOrphanIsPromisor,
+    'keptOrphanState' => $keptOrphanState,
     'staleMidxValidObject' => $staleMidxValidBlob->oid(),
     'staleMidxValidPromisorPack' => $staleMidxValidWrite['promisorName'],
     'staleMidxOrphanObject' => $staleMidxOrphanBlob->oid(),

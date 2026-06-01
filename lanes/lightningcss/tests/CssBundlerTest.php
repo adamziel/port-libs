@@ -382,6 +382,41 @@ CSS,
         $t->same([1, 2], array_column($decoded, 'sourceIndex'));
         $t->same(46, strlen('@media screen{.card{color:green}}@media print{'));
     },
+    'css bundler keeps first inline source content for reused input-map sources' => static function (TestRunner $t): void {
+        $firstMap = 'data:application/json;base64,' . base64_encode(json_encode([
+            'version' => 3,
+            'mappings' => 'AAAA',
+            'sources' => ['blocks/shared.scss'],
+            'sourcesContent' => ['.one { color: $first }'],
+            'names' => [],
+        ], JSON_THROW_ON_ERROR));
+        $secondMap = 'data:application/json;base64,' . base64_encode(json_encode([
+            'version' => 3,
+            'mappings' => 'AAAA',
+            'sources' => ['blocks/./shared.scss'],
+            'sourcesContent' => ['.two { color: $second }'],
+            'names' => [],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = (new CssBundler())->bundleWithSourceMap('/theme/entry.css', [
+            '/theme/entry.css' => '@import "blocks/one.css"; @import "blocks/two.css"; .entry { color: red }',
+            '/theme/blocks/one.css' => ".one { color: green }\n/*# sourceMappingURL={$firstMap} */",
+            '/theme/blocks/two.css' => ".two { color: blue }\n/*# sourceMappingURL={$secondMap} */",
+        ], null, '/theme');
+        $data = $result['sourceMap']->toArray(null, false);
+        $decoded = SourceMap::decodeVlq($data['mappings']);
+
+        $t->same('.one{color:green}.two{color:#00f}.entry{color:red}', $result['code']);
+        $t->same('ACAA,iBAAA', $data['mappings']);
+        $t->same(['entry.css', 'blocks/shared.scss'], $data['sources']);
+        $t->same([
+            '@import "blocks/one.css"; @import "blocks/two.css"; .entry { color: red }',
+            '.one { color: $first }',
+        ], $data['sourcesContent']);
+        $t->same([0, 17], array_column($decoded, 'generatedColumn'));
+        $t->same([1, 1], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 0], array_column($decoded, 'originalLine'));
+    },
     'css bundler ignores source map url markers inside imported string literals' => static function (TestRunner $t): void {
         $literalMap = 'data:application/json;base64,' . base64_encode(json_encode([
             'version' => 3,

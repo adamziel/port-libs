@@ -216,7 +216,7 @@ final class ObjectDatabase
     {
         $prefix = strtolower($prefix);
         $maxLength = ReferenceTarget::hashHexLength($this->objectHash);
-        if (preg_match('/^[0-9a-f]{4,' . $maxLength . '}$/', $prefix) !== 1) {
+        if (preg_match('/\A[0-9a-f]{4,' . $maxLength . '}\z/', $prefix) !== 1) {
             throw new \InvalidArgumentException("Lookup prefix must be 4 to {$maxLength} hexadecimal characters");
         }
 
@@ -919,7 +919,11 @@ final class ObjectDatabase
             foreach ($indexPaths as $indexPath) {
                 $packPath = substr($indexPath, 0, -4) . '.pack';
                 if (!is_file($packPath)) {
-                    if (is_file(substr($indexPath, 0, -4) . '.promisor')) {
+                    $indexName = basename($indexPath);
+                    if (
+                        is_file(substr($indexPath, 0, -4) . '.promisor')
+                        || ($this->promisorRemotes() !== [] && self::isKeptOrphanIndex($packDirectory, $indexName))
+                    ) {
                         continue;
                     }
                     throw new \RuntimeException("Pack data file not found for index: {$indexPath}");
@@ -1263,7 +1267,10 @@ final class ObjectDatabase
             $bundlesByIndexName = $bundlesByDirectory[$packDirectory] ?? [];
             foreach ($index->indexNames() as $indexName) {
                 if (!isset($bundlesByIndexName[$indexName])) {
-                    if (self::isOrphanPromisorIndex($packDirectory, $indexName)) {
+                    if (
+                        self::isOrphanPromisorIndex($packDirectory, $indexName)
+                        || ($this->promisorRemotes() !== [] && self::isKeptOrphanIndex($packDirectory, $indexName))
+                    ) {
                         continue 2;
                     }
                     throw new \RuntimeException("Pack index referenced by multi-pack-index not found: {$packDirectory}/{$indexName}");
@@ -1292,6 +1299,18 @@ final class ObjectDatabase
         $basePath = substr($indexPath, 0, -4);
 
         return is_file($indexPath) && !is_file($basePath . '.pack') && is_file($basePath . '.promisor');
+    }
+
+    private static function isKeptOrphanIndex(string $packDirectory, string $indexName): bool
+    {
+        if (basename($indexName) !== $indexName || !str_ends_with($indexName, '.idx')) {
+            return false;
+        }
+
+        $indexPath = $packDirectory . '/' . $indexName;
+        $basePath = substr($indexPath, 0, -4);
+
+        return is_file($indexPath) && !is_file($basePath . '.pack') && is_file($basePath . '.keep');
     }
 
     /**
@@ -1599,7 +1618,7 @@ final class ObjectDatabase
     private function assertObjectId(string $oid): void
     {
         $length = ReferenceTarget::hashHexLength($this->objectHash);
-        if (preg_match('/^[0-9a-fA-F]{' . $length . '}$/', $oid) !== 1) {
+        if (preg_match('/\A[0-9a-fA-F]{' . $length . '}\z/', $oid) !== 1) {
             throw new \InvalidArgumentException("Object id must be a {$length}-character " . strtoupper($this->objectHash) . ' hex string');
         }
     }
