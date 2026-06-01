@@ -555,6 +555,111 @@ return [
             static fn () => PathspecSearch::fromSpecs(['../..'], 'wp-content'),
         );
     },
+    'normalizes absolute worktree root pathspecs during tree walks' => static function (TestRunner $t) use ($makeTreeStore, $blobOid, $walkPaths): void {
+        [$root, $read] = $makeTreeStore();
+        $worktreeRoot = '/srv/www/example.com/current';
+
+        $absolute = PathspecSearch::fromSpecs(
+            [$worktreeRoot . '/wp-content/plugins/gutenberg/block.json'],
+            'wp-content/plugins',
+            root: $worktreeRoot,
+        );
+        $t->same('wp-content/plugins/gutenberg/block.json', $absolute->patterns()[0]->path);
+        $t->same(strlen('wp-content/plugins/gutenberg'), $absolute->patterns()[0]->prefixLength);
+        $t->same('wp-content/plugins/gutenberg', $absolute->prefixDirectory());
+        $t->same(true, $absolute->isIncluded('wp-content/plugins/gutenberg/block.json', false));
+        $t->same([
+            'wp-content/plugins/gutenberg/block.json',
+        ], $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $absolute,
+            $read,
+            includeTrees: false,
+        )));
+
+        $topAbsolute = PathspecSearch::fromSpecs(
+            [':(top)' . $worktreeRoot . '/index.php'],
+            'wp-content/plugins',
+            root: $worktreeRoot,
+        );
+        $t->same('index.php', $topAbsolute->patterns()[0]->path);
+        $t->same([
+            'index.php',
+        ], $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $topAbsolute,
+            $read,
+            includeTrees: false,
+        )));
+
+        $absoluteDirectory = PathspecSearch::fromSpecs(
+            [$worktreeRoot . '/wp-content/themes/acme/'],
+            root: $worktreeRoot,
+        );
+        $t->same('wp-content/themes/acme', $absoluteDirectory->patterns()[0]->path);
+        $t->same(strlen('wp-content/themes/acme'), $absoluteDirectory->patterns()[0]->prefixLength);
+        $t->same([
+            'wp-content/themes/acme/theme.json',
+            'wp-content/themes/acme/style.css',
+        ], $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $absoluteDirectory,
+            $read,
+            includeTrees: false,
+        )));
+
+        $objects = [];
+        $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
+        $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
+            $object = $tree->toObject();
+            $objects[$object->oid()] = $object;
+
+            return new TreeEntry('040000', $name, $object->oid());
+        };
+        $wildcardRoot = new Tree([
+            $tree('*', new Tree([$blob('README.md')])),
+            $tree('WP-CONTENT', new Tree([$blob('README.md')])),
+            $tree('wp-content', new Tree([$blob('README.md')])),
+        ]);
+        $foldedAbsoluteWildcard = PathspecSearch::fromSpecs([
+            ':(icase)' . $worktreeRoot . '/*/readme.md',
+        ], root: $worktreeRoot);
+        $t->same('*/readme.md', $foldedAbsoluteWildcard->patterns()[0]->path);
+        $t->same(1, $foldedAbsoluteWildcard->patterns()[0]->prefixLength);
+        $t->same('*', $foldedAbsoluteWildcard->prefixDirectory());
+        $t->same(false, $foldedAbsoluteWildcard->isIncluded('wp-content/README.md', false));
+        $t->same(false, $foldedAbsoluteWildcard->isIncluded('WP-CONTENT/README.md', false));
+        $t->same(true, $foldedAbsoluteWildcard->isIncluded('*/README.md', false));
+        $t->same(false, $foldedAbsoluteWildcard->canMatch('wp-content', true));
+        $t->same(true, $foldedAbsoluteWildcard->canMatch('*', true));
+
+        $wildcardReadPaths = [];
+        $wildcardRecords = TreePathspecWalk::breadthFirst(
+            $wildcardRoot,
+            $foldedAbsoluteWildcard,
+            static function (TreeEntry $entry, string $path) use (&$objects, &$wildcardReadPaths): GitObject {
+                $wildcardReadPaths[] = $path;
+
+                return $objects[$entry->oid];
+            },
+            includeTrees: false,
+        );
+        $t->same(['*/README.md'], $walkPaths($wildcardRecords));
+        $t->same(['*'], $wildcardReadPaths);
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => PathspecSearch::fromSpecs([$worktreeRoot . '/../shared/wp-config.php'], root: $worktreeRoot),
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => PathspecSearch::fromSpecs(['/srv/www/other/wp-config.php'], root: $worktreeRoot),
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => PathspecSearch::fromSpecs([$worktreeRoot . '/wp-config.php'], root: 'relative/root'),
+        );
+    },
     'tree pathspec matching preserves raw candidate path components' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
         $objects = [];
         $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
@@ -802,6 +907,13 @@ return [
         $t->same([
             'wp-content/themes/acme/theme.json',
         ], $example['siblingPrefixContentPaths']);
+        $t->same([
+            'index.php',
+            'wp-content/plugins/gutenberg/block.json',
+        ], $example['absoluteRootContentPaths']);
+        $t->same('wp-content/plugins/gutenberg', $example['absoluteRootPluginPrefix']);
+        $t->same(true, $example['absoluteRootOutsideRejected']);
+        $t->same(true, $example['absoluteRootRelativeRejected']);
         $t->same(true, $example['rootEscapingPathspecRejected']);
         $t->same([
             'wp-content/plugins/gutenberg/block.json',

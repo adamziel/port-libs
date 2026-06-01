@@ -15,6 +15,7 @@ use PortLibs\Gitoxide\TreeWalkEntry;
 
 $objects = [];
 $blobOid = str_repeat('1', 40);
+$worktreeRoot = '/srv/www/example.com/current';
 $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
 $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
     $object = $tree->toObject();
@@ -97,6 +98,14 @@ $siblingPrefixPathspecs = PathspecSearch::fromSpecs(
     ['../themes/acme/theme.json'],
     'wp-content/plugins',
 );
+$absoluteRootPathspecs = PathspecSearch::fromSpecs(
+    [
+        $worktreeRoot . '/wp-content/plugins/gutenberg/block.json',
+        ':(top)' . $worktreeRoot . '/index.php',
+    ],
+    'wp-content/plugins',
+    root: $worktreeRoot,
+);
 $pluginPruningHintPathspecs = PathspecSearch::fromSpecs([
     'wp-content/plugins/gutenberg/*.json',
     'wp-content/plugins/gutenberg/*.gson',
@@ -130,6 +139,18 @@ try {
     PathspecSearch::fromSpecs(['../../../wp-config.php'], 'wp-content/plugins');
 } catch (InvalidArgumentException) {
     $rootEscapingPathspecRejected = true;
+}
+$absoluteRootOutsideRejected = false;
+try {
+    PathspecSearch::fromSpecs([$worktreeRoot . '/../shared/wp-config.php'], root: $worktreeRoot);
+} catch (InvalidArgumentException) {
+    $absoluteRootOutsideRejected = true;
+}
+$absoluteRootRelativeRejected = false;
+try {
+    PathspecSearch::fromSpecs([$worktreeRoot . '/wp-config.php'], root: 'relative/root');
+} catch (InvalidArgumentException) {
+    $absoluteRootRelativeRejected = true;
 }
 
 $records = TreePathspecWalk::breadthFirst(
@@ -228,6 +249,18 @@ $siblingPrefixRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$absoluteRootRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $absoluteRootPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 $attrFilteredRecords = TreePathspecWalk::breadthFirst(
     $root,
     $attrFilteredPathspecs,
@@ -305,6 +338,10 @@ return [
     'mixedPrefixLowerContentSkipped' => !$mixedPrefixPathspecs->isIncluded('wp-content/mu-plugins/Loader.PHP', false),
     'mixedPrefixUpperContentIncluded' => $mixedPrefixPathspecs->isIncluded('WP-CONTENT/mu-plugins/Loader.PHP', false),
     'siblingPrefixContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $siblingPrefixRecords),
+    'absoluteRootContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $absoluteRootRecords),
+    'absoluteRootPluginPrefix' => $absoluteRootPathspecs->patterns()[0]->prefixDirectory(),
+    'absoluteRootOutsideRejected' => $absoluteRootOutsideRejected,
+    'absoluteRootRelativeRejected' => $absoluteRootRelativeRejected,
     'pluginPruningHintDirectory' => $pluginPruningHintPathspecs->longestCommonDirectory(),
     'callerPrefixOnlyPruningHint' => $callerPrefixHintPathspecs->longestCommonDirectory(),
     'directoryOnlyPruningHint' => $directoryOnlyHintPathspecs->longestCommonDirectory(),

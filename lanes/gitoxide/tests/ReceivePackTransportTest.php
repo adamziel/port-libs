@@ -2327,6 +2327,209 @@ return [
         $defaultPortTransport->readAdvertisement();
         $t->same('tcp://proxy.example.test:80', $defaultPortRequests[0]['proxy']);
 
+        $httpsFallbackRequests = [];
+        $httpsFallbackHelperCalls = 0;
+        $httpsFallbackBlob = new GitObject('blob', 'WordPress HTTPS proxy fallback payload');
+        $httpsFallbackClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$httpsFallbackRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $httpsFallbackRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_session=https-fallback; Path=/; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'httpsProxy' => 'http://https-proxy.example.test:9443',
+                    'proxyCredentialHelper' => static function () use (&$httpsFallbackHelperCalls): array {
+                        $httpsFallbackHelperCalls++;
+
+                        return ['username' => 'https-fallback-user', 'password' => 'https-fallback-pass'];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $httpsFallbackSession = $httpsFallbackClient->handshake();
+        $httpsFallbackSession->createOrUpdate('refs/heads/main', $httpsFallbackBlob->oid());
+        $httpsFallbackRequest = $httpsFallbackSession->buildRequest([$httpsFallbackBlob]);
+
+        $httpsFallbackResponse = $httpsFallbackClient->send($httpsFallbackRequest);
+
+        $t->same(true, $httpsFallbackResponse->isSuccessful());
+        $t->same(2, $httpsFallbackHelperCalls);
+        $t->same('tcp://https-proxy.example.test:9443', $httpsFallbackRequests[0]['httpOptions']['proxy']);
+        $t->same('tcp://https-proxy.example.test:9443', $httpsFallbackRequests[1]['httpOptions']['proxy']);
+        $t->same('http://https-proxy.example.test:9443', $httpsFallbackRequests[0]['httpOptions']['proxyUrl']);
+        $t->same('Basic ' . base64_encode('https-fallback-user:https-fallback-pass'), $httpsFallbackRequests[0]['httpOptions']['proxyAuthorization']);
+        $t->same('wp_session=https-fallback', $httpsFallbackRequests[1]['headers']['Cookie']);
+        $t->same($httpsFallbackRequest->requestBytes(), $httpsFallbackRequests[1]['body']);
+
+        $httpsFallbackIgnoredRequests = [];
+        $httpsFallbackIgnoredHelperCalls = 0;
+        $httpsFallbackIgnoredTransport = new SmartHttpReceivePackTransport(
+            'http://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$httpsFallbackIgnoredRequests, $packet, $flush): array {
+                $httpsFallbackIgnoredRequests[] = $httpOptions;
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
+                ];
+            },
+            [],
+            30.0,
+            [],
+            [
+                'httpsProxy' => 'http://https-proxy.example.test:9443',
+                'proxyCredentialHelper' => static function () use (&$httpsFallbackIgnoredHelperCalls): array {
+                    $httpsFallbackIgnoredHelperCalls++;
+
+                    return ['username' => 'ignored-user', 'password' => 'ignored-pass'];
+                },
+            ]
+        );
+        $httpsFallbackIgnoredTransport->readAdvertisement();
+        $t->same(0, $httpsFallbackIgnoredHelperCalls);
+        $t->same([], $httpsFallbackIgnoredRequests[0]);
+
+        $primaryProxyRequests = [];
+        $primaryProxyTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$primaryProxyRequests, $packet, $flush): array {
+                $primaryProxyRequests[] = $httpOptions;
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
+                ];
+            },
+            [],
+            30.0,
+            [],
+            [
+                'proxy' => 'http://primary-proxy.example.test:8080',
+                'httpsProxy' => 'http://https-proxy.example.test:9443',
+                'allProxy' => 'http://all-proxy.example.test:8081',
+            ]
+        );
+        $primaryProxyTransport->readAdvertisement();
+        $t->same('tcp://primary-proxy.example.test:8080', $primaryProxyRequests[0]['proxy']);
+
+        $allProxyRequests = [];
+        $allProxyHelperCalls = 0;
+        $allProxyBlob = new GitObject('blob', 'WordPress all-proxy fallback payload');
+        $allProxyClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'http://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$allProxyRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $allProxyRequests[] = [
+                        'method' => $method,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_session=all-proxy; Path=/',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'allProxy' => 'http://all-proxy.example.test:8081',
+                    'proxyCredentialHelper' => static function () use (&$allProxyHelperCalls): array {
+                        $allProxyHelperCalls++;
+
+                        return ['username' => 'all-proxy-user', 'password' => 'all-proxy-pass'];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $allProxySession = $allProxyClient->handshake();
+        $allProxySession->createOrUpdate('refs/heads/main', $allProxyBlob->oid());
+        $allProxyRequest = $allProxySession->buildRequest([$allProxyBlob]);
+
+        $allProxyResponse = $allProxyClient->send($allProxyRequest);
+
+        $t->same(true, $allProxyResponse->isSuccessful());
+        $t->same(2, $allProxyHelperCalls);
+        $t->same('tcp://all-proxy.example.test:8081', $allProxyRequests[0]['httpOptions']['proxy']);
+        $t->same('tcp://all-proxy.example.test:8081', $allProxyRequests[1]['httpOptions']['proxy']);
+        $t->same('wp_session=all-proxy', $allProxyRequests[1]['headers']['Cookie']);
+        $t->same($allProxyRequest->requestBytes(), $allProxyRequests[1]['body']);
+
+        $disabledFallbackRequests = [];
+        $disabledFallbackHelperCalls = 0;
+        $disabledFallbackTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$disabledFallbackRequests, $packet, $flush): array {
+                $disabledFallbackRequests[] = $httpOptions;
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
+                ];
+            },
+            [],
+            30.0,
+            [],
+            [
+                'proxy' => '',
+                'httpsProxy' => 'http://https-proxy.example.test:9443',
+                'allProxy' => 'http://all-proxy.example.test:8081',
+                'proxyCredentialHelper' => static function () use (&$disabledFallbackHelperCalls): array {
+                    $disabledFallbackHelperCalls++;
+
+                    return ['username' => 'disabled-user', 'password' => 'disabled-pass'];
+                },
+            ]
+        );
+        $disabledFallbackTransport->readAdvertisement();
+        $t->same(0, $disabledFallbackHelperCalls);
+        $t->same([], $disabledFallbackRequests[0]);
+
         $helperCalls = [];
         $helperRequests = [];
         $storedCredentials = [];
@@ -2679,6 +2882,8 @@ return [
         $t->same('negotiate', $socksRequests[0]['proxyAuthMethod']);
 
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxy' => 'ftp://proxy.example.test:21']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['httpsProxy' => 'ftp://proxy.example.test:21']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['allProxy' => 'ftp://proxy.example.test:21']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyAuthMethod' => 'bearer']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => "bad\nhost"]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentials' => ['username' => "bad\nuser", 'password' => 'secret']]));
@@ -3486,6 +3691,14 @@ return [
         $t->same(2, $summary['portQualifiedNoProxyHelperCalls']);
         $t->same($fixture['portQualifiedNoProxyAuthorizationSent'], $summary['portQualifiedNoProxyAuthorizationSent']);
         $t->same($fixture['portQualifiedNoProxyPostCookieHeader'], $summary['portQualifiedNoProxyPostCookieHeader']);
+        $t->same(true, $fixture['httpsProxyFallbackUsedProxy']);
+        $t->same(2, $fixture['httpsProxyFallbackHelperCalls']);
+        $t->same('Basic ' . base64_encode('https-fallback-user:https-fallback-pass'), $fixture['httpsProxyFallbackAuthorizationSent']);
+        $t->same('wp_session=https-fallback', $fixture['httpsProxyFallbackPostCookieHeader']);
+        $t->same(true, $summary['httpsProxyFallbackUsedProxy']);
+        $t->same(2, $summary['httpsProxyFallbackHelperCalls']);
+        $t->same($fixture['httpsProxyFallbackAuthorizationSent'], $summary['httpsProxyFallbackAuthorizationSent']);
+        $t->same($fixture['httpsProxyFallbackPostCookieHeader'], $summary['httpsProxyFallbackPostCookieHeader']);
         $t->same([['http://stale-user:stale-pass@wp-proxy.example.test:8080', 'git.example.test']], $fixture['urlCredentialProxyHelperCalls']);
         $t->same('http://wp-proxy.example.test:8080', $fixture['urlCredentialProxyUrl']);
         $t->same('Basic ' . base64_encode('helper-proxy-user:helper-proxy-pass'), $fixture['urlCredentialProxyAuthorizationSent']);

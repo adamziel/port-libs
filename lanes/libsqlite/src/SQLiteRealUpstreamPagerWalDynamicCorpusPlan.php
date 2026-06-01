@@ -2209,6 +2209,89 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walReusedLogPrefixRows(int $count = 1000): array
+    {
+        if ($count < 1) {
+            throw new \InvalidArgumentException('SQLite WAL reused-log prefix rows require a positive count');
+        }
+
+        $scenarios = [
+            [
+                'section' => 'wal-12.1..12.4',
+                'phase' => 'copy_after_short_reuse',
+                'description' => 'shorter reused WAL keeps the newly inserted t2 row visible',
+                'upstream_old_frame_count' => 5,
+                'upstream_new_frame_count' => 2,
+                'expected_t2_value' => 'B 1',
+                't2_from_wal' => true,
+            ],
+            [
+                'section' => 'wal-12.5..12.6',
+                'phase' => 'copy_after_checkpoint_cycles',
+                'description' => 'checkpoint cycles keep the updated t2 row after a newer shorter WAL',
+                'upstream_old_frame_count' => 5,
+                'upstream_new_frame_count' => 1,
+                'expected_t2_value' => 'B 2',
+                't2_from_wal' => false,
+            ],
+        ];
+
+        $rows = [];
+        foreach (range(1, $count) as $case) {
+            $scenario = $scenarios[($case - 1) % count($scenarios)];
+            $pageSize = 1024;
+            $databasePageCount = 3;
+            $newFrameCount = (int) $scenario['upstream_new_frame_count'];
+            $oldFrameCount = (int) $scenario['upstream_old_frame_count'] + (($case - 1) % 4);
+            if ($oldFrameCount <= $newFrameCount) {
+                $oldFrameCount = $newFrameCount + 1;
+            }
+
+            $rows[] = [
+                'upstream' => sprintf('wal.test %s reused-log prefix dynamic case %04d', $scenario['section'], $case),
+                'script' => 'wal.test',
+                'case' => $case,
+                'section' => $scenario['section'],
+                'phase' => $scenario['phase'],
+                'description' => $scenario['description'],
+                'page_size' => $pageSize,
+                'database_page_count' => $databasePageCount,
+                'old_frame_count' => $oldFrameCount,
+                'new_frame_count' => $newFrameCount,
+                'upstream_old_frame_count' => $scenario['upstream_old_frame_count'],
+                'upstream_new_frame_count' => $scenario['upstream_new_frame_count'],
+                'stale_tail_frame_count' => $oldFrameCount - $newFrameCount,
+                'first_stale_frame' => $newFrameCount + 1,
+                'expected_recovery_reason' => 'frame_salt_mismatch',
+                'expected_boundary_status' => 'recovered_committed_prefix',
+                'expected_boundary_reason' => 'corrupt_tail_after_committed_prefix',
+                'expected_t2_value' => $scenario['expected_t2_value'],
+                'expected_t2_source' => $scenario['t2_from_wal'] ? 'wal_frame' : 'database_image',
+                'expected_schema_page' => 1,
+                'expected_t1_page' => 2,
+                'expected_t2_page' => 3,
+                'new_checkpoint_sequence' => 1200 + $case,
+                'old_checkpoint_sequence' => 900 + $case,
+                'new_salt1' => (0x57120000 + ($case * 17)) & 0xffffffff,
+                'new_salt2' => (0x4c120000 + ($case * 31)) & 0xffffffff,
+                'old_salt1' => (0x4f120000 + ($case * 43)) & 0xffffffff,
+                'old_salt2' => (0x44120000 + ($case * 59)) & 0xffffffff,
+                'little_endian' => ($case % 3) === 0,
+                'dependencies' => [
+                    'real-upstream-corpus-wal-test',
+                    'sqlite-wal-reused-log-prefix-recovery',
+                    'sqlite-wal-stale-salt-tail-discard',
+                    'sqlite-pager-wal-dynamic-corpus',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array

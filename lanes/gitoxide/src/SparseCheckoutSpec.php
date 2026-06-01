@@ -547,12 +547,25 @@ final class SparseCheckoutSpec
             return $patternForCompare === $candidate || str_starts_with($patternForCompare, $candidate . '/');
         }
 
+        if (!self::pathspecRuleHasActiveWildcard($rule)) {
+            return self::pathStartsWithDirectoryPrefix($candidate, $patternForCompare)
+                || str_starts_with($patternForCompare, $candidate . '/');
+        }
+
         $literalPrefix = self::literalPrefixBeforeWildcard($patternForCompare);
         if ($literalPrefix === '') {
             return true;
         }
 
-        $literalPrefix = rtrim($literalPrefix, '/');
+        $commonLength = min(strlen($literalPrefix), strlen($candidate));
+        if ($commonLength > 0 && substr($literalPrefix, 0, $commonLength) !== substr($candidate, 0, $commonLength)) {
+            return false;
+        }
+
+        $literalPrefix = self::directoryPrefixForWildcard($literalPrefix);
+        if ($literalPrefix === '') {
+            return true;
+        }
 
         return self::pathStartsWithDirectoryPrefix($candidate, $literalPrefix)
             || str_starts_with($literalPrefix, $candidate . '/');
@@ -965,6 +978,14 @@ final class SparseCheckoutSpec
         return $pattern;
     }
 
+    private static function directoryPrefixForWildcard(string $literalPrefix): string
+    {
+        $literalPrefix = rtrim($literalPrefix, '/');
+        $slash = strrpos($literalPrefix, '/');
+
+        return $slash === false ? $literalPrefix : substr($literalPrefix, 0, $slash);
+    }
+
     private static function patternHasWildcard(string $pattern): bool
     {
         return strpbrk($pattern, '*?[') !== false || str_contains($pattern, '\\');
@@ -1085,7 +1106,6 @@ final class SparseCheckoutSpec
 
     private static function pathRelativeToRoot(string $path, string $root): string
     {
-        $path = str_replace('\\', '/', $path);
         if ($root === '/') {
             return ltrim($path, '/');
         }

@@ -68,6 +68,17 @@ $absolutePathspec = SparseCheckoutSpec::fromPathspecs([
     ':(icase)' . $deploymentRoot . '/wp-content/plugins/gutenberg/readme.md',
     ':(exclude)' . $deploymentRoot . '/wp-content/plugins/gutenberg/build/',
 ], root: $deploymentRoot);
+$absoluteBackslashLiteralPathspec = SparseCheckoutSpec::fromPathspecs(
+    [$deploymentRoot . '/wp-content/plugins/f\\oo/block.json'],
+    root: $deploymentRoot,
+    defaultSearchMode: SparseCheckoutSpec::PATHSPEC_SEARCH_LITERAL,
+);
+$absoluteBackslashGlobPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)' . $deploymentRoot . '/wp-content/plugins/f\\\\oo/*.php',
+], root: $deploymentRoot);
+$absoluteBackslashOrdinaryPathspec = SparseCheckoutSpec::fromPathspecs([
+    $deploymentRoot . '/wp-content/plugins/f\\oo/block.json',
+], root: $deploymentRoot);
 $absoluteWildcardPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(icase)' . $deploymentRoot . '/*/readme.md',
 ], root: $deploymentRoot);
@@ -214,6 +225,12 @@ return [
     'absoluteRootPathspecIcaseReadmeIncluded' => $absolutePathspec->includesPath('wp-content/plugins/gutenberg/README.md', false),
     'absoluteRootPathspecUpperPrefixSkipped' => $absolutePathspec->skipWorktree('WP-CONTENT/plugins/gutenberg/README.md', false),
     'absoluteRootPathspecBuildSkipped' => $absolutePathspec->skipWorktree('wp-content/plugins/gutenberg/build/index.js', false),
+    'absoluteBackslashLiteralIncluded' => $absoluteBackslashLiteralPathspec->includesPath('wp-content/plugins/f\\oo/block.json', false),
+    'absoluteBackslashLiteralSlashSkipped' => $absoluteBackslashLiteralPathspec->skipWorktree('wp-content/plugins/f/oo/block.json', false),
+    'absoluteBackslashGlobIncluded' => $absoluteBackslashGlobPathspec->includesPath('wp-content/plugins/f\\oo/loader.php', false),
+    'absoluteBackslashGlobSlashSkipped' => $absoluteBackslashGlobPathspec->skipWorktree('wp-content/plugins/f/oo/loader.php', false),
+    'absoluteBackslashOrdinaryEscapesNextByte' => $absoluteBackslashOrdinaryPathspec->includesPath('wp-content/plugins/foo/block.json', false),
+    'absoluteBackslashOrdinaryVerbatimFallbackIncluded' => $absoluteBackslashOrdinaryPathspec->includesPath('wp-content/plugins/f\\oo/block.json', false),
     'absoluteWildcardIcaseRealDirectorySkipped' => $absoluteWildcardPathspec->skipWorktree('wp-content/README.md', false),
     'absoluteWildcardIcaseLiteralStarIncluded' => $absoluteWildcardPathspec->includesPath('*/README.md', false),
     'absoluteWildcardOrdinaryGlobIncluded' => $ordinaryAbsoluteWildcardPathspec->includesPath('wp-content/readme.md', false),

@@ -351,6 +351,61 @@ $portQualifiedNoProxySession = $portQualifiedNoProxyClient->handshake();
 $portQualifiedNoProxySession->createOrUpdate('refs/heads/main', $portQualifiedNoProxyBlob->oid());
 $portQualifiedNoProxyResponse = $portQualifiedNoProxyClient->send($portQualifiedNoProxySession->buildRequest([$portQualifiedNoProxyBlob]));
 
+$httpsProxyFallbackRequests = [];
+$httpsProxyFallbackHelperCalls = 0;
+$httpsProxyFallbackBlob = new GitObject('blob', 'WordPress HTTPS proxy fallback payload');
+$httpsProxyFallbackResponseBytes = $packet("\x01" . $packet("unpack ok\n"))
+    . $packet("\x01" . $packet("ok refs/heads/main\n"))
+    . $packet("\x01" . $flush)
+    . $flush;
+$httpsProxyFallbackClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://git.example.test/wp-content.git',
+        static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$httpsProxyFallbackRequests, $packet, $flush, $advertisementBytes, $httpsProxyFallbackResponseBytes): array {
+            $httpsProxyFallbackRequests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'timeout' => $timeout,
+                'httpOptions' => $httpOptions,
+            ];
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'headers' => [
+                        'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                        'Set-Cookie' => 'wp_session=https-fallback; Path=/; Secure',
+                    ],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                'body' => $httpsProxyFallbackResponseBytes,
+            ];
+        },
+        [],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+        [
+            'httpsProxy' => 'http://https-proxy.example.test:9443',
+            'proxyCredentialHelper' => static function () use (&$httpsProxyFallbackHelperCalls): array {
+                $httpsProxyFallbackHelperCalls++;
+
+                return ['username' => 'https-fallback-user', 'password' => 'https-fallback-pass'];
+            },
+        ],
+    ),
+    'port-libs/wordpress',
+);
+$httpsProxyFallbackSession = $httpsProxyFallbackClient->handshake();
+$httpsProxyFallbackSession->createOrUpdate('refs/heads/main', $httpsProxyFallbackBlob->oid());
+$httpsProxyFallbackResponse = $httpsProxyFallbackClient->send($httpsProxyFallbackSession->buildRequest([$httpsProxyFallbackBlob]));
+
 $urlCredentialProxyRequests = [];
 $urlCredentialProxyHelperCalls = [];
 $urlCredentialProxyStores = [];
@@ -568,6 +623,12 @@ return [
     'portQualifiedNoProxyHelperCalls' => $portQualifiedNoProxyHelperCalls,
     'portQualifiedNoProxyAuthorizationSent' => $portQualifiedNoProxyRequests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'portQualifiedNoProxyPostCookieHeader' => $portQualifiedNoProxyRequests[1]['headers']['Cookie'] ?? null,
+    'httpsProxyFallbackUsedProxy' => $httpsProxyFallbackResponse->isSuccessful()
+        && ($httpsProxyFallbackRequests[0]['httpOptions']['proxy'] ?? null) === 'tcp://https-proxy.example.test:9443'
+        && ($httpsProxyFallbackRequests[1]['httpOptions']['proxy'] ?? null) === 'tcp://https-proxy.example.test:9443',
+    'httpsProxyFallbackHelperCalls' => $httpsProxyFallbackHelperCalls,
+    'httpsProxyFallbackAuthorizationSent' => $httpsProxyFallbackRequests[0]['httpOptions']['proxyAuthorization'] ?? null,
+    'httpsProxyFallbackPostCookieHeader' => $httpsProxyFallbackRequests[1]['headers']['Cookie'] ?? null,
     'urlCredentialProxyAdvertisementBytes' => $urlCredentialProxyAdvertisement,
     'urlCredentialProxyHelperCalls' => $urlCredentialProxyHelperCalls,
     'urlCredentialProxyStores' => $urlCredentialProxyStores,
@@ -591,5 +652,5 @@ return [
     'notModifiedProxyPostCookieHeader' => $notModifiedProxyRequests[1]['headers']['Cookie'] ?? null,
     'proxyAuthorizationSent' => $requests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'originProxyHeaderLeaked' => isset($requests[0]['headers']['Proxy-Authorization']),
-    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, preserve proxy use for curl-style port-qualified noProxy literal tokens, bypass proxies for DNS-equivalent trailing-dot repository hosts, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
+    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, preserve proxy use for curl-style port-qualified noProxy literal tokens, use HTTPS-specific proxy fallbacks with receive-pack cookies intact, bypass proxies for DNS-equivalent trailing-dot repository hosts, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
 ];

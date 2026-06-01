@@ -307,6 +307,37 @@ return [
         $t->same('/~byron/hello', $withPath->pathArgumentSafe());
         $t->same('abc://example.com/~byron/hello', $withPath->toBytes());
     },
+    'git url reports argument safety classifications and root paths like gix-url access helpers' => static function (TestRunner $t): void {
+        $unsafeUser = GitUrl::parse('ssh://-Fconfigfile@foo/bar');
+        $t->same(['status' => GitUrl::ARGUMENT_DANGEROUS, 'value' => '-Fconfigfile'], $unsafeUser->userArgumentSafety());
+        $t->same(null, $unsafeUser->userArgumentSafe());
+        $t->same(['status' => GitUrl::ARGUMENT_USABLE, 'value' => 'foo'], $unsafeUser->hostArgumentSafety());
+        $t->same('foo', $unsafeUser->hostArgumentSafe());
+        $t->same(['status' => GitUrl::ARGUMENT_USABLE, 'value' => '/bar'], $unsafeUser->pathArgumentSafety());
+        $t->same('/bar', $unsafeUser->pathArgumentSafe());
+
+        $unsafeHost = GitUrl::parse('ssh://-oProxyCommand=open$IFS-aCalculator/foo');
+        $t->same(['status' => GitUrl::ARGUMENT_ABSENT, 'value' => null], $unsafeHost->userArgumentSafety());
+        $t->same(['status' => GitUrl::ARGUMENT_DANGEROUS, 'value' => '-oProxyCommand=open$IFS-aCalculator'], $unsafeHost->hostArgumentSafety());
+        $t->same(null, $unsafeHost->hostArgumentSafe());
+        $t->same(['status' => GitUrl::ARGUMENT_USABLE, 'value' => '/foo'], $unsafeHost->pathArgumentSafety());
+
+        $unsafePath = GitUrl::parse('ssh://foo/-oProxyCommand=open$IFS-aCalculator');
+        $t->same(['status' => GitUrl::ARGUMENT_DANGEROUS, 'value' => '/-oProxyCommand=open$IFS-aCalculator'], $unsafePath->pathArgumentSafety());
+        $t->same(null, $unsafePath->pathArgumentSafe());
+
+        $root = GitUrl::parse('http://host.xz');
+        $t->same('/', $root->path());
+        $t->same(true, $root->pathIsRoot());
+        $t->same(['status' => GitUrl::ARGUMENT_USABLE, 'value' => '/'], $root->pathArgumentSafety());
+        $t->same('/', $root->pathArgumentSafe());
+
+        $pathless = GitUrl::parse('rad://wp-content-seed@example.git');
+        $t->same('', $pathless->path());
+        $t->same(false, $pathless->pathIsRoot());
+        $t->same(['status' => GitUrl::ARGUMENT_ABSENT, 'value' => null], $pathless->pathArgumentSafety());
+        $t->same(null, $pathless->pathArgumentSafe());
+    },
     'git url normalizes empty ssh url port markers like gix-url' => static function (TestRunner $t): void {
         $hostWithEmptyPort = GitUrl::parse('ssh://host:/re/po');
         $t->same(GitUrl::SCHEME_SSH, $hostWithEmptyPort->scheme());
@@ -754,6 +785,10 @@ return [
         $t->same($fixture['expectedRelativeMirrorCanonicalPath'], $summary['relativeMirrorCanonical']['path']);
         $t->same($fixture['expectedRelativeMirrorCanonicalUrl'], $summary['relativeMirrorCanonical']['normalized']);
         $t->same(true, $summary['deploymentRemoteSafe']);
+        $t->same($fixture['expectedRemoteArgumentSafety'], $summary['remoteArgumentSafety']);
+        $t->same($fixture['expectedUnsafeRemoteArgumentSafety'], $summary['unsafeRemoteArgumentSafety']);
+        $t->same($fixture['expectedRootRemotePathIsRoot'], $summary['rootRemotePathIsRoot']);
+        $t->same($fixture['expectedRootRemotePathArgumentSafety'], $summary['rootRemotePathArgumentSafety']);
         $t->same($fixture['expectedFetchInstructions'], array_column($summary['fetch'], 'instruction'));
         $t->same($fixture['expectedPushInstructions'], array_column($summary['push'], 'instruction'));
         $t->same($fixture['expectedFetchNormalized'], array_column($summary['fetch'], 'normalized'));

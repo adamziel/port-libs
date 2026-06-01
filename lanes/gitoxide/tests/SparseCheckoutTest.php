@@ -672,6 +672,44 @@ return [
             static fn () => SparseCheckoutSpec::fromPathspecs([$root . '/wp-config.php'], root: 'relative/root'),
         );
     },
+    'pathspec sparse checkout preserves absolute unix backslash bytes under root' => static function (TestRunner $t) use ($entryNames): void {
+        $root = '/srv/www/example.com/current';
+        $literalBackslash = SparseCheckoutSpec::fromPathspecs([
+            $root . '/wp-content/plugins/f\\oo/block.json',
+        ], root: $root, defaultSearchMode: SparseCheckoutSpec::PATHSPEC_SEARCH_LITERAL);
+        $escapedGlobBackslash = SparseCheckoutSpec::fromPathspecs([
+            ':(glob)' . $root . '/wp-content/plugins/f\\\\oo/*.php',
+        ], root: $root);
+        $ordinaryAbsolute = SparseCheckoutSpec::fromPathspecs([
+            $root . '/wp-content/plugins/f\\oo/block.json',
+        ], root: $root);
+
+        $t->same(true, $literalBackslash->includesPath('wp-content/plugins/f\\oo/block.json', false));
+        $t->same(false, $literalBackslash->includesPath('wp-content/plugins/f/oo/block.json', false));
+        $t->same(true, $literalBackslash->includesPath('wp-content', true));
+        $t->same(true, $literalBackslash->includesPath('wp-content/plugins', true));
+        $t->same(true, $literalBackslash->includesPath('wp-content/plugins/f\\oo', true));
+        $t->same(false, $literalBackslash->includesPath('wp-content/plugins/f', true));
+
+        $t->same(true, $escapedGlobBackslash->includesPath('wp-content/plugins/f\\oo/loader.php', false));
+        $t->same(false, $escapedGlobBackslash->includesPath('wp-content/plugins/f/oo/loader.php', false));
+        $t->same(true, $escapedGlobBackslash->includesPath('wp-content/plugins', true));
+        $t->same(true, $escapedGlobBackslash->includesPath('wp-content/plugins/f\\oo', true));
+        $t->same(true, $escapedGlobBackslash->includesPath('wp-content/plugins/f/oo', true));
+
+        $t->same(true, $ordinaryAbsolute->includesPath('wp-content/plugins/foo/block.json', false));
+        $t->same(true, $ordinaryAbsolute->includesPath('wp-content/plugins/f\\oo/block.json', false));
+
+        $blob = str_repeat('1', 40);
+        $tree = str_repeat('2', 40);
+        $plugins = new Tree([
+            new TreeEntry('040000', 'f\\oo', $tree),
+            new TreeEntry('040000', 'f', $tree),
+            new TreeEntry('040000', 'foo', $tree),
+        ]);
+
+        $t->same(['f\\oo'], $entryNames($literalBackslash->includedTreeEntries($plugins, 'wp-content/plugins')));
+    },
     'pathspec sparse checkout keeps absolute wildcard prefixes case sensitive under icase' => static function (TestRunner $t): void {
         $root = '/srv/www/example.com/current';
         $foldedAbsoluteWildcard = SparseCheckoutSpec::fromPathspecs([

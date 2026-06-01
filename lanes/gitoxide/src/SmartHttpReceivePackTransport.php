@@ -20,7 +20,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private array $cookies = [];
     /** @var array<string, string> */
     private readonly array $extraHeaders;
-    /** @var array{proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string} */
+    /** @var array{proxyConfigured: bool, proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, httpsProxyConfigured: bool, httpsProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, allProxyConfigured: bool, allProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string} */
     private readonly array $httpOptions;
 
     /**
@@ -570,12 +570,12 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             $options['sslVerify'] = false;
         }
 
-        $proxy = $this->httpOptions['proxy'];
+        $request = self::httpUrlParts($url, 'smart HTTP receive-pack request URL');
+        $proxy = $this->proxyForScheme($request['scheme']);
         if ($proxy === null) {
             return [$options, null];
         }
 
-        $request = self::httpUrlParts($url, 'smart HTTP receive-pack request URL');
         if (self::matchesNoProxy($request['host'], $this->httpOptions['noProxy'])) {
             return [$options, null];
         }
@@ -598,6 +598,24 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return [$options, $authorization['credentialAction']];
+    }
+
+    /**
+     * @return ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}
+     */
+    private function proxyForScheme(string $scheme): ?array
+    {
+        if ($this->httpOptions['proxyConfigured']) {
+            return $this->httpOptions['proxy'];
+        }
+        if ($scheme === 'https' && $this->httpOptions['httpsProxyConfigured']) {
+            return $this->httpOptions['httpsProxy'];
+        }
+        if ($this->httpOptions['allProxyConfigured']) {
+            return $this->httpOptions['allProxy'];
+        }
+
+        return null;
     }
 
     /**
@@ -857,24 +875,20 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param array<string, mixed> $httpOptions
-     * @return array{proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string}
+     * @return array{proxyConfigured: bool, proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, httpsProxyConfigured: bool, httpsProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, allProxyConfigured: bool, allProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string}
      */
     private static function normalizeHttpOptions(array $httpOptions): array
     {
-        $allowed = ['proxy', 'noProxy', 'proxyAuthorization', 'proxyAuthMethod', 'proxyCredentials', 'proxyCredentialHelper', 'proxyCredentialStore', 'proxyCredentialErase', 'sslCaInfo', 'sslVerify', 'followRedirects'];
+        $allowed = ['proxy', 'httpsProxy', 'allProxy', 'noProxy', 'proxyAuthorization', 'proxyAuthMethod', 'proxyCredentials', 'proxyCredentialHelper', 'proxyCredentialStore', 'proxyCredentialErase', 'sslCaInfo', 'sslVerify', 'followRedirects'];
         foreach (array_keys($httpOptions) as $name) {
             if (!is_string($name) || !in_array($name, $allowed, true)) {
                 throw new \InvalidArgumentException('smart HTTP receive-pack HTTP option is not supported');
             }
         }
 
-        $proxy = null;
-        if (array_key_exists('proxy', $httpOptions) && $httpOptions['proxy'] !== null && $httpOptions['proxy'] !== '') {
-            if (!is_string($httpOptions['proxy'])) {
-                throw new \InvalidArgumentException('smart HTTP receive-pack proxy must be a string');
-            }
-            $proxy = self::normalizeProxy($httpOptions['proxy']);
-        }
+        [$proxyConfigured, $proxy] = self::normalizeConfiguredProxy($httpOptions, 'proxy');
+        [$httpsProxyConfigured, $httpsProxy] = self::normalizeConfiguredProxy($httpOptions, 'httpsProxy');
+        [$allProxyConfigured, $allProxy] = self::normalizeConfiguredProxy($httpOptions, 'allProxy');
 
         $proxyAuthorization = null;
         if (array_key_exists('proxyCredentials', $httpOptions)) {
@@ -942,7 +956,12 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return [
+            'proxyConfigured' => $proxyConfigured,
             'proxy' => $proxy,
+            'httpsProxyConfigured' => $httpsProxyConfigured,
+            'httpsProxy' => $httpsProxy,
+            'allProxyConfigured' => $allProxyConfigured,
+            'allProxy' => $allProxy,
             'noProxy' => self::normalizeNoProxy($httpOptions['noProxy'] ?? null),
             'proxyAuthorization' => $proxyAuthorization,
             'proxyAuthMethod' => $proxyAuthMethod,
@@ -953,6 +972,27 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             'sslVerify' => $sslVerify,
             'followRedirects' => self::normalizeFollowRedirects($httpOptions['followRedirects'] ?? null),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $httpOptions
+     * @return array{0: bool, 1: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}}
+     */
+    private static function normalizeConfiguredProxy(array $httpOptions, string $name): array
+    {
+        if (!array_key_exists($name, $httpOptions)) {
+            return [false, null];
+        }
+
+        $proxy = $httpOptions[$name];
+        if ($proxy === null || $proxy === '') {
+            return [true, null];
+        }
+        if (!is_string($proxy)) {
+            throw new \InvalidArgumentException("smart HTTP receive-pack {$name} must be a string");
+        }
+
+        return [true, self::normalizeProxy($proxy)];
     }
 
     private static function normalizeFollowRedirects(mixed $followRedirects): string

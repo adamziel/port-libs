@@ -14,6 +14,10 @@ final class GitUrl
     public const SCHEME_HTTP = 'http';
     public const SCHEME_HTTPS = 'https';
 
+    public const ARGUMENT_ABSENT = 'absent';
+    public const ARGUMENT_USABLE = 'usable';
+    public const ARGUMENT_DANGEROUS = 'dangerous';
+
     private function __construct(
         private readonly string $scheme,
         private readonly ?string $user,
@@ -181,9 +185,25 @@ final class GitUrl
         );
     }
 
+    /**
+     * @return array{status: string, value: ?string}
+     */
+    public function userArgumentSafety(): array
+    {
+        return self::classifyArgument($this->user);
+    }
+
     public function userArgumentSafe(): ?string
     {
         return $this->argumentSafe($this->user);
+    }
+
+    /**
+     * @return array{status: string, value: ?string}
+     */
+    public function hostArgumentSafety(): array
+    {
+        return self::classifyArgument($this->host);
     }
 
     public function hostArgumentSafe(): ?string
@@ -191,18 +211,33 @@ final class GitUrl
         return $this->argumentSafe($this->host);
     }
 
+    /**
+     * @return array{status: string, value: ?string}
+     */
+    public function pathArgumentSafety(): array
+    {
+        if ($this->path === '') {
+            return ['status' => self::ARGUMENT_ABSENT, 'value' => null];
+        }
+
+        $comparison = str_starts_with($this->path, '/') ? substr($this->path, 1) : $this->path;
+        if (str_starts_with($comparison, '-')) {
+            return ['status' => self::ARGUMENT_DANGEROUS, 'value' => $this->path];
+        }
+
+        return ['status' => self::ARGUMENT_USABLE, 'value' => $this->path];
+    }
+
     public function pathArgumentSafe(): ?string
     {
-        $path = $this->path;
-        if ($path === '') {
-            return null;
-        }
+        $safety = $this->pathArgumentSafety();
 
-        if (str_starts_with($path, '/')) {
-            $path = substr($path, 1);
-        }
+        return $safety['status'] === self::ARGUMENT_USABLE ? $safety['value'] : null;
+    }
 
-        return str_starts_with($path, '-') ? null : $this->path;
+    public function pathIsRoot(): bool
+    {
+        return $this->path === '/';
     }
 
     /**
@@ -659,7 +694,25 @@ final class GitUrl
 
     private function argumentSafe(?string $value): ?string
     {
-        return $value !== null && !str_starts_with($value, '-') ? $value : null;
+        $safety = self::classifyArgument($value);
+
+        return $safety['status'] === self::ARGUMENT_USABLE ? $safety['value'] : null;
+    }
+
+    /**
+     * @return array{status: string, value: ?string}
+     */
+    private static function classifyArgument(?string $value): array
+    {
+        if ($value === null) {
+            return ['status' => self::ARGUMENT_ABSENT, 'value' => null];
+        }
+
+        if (str_starts_with($value, '-')) {
+            return ['status' => self::ARGUMENT_DANGEROUS, 'value' => $value];
+        }
+
+        return ['status' => self::ARGUMENT_USABLE, 'value' => $value];
     }
 
     private static function encodeUserInfo(string $input): string

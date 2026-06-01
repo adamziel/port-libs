@@ -42,6 +42,7 @@ final class PathspecSearch
         bool $literalDefault = false,
         string $defaultSearchMode = PathspecPattern::SEARCH_SHELL_GLOB,
         bool $defaultIgnoreCase = false,
+        ?string $root = null,
     ): self
     {
         if (!in_array($defaultSearchMode, [
@@ -54,6 +55,7 @@ final class PathspecSearch
 
         $patterns = [];
         $prefix = self::normalizePath($prefix);
+        $root = self::normalizeAbsoluteRoot($root ?? '');
         foreach ($specs as $index => $spec) {
             $pattern = $spec instanceof PathspecPattern
                 ? $spec
@@ -64,7 +66,7 @@ final class PathspecSearch
                     defaultSearchMode: $defaultSearchMode,
                     defaultIgnoreCase: $defaultIgnoreCase,
                 );
-            $patterns[] = self::normalizePattern($pattern, $prefix);
+            $patterns[] = self::normalizePattern($pattern, $prefix, $root);
         }
 
         if ($patterns === [] && $prefix !== '') {
@@ -255,10 +257,20 @@ final class PathspecSearch
         return $this->allPatternsAreExcluded;
     }
 
-    private static function normalizePattern(PathspecPattern $pattern, string $prefix): PathspecPattern
+    private static function normalizePattern(PathspecPattern $pattern, string $prefix, string $root): PathspecPattern
     {
         if ($pattern->nil || $pattern->path === '') {
             return $pattern;
+        }
+
+        if ($root !== '' && str_starts_with($pattern->path, '/')) {
+            [$path, $prefixLength] = self::normalizeAbsolutePatternPath(
+                $pattern->path,
+                $root,
+                $pattern->mustBeDirectory,
+            );
+
+            return $pattern->withPath($path, $prefixLength);
         }
 
         if ($pattern->top || $prefix === '') {
@@ -689,6 +701,33 @@ final class PathspecSearch
         return implode('/', $parts);
     }
 
+    private static function normalizeAbsoluteRoot(string $root): string
+    {
+        if ($root === '') {
+            return '';
+        }
+        if (str_contains($root, "\0")) {
+            throw new \InvalidArgumentException('Pathspec root cannot contain NUL bytes');
+        }
+        if (!str_starts_with($root, '/')) {
+            throw new \InvalidArgumentException("Pathspec root must be absolute: {$root}");
+        }
+
+        $parts = [];
+        foreach (explode('/', trim($root, '/')) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                array_pop($parts);
+                continue;
+            }
+            $parts[] = $part;
+        }
+
+        return '/' . implode('/', $parts);
+    }
+
     private static function validateRelativePath(string $path): string
     {
         if (str_contains($path, "\0")) {
@@ -720,6 +759,39 @@ final class PathspecSearch
         }
 
         return implode('/', $parts);
+    }
+
+    /**
+     * @return array{string,int}
+     */
+    private static function normalizeAbsolutePatternPath(string $path, string $root, bool $mustBeDirectory): array
+    {
+        $relative = self::pathRelativeToRoot($path, $root);
+        $normalized = self::normalizePatternPath($relative);
+        if ($normalized === '') {
+            return ['', 0];
+        }
+
+        $parts = explode('/', $normalized);
+        $prefixComponentCount = max(0, count($parts) - ($mustBeDirectory ? 0 : 1));
+        $prefix = implode('/', array_slice($parts, 0, $prefixComponentCount));
+
+        return [$normalized, strlen($prefix)];
+    }
+
+    private static function pathRelativeToRoot(string $path, string $root): string
+    {
+        if (str_contains($path, "\0")) {
+            throw new \InvalidArgumentException('Pathspec path cannot contain NUL bytes');
+        }
+        if ($root === '/') {
+            return ltrim($path, '/');
+        }
+        if ($path !== $root && !str_starts_with($path, $root . '/')) {
+            throw new \InvalidArgumentException("Absolute pathspec is outside the pathspec root: {$path}");
+        }
+
+        return ltrim(substr($path, strlen($root)), '/');
     }
 
     /**

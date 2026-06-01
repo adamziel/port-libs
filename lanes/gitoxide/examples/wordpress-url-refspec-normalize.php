@@ -10,6 +10,8 @@ use PortLibs\Gitoxide\RefSpec;
 $fixture = require __DIR__ . '/../fixtures/wordpress-url-refspec-normalize.php';
 
 $remote = GitUrl::parse($fixture['remoteUrl']);
+$unsafeRemote = GitUrl::parse($fixture['unsafeRemoteUrl']);
+$rootRemote = GitUrl::parse($fixture['rootRemoteUrl']);
 $emptyPortRemote = GitUrl::parse($fixture['emptyPortRemoteUrl']);
 $localMirror = GitUrl::parse($fixture['localMirrorUrl']);
 $homeMirror = GitUrl::parse($fixture['homeMirrorUrl']);
@@ -59,6 +61,18 @@ try {
 
 $summary = [
     'remote' => $remote->toArray(),
+    'remoteArgumentSafety' => [
+        'user' => $remote->userArgumentSafety(),
+        'host' => $remote->hostArgumentSafety(),
+        'path' => $remote->pathArgumentSafety(),
+    ],
+    'unsafeRemoteArgumentSafety' => [
+        'user' => $unsafeRemote->userArgumentSafety(),
+        'host' => $unsafeRemote->hostArgumentSafety(),
+        'path' => $unsafeRemote->pathArgumentSafety(),
+    ],
+    'rootRemotePathIsRoot' => $rootRemote->pathIsRoot(),
+    'rootRemotePathArgumentSafety' => $rootRemote->pathArgumentSafety(),
     'emptyPortRemote' => $emptyPortRemote->toArray(),
     'localMirror' => $localMirror->toArray(),
     'homeMirror' => $homeMirror->toArray(),
@@ -83,6 +97,18 @@ $argv = $_SERVER['argv'] ?? [];
 if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     if ($summary['remote']['normalized'] !== $fixture['expectedRemoteUrl']) {
         throw new RuntimeException('Unexpected normalized remote URL');
+    }
+    if ($summary['remoteArgumentSafety'] !== $fixture['expectedRemoteArgumentSafety']) {
+        throw new RuntimeException('Unexpected deployment remote argument safety');
+    }
+    if ($summary['unsafeRemoteArgumentSafety'] !== $fixture['expectedUnsafeRemoteArgumentSafety']) {
+        throw new RuntimeException('Unexpected unsafe remote argument safety');
+    }
+    if ($summary['rootRemotePathIsRoot'] !== $fixture['expectedRootRemotePathIsRoot']) {
+        throw new RuntimeException('Unexpected root remote path root classification');
+    }
+    if ($summary['rootRemotePathArgumentSafety'] !== $fixture['expectedRootRemotePathArgumentSafety']) {
+        throw new RuntimeException('Unexpected root remote path argument safety');
     }
     if ($summary['emptyPortRemote']['normalized'] !== $fixture['expectedEmptyPortRemoteUrl']) {
         throw new RuntimeException('Unexpected normalized empty-port remote URL');
