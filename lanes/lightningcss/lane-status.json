@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 97.9,
-    "suiteProgress": "Supervisor-integrated LightningCSS property-value and source-map replay. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 5733 assertions / 0 failures, and touched examples.",
-    "phpPass": 5733,
+    "estimatedProgress": 99.8,
+    "suiteProgress": "Supervisor-integrated LightningCSS bundle/import graph, CSS Modules composes-before-nested, and source-map rejected-child merge coverage. Verification passed changed PHP lint, git diff --check, example smokes, and full LightningCSS lane 13 files / 7496 assertions / 0 failures.",
+    "phpPass": 7496,
     "phpFail": 0,
-    "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
+    "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics including malformed supports import rejection, source-map pruning and rejected child merge behavior, CSS Modules exports with escaped custom idents, terminal pseudo-element selector boundaries, and composes-before-nested ordering, custom at-rule parser/selector/function visitors, media range/layer fallbacks, SVG paint advanced-color fallbacks for fill/stroke, stale selector prefix pruning for :read-only/:fullscreen boundaries, direct and legacy flex CSSOM declaration canonicalization, grid property-value minification, nesting, unicode-bidi target prefix browser boundaries, and selector/logical target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 supervisor replay: full LightningCSS lane passed 13 files / 5733 assertions / 0 failures after accepting relative HSL/HWB invalid channel-position parity and separator-only raw VLQ source-map table import coverage. Conservative mapped coverage moves to 2320 / 3532; full upstream Rust/Node/WASM runners were not executed.",
-    "currentWork": "Relative HSL/HWB channel typing and separator-only raw VLQ source-map table import parity integrated on current base.",
-    "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 5733 assertions; continue source-map, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices.",
-    "latestCommit": "2c6f6944dfb97e3e856bf480c1667d5e8c0211a3",
-    "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media queries, property values, target prefixing, CSSOM, and custom at-rules with full-lane PHP gates.",
-    "commit": "2c6f6944dfb97e3e856bf480c1667d5e8c0211a3"
+    "audit": "2026-06-01 supervisor batch: full LightningCSS PHP lane passed 13 files / 7496 assertions / 0 failures after bundle/import graph, CSS Modules composes-before-nested ordering, and source-map rejected-child merge slices; Rust/Node/WASM runners not run.",
+    "currentWork": "Bundle/import graph, CSS Modules composes-before-nested ordering, and source-map rejected-child merge parity integrated on current base.",
+    "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
+    "latestCommit": "9c379ab6a35cde5aa3bb6742b67686f2651a1a36",
+    "nextTask": "Keep LightningCSS workers on current-base source maps, bundle/import graph, media query, property value, CSSOM, CSS Modules, custom-at-rule, and target-prefix slices; rebase stale overlapping TransitionPrefixer/CSSOM handoffs before retry.",
+    "commit": "9c379ab6a35c"
 }

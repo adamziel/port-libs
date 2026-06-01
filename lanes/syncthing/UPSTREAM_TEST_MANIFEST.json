@@ -6,21 +6,1023 @@
         "name": "syncthing/syncthing",
         "url": "https://github.com/syncthing/syncthing",
         "commit": "3962a237232473c20a44945a6c8ce8c930375360",
-        "license": "pending verification from upstream checkout",
+        "license": "MPL-2.0",
         "architecture": "Go device/folder model, block exchange, conflict handling, protocol messages, and resumable sync."
     },
     "benchmarkDenominator": {
-        "status": "static-seed",
-        "total": "pending full upstream inventory",
-        "mapped": 2,
-        "source": "Go package tests and integration tests; denominator pending upstream inventory.",
-        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+        "status": "verified-cloned-static-test-inventory-plus-focused-runner",
+        "total": 658,
+        "mapped": 350,
+        "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted 658 static Go test/benchmark entry points across 141 `_test.go` files plus 264 focused behavior/test inventory paths from Go tests, test/testdata fixtures, scripts, protocol/scanner/model paths, and targeted proto/XML/JSON/DB/cert artifacts with git ls-tree and targeted git show reads, without hydrating the full checkout. Bounded throwaway worktree runners passed the upstream block-pull reorderer, blockDiff, handleFile/copier/sparse zero-block pull planning, job queue, device activity, FileInfoBatch, service-map, indexhandler concurrency, receive-index RemoteIndexUpdated, folder completion, request max-size, sqlite global/need, sqlite global drop/recalculation, sqlite needed-file pull-order, sqlite global-prefix/drop-device, versioner Archive/tagging tests, directory deletion scan/error precedence tests including ignored-child precedence, `performFinish`/`scanIfItemChanged` existing-file guards, handleDir/handleSymlink directory/symlink lifecycle tests, and deleteFile/deleteDir lifecycle tests. The pullBlock retry/hash-validation slice is backed by static targeted reads of upstream `pullBlock`, `verifyBuffer`, `deviceActivity.using/done`, `RequestGlobal`, zero-block, and receive-encrypted branches. The unavailable-peer availability slice is backed by static targeted reads of upstream `model.Closed`, `fileAvailabilityRLocked`, `blockAvailabilityFromTemporaryRLocked`, `RequestGlobal`, `requestConnectionForDevice`, and `deviceDownloadState` cleanup/Has behavior. The temporary finalization, conflict replacement, tracked-directory replacement, conflict-retention, version-archive replacement, existing-file scan guard, case-only performFinish conflict detection, directory deletion guard, ignored-directory deletion precedence, and receive-only changed child resurrection slices are backed by static targeted reads of upstream `sharedPullerState.tempFile`, `tempFileInWritableDir`, `copyDone`, `pullDone`, `finalClose`, `finalizeEncrypted`, `writeEncryptionTrailer`, `performFinish`, `scanIfItemChanged`, `deleteItemOnDisk`, `deleteDirOnDisk`, `deleteDirOnDiskHandleChildren`, `moveForConflict`, `conflictName`, `existingConflicts`, `fs.CaseConflictError`, `caseFilesystem.Rename`, `protocol.FileInfo.InConflictWith`, `protocol.FileInfo.IsReceiveOnlyChanged`, `config.FolderTypeReceiveOnly`, `versioner.Versioner.Archive`, `archiveFile`, `TagFilename`, `TestReadOnlyDir`, `TestSRConflictReplaceFileByDir`, `TestSRConflictReplaceFileByLink`, `TestPullCaseOnlyPerformFinish`, `TestPullCaseOnlyRename`, `TestDeleteIgnorePerms`, `TestDeleteBehindSymlink`, `TestPullDeleteUnscannedDir`, `TestPullDeleteCaseConflict`, `TestPullDeleteIgnoreChildDir`, `TestIssue3164`, and failed temp-file retention behavior. The post-promotion database-update slice is backed by static targeted reads of upstream `dbUpdaterRoutine`, `dbUpdateJob`, `FileInfoBatch`, `updateLocalsFromPulling`, `emitDiskChangeEvents`, changed-directory fsync branches, `RemoteChangeDetected` event emission, and `ReceivedFile` emission after batch flush. The finisher lifecycle slice is backed by static targeted reads of upstream `finisherRoutine`, `sharedPullerState.finalClose`, `ProgressEmitter.Deregister`, `jobQueue.Done`, `newPullError`, `TestDeregisterOnFailInCopy`, and `TestDeregisterOnFailInPull`. Focused upstream runner evidence: `go test ./lib/model -run 'TestPullDeleteUnscannedDir|TestPullDeleteIgnoreChildDir' -count=1`, `go test ./lib/model -run 'TestPullCaseOnlyPerformFinish|TestDeleteIgnorePerms' -count=1`, `go test ./lib/model -run 'TestDeregisterOnFailInCopy|TestDeregisterOnFailInPull' -count=1`, `go test ./lib/model -run 'TestCopyOwner|TestSRConflictReplaceFileByDir|TestSRConflictReplaceFileByLink|TestPullCaseOnlyDir|TestPullCaseOnlySymlink' -count=1`, and `go test ./lib/model -run 'TestDeleteBehindSymlink|TestPullDeleteUnscannedDir|TestPullDeleteCaseConflict|TestPullDeleteIgnoreChildDir|TestIssue3164' -count=1` passed in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing`. The pullScannerRoutine scan scheduling slice is backed by static targeted reads of upstream `lib/model/folder_sendrecv.go` around `pullScannerRoutine`, `finisherRoutine`, `performFinish`, `scanIfItemChanged`, `checkToBeDeleted`, `deleteDirOnDiskHandleChildren`, and the scan-channel close boundary. The handleDir/handleSymlink item lifecycle slice is backed by targeted reads of upstream `handleDir`, `handleSymlink`, `handleSymlinkCheckExisting`, `TestCopyOwner`, `TestSRConflictReplaceFileByDir`, `TestSRConflictReplaceFileByLink`, `TestPullCaseOnlyDir`, and `TestPullCaseOnlySymlink`. The deleteFile/deleteDir item lifecycle slice is backed by targeted reads of upstream `deleteFile`, `deleteDir`, `checkToBeDeleted`, `deleteDirOnDiskHandleChildren`, `TestDeleteBehindSymlink`, `TestPullDeleteUnscannedDir`, `TestPullDeleteCaseConflict`, `TestPullDeleteIgnoreChildDir`, and `TestIssue3164`. The processDeletions batch-order slice is backed by targeted reads of upstream `processNeeded`, `fileDeletions` coalescing by name, and `processDeletions` file-before-directory plus reverse-directory ordering; no daemon, discovery, relay, GUI/API, or full upstream runner behavior was exercised. The receive-encrypted metadata shortcut retry slice is backed by static targeted reads of upstream `shortcutFile`, `writeEncryptionTrailer`, `inWritableDir`, and no-create `OpenFile` behavior: read/write open failures record pull errors without db updates, missing synthetic encrypted parents do not create placeholder paths, successful rewrites truncate stale trailer bytes, and direct upstream package tests for this branch were not found. The platform metadata slice is backed by targeted reads of upstream `shortcutFile`, `performFinish`, `setPlatformData`, `syncOwnership`, `copyOwnershipFromParent`, PlatformData/XattrData protobuf fields, and focused upstream `go test ./lib/model -run '^TestCopyOwner$' -count=1` evidence in the hydrated local-capacity worktree. The scanner platform-data slice is backed by targeted reads of upstream `scanner.CreateFileInfo`, `filesystem.PlatformData`, `unixPlatformData`, `GetXattr`, `TestScanOwnershipPOSIX`, and `TestXattr`; focused upstream `go test ./lib/scanner -run '^TestScanOwnershipPOSIX$' -count=1` and `go test ./lib/fs -run '^TestXattr$' -count=1` both passed in the same hydrated local-capacity worktree. The bounded pull-iteration retry slice is backed by static targeted reads of upstream `pull`, `pullerIteration`, `maxPullerIterations`, `newPullError`, and FolderErrors promotion: pull errors are reset at pull start, temporary pull errors are reset at each puller iteration, the loop stops when an iteration changes zero items or after three tries, and only the final iteration's temporary errors are promoted to FolderErrors. This batch adds bounded xattr no-follow and unsupported-filesystem evidence from targeted reads of `lib/fs/basicfs_xattr_unix.go` (`Llistxattr`, `Lgetxattr`, `Lremovexattr`, `Lsetxattr`), `lib/fs/basicfs_xattr_linuxish.go`, `lib/fs/basicfs_xattr_unsupported.go`, `lib/model/folder_sendrecv.go` `setPlatformData`, `lib/scanner/walk.go` `CreateFileInfo`, and `lib/fs/platform_common.go`; focused upstream `go test ./lib/fs -run '^TestXattr$' -count=1` passed in the hydrated local-capacity worktree with `ok github.com/syncthing/syncthing/lib/fs 0.009s`. This batch adds xattr hard-error and deterministic listing-order evidence from targeted reads of upstream `BasicFilesystem.GetXattr`, `BasicFilesystem.SetXattr`, `listXattr`, `unixPlatformData`, and `setPlatformData`: listed xattr names are sorted before filtered reads, ordinary list/get/remove/set failures are returned as retryable metadata errors, and absent host xattr support is treated like the upstream unsupported sentinel. Refreshed focused upstream `go test ./lib/fs -run '^TestXattr$' -count=1` passed in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/fs 0.006s`. This batch adds scanner walk ignore-pruning evidence from targeted reads of upstream `Walk`, `WalkWithoutHashing`, `scan`, `walkAndHashFiles`, `Matcher.Match`, `fs.IsTemporary`, `fs.IsInternal`, `ignoredParent`, and `handleItem`, plus focused upstream `go test ./lib/scanner -run 'TestWalk$|TestWalkSub|TestRecurseInclude|TestIncludedSubdir|TestSkipIgnoredDirs|TestNotExistingError|TestIssue4799' -count=1`, which passed in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/scanner 0.024s`. This batch adds scanner block-size hysteresis evidence from targeted reads of upstream `walkRegular`, `protocol.BlockSize`, `FileInfo.BlockSize`, and `TestBlocksizeHysteresis`; focused upstream `go test ./lib/scanner -run '^TestBlocksizeHysteresis$' -count=1` passed in the hydrated local-capacity worktree with `ok github.com/syncthing/syncthing/lib/scanner 1.556s`. This batch adds scanner unchanged-file shortcut evidence from targeted reads of upstream walkRegular, walkDir, walkSymlink, updateFileInfo, FileInfo.IsEquivalentOptional, local flag masking, and TestWalkReceiveOnly; focused upstream go test ./lib/scanner -run '^TestWalkReceiveOnly$' -count=1 passed in .upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing with ok github.com/syncthing/syncthing/lib/scanner 0.007s. This batch adds scanner IgnorePerms/mod-time-window/symlink current-file equivalence evidence from targeted reads of upstream `walkRegular`, `walkDir`, `walkSymlink`, `FileInfo.IsEquivalentOptional`, `protocol.ModTimeEqual`, `TestModTimeWindow`, and `TestWalkSymlinkUnix`; focused upstream `go test ./lib/model -run '^TestModTimeWindow$' -count=1` passed with `ok github.com/syncthing/syncthing/lib/model 0.028s`, and `go test ./lib/scanner -run '^TestWalkSymlinkUnix$' -count=1` passed with `ok github.com/syncthing/syncthing/lib/scanner 0.016s`. This batch adds scanner Windows symlink skip evidence from targeted reads of upstream `handleItem` and `walkSymlink`: POSIX symlinks are emitted without following targets, while the Windows branch returns before emitting a FileInfo; refreshed `go test ./lib/scanner -run '^TestWalkSymlinkUnix$' -count=1` passed with `ok github.com/syncthing/syncthing/lib/scanner 0.013s`, and the Windows branch remains static host-specific evidence. This batch adds scanner symlink-parent sub-walk guard evidence from targeted reads of upstream `lib/scanner/walk.go` sub-walk `osutil.TraversesSymlink(filepath.Dir(sub))`, `lib/osutil/traversessymlink.go`, `lib/osutil/traversessymlink_test.go`, and focused upstream `go test ./lib/scanner -run 'TestWalkSub|TestIssue4799|TestWalkSymlinkUnix' -count=1` plus `go test ./lib/osutil -run '^TestTraversesSymlink$|^TestIssue4875$' -count=1`. This batch adds scanner sub-walk diagnostic evidence from targeted reads of `scan`, `osutil.TraversesSymlink`, `TestNotExistingError`, and `TestIssue4799`; focused upstream `go test ./lib/scanner -run 'TestNotExistingError|TestIssue4799|TestWalkSub' -count=1` and `go test ./lib/osutil -run '^TestTraversesSymlink$|^TestIssue4875$' -count=1` both passed. This batch adds scanner walk failure-boundary evidence from targeted reads of upstream `walkFailureEventDesc`, `isWarnableError`, `handleError`, configured-sub `Filesystem.Walk` calls, `TestStopWalk`, `TestIncludedSubdir`, `TestNotExistingError`, `TestIssue4799`, and `TestWalkSub`; focused upstream `go test ./lib/scanner -run 'TestNotExistingError|TestIssue4799|TestWalkSub|TestStopWalk|TestIncludedSubdir' -count=1` passed with `ok github.com/syncthing/syncthing/lib/scanner 0.152s`. Full `go test ./...` remains unexecuted for the recorded cache/budget reasons. This batch adds scanner checkpoint event-result evidence from targeted reads of upstream `lib/scanner/walk.go` `FolderScanProgress` EventLogger emission, path-level `ScanResult` errors, `events.Failure`, `walkFailureEventDesc`, `isWarnableError`, and the same focused scanner tests `TestNotExistingError`, `TestIssue4799`, `TestWalkSub`, `TestStopWalk`, and `TestIncludedSubdir`; refreshed focused upstream `go test ./lib/scanner -run 'TestNotExistingError|TestIssue4799|TestWalkSub|TestStopWalk|TestIncludedSubdir' -count=1` passed in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/scanner 0.180s`. Native `walkWithCheckpoint(... eventCollector: ...)` now composes folder-scoped FolderScanProgress, path scan errors, and Failure callbacks into the returned scan result so resumable WordPress scans can persist completed paths and event status together. This batch adds scanner checkpoint status evidence from targeted reads of upstream `CurrentFiler`, `ScanResult`, `FolderScanProgress`, `handleError`, unchanged CurrentFiler checks in `walkRegular`, `walkDir`, and `walkSymlink`, and focused tests `TestWalkReceiveOnly`, `TestStopWalk`, `TestNotExistingError`, and `TestIncludedSubdir`; refreshed focused upstream `go test ./lib/scanner -run '^(TestWalkReceiveOnly|TestStopWalk|TestNotExistingError|TestIncludedSubdir)$' -count=1` passed with `ok github.com/syncthing/syncthing/lib/scanner 0.115s`. Native `FolderScanCheckpoint` now merges multiple scanner attempts into one durable folder status by keeping the latest FileInfo per path for resume-current reuse, appending scan progress/path-error/Failure events, and exposing a WordPress REST-style status payload. The WordPress option-store slice is backed by targeted reads of upstream `ScanFolders`, `ScanFolderSubdirs`, folder `Scan`, `doInSync`, `scanSubdirs`, scan batch flush, and `CurrentFiler`, with refreshed focused upstream `go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors)$' -count=1` passing in the hydrated local-capacity worktree with `ok github.com/syncthing/syncthing/lib/model 0.032s`. The multi-folder ScanFolders scheduler slice is backed by targeted reads of upstream `model.ScanFolders`, `ScanFolder`, `ScanFolderSubdirs`, folder `Scan`, and `doInSync`, plus refreshed focused upstream `go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors)$' -count=1` with `ok github.com/syncthing/syncthing/lib/model 0.039s`. The folder scan API coordinator slice is backed by targeted reads of upstream `lib/api/api.go` `postDBScan`, `lib/rc/rc.go` `Rescan`/`RescanSubs`, `lib/model/model.go` `ScanFolders` and `ScanFolderSubdirs`, and `TestPausedFolders`; refreshed focused upstream `go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors|TestPausedFolders)$' -count=1` passed in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/model 0.039s`. Full `go test ./...` remains unexecuted for the recorded blob-filter/cache/budget reasons.",
+        "latestEvidence": "This batch adds bounded scan-status acknowledgement for WordPress/local scan clients on top of the existing route-registry evidence. Native `FolderScanRouteRegistry::forScanApi()` now registers `POST /syncthing/db/scan/status/ack`, which clears one retained folder checkpoint with an optional expected-revision guard or clears all retained checkpoints after REST clients consume scan-status payloads. Focused PHP route-registry tests passed 1 file, 114 assertions, 0 failures. The updated WordPress route-registry example smoke ran successfully and confirms scan-status acknowledgement clears the retained checkpoint payload while preserving the existing watch route-catalog and watcher status/restart/cleanup payloads. Full `go test ./...` remains unexecuted for the recorded blob-filter/cache/budget reasons.",
+        "inventory": {
+            "upstreamTrackedPaths": 940,
+            "upstreamGoFiles": 548,
+            "goPackageDirs": 94,
+            "goTestFiles": 141,
+            "goTestPackageDirs": 50,
+            "goTestEntryPoints": {
+                "filesWithEntrypoints": 129,
+                "tests": 610,
+                "benchmarks": 48,
+                "fuzz": 0,
+                "total": 658,
+                "breakdown": {
+                    "lib": 550,
+                    "cmd": 18,
+                    "internal": 44,
+                    "test": 43,
+                    "other": 3
+                }
+            },
+            "testdataPaths": 32,
+            "integrationTestTreePaths": 41,
+            "scriptPaths": 21,
+            "libProtocolPaths": 37,
+            "uniqueBehaviorInventoryPaths": 268,
+            "uniqueTestRelatedPaths": 268,
+            "targetWatchAggregatorTestFunctions": 4,
+            "targetWatchAggregatorFocusedRunnerTests": 4,
+            "targetWatchModelMethods": 5,
+            "targetWatchScanMappedPhpTests": 4,
+            "targetWatchRestartMappedPhpTests": 6,
+            "targetWatchStopCleanupMappedPhpTests": 1,
+            "targetWatchRemovalCleanupMappedPhpTests": 2,
+            "targetWatchRecentCleanupMappedPhpTests": 3,
+            "targetWatchRecentCleanupAckMappedPhpTests": 2,
+            "targetRouteRegistryMappedPhpTests": 11,
+            "targetScannerProtocolModelTestFiles": 34,
+            "targetScannerProtocolModelTestdataFiles": 1,
+            "targetProtocolFileInfoTestFunctions": 4,
+            "targetProtocolFileInfoTableCases": 41,
+            "targetProtocolValidationTestFunctions": 4,
+            "targetProtocolValidationTableCases": 31,
+            "targetWireFormatMethods": 3,
+            "targetHelloTestFunctions": 2,
+            "targetHelloOldMagicCases": 3,
+            "targetRequestResponseWireMethods": 4,
+            "targetRawConnectionRequestMethods": 3,
+            "targetProtocolErrorMappingMethods": 2,
+            "targetProtocolRequestValidationTestFunctions": 2,
+            "targetRawRequestExchangeMappedPhpTests": 4,
+            "targetPostAuthFrameMethods": 5,
+            "targetLz4CompressionTestFunctions": 3,
+            "targetLz4HelperMethods": 2,
+            "targetCompressionDecisionMethods": 3,
+            "targetClusterConfigStructs": 3,
+            "targetClusterConfigWireConversionMethods": 6,
+            "targetIndexFileInfoWireMethods": 10,
+            "targetFileInfoProtoFieldsMapped": 19,
+            "targetDownloadProgressWireConversionMethods": 4,
+            "targetDownloadProgressProtoMessages": 2,
+            "targetDownloadProgressUpdateTypes": 2,
+            "targetDownloadProgressCompatibilityFixtures": 2,
+            "targetDeviceDownloadStateTestCases": 10,
+            "targetSentDownloadStateMethods": 5,
+            "targetProgressEmitterTemporaryIndexMethods": 4,
+            "targetProgressEmitterSendDownloadProgressTestFunction": 1,
+            "targetProgressEmitterSendDownloadProgressCases": 15,
+            "targetProgressEmitterConnectionBoundaryMethods": 7,
+            "targetProgressEmitterEventSummaryMethods": 2,
+            "targetProgressEmitterTimerGateMethods": 3,
+            "targetProgressEmitterSendBoundaryMethods": 3,
+            "targetProtocolConnectionDownloadProgressMethods": 2,
+            "targetSharedPullerProgressMethods": 2,
+            "targetPullerProgressFields": 8,
+            "targetModelDownloadProgressMethods": 1,
+            "targetModelBlockAvailabilityMethods": 4,
+            "targetTemporaryRequestPlanningMethods": 2,
+            "targetConnectionAvailabilityMethods": 8,
+            "targetConnectionAvailabilityMappedPhpTests": 2,
+            "targetDeviceActivityMethods": 3,
+            "targetDeviceActivityTestFunctions": 1,
+            "targetDeviceActivityFocusedRunnerTests": 1,
+            "targetDeviceActivityMappedPhpTests": 2,
+            "targetFileInfoBatchMethods": 8,
+            "targetFileInfoBatchTestFunctions": 1,
+            "targetFileInfoBatchFocusedRunnerTests": 1,
+            "targetFileInfoBatchMappedPhpTests": 3,
+            "targetDbUpdaterRoutineMethods": 4,
+            "targetDbUpdaterRoutineBranches": 8,
+            "targetDbUpdaterRoutineMappedPhpTests": 5,
+            "targetFinisherRoutineMethods": 6,
+            "targetFinisherRoutineTestFunctions": 2,
+            "targetFinisherRoutineFocusedRunnerTests": 2,
+            "targetFinisherRoutineMappedPhpTests": 4,
+            "targetFolderErrorTrackerMethods": 7,
+            "targetFolderErrorPromotionBranches": 6,
+            "targetFolderErrorMappedPhpTests": 4,
+            "targetBlockPullReordererTestFunctions": 3,
+            "targetBlockPullReordererTableCases": 13,
+            "targetBlockPullOrderConfigMethods": 2,
+            "targetBlockPullReordererFocusedRunnerTests": 3,
+            "targetBlockPullReordererMappedPhpTests": 4,
+            "targetBlockDiffMethods": 2,
+            "targetBlockDiffTestFunctions": 2,
+            "targetBlockDiffBenchmarks": 1,
+            "targetBlockDiffTableCases": 12,
+            "targetBlockDiffEmptyCases": 3,
+            "targetBlockDiffFocusedRunnerTests": 2,
+            "targetBlockDiffMappedPhpTests": 4,
+            "targetPullWorkPlanMethods": 4,
+            "targetHandleFileTestFunctions": 3,
+            "targetPullEmptyBlockTestFunctions": 1,
+            "targetPullWorkPlanFocusedRunnerTests": 4,
+            "targetPullWorkPlanMappedPhpTests": 6,
+            "targetPullBlockRetryMethods": 5,
+            "targetPullBlockRetryBranches": 6,
+            "targetPullBlockRetryMappedPhpTests": 4,
+            "targetPullTemporaryFinalizationMethods": 6,
+            "targetPullTemporaryFinalizationBranches": 12,
+            "targetSharedPullerTempPermissionMethods": 2,
+            "targetSharedPullerReadOnlyDirTestFunctions": 1,
+            "targetPullTemporaryFinalizationMappedPhpTests": 11,
+            "targetPullPerformFinishConflictMethods": 5,
+            "targetPullPerformFinishConflictTestFunctions": 3,
+            "targetPullPerformFinishConflictMappedPhpTests": 2,
+            "targetPullCaseOnlyPerformFinishTestFunctions": 1,
+            "targetPullCaseOnlyPerformFinishMappedPhpTests": 2,
+            "targetPullPerformFinishDirectoryReplacementMethods": 4,
+            "targetPullPerformFinishDirectoryReplacementMappedPhpTests": 1,
+            "targetPullDirectoryDeletionGuardMethods": 2,
+            "targetPullDirectoryDeletionGuardTestFunctions": 2,
+            "targetPullDirectoryDeletionGuardFocusedRunnerTests": 2,
+            "targetPullDirectoryDeletionGuardMappedPhpTests": 3,
+            "targetPullReceiveOnlyDirectoryDeletionMethods": 2,
+            "targetPullReceiveOnlyDirectoryDeletionBranches": 1,
+            "targetPullReceiveOnlyDirectoryDeletionMappedPhpTests": 1,
+            "targetPullConflictRetentionMappedPhpTests": 1,
+            "targetVersionerArchiveMethods": 4,
+            "targetVersionerArchiveTestFunctions": 3,
+            "targetVersionerArchiveFocusedRunnerTests": 3,
+            "targetPullVersionArchiveMappedPhpTests": 2,
+            "targetJobQueueMethods": 8,
+            "targetJobQueueTestFunctions": 3,
+            "targetJobQueueBenchmarks": 2,
+            "targetJobQueueFocusedRunnerTests": 3,
+            "targetJobQueueMappedPhpTests": 4,
+            "targetServiceMapMethods": 10,
+            "targetServiceMapTestFunctions": 1,
+            "targetServiceMapSubtests": 3,
+            "targetServiceMapFocusedRunnerTests": 1,
+            "targetServiceMapMappedPhpTests": 6,
+            "targetIndexHandlerMethods": 6,
+            "targetIndexHandlerTestFunctions": 1,
+            "targetIndexHandlerFocusedRunnerTests": 1,
+            "targetIndexHandlerMappedPhpTests": 6,
+            "targetIndexHandlerRegistryMethods": 11,
+            "targetIndexHandlerStartDecisionBranches": 7,
+            "targetIndexHandlerRegistryMappedPhpTests": 5,
+            "targetReceiveIndexMethods": 7,
+            "targetReceiveIndexFocusedRunnerTests": 1,
+            "targetReceiveIndexMappedPhpTests": 4,
+            "targetFolderCompletionMethods": 5,
+            "targetFolderCompletionTestFunctions": 2,
+            "targetFolderCompletionFocusedRunnerTests": 2,
+            "targetFolderCompletionMappedPhpTests": 3,
+            "targetDbGlobalNeedMethods": 5,
+            "targetDbGlobalNeedTestFunctions": 7,
+            "targetDbGlobalNeedFocusedRunnerTests": 7,
+            "targetDbGlobalNeedMappedPhpTests": 4,
+            "targetDbPullOrderConfigValues": 6,
+            "targetDbPullOrderSubtests": 1,
+            "targetDbPullOrderFocusedRunnerTests": 1,
+            "targetDbPullOrderMappedPhpTests": 2,
+            "targetDbGlobalPrefixSubtests": 1,
+            "targetDbGlobalPrefixFocusedRunnerTests": 1,
+            "targetDbGlobalPrefixMappedPhpTests": 1,
+            "targetDbGlobalAvailabilityMethods": 1,
+            "targetDbGlobalDropRecalcTestFunctions": 1,
+            "targetDbGlobalDropRecalcFocusedRunnerTests": 2,
+            "targetDbDropDeviceTestFunctions": 1,
+            "targetDbDropDeviceFocusedRunnerTests": 1,
+            "targetDbDropDeviceMappedPhpTests": 1,
+            "targetFolderIndexStateAvailabilityMappedPhpTests": 1,
+            "targetReceiveIndexFolderStateMappedPhpTests": 1,
+            "targetInboundRequestServingMethods": 5,
+            "targetIncomingRequestModelTestCases": 7,
+            "targetRequestServingTestFunctions": 3,
+            "targetRequestMaxSizeTestFunctions": 1,
+            "targetRequestMaxSizeFocusedRunnerTests": 1,
+            "targetRequestServingMaxSizeMappedPhpTests": 1,
+            "targetTempNameMethods": 3,
+            "targetTempNameTestFunctions": 1,
+            "targetTempNameCases": 2,
+            "targetTempNameMappedPhpTests": 2,
+            "targetIgnorePackagePaths": 8,
+            "targetIgnoreTestFunctions": 42,
+            "targetIgnoreIncludeEscapeTestFunctions": 13,
+            "targetIgnoreIncludeEscapeMappedPhpTests": 4,
+            "targetRequestReceiveEncryptedTestFunctions": 1,
+            "targetRequestModelRequestTestFunctions": 11,
+            "targetProtocolEncryptionTestFunctions": 7,
+            "targetEncryptedNameTestFunctions": 2,
+            "targetEncryptedNameCases": 7,
+            "targetDecryptNameInvalidCases": 4,
+            "targetEncryptedRequestTransformMethods": 2,
+            "targetEncryptedConnectionRequestMethods": 1,
+            "targetEncryptedModelRequestMethods": 1,
+            "targetEncryptedModelRequestServingMappedPhpTests": 1,
+            "targetEncryptedResponsePaddingTrimMappedPhpTests": 2,
+            "targetFileKeyDerivationMethods": 1,
+            "targetEncryptedBlockHashMethods": 2,
+            "targetEncryptedBlockHashInvariants": 4,
+            "targetEncryptedPathHelperMethods": 3,
+            "targetEncryptionTrailerMethods": 3,
+            "targetReceiveEncryptedFinalizationMethods": 4,
+            "targetReceiveEncryptedDecryptToolTrailerMethods": 2,
+            "targetReceiveEncryptedFinalizationMappedPhpTests": 1,
+            "targetEncryptedBytesMethods": 3,
+            "targetEncryptedBytesTestFunctions": 1,
+            "targetEncryptedFileInfoMethods": 4,
+            "targetEncryptedFileInfoTestFunctions": 2,
+            "targetEncryptedFileInfoFixtureBlocks": 2,
+            "targetEncryptedIndexCollectionMethods": 6,
+            "targetEncryptedIndexCollectionMappedPhpTests": 1,
+            "targetEncryptedDownloadProgressMethods": 2,
+            "targetEncryptedDownloadProgressMappedPhpTests": 2,
+            "targetReceiveEncryptedScanCleanupMethods": 3,
+            "targetReceiveEncryptedScanCleanupMappedPhpTests": 1,
+            "targetReceiveEncryptedMappedPhpTests": 16,
+            "targetCcCheckEncryptionTestFunctions": 1,
+            "targetCcCheckEncryptionTableCases": 11,
+            "targetClusterConfigEncryptedTestFunctions": 1,
+            "targetEncryptionConsistencyMappedPhpTests": 3,
+            "targetPasswordTokenMethods": 2,
+            "targetKeyDerivationTestFunctions": 1,
+            "targetPasswordTokenOracleCases": 2,
+            "targetAesSivNativeMethods": 6,
+            "targetPingCloseProtoMessages": 2,
+            "targetPingCloseProtocolMethods": 8,
+            "targetPingCloseTestFunctions": 8,
+            "targetPingCloseMappedPhpTests": 2,
+            "targetRawDispatcherStateTestFunctions": 6,
+            "targetRawDispatcherMappedPhpTests": 4,
+            "targetStreamFrameMethods": 6,
+            "targetStreamFrameMappedPhpTests": 3,
+            "targetModelCallbackMappedPhpTests": 3,
+            "targetDeviceIdTestFunctions": 5,
+            "targetLuhnTestFunctions": 1,
+            "targetDeviceIdBenchmarks": 4,
+            "targetDeviceIdMappedPhpTests": 5,
+            "goTestFileBreakdown": {
+                "lib": 105,
+                "test": 15,
+                "internal": 10,
+                "cmd": 8,
+                "meta": 3
+            },
+            "goTestPackageFileHotspots": {
+                "lib/model": 18,
+                "test": 15,
+                "lib/protocol": 13,
+                "lib/fs": 12,
+                "internal/db/sqlite": 8
+            },
+            "targetPullScannerRoutineMethods": 1,
+            "targetPullScannerRoutineBranches": 5,
+            "targetPullScannerRoutineMappedPhpTests": 4,
+            "targetHandleDirSymlinkMethods": 3,
+            "targetHandleDirSymlinkTestFunctions": 5,
+            "targetHandleDirSymlinkFocusedRunnerTests": 5,
+            "targetHandleDirSymlinkMappedPhpTests": 4,
+            "targetDeleteItemLifecycleMethods": 4,
+            "targetDeleteItemLifecycleTestFunctions": 5,
+            "targetDeleteItemLifecycleFocusedRunnerTests": 5,
+            "targetDeleteItemLifecycleMappedPhpTests": 6,
+            "targetProcessDeletionsMethods": 1,
+            "targetProcessDeletionsBranches": 2,
+            "targetProcessDeletionsMappedPhpTests": 2,
+            "targetRenameShortcutMethods": 3,
+            "targetRenameShortcutBranches": 7,
+            "targetRenameShortcutTestFunctions": 1,
+            "targetRenameShortcutFocusedRunnerTests": 1,
+            "targetRenameShortcutMappedPhpTests": 3,
+            "targetMetadataShortcutMethods": 3,
+            "targetMetadataShortcutBranches": 6,
+            "targetMetadataShortcutMappedPhpTests": 6,
+            "targetPlatformMetadataMethods": 5,
+            "targetPlatformMetadataProtoMessages": 3,
+            "targetPlatformMetadataFocusedRunnerTests": 3,
+            "targetPlatformMetadataMappedPhpTests": 4,
+            "targetScannerPlatformDataMethods": 4,
+            "targetScannerPlatformDataTestFunctions": 2,
+            "targetScannerPlatformDataFocusedRunnerTests": 2,
+            "targetScannerPlatformDataMappedPhpTests": 5,
+            "targetScannerWalkMethods": 5,
+            "targetScannerWalkTestFunctions": 7,
+            "targetScannerWalkFocusedRunnerTests": 7,
+            "targetScannerWalkMappedPhpTests": 3,
+            "targetScannerBlockSizeHysteresisMethods": 3,
+            "targetScannerBlockSizeHysteresisTestFunctions": 1,
+            "targetScannerBlockSizeHysteresisCases": 5,
+            "targetScannerBlockSizeHysteresisFocusedRunnerTests": 1,
+            "targetScannerBlockSizeHysteresisMappedPhpTests": 2,
+            "targetSetXattrReplacementMethods": 2,
+            "targetSetXattrReplacementBranches": 7,
+            "targetSetXattrReplacementTestFunctions": 1,
+            "targetSetXattrReplacementFocusedRunnerTests": 1,
+            "targetSetXattrReplacementMappedPhpTests": 5,
+            "targetReceiveEncryptedMetadataShortcutMethods": 2,
+            "targetReceiveEncryptedMetadataShortcutBranches": 7,
+            "targetReceiveEncryptedMetadataShortcutMappedPhpTests": 4,
+            "targetReceiveEncryptedMetadataShortcutRetryMappedPhpTests": 3,
+            "targetPullIterationRunnerMethods": 4,
+            "targetPullIterationRunnerBranches": 5,
+            "targetPullIterationRunnerMappedPhpTests": 3,
+            "targetXattrNoFollowMethods": 4,
+            "targetXattrNoFollowMappedPhpTests": 2,
+            "targetXattrUnsupportedMethods": 2,
+            "targetXattrUnsupportedMappedPhpTests": 1,
+            "targetXattrSortedListMethods": 1,
+            "targetXattrHardErrorBranches": 5,
+            "targetXattrHardErrorMappedPhpTests": 5,
+            "targetScannerUnchangedMethods": 5,
+            "targetScannerUnchangedTestFunctions": 1,
+            "targetScannerUnchangedFocusedRunnerTests": 1,
+            "targetScannerUnchangedMappedPhpTests": 1,
+            "targetScannerIgnorePermsModTimeMethods": 5,
+            "targetScannerIgnorePermsModTimeTestFunctions": 2,
+            "targetScannerIgnorePermsModTimeFocusedRunnerTests": 2,
+            "targetScannerIgnorePermsModTimeMappedPhpTests": 3,
+            "targetScannerNormalizationMethods": 4,
+            "targetScannerNormalizationTestFunctions": 1,
+            "targetScannerNormalizationFocusedRunnerTests": 1,
+            "targetScannerNormalizationMappedPhpTests": 3,
+            "targetScannerProgressMethods": 5,
+            "targetScannerProgressEventFields": 4,
+            "targetScannerProgressFocusedRunnerTests": 2,
+            "targetScannerProgressMappedPhpTests": 2,
+            "targetScannerWindowsExecPermissionMethods": 1,
+            "targetScannerWindowsExecPermissionBranches": 1,
+            "targetScannerWindowsExecPermissionSkippedRunnerTests": 1,
+            "targetScannerWindowsExecPermissionMappedPhpTests": 1,
+            "targetScannerWindowsSymlinkMethods": 2,
+            "targetScannerWindowsSymlinkStaticBranches": 1,
+            "targetScannerWindowsSymlinkFocusedRunnerTests": 1,
+            "targetScannerWindowsSymlinkMappedPhpTests": 1,
+            "targetScannerErrorMethods": 5,
+            "targetScannerErrorFocusedRunnerTests": 1,
+            "targetScannerErrorMappedPhpTests": 3,
+            "targetScannerTemporaryCleanupMethods": 4,
+            "targetScannerTemporaryCleanupConfigFields": 2,
+            "targetScannerTemporaryCleanupMappedPhpTests": 1,
+            "targetScannerSymlinkParentGuardMethods": 2,
+            "targetScannerSymlinkParentGuardTestFunctions": 2,
+            "targetScannerSymlinkParentGuardFocusedRunnerTests": 5,
+            "targetScannerSymlinkParentGuardMappedPhpTests": 1,
+            "targetScannerSubWalkDiagnosticMethods": 2,
+            "targetScannerSubWalkDiagnosticStatuses": 5,
+            "targetScannerSubWalkDiagnosticFocusedRunnerTests": 5,
+            "targetScannerSubWalkDiagnosticMappedPhpTests": 1,
+            "targetScannerWalkFailureMethods": 3,
+            "targetScannerWalkFailureFocusedRunnerTests": 5,
+            "targetScannerWalkFailureMappedPhpTests": 2,
+            "targetScannerFailureEventCollectorMappedPhpTests": 2,
+            "targetScannerCheckpointEventCollectorMethods": 7,
+            "targetScannerCheckpointEventCollectorMappedPhpTests": 1,
+            "targetScannerCheckpointEventCollectorWordPressExamples": 1,
+            "targetScannerCheckpointStatusMethods": 8,
+            "targetScannerCheckpointStatusFocusedRunnerTests": 4,
+            "targetScannerCheckpointStatusMappedPhpTests": 3,
+            "targetScannerCheckpointStatusWordPressExamples": 1,
+            "targetFolderScanServiceMethods": 6,
+            "targetFolderScanServiceFocusedRunnerTests": 3,
+            "targetFolderScanServiceMappedPhpTests": 5,
+            "targetFolderScanServiceWordPressExamples": 1,
+            "targetFolderScanSchedulerMethods": 9,
+            "targetFolderScanSchedulerFocusedRunnerTests": 3,
+            "targetFolderScanSchedulerMappedPhpTests": 4,
+            "targetFolderScanSchedulerWordPressExamples": 1,
+            "targetWordPressOptionCheckpointStoreMethods": 5,
+            "targetWordPressOptionCheckpointStoreMappedPhpTests": 5,
+            "targetWordPressOptionCheckpointStoreWordPressExamples": 1,
+            "targetSqliteCheckpointStoreMethods": 8,
+            "targetSqliteCheckpointStoreFocusedRunnerTests": 5,
+            "targetSqliteCheckpointStoreMappedPhpTests": 5,
+            "targetSqliteCheckpointStoreWordPressExamples": 1,
+            "targetFolderScanApiCoordinatorMethods": 8,
+            "targetFolderScanApiFocusedRunnerTests": 4,
+            "targetFolderScanApiMappedPhpTests": 4,
+            "targetFolderScanApiWordPressExamples": 1,
+            "targetFolderScanApiRequestQueueMethods": 6,
+            "targetFolderScanApiRequestQueueMappedPhpTests": 3,
+            "targetFolderScanApiRequestQueueWordPressExamples": 1,
+            "targetFolderDelayScanMethods": 5,
+            "targetFolderDelayScanStaticBranches": 4,
+            "targetFolderDelayScanFocusedRunnerTests": 4,
+            "targetFolderDelayScanMappedPhpTests": 3,
+            "targetFolderDelayScanWordPressExamples": 1
+        },
+        "runnerStatus": {
+            "executed": false,
+            "reason": "The full upstream runner was not executed in this lane slice. The upstream cache is blob-filtered/no-checkout with mass tracked deletions in its working tree, and running `go test ./...` would require hydrating the full checkout, downloading/building the Go module graph, and executing 141 Go test files plus integration test paths under `test/`; this exceeds the modest network/CPU budget for this worker run. The denominator is therefore a cloned static tree inventory, not upstream pass parity.",
+            "probes": [
+                {
+                    "command": "git ls-tree -r --name-only HEAD",
+                    "result": "counted 264 unique behavior/test inventory paths without full blob hydration"
+                },
+                {
+                    "command": "targeted git show reads of 141 upstream `_test.go` files",
+                    "result": "verified 658 static Go test/benchmark entry points: 610 Test functions, 48 Benchmark functions, and 0 Fuzz functions across 141 test files; package-file breakdown is lib 105, cmd 8, internal 10, integration test tree 15, and meta 3"
+                },
+                {
+                    "command": "go version",
+                    "result": "Go is available on this shell as `/usr/bin/go` version `go1.26.3-X:nodwarf5 linux/amd64`; the full runner was still not executed because the no-checkout cache would need broad hydration plus dependency build/test work beyond this worker run's budget"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-blockpull.JDPvbM 3962a237232473c20a44945a6c8ce8c930375360; go test ./lib/model -run 'Test_chunk|Test_inOrderBlockPullReorderer_Reorder|Test_standardBlockPullReorderer_Reorder' -count=1",
+                    "result": "passed focused upstream block-pull reorderer package slice with `ok github.com/syncthing/syncthing/lib/model 0.020s`; this is bounded upstream evidence for three selected tests, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-blockdiff.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./lib/model -run 'TestDiff|TestDiffEmpty' -count=1",
+                    "result": "passed focused upstream blockDiff package slice with `ok github.com/syncthing/syncthing/lib/model 0.011s`; this is bounded upstream evidence for two selected block-diff tests, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-pullplan.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./lib/model -run '^(TestHandleFile|TestHandleFileWithTemp|TestCopierFinder|TestPullEmptyBlock)$' -count=1",
+                    "result": "passed focused upstream handleFile/copier/zero-block package slice with `ok github.com/syncthing/syncthing/lib/model 0.093s`; this is bounded upstream evidence for four selected pull-planning tests, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-queue.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./lib/model -run 'TestJobQueue|TestBringToFront|TestQueuePagination' -count=1",
+                    "result": "passed focused upstream job queue package slice with `ok github.com/syncthing/syncthing/lib/model 0.013s`; this is bounded upstream evidence for three selected queue tests, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-deviceactivity.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./lib/model -run '^TestDeviceActivity$' -count=1",
+                    "result": "passed focused upstream device activity package slice with `ok github.com/syncthing/syncthing/lib/model 0.010s`; this is bounded upstream evidence for one selected activity test, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-fileinfobatch.* 3962a237232473c20a44945a6c8ce8c930375360; cd /tmp/syncthing-fileinfobatch.*; go test ./lib/model -run '^TestFileInfoBatchError$' -count=1",
+                    "result": "passed focused upstream FileInfoBatch package slice with `ok github.com/syncthing/syncthing/lib/model 0.010s`; this is bounded upstream evidence for one selected FileInfoBatch test, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-servicemap.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./lib/model -run '^TestServiceMap$' -count=1",
+                    "result": "passed focused upstream service-map package slice with `ok github.com/syncthing/syncthing/lib/model 0.019s`; this is bounded upstream evidence for one selected service-map test, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-indexhandler.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./lib/model -run '^TestIndexhandlerConcurrency$' -count=1",
+                    "result": "passed focused upstream indexhandler concurrency package slice with `ok github.com/syncthing/syncthing/lib/model 0.907s`; this is bounded upstream evidence for one selected indexhandler test, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-receive-index.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./lib/model -run '^TestNeedFolderFiles$' -count=1",
+                    "result": "passed focused upstream receive-index package slice with `ok github.com/syncthing/syncthing/lib/model 0.037s`; this is bounded upstream evidence for the selected RemoteIndexUpdated/NeedFolderFiles boundary, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-completion.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./lib/model -run 'TestAddFolderCompletion|TestCompletionEmptyGlobal' -count=1",
+                    "result": "passed focused upstream folder-completion package slice with `ok github.com/syncthing/syncthing/lib/model 0.031s`; this is bounded upstream evidence for two selected completion tests, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-request-size.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./lib/protocol -run '^TestRequestMaxSize$' -count=1",
+                    "result": "passed focused upstream request max-size package slice with `ok github.com/syncthing/syncthing/lib/protocol 0.008s`; this is bounded upstream evidence for the selected request-size dispatcher guard, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-dbneed.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./internal/db/sqlite -run '^(TestNeed|TestNeedDeleted|TestDontNeedIgnored|TestLocalDontNeedDeletedMissing|TestRemoteDontNeedDeletedMissing|TestNeedRemoteSymlinkAndDir|TestNeedPagination)$' -count=1",
+                    "result": "passed focused upstream sqlite global/need package slice with `ok github.com/syncthing/syncthing/internal/db/sqlite 0.041s`; this is bounded upstream evidence for seven selected need/global tests, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-globaldrop.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./internal/db/sqlite -run '^(TestDropRecalcsGlobal|TestDeletedAfterConflict)$' -count=1",
+                    "result": "passed focused upstream sqlite global drop/recalculation package slice with `ok github.com/syncthing/syncthing/internal/db/sqlite 0.025s`; this is bounded upstream evidence for two selected global recalculation tests, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-pullorder.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./internal/db/sqlite -run '^TestBasics/AllNeededNamesLocal$' -count=1",
+                    "result": "passed focused upstream sqlite needed-file pull-order subtest with `ok github.com/syncthing/syncthing/internal/db/sqlite 0.018s`; this is bounded upstream evidence for alphabetic, largestFirst, smallestFirst, newestFirst, and oldestFirst needed-file ordering plus limit behavior, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-prefixdrop.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./internal/db/sqlite -run 'TestBasics/AllGlobalPrefix|TestDropDevice' -count=1",
+                    "result": "passed focused upstream sqlite global-prefix/drop-device slice with `ok github.com/syncthing/syncthing/internal/db/sqlite 0.028s`; this is bounded upstream evidence for the selected AllGlobalFilesPrefix subtest and DropDevice test, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-versioner.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./lib/versioner -run 'TestTaggedFilename|TestTrashcanArchiveRestoreSwitcharoo|TestTrashcanRestoreDeletedFile' -count=1",
+                    "result": "passed focused upstream versioner Archive/tagging package slice with `ok github.com/syncthing/syncthing/lib/versioner 0.009s`; this is bounded upstream evidence for selected Archive and TagFilename behavior, not full `go test ./...` parity"
+                },
+                {
+                    "command": "go test ./lib/model -run '^TestCopyOwner$' -count=1",
+                    "result": "passed focused upstream platform ownership package slice in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/model 0.028s`; this is bounded upstream evidence for the selected CopyOwnershipFromParent directory/file/symlink test, not full `go test ./...` parity"
+                },
+                {
+                    "command": "go test ./lib/scanner -run '^TestScanOwnershipPOSIX$' -count=1",
+                    "result": "passed focused upstream scanner ownership package slice in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/scanner 0.013s`; this is bounded upstream evidence for CreateFileInfo/PlatformData ownership scanning, not full `go test ./...` parity"
+                },
+                {
+                    "command": "go test ./lib/scanner -run 'TestWalk$|TestWalkSub|TestRecurseInclude|TestIncludedSubdir|TestSkipIgnoredDirs|TestNotExistingError|TestIssue4799' -count=1",
+                    "result": "passed focused upstream scanner walk package slice in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/scanner 0.024s`; this is bounded upstream evidence for seven selected walk/ignore/sub tests, not full `go test ./...` parity"
+                },
+                {
+                    "command": "go test ./lib/scanner -run '^TestVerify$|^TestWalk$' -count=1",
+                    "result": "passed focused upstream scanner walk and byte-counter package slice in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/scanner 0.010s`; this is bounded upstream evidence for walk output and scanner byte-counter behavior adjacent to FolderScanProgress, not full `go test ./...` parity"
+                },
+                {
+                    "command": "targeted git show reads of lib/scanner/walk.go and lib/scanner/blockqueue.go; go test ./lib/scanner -run '^TestStopWalk$' -count=1",
+                    "result": "inspected scanner `handleError`, `isWarnableError`, context cancellation checks, and `parallelHasher.hashFiles` error handling; focused upstream cancellation runner passed in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/scanner 0.155s`; this is bounded evidence for selected scan error/cancel boundaries, not full `go test ./...` parity"
+                },
+                {
+                    "command": "targeted git show reads of lib/scanner/walk.go scan/isWarnableError/handleError and lib/scanner/walk_test.go TestNotExistingError/TestIssue4799/TestWalkSub/TestStopWalk/TestIncludedSubdir; go test ./lib/scanner -run 'TestNotExistingError|TestIssue4799|TestWalkSub|TestStopWalk|TestIncludedSubdir' -count=1",
+                    "result": "passed focused upstream scanner walk failure-boundary slice in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/scanner 0.152s`; this is bounded evidence for configured-sub missing/direct-file handling, stop/cancel behavior, included subdir traversal, and the static Failure-event/isWarnableError boundary, not full `go test ./...` parity"
+                },
+                {
+                    "command": "targeted git show reads of lib/scanner/walk.go EventLogger calls, events.Failure, walkFailureEventDesc, and root/sub Filesystem.Walk abort handling; go test ./lib/scanner -run 'TestNotExistingError|TestIssue4799|TestWalkSub|TestStopWalk|TestIncludedSubdir' -count=1",
+                    "result": "refreshed focused upstream scanner walk failure-boundary slice in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/scanner 0.188s`; native PHP now maps the folder-scoped Failure event collector boundary with two additional PHP tests, not full `go test ./...` parity"
+                },
+                {
+                    "command": "targeted git show reads of lib/scanner/walk.go CurrentFiler, ScanResult, FolderScanProgress, handleError, walkRegular/walkDir/walkSymlink unchanged checks, and lib/scanner/walk_test.go TestWalkReceiveOnly/TestStopWalk/TestNotExistingError/TestIncludedSubdir/fakeCurrentFiler; go test ./lib/scanner -run '^(TestWalkReceiveOnly|TestStopWalk|TestNotExistingError|TestIncludedSubdir)$' -count=1",
+                    "result": "passed focused upstream scanner checkpoint/status slice in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/scanner 0.115s`; native PHP now maps durable checkpoint merge semantics for resume-current FileInfo reuse, scan progress status, path errors, and Failure-event REST payloads with three additional PHP tests, not full `go test ./...` parity"
+                },
+                {
+                    "command": "targeted git show reads of lib/scanner/walk.go updateFileInfo plus lib/scanner/walk_test.go TestScanOwnershipWindows; go test ./lib/scanner -run '^TestScanOwnershipWindows$' -count=1 -v",
+                    "result": "static reads counted the Windows-only regular-file executable-bit preservation branch `dst.Permissions |= (src.Permissions & 0o111)` and one Windows-only upstream scanner test; the focused runner passed by skipping on this Linux host with `--- SKIP: TestScanOwnershipWindows` and `ok github.com/syncthing/syncthing/lib/scanner 0.007s`, so this is static host-specific evidence, not executed Windows runner parity"
+                },
+                {
+                    "command": "targeted git show reads of lib/scanner/walk.go handleItem/walkSymlink plus lib/scanner/walk_test.go TestWalkSymlinkUnix; go test ./lib/scanner -run '^TestWalkSymlinkUnix$' -count=1",
+                    "result": "static reads counted the Windows-only `walkSymlink` early return that ignores symlinks and the POSIX symlink FileInfo test; the focused POSIX runner passed in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/scanner 0.013s`, so the Windows branch remains host-specific static evidence while POSIX symlink behavior has executable runner evidence"
+                },
+                {
+                    "command": "go test ./lib/fs -run '^TestXattr$' -count=1",
+                    "result": "passed focused upstream filesystem xattr package slice in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/fs 0.009s`; this is bounded upstream evidence for filtered xattr read/write and SetXattr replacement behavior, not full `go test ./...` parity"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/indexhandler.go and lib/model/indexhandler_test.go",
+                    "result": "inspected sendIndexTo initial Index vs IndexUpdate selection, localPrevSequence vs sentPrevSequence tracking, FileInfoBatch flush closure, add/delete rename batch boundary, receive-encrypted local-change skipping, prepareFileInfoForIndex, makeForgetUpdate, and upstream TestIndexhandlerConcurrency without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/indexhandler.go and lib/model/model.go",
+                    "result": "inspected newIndexHandler start-sequence decisions from ClusterConfig device index IDs, remote index reset actions, AddIndexInfo pending-start behavior, RegisterFolderState pause/resume behavior, RemoveAllExcept cleanup, ReceiveIndex missing-folder boundary, and folder SharedWith gating without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/indexhandler.go, lib/model/model.go, lib/model/requests_test.go, internal/db/sqlite/folderdb_update.go, and internal/db/sqlite/sql/schema/folder/30-indexids.sql",
+                    "result": "inspected model.Index/IndexUpdate handleIndex routing, indexHandlerRegistry.ReceiveIndex missing-folder boundary, indexHandler.receive paused-folder boundary, full-index DropAllFiles path, makeForgetUpdate temporary-progress cleanup, sequence anomaly logging, duplicate remote sequence update errors, RemoteIndexUpdated payload, indexids remote-sequence trigger behavior, and upstream TestNeedFolderFiles without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/model.go, lib/model/model_test.go, and lib/model/folderstate.go",
+                    "result": "inspected FolderCompletion, newFolderCompletion, add, setCompletionPct, Map, downloaded-byte subtraction in folderCompletion, remote folder state strings, upstream TestAddFolderCompletion, and upstream TestCompletionEmptyGlobal without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of internal/db/sqlite/db_global_test.go, folderdb_global.go, folderdb_counts.go, and folderdb_update.go",
+                    "result": "inspected local and remote need selection, deleted global handling, ignored and remote-invalid boundaries, directory/symlink need counts, alphabetic need pagination, pull-order ORDER BY selection, AllGlobalFilesPrefix range behavior, DropDevice cascading recalculation/no-op behavior, full-index reset global recalculation, and fileRow conflict ordering without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/folder_sendrecv.go and lib/model/folder_sendrecv_test.go",
+                    "result": "inspected blockDiff index-based source/target block comparison, populateOffsets, the upstream TestDiff table with 12 cases, TestDiffEmpty with 3 nil/empty cases, and BenchmarkDiff without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/folder_sendrecv.go, lib/model/folder_sendrecv_test.go, lib/model/sharedpullerstate.go, and lib/protocol/bep_fileinfo.go",
+                    "result": "inspected handleFile temp-file reuse pruning, copyBlocksState remaining work, copierRoutine sparse zero-block skip before local copy lookup, current-file and local block-index copy fallback, pullStarted accounting, sharedPullerState progress counters, BlockInfo.IsEmpty zero-hash table, and upstream TestHandleFile/TestHandleFileWithTemp/TestCopierFinder/TestPullEmptyBlock without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/folder_sendrecv.go",
+                    "result": "inspected pullBlock candidate loop, least-busy device selection, one-attempt candidate removal, deviceActivity using/done around RequestGlobal, response error retry, verifyBuffer length/hash checks, all-zero block network skip, errNoDevice fallback, and receive-encrypted hash-token trust without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/sharedpullerstate.go and lib/model/folder_sendrecv.go",
+                    "result": "inspected tempFile creation/truncation, tempFileInWritableDir provisional permission mode and read-only reuse chmod branch, copyDone and pullDone availability accounting, finalClose readiness/idempotence/error close behavior, performFinish chmod/scanIfItemChanged/rename/dbUpdateHandleFile boundary, sparse all-zero block handling, TestReadOnlyDir, TestPullCaseOnlyPerformFinish, TestDeleteIgnorePerms, and failed temporary-file retention without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/folder_sendrecv.go, lib/versioner/versioner.go, lib/versioner/simple.go, lib/versioner/trashcan.go, and lib/versioner/util.go",
+                    "result": "inspected performFinish's conflict-before-archive branch, deleteItemOnDisk's directory/symlink/versioner Archive branches, versioner Archive contract, archiveFile, TagFilename, trashcan untagged archive behavior, and simple-versioner tagged archive behavior without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/bep_fileinfo.go and lib/protocol/bep_fileinfo_test.go",
+                    "result": "inspected FileInfo equivalence and BlocksEqual semantics without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/fileinfobatch.go and lib/model/fileinfobatch_test.go",
+                    "result": "inspected MaxBatchSizeBytes, MaxBatchSizeFiles, Append, Full, FlushIfFull, Flush, Reset, Size, sticky flush-error behavior, and the upstream TestFileInfoBatchError lifecycle without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/protocol.go, protocol_test.go, wireformat.go, bep_index_updates.go, and bep_request_response.go",
+                    "result": "inspected filename canonicality, request size validation, FileInfo index consistency checks, request/index update path normalization, and IndexUpdate message fields without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/bep_hello.go, bep_hello_test.go, bep_request_response.go, proto/bep/bep.proto, and protocol.go",
+                    "result": "inspected hello magic/length/protobuf handling, old-magic error cases, Request/Response field mappings, Header message type values, and uncompressed post-auth frame layout without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/protocol.go, lib/protocol/errors.go, lib/protocol/protocol_test.go, lib/model/model.go, and proto/bep/bep.proto",
+                    "result": "inspected rawConnection.Request ID allocation, awaiting response resolution, internalClose pending-request drain behavior, codeToError/errorToCode mappings, request max-size/invalid-filename dispatcher tests, and model request error boundaries without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/protocol.go and protocol_test.go",
+                    "result": "inspected `TestWriteCompressed`, `TestLZ4Compression`, `TestLZ4CompressionUpdate`, raw LZ4 length-prefix helpers, compression threshold, response/metadata compression decisions, and compressed-message fallback behavior without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of 141 `_test.go` files plus lib/protocol/bep_clusterconfig.go and proto/bep/bep.proto",
+                    "result": "counted 658 static Go test/benchmark entry points and inspected ClusterConfig/Folder/Device protobuf field mappings without hydrating the full checkout"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/bep_index_updates.go, lib/protocol/bep_fileinfo.go, lib/protocol/vector.go, and proto/bep/bep.proto",
+                    "result": "inspected Index/IndexUpdate toWire/fromWire conversion, FileInfo ToWire invalid/local_flags behavior, BlockInfo field mapping, Vector/Counter wire mapping, and Unix PlatformData field numbers without hydrating the full checkout"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/bep_download_progress.go, proto/bep/bep.proto, focused TestUnmarshalFDPUv16v17 in lib/protocol/protocol_test.go, and lib/model/devicedownloadstate.go plus devicedownloadstate_test.go",
+                    "result": "inspected DownloadProgress/FileDownloadProgressUpdate protobuf fields, append/forget enum values, unpacked repeated block_indexes, block_size, legacy FDPU unmarshal fixtures, and remote temporary-download append/forget/version replacement semantics without hydrating the full checkout"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/sentdownloadstate.go, lib/model/progressemitter.go, lib/model/progressemitter_test.go, and lib/model/sharedpullerstate.go",
+                    "result": "inspected outgoing temporary-index state, active puller filtering, new-block-only append deltas, version or puller-recreation forget+append replacement, completed/errored cleanup forgets, and upstream SendDownloadProgress test cases without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/progressemitter.go, lib/model/progressemitter_test.go, and lib/model/sharedpullerstate.go",
+                    "result": "inspected ProgressEmitter subscription grouping, deregister behavior, disconnected-device sent-state cleanup, silent unshared-folder state cleanup, disable clear cleanup, BytesCompleted, PullerProgress fields, and blocksToSize byte estimation without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/progressemitter.go, lib/model/progressemitter_test.go, and lib/protocol/protocol.go",
+                    "result": "inspected ProgressEmitter.Serve timer gating, progressUpdate.send ordering, protocol.Connection.DownloadProgress, rawConnection.DownloadProgress, and the upstream send-after-compute boundary without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/model.go, lib/model/folder_sendrecv.go, lib/model/devicedownloadstate.go, and lib/model/requests_test.go",
+                    "result": "inspected model.DownloadProgress sharing guards and RemoteDownloadProgress event summaries, blockAvailabilityFromTemporaryRLocked candidate selection, RequestGlobal fromTemporary propagation, and puller RequestGlobal call sites without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/model.go and lib/model/devicedownloadstate.go",
+                    "result": "inspected model.Closed deletion of deviceDownloads when the final connection closes, fileAvailabilityRLocked filtering by connected devices, blockAvailabilityFromTemporaryRLocked temporary candidates, RequestGlobal connection lookup, requestConnectionForDevice no-connection boundary, and deviceDownloadState Has/Update nil-safe temporary-state behavior without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/model.go, lib/model/model_test.go, lib/model/requests_test.go, lib/model/folder_sendrecv.go, lib/scanner/blocks.go, lib/fs/tempname.go, and lib/fs/filesystem.go",
+                    "result": "inspected inbound Request serving, readOffsetIntoBuf, scanner hash validation, request test cases, temporary filename generation, and internal-file rejection without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/fs/tempname.go and lib/fs/tempname_test.go",
+                    "result": "inspected IsTemporary basename-prefix detection, UnixTempPrefix, WindowsTempPrefix, TempNameWithPrefix long-basename hashing, TempName default prefix selection, one upstream TestLongTempFilename function, and two benchmark entry points without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/model.go, lib/model/requests_test.go, lib/ignore/ignore.go, lib/ignore/ignoreresult/ignoreresult.go, lib/ignore/ignore_test.go, and lib/ignore/ignoreresult/ignoreresult_test.go",
+                    "result": "inspected Request ignored-file rejection, receive-encrypted final-file hash bypass, 8 ignore package paths, 42 ignore package test functions, 11 request-model test functions, and 1 receive-encrypted request test without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/ignore/ignore.go, lib/ignore/ignore_test.go, and man/syncthing-stignore.5",
+                    "result": "inspected #include relative loading, partial/missing include errors, #escape= placement and single-rune validation, escaped glob metacharacters, bracket ranges, brace alternatives, and CanSkipDir behavior after negated patterns without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/encryption.go, lib/protocol/encryption_test.go, lib/model/sharedpullerstate.go, lib/model/folder_sendrecv.go, and lib/model/requests_test.go",
+                    "result": "inspected encryptedConnection/encryptedModel request size and offset transforms, opaque encrypted hash-token boundaries, slashify/deslashify encrypted path shape, IsEncryptedParent cases, receive-encrypted request test boundary, and writeEncryptionTrailer/encryptionTrailerSize behavior without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/sharedpullerstate.go, lib/model/folder_sendrecv.go, lib/model/indexhandler.go, and cmd/syncthing/decrypt/decrypt.go",
+                    "result": "inspected sharedPullerState.finalizeEncrypted, writeEncryptionTrailer, metadata-shortcut trailer rewrite, prepareFileInfoForIndex trailer-size subtraction, loadEncryptedFileInfo, decryptFile block-count/last-block-padding/hash verification, and receive-encrypted finalized-file boundaries without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/encryption.go and lib/protocol/encryption_test.go",
+                    "result": "inspected TestEnDecryptName, TestDecryptNameInvalid, KeyGenerator.FileKey HKDF derivation, encryptBlockHash offset additional data, legacy no-offset decrypt fallback, and TestEnDecryptFileInfo block-hash stability/different-offset invariants without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/encryption.go",
+                    "result": "inspected encryptedConnection.Request and encryptedModel.Request size inflation, offset overhead, encrypted hash-token decryption, response padding to minPaddedSize, XChaCha20-Poly1305 response encryption, and trusted-side plaintext trimming without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/encryption.go and lib/model/model.go",
+                    "result": "inspected encryptedModel.Request decrypt-name/hash/geometry, model.Request disk serving, no-such-file hash mismatch errors, and successful response padding/encryption without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/encryption.go, lib/protocol/encryption_test.go, lib/protocol/bep_fileinfo.go, and proto/bep/bep.proto",
+                    "result": "inspected encryptBytes/DecryptBytes XChaCha20-Poly1305 nonce-prefix layout, the TestKeyDerivation encrypted-bytes fixture, encryptFileInfo/DecryptFileInfo metadata wrapping, fake encrypted FileInfo fields, encrypted protobuf field 19, symlink-as-directory wrapping, invalid-flag projection, and sequence preservation without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/encryption.go and lib/protocol/bep_index_updates.go",
+                    "result": "inspected encryptedConnection.Index, encryptedConnection.IndexUpdate, encryptedModel.Index, encryptedModel.IndexUpdate, encryptFileInfos, decryptFileInfos, and Index/IndexUpdate file-list wire conversion boundaries without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/encryption.go, lib/protocol/protocol.go, lib/model/model.go, and lib/model/progressemitter.go",
+                    "result": "inspected encryptedConnection.DownloadProgress and encryptedModel.DownloadProgress no-op behavior for folders with registered encryption keys, plus the normal rawConnection/model DownloadProgress forwarding path for plain folders without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/folder.go, lib/model/folder_sendrecv.go, lib/model/folder_recvenc.go, lib/scanner/walk.go, and lib/protocol/encryption.go",
+                    "result": "inspected receive-encrypted WalkWithoutHashing selection, scanBatch synthetic encrypted parent skip/removal behavior, parent-directory creation without scan scheduling, and IsEncryptedParent path classification without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/model.go, lib/model/model_test.go, and lib/config/config_test.go",
+                    "result": "inspected ccCheckEncryption local/remote token and encryption configuration decisions, TestCcCheckEncryption's 11 table cases, untrusted-device plain-folder rejection, token mismatch handling, and adjacent ClusterConfigEncrypted coverage without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/encryption.go, lib/protocol/encryption_test.go, and lib/model/model.go plus a temporary Go oracle for fixed token bytes",
+                    "result": "inspected KeyFromPassword scrypt parameters, knownBytes salt/input, AES-SIV deterministic encryption, PasswordToken, TestKeyDerivation, and the ccCheckEncryption remote-password branch; generated fixed oracle bytes for PHP tests without using Go in the native implementation"
+                },
+                {
+                    "command": "sudo -n dnf install -y php-sodium",
+                    "result": "installed php-sodium/libsodium while probing native KDF support; PHP exposes only high-level scrypt in this build, so exact Syncthing N/r/p scrypt is implemented in lane PHP rather than delegated to the extension"
+                },
+                {
+                    "command": "targeted git show reads of proto/bep/bep.proto, lib/protocol/protocol.go, and lib/protocol/protocol_test.go",
+                    "result": "inspected Ping and Close protobuf messages, rawConnection ping/close send/receive boundaries, message-type mapping, remote close reason handling, compression-aware writeMessage path, and 8 focused upstream ping/close/close-race test functions without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/protocol.go and lib/protocol/protocol_test.go",
+                    "result": "inspected rawConnection writerLoop ClusterConfig-first gating, dispatcherLoop ClusterConfig-first state validation, unknown message skip behavior, remote Close handling, inbound Request/Response dispatch, and focused TestClusterConfigFirst/TestPing/TestClose/TestDispatcherToCloseDeadlock/TestRequestMaxSize/TestRequestInvalidFilename boundaries without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/protocol.go readHeader/readMessage/readMessageAfterHeader/writeMessage/writeCompressedMessage and readerLoop",
+                    "result": "inspected stream-backed post-auth frame boundaries: uint16 header length, exact header read, uint32 message length, max-message guard, exact payload read, unknown-message skip boundary, and complete frame writes without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/protocol.go and lib/model/model.go",
+                    "result": "inspected Model/rawModel Index, IndexUpdate, and DownloadProgress callback signatures, dispatcherLoop model dispatch, model handling error close behavior, and model-level local index/progress entry points without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/deviceid.go, lib/protocol/deviceid_test.go, lib/protocol/luhn.go, and lib/protocol/luhn_test.go",
+                    "result": "inspected DeviceID SHA-256 raw certificate derivation, canonical base32/Luhn/chunk formatting, old and new parser forms, typo replacement, short IDs, byte comparison, and focused Luhn32 tests without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/folder_sendrecv.go around pullScannerRoutine, finisherRoutine, performFinish, scanIfItemChanged, checkToBeDeleted, and deleteDirOnDiskHandleChildren",
+                    "result": "inspected upstream scanChan aggregation into a path set, one Scan call after scanChan close, no scan while pulling, finalization scan-name handoff through performFinish/scanIfItemChanged, deletion scan-name handoff through checkToBeDeleted/deleteDirOnDiskHandleChildren, and receive-only directory resurrection scan boundaries without hydrating broad blobs"
+                },
+                {
+                    "command": "go test ./lib/model -run 'TestDeleteBehindSymlink|TestPullDeleteUnscannedDir|TestPullDeleteCaseConflict|TestPullDeleteIgnoreChildDir|TestIssue3164' -count=1",
+                    "result": "passed focused upstream deleteFile/deleteDir lifecycle package slice with `ok github.com/syncthing/syncthing/lib/model 0.067s`; this is bounded upstream evidence for five selected deletion tests, not full `go test ./...` parity"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/folder_sendrecv.go around processNeeded, popCandidate, renameFile, checkToBeDeleted, performFinish, and shortcut failure fallbacks",
+                    "result": "inspected upstream same-BlocksHash deletion buckets, candidate popping, source delete plus target update lifecycle events, target change scan guards, temp-name rename flow, target dbUpdateHandleFile followed by source dbUpdateDeleteFile, and removal of consumed tombstones from later processDeletions without hydrating broad blobs"
+                },
+                {
+                    "command": "go test ./lib/model -run 'TestPullCaseOnlyRename' -count=1",
+                    "result": "passed focused upstream rename shortcut package slice with `ok github.com/syncthing/syncthing/lib/model 0.027s`; this is bounded upstream evidence for the selected case-only rename shortcut, not full `go test ./...` parity"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/folder_sendrecv.go around processNeeded, shortcutFile, and dbUpdaterRoutine",
+                    "result": "inspected upstream same-block metadata shortcut selection, ItemStarted/ItemFinished metadata events, permission and mtime updates, dbUpdateShortcutFile scheduling, parent-directory fsync handling, and ReceivedFile suppression for metadata-only updates; no direct upstream package test was found for this exact branch"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/folder_sendrecv.go:1252-1319 and lib/model/sharedpullerstate.go:365-410",
+                    "result": "inspected upstream receive-encrypted shortcutFile trailer rewrite, writeEncryptionTrailer offset/size behavior, EncryptionTrailerSize assignment, file.Size expansion before dbUpdateShortcutFile, and final truncate; no direct upstream package test was found for this exact branch"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/folder_sendrecv.go:1252-1319 and lib/model/sharedpullerstate.go:365-410 for receive-encrypted shortcut retry boundaries",
+                    "result": "inspected upstream metadata shortcut error returns, no-create read/write trailer open, WriteAt-at-file.Size trailer placement, file.Size expansion only after trailer write success, final truncate, and dbUpdateShortcutFile scheduling; no direct upstream package test was found for this exact branch"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/folder_sendrecv.go:184-235, 240-260, and 1896-1916",
+                    "result": "inspected upstream pull loop retry semantics: maxPullerIterations is 3, start of each pullerIteration resets tempPullErrors, newPullError keeps the first temporary error per path, changed==0 stops the loop, and only the final tempPullErrors map is promoted to FolderErrors after the loop; no direct upstream package test was found for this exact branch"
+                },
+                {
+                    "command": "targeted git show reads of lib/fs/basicfs_xattr_unix.go, lib/fs/basicfs_xattr_linuxish.go, lib/fs/basicfs_xattr_unsupported.go, lib/model/folder_sendrecv.go, lib/scanner/walk.go, and lib/fs/platform_common.go",
+                    "result": "inspected no-follow Llistxattr/Lgetxattr/Lremovexattr/Lsetxattr calls, unsupported-platform GetXattr/SetXattr ErrXattrsNotSupported returns, setPlatformData ignored ErrXattrsNotSupported branch, scanner CreateFileInfo PlatformData reads, and unixPlatformData xattr propagation without hydrating broad blobs"
+                },
+                {
+                    "command": "go test ./lib/model -run '^TestModTimeWindow$' -count=1",
+                    "result": "passed focused upstream model mod-time-window package slice in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/model 0.028s`; this is bounded upstream evidence for the selected timestamp-window behavior, not full `go test ./...` parity"
+                },
+                {
+                    "command": "go test ./lib/scanner -run '^TestWalkSymlinkUnix$' -count=1",
+                    "result": "passed focused upstream scanner symlink package slice in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/scanner 0.016s`; this is bounded upstream evidence for selected symlink scanner behavior, not full `go test ./...` parity"
+                },
+                {
+                    "command": "targeted git show reads of lib/scanner/walk.go and lib/protocol/bep_fileinfo.go",
+                    "result": "inspected `IgnorePerms`, `ModTimeWindow`, `walkRegular`, `walkDir`, `walkSymlink`, `FileInfo.IsEquivalentOptional`, `ModTimeEqual`, `NoPermissions`, and strict `diff < window` comparison without hydrating broad blobs"
+                },
+                {
+                    "command": "go test ./lib/scanner -run '^TestNormalization$' -count=1",
+                    "result": "passed focused upstream scanner normalization package slice in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/scanner 0.024s`; this is bounded upstream evidence for selected UTF-8 normalization behavior, not full `go test ./...` parity"
+                },
+                {
+                    "command": "targeted git show reads of lib/scanner/walk.go normalization path",
+                    "result": "inspected `normalizePath`, `applyNormalization`, `errUTF8Normalization`, `errUTF8Conflict`, invalid UTF-8 scan errors, same-file normalization rename fallback, and conflicting normalized sibling handling without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/scanner/walk.go sub-walk TraversesSymlink guard plus lib/osutil/traversessymlink.go and traversessymlink_test.go; go test ./lib/scanner -run 'TestWalkSub|TestIssue4799|TestWalkSymlinkUnix' -count=1; go test ./lib/osutil -run '^TestTraversesSymlink$|^TestIssue4875$' -count=1",
+                    "result": "static reads covered the upstream sub-walk skip for paths below symlinked parents and the component-by-component TraversesSymlink helper; focused upstream runners passed with `ok github.com/syncthing/syncthing/lib/scanner 0.016s` and `ok github.com/syncthing/syncthing/lib/osutil 0.011s`, not full `go test ./...` parity"
+                },
+                {
+                    "command": "targeted git show reads of lib/scanner/walk.go scan sub loop, lib/osutil/traversessymlink.go, traversessymlink_test.go, and scanner TestNotExistingError/TestIssue4799; go test ./lib/scanner -run 'TestNotExistingError|TestIssue4799|TestWalkSub' -count=1; go test ./lib/osutil -run '^TestTraversesSymlink$|^TestIssue4875$' -count=1",
+                    "result": "static reads covered upstream TraversesSymlink status boundaries for missing components, not-directory parents, direct file subs, and sub-walk roots that do not exist; focused upstream runners passed with `ok github.com/syncthing/syncthing/lib/scanner 0.010s` and `ok github.com/syncthing/syncthing/lib/osutil 0.008s`, not full `go test ./...` parity"
+                },
+                {
+                    "command": "go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors)$' -count=1",
+                    "result": "refreshed focused upstream model scan API slice in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/lib/model 0.039s`; this anchors ScanFolders/ScanFolderSubdirs synchronous scan publication and error boundaries, including the native multi-folder scheduler slice, not full `go test ./...` parity"
+                },
+                {
+                    "command": "go test ./internal/db/sqlite -run '^(TestBasics|TestNeed)$' -count=1",
+                    "result": "passed focused upstream SQLite DB slice in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with `ok github.com/syncthing/syncthing/internal/db/sqlite 0.042s`; this anchors durable database open/update/global/need behavior adjacent to the native SQLite checkpoint repository, not full `go test ./...` parity"
+                }
+            ]
+        },
+        "mappedSemantics": [
+            "Syncthing scanner empty files produce one zero-length block with the SHA-256 hash of empty bytes.",
+            "Block offsets, sizes, and SHA-256 hashes match selected fixtures from `lib/scanner/blocks_test.go`.",
+            "Block verification requires exact contiguous coverage of the local byte string.",
+            "Per-file block size selection follows `MinBlockSize`, `MaxBlockSize`, and `DesiredPerFileBlocks` from `lib/protocol`.",
+            "Block-list hashes are SHA-256 over concatenated raw block hashes, matching `protocol.BlocksHash`.",
+            "Optional hash validation follows scanner `Validate`: an empty expected hash accepts the bytes.",
+            "Protocol version vectors update counters by sorted device ID and use max(existing + 1, unix time).",
+            "Version vector merges keep the maximum counter value for each device while preserving sorted IDs.",
+            "Missing counters compare as zero, so zero-valued counters compare equal to missing device counters.",
+            "Vector comparison returns equal, greater, lesser, and Syncthing's oriented concurrent orderings.",
+            "Concurrent WordPress media/caption edits from separate devices are detected before merge and dominated by the merged vector.",
+            "FileInfo conflict winners prefer valid entries over invalid entries, then newer modified time, then Syncthing's oriented concurrent vector order.",
+            "Local invalid and local conflict flags distinguish unsupported, ignored, must-rescan, receive-only, and remote-invalid states.",
+            "FileInfo conflict detection accepts descendant versions and concurrent updates that preserve the previous block hash lineage.",
+            "FileInfo conflict detection rejects stale concurrent updates and treats missing block hashes as conflict-prone type-change or unknown lineage cases.",
+            "Tombstone creation clears content hashes and size while advancing the local device version counter.",
+            "FileInfo block equality follows upstream shortcuts: matching aggregate BlocksHash accepts the file before inspecting block lists.",
+            "FileInfo block fallback compares block hash order only, matching upstream behavior that ignores block offsets and sizes in `blocksEqual`.",
+            "FileInfo equivalence checks name, type, deleted state, invalidity, file size, modtime window, blocks, directory identity, and symlink targets while ignoring version, sequence, raw block size, and no-permission noise.",
+            "Must-rescan entries are never equivalent; otherwise local invalid flags compare by invalidity, with explicit ignore flags able to mask local receive-only changes.",
+            "FileInfo comparison supports upstream permission and block ignore options for scanner/config noise.",
+            "Unix ownership equivalence accepts matching UID/GID pairs or matching resolved owner/group names, and treats missing ownership as unequal unless ownership is ignored.",
+            "Protocol filename validation follows upstream `checkFilename`: slash-canonical names are required, absolute paths and leading dotdot escapes are rejected, and Unix wire backslashes remain literal filename characters.",
+            "Index FileInfo consistency rejects deleted files or directories with blocks and live valid files without blocks, while allowing invalid file entries without block data.",
+            "Request validation accepts exactly `MaxRequestSize` and rejects zero, negative, oversized, or traversal-path requests before dispatch.",
+            "Outgoing request and index update names are converted to slash-separated wire paths and normalized toward NFC before protocol validation.",
+            "Native IndexUpdate messages preserve folder, last sequence, previous sequence, and FileInfo lists while applying the same wire-name normalization used by requests.",
+            "Hello frames use the upstream `0x2EA7D90B` magic, big-endian uint16 protobuf length, proto3 fields for device/client/version/connections/timestamp, and reject old v12/v13 or unknown magics.",
+            "Request protobuf payloads preserve upstream field numbers for id, folder, slash-normalized name, offset, size, hash bytes, temporary-source flag, and block number.",
+            "Response protobuf payloads preserve upstream id, data bytes, and `ERROR_CODE_*` values for no-error, generic, no-such-file, and invalid-file responses.",
+            "Uncompressed post-auth BEP frames use the upstream uint16 Header length, proto3 Header type/compression fields, uint32 message length, and message payload layout.",
+            "ClusterConfig protobuf payloads preserve repeated folders, the secondary flag, folder IDs, labels, folder type, stop reason, and repeated device messages.",
+            "Device config protobuf payloads preserve raw ID bytes, repeated addresses, compression mode, certificate name, max sequence, introducer flag, index ID, skip-introduction-removals flag, and encryption password token bytes.",
+            "ClusterConfig post-auth BEP frames use upstream `MESSAGE_TYPE_CLUSTER_CONFIG`; because type and compression are both proto3 zero values, the serialized header can be empty while still decoding to cluster-config/none.",
+            "Raw LZ4 BEP payload blocks use the upstream big-endian uncompressed-length prefix and decode the Syncthing 1.18.6 compatibility fixture from `TestLZ4CompressionUpdate`.",
+            "Native LZ4 compression emits the same literal-only compatibility fixture for short data and round-trips compressed post-auth message payloads without shelling out.",
+            "Compressed post-auth BEP frames decode header compression `MESSAGE_COMPRESSION_LZ4`, decompress the message payload, and then reuse the existing Request/Response/ClusterConfig protobuf decoders.",
+            "Compression mode decisions follow upstream thresholds: messages below 128 bytes remain uncompressed, metadata mode does not compress responses, and compression falls back to uncompressed output when the LZ4 block cannot save at least one thirty-second of the payload.",
+            "Ping post-auth frames map upstream `bep.Ping` as an empty protobuf payload with `MESSAGE_TYPE_PING` and no message bytes after the uint32 length.",
+            "Close post-auth frames preserve the upstream reason string in protobuf field 1, use `MESSAGE_TYPE_CLOSE`, and participate in the same compression decision path as other metadata/control messages.",
+            "Bounded BEP sessions preserve upstream writerLoop ordering: post-auth Ping, Request, Index, IndexUpdate, and DownloadProgress frames are not emitted until the local ClusterConfig frame has been sent.",
+            "Bounded BEP dispatcher state skips unknown message types for future compatibility, accepts Close before ClusterConfig, and rejects known non-ClusterConfig messages before the first inbound ClusterConfig as protocol errors.",
+            "Inbound Response frames resolve only pending outbound requests; stale response IDs are ignored, and inbound Close drains pending requests with connection-closed results.",
+            "Inbound Request frames after ClusterConfig run the upstream filename and request-size validation boundary before invoking a native WordPress request handler and emitting a BEP Response frame.",
+            "Stream-backed post-auth frame IO preserves upstream read/write framing: a 2-byte big-endian header length, exact protobuf header bytes, a 4-byte big-endian payload length, and exact payload bytes are consumed per frame so concatenated frames remain aligned.",
+            "Stream frame reads reject truncated headers, truncated payload lengths, truncated payloads, and message lengths over Syncthing's 500 MB maximum before handing bytes to protobuf decoders.",
+            "Stream frames can be dispatched directly through the bounded BEP session so a native WordPress media Request read from a PHP stream validates and emits a BEP Response without shelling out.",
+            "Inbound Index, IndexUpdate, and DownloadProgress frames after ClusterConfig can invoke registered or per-read native model callbacks after the existing decode and validation boundary.",
+            "Model callback return values are exposed on the session event for local catalog/progress bookkeeping, while thrown callback errors close the session as handling errors instead of protocol errors.",
+            "Stream-backed model callbacks let a PHP WordPress media peer update a local file catalog from Index/IndexUpdate frames and temporary-block state from DownloadProgress frames read directly from a stream.",
+            "Index protobuf payloads preserve folder, repeated FileInfo entries, and last_sequence, and use upstream `MESSAGE_TYPE_INDEX` post-auth frames.",
+            "IndexUpdate protobuf payloads preserve folder, repeated FileInfo entries, last_sequence, prev_sequence, and upstream `MESSAGE_TYPE_INDEX_UPDATE` post-auth frames.",
+            "FileInfoBatch counts pending files and uncompressed FileInfo protobuf payload bytes, matching upstream flush limits of 1000 files or 250 KiB before an Index or IndexUpdate batch is sent.",
+            "FileInfoBatch FlushIfFull is a no-op until one upstream limit is reached, Flush ignores empty batches, successful Flush calls reset pending files and size, and Reset clears all local batch state.",
+            "FileInfoBatch flush errors are sticky like upstream: after a flush function returns or throws an error, later Flush calls return the same error without calling the flush function again until Reset, and appending to a failed batch is rejected as a programmer error.",
+            "WordPress media FileInfo batches can be flushed into native IndexUpdate frames while preserving folder, file order, previous sequence, last sequence, and FileInfo wire payloads.",
+            "FileInfo protobuf payloads preserve name, type, size, permissions, modified time, modified_by, version, sequence, raw block size, symlink target, deleted, no_permissions, blocks_hash, encrypted metadata, and previous_blocks_hash fields.",
+            "FileInfo wire invalidity follows upstream ToWire/FromWire behavior: outgoing local invalid flags become the protocol invalid bool, internal local_flags are not sent, and incoming invalid files become remote-invalid local entries.",
+            "BlockInfo, Vector, Counter, and Unix PlatformData payloads preserve upstream field numbers for block offsets/sizes/hashes, sorted version counters, and owner/group UID/GID metadata.",
+            "DownloadProgress protobuf payloads preserve folder plus repeated FileDownloadProgressUpdate messages and use upstream `MESSAGE_TYPE_DOWNLOAD_PROGRESS` post-auth frames.",
+            "FileDownloadProgressUpdate payloads preserve append/forget update types, names, version vectors, unpacked repeated block indexes including block index zero, and block_size.",
+            "Legacy v0.14.16/v0.14.17 FileDownloadProgressUpdate fixtures from upstream `TestUnmarshalFDPUv16v17` decode without rejecting unknown enum/string/index shapes accepted by Go protobuf unmarshalling.",
+            "Remote temporary download state follows upstream append/forget behavior: same-version appends accumulate block indexes, a new version replaces old indexes, and forget only deletes matching versions.",
+            "Download-progress byte accounting follows upstream `BytesDownloaded`: explicit block_size is used when present and `MinBlockSize` is the fallback for older messages.",
+            "Outgoing sent-download state does not advertise new active files until a puller has at least one temporary block available.",
+            "Outgoing DownloadProgress diffs send only appended block indexes when `AvailableUpdated` advances and version/created identity is unchanged.",
+            "Available block list changes without an updated timestamp are ignored, matching upstream's append-only sharedPullerState invariant.",
+            "Version changes or reconstructed pullers emit a forget for the previous version followed by an append for the current version, including empty append updates that clear older temporary availability.",
+            "Temporary-index filtering excludes wrong folders, directories, symlinks, and files whose total block count is at or below `TempIndexMinBlocks`.",
+            "Completed or errored pulls emit a versioned forget exactly once, and explicit folder cleanup returns forget messages for all tracked outgoing temporary files.",
+            "ProgressEmitter groups DownloadProgress updates per subscribed device and folder, and multiple subscribed devices receive independent sent-download state.",
+            "Deregistered pullers leave their folder registry present long enough to emit the upstream versioned forget exactly once.",
+            "Unsubscribed devices have local sent-download state discarded without emitting forget messages, matching upstream disconnected-device cleanup.",
+            "Folders removed from a device subscription are silently cleaned from sent state instead of sending forget traffic, matching the upstream commented-out unshare path.",
+            "Disabling the progress emitter returns connected-peer cleanup forget batches before clearing registry, subscriptions, and sent state.",
+            "Event-style progress summaries and BytesCompleted use upstream PullerProgress fields and the sharedPullerState blocksToSize estimate.",
+            "Timer-driven ProgressEmitter ticks emit events and DownloadProgress batches only when the registered puller count or latest puller update marker changes, matching upstream Serve gating.",
+            "Active pullers schedule another progress interval, while deregistered idle state emits cleanup forgets once and then stops scheduling the next interval.",
+            "Progress connection adapters send DownloadProgress after sent-state computation; failed sends are recorded and unchanged updates are not retried, matching the upstream send-after-compute back-pressure boundary.",
+            "Wire progress connections normalize WordPress paths and encode native BEP DownloadProgress message type 5 frames for subscribed peers.",
+            "Model-level inbound DownloadProgress ignores unknown folders and devices the folder is not shared with before mutating temporary-download state.",
+            "Accepted remote DownloadProgress updates emit RemoteDownloadProgress-style summaries of per-file temporary block counts.",
+            "Block availability includes fromTemporary candidates from shared devices whose advertised file version contains the requested block index.",
+            "Temporary block request planning preserves the selected peer and sets Request.fromTemporary when a WordPress media block is only available from a peer's temporary file.",
+            "Connection-aware block availability follows the upstream Closed and RequestGlobal boundary: disconnected peers no longer contribute full-file availability, their temporary-download state is dropped, later progress from them is ignored, and pullBlock fails before issuing a request when no connected peer has the required version.",
+            "Device activity selection follows upstream `deviceActivity.leastBusy`: it picks the first candidate with the lowest outstanding request count, repeated reads do not mutate counts, and an empty candidate list returns no selection.",
+            "Device activity accounting is keyed by device ID, so full-file and fromTemporary availability for the same peer share the same load counter while `using` increments and `done` decrements that peer's outstanding request count.",
+            "Temporary block request planning can consult device activity so a busy full-file WordPress media peer yields to a less-busy temporary-block peer while preserving the selected Request.fromTemporary flag.",
+            "Block pull ordering follows upstream `blockPullReorderer`: in-order returns blocks untouched, random ordering shuffles block indexes, standard ordering sorts all device IDs, chunks blocks by device count using ceiling division, starts with the local device chunk, then appends remaining chunks in shuffled whole-chunk order.",
+            "Pull work planning follows upstream `handleFile`: same-index current blocks are counted separately, reusable `.syncthing.<name>.tmp` target blocks are removed before copy/pull work, and receive-encrypted folders do not reuse temporary blocks.",
+            "Copier planning follows upstream `copierRoutine`: sparse all-zero blocks are skipped only when no temporary file is being reused, current-file hash matches are counted as origin copies, other local indexed hashes are counted as elsewhere copies, and remaining blocks become pull requests.",
+            "Puller progress accounting maps `sharedPullerState` after local copy dispatch: reused temp blocks, copied origin/elsewhere blocks, skipped sparse blocks, pending network pulls, and available block indexes are reported with upstream block-to-byte estimates.",
+            "PullBlock retry planning follows upstream `pullBlock`: least-busy candidates are tried once each, device activity is incremented only around the request, error responses and callback errors retry later candidates, plaintext responses must match length and SHA-256, and no-candidate failures preserve the final request error or upstream no-device boundary.",
+            "PullBlock special cases map upstream zero-block and receive-encrypted behavior: all-zero blocks skip network requests and receive-encrypted folders accept opaque hash-token responses without local SHA-256 verification.",
+            "Pull temporary finalization maps upstream `sharedPullerState.finalClose`, `tempFileInWritableDir`, and `performFinish`: verified copied and pulled blocks are written into `.syncthing.<name>.tmp`, sparse all-zero blocks become available without network bytes, temp files use final permissions OR `0600` while being assembled, reused read-only temp files are made writable before block writes, final close waits until every block is accounted for, successful close promotes the temp file and reports `dbUpdateHandleFile`, repeat close attempts are no-ops, and failed pulls leave the temp file for reuse.",
+            "PerformFinish conflict replacement maps upstream `moveForConflict`: when the incoming FileInfo is concurrent with the current local FileInfo, an existing regular file is renamed to a `.sync-conflict-YYYYMMDD-HHMMSS-device` sibling and scheduled for scan before the pulled temp file is promoted; descendant versions replace the old file without creating a conflict copy.",
+            "PerformFinish version-archive replacement maps upstream `deleteItemOnDisk` plus `versioner.Archive`: non-conflicting regular-file replacements can move the previous file under a `.stversions` archive using `~YYYYMMDD-HHMMSS` filename tagging, while conflicting regular-file replacements prefer conflict copies and directories/symlinks remain outside the archive branch.",
+            "PerformFinish case-only replacement maps upstream `TestPullCaseOnlyPerformFinish` and `fs.CaseConflictError`: case-sensitive finalization promotes a differently cased target and emits `dbUpdateHandleFile`, while opt-in case-conflict detection returns the upstream no-scan uppercase/lowercase error, leaves the existing file and temporary pull file in place, and emits no database update.",
+            "Receive-only changed children inside a directory being replaced follow upstream `deleteDirOnDiskHandleChildren`: after unknown and ignored-child precedence, the old directory is removed, the directory name is scheduled for scan, and the later receive-only scan can resurrect the local change instead of failing finalization.",
+            "Post-promotion db update aggregation maps upstream `dbUpdaterRoutine` plus `updateLocalsFromPulling`: handle-file and shortcut-file jobs fsync their parent directory candidates, handle-directory jobs fsync that directory, all jobs are committed through FileInfoBatch with local sequence reset to zero, timed ticks flush partial batches, successful local updates emit RemoteChangeDetected-style events for non-invalid files, and each flushed batch emits only the last non-invalid received file/delete candidate.",
+            "Finisher lifecycle handling maps upstream `finisherRoutine`: not-ready shared puller states have no side effects, first closed states complete the pull queue job, successful finalization records block stats and hands off `dbUpdateHandleFile`, failed final close records a `finishing:` temp pull error, non-receive-encrypted folders deregister the progress emitter, receive-encrypted folders skip that deregistration branch, and exactly one ItemFinished-style event is emitted for each handled state.",
+            "Folder error promotion maps upstream `sendReceiveFolder.pull`, `pullerIteration`, `newPullError`, and `folder.Errors`: each pull clears persistent pull errors, each puller iteration resets transient tempPullErrors, the first syncing error per path is kept with a `syncing:` prefix while context cancellation is ignored, only the final iteration's temporary errors are promoted to persistent pullErrors, FolderErrors events include scan and pull errors sorted by path, and pull success requires zero changed items plus zero promoted pull errors.",
+            "Receive-encrypted pull temporary finalization follows upstream `sharedPullerState.finalizeEncrypted` by appending the encrypted FileInfo trailer before promotion, exposing the local finalized size and trailer size while keeping remote index size stripping in the index-preparation boundary.",
+            "Pull job queues preserve upstream FIFO behavior: Push appends queued file names, Pop moves the next queued file into progress, and Done removes only the first matching in-progress file.",
+            "Pull job queue priority bumping follows upstream BringToFront by moving a matching queued file to index zero, leaving the first element, in-progress files, missing names, and empty queues unchanged.",
+            "Pull job queue Jobs pagination returns in-progress files first, then queued files, and reports the same skip count boundary as upstream when a page falls beyond the combined progress plus queued length.",
+            "Pull job queues expose Reset, queued counts, and progress counts for native PHP sync UIs while preserving the upstream separation between queued and in-progress pull work.",
+            "Service maps follow upstream folder-service lifecycle semantics: Add starts a service, replacing an existing key stops the old service before registering the new one, Stop halts but retains the service in the map, and Remove stops then deletes it.",
+            "Service map RemoveAndWait reports the upstream `service not found` boundary for absent keys, while stopped retained services can still be removed successfully.",
+            "Service map iteration can remove selected services during traversal and stops early when a callback returns an error, matching the upstream `Each` contract.",
+            "WordPress folder service registries can pause receive-encrypted folder workers without losing retained configuration, replace media indexers during rescans, and remove stopped folders after maintenance.",
+            "Incoming full Index messages reset the native remote file view before storing the received FileInfo batch, while IndexUpdate messages preserve existing remote FileInfos by name.",
+            "Received regular-file index entries generate DownloadProgress forget updates for matching temporary blocks, matching upstream `makeForgetUpdate` and clearing stale WordPress temporary media availability.",
+            "ReceiveIndex reports missing folders and paused handlers with the upstream no-such-folder and folder-paused boundaries; accepted receive work schedules a pull after the remote index update path.",
+            "RemoteIndexUpdated events expose the upstream device, folder, item count, sequence, and legacy version fields after a received Index or IndexUpdate batch.",
+            "ReceiveIndex sequence anomaly handling logs unexpected previous sequence, before-prevSequence entries, after-lastSequence entries, non-increasing entries, unexpected last sequence, and post-update returned-sequence mismatches without rejecting the batch unless the remote sequence number is duplicated.",
+            "IndexHandlerRegistry can update an attached FolderIndexState after a received Index or IndexUpdate batch, so full Index messages reset that remote peer's in-memory folder view while delta updates preserve previous remote FileInfos by name.",
+            "FolderCompletion maps upstream aggregate completion math from global/need byte counts, subtracts temporary downloaded bytes from need bytes without underflow, preserves remote folder state strings, exposes the upstream API map shape, and reports delete-only work as 95% complete instead of 100%.",
+            "FolderIndexState maps upstream sqlite global selection and local/remote need rules: newer remote versions become local need, local versions become remote need, ignored same-version local files do not force redownload, remote-invalid globals are excluded, and deleted globals are needed only by devices with a non-deleted valid copy.",
+            "FolderIndexState preserves upstream need metadata across a full remote index reset, so another remote that deleted a file still needs the re-added global file after the winning peer sends a full Index.",
+            "FolderIndexState counts directory, symlink, file, byte, and deleted need totals and returns alphabetic paginated needed-file lists like focused `AllNeededGlobalFiles` sqlite tests.",
+            "FolderIndexState needed-file selection now maps upstream sqlite pull-order semantics for alphabetic, smallestFirst, largestFirst, oldestFirst, newestFirst, and random order, with config-text parsing defaulting unknown values to random like Syncthing.",
+            "FolderIndexState global-file prefix selection maps upstream `AllGlobalFilesPrefix`: an empty prefix returns all current global files, while a non-empty byte-prefix returns only global files under that name range in stable name order.",
+            "FolderIndexState DropDevice now maps the upstream remote-device drop boundary: missing remote devices are a no-op, dropping a remote peer removes all of its file state and recalculates global/need results, and attempts to drop the local device fail before mutation.",
+            "FolderIndexState global availability maps upstream `GetGlobalAvailability` by returning sorted remote device IDs whose file version equals the current global version, excluding the local device and recalculating after named-file or full-device drops.",
+            "Inbound request serving rejects wrong folders, unshared devices, internal names, traversal names, symlink directory traversal, and negative byte ranges before disk reads.",
+            "Direct RequestServer serving now applies the upstream request-size boundary, rejecting zero-length and oversized media block requests while accepting exactly MaxRequestSize.",
+            "Inbound Request.fromTemporary serving uses the upstream `.syncthing.<basename>.tmp` sibling naming convention, including SHA-256 basename hashing for very long filenames.",
+            "Temporary file detection follows upstream `fs.IsTemporary`: only the basename is checked, and either standard `.syncthing.` or `~syncthing~` prefixes mark a file as temporary regardless of the prefix used on the current platform.",
+            "Temporary request serving returns temporary bytes only when the requested slice is regular, complete, and validates against the request hash.",
+            "Stale or short temporary reads fall back to the finalized file, and finalized bytes are returned only when their optional SHA-256 hash validates.",
+            "Final-file request serving maps hash mismatches to no-such-file while preserving upstream empty-hash short-read behavior for WordPress restore probes.",
+            "Inbound request serving rejects explicitly ignored request names with invalid-file before any temporary or finalized disk read, matching `model.Request` and `ignore.Matcher.Match` boundaries.",
+            "Native ignore match results expose ignored, deletable, case-folded, and directory-skip flags for a focused `.stignore` subset including rooted/unrooted glob expansion plus `(?i)` and `(?d)` prefixes.",
+            "Ignore `#include` directives load nested ignore snippets relative to the current ignore file, reject missing or partial include lines, and suppress duplicate lines across the parsed include graph.",
+            "Ignore `#escape=` directives must appear before local patterns, may use one custom UTF-8 escape character, and apply independently per included file before glob parsing.",
+            "Escaped glob metacharacters, bracket ranges, and brace alternatives map focused upstream `gobwas/glob` behavior for literal WordPress filenames containing `*`, `?`, `{}`, and numeric suffix ranges.",
+            "Negated ignore patterns update the directory-skip boundary like upstream: a broad ignored match after an unrooted include rule stays ignored but no longer claims the directory can be skipped.",
+            "Receive-encrypted final-file requests accept opaque encrypted hash tokens instead of SHA-256 validation, while temporary-file serving still requires the temporary bytes to validate before use.",
+            "Receive-encrypted request envelopes map upstream size padding and 40-byte per-block overhead: small plaintext block requests become 1024-byte padded encrypted requests plus nonce/tag overhead, and offsets shift by block number times overhead.",
+            "Inbound encrypted request envelopes subtract the nonce/tag overhead and per-block offset adjustment before dispatching plaintext requests, while preserving the upstream fromTemporary flag and allowing opaque encrypted hash tokens to be supplied separately from plaintext SHA-256 hashes.",
+            "Encrypted filename path helpers map upstream slashify/deslashify structure and `IsEncryptedParent` synthetic-directory detection for `.syncthing-enc` top-level components and 200-character continuation chunks.",
+            "Receive-encrypted folder scans treat synthetic encrypted parent directories as container-only paths: missing parents created during pulls do not schedule scans, scanned synthetic parents are not indexed, empty synthetic parents are removed, and non-empty synthetic parents remain only as on-disk containers.",
+            "Deterministic encrypted filenames now use Syncthing AES-SIV over the plaintext wire name, unpadded base32-hex encoding, and upstream slashification; the `TestKeyDerivation` encrypted-name fixture and invalid base32/path cases round-trip or fail like upstream.",
+            "Per-file receive-encrypted keys use upstream HKDF-SHA256 over `folderKey || filename` with salt `syncthing`, matching `KeyGenerator.FileKey` boundaries before request/hash-token transforms.",
+            "Encrypted block hash tokens use deterministic AES-SIV over raw hash bytes with the big-endian block offset as associated data, so identical data at different offsets has different stable tokens.",
+            "Incoming encrypted block hash token decoding first verifies the offset-bound token, then falls back to the upstream legacy no-offset AES-SIV token form.",
+            "Outgoing encrypted-connection requests derive the file key from the plaintext name, encrypt the wire name and block hash, add per-block overhead to the request offset, and request `max(size, 1024) + 40` bytes from the untrusted peer.",
+            "Receive-encrypted model responses pad plaintext data shorter than 1024 bytes before XChaCha20-Poly1305 encryption, while trusted-side response handling decrypts the returned block and trims it back to the original requested plaintext size.",
+            "EncryptedModel request serving decrypts an untrusted BEP request's name, block hash token, offset, and size, dispatches the plaintext request through the native RequestServer, encrypts successful response bytes, and preserves no-such-file/generic errors without encrypted payload data.",
+            "XChaCha20-Poly1305 encrypted byte payloads use Syncthing's nonce-prefix layout and 40-byte nonce/tag overhead; the upstream `TestKeyDerivation` encrypted `hello world` fixture decrypts with the derived file key.",
+            "Encrypted FileInfo wrappers encrypt the entire native FileInfo protobuf payload into field 19 with the per-file key while exposing an encrypted name, fake modified time, 0644 permissions, sequence number, and deterministic fake version for untrusted peers.",
+            "Encrypted FileInfo block lists pad small blocks to the 1024-byte receive-encrypted minimum, add per-block nonce/tag overhead, rewrite offsets to encrypted byte positions, and use stable offset-bound encrypted block-hash tokens.",
+            "Encrypted FileInfo decryption recovers the plaintext metadata with the untrusted peer's sequence number preserved, and non-file metadata such as symlinks is represented as encrypted directories while invalid plaintext metadata becomes remote-invalid for consistency checks.",
+            "Encrypted Index and IndexUpdate collection helpers map upstream encryptedConnection/encryptedModel boundaries by normalizing outgoing FileInfo wire names, encrypting every FileInfo in the collection, preserving folder and sequence metadata, and decrypting incoming untrusted FileInfo wrappers before model handling.",
+            "Encrypted outbound DownloadProgress routing follows upstream `encryptedConnection.DownloadProgress`: folders with registered encryption keys are not sent to untrusted peers, while plain folders delegate unchanged to the normal progress connection.",
+            "Encrypted inbound DownloadProgress handling follows upstream `encryptedModel.DownloadProgress`: updates for encrypted folders return successfully without mutating temporary-download state or emitting RemoteDownloadProgress events, while plain folders delegate to model-level DownloadProgress.",
+            "Receive-encrypted file trailers append the native FileInfo wire payload plus a big-endian uint32 payload length at the encrypted file size boundary, and extraction recovers the normalized wire filename and version metadata.",
+            "Receive-encrypted finalization follows upstream `sharedPullerState.finalizeEncrypted`: finalized local bytes append the encrypted FileInfo trailer, local size accounting includes the trailer, and outbound index preparation subtracts the host-local trailer size before advertising the encrypted file.",
+            "Receive-encrypted finalized-file verification reloads the trailer, decrypts FileInfo metadata, decrypts each encrypted block with the per-file key, trims only the final padded plaintext block, and validates plaintext SHA-256 block hashes before recovering WordPress media bytes.",
+            "Cluster-config encryption consistency follows upstream `ccCheckEncryption`: both advertised tokens are impossible, local receive-encrypted plus remote encrypted config is impossible, encrypted tokens with plain local config are rejected, and missing-token plain/encrypted mismatches produce the upstream error boundaries.",
+            "Untrusted devices are rejected for plain WordPress media folders, while either configured encrypted direction keeps the device on the encrypted sharing path.",
+            "Receive-encrypted local folders adopt the cluster-advertised token when no stored token exists and request a cluster-config resend; stored-token mismatches surface the upstream `different encryption passwords used` error.",
+            "Remote encrypted device password-token comparisons can derive Syncthing `PasswordToken` bytes from configured passwords before comparing cluster-advertised tokens, matching the upstream `isEncryptedRemote` branch.",
+            "Syncthing `PasswordToken` generation derives folder keys with scrypt using `N=32768`, `r=8`, `p=1`, `keyLen=32`, and salt/input bytes from `knownBytes(folderID)`.",
+            "Native AES-CMAC-SIV deterministic encryption matches upstream `TestKeyDerivation` bytes and preserves the zero-length AEAD nonce as an associated-data item, as used by Syncthing's `miscreant.NewAEAD(\"AES-SIV\", key, 0)` calls.",
+            "Device IDs derive from SHA-256 raw certificate bytes, parse 32-byte binary IDs, compare by raw byte order, and render an empty all-zero ID as an empty string.",
+            "Canonical DeviceID strings use RFC4648 base32 without padding, four Syncthing Luhn32 check digits over 13-character chunks, and seven-character hyphenated groups.",
+            "DeviceID parsing accepts old 52-character no-check-digit forms plus new 56-character forms, removes spaces/hyphens, uppercases input, and maps common copy mistakes `0` to `O`, `1` to `I`, and `8` to `B` before validation.",
+            "Malformed DeviceID lengths, base32 characters, padding bits, and Luhn32 check digits are rejected before a WordPress peer identity is accepted; short IDs are the first seven base32 characters of the raw device ID.",
+            "PullScannerRoutine scan scheduling maps upstream `pullScannerRoutine`: scan paths queued during finalization or deletion are aggregated in a de-duplicated set, file and directory scan candidates retain their local classification for native bookkeeping, no scan callback is invoked while the pull window remains open, one post-pull scan batch is scheduled only when the scanner closes, repeated close is idempotent, and failed finalization that reports `file modified but not rescanned` still queues the affected WordPress media path for the deferred scan.",
+            "Delete item lifecycle maps upstream `deleteFile`, `deleteDir`, and `checkToBeDeleted`: tracked file and directory tombstones emit ItemStarted/ItemFinished delete payloads, schedule `dbUpdateDeleteFile` or `dbUpdateDeleteDir`, avoid following symlinked parents while still accepting the database tombstone, treat case-only missing targets as database-only deletes, move conflict-prone local files to `.sync-conflict` names before accepting a delete, preserve unscanned local directories by queuing a scan, and remove `(?d)` ignored or temporary children before deleting otherwise empty directories.",
+            "Process-deletions batching maps upstream `processDeletions`: regular-file tombstones are coalesced by path before deletion, file tombstones are processed before directory tombstones, and directory tombstones are processed in reverse order so nested WordPress upload directories are removed depth-first after child file tombstones.",
+            "Rename-shortcut batching maps upstream `processNeeded` and `renameFile`: pending regular-file tombstones are bucketed by block identity, a same-block target can be satisfied by renaming an existing local source file through a Syncthing temporary name, the consumed tombstone is removed from later deletion processing, source delete and target update ItemStarted/ItemFinished events share the rename result, and changed source/target guards queue scans while allowing later candidates or ordinary pull work to continue.",
+            "Metadata-shortcut batching maps upstream `processNeeded` and `shortcutFile`: needed regular files with matching current block identity skip full handle-file work, emit metadata lifecycle events, update permissions unless ignored, apply the advertised mtime, schedule `dbUpdateShortcutFile`, fsync the parent directory through the DB updater, and suppress ReceivedFile notifications because no content was transferred.",
+            "Platform metadata application maps upstream `setPlatformData` boundaries for metadata shortcuts and performFinish: native FileInfo PlatformData now carries Unix ownership plus Linux xattr fields, shortcutFile and temp-file finalization attempt ownership/xattr metadata before database updates, unsupported native xattr APIs are treated as a no-op like upstream unsupported xattr filesystems, and explicit xattr failures leave the item retryable without dbUpdateShortcutFile/dbUpdateHandleFile.",
+            "SetXattr replacement maps upstream `BasicFilesystem.SetXattr`: current permitted xattrs are listed and read through the configured filter, stale permitted attrs absent from the desired FileInfo PlatformData are removed, unchanged values are skipped, changed and new values are set, filter-denied host attrs are preserved, empty desired xattr sets remove only permitted current attrs, and removal failures abort before setting new attrs.",
+            "Scanner platform metadata maps upstream `scanner.CreateFileInfo` and `filesystem.PlatformData`: native scans validate canonical relative paths, use lstat ownership for files/directories/symlinks, preserve symlink targets without following them, collect filtered xattrs with per-entry and total-size caps, propagate platform-data read failures, and optionally hash file blocks for WordPress media equivalence checks.",
+            "Receive-encrypted metadata shortcuts map the upstream `shortcutFile` branch for receive-encrypted folders: the encrypted FileInfo trailer is rewritten at the encrypted data-size boundary, the finalized local size is expanded by the new trailer length before the `dbUpdateShortcutFile` job, the encrypted data bytes remain unchanged, and outbound index preparation can still subtract the host-local trailer size.",
+            "Receive-encrypted metadata shortcut retry boundaries map adjacent upstream `shortcutFile`/`writeEncryptionTrailer` behavior: trailer rewrite uses existing-file read/write semantics instead of creating placeholders, trailer write failures leave finalized bytes and database updates untouched while recording a retryable pull error, missing `.syncthing-enc` synthetic parent paths do not create directories or files, and successful rewrites truncate stale longer trailer bytes before scheduling `dbUpdateShortcutFile`.",
+            "Pull iteration retry handling maps upstream `pull`/`pullerIteration`: a pull clears old persistent pull errors, each bounded iteration starts with a fresh temporary pull-error map, transient temporary errors disappear before a later successful retry, final-iteration temporary errors are promoted to one FolderErrors event, and the loop stops after either a zero-change iteration or three changed iterations.",
+            "Scanner current-file equivalence maps upstream `IgnorePerms`, `ModTimeWindow`, `walkRegular`, `walkDir`, and `walkSymlink`: permission-only changes can be ignored, scans advertise `NoPermissions` when folder permissions are ignored, filesystem timestamp drift inside the configured window is skipped with a strict `diff < window` boundary, and unchanged symlink targets are not re-emitted.",
+            "Scanner Windows executable-bit preservation maps upstream `updateFileInfo`: for regular files on Windows, the scanner ORs executable bits from the current indexed FileInfo into the newly scanned permissions before equivalence checks, preventing host permission emulation from causing a spurious rescan.",
+            "Scanner Windows symlink skipping maps upstream `walkSymlink`: on Windows, symlink entries are ignored instead of emitted as FileInfo or descended into, while POSIX-mode walks still report file and directory symlinks without following their targets.",
+            "Scanner UTF-8 normalization maps upstream `normalizePath`, `applyNormalization`, and `TestNormalization`: non-NFC UTF-8 names report normalization errors unless auto-normalization is enabled, auto-normalization renames the on-disk entry before emitting FileInfo, and pre-existing normalized siblings are treated as UTF-8 encoding conflicts without replacing either item.",
+            "Scanner scan-progress events map upstream `ProgressTickIntervalS`, `newByteCounter`, `Blocks`, and `FolderScanProgress`: native hashing progress uses Syncthing's `total = 1 + bytes-to-hash` denominator, emits only when hashing queued changed regular files, reports folder/current/total/rate fields, and suppresses progress for unchanged or metadata-only walks.",
+            "Scanner walk error reporting maps upstream `ScanResult.Err` and `handleError`: opt-in native walk error callbacks receive the path, phase, and exception while sibling entries continue scanning; strict direct scans still throw.",
+            "Scanner cancellation maps upstream context cancellation and `TestStopWalk`: an opt-in native cancel callback stops traversal or queued progress hashing before another file is started, leaving queued un-hashed WordPress media for a later scan instead of returning partial FileInfo.",
+            "Scanner temporary lifetime cleanup maps upstream `Config.TempLifetime`, model `KeepTemporariesH`, and the `fs.IsTemporary` branch in `walkAndHashFiles`: temporary basenames are still omitted from FileInfo output, but stale regular temp files older than the configured lifetime are unlinked while fresh temp files and temp directories are left alone.",
+            "Scanner symlink-parent sub-walk guarding maps upstream `scan` plus `osutil.TraversesSymlink(filepath.Dir(sub))`: direct sub-walks for a symlink itself may emit the symlink, but sub-walks below a symlinked parent are skipped before scanning through the alias.",
+            "Scanner sub-walk diagnostics expose the upstream parent-boundary statuses used before walking configured subs: direct file or symlink subs can be walkable, paths below symlinked parents report `traverses-symlink`, paths below regular-file parents report `not-a-directory`, missing parent components report `missing-parent`, and missing direct roots report `missing` while yielding no FileInfo.",
+            "Multi-folder scan scheduling maps upstream `model.ScanFolders`, `ScanFolder`, and `ScanFolderSubdirs`: native PHP captures registered folder IDs before scanning, invokes each folder service through the same synchronous scan boundary, returns only per-folder errors in the aggregate status, preserves paused/missing folder errors, accepts slash-normalized and empty subdir forms, and keeps independent checkpoint revisions, expiry, and stale-publish conflicts per WordPress folder.",
+            "Folder scan API coordination maps upstream `/rest/db/scan` and rc rescan boundaries: absent folder scans all registered folders, a non-empty folder with repeated sub paths scans one folder, selected WordPress folder maps scan only requested folders, missing folders are rejected before scanning, paused folders surface per-folder errors, and response payloads avoid leaking local absolute paths.",
+            "Delayed scan scheduling maps upstream `postDBScan` plus `model.DelayScan`/folder `DelayScan`: a successful selected-folder scan can accept a parseable `next` delay, reset the next scan timing, report scheduled/due status for WordPress REST clients, and publish the next checkpoint only when the delayed scan becomes due."
+        ],
+        "warning": "This is a cloned static inventory with bounded focused upstream package runners, not full upstream runner parity. Native PHP progress maps 344 focused lane tests against 658 counted static Go test/benchmark entry points plus a 268-path focused upstream behavior/test inventory.",
+        "mappingNotes": [
+            "Xattr hard-error and listing-order handling maps upstream `BasicFilesystem.GetXattr`, `BasicFilesystem.SetXattr`, `listXattr`, and `setPlatformData`: native list/get/remove/set callback errors are returned as retryable metadata errors before later writes, current xattr names are processed in sorted order like upstream Linux/Darwin listXattr, missing PHP host xattr functions behave like the upstream unsupported sentinel, and WordPress metadata database updates remain blocked until the retryable xattr error is cleared.",
+            "Scanner walk ignore-pruning maps upstream `Walk`, `WalkWithoutHashing`, `walkAndHashFiles`, `Matcher.Match`, and `handleItem`: native walking accepts slash-rooted subs, skips Syncthing internal and temporary names, prunes ignored directories when allowed, keeps walking ignored directories when negated child patterns require it, and emits the ignored ancestor chain before included descendants.",
+            "Scanner block-size hysteresis maps upstream `walkRegular`, `protocol.BlockSize`, `FileInfo.BlockSize`, and `TestBlocksizeHysteresis`: native scans choose the file-size-derived block size but retain the current indexed FileInfo block size when the old and new sizes differ by at most a factor of two.",
+            "Scanner IgnorePerms/mod-time-window equivalence maps upstream `walkRegular`, `walkDir`, `walkSymlink`, `FileInfo.IsEquivalentOptional`, `ModTimeEqual`, `TestModTimeWindow`, and `TestWalkSymlinkUnix`: permission-only chmod noise and one-second timestamp drift can be suppressed while strict scans still detect both changes.",
+            "Scanner Windows executable-bit preservation maps upstream `updateFileInfo` in `lib/scanner/walk.go`: native scans accept an explicit Windows platform family for deterministic Linux-host tests and copy current indexed executable bits onto newly scanned regular-file permissions before deciding whether a WordPress plugin asset changed.",
+            "Scanner Windows symlink skipping maps upstream `handleItem` and `walkSymlink` in `lib/scanner/walk.go`: POSIX walks emit symlink FileInfo without following targets, while Windows-mode walks ignore symlink entries entirely so junction-style WordPress media aliases are not advertised as synced items.",
+            "Scanner normalization maps upstream `normalizePath`, `applyNormalization`, `errUTF8Normalization`, `errUTF8Conflict`, and `TestNormalization`: native walking validates UTF-8 path names, reports non-NFC names by default, optionally renames decomposed WordPress media paths to NFC before scanning, and refuses to overwrite an existing normalized sibling.",
+            "Scanner scan progress maps upstream `ProgressTickIntervalS`, `newByteCounter`, `Blocks`, and the `FolderScanProgress` event payload: native PHP buffers changed regular files before hashing so the progress denominator is `1 + bytes-to-hash`, emits folder/current/total/rate after hash work advances, and emits nothing for unchanged or no-hash metadata walks.",
+            "Scanner walk error/cancel boundaries map upstream `handleError`, `ScanResult.Err`, `isWarnableError`, `parallelHasher.hashFiles`, and `TestStopWalk`: native PHP keeps direct scans strict, while opt-in walk callbacks can collect per-path scan/hash errors and stop traversal or queued progress hashing before another WordPress media file starts.",
+            "Scanner resumable checkpoint handling builds on upstream context cancellation and `TestStopWalk`: native `walkWithCheckpoint` records the first cancelled path plus the normalized resume subs and completed FileInfo list, allowing a later WordPress media scan to pass those completed files as current state and hash only the remaining queued item.",
+            "Scanner temporary lifetime cleanup maps targeted reads of upstream `lib/scanner/walk.go` around `TempLifetime`, `now := time.Now()`, `fs.IsTemporary`, and regular-file removal, plus `lib/model/folder.go` `KeepTemporariesH` wiring and `lib/fs/tempname.go` prefix detection. No direct upstream package test for this cleanup branch was found; the evidence is static targeted source reads plus native PHP tests.",
+            "Scanner symlink-parent sub-walk guarding maps targeted reads of upstream `lib/scanner/walk.go`, `lib/osutil/traversessymlink.go`, and `traversessymlink_test.go`: native PHP checks normalized sub parent components with `lstat`, skips direct sub-walks below symlinked parents, still allows a direct symlink sub itself to be advertised, and preserves canonical media path scanning.",
+            "Scanner sub-walk diagnostics map upstream `osutil.TraversesSymlink` error boundaries plus scanner `TestNotExistingError`/`TestIssue4799`: native PHP exposes a `ScannerSubWalkDiagnostic` for allowed, missing, missing-parent, not-a-directory, and traverses-symlink states while preserving no-result scan output for blocked or missing subs.",
+            "Scanner Failure event collection maps upstream `EventLogger.Log(events.Failure, walkFailureEventDesc)`, root and configured-sub `Filesystem.Walk` abort handling, and `isWarnableError`: native PHP records folder-scoped Failure events for warnable whole-walk aborts while preserving context-cancellation suppression and keeping path-level scan errors separate.",
+            "Folder scan service persistence maps upstream `ScanFolderSubdirs`, folder `Scan`/`doInSync`, `scanSubdirs`, scan batch flush, and scanner `CurrentFiler` boundaries: native PHP serializes the synchronous scan result into a checkpoint snapshot, resumes cancelled subdir scans with the prior current-file set, expires stale snapshots before reuse, and rejects stale publishes using revision comparisons suitable for WordPress option/transient compare-and-swap storage.",
+            "WordPress option checkpoint storage maps the same synchronous scan publish boundary onto WordPress option semantics: checkpoint snapshots are stored as schema-versioned option payloads, unsafe folder IDs are hashed for option names, expired options are deleted before reuse, and optional compare-and-swap callbacks surface stale revisions as conflict exceptions.",
+            "SQLite checkpoint storage maps the same synchronous scan publish boundary onto a durable local database row: checkpoint snapshots are stored as schema-versioned JSON payloads with row-level revision/update/expiry columns, stale revisions raise conflict exceptions, expired rows are deleted before reuse, and snapshots can be reopened across PHP requests for WordPress/Playground resumable scans.",
+            "Multi-folder scan scheduling maps upstream `model.ScanFolders`, `ScanFolder`, and `ScanFolderSubdirs`: native PHP captures registered folder IDs before scanning, invokes each folder service through the same synchronous scan boundary, returns only per-folder errors in the aggregate status, preserves paused/missing folder errors, accepts slash-normalized and empty subdir forms, and keeps independent checkpoint revisions, expiry, and stale-publish conflicts per WordPress folder.",
+            "Folder scan API coordination maps targeted reads of upstream `lib/api/api.go` `postDBScan`, `lib/rc/rc.go` `Rescan`/`RescanSubs`, `lib/model/model.go` `ScanFolders`/`ScanFolderSubdirs`, and model `TestPausedFolders`: native PHP accepts WordPress REST-style payloads, normalizes subdirs using scanner-compatible rules, returns HTTP-style ok/partial/error responses, and redacts absolute paths from scanner status errors."
+        ]
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native content block hashing and verification primitives."
+        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, Syncthing DeviceID SHA-256 derivation, base32/Luhn canonical formatting, old/new parser compatibility, typo correction, short IDs, and byte comparison, FileInfo conflict/tombstone decisions, FileInfo equivalence/block comparison behavior, protocol filename/request/index update validation plus wire-path normalization, BEP Hello/Request/Response/ClusterConfig protobuf serialization, uncompressed plus LZ4-compressed post-auth frame handling, stream-backed exact post-auth frame reads/writes, Ping/Close control-message wire frames, bounded BEP session ClusterConfig-first writer and dispatcher state handling, registered/per-read model callbacks for Index/IndexUpdate/DownloadProgress, unknown-message skip behavior, inbound Request/Response dispatch, and close-time pending-request drain, Index/IndexUpdate FileInfo protobuf payloads including encrypted metadata field 19, FileInfoBatch size/count/error lifecycle for bounded IndexUpdate flushing, receive-side Index/IndexUpdate handling with RemoteIndexUpdated events, temporary-progress forgets, missing/paused folder boundaries, sequence anomaly logging, duplicate remote-sequence rejection, and attached FolderIndexState updates, in-memory FolderIndexState sqlite global/need/availability selection for local and remote devices including deletes, ignored/invalid entries, full-index resets, device/name drops, directories/symlinks, alphabetic pagination, upstream needed-file pull orders, global-prefix filtering, and upstream DropDevice recalculation/no-op guards, FolderCompletion aggregate/delete-only/downloaded-byte progress math, encrypted Index/IndexUpdate collection wrappers, DownloadProgress append/forget protobuf frames plus remote temporary-download state, outgoing sent-download progress diff computation, connection-level ProgressEmitter subscription grouping/cleanup/event-summary behavior, timer-driven ProgressEmitter scheduling with BEP wire connection adapters, inbound remote DownloadProgress tracking with temporary-block availability/request planning, connection-aware unavailable-peer cleanup, and least-busy device activity selection, pullBlock candidate retry/activity/hash-validation/zero-block/receive-encrypted trust behavior, temporary-file block writes, provisional temp-file permissions, read-only temp-file reuse, sparse zero-block accounting, final close readiness/idempotence, temp-file promotion, performFinish existing-file scan guard, performFinish case-only promotion/case-conflict error behavior, performFinish conflict-copy replacement, performFinish version-archive replacement for non-conflicting regular files, directory deletion ignored-child precedence, receive-only changed child scan resurrection during directory replacement, post-promotion dbUpdaterRoutine changed-directory fsync/updateLocals/RemoteChangeDetected/ReceivedFile batching, finisherRoutine queue completion/progress deregistration/ItemFinished/pull-error/block-stat handling, receive-encrypted temporary finalization with trailer append before promotion, and failed temp-file retry retention, standard/in-order/random block pull ordering by sorted device chunk, handleFile temporary-reuse/copy/pull planning with sparse zero-block handling and sharedPullerState-style progress accounting, upstream pull job queue push/pop/done/priority/pagination behavior, service-map add/replace/stop/remove/iteration lifecycle behavior for folder workers, inbound Request.fromTemporary serving with temporary-file hash validation plus finalized-file fallback, upstream request max-size guards for direct RequestServer calls, upstream temporary basename-prefix detection for `.syncthing.` and `~syncthing~` files, request-serving ignored-path, include/escape-aware ignore parsing, receive-encrypted hash-token guards, receive-encrypted request envelope geometry, encrypted request/response padding and trimming, integrated encryptedModel request serving through RequestServer, deterministic encrypted filename and block-hash token transforms, encrypted path parent detection, receive-encrypted synthetic parent creation/scan cleanup, receive-encrypted FileInfo trailer append/extract/finalization behavior, finalized-file trailer verification with plaintext block-hash validation, outbound index size stripping for host-local trailer bytes, XChaCha20-Poly1305 encrypted byte payloads, encrypted FileInfo metadata wrapping/decryption, encrypted DownloadProgress no-op routing, cluster-config encryption consistency decisions, and exact PasswordToken scrypt/AES-SIV derivation. Native pullScannerRoutine-style aggregation now de-duplicates finalization/deletion scan paths and schedules one deferred post-pull scan batch only when the pull scanner closes. Native handleDir/handleSymlink-style item updates now create nested WordPress media directories and symlinks, emit ItemStarted/ItemFinished payloads, move conflicting regular files to `.sync-conflict` names before directory promotion, reject incompatible empty symlink targets, and schedule dbUpdateHandleDir/dbUpdateHandleSymlink jobs. Native deleteFile/deleteDir-style item deletes now emit upstream delete lifecycle payloads, avoid deleting behind symlinked parents, preserve case-only local siblings, move conflict-prone local files aside, preserve unscanned directories for deferred scans, remove deletable ignored children, and schedule dbUpdateDeleteFile/dbUpdateDeleteDir jobs. Native processDeletions-style batching now coalesces regular-file tombstones by path, processes file tombstones before directories, and removes directory tombstones in reverse order for depth-first cleanup. Native rename-shortcut batching now buckets pending regular-file tombstones by block identity, renames same-block local sources through Syncthing temporary names into needed targets, emits source-delete and target-update lifecycle pairs, schedules target handle-file plus source delete database updates, preserves changed sources/targets for scanning, and leaves unconsumed tombstones for later deletion processing. Native receive-encrypted metadata shortcuts now rewrite the encrypted FileInfo trailer in place, truncate away any old trailer, update the local database FileInfo size to include the new trailer, leave encrypted data bytes unchanged, and still suppress ReceivedFile notifications. Native receive-encrypted shortcut retry boundaries now use existing-file read/write trailer rewrites, preserve old finalized bytes and database state on trailer write failures or missing synthetic parents, and truncate stale trailer bytes on successful metadata-only rewrites. Native PullIterationRunner now maps Syncthing's bounded pull loop by clearing persistent pull errors at pull start, resetting temporary pull errors for each retry iteration, stopping on zero changed items or three changed iterations, and promoting only final-iteration temporary errors to FolderErrors. Native xattr metadata handling now also sorts listed current xattr names like upstream `listXattr`, propagates list/get/remove/set hard errors as retryable metadata failures without attempting later writes, and treats an absent default PHP xattr extension as the upstream unsupported-xattrs no-op boundary. Native FileInfoScanner walk now maps upstream scanner sub-walk and ignore traversal boundaries: slash-rooted subs are normalized under the folder root, Syncthing internal and temporary names are skipped, ignored directories are pruned when safe, ignored ancestor directories are emitted before included descendants when negated patterns require continued traversal, and regular files can be hashed while walking. Native scanner block-size hysteresis now retains the current indexed FileInfo block size when Syncthing's file-size-derived block size differs by no more than a factor of two. Native FileInfoScanner walk now also maps upstream unchanged-file short-circuiting: current entries equivalent to scanned filesystem metadata are not emitted or rehashed, scanner localFlags are masked during equivalence, changed invalid-flag state forces a rescan, and the prior BlocksHash is carried as PreviousBlocksHash on rescanned files. Native FileInfoScanner current-file equivalence now maps upstream IgnorePerms and ModTimeWindow boundaries for files, directories, and symlinks, including strict timestamp-window behavior and unchanged symlink target skipping. Native FileInfoScanner Windows-mode scans now preserve current indexed executable bits on regular files before equivalence checks, matching upstream `updateFileInfo`. Native FileInfoScanner Windows-mode walks now skip symlink entries entirely, matching upstream `walkSymlink` on Windows while POSIX-mode walks still emit symlink FileInfo without following targets. Native FileInfoScanner walk now also exposes opt-in upstream-style scanner error and cancellation callbacks: path errors can be collected while siblings continue, directory listing failures are reported as path-level scan errors instead of silently becoming empty directories, and queued progress hashing can stop before another media file starts without returning partial un-hashed FileInfo. The scanner also exposes the upstream Failure event description and `isWarnableError`-style cancellation boundary for whole-walk aborts. Native FolderScanEventCollector records folder-scoped FolderScanProgress, path scan errors, and warnable Failure events for unavailable WordPress media volumes. Native FileInfoScanner walkWithCheckpoint now returns a resumable scan result for upstream-style cancellation: the result records the first cancelled path, completed FileInfo entries, normalized resume subs, and a current-file list so a later scan can skip already hashed WordPress media and finish the remaining queued item. Native FileInfoScanner sub-walks now also check parent components before walking explicit subs, matching upstream `osutil.TraversesSymlink(filepath.Dir(sub))`: direct symlink aliases can be emitted, paths below symlinked parents are skipped instead of scanned through the alias, and `ScannerSubWalkDiagnostic` exposes allowed, missing, missing-parent, not-a-directory, and traverses-symlink statuses for WordPress media preflight UI. Native FolderScanCheckpoint now merges repeated scanner attempts into a durable folder-scan status: latest FileInfo per path is retained for CurrentFiler-style resume scans, progress/path-error/Failure events are appended, cancellation state is cleared on successful resume, and a WordPress REST status payload exposes attempts, resume subs, completed paths, latest progress, scan-error counts, and failure counts. Native WordPressOptionCheckpointStore now persists those snapshots through schema-versioned WordPress option payloads, hashes unsafe option names, deletes expired options before reuse, and surfaces compare-and-swap revision conflicts. Native FolderScanScheduler now maps the upstream `ScanFolders` aggregate by capturing registered folder IDs, scanning every service through the same synchronous folder-scan boundary, returning per-folder paused/missing/stale-publish errors without stopping neighboring folders, accepting slash-normalized and empty subdir requests, and preserving independent checkpoint revisions and expiry per WordPress folder. Native FolderScanApiCoordinator now maps the `/rest/db/scan` request boundary for WordPress REST payloads: it scans all folders when no folder is supplied, validates selected folder IDs and subdirs before scanning, returns stable HTTP status codes for success, partial pauses, missing folders, and bad requests, and redacts local absolute paths from scanner status payloads. Native FolderScanRouteRegistry now also exposes a bounded `GET /syncthing/db/scan/status` catalog for folder running/paused state, delayed scan timing, and latest checkpoint status pagination."
     },
-    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders.",
-    "nextTask": "Map protocol tests and add block vector/update conflict fixtures."
+    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, treating scanner-only metadata noise as equivalent while content changes still force sync, validating normalized WordPress media index updates while rejecting traversal requests, emitting a native BEP Request frame for a missing media block, advertising a WordPress media folder/device ClusterConfig frame, streaming exact BEP post-auth frames through a PHP stream before serving an inbound WordPress media request, invoking stream-backed Index, IndexUpdate, and DownloadProgress callbacks to maintain a local WordPress media catalog and temporary-block progress map, batching WordPress media FileInfo entries into bounded native IndexUpdate frames with sticky flush-error handling, compressing repeated WordPress folder/device metadata with native LZ4 frames, sending a native Close frame with a WordPress maintenance reason before disconnecting a media-import peer, sending a WordPress media IndexUpdate frame with FileInfo block hashes/version counters/sequence metadata, receiving a Playground peer's WordPress media Index, clearing stale temporary-block progress, updating attached FolderIndexState need metadata, and reporting remote global availability before scheduling a pull, ordering WordPress media needs by upstream alphabetic, smallestFirst, largestFirst, oldestFirst, newestFirst, and random pull-order semantics so small previews or newest uploads can be prioritized, filtering the current global WordPress uploads subtree and recalculating local media needs when a Playground peer is removed, advertising temporary media blocks with native DownloadProgress append/forget frames, computing outgoing new-block-only DownloadProgress deltas for a WordPress media pull, grouping those deltas per subscribed WordPress peer with event-style completed-byte summaries, reporting WordPress media folder completion after subtracting already downloaded temporary bytes and showing delete-only work as 95% complete, scheduling real BEP DownloadProgress frames for a WordPress media peer only when the puller registry changes, planning an inbound Request.fromTemporary for a WordPress media block advertised only from a peer's temporary file, dropping an editor peer's temporary-block availability after disconnect and falling back to a connected CDN peer for the same media block, using least-busy device activity to shift WordPress media block requests from a busy full-file peer to an available temporary-block peer while preserving `Request.fromTemporary`, retrying a WordPress block pull after a stale CDN response before accepting verified editor-laptop bytes, assembling copied, sparse, and pulled WordPress media blocks into a `.syncthing` temporary file before final promotion, committing finalized media pull updates through `wordpress-pull-db-updater.php` with changed-directory fsync candidates, local index sequence reset, RemoteChangeDetected-style event payloads, and ReceivedFile-style markers, keeping private media temporary files owner-writable during assembly while finalizing them back to restricted WordPress permissions, moving a concurrent local WordPress media edit to a `.sync-conflict` sibling before publishing the pulled peer version, preserving a case-conflicting local-first media/plugin asset without scheduling a scan when a peer offers the same path with different casing on a case-detecting filesystem, scheduling a scan and preserving the pulled temp file when a WordPress editor changed the on-disk media file after the last scanned `FileInfo`, preserving nondeletable ignored local review caches before a remote file replaces a WordPress media directory, replacing a receive-only WordPress media directory while scheduling a scan to resurrect local-only editor changes, archiving a non-conflicting previous WordPress media version into `.stversions` before publishing the pulled peer version, creating/updating WordPress upload directories and symlink aliases with ItemStarted/ItemFinished payloads plus dbUpdateHandleDir/dbUpdateHandleSymlink jobs in `wordpress-directory-symlink-lifecycle.php`, deleting stale WordPress uploads and deletable private cache directories with ItemStarted/ItemFinished delete payloads plus dbUpdateDeleteFile/dbUpdateDeleteDir jobs in `wordpress-delete-lifecycle.php`, batching stale media-file and nested upload-directory tombstones in `wordpress-process-deletions.php` so file deletes land before reverse-ordered directory cleanup, filtering Syncthing `.syncthing.` and `~syncthing~` temporary upload files out of a WordPress media publish scan by basename, ordering large WordPress media block pulls by upstream standard device chunks, planning WordPress media pull work that reuses matching temporary-file blocks, copies unchanged local blocks, skips sparse zero blocks safely, and requests only remaining changed blocks, prioritizing and paginating WordPress media pull jobs with the upstream queue semantics, managing WordPress media and receive-encrypted folder workers with upstream service-map add/replace/stop/remove semantics, rejecting zero-length or oversized WordPress media block requests before any RequestServer disk read while still accepting the upstream maximum request size, serving a WordPress media restore request by rejecting stale temporary bytes before returning a native BEP Response frame from the finalized file, serving a receive-encrypted WordPress media restore while an ignored private export path remains blocked, suppressing temporary-block progress for receive-encrypted private media folders while still forwarding plain WordPress media progress, shaping a receive-encrypted WordPress media request envelope with deterministic encrypted names, offset-bound block-hash tokens, encrypted response padding, and trusted-side plaintext trimming without exposing the plaintext filename to the untrusted peer, serving an untrusted encrypted WordPress media request through native RequestServer before returning an encrypted BEP response, keeping receive-encrypted synthetic parent directories out of local index updates while deleting abandoned empty parent containers, finalizing a receive-encrypted private WordPress export with a native encrypted FileInfo trailer, verifying that trailer and encrypted block data before restoring plaintext bytes, wrapping full WordPress media IndexUpdate collections into Syncthing encrypted FileInfo metadata for untrusted index exchange, deriving exact Syncthing receive-encrypted password tokens for WordPress media peers, and rejecting untrusted WordPress media peers unless the cluster config advertises compatible receive-encrypted tokens. `wordpress-post-pull-scan-scheduler.php` shows a local-first WordPress media edit and a stale Playground export folder being queued during pull finalization/deletion, remaining unscheduled while pulling is still open, then emitting one de-duplicated post-pull scan batch. `wordpress-receive-encrypted-metadata-shortcut.php` shows a successful receive-encrypted metadata-only trailer rewrite, `wordpress-receive-encrypted-shortcut-retry.php` shows a retryable read-only trailer write failure that keeps the old encrypted data/trailer and avoids `dbUpdateShortcutFile`, and `wordpress-receive-encrypted-retry-loop.php` shows a transient private-media pull error being cleared before a later bounded pull iteration succeeds. `wordpress-xattr-hard-error-retry.php` shows a WordPress media metadata update where a read-only xattr removal error preserves stale metadata, blocks new xattr writes, and prevents the database update until a later retry. `wordpress-scanner-walk-includes.php` shows a WordPress media publish scan where an ignore-all policy still walks and emits included public upload ancestors, hashes the public media file, and keeps `.stfolder`, `.stignore`, private exports, and stale `.syncthing.*.tmp` files out of the native FileInfo list. `wordpress-scanner-unchanged-shortcut.php` shows a local-first WordPress media scan where an unchanged indexed upload emits no second scan item, while a prior ignored local state forces a receive-only rescan carrying the previous block hash for conflict lineage. `wordpress-scanner-ignoreperms-window.php` shows a shared-hosting WordPress media file where chmod noise and a one-second filesystem timestamp shift are suppressed only when the matching scanner options are enabled. `wordpress-scanner-windows-exec-bits.php` shows a Windows/IIS-style WordPress plugin asset retaining indexed executable bits and avoiding a spurious permission-only scan item. `wordpress-scanner-windows-symlink-skip.php` shows Windows-mode media scans ignoring file and directory symlink aliases while POSIX-mode scans still advertises those symlinks without following them. `wordpress-scanner-error-cancel.php` shows a media-library scan that reports a retryable per-path metadata read error, hashes one changed media file, then cancels before starting the queued thumbnail so a later scan can resume without a partial FileInfo. `wordpress-scanner-failure-events.php` shows a media-library scan abort caused by an unavailable volume and records the folder-scoped Failure event for UI or REST status reporting. `wordpress-scanner-resume-checkpoint.php` shows a WordPress media scan cancelled after hashing the first upload, persisting the checkpoint, then resuming the same subtree with completed FileInfo entries so only the remaining thumbnail is hashed. `wordpress-scanner-symlink-parent-sub.php` shows a WordPress media library symlink alias being advertised while a direct scan below that symlinked parent is skipped and the canonical upload path remains scannable. `wordpress-scanner-sub-walk-diagnostics.php` shows media-library preflight diagnostics for an allowed symlink alias, a blocked path below that alias, a path below a regular file parent, a missing parent, and a missing direct upload root. `wordpress-scanner-checkpoint-events.php` shows a resumable WordPress media scan whose checkpoint result carries completed paths, FolderScanProgress events, path-level private-cache scan errors, and an empty Failure-event set in one persisted summary. `wordpress-folder-scan-status-payload.php` shows a WordPress REST-style folder scan status payload after a cancelled media scan is resumed with checkpoint current files, including merged attempts, completed upload paths, latest progress, and zero scan/failure errors. `wordpress-folder-scan-option-store.php` shows the same resumed media scan persisted through a WordPress option-style store with a stable option name, schema payload revision, and compare-and-swap revision boundary. `wordpress-multi-folder-scan-scheduler.php` shows a local-first REST payload for media and content scans where both folders publish on the first request, then a paused content folder returns a per-folder error while the media checkpoint still advances. `wordpress-folder-scan-api-coordinator.php` shows a WordPress REST route payload that requests media and content folder scans, receives a 207 partial response for a paused content folder, and still publishes the media checkpoint without exposing temporary filesystem roots. `wordpress-delayed-scan-request.php` shows a selected media-folder scan accepting `next`, reporting the scheduled rescan before it is due, skipping checkpoint publication early, then publishing the next checkpoint when the delayed scan becomes due.",
+    "nextTask": "Map the next Syncthing closure edge: audit remaining route/status surfaces for acceptance, especially whether scan-status acknowledgement should emit retained checkpoint summaries before clearing or integrate with a broader REST permission model.",
+    "phpTests": {
+        "passing": 350,
+        "total": 350
+    },
+    "coverageMapping": {
+        "warning": "This is a cloned static inventory with bounded focused upstream package runners, not full upstream runner parity. Native PHP progress maps 350 focused lane tests against 658 counted static Go test/benchmark entry points plus a 268-path focused upstream behavior/test inventory."
+    }
 }

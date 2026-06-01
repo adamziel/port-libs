@@ -6,21 +6,509 @@
         "name": "mozilla/readability",
         "url": "https://github.com/mozilla/readability",
         "commit": "08be6b4bdb204dd333c9b7a0cfbc0e730b257252",
-        "license": "pending verification from upstream checkout",
-        "architecture": "DOM scoring/extraction with content cleanup and WordPress block-oriented rewriting."
+        "license": "Apache-2.0",
+        "architecture": "JavaScript DOM scoring/extraction engine, readerable preflight, JSDOM parser shim, metadata extraction, content cleanup, and fixture-driven expected HTML/metadata parity."
     },
     "benchmarkDenominator": {
-        "status": "static-seed",
-        "total": "pending full upstream inventory",
-        "mapped": 2,
-        "source": "Mozilla Readability fixture corpus; denominator pending upstream inventory.",
-        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+        "status": "cloned-static-inventory-plus-runner-evidence-and-ninety-two-copied-fixtures-through-lifehacker-kinja-list-boundary",
+        "total": 1984,
+        "mapped": 1578,
+        "runner": "npm test",
+        "inventory": {
+            "mochaTests": 1984,
+            "fixturePages": 130,
+            "fixtureFiles": 390,
+            "sourceHtmlFixtures": 130,
+            "expectedHtmlFixtures": 130,
+            "expectedMetadataFixtures": 130,
+            "topLevelTestHarnessFiles": 3,
+            "testUtilityFiles": 3,
+            "readabilityExtractionFixtureTests": 1806,
+            "readabilityApiStaticTests": 11,
+            "readerableFixtureTests": 130,
+            "readerableOptionTests": 9,
+            "jsdomParserStaticTests": 28,
+            "metadataConditionalCounts": {
+                "dir": 17,
+                "lang": 73,
+                "publishedTime": 33
+            },
+            "copiedFixturePages": 92,
+            "copiedFixtureFiles": 276,
+            "mappedFixtureMochaChecks": 1366
+        },
+        "runnerStatus": {
+            "executed": true,
+            "summary": "The old missing node_modules/mocha blocker is resolved. The sparse checkout includes the upstream implementation files and lockfile required by the test harness; `npm ci --no-audit --fund=false` installed Mocha/jsdom dependencies from the lockfile; canonical `npm test` passes 1984 Mocha tests. Targeted 2026-05-23 upstream oracle `npm test -- --grep lifehacker-post-comment-load` passes 15 checks with 0 failures and exercises a Kinja publisher page with comment/ad/navigation chrome plus retained text-annotated editorial lists. Earlier targeted oracles cover the copied fixture/API slices including `comment-inside-script-parsing` 13/13, `bug-1255978` 15/15, `iab-1` 17/17, `medicalnewstoday` 15/15, `tumblr` 17/17, `invalid-attributes` 13/13, `toc-missing` 17/17, `dev418` 13/13, `la-nacion` 13/13, `simplyfound-1` 15/15, `liberation-1` 17/17, `firefox-nightly-blog` 17/17, `wikipedia` 74/74, `wikipedia-2` 19/19, `wikipedia-3` 19/19, and the previously recorded fixture/API slices.",
+            "environment": {
+                "node": "22.20.0",
+                "npm": "10.9.3"
+            },
+            "commands": [
+                {
+                    "command": "git sparse-checkout add index.js Readability.js Readability-readerable.js JSDOMParser.js package-lock.json LICENSE.md",
+                    "result": "passed; hydrated the upstream implementation files and lockfile required by the test harness"
+                },
+                {
+                    "command": "npm ci --no-audit --fund=false",
+                    "result": "passed; installed 513 packages from package-lock.json, including Mocha and jsdom"
+                },
+                {
+                    "command": "npm test",
+                    "result": "passed: 1984 Mocha tests, 0 failures; rerun on 2026-05-22 after the hidden/visibility scaffold-heading slice also passed with 1984 passing in 41s; rerun on 2026-05-22 after the title separator slice passed with 1984 passing in 58s; rerun on 2026-05-22 after the clean-links URI trim slice passed with 1984 passing in 46s; rerun on 2026-05-22 after the hash-link-density/ordered-list slice passed with 1984 passing in 41s; rerun on 2026-05-22 after the transparent section-wrapper slice passed with 1984 passing in 42s; rerun on 2026-05-22 after the readability-page wrapper/author-wrapper slice passed with 1984 passing in 37s; rerun on 2026-05-22 after the WordPress articleBody microdata slice passed with 1984 passing in 41s"
+                },
+                {
+                    "command": "npm test -- --grep keep-images",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the keep-images fixture full-width editorial media slice"
+                },
+                {
+                    "command": "npm test -- --grep schema-org-context-object",
+                    "result": "passed: 17 Mocha checks, 0 failures; targeted upstream oracle for the NewsArticle metadata and expected-content fixture slice"
+                },
+                {
+                    "command": "npm test -- --grep 'keep-tabular-data|replace-brs'",
+                    "result": "passed: 26 Mocha checks, 0 failures; targeted upstream oracle for retained data-table text boundaries and br-chain paragraphization"
+                },
+                {
+                    "command": "npm test -- --grep clean-links",
+                    "result": "passed: 13 Mocha checks, 0 failures; targeted upstream oracle for popup-link cleanup, URI cleanup, and selected-root NBSP text parity"
+                },
+                {
+                    "command": "npm test -- --grep medium-1",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the Medium empty heading and lead heading/paragraph boundary slice"
+                },
+                {
+                    "command": "npm test -- --grep cnet-svg-classes",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for duplicate inline SVG symbol-sprite cleanup in the CNET fixture"
+                },
+                {
+                    "command": "npm test -- --grep v8-blog",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the visible time datetime / null publishedTime metadata boundary"
+                },
+                {
+                    "command": "npm test -- --grep lazy-image-1",
+                    "result": "passed: 17 Mocha checks, 0 failures; targeted upstream oracle for the Medium lazy-image/avatar fixture boundary"
+                },
+                {
+                    "command": "npm test -- --grep medium-2",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the trailing Medium syndication/source-note cleanup boundary"
+                },
+                {
+                    "command": "npm test -- --grep medium-3",
+                    "result": "passed: 17 Mocha checks, 0 failures; targeted upstream oracle for hr-separated Medium page-section cleanup and readability-page child structure parity"
+                },
+                {
+                    "command": "npm test -- --grep heise",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the fixture harness `classesToPreserve: [\"caption\"]` boundary"
+                },
+                {
+                    "command": "npm test -- --grep ars-1",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the ARS figure-caption credit cleanup fixture"
+                },
+                {
+                    "command": "npm test -- --grep guardian-1",
+                    "result": "passed: 17 Mocha checks, 0 failures; targeted upstream oracle for the Guardian caption/media-heavy fixture"
+                },
+                {
+                    "command": "npm test -- --grep nytimes-1",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the NYT rich figure-caption and hidden feedback fixture"
+                },
+                {
+                    "command": "npm test -- --grep nytimes-2",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the NYT continuation-link and hidden story-interrupter fixture"
+                },
+                {
+                    "command": "npm test -- --grep nytimes-3",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the NYT figure itemid lazy-image and related-card cleanup fixture"
+                },
+                {
+                    "command": "npm test -- --grep nytimes-4",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the NYT debt article graphics and related-link cleanup fixture"
+                },
+                {
+                    "command": "npm test -- --grep telegraph",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the Telegraph text-section publisher chrome fixture"
+                },
+                {
+                    "command": "npm test -- --grep 'custom video regex|maxElemsToParse|keepClasses'",
+                    "result": "passed: 5 Mocha checks, 0 failures; targeted upstream oracle for parse options including keepClasses, maxElemsToParse, and custom allowed video regex behavior"
+                },
+                {
+                    "command": "node charThreshold retry/null oracle using upstream Readability and jsdom",
+                    "result": "passed: charThreshold 1000 returned a non-null 134-character article from a first-pass unlikely `comment` wrapper; charThreshold 50 returned null for an empty chrome-only document"
+                },
+                {
+                    "command": "npm test -- --grep bbc-1",
+                    "result": "passed: 17 Mocha checks, 0 failures; targeted upstream oracle for the BBC RDFa articleBody and video-placeholder fixture"
+                },
+                {
+                    "command": "npm test -- --grep nytimes-5",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the NYT Spanish section-front collection fixture"
+                },
+                {
+                    "command": "npm test -- --grep cnn",
+                    "result": "passed: 13 Mocha checks, 0 failures; targeted upstream oracle for the CNN storytext root and SmartAsset widget fixture"
+                },
+                {
+                    "command": "npm test -- --grep wapo-1",
+                    "result": "passed: 13 Mocha checks, 0 failures; targeted upstream oracle for the Washington Post inline gallery, video caption, and linked graphic fixture"
+                },
+                {
+                    "command": "npm test -- --grep wapo-2",
+                    "result": "passed: 13 Mocha checks, 0 failures; targeted upstream oracle for the Washington Post lead media/article/author-bio envelope fixture"
+                },
+                {
+                    "command": "npm test -- --grep yahoo-2",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the Yahoo application-name/siteName boundary fixture"
+                },
+                {
+                    "command": "npm test -- --grep yahoo-4",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the Yahoo Japan ynDetailText articleBody fixture"
+                },
+                {
+                    "command": "npm test -- --grep buzzfeed-1",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the BuzzFeed print image, byline, and author bio chrome fixture"
+                },
+                {
+                    "command": "npm test -- --grep lemonde-1",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the Le Monde French articleBody and Dailymotion video fixture"
+                },
+                {
+                    "command": "npm test -- --grep theverge",
+                    "result": "passed: 17 Mocha checks, 0 failures; targeted upstream oracle for The Verge content wrapper, pullquote, responsive image, newsletter, and metadata fixture"
+                },
+                {
+                    "command": "npm test -- --grep citylab-1",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the CityLab author RSS feed list cleanup fixture"
+                },
+                {
+                    "command": "npm test -- --grep mozilla-1",
+                    "result": "passed: 17 Mocha checks, 0 failures; targeted upstream oracle for the Firefox customize main-content wrapper and Sync CTA cleanup fixture"
+                },
+                {
+                    "command": "npm test -- --grep aclu",
+                    "result": "passed: 19 Mocha checks, 0 failures; targeted upstream oracle for the ACLU Drupal panel/sidebar wrapper fixture"
+                },
+                {
+                    "command": "npm test -- --grep 002",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the Mozilla Hacks content-main root, long-form code samples, and developer article chrome cleanup fixture"
+                },
+                {
+                    "command": "npm test -- --grep article-author-tag",
+                    "result": "passed: 17 Mocha checks, 0 failures; targeted upstream oracle for the Atlas Obscura article:author metadata and article-body section fixture"
+                },
+                {
+                    "command": "npm test -- --grep engadget",
+                    "result": "passed: 17 Mocha checks, 0 failures; targeted upstream oracle for the Engadget review-gallery/product-chrome fixture"
+                },
+                {
+                    "command": "npm test -- --grep google-sre-book-1",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the Google SRE book chapter-main root and table-of-contents cleanup fixture"
+                },
+                {
+                    "command": "npm test -- --grep wikipedia",
+                    "result": "passed: 74 Mocha checks, 0 failures; targeted upstream oracle for the Wikipedia fixture family including wikipedia article shell cleanup, wikipedia-3 math article cleanup, and wikipedia-4 table/category/tracking cleanup"
+                },
+                {
+                    "command": "npm test -- --grep wikipedia-2",
+                    "result": "passed: 19 Mocha checks, 0 failures; targeted upstream oracle for the large Wikipedia New Zealand country-page fixture and status-indicator cleanup boundary"
+                },
+                {
+                    "command": "npm test -- --grep firefox-nightly-blog",
+                    "result": "passed: 17 Mocha checks, 0 failures; targeted upstream oracle for the Firefox Nightly WordPress article-header rel=author byline fixture"
+                },
+                {
+                    "command": "npm test -- --grep simplyfound-1",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the SimplyFound Bootstrap account-approval modal and trailing adsbygoogle cleanup fixture"
+                },
+                {
+                    "command": "npm test -- --grep la-nacion",
+                    "result": "passed: 13 Mocha checks, 0 failures; targeted upstream oracle for the La Nacion leading BOM and described NewsArticle fixture"
+                },
+                {
+                    "command": "npm test -- --grep dev418",
+                    "result": "passed: 13 Mocha checks, 0 failures; targeted upstream oracle for mixed standalone image, figure, separator, and media-list retention"
+                },
+                {
+                    "command": "npm test -- --grep toc-missing",
+                    "result": "passed: 17 Mocha checks, 0 failures; targeted upstream oracle for Haki Benita table-of-contents retention and interactive editor CTA pruning"
+                },
+                {
+                    "command": "npm test -- --grep invalid-attributes",
+                    "result": "passed: 13 Mocha checks, 0 failures; targeted upstream oracle for the malformed empty-attribute fixture boundary"
+                },
+                {
+                    "command": "npm test -- --grep tumblr",
+                    "result": "passed: 17 Mocha checks, 0 failures; targeted upstream oracle for the Tumblr single-post container and bare-string JSON-LD author null-byline boundary"
+                },
+                {
+                    "command": "npm test -- --grep medicalnewstoday",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the Medical News Today article-scoped byline fixture boundary"
+                },
+                {
+                    "command": "npm test -- --grep bug-1255978",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the Independent articleBody/share-id/Taboola fixture boundary"
+                },
+                {
+                    "command": "npm test -- --grep comment-inside-script-parsing",
+                    "result": "passed: 13 Mocha checks, 0 failures; targeted upstream oracle for the parser boundary with HTML comments and a nested pseudo script tag inside a script block"
+                },
+                {
+                    "command": "npm test -- --grep lifehacker-post-comment-load",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the Lifehacker/Kinja comment-load publisher fixture and retained annotated editorial lists"
+                },
+                {
+                    "command": "php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php",
+                    "result": "passed: 154 tests, 1915 assertions, 0 failures; focused native PHP coverage for exact remove-extra-paragraphs parity and WordPress nonempty paragraph block serialization"
+                }
+            ],
+            "previousProbe": {
+                "command": "npm test",
+                "result": "previously failed before upstream tests with `sh: line 1: mocha: command not found` because dependencies were absent"
+            },
+            "latestSuccessfulRuns": [
+                {
+                    "command": "npm test -- --grep medicalnewstoday",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for Medical News Today article-scoped byline extraction below a site-header wrapper"
+                },
+                {
+                    "command": "npm test -- --grep tumblr",
+                    "result": "passed: 17 Mocha checks, 0 failures; targeted upstream oracle for the Tumblr single-post container and theme-sidebar cleanup fixture boundary"
+                },
+                {
+                    "command": "npm test -- --grep bug-1255978",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for the Independent articleBody/share-id/Taboola fixture boundary"
+                },
+                {
+                    "command": "npm test -- --grep comment-inside-script-parsing",
+                    "result": "passed: 13 Mocha checks, 0 failures; targeted upstream oracle for script-comment parser-boundary fixture parity"
+                },
+                {
+                    "command": "npm test -- --grep lifehacker-post-comment-load",
+                    "result": "passed: 15 Mocha checks, 0 failures; targeted upstream oracle for Kinja comment-load fixture parity and retained text-annotated editorial lists"
+                }
+            ]
+        },
+        "mappedSemantics": [
+            "Readability-readerable default minContentLength 140 and minScore 20 scoring thresholds.",
+            "Readability-readerable custom minContentLength and minScore options.",
+            "Readability-readerable visibility callback handling.",
+            "Readerable rejection for hidden, aria-hidden, li p, and unlikely class/id candidates.",
+            "Readability unlikely candidate and role cleanup for migration/page-builder chrome.",
+            "Semantic article/main/section scoring preference over outer page containers.",
+            "WordPress block serialization for extracted headings and paragraphs.",
+            "Mozilla test-pages/normalize-spaces source/expected/metadata fixture: document-title precedence, readerable true classification, null byline/site/published/dir metadata, excerpt whitespace normalization, and extracted article text parity against expected.html.",
+            "Mozilla test-pages/parsely-metadata source/expected/metadata fixture: Parse.ly title, byline, and published-time metadata extraction, readerable true classification, excerpt normalization, null site/dir/lang metadata, and extracted article text parity against expected.html.",
+            "Mozilla test-pages/metadata-content-missing source/expected/metadata fixture: space-separated meta property matching, dc:title and dc:creator precedence over fallback title/author tags, missing content attributes ignored, dc:description excerpt precedence, readerable classification, and whitespace-normalized article text parity against expected.html.",
+            "Mozilla test-pages/005-unescape-html-entities source/expected/metadata fixture: metadata numeric entities are decoded, invalid nonnumeric entities remain literal, and zero/out-of-range numeric references become U+FFFD replacement characters.",
+            "Mozilla test-pages/mozilla-2 source/expected/metadata fixture: OpenGraph site name and description metadata, document lang/dir extraction, readerable false classification, retained in-main header content markers, and exclusion of head comment text.",
+            "Mozilla test-pages/yahoo-2 source/expected/metadata fixture: siteName remains null when the source only provides application-name/page-title-like metadata and lacks JSON-LD publisher or og:site_name, while title/byline/excerpt/lang/readerable/content text match upstream and WordPress output keeps 16 paragraph blocks plus one review heading without share/ad chrome.",
+            "Mozilla test-pages/yahoo-3 source/expected/metadata fixture: Yahoo/GMA provider, action, topic, and breaking-news link chrome is removed while upstream-retained related editorial links, image payload, byline, metadata, readerable value, and normalized expected text parity are preserved.",
+            "WordPress Yahoo/GMA provider chrome cleanup: legacy Yahoo syndicated article pages keep editorial article links and the retained image while provider mastheads, save/like controls, share controls, and recipe-promo chrome stay out of migrated block content.",
+            "Mozilla test-pages/yahoo-4 source/expected/metadata fixture: Japanese Yahoo articleBody selection keeps the ynDetailText paragraph wrapper, title/byline/site/lang/excerpt/readerable/content text match upstream, 9 expected paragraphs survive, and navigation/ranking/share/footer chrome is excluded.",
+            "Mozilla test-pages/embedded-videos source/expected/metadata fixture: readerable true classification, excerpt normalization, preservation of the five expected allowed YouTube, YouTube-nocookie, and Vimeo iframe sources, and WordPress HTML-block serialization for three standalone retained video iframes without paragraph-wrapping them.",
+            "Mozilla test-pages/videos-2 source/expected/metadata fixture: UTF-8 DOM parsing, JSON-LD author/publisher/datePublished metadata, article-body scoring, exact normalized text parity, and preservation of seven expected YouTube and Dailymotion iframe sources.",
+            "Mozilla test-pages/lazy-image-1 source/expected/metadata fixture: metadata description precedence over shorter OpenGraph/Twitter snippets, data-old-src lazy image promotion, exact expected article image source rows retained, Medium-style out-of-band full-width figure wrappers removed, and post-article recommendation/signup chrome removed.",
+            "Mozilla test-pages/lazy-image-2 source/expected/metadata fixture: HTML entity-decoded excerpt metadata, Kinja in-article ad wrapper removal, exact whitespace-normalized article text parity, and 56 expected responsive image rows with data-srcset/srcset parity.",
+            "Mozilla test-pages/lazy-image-3 source/expected/metadata fixture: data-src jpg/png images are promoted to src, expected title/null metadata is preserved, and readerable remains false.",
+            "Mozilla test-pages/base-url-base-element-relative source/expected/metadata fixture: relative anchor href and image src attributes resolve through the document URL plus a relative base href exactly like upstream fixture output.",
+            "Mozilla test-pages/base-url source/expected/metadata fixture: relative anchors and images resolve against the source document URL while hash-only links remain hash-only when no base element changes the base URI.",
+            "Mozilla test-pages/base-url-base-element source/expected/metadata fixture: root-relative base href handling resolves anchors, hash links, and image sources against the base URI rather than the source page path.",
+            "Mozilla test-pages/js-link-replacement source/expected/metadata fixture: a javascript: anchor with multiple child nodes is replaced by an inert span while preserving child paragraphs and text.",
+            "Mozilla test-pages/table-style-attributes source/expected/metadata fixture: legacy font tags are normalized to spans, HTML comments are removed, retained tables keep structure while dropping presentational attributes and table/cell sizing, metadata/excerpt/readerable values match, and extracted article text matches expected.html.",
+            "Mozilla test-pages/replace-font-tags source/expected/metadata fixture: legacy font tags are converted to span elements while preserving face/size attributes, div text is paragraphized, duplicate title h1 is removed, remaining h1 content is demoted, metadata/excerpt/readerable values match, and no font elements survive extraction.",
+            "Mozilla test-pages/rtl-1, rtl-2, rtl-3, and rtl-4 source/expected/metadata fixtures: article direction metadata is derived from the selected content scope's parent/ancestor chain, preserving html/body/main RTL wrappers while leaving a lone article dir unset like upstream fixture output.",
+            "Mozilla test-pages/links-in-tables source/expected/metadata fixture: linked app rows in a retained data table preserve expected hrefs, row/col structure, metadata, readerable classification, excerpt, and whitespace-normalized article text.",
+            "Mozilla test-pages/keep-tabular-data source/expected/metadata fixture: large tabular GUI status data remains a table with expected row count and status image sources while source classes and inline styles are stripped; normalized content text now matches upstream across adjacent paragraph, heading, and table-cell boundaries.",
+            "Mozilla _markDataTables semantics: summary, caption, col/colgroup/tfoot/thead/th descendants, and row/column thresholds mark data tables, while role=presentation, datatable=0, nested tables, and single-row/column layout tables do not.",
+            "Mozilla test-pages/remove-aria-hidden source/expected/metadata fixture: aria-hidden text is removed during extraction, expected paragraph text remains, metadata/excerpt/readerable values match, and non-fallback aria-hidden nodes are absent from output.",
+            "Mozilla test-pages/hidden-nodes source/expected/metadata fixture: display:none and hidden-attribute paragraphs are removed while visible sibling headers remain available.",
+            "Mozilla test-pages/visibility-hidden source/expected/metadata fixture: visibility:hidden sections and unsafe embedded objects are removed, and scaffold h1/h2 nodes around the surviving paragraph section are not imported.",
+            "Mozilla test-pages/replace-brs source/expected/metadata fixture: chains of two or more br elements are converted into paragraph boundaries while single soft br elements remain inside paragraphs; normalized content text now matches upstream across generated paragraph boundaries.",
+            "Mozilla test-pages/remove-extra-brs source/expected/metadata fixture: stray br elements before paragraphs and empty br-only paragraphs are removed during article preparation.",
+            "Mozilla test-pages/basic-tags-cleaning source/expected/metadata fixture: scaffold h1/h2 nodes and generic iframe/object/embed content are removed while expected editorial paragraphs and metadata remain.",
+            "Mozilla test-pages/remove-extra-paragraphs source/expected/metadata fixture: empty and whitespace-only paragraphs are removed while the expected editorial paragraph sequence, metadata, and readerable classification remain.",
+            "Mozilla _isProbablyVisible semantics: display:none, visibility:hidden, hidden attributes, and aria-hidden=true nodes are removed during article extraction while class=fallback-image media remains eligible for preservation.",
+            "Mozilla grabArticle cleanup semantics: aria-modal=true role=dialog nodes are removed before scoring and extraction.",
+            "Mozilla parse fallback excerpt semantics: when metadata lacks an excerpt, the first article paragraph is used instead of a wrapping div's combined text.",
+            "Mozilla default video whitelist cleanup semantics: generic iframe/embed/object content is removed while allowed video hosts are retained for migration output.",
+            "Mozilla lazy-image fixture semantics: single-image noscript fallbacks replace placeholder images while preserving the placeholder URL in data-old-src.",
+            "Mozilla lazy media cleanup semantics: lazy data-srcset values are promoted to srcset so responsive images survive JavaScript-free extraction.",
+            "Mozilla _fixRelativeUris post-process semantics: javascript: anchors are replaced by inert text/span content and retained editorial href/src/srcset media URLs are absolutized when a source URL is provided.",
+            "Mozilla post-process semantics: empty div/section containers are removed, nested single div/section wrappers are simplified, source class attributes are stripped by default while the reserved Readability page class remains eligible for preservation, and Medium section-content inner wrappers no longer outrank the surrounding article/section boundary during content selection.",
+            "Mozilla post-process semantics: transparent section wrappers whose only direct element children are containers are unwrapped after source class cleanup, moving copied lazy-image-1 structure closer to upstream expected output.",
+            "Mozilla parse paging semantics: an opt-in native serializer wraps cleaned content children in `div#readability-page-1.page`, preserving the upstream page wrapper boundary for fixture comparison while the default extraction output stays rootless for WordPress block migration.",
+            "Mozilla post-process semantics: after empty paragraph cleanup, nested wrapper simplification runs again so emptied Medium author/action stacks collapse toward the upstream lazy-image-1 avatar structure.",
+            "Mozilla test-pages/lazy-image-1 source/expected/metadata fixture: expected relative editorial hrefs now resolve against the fixture URL while transparent source section wrappers are absent from the native extracted content.",
+            "Mozilla post-process semantics: div nodes without descendant block elements are converted to paragraphs so article text blocks match expected fixture structure.",
+            "Mozilla div preprocessing semantics: consecutive phrasing children inside divs are wrapped in paragraphs, including image and anchor-wrapped image payloads that appear in copied Medium-style migration fixtures.",
+            "Mozilla scoring cleanup semantics: divs wrapping a single paragraph with link density below 0.25 are collapsed to the paragraph, matching Medium blockquote wrapper output.",
+            "Mozilla media-wrapper cleanup boundary: single-paragraph divs that carry media payloads are retained so figure and avatar images keep the expected paragraph wrapper instead of being flattened.",
+            "Mozilla _prepArticle cleanup semantics: empty paragraphs with no image/embed/object/iframe payload are removed before block serialization.",
+            "Mozilla _prepArticle cleanup semantics: single-cell table wrappers are replaced with a paragraph when the cell contains only phrasing content, or a div when the cell contains block children; multi-cell data tables are retained.",
+            "Mozilla _prepDocument/_cleanStyles semantics: font elements are converted to spans, source comments are removed from extracted article content, and deprecated presentational attributes plus table/th/td/hr/pre width/height attributes are stripped.",
+            "WordPress migration table serialization: retained multi-cell tables are emitted as core table blocks while layout-only one-cell tables are removed before block output.",
+            "WordPress/Medium migration selection semantics: when the best body/main candidate contains one substantial article, the native extractor promotes the article content so surrounding body wrappers and chrome are not imported.",
+            "WordPress/Kinja migration cleanup semantics: ad-container, ad-mobile, dfp-slot, and js_ad wrappers are removed before article scoring and block serialization.",
+            "Mozilla title/header cleanup semantics: the first h1/h2 whose text closely duplicates the extracted article title is removed from content, and remaining h1 nodes are demoted to h2 before WordPress block serialization.",
+            "WordPress migration cleanup semantics: layout-only full-width figure wrappers with short captions are removed while editorial in-column figures remain available for block image output.",
+            "WordPress migration cleanup semantics: source theme and block wrapper classes are removed while IDs, article text, and promoted image sources remain available for clean block output.",
+            "WordPress migration cleanup semantics: obsolete font and presentational table attributes are dropped before block output while editorial table rows, links, images, and text remain available.",
+            "Mozilla _prepArticle cleanup semantics: button/input/textarea/select controls and source platform share/action links are removed from extracted article content.",
+            "Mozilla _prepArticle cleanup semantics: link and fieldset fragments are removed before block serialization so inline source stylesheets and form chrome do not become WordPress blocks.",
+            "Mozilla test-pages/style-tags-removal source/expected/metadata fixture: style tags in head, article, and trailing body chrome are removed while expected article headings, paragraphs, metadata, and readerable classification remain.",
+            "Mozilla test-pages/remove-script-tags source/expected/metadata fixture: script tags with JavaScript and VBScript payloads are removed before extraction while the expected editorial paragraph sequence, metadata, and readerable classification remain.",
+            "Mozilla test-pages/social-buttons source/expected/metadata fixture: WordPress.com Sharedaddy/Jetpack like widget chrome is removed while five expected article paragraphs and the demoted heading remain.",
+            "WordPress/Medium migration cleanup semantics: leading byline, follow, read-time, and share action bars before the first content heading are removed while avatar media remains available for block output.",
+            "WordPress Jetpack migration cleanup: inline script/style fragments and Sharedaddy like widgets are dropped before paragraph block serialization.",
+            "WordPress migration URL cleanup semantics: relative editorial links, image sources, and responsive srcset candidates are resolved against the original document URL and base element before block serialization.",
+            "WordPress line-break migration cleanup: legacy exports that encode paragraph boundaries as repeated br elements are split into separate paragraph blocks while a single editorial soft break remains available.",
+            "WordPress block-boundary spacing cleanup: imported article text, search excerpts, and review logs keep paragraph-to-heading and table-cell words separated even when source HTML omits whitespace between adjacent tags.",
+            "WordPress section wrapper cleanup: legacy page-builder sections that only carry layout classes and container children are unwrapped before block serialization so editorial paragraphs remain without source section shells.",
+            "Mozilla test-pages/title-en-dash source/expected/metadata fixture: document titles with an en-dash site suffix are cleaned to the article title, readerable classification and fallback excerpt match upstream, and extracted article text matches expected.html.",
+            "Mozilla test-pages/clean-links source/expected/metadata fixture: javascript popup-note anchors are neutralized, event-handler attributes are absent from output, non-popup editorial href/src sequences match expected output exactly, trailing footer/home links and images are removed, paragraph count matches expected output, selected-root NBSP padding is trimmed before text projection, and whitespace-padded href/src attributes are trimmed before URI absolutization.",
+            "Mozilla test-pages/ol source/expected/metadata fixture: ordered-list article content is preserved while readerable remains false because list paragraphs are skipped by readerable preflight.",
+            "Mozilla test-pages/001 source/expected/metadata fixture: metadata-free body bylines are extracted from the article content, nested itemprop=name text is preferred for the byline value, and the byline node is removed from the extracted article body.",
+            "Mozilla _getArticleTitle semantics: spaced title separators (`|`, hyphen, en dash, em dash, slash, backslash, greater-than, and guillemet) remove the final hierarchy/site segment when the retained title remains substantial, with the same short-title fallback boundary as upstream.",
+            "Mozilla _fixRelativeUris post-process semantics: href, src, and poster attribute values are trimmed before javascript-link replacement or absolute URL resolution so source whitespace does not become encoded `%20` or `%0A` in migration output.",
+            "Mozilla _getLinkDensity semantics: hash-only anchors count with coefficient 0.3, allowing single-paragraph wrappers with local citations to collapse like upstream.",
+            "Mozilla _isValidByline semantics are now partially native: rel=author, itemprop author/name, and byline/author class or id nodes can populate the byline when the text is under the upstream 100-character boundary, but candidates inside unlikely/chrome ancestors are skipped.",
+            "Mozilla _unescapeHtmlEntities metadata semantics are now native for the common named entities plus numeric codepoints, including upstream replacement of null, surrogate, and out-of-range codepoints with U+FFFD.",
+            "WordPress migration title cleanup: source site suffixes such as `Reusable Pattern Migration Planning Guide \u2013 Legacy Agency Site` are removed before `post_title` selection while duplicate body title headings are still removed from block content.",
+            "WordPress metadata excerpt cleanup: double-escaped valid numeric entities decode before import, while invalid zero/out-of-range numeric entities become replacement characters instead of surviving as literal references.",
+            "WordPress footnote wrapper cleanup: legacy wrappers around local citation links collapse while preserving the hash href and target node for block output.",
+            "WordPress body byline cleanup: legacy templates that put itemprop/rel author bylines inside article content now populate portable byline metadata and drop the byline paragraph before block serialization.",
+            "WordPress RTL import metadata cleanup: right-to-left source wrappers populate article direction metadata for downstream post/meta handling without importing duplicate title chrome.",
+            "Mozilla test-pages/title-and-h1-discrepancy source/expected/metadata fixture: JSON-LD name/headline disagreement keeps the title matching the cleaned document title, body h1 content is demoted/cleaned according to upstream output, and article metadata/content parity remains tied to a named fixture.",
+            "Mozilla _getJSONLD title semantics are now partially native: when JSON-LD `name` and `headline` both exist and differ, the field matching the cleaned document title wins, otherwise `name` is preferred before `headline`.",
+            "WordPress structured-data title cleanup: plugin-injected JSON-LD headlines that do not match the source document title no longer replace the imported post title when JSON-LD `name` matches the canonical title.",
+            "WordPress trailing footer-bar cleanup: compact source-theme navigation bars with multiple footer links/images after substantial article content are removed while editorial body links remain absolute and available for block output.",
+            "Mozilla test-pages/schema-org-context-object source/expected/metadata fixture: object-valued JSON-LD @context is accepted, NewsArticle metadata maps title/byline/site/date/lang/excerpt, readerable classification remains true, the full paragraph sequence now matches upstream output, and React/Next comment-delimited contributor text remains one paragraph after removing leading timestamp and inline-byline chrome.",
+            "Mozilla post-process comment cleanup semantics now remove DOM comment nodes before div phrasing content is wrapped into paragraphs, preventing hydrated-source comment delimiters from splitting text runs into fragment paragraphs.",
+            "WordPress React/Next migration cleanup: contributor or byline text split by `<!-- -->` hydration markers serializes as one paragraph block instead of multiple fragment blocks.",
+            "Mozilla leading article chrome cleanup semantics: when an extracted article body has no content heading, leading timestamp/dateline and inline byline wrappers before the first substantial paragraph are removed while metadata remains available separately.",
+            "WordPress news migration cleanup: heading-less legacy news templates with top timestamp and byline wrappers serialize WordPress blocks starting at the first editorial paragraph instead of importing date/byline chrome as content.",
+            "Mozilla test-pages/wordpress source/expected/metadata fixture: WordPress Tavern BlogPosting metadata maps title/site/date/lang/dir, readerable classification remains true, Jetpack share/related/comment chrome is removed, articleBody paragraphs and three wp.com image/srcset rows match upstream output.",
+            "Mozilla class/id weighting semantics are now partially native: upstream positive/negative class/id regexes influence candidate scoring in addition to existing semantic article/main/section weights.",
+            "WordPress schema.org articleBody selection: when a WordPress BlogPosting lacks entry-content classes, itemprop=articleBody receives a strong candidate boost so trailing tag/theme chrome does not become imported block content.",
+            "WordPress microdata import cleanup: itemprop=articleBody paragraphs are serialized as blocks while sibling tag wrappers remain out of the migrated content.",
+            "WordPress migration wrapper scenario: the upstream readability-page wrapper can be preserved for oracle parity and still flattened by block serialization so migration output does not import the comparison wrapper.",
+            "Mozilla test-pages/data-url-image source/expected/metadata fixture: standalone tiny GIF data URIs are preserved, tiny placeholder GIF src attributes are removed when responsive data-srcset candidates exist, data-srcset is promoted to srcset, inline SVG data URIs retain upstream literal-space serialization, base64 SVG and JPEG data URIs remain available, metadata/excerpt/readerable values match, and the expected editorial paragraph/image boundary is retained.",
+            "WordPress data URI image migration cleanup: tiny placeholder images are removed when a usable responsive candidate list exists, while real inline SVG diagrams and embedded image data remain available for block serialization.",
+            "Mozilla test-pages/keep-images source/expected/metadata fixture: Medium full-width editorial `postField--fillWidthImage` figures remain in extracted content, preserving 16 expected figure/image payloads, captions, metadata, readerable classification, source-image order, and the named `div#readability-page-1 > div[name=ef8c]` section boundary while editor/metabar chrome is removed.",
+            "WordPress media migration cleanup: editorial full-width imported figures with Medium-style `postField--fillWidthImage` evidence are kept for block output, while unrelated decorative source crop wrappers remain eligible for removal and source classes are stripped after the keep decision.",
+            "Mozilla post-process boundary cleanup: whitespace-only text nodes at the selected content root are trimmed after cleanup, treating nonbreaking spaces as boundary whitespace while preserving internal NBSP content.",
+            "WordPress classic export NBSP cleanup: table-wrapped body-only exports that start or end with `&nbsp;` layout padding serialize paragraph blocks without leading or trailing padding text.",
+            "WordPress/Medium section wrapper parity: optional oracle output preserves named Medium section boundaries for upstream fixture comparison while default WordPress block serialization still flattens opaque source section shells.",
+            "Mozilla test-pages/medium-1 source/expected/metadata fixture: Medium metadata maps title/byline/site/date/excerpt, readerable classification remains true, empty spacer headings such as h4/br are removed from cleaned article output, and lead heading plus paragraph text retains a boundary instead of concatenating as JournalismWe.",
+            "WordPress empty heading import cleanup: visual spacer headings from source editors are removed before block serialization while real headings remain and article text boundaries stay readable for excerpts and review logs.",
+            "Mozilla test-pages/cnet-svg-classes source/expected/metadata fixture: Spanish CNET metadata maps title/byline/site/lang/excerpt, readerable classification remains true, article text and image sources match upstream, and duplicate inline SVG symbol sprites are deduplicated so only the upstream-retained sprite set remains.",
+            "WordPress inline SVG sprite cleanup: repeated source-theme symbol sprite blocks are deduplicated before block serialization while ordinary editorial inline SVG diagrams remain available for import output.",
+            "Mozilla test-pages/v8-blog source/expected/metadata fixture: visible body/header time datetime values do not populate publishedTime metadata unless JSON-LD, article:published_time, or parsely-pub-date supplies the value.",
+            "WordPress visible-date metadata boundary: legacy theme template dates stay out of imported publishedTime metadata when upstream Readability would return null, leaving date trust decisions to the import layer.",
+            "Mozilla test-pages/medium-2 source/expected/metadata fixture: Medium metadata and readerable classification map, expected article text/link/image rows match after removing a trailing nested syndication source-note section beginning `Originally published at`.",
+            "WordPress syndication footer cleanup: stale source-platform `Originally published at` notes and links after substantial article content are removed before paragraph block serialization.",
+            "Mozilla test-pages/medium-3 source/expected/metadata fixture: Medium metadata, readerable classification, article text, links, images, blockquotes, ordered list rows, and hr-separated readability-page child sections match upstream output.",
+            "WordPress Medium page-break cleanup: source `<hr>` page separators between Medium content sections are removed before block serialization so separator rules do not become paragraph blocks.",
+            "Mozilla _cleanClasses option semantics are now partially native: source classes are stripped by default while the built-in page class and caller-supplied classesToPreserve entries survive exactly by class token.",
+            "WordPress caption class preservation: migration callers can explicitly preserve wp-caption, aligncenter, and wp-caption-text class contracts for media review while unrelated source theme classes are stripped.",
+            "Mozilla test-pages/ars-1 source/expected/metadata fixture: ARS metadata, readerable classification, retained image source, empty caption text, and caller-preserved caption class map while the source `caption-credit` link-only wrapper is removed.",
+            "WordPress figure credit cleanup: link-only source photo-credit wrappers inside media captions are removed before block serialization while requested media caption classes and the editorial image remain available.",
+            "Mozilla test-pages/guardian-1 source/expected/metadata fixture: Guardian metadata, readerable classification, selected articleBody media-root wrapper, 14 figures, 13 image payloads, 112 responsive source rows, and 8 caption list items are retained while navigation, contribution, and byline chrome are excluded from article text.",
+            "WordPress Guardian media import cleanup: retained image figures serialize as image blocks instead of paragraph blocks while adjacent caption list text remains available for review and media attachment workflows.",
+            "Mozilla test-pages/nytimes-1 source/expected/metadata fixture: NYT metadata, readerable classification, rich schema.org figure structure, image source, data-mediaviewer caption and credit attributes, caller-preserved caption class, and caption credit text are retained while CSS-hidden reader feedback prompt chrome is excluded from article text.",
+            "WordPress NYT media import cleanup: retained NYT image figures serialize as image blocks with caption/credit text available for media review while hidden publisher feedback surveys are dropped before block generation.",
+            "Mozilla Readability parse option semantics for keepClasses are now partially native: default extraction strips classes, while keepClasses preserves source classes in serialized content that survives article selection.",
+            "Mozilla Readability allowedVideoRegex option semantics are now partially native: callers can provide a custom PHP regex/pattern to keep trusted non-default iframe/embed/object hosts while unrelated widgets are still removed.",
+            "Mozilla Readability maxElemsToParse option semantics are now native for the pre-parse abort boundary, raising an upstream-shaped `Aborting parsing document; N elements found` RuntimeException when the parsed element count exceeds the configured maximum.",
+            "Mozilla Readability charThreshold parse semantics are now partially native: option extraction retries with unlikely-candidate stripping relaxed, returns the longest nonempty attempt when all attempts remain below the threshold, and returns null when every attempt is empty.",
+            "WordPress custom oEmbed migration cleanup: trusted legacy video iframe providers can be preserved for block conversion while ad/widget iframe hosts are removed, and keepClasses can retain review-mode source classes when requested.",
+            "WordPress charThreshold import boundary: short editorial copy inside comment-like legacy theme wrappers can be recovered for migration review, while chrome-only empty sources return null instead of producing blank WordPress blocks.",
+            "Mozilla test-pages/telegraph source/expected/metadata fixture: Telegraph metadata, readerable classification, null publishedTime for dateCreated-only JSON-LD, six text-section wrappers, 13 expected article paragraphs, and removal of publisher image interrupter sections, related topics, social/share, comment, sidebar, and ad chrome.",
+            "WordPress Telegraph text-section import cleanup: publisher image interrupters and media credits are dropped before block serialization, while all 13 editorial paragraphs survive as paragraph blocks and no image blocks are emitted for upstream-excluded media chrome.",
+            "Mozilla test-pages/nytimes-2 source/expected/metadata fixture: NYT metadata, readerable classification, lead figure/caption credit retention, three upstream continuation anchors, paragraph id boundaries, and hidden story-ad interrupter cleanup match the copied upstream fixture while related story rail chrome is excluded from article text.",
+            "WordPress NYT continuation import cleanup: the retained lead figure serializes as one image block, 23 story and continuation-link paragraphs serialize as paragraph blocks, hidden story-ad containers are absent, and related story rail copy is not imported.",
+            "Mozilla test-pages/nytimes-3 source/expected/metadata fixture: NYT metadata, readerable classification, article#story wrapper, seven schema.org figures, eight expected image sources, figure itemid lazy-image repair, six h2 section headings, caption/credit text, related-card removal, and bottom advertisement cleanup match the copied upstream fixture boundaries.",
+            "WordPress NYT utility media import cleanup: figures whose source image lives only in a figure itemid become image blocks, seven NYT media figures serialize as image blocks, 43 paragraph blocks remain, and related interactive-card/ad chrome is excluded from migrated article text.",
+            "Mozilla test-pages/nytimes-4 source/expected/metadata fixture: NYT metadata, readerable classification, article#story wrapper promotion, retained lead image/caption payload, 48 expected paragraphs, 4 h2 sections, share-tool removal, debt chart/interactive cleanup, and related-link-card cleanup match the copied upstream fixture boundaries.",
+            "WordPress NYT debt article import cleanup: the retained lead image serializes as one image block, 47 article paragraphs serialize as paragraph blocks, debt chart/interactive chrome is excluded, related link cards are removed while the upstream-retained \"More about\" label remains, and publisher share tools are absent.",
+            "Mozilla test-pages/nytimes-5 source/expected/metadata fixture: NYT Spanish section-front metadata, readerable classification, expected image sources, 22 retained media figures, 11 h2 headings, 3 h3 headings, primary collection card pruning, secondary highlight rail removal, latest-stream cleanup, and section-front ad wrapper removal are mapped against the copied upstream fixture boundaries.",
+            "WordPress NYT section-front import cleanup: publisher collection pages keep retained media cards and selected story summaries for migration review while stream/search panels, secondary highlight rails, ad wrappers, and tab navigation are absent from WordPress block output.",
+            "Mozilla test-pages/bbc-1 source/expected/metadata fixture: BBC metadata, readerable classification, RDFa property=articleBody candidate selection/root preservation, 32 expected paragraphs, 2 h2 headings, 5 image/data-src rows, and unsupported media-placeholder video-shell cleanup match the copied upstream fixture boundaries.",
+            "WordPress BBC RDFa import cleanup: BBC articleBody content serializes to 5 image blocks and article paragraphs while navigation chrome, unsupported video placeholders, and stripped iframe shells stay out of migrated post content.",
+            "Mozilla test-pages/wapo-1 source/expected/metadata fixture: Washington Post metadata and readerable parity, expected paragraph/link/image counts, inline gallery widget removal, linked graphic promo cleanup, retained PostTV caption text, retained inline map image, and WordPress paragraph-block output parity.",
+            "WordPress Washington Post import cleanup: PageBuilder inline gallery controls, photo-buy links, interstitial wait text, and linked graphic preview images are removed before block serialization while editorial video captions, map captions, links, and the final inline map graphic remain available for review.",
+            "Mozilla test-pages/wapo-2 source/expected/metadata fixture: Washington Post PageBuilder articleBody envelope is retained when a lead inline-photo sibling appears before the article, preserving lead image/caption, article paragraphs, and post-body author bio while removing the top pb-sig-line byline/share controls.",
+            "WordPress Wapo author/media import cleanup: lead media and author bio serialize as paragraph blocks for review while byline/share/comment/most-read chrome stays out of migrated block content.",
+            "Mozilla test-pages/yahoo-4 source/expected/metadata fixture: Yahoo Japan articleBody candidate weighting selects the paragraph wrapper containing ynDetailText, preserving 9 article paragraphs and removing top navigation, ranking, share, and footer chrome.",
+            "WordPress Yahoo Japan article import cleanup: Japanese publisher article pages serialize to 9 paragraph blocks with 0 image blocks while Yahoo navigation, rankings, share controls, and footer links stay out of migrated content.",
+            "Mozilla test-pages/buzzfeed-1 source/expected/metadata fixture: BuzzFeed metadata, readerable classification, null byline boundary, print image/link cleanup, author bio/share tail removal, two retained grid images, two h2 headings, and exact normalized expected text parity.",
+            "WordPress BuzzFeed import cleanup: source print helpers, author bio/contact blocks, bottom share controls, and promoted byline ad fragments are removed before block serialization while story headings, paragraphs, and inline image payloads remain reviewable.",
+            "Mozilla test-pages/lemonde-1 source/expected/metadata fixture: French Le Monde title/byline/site/lang/excerpt metadata, articleBody root selection, allowed Dailymotion iframe retention, 28 expected paragraphs, 9 h2 sections, and exact normalized expected text parity.",
+            "WordPress Le Monde import cleanup: French publisher article bodies keep section headings and trusted Dailymotion embeds while subscription, navigation, social, ad, and recommendation chrome remain outside block output.",
+            "Mozilla test-pages/theverge source/expected/metadata fixture: The Verge title/byline/site/lang/date/excerpt metadata, readerable classification, div#content readability-page wrapper, pullquote wrapper, responsive Vision Pro image/srcset, figcaption, newsletter pricing copy, and exact normalized expected text parity are mapped against the copied upstream fixture.",
+            "WordPress The Verge import cleanup: article paragraphs, pullquote copy, newsletter plan copy, and one editorial image serialize into reviewable blocks while subscribe buttons, comment actions, sponsor labels, ad rails, and most-popular/sidebar chrome stay out of migrated content.",
+            "Mozilla test-pages/citylab-1 source/expected/metadata fixture: CityLab title/byline/site/lang/excerpt metadata, readerable classification, exact normalized expected text parity, author RSS feed-list removal, retained author bio section, and editorial image/link boundaries match the copied upstream fixture.",
+            "WordPress CityLab author feed cleanup: author biography copy remains reviewable while the source author RSS feed link/list is removed before block serialization, yielding 20 paragraph blocks, 4 heading blocks, and 3 image blocks without feed chrome.",
+            "Mozilla test-pages/mozilla-1 source/expected/metadata fixture: Firefox customize-page title/site/lang/dir/excerpt metadata, readerable classification, exact normalized expected text parity, main-content role=main wrapper serialization under the optional readability-page oracle wrapper, image/link/heading/list parity, and trailing Firefox Sync CTA cleanup match the copied upstream fixture.",
+            "WordPress Mozilla Firefox main-content import cleanup: the retained Firefox product-page article copy remains reviewable while the trailing Sync sign-in CTA and sync-button links are removed before block serialization.",
+            "Mozilla test-pages/aclu source/expected/metadata fixture: ACLU title/byline/site/date/lang/dir/excerpt metadata, readerable classification, exact normalized expected text parity, Drupal panel sidebar-wrapper survival, seven h3 section headings, 33 article paragraphs, and removal of comments/share/conference chrome match the copied upstream fixture.",
+            "WordPress ACLU Drupal panel import cleanup: article paragraphs and headings serialize cleanly from a sidebar-labeled panel layout while comments, share links, conference banners, and hero/theme images stay out of migrated blocks.",
+            "Mozilla test-pages/002 source/expected/metadata fixture: Mozilla Hacks metadata/readerable parity, div#content-main oracle root preservation, article role retention, 17 syntax-highlighted pre/code examples, exact normalized text parity, absolute-origin URL canonicalization, and comment/sidebar/navigation chrome exclusion.",
+            "WordPress Mozilla Hacks developer-content import scenario: long-form tutorial pages retain code samples as core code blocks while source comments, author sidebar, legal footer, and article navigation stay out of migrated block output.",
+            "Mozilla test-pages/article-author-tag source/expected/metadata fixture: Atlas Obscura title/byline/site/date/lang/excerpt metadata, readerable classification, section#article-body readability-page wrapper preservation, six image payloads, two editorial hr separators, and exact normalized expected text parity match the copied upstream fixture.",
+            "WordPress Atlas Obscura article-author import scenario: article:author byline metadata is retained separately, header/navigation chrome is excluded, NBSP-only spacer paragraphs are removed, editorial rules become separator blocks, and six image payloads remain available for media import review.",
+            "Mozilla test-pages/engadget source/expected/metadata fixture: Engadget title/byline/site/date/lang/excerpt metadata, readerable classification, gallery first-image retention, thumbnail/grid/count cleanup, product buy-link/product identity cleanup, 10 retained image payloads, one YouTube iframe, and exact normalized expected text parity match the copied upstream fixture.",
+            "WordPress Engadget review import scenario: product review galleries retain lead media, iframe/video review context, price/score/pros/cons summary, and review paragraphs while thumbnail strips, gallery count overlays, buy buttons, and product identity links stay out of migrated blocks.",
+            "Mozilla test-pages/google-sre-book-1 source/expected/metadata fixture: Google SRE title/byline/excerpt/lang metadata, readerable classification, selected section#maia-main role=main chapter root, 78 expected paragraphs, 13 h2 section headings, one symptom/cause table, and 15 editorial links match upstream while book table-of-contents/header/logo navigation chrome is excluded.",
+            "WordPress Google SRE book import scenario: long technical book chapters can be imported as paragraph, heading, and table blocks while source book navigation, logo media, and chapter menu links stay out of migrated content.",
+            "Mozilla test-pages/wikipedia-4 source/expected/metadata fixture: Wikimedia byline/site/date/lang metadata, readerable classification, exact normalized expected text, long sortable film table structure, and expected link rows match upstream while the dynamic-list hatnote, category links, and CentralAutoLogin tracking image are excluded.",
+            "WordPress Wikipedia list import scenario: table-heavy encyclopedia pages serialize the retained film list as one table block with lead/reference paragraphs and headings while portal icons, category lists, maintenance notes, and tracking pixels stay out of migrated content.",
+            "Mozilla test-pages/wikipedia source/expected/metadata fixture: Mozilla article title/lang/excerpt metadata, readerable classification, exact normalized expected text, 69 expected paragraphs, 9 h2 headings, 17 h3 headings, two retained tables, eight retained image payloads, and 508 expected links match upstream while MediaWiki siteSub, jump, hatnote, printfooter, category, and CentralAutoLogin shell chrome are excluded.",
+            "WordPress Wikipedia Mozilla article import scenario: long encyclopedia articles preserve infobox/media, table-of-contents and section headings, release tables, references, and external links for review while source navigation, main-article hatnotes, categories, and tracking pixels stay out of migrated blocks.",
+            "Mozilla test-pages/wikipedia-3 source/expected/metadata fixture: Wikimedia title/byline/site/date/lang/dir metadata, readerable classification, excerpt parity, MediaWiki math-article shell cleanup, expected paragraph and heading text parity, one review table, and retained expected math/editorial image sources are mapped against the copied upstream fixture.",
+            "WordPress Wikipedia math article import scenario: Hermitian-matrix encyclopedia pages keep math fallback images inside reviewable paragraph blocks, section headings, and a review table while siteSub, jump links, category links, CentralAutoLogin pixels, and other MediaWiki shell chrome stay out of migrated content.",
+            "Mozilla test-pages/wikipedia-2 source/expected/metadata fixture: New Zealand country-page metadata, readerable/excerpt parity, heading/table retention, expected upstream image sources, and MediaWiki status-indicator/shell chrome cleanup are mapped against the copied upstream fixture.",
+            "Mozilla test-pages/firefox-nightly-blog source/expected/metadata fixture: Firefox Nightly WordPress article metadata, readerable/excerpt parity, article-header rel=author byline extraction from an address wrapper, retained article images/headings, and removal of comment/sidebar/download CTA chrome are mapped against the copied upstream fixture.",
+            "WordPress Firefox Nightly import scenario: source article-header author links populate byline metadata while discussion threads, related-article sidebars, and download CTAs remain outside migrated block content.",
+            "Mozilla test-pages/liberation-1 source/expected/metadata fixture: French Lib\u00e9ration title/byline/site/lang/publishedTime/readerable parity, articleBody text parity, Dailymotion iframe retention, and trailing AFP author/source-credit container removal before WordPress block output.",
+            "Mozilla test-pages/simplyfound-1 source/expected/metadata fixture: title/siteName/lang/excerpt/readerable/content text parity is preserved while the trailing Bootstrap account-approval modal and adsbygoogle container are excluded from extracted article output.",
+            "WordPress SimplyFound account-modal cleanup: source account approval dialogs and empty ad containers appended after article content do not become migrated paragraph blocks or action links.",
+            "Mozilla test-pages/dev418 fixture: mixed article content retains four separator rules, four h2 section headings, eight image payloads, four figures, two media lists, six list items, title/excerpt/readerable parity, and absolute image URL cleanup.",
+            "WordPress dev418 media-list scenario: retained media-only unordered lists serialize as core list blocks instead of paragraph-wrapped ul markup, while text-heavy lists keep the older paragraph-review shape.",
+            "Mozilla test-pages/toc-missing fixture: Haki Benita title/byline/site/date/lang/excerpt metadata, readerable classification, retained table-of-contents details, 26 SQL code examples, exact normalized expected text parity, and external interactive editor CTA body pruning are mapped against the copied upstream fixture.",
+            "WordPress toc-missing technical article scenario: retained TOC and SQL examples serialize into 96 paragraph blocks, 18 heading blocks, and 26 code blocks while external editor CTA copy stays out of migrated content.",
+            "Mozilla test-pages/invalid-attributes fixture: readerable false, title/excerpt metadata, and normalized content text match upstream while the malformed empty-attribute wrapper boundary is retained for oracle review without serializing invalid PHP output markup.",
+            "WordPress invalid-attribute wrapper cleanup: malformed source wrappers from legacy exports flatten to one clean paragraph block, with the invalid attribute syntax and internal marker absent from block output.",
+            "Mozilla test-pages/tumblr fixture: title/site/lang/publishedTime/excerpt metadata, readerable classification, normalized expected text parity, single-post `div#posts` container promotion over the surrounding Tumblr theme table/sidebar, and upstream null byline parity for bare string JSON-LD author values are mapped against the copied upstream fixture.",
+            "WordPress Tumblr single-post import scenario: release notes serialize into one heading block plus one paragraph block with br boundaries while `Powered by Tumblr`, official links, community links, and theme sidebar chrome stay out of migrated content.",
+            "Mozilla test-pages/medicalnewstoday fixture: title/byline/site/lang/excerpt metadata, readerable classification, exact normalized expected text parity, article-scoped `author_byline` extraction below an outer `site_header` wrapper, one retained image, and upstream body text parity are mapped against the copied upstream fixture.",
+            "WordPress Medical News Today byline import scenario: `By Ana Sandoiu` is retained as post metadata instead of block text, publisher ad/history chrome is excluded, and the article emits 26 paragraph blocks plus 3 heading blocks for review.",
+            "Mozilla test-pages/bug-1255978 fixture: Independent title/byline/site/date/excerpt metadata, readerable classification, exact normalized expected text parity, substantial `itemprop=articleBody` preservation despite a share-like id, six retained image payloads, Video.js hidden-control cleanup, gallery promo cleanup, Taboola recommendation exclusion, and upstream retained reuse-content link parity are mapped against the copied fixture.",
+            "WordPress Independent articleBody import scenario: the `gigya-share-btns` article body is retained while Taboola recommendations, gallery promos, and push CTAs stay out of migrated content; the scenario emits 32 paragraph blocks and keeps the publisher reuse link for review.",
+            "Mozilla test-pages/comment-inside-script-parsing fixture: title/excerpt/readerable parity and expected content text are preserved while script-block HTML comment delimiters, nested pseudo script tags, `foo.js`, and `Silly test` script text stay out of article HTML and WordPress blocks.",
+            "WordPress script-comment parser cleanup scenario: legacy exports with commented script payloads serialize as five paragraph blocks, zero heading blocks, and no imported script payload text.",
+            "Mozilla test-pages/lifehacker-post-comment-load fixture: Lifehacker title/byline/site/lang/excerpt metadata, readerable classification, exact normalized expected text parity, 37 paragraphs, 8 h3 headings, 16 editorial list items, and 9 image payloads are mapped while Kinja comments, ads, follow UI, and navigation chrome stay out of article output.",
+            "WordPress Lifehacker/Kinja list import scenario: retained Kinja `data-textannotation-id` editorial lists serialize as four WordPress list blocks, retained blockquotes serialize as quote blocks, while existing encyclopedia/release-note list review behavior remains paragraph-oriented and Kinja chrome remains excluded.",
+            "WordPress compact ordered-list import scenario: the copied Mozilla `ol` fixture serializes its single retained ordered editorial item as one core ordered list block without changing long encyclopedia/book/release-note list review behavior.",
+            "WordPress explicitly marked unordered-list import scenario: simple source lists carrying `data-wp-block-list` serialize as core unordered list blocks, while unmarked long upstream encyclopedia/book/release-note lists keep paragraph-review block behavior.",
+            "WordPress retained blockquote import scenario: upstream-preserved blockquotes in copied Mozilla fixtures and migration HTML serialize as core quote blocks with `wp-block-quote` instead of paragraph-wrapped source markup.",
+            "WordPress nested embed-wrapper import scenario: retained div/section wrappers with one tightly nested iframe/object/embed/video/audio payload and short caption text serialize as one HTML review block, while inline paragraph embeds remain paragraph-scoped.",
+            "WordPress empty paragraph cleanup scenario: copied Mozilla remove-extra-paragraphs imports emit five nonempty paragraph blocks, while blank and whitespace-only source paragraphs do not survive extracted HTML or block serialization.",
+            "WordPress script/style tag cleanup scenario: copied Mozilla style-tags-removal and remove-script-tags imports now assert that retained upstream paragraphs/headings become matching WordPress blocks and raw script/style tags do not enter migrated block output.",
+            "Native class-weight rearm threshold retry: after strict and unlikely-candidate-relaxed attempts remain below `charThreshold`, extraction retries without class/id candidate weighting so longer legacy article bodies can beat short high-weight teaser wrappers before WordPress block serialization."
+        ],
+        "warning": "The canonical upstream Mozilla Readability npm runner passes locally against the upstream JavaScript implementation at this checkout: full `npm test` passes 1984/1984, and targeted oracles now include `lifehacker-post-comment-load` 15/15, `comment-inside-script-parsing` 13/13, `bug-1255978` 15/15, `iab-1` 17/17, `medicalnewstoday` 15/15, `tumblr` 17/17, `invalid-attributes` 13/13, `toc-missing` 17/17, `dev418` 13/13, `la-nacion` 13/13, `simplyfound-1` 15/15, `liberation-1` 17/17, `firefox-nightly-blog` 17/17, `wikipedia` 74/74, `wikipedia-2` 19/19, `wikipedia-3` 19/19, and the previously recorded fixture/API slices. Native PHP progress currently maps 154 local behavior tests and 1927 local assertions against the 1984-test upstream Mocha denominator; this is not full native PHP parity yet. The focused readability-local test file passed with 1927 assertions and 0 failures after adding script/style WordPress block cleanup evidence. Root harness not run - isolated micro-slice."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native DOM extractor removes chrome, scores content containers, and emits simple WordPress blocks."
+        "currentSlice": "Copied Mozilla style-tags-removal and remove-script-tags cleanup now has focused WordPress block evidence that retained upstream paragraphs/headings serialize as matching blocks and raw script/style tags do not enter import output.",
+        "phpBehaviorTests": 154
     },
-    "wordpressScenario": "Migration-aware article cleanup into clean WordPress blocks with link/media/page-builder cleanup.",
-    "nextTask": "Compare against Mozilla Readability fixture corpus and improve scoring/error behavior."
+    "wordpressScenario": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, surrounding theme chrome, in-article ad slots, duplicate post-title h1 cleanup, single substantial article promotion out of chrome-heavy source shells, hidden duplicate/export chrome removal, legacy font tag normalization before block output, transparent page-builder section wrapper cleanup, source/base URL resolution with whitespace-trimmed URI attributes, javascript: link neutralization, JSON-LD name/headline title disambiguation against the cleaned source document title, document-title site suffix cleanup, popup-link cleanup, trailing footer-bar link/image cleanup, parser-safe metadata excerpt entity decoding, metadata-free body itemprop/rel author byline extraction with byline-node removal, WordPress BlogPosting articleBody microdata candidate selection over trailing tag/theme chrome, leading news timestamp/inline-byline chrome cleanup before heading-less article bodies, right-to-left article direction metadata from source wrappers, internal footnote/citation wrapper cleanup where hash-only links are weighted lightly enough to collapse legacy wrappers while preserving the local citation link and target, React/Next comment-delimited contributor text cleanup before WordPress paragraph serialization, optional upstream readability-page wrapper serialization for oracle comparison including named Medium section wrappers while WordPress block output remains flattened, Medium hr page-break separator cleanup before block serialization, data URI image cleanup where tiny placeholders yield to responsive candidates while real inline SVG/JPEG data payloads remain importable, selected-root NBSP cleanup for classic table-wrapped exports, optional caller-supplied class preservation for WordPress caption review contracts, link-only source photo-credit wrappers inside media captions removed before block serialization, Guardian articleBody media-root retention plus image figure block serialization, NYT rich figure/caption/credit preservation with hidden reader-feedback prompt removal, Telegraph text-section imports that drop publisher image interrupters while emitting paragraph-only blocks, charThreshold retry/null handling for short or chrome-only imports, class-weight rearm retries that recover longer legacy article bodies after high-weight teaser wrappers fail threshold, and block-boundary spacing so paragraph-heading and table-cell text remains readable for import excerpts and review logs. Editorial full-width figures from Medium-style exports are preserved for block output when the source carries `postField--fillWidthImage` evidence, while decorative crop wrappers remain removable and source classes are stripped. Empty visual spacer headings from source editors are dropped before WordPress block serialization so real heading and paragraph boundaries remain readable without creating blank heading blocks. Repeated inline SVG symbol sprites from source themes are deduplicated before block serialization, while ordinary editorial inline SVG diagrams remain available for imported content. Trailing source-platform syndication notes beginning `Originally published at` are removed before block serialization so stale original-source links do not become paragraph blocks. Visible template time nodes do not become publishedTime metadata unless JSON-LD, article:published_time, or parsely-pub-date supports the date, so WordPress import layers can decide whether to trust theme dates. Custom trusted oEmbed iframe providers can now be preserved through a caller-supplied allowed video regex while unrelated widget embeds are removed, review-mode imports can opt into keepClasses when source classes need manual review, and chrome-only source documents can return null rather than creating empty post blocks. The NYT utility media import example maps a multi-photo publisher article where figure `itemid` URLs become real image payloads for WordPress image blocks while related-card and advertisement chrome are removed. The NYT debt article import example maps a publisher article with a lead image, 47 paragraph blocks, debt chart/interactive chrome removal, related-link card cleanup, and share-tool removal while preserving the upstream-retained related-topic label boundary. NYT Spanish section-front imports now retain media cards and selected summaries for review while latest-stream cards, secondary highlights, ad wrappers, and tab navigation stay out of WordPress block output. BBC RDFa articleBody imports now select the publisher article root, keep five editorial image blocks, and remove unsupported video-placeholder shells plus navigation chrome before WordPress block serialization. CNNMoney storytext imports now keep the upstream story root and SmartAsset attribution label for review while dropping CNN video player chrome, Teads ad copy, disclosure widgets, and masthead media before generating one heading block and 14 paragraph blocks. Washington Post PageBuilder imports now remove inline gallery controls and linked graphic preview chrome while retaining video caption text, the map caption, the final inline map image, and 39 paragraph blocks for review. Washington Post lead-media imports now preserve the upstream lead image/caption and post-body author bio as reviewable paragraph blocks while removing top byline/share controls, comments, and most-read chrome. BuzzFeed-style listicle imports now remove print-only image helpers, author bios/contact blocks, bottom share controls, and promoted ad bylines before WordPress block output while retaining story headings, paragraphs, and inline grid images. French Le Monde imports now preserve articleBody text sections and trusted Dailymotion embeds while subscription, navigation, social, ad, and recommendation chrome stay out of migrated blocks. The Verge imports now preserve the upstream content wrapper for oracle comparison, keep the editorial pullquote, responsive Vision Pro image, and newsletter plan copy for review, and exclude subscribe buttons, comment actions, sponsor labels, ad rails, and most-popular/sidebar chrome from WordPress block output. CityLab imports now keep the retained author biography and three editorial image blocks while pruning the author RSS feed list before block serialization. Mozilla Firefox landing page imports now preserve the main-content boundary for oracle comparison while pruning the trailing Firefox Sync sign-in CTA before WordPress block serialization. Drupal panel-based ACLU imports now preserve the article body nested under sidebar-labeled layout wrappers while dropping comments, share links, conference banners, and hero/theme media before block serialization. Atlas Obscura article-author imports now preserve article:author byline metadata and section#article-body oracle structure while emitting 30 paragraph blocks plus 2 separator blocks, retaining six image payloads for review, and excluding source header/navigation chrome. Google SRE book imports now promote the chapter main section out of source book navigation, retain a reviewable symptom/cause table, and emit 53 paragraph blocks, 10 heading blocks, and 1 table block without table-of-contents/header/logo chrome. Lib\u00e9ration-style French wire-service imports now preserve the trusted local byline, language, publication date, article paragraphs, and Dailymotion embed while pruning a trailing AFP source-credit link before block serialization. The SimplyFound account-modal scenario keeps the Raspberry Pi article title, site name, language, and 11 paragraph blocks while excluding approval-request modal links and trailing adsbygoogle slots from migrated content. The La Nacion BOM/description scenario ignores a leading UTF-8 BOM before doctype, promotes the described NewsArticle parent, retains the lead summary paragraph, emits 12 paragraph blocks plus 1 image block, and excludes navigation/compatibility chrome from migrated content. The dev418 media-list scenario preserves mixed standalone images, figures, separators, and image lists, and emits retained media-only lists as WordPress list blocks instead of paragraph-wrapped list markup. The toc-missing technical article scenario keeps the table of contents and SQL code examples while excluding the external editor CTA body from WordPress output. Malformed empty-attribute wrappers from legacy exports are now sanitized while preserving the upstream review boundary, then flattened into clean WordPress paragraph blocks without invalid attribute syntax. Tumblr single-post imports now promote the release-note post body over a surrounding table/sidebar theme shell, keep upstream site/language/published metadata while preserving the null-byline boundary for bare string JSON-LD authors, and emit one heading block plus one paragraph block without Tumblr official/community link chrome. Medical News Today byline imports now keep `By Ana Sandoiu` as trusted metadata despite an outer `site_header` wrapper, retain one article image for review, and emit 26 paragraph blocks plus 3 heading blocks without byline/ad chrome in block content. IAB/WordPress-style post header imports now drop compact source header dates and hero-image chrome while retaining post author bio content for review; the IAB LEAN example emits 21 paragraph blocks plus one author image block without importing the `10.15.15` date or header hero image. Standalone native video/audio elements retained from legacy WordPress exports now serialize as core HTML blocks with resolved media URLs instead of paragraph-wrapped media markup. Retained definition lists from encyclopedia and technical imports now serialize as HTML blocks instead of paragraph-wrapped `dl` markup, with affected long-fixture counts documented in local tests.",
+    "nextTask": "Map lifehacker-working or another remaining Kinja/comment-heavy fixture with a targeted upstream oracle, or map another already-copied cleanup fixture with exact expected-content and WordPress block evidence.",
+    "warnings": {
+        "warning": "The canonical upstream Mozilla Readability npm runner passes locally against the upstream JavaScript implementation at this checkout: full `npm test` passes 1984/1984, and targeted oracles now include `lifehacker-post-comment-load` 15/15, `comment-inside-script-parsing` 13/13, `bug-1255978` 15/15, `iab-1` 17/17, `medicalnewstoday` 15/15, `tumblr` 17/17, `invalid-attributes` 13/13, `toc-missing` 17/17, `dev418` 13/13, `la-nacion` 13/13, `simplyfound-1` 15/15, `liberation-1` 17/17, `firefox-nightly-blog` 17/17, `wikipedia` 74/74, `wikipedia-2` 19/19, `wikipedia-3` 19/19, and the previously recorded fixture/API slices. Native PHP progress currently maps 154 local behavior tests and 1927 local assertions against the 1984-test upstream Mocha denominator; this is not full native PHP parity yet. The focused readability-local test file passed with 1927 assertions and 0 failures after adding script/style WordPress block coverage. Root harness not run - isolated micro-slice."
+    }
 }
