@@ -1878,6 +1878,48 @@ return [
             $t->same(false, is_file($dir . '/packed-refs.lock'));
         }
     },
+    'prepared reference transaction rejects Windows device refs before locks or reflogs when protected' => static function (TestRunner $t) use ($old, $new): void {
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        foreach (['refs/heads/CON', 'refs/CON/still-invalid', 'refs/heads/lpt1.txt', 'refs/heads/conout$/audit'] as $invalidName) {
+            $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-device-guard-' . bin2hex(random_bytes(4));
+            $store = new ReferenceStore($dir, null, null, ReferenceStore::WRITE_REFLOG_NORMAL, true);
+
+            try {
+                $store->prepareLooseUpdateTransaction(
+                    [$invalidName => ReferenceTarget::object($new)],
+                    'sha1',
+                    $committer,
+                    'must not create a lock or reflog',
+                    true,
+                );
+                $t->same(true, false, "protected store should reject {$invalidName}");
+            } catch (RuntimeException $exception) {
+                $t->contains('Illegal use of reserved Windows device name', $exception->getMessage());
+                $t->contains($invalidName, $exception->getMessage());
+            }
+
+            $t->same(false, is_dir($dir . '/refs'), "protected rejection creates no refs directory for {$invalidName}");
+            $t->same(false, is_dir($dir . '/logs'), "protected rejection creates no logs directory for {$invalidName}");
+        }
+
+        $allowedDir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-device-allowed-' . bin2hex(random_bytes(4));
+        $allowedStore = new ReferenceStore($allowedDir);
+        $allowed = $allowedStore->prepareLooseUpdateTransaction(
+            ['refs/heads/CON' => ReferenceTarget::object($old)],
+            'sha1',
+            $committer,
+            'device names are allowed when the upstream guard is disabled',
+            true,
+        );
+
+        $t->same(true, is_file($allowedDir . '/refs/heads/CON.lock'));
+        $allowed->commit();
+        $t->same("{$old}\n", file_get_contents($allowedDir . '/refs/heads/CON'));
+        $t->contains(
+            str_repeat('0', 40) . " {$old} Deploy Bot <deploy@example.com> 1234 +0000\tdevice names are allowed when the upstream guard is disabled\n",
+            (string) $allowedStore->reflogContents('refs/heads/CON'),
+        );
+    },
     'reference store recovers empty directory blockers when creating loose refs' => static function (TestRunner $t): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-empty-dir-blocker-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -2058,6 +2100,12 @@ return [
         $t->same($fixture['expectedPreparedDisabledDeleteReflogExists'], $summary['preparedDisabledDeleteReflogExists']);
         $t->same($fixture['expectedPreparedDisabledDeleteReferentReflogExists'], $summary['preparedDisabledDeleteReferentReflogExists']);
         $t->same(
+            $fixture['expectedPreparedWindowsDeviceErrorPrefix'],
+            substr((string) $summary['preparedWindowsDeviceError'], 0, strlen($fixture['expectedPreparedWindowsDeviceErrorPrefix'])),
+        );
+        $t->same($fixture['expectedPreparedWindowsDeviceNoRefSideEffects'], $summary['preparedWindowsDeviceNoRefSideEffects']);
+        $t->same($fixture['expectedPreparedWindowsDeviceNoReflogSideEffects'], $summary['preparedWindowsDeviceNoReflogSideEffects']);
+        $t->same(
             $fixture['expectedPreparedPhasedDeleteErrorPrefix'],
             substr((string) $summary['preparedPhasedDeleteError'], 0, strlen($fixture['expectedPreparedPhasedDeleteErrorPrefix'])),
         );
@@ -2077,6 +2125,7 @@ return [
         $t->contains('direct production referent publish', $summary['wordpressUse']);
         $t->contains('quiet publish previews', $summary['wordpressUse']);
         $t->contains('disabled write-mode audit cleanup', $summary['wordpressUse']);
+        $t->contains('protected Windows device refnames', $summary['wordpressUse']);
         $t->contains('broken dereferenced tenant HEAD', $summary['wordpressUse']);
         $t->contains('later prepared reflog deletion fails', $summary['wordpressUse']);
     },

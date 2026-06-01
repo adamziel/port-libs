@@ -6,6 +6,8 @@ namespace PortLibs\LightningCSS;
 
 final class MediaQueryParser
 {
+    private const UNITLESS_LENGTH_MATH_MARKER = 'lcssunitless';
+
     public function minifyList(string $queryList, bool $allowCompactedNegation = false, bool $recoverInvalidFeatureValues = false): string
     {
         $queryList = $this->stripCommentsAsWhitespace($queryList);
@@ -22,15 +24,49 @@ final class MediaQueryParser
 
     public function lowerRangeSyntaxList(string $queryList, bool $lowerSimpleRanges = true, bool $lowerIntervalRanges = true): string
     {
-        $queries = $this->splitTopLevel($this->minifyList($queryList), ',');
+        $queryList = $this->stripCommentsAsWhitespace($queryList);
+        $markedQueryList = $this->markUnitlessLengthMathRangeValuesForLowering($queryList);
+        $stripMarker = $markedQueryList !== $queryList;
+        $queries = $this->splitTopLevel($this->minifyList($markedQueryList), ',');
         if ($queries === []) {
             return '';
         }
 
-        return implode(',', array_map(
+        $lowered = implode(',', array_map(
             fn (string $query): string => $this->lowerRangeSyntaxQuery($query, $lowerSimpleRanges, $lowerIntervalRanges),
             $queries
         ));
+
+        return $stripMarker ? $this->stripUnitlessLengthMathRangeMarkers($lowered) : $lowered;
+    }
+
+    /**
+     * @internal Carries unitless math origin through target-prefix pre-minification.
+     */
+    public function markUnitlessLengthMathRangeValuesForLowering(string $queryList): string
+    {
+        $lengthFeature = '(?:device-width|device-height|width|height)';
+        $mathFunction = '(?:calc|clamp|max|min)\((?:[^()]|\([^()]*\))*\)';
+
+        $queryList = preg_replace_callback(
+            '/(\b' . $lengthFeature . '\b\s*(?:<=|>=|<|>|=)\s*)(' . $mathFunction . ')/i',
+            fn (array $matches): string => $matches[1] . ($this->unitlessLengthMathMarker($matches[2]) ?? $matches[2]),
+            $queryList
+        ) ?? $queryList;
+
+        return preg_replace_callback(
+            '/(' . $mathFunction . ')(\s*(?:<=|>=|<|>|=)\s*\b' . $lengthFeature . '\b)/i',
+            fn (array $matches): string => ($this->unitlessLengthMathMarker($matches[1]) ?? $matches[1]) . $matches[2],
+            $queryList
+        ) ?? $queryList;
+    }
+
+    /**
+     * @internal Removes markers inserted by markUnitlessLengthMathRangeValuesForLowering().
+     */
+    public function stripUnitlessLengthMathRangeMarkers(string $css): string
+    {
+        return preg_replace('/(?<=[0-9])' . preg_quote(self::UNITLESS_LENGTH_MATH_MARKER, '/') . '\b/', '', $css) ?? $css;
     }
 
     public function useXResolutionUnitList(string $queryList): string
@@ -774,6 +810,10 @@ final class MediaQueryParser
         }
 
         if (preg_match('/^(?:calc|clamp|max|min)\(/i', $value) === 1) {
+            if (preg_match('/^calc\(/i', $value) === 1 && $this->isInvalidSimpleMultiplicativeCalc($value)) {
+                return false;
+            }
+
             return match ($type) {
                 'integer', 'resolution' => false,
                 'number' => $this->foldSimpleUnitlessCalc($value) !== null
@@ -870,6 +910,7 @@ final class MediaQueryParser
     private function minifyValue(string $value, ?string $type = null): string
     {
         $value = trim($value);
+        $wasMathFunction = preg_match('/^(?:calc|clamp|max|min)\(/i', $value) === 1;
         $value = $this->foldSimpleCalc($value);
         $value = $this->foldSimpleMathFunction($value, $type);
         $value = $this->minifyFunctionCommas($value);
@@ -880,7 +921,7 @@ final class MediaQueryParser
         if (preg_match('/^' . $this->cssIdentifierPattern() . '$/', $value) === 1) {
             return $this->canonicalMediaIdentifierValue($value);
         }
-        if ($type === 'length' && preg_match('/^' . $this->cssNumberPattern() . '$/', $value) === 1 && (float) $value !== 0.0) {
+        if (!$wasMathFunction && $type === 'length' && preg_match('/^' . $this->cssNumberPattern() . '$/', $value) === 1 && (float) $value !== 0.0) {
             return $this->trimNumber($value) . 'px';
         }
 
@@ -968,10 +1009,6 @@ final class MediaQueryParser
         $unit = strtolower($matches[2] ?? '');
         if ($type === 'number' && $unit !== '') {
             return null;
-        }
-
-        if ($type === 'length' && $unit === '' && (float) $matches[1] !== 0.0) {
-            $unit = 'px';
         }
 
         return [
@@ -1139,6 +1176,11 @@ final class MediaQueryParser
             return $unitless;
         }
 
+        $multiplicative = $this->foldSimpleMultiplicativeCalc($value);
+        if ($multiplicative !== null) {
+            return $multiplicative;
+        }
+
         $number = $this->cssNumberPattern();
         if (preg_match('/^calc\(\s*(' . $number . ')([a-zA-Z%]+)\s*([+-])\s*(' . $number . ')\2\s*\)$/', $value, $matches) !== 1) {
             return preg_replace_callback(
@@ -1153,6 +1195,61 @@ final class MediaQueryParser
         $result = $matches[3] === '+' ? $left + $right : $left - $right;
 
         return $this->trimNumber((string) $result) . strtolower($matches[2]);
+    }
+
+    private function foldSimpleMultiplicativeCalc(string $value): ?string
+    {
+        $number = $this->cssNumberPattern();
+        if (preg_match('/^calc\(\s*(' . $number . ')([a-zA-Z%]+)?\s*([*\/])\s*(' . $number . ')([a-zA-Z%]+)?\s*\)$/', $value, $matches) !== 1) {
+            return null;
+        }
+
+        $left = (float) $matches[1];
+        $leftUnit = strtolower($matches[2] ?? '');
+        $operator = $matches[3];
+        $right = (float) $matches[4];
+        $rightUnit = strtolower($matches[5] ?? '');
+
+        if ($operator === '*') {
+            if ($leftUnit !== '' && $rightUnit !== '') {
+                return null;
+            }
+
+            $result = $left * $right;
+            $unit = $leftUnit !== '' ? $leftUnit : $rightUnit;
+        } else {
+            if ($rightUnit !== '' || abs($right) < PHP_FLOAT_EPSILON) {
+                return null;
+            }
+
+            $result = $left / $right;
+            $unit = $leftUnit;
+        }
+
+        if (!is_finite($result)) {
+            return null;
+        }
+
+        return $this->trimNumber(rtrim(rtrim(sprintf('%.8F', $result), '0'), '.')) . $unit;
+    }
+
+    private function isInvalidSimpleMultiplicativeCalc(string $value): bool
+    {
+        $number = $this->cssNumberPattern();
+        if (preg_match('/^calc\(\s*(' . $number . ')([a-zA-Z%]+)?\s*([*\/])\s*(' . $number . ')([a-zA-Z%]+)?\s*\)$/', $value, $matches) !== 1) {
+            return false;
+        }
+
+        $leftUnit = strtolower($matches[2] ?? '');
+        $operator = $matches[3];
+        $right = (float) $matches[4];
+        $rightUnit = strtolower($matches[5] ?? '');
+
+        if ($operator === '*') {
+            return $leftUnit !== '' && $rightUnit !== '';
+        }
+
+        return $rightUnit !== '' || abs($right) < PHP_FLOAT_EPSILON;
     }
 
     private function foldSimpleUnitlessCalc(string $value): ?string
@@ -2054,6 +2151,20 @@ final class MediaQueryParser
             : $mediaPrefix['qualifier'] . ' ' . $mediaPrefix['type'];
 
         return $prefix . ' and ' . $condition;
+    }
+
+    private function unitlessLengthMathMarker(string $value): ?string
+    {
+        $value = trim($value);
+        $value = $this->foldSimpleCalc($value);
+        $value = $this->foldSimpleMathFunction($value, 'length');
+        $value = $this->minifyNumericValue($value);
+
+        if (preg_match('/^' . $this->cssNumberPattern() . '$/', $value) !== 1) {
+            return null;
+        }
+
+        return $value . self::UNITLESS_LENGTH_MATH_MARKER;
     }
 
     /**

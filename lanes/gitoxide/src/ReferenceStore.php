@@ -30,6 +30,7 @@ final class ReferenceStore
         ?PackedReferences $packed = null,
         ?string $namespace = null,
         private readonly string $writeReflogMode = self::WRITE_REFLOG_NORMAL,
+        private readonly bool $prohibitWindowsDeviceNames = false,
     ) {
         self::assertWriteReflogMode($writeReflogMode);
         $this->loose = new LooseReferenceStore($gitDirectory);
@@ -43,17 +44,18 @@ final class ReferenceStore
         string $algorithm = 'sha1',
         ?string $namespace = null,
         string $writeReflogMode = self::WRITE_REFLOG_NORMAL,
+        bool $prohibitWindowsDeviceNames = false,
     ): self
     {
         $packedPath = rtrim($gitDirectory, '/\\') . '/packed-refs';
         $packed = is_file($packedPath) ? PackedReferences::open($packedPath, $algorithm) : null;
 
-        return new self($gitDirectory, $packed, $namespace, $writeReflogMode);
+        return new self($gitDirectory, $packed, $namespace, $writeReflogMode, $prohibitWindowsDeviceNames);
     }
 
     public function withNamespace(string $namespace): self
     {
-        return new self($this->gitDirectory, $this->packed, $namespace, $this->writeReflogMode);
+        return new self($this->gitDirectory, $this->packed, $namespace, $this->writeReflogMode, $this->prohibitWindowsDeviceNames);
     }
 
     public function looseStore(): LooseReferenceStore
@@ -999,7 +1001,10 @@ final class ReferenceStore
     {
         ReferenceName::assertValid($name);
 
-        return $this->namespacePrefix === null ? $name : $this->namespacePrefix . $name;
+        $physicalName = $this->namespacePrefix === null ? $name : $this->namespacePrefix . $name;
+        $this->assertWindowsDeviceNamesAllowed($physicalName);
+
+        return $physicalName;
     }
 
     private function physicalTarget(ReferenceTarget $target): ReferenceTarget
@@ -1868,6 +1873,66 @@ final class ReferenceStore
         ], true)) {
             throw new \InvalidArgumentException("Unknown reflog write mode: {$mode}");
         }
+    }
+
+    private function assertWindowsDeviceNamesAllowed(string $physicalName): void
+    {
+        if (!$this->prohibitWindowsDeviceNames) {
+            return;
+        }
+
+        foreach (explode('/', $physicalName) as $component) {
+            if (self::isWindowsDeviceNameComponent($component)) {
+                throw new \RuntimeException("Illegal use of reserved Windows device name in \"{$physicalName}\"");
+            }
+        }
+    }
+
+    private static function isWindowsDeviceNameComponent(string $component): bool
+    {
+        $prefix = substr($component, 0, 3);
+        if (strlen($prefix) < 3) {
+            return false;
+        }
+
+        if (in_array(strtolower($prefix), ['aux', 'nul', 'prn'], true) && self::windowsDeviceNameEndsAt(substr($component, 3))) {
+            return true;
+        }
+
+        if (
+            strcasecmp($prefix, 'com') === 0
+            && isset($component[3])
+            && $component[3] >= '1'
+            && $component[3] <= '9'
+            && self::windowsDeviceNameEndsAt(substr($component, 4))
+        ) {
+            return true;
+        }
+
+        if (
+            strcasecmp($prefix, 'lpt') === 0
+            && isset($component[3])
+            && ctype_digit($component[3])
+            && self::windowsDeviceNameEndsAt(substr($component, 4))
+        ) {
+            return true;
+        }
+
+        if (strcasecmp($prefix, 'con') !== 0) {
+            return false;
+        }
+
+        $rest = substr($component, 3);
+        return self::windowsDeviceNameEndsAt($rest)
+            || (strncasecmp($rest, 'in$', 3) === 0 && self::windowsDeviceNameEndsAt(substr($rest, 3)))
+            || (strncasecmp($rest, 'out$', 4) === 0 && self::windowsDeviceNameEndsAt(substr($rest, 4)));
+    }
+
+    private static function windowsDeviceNameEndsAt(string $rest): bool
+    {
+        $rest = ltrim($rest, ' ');
+
+        return $rest === '' || $rest[0] === '.' || $rest[0] === ':';
     }
 
     private static function assertPackedRefsMode(string $mode): void

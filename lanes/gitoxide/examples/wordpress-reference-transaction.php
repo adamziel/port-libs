@@ -409,6 +409,27 @@ $preparedDisabledDeleteHadLock = is_file($preparedDisabledDeletePath . '.lock');
 $preparedDisabledDeleteEdits = $preparedDisabledDelete->commit();
 $preparedDisabledDeleteCleanedLock = !is_file($preparedDisabledDeletePath . '.lock');
 
+$preparedWindowsDeviceDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-device-guard-' . bin2hex(random_bytes(4));
+$preparedWindowsDeviceStore = new ReferenceStore(
+    $preparedWindowsDeviceDir,
+    null,
+    null,
+    ReferenceStore::WRITE_REFLOG_NORMAL,
+    true,
+);
+$preparedWindowsDeviceError = null;
+try {
+    $preparedWindowsDeviceStore->prepareLooseUpdateTransaction(
+        [$fixture['preparedWindowsDeviceRef'] => ReferenceTarget::object($fixture['reviewCommit'])],
+        'sha1',
+        new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+        'protected tenant ref should not be written',
+        true,
+    );
+} catch (RuntimeException $exception) {
+    $preparedWindowsDeviceError = $exception->getMessage();
+}
+
 $preparedPhasedDeleteDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-phased-delete-' . bin2hex(random_bytes(4));
 $preparedPhasedDeleteStore = new ReferenceStore($preparedPhasedDeleteDir, null, $fixture['namespace']);
 $preparedPhasedDeletePrefix = ReferenceName::expandNamespace($fixture['namespace']);
@@ -557,6 +578,9 @@ return [
     'preparedDisabledDeleteHeadContents' => file_get_contents($preparedDisabledDeletePath),
     'preparedDisabledDeleteReflogExists' => $preparedDisabledDeleteStore->reflogExists($fixture['preparedDisabledDeleteHeadRef']),
     'preparedDisabledDeleteReferentReflogExists' => $preparedDisabledDeleteStore->reflogExists($fixture['preparedDisabledDeleteTargetRef']),
+    'preparedWindowsDeviceError' => $preparedWindowsDeviceError,
+    'preparedWindowsDeviceNoRefSideEffects' => !is_dir($preparedWindowsDeviceDir . '/refs'),
+    'preparedWindowsDeviceNoReflogSideEffects' => !is_dir($preparedWindowsDeviceDir . '/logs'),
     'preparedPhasedDeleteError' => $preparedPhasedDeleteError,
     'preparedPhasedDeleteFirstRefStillExists' => $preparedPhasedDeleteStore->tryFind($fixture['preparedPhasedDeleteRefs'][0]) !== null,
     'preparedPhasedDeleteSecondRefStillExists' => $preparedPhasedDeleteStore->tryFind($fixture['preparedPhasedDeleteRefs'][1]) !== null,

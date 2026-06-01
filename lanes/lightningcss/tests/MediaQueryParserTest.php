@@ -228,8 +228,13 @@ return [
         $t->same('(width>=calc(1em + 5px))', $parser->minifyList('(min-width: calc(1em + 5px))'));
         $t->same('(width>=calc(1em + 5px))', $parser->minifyList('(min-width: calc(1em+5px))'));
         $t->same('(width>=6px)', $parser->minifyList('(width >= calc(2px + 4px))'));
+        $t->same('(width>=6px)', $parser->minifyList('(width >= calc(2 * 3px))'));
+        $t->same('(width>=6px)', $parser->minifyList('(width >= calc(2px * 3))'));
+        $t->same('(width>=3px)', $parser->minifyList('(width >= calc(6px / 2))'));
+        $t->same('(width>=6)', $parser->minifyList('(width >= calc(2 * 3))'));
         $t->same('(width>calc(1px + 1rem))', $parser->minifyList('(width > calc(1px+1rem))'));
         $t->same('(width>20px)', $parser->minifyList('(width > max(10px, 20px))'));
+        $t->same('(width>2)', $parser->minifyList('(width > max(1, 2))'));
         $t->same('(width>10px)', $parser->minifyList('(width > min(10px, 20px))'));
         $t->same('(width>15px)', $parser->minifyList('(width > clamp(10px, 15px, 20px))'));
         $t->same('(width>20px)', $parser->minifyList('(width > clamp(10px, 25px, 20px))'));
@@ -239,7 +244,10 @@ return [
         $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= max(1, 2))'));
         $t->same('(1<=-moz-device-pixel-ratio<=2)', $parser->minifyList('(1 <= -moz-device-pixel-ratio <= calc(1 + 1))'));
         $t->same('not (max-width:calc(1px + 1rem))', $parser->lowerRangeSyntaxList('(width > calc(1px+1rem))'));
+        $t->same('(min-width:6px)', $parser->lowerRangeSyntaxList('(width >= calc(2 * 3px))'));
+        $t->same('(min-width:6)', $parser->lowerRangeSyntaxList('(width >= calc(2 * 3))'));
         $t->same('not (max-width:20px)', $parser->lowerRangeSyntaxList('(width > max(10px, 20px))'));
+        $t->same('not (max-width:2)', $parser->lowerRangeSyntaxList('(width > max(1, 2))'));
         $t->same('(min-width:15px)', $parser->lowerRangeSyntaxList('(width >= clamp(10px, 15px, 20px))'));
         $t->same('(not (max-width:100px)) and (not (min-width:calc(100vw - 50px)))', $parser->lowerRangeSyntaxList('(100px < width < calc(100vw-50px))'));
         $t->same('(-webkit-min-device-pixel-ratio:2)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio >= calc(1 + 1))'));
@@ -252,6 +260,10 @@ return [
         $t->same(
             '@layer blocks{@media (width>15px){.wp-block-query{color:#ff0}}}',
             (new CssMinifier())->minify('@layer blocks { @media (width > clamp(10px, 15px, 20px)) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (width>=6px){.wp-block-query{color:#ff0}}}',
+            (new CssMinifier())->minify('@layer blocks { @media (width >= calc(2 * 3px)) { .wp-block-query { color: yellow; } } }')
         );
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('&test, speech'));
     },
@@ -312,6 +324,9 @@ return [
             '(color >= 1e0)',
             '(color-index >= 1e0)',
             '(resolution >= calc(1 + 1dppx))',
+            '(width >= calc(6px / 2px))',
+            '(width >= calc(6 / 2px))',
+            '(width >= calc(6px * 2px))',
             '(width >= var(--theme-breakpoint))',
             '(--theme-breakpoint >= var(--theme-breakpoint))',
             '(-webkit-min-device-pixel-ratio: hi)',
@@ -525,6 +540,9 @@ return [
             '(color >= 1e0)',
             '(device-width >= 2/1)',
             '(horizontal-viewport-segments >= 2px)',
+            '(width >= calc(6px / 2px))',
+            '(width >= calc(6 / 2px))',
+            '(width >= calc(6px * 2px))',
             '(100px < width > 200px)',
             '(100px <= width > 200px)',
             '(100px > width < 200px)',
@@ -624,6 +642,7 @@ return [
             '@layer blocks { @media (prefers-color-scheme = dark) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (color >= calc(1 + 1)) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (resolution >= calc(1 + 1dppx)) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (width >= calc(6px / 2px)) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (width >= var(--theme-breakpoint)) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media var(--theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media screen and calc(theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',

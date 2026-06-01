@@ -51,7 +51,21 @@ final class TransitionPrefixer
      */
     public function prefixForTargets(string $css, array $targets): string
     {
-        return $this->rewriteRuleList((new CssMinifier())->minify($css, preserveFontTargetFallbacks: true), false, $this->targetOptions($targets));
+        $targetOptions = $this->targetOptions($targets);
+        $parser = null;
+        $stripUnitlessLengthMathMarker = false;
+        if (($targetOptions['mediaRangeSimpleNeedsFallback'] ?? false) || ($targetOptions['mediaRangeIntervalNeedsFallback'] ?? false)) {
+            $parser = new MediaQueryParser();
+            $markedCss = $parser->markUnitlessLengthMathRangeValuesForLowering($css);
+            $stripUnitlessLengthMathMarker = $markedCss !== $css;
+            $css = $markedCss;
+        }
+
+        $prefixed = $this->rewriteRuleList((new CssMinifier())->minify($css, preserveFontTargetFallbacks: true), false, $targetOptions);
+
+        return $stripUnitlessLengthMathMarker && $parser !== null
+            ? $parser->stripUnitlessLengthMathRangeMarkers($prefixed)
+            : $prefixed;
     }
 
     /**
