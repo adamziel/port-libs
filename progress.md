@@ -55,6 +55,30 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (AO cleanup audit + Git/CSS/SQLite queue
+  batch 01:18 UTC): audited the user's active-session cleanup concern from
+  live tmux/process/worktree/disk evidence. There is one attached tmux session
+  (`main`), not a pile of independent live sessions. The stale-session pruner
+  found `0` prunable `port-*` sessions and killed nothing; AO cleanup should
+  prune stale completed sessions, consumed handoffs, scratch worktrees, and old
+  logs, but must not kill live target-capacity workers. The visible pool had
+  fallen to `9` workers, so it was refilled to `11` active isolated workers:
+  `6` LightningCSS, `3` Gitoxide, and `2` libsqlite, all launched with
+  `gpt-5.5` xhigh priority settings and `0` long sleepers. Source commit
+  `256829a937e910d6e9fcc40d24eedf8ae3406131` (`ports: extend git css sqlite
+  parity queue`) landed five screened handoffs; one stale LightningCSS CSSOM
+  handoff was parked on a current-base conflict. Verification passed
+  `git diff --check`, PHP lint on changed/new PHP files, full Gitoxide `40
+  files / 6612 assertions / 0 failures`, full LightningCSS `13 files / 5268
+  assertions / 0 failures`, focused libsqlite `3 files / 603023 assertions /
+  0 failures` including `SQLiteNoDomainSpecificApiTest.php`, accepted
+  Gitoxide/LightningCSS examples, and libsqlite added-lines neutrality guards.
+  The dashboard now reports Gitoxide `1691 / 2886` mapped and `6612 pass / 0
+  fail`, LightningCSS `2250 / 3532` mapped and `5268 pass / 0 fail`, and
+  libsqlite `1589 / 1589` mapped with `5175075 pass / 7 fail`. Broad
+  libsqlite release/full-lane parity and pre-existing source-neutral cleanup
+  debt remain open.
+
 - 2026-06-01 supervisor continuation (AO cleanup audit + Git/CSS/SQLite
   backlog batch 01:05 UTC): audited the user's active-session cleanup concern
   from live tmux/process/worktree/disk evidence. There is one attached tmux
