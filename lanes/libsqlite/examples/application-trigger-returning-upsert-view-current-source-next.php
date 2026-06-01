@@ -7,8 +7,8 @@ require_once __DIR__ . '/../src/SQLiteTriggerReturningUpsertViewCurrentSourceNex
 use PortLibs\LibSqlite\SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan;
 
 $rows = [
-    ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
-    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'https://home.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
 ];
 
 $currentView = [
@@ -48,11 +48,11 @@ $returning = [
 $plan = SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan::execute(
     $rows,
     [
-        ['import_id' => 11, 'name' => 'siteurl', 'value' => 'https://current.test', 'load_policy_flag' => 'yes'],
+        ['import_id' => 11, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes'],
         ['import_id' => 12, 'name' => 'fresh_feature', 'value' => 'enabled', 'load_policy_flag' => 'no'],
     ],
     [
-        ['import_id' => 21, 'name' => 'home', 'value' => 'https://next-home.test', 'load_policy_flag' => 'yes', 'origin' => 'next-import'],
+        ['import_id' => 21, 'name' => 'landing_url', 'value' => 'https://next-landing.test', 'load_policy_flag' => 'yes', 'origin' => 'next-import'],
         ['import_id' => 22, 'name' => 'cache_rules', 'value' => 'cached', 'load_policy_flag' => 'yes', 'origin' => 'next-import'],
     ],
     $currentView,
@@ -68,8 +68,8 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['visible_view']['trigger_source'] === 'main@trigger-cookie-149-current');
     assert($plan['trigger_source_changed'] === true);
     assert($plan['next_returning_rows'] === []);
-    assert(array_column(array_column($plan['attempted_next_returning_rows'], 'returning'), 'name') === ['home', 'cache_rules']);
-    assert(array_column($plan['after_savepoint'], 'key_name') === ['siteurl', 'home']);
+    assert(array_column(array_column($plan['attempted_next_returning_rows'], 'returning'), 'name') === ['landing_url', 'cache_rules']);
+    assert(array_column($plan['after_savepoint'], 'key_name') === ['base_url', 'landing_url']);
     echo "application-trigger-returning-upsert-view-current-source-next self-test passed\n";
     return;
 }

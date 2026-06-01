@@ -5,9 +5,9 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan;
 
 $rows144 = [
-    ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
-    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'https://home.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
-    ['setting_id' => 3, 'key_name' => 'blogname', 'key_value' => 'Old Blog', 'load_policy' => 'no', 'revision' => 1, 'source' => 'seed'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
+    ['setting_id' => 3, 'key_name' => 'site_title', 'key_value' => 'Old Title', 'load_policy' => 'no', 'revision' => 1, 'source' => 'seed'],
 ];
 
 $currentView144 = [
@@ -43,14 +43,14 @@ $returning144 = [
 ];
 
 $currentRows144 = [
-    ['import_id' => 11, 'name' => 'siteurl', 'value' => 'https://current.test', 'load_policy_flag' => 'yes'],
-    ['import_id' => 12, 'name' => 'home', 'value' => 'https://skip.test', 'load_policy_flag' => 'skip'],
-    ['import_id' => 13, 'name' => 'fresh_plugin', 'value' => 'enabled', 'load_policy_flag' => 'no'],
+    ['import_id' => 11, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes'],
+    ['import_id' => 12, 'name' => 'landing_url', 'value' => 'https://skip.test', 'load_policy_flag' => 'skip'],
+    ['import_id' => 13, 'name' => 'module_registry', 'value' => 'enabled', 'load_policy_flag' => 'no'],
 ];
 $nextRows144 = [
-    ['import_id' => 21, 'name' => 'home', 'value' => 'https://next-home.test', 'load_policy_flag' => 'yes', 'origin' => 'next-import'],
-    ['import_id' => 22, 'name' => 'blogname', 'value' => 'Preview Only', 'load_policy_flag' => 'no', 'origin' => 'preview-only'],
-    ['import_id' => 23, 'name' => 'rewrite_rules', 'value' => 'cached', 'load_policy_flag' => 'yes', 'origin' => 'next-import'],
+    ['import_id' => 21, 'name' => 'landing_url', 'value' => 'https://next-landing.test', 'load_policy_flag' => 'yes', 'origin' => 'next-import'],
+    ['import_id' => 22, 'name' => 'site_title', 'value' => 'Preview Only', 'load_policy_flag' => 'no', 'origin' => 'preview-only'],
+    ['import_id' => 23, 'name' => 'routing_rules', 'value' => 'cached', 'load_policy_flag' => 'yes', 'origin' => 'next-import'],
 ];
 
 $plan144 = static fn (array $options = [], ?array $currentRows = null, ?array $nextRows = null, ?array $currentView = null, ?array $nextView = null, ?array $returning = null): array => SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan::execute(
@@ -78,7 +78,7 @@ $cases144 = [
     'retained visible source stays current' => [static fn (): mixed => $retained144()['visible_view']['source'], 'main@view-cookie-144-current'],
     'retained current columns' => [static fn (): mixed => $retained144()['current_view']['columns'], ['import_id', 'name', 'value', 'load_policy_flag']],
     'retained next columns include origin' => [static fn (): mixed => $retained144()['next_view']['columns'], ['import_id', 'name', 'value', 'load_policy_flag', 'origin']],
-    'retained current mapping option name' => [static fn (): mixed => $retained144()['current_view']['mapping']['name'], 'key_name'],
+    'retained current mapping key name' => [static fn (): mixed => $retained144()['current_view']['mapping']['name'], 'key_name'],
     'retained next mapping generated source' => [static fn (): mixed => $retained144()['next_view']['mapping']['origin'], 'source'],
     'retained next source not admitted' => [static fn (): mixed => $retained144()['next_source_admitted'], false],
     'retained changes zero after savepoint hold' => [static fn (): mixed => $retained144()['changes'], 0],
@@ -87,7 +87,7 @@ $cases144 = [
     'retained statement rows current only' => [static fn (): mixed => $retained144()['statement_rows'], 3],
     'retained attempted statement rows includes next' => [static fn (): mixed => $retained144()['attempted_statement_rows'], 6],
     'retained current returning count excludes skipped' => [static fn (): mixed => count($retained144()['current_returning_rows']), 2],
-    'retained current returning names' => [static fn (): mixed => array_column(array_column($retained144()['current_returning_rows'], 'returning'), 'name'), ['siteurl', 'fresh_plugin']],
+    'retained current returning names' => [static fn (): mixed => array_column(array_column($retained144()['current_returning_rows'], 'returning'), 'name'), ['base_url', 'module_registry']],
     'retained current returning values' => [static fn (): mixed => array_column(array_column($retained144()['current_returning_rows'], 'returning'), 'value'), ['https://current.test', 'enabled']],
     'retained current old value for update' => [static fn (): mixed => $retained144()['current_returning_rows'][0]['returning']['old_value'], 'https://old.test'],
     'retained current old value insert null' => [static fn (): mixed => $retained144()['current_returning_rows'][1]['returning']['old_value'], null],
@@ -95,24 +95,24 @@ $cases144 = [
     'retained view source alias' => [static fn (): mixed => array_column(array_column($retained144()['current_returning_rows'], 'returning'), 'view_source'), ['main@view-cookie-144-current', 'main@view-cookie-144-current']],
     'retained event aliases' => [static fn (): mixed => array_column(array_column($retained144()['current_returning_rows'], 'returning'), 'event_name'), ['update', 'insert']],
     'retained ordinal aliases skip gap' => [static fn (): mixed => array_column(array_column($retained144()['current_returning_rows'], 'returning'), 'ordinal_value'), [0, 2]],
-    'retained callable traces' => [static fn (): mixed => array_column(array_column($retained144()['current_returning_rows'], 'returning'), 'expr7'), ['main@view-cookie-144-current:update:0:siteurl>siteurl', 'main@view-cookie-144-current:insert:2:new>fresh_plugin']],
+    'retained callable traces' => [static fn (): mixed => array_column(array_column($retained144()['current_returning_rows'], 'returning'), 'expr7'), ['main@view-cookie-144-current:update:0:base_url>base_url', 'main@view-cookie-144-current:insert:2:new>module_registry']],
     'retained current skipped count' => [static fn (): mixed => count($retained144()['current_skipped_rows']), 1],
     'retained current skipped status' => [static fn (): mixed => $retained144()['current_skipped_rows'][0]['status'], 'skipped-do-update-where'],
-    'retained current skipped row name' => [static fn (): mixed => $retained144()['current_skipped_rows'][0]['incoming_row']['key_name'], 'home'],
-    'retained current skipped current row preserved' => [static fn (): mixed => $retained144()['current_skipped_rows'][0]['current_row']['key_value'], 'https://home.test'],
+    'retained current skipped row name' => [static fn (): mixed => $retained144()['current_skipped_rows'][0]['incoming_row']['key_name'], 'landing_url'],
+    'retained current skipped current row preserved' => [static fn (): mixed => $retained144()['current_skipped_rows'][0]['current_row']['key_value'], 'https://landing.test'],
     'retained suppressed skipped count current only' => [static fn (): mixed => $retained144()['returning_suppressed_for_skipped_count'], 1],
     'retained yield stream statuses' => [static fn (): mixed => array_column($retained144()['current_yield_stream'], 'status'), ['changed', 'skipped-do-update-where', 'changed']],
     'retained yield changed flags' => [static fn (): mixed => array_column($retained144()['current_yield_stream'], 'changed'), [true, false, true]],
     'retained skipped returning null' => [static fn (): mixed => $retained144()['current_yield_stream'][1]['returning'], null],
-    'retained current rows include attempted fresh plugin' => [static fn (): mixed => array_column($retained144()['current_rows'], 'key_name'), ['siteurl', 'home', 'blogname', 'fresh_plugin']],
-    'retained current siteurl attempted value' => [static fn (): mixed => $retained144()['current_rows'][0]['key_value'], 'https://current.test'],
-    'retained current home skipped value' => [static fn (): mixed => $retained144()['current_rows'][1]['key_value'], 'https://home.test'],
-    'retained after savepoint restores base names' => [static fn (): mixed => array_column($retained144()['after_savepoint'], 'key_name'), ['siteurl', 'home', 'blogname']],
-    'retained after savepoint restores siteurl value' => [static fn (): mixed => $retained144()['after_savepoint'][0]['key_value'], 'https://old.test'],
+    'retained current rows include attempted module setting' => [static fn (): mixed => array_column($retained144()['current_rows'], 'key_name'), ['base_url', 'landing_url', 'site_title', 'module_registry']],
+    'retained current base_url attempted value' => [static fn (): mixed => $retained144()['current_rows'][0]['key_value'], 'https://current.test'],
+    'retained current landing_url skipped value' => [static fn (): mixed => $retained144()['current_rows'][1]['key_value'], 'https://landing.test'],
+    'retained after savepoint restores base names' => [static fn (): mixed => array_column($retained144()['after_savepoint'], 'key_name'), ['base_url', 'landing_url', 'site_title']],
+    'retained after savepoint restores base_url value' => [static fn (): mixed => $retained144()['after_savepoint'][0]['key_value'], 'https://old.test'],
     'retained next returning suppressed' => [static fn (): mixed => $retained144()['next_returning_rows'], []],
     'retained attempted next returning count' => [static fn (): mixed => count($retained144()['attempted_next_returning_rows']), 2],
-    'retained attempted next returning names' => [static fn (): mixed => array_column(array_column($retained144()['attempted_next_returning_rows'], 'returning'), 'name'), ['home', 'rewrite_rules']],
-    'retained attempted next skipped name' => [static fn (): mixed => $retained144()['attempted_next_skipped_rows'][0]['incoming_row']['key_name'], 'blogname'],
+    'retained attempted next returning names' => [static fn (): mixed => array_column(array_column($retained144()['attempted_next_returning_rows'], 'returning'), 'name'), ['landing_url', 'routing_rules']],
+    'retained attempted next skipped name' => [static fn (): mixed => $retained144()['attempted_next_skipped_rows'][0]['incoming_row']['key_name'], 'site_title'],
     'retained attempted next source tokens' => [static fn (): mixed => array_column(array_column($retained144()['attempted_next_returning_rows'], 'returning'), 'view_source'), ['main@view-cookie-144-next', 'main@view-cookie-144-next']],
     'retained attempted next yield statuses' => [static fn (): mixed => array_column($retained144()['attempted_next_yield_stream'], 'status'), ['changed', 'skipped-do-update-where', 'changed']],
     'retained boundary' => [static fn (): mixed => $retained144()['yield_boundary'], 'view-upsert-returning-current-source-retained-before-next-source'],
@@ -126,13 +126,13 @@ $cases144 = [
     'released current changes' => [static fn (): mixed => $released144()['current_changes'], 2],
     'released next changes' => [static fn (): mixed => $released144()['next_changes'], 2],
     'released statement rows all phases' => [static fn (): mixed => $released144()['statement_rows'], 6],
-    'released next returning names' => [static fn (): mixed => array_column(array_column($released144()['next_returning_rows'], 'returning'), 'name'), ['home', 'rewrite_rules']],
+    'released next returning names' => [static fn (): mixed => array_column(array_column($released144()['next_returning_rows'], 'returning'), 'name'), ['landing_url', 'routing_rules']],
     'released next skipped count' => [static fn (): mixed => count($released144()['next_skipped_rows']), 1],
     'released suppressed skipped count includes both phases' => [static fn (): mixed => $released144()['returning_suppressed_for_skipped_count'], 2],
-    'released final names' => [static fn (): mixed => array_column($released144()['after_savepoint'], 'key_name'), ['siteurl', 'home', 'blogname', 'fresh_plugin', 'rewrite_rules']],
+    'released final names' => [static fn (): mixed => array_column($released144()['after_savepoint'], 'key_name'), ['base_url', 'landing_url', 'site_title', 'module_registry', 'routing_rules']],
     'released final sources' => [static fn (): mixed => array_map(static fn (array $row): mixed => $row['source'] ?? null, $released144()['after_savepoint']), ['current-import', 'next-import', 'seed', null, 'next-import']],
-    'released final home updated by next' => [static fn (): mixed => $released144()['after_savepoint'][1]['key_value'], 'https://next-home.test'],
-    'released blogname skipped by next source where' => [static fn (): mixed => $released144()['after_savepoint'][2]['key_value'], 'Old Blog'],
+    'released final landing_url updated by next' => [static fn (): mixed => $released144()['after_savepoint'][1]['key_value'], 'https://next-landing.test'],
+    'released site_title skipped by next source where' => [static fn (): mixed => $released144()['after_savepoint'][2]['key_value'], 'Old Title'],
     'released next yield phases' => [static fn (): mixed => array_column($released144()['next_yield_stream'], 'phase'), ['next', 'next', 'next']],
     'released boundary' => [static fn (): mixed => $released144()['yield_boundary'], 'view-upsert-returning-release-admits-next-source'],
 
@@ -147,7 +147,7 @@ $cases144 = [
     'bad view mapping throws' => [static fn (): mixed => $plan144([], null, null, ['name' => 'v', 'source' => 'ok', 'columns' => ['name'], 'mapping' => ['missing' => 'key_name']]), InvalidArgumentException::class],
     'bad where throws' => [static fn (): mixed => $plan144([], null, null, ['name' => 'v', 'source' => 'ok', 'columns' => ['name'], 'mapping' => ['name' => 'key_name'], 'where' => 'no']), InvalidArgumentException::class],
     'missing view column throws' => [static fn (): mixed => $plan144([], [['import_id' => 1, 'value' => 'x', 'load_policy_flag' => 'yes']]), InvalidArgumentException::class],
-    'duplicate base key throws' => [static fn (): mixed => SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan::execute(array_merge($rows144, [['key_name' => 'siteurl']]), [], [], $currentView144, $nextView144, ['key_name'], $assignments144, $returning144), InvalidArgumentException::class],
+    'duplicate base key throws' => [static fn (): mixed => SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan::execute(array_merge($rows144, [['key_name' => 'base_url']]), [], [], $currentView144, $nextView144, ['key_name'], $assignments144, $returning144), InvalidArgumentException::class],
     'old expression on insert throws' => [static fn (): mixed => $plan144([], [['import_id' => 30, 'name' => 'fresh_old', 'value' => 'x', 'load_policy_flag' => 'yes']], [], null, null, [['expr' => 'old.key_value', 'as' => 'old_value']]), InvalidArgumentException::class],
 ];
 

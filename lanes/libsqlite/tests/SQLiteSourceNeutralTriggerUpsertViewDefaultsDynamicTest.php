@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan;
@@ -24,6 +25,7 @@ $sourceFiles = [
     $sourceRoot . '/SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerReturningUpsertViewCurrentNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan.php',
@@ -36,10 +38,14 @@ $sourceFiles = [
 ];
 $fixtureFiles = [
     $libsqliteRoot . '/examples/application-trigger-returning-upsert-view-current-next52.php',
+    $libsqliteRoot . '/examples/application-trigger-returning-upsert-view-current-source-next.php',
+    $libsqliteRoot . '/examples/application-trigger-upsert-returning-view-current-source-next.php',
     $libsqliteRoot . '/examples/application-trigger-upsert-returning-view-unique-current-source-next140.php',
     $libsqliteRoot . '/examples/application-trigger-view-returning-savepoint-recursive-current-source-next123.php',
     $libsqliteRoot . '/examples/application-view-upsert-returning-savepoint-current-next49.php',
     $libsqliteRoot . '/tests/SQLiteTriggerReturningUpsertViewCurrentNext52Test.php',
+    $libsqliteRoot . '/tests/SQLiteTriggerReturningUpsertViewCurrentSourceNextTest.php',
+    $libsqliteRoot . '/tests/SQLiteTriggerUpsertReturningViewCurrentSourceNextTest.php',
     $libsqliteRoot . '/tests/SQLiteTriggerUpsertReturningViewUniqueCurrentSourceNext140Test.php',
     $libsqliteRoot . '/tests/SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNext123Test.php',
     $libsqliteRoot . '/tests/SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceTest.php',
@@ -145,6 +151,52 @@ $upsertDefaults = static fn (): array => SQLiteTriggerUpsertReturningViewCurrent
         ['expr' => 'new.key_name', 'as' => 'name'],
         ['expr' => 'new.key_value', 'as' => 'value'],
         ['expr' => 'source', 'as' => 'source_token'],
+    ],
+);
+
+$returningUpsertDefaults = static fn (): array => SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan::execute(
+    [
+        ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
+        ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
+    ],
+    [
+        ['import_id' => 11, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes'],
+        ['import_id' => 12, 'name' => 'module_registry', 'value' => 'enabled', 'load_policy_flag' => 'no'],
+    ],
+    [
+        ['import_id' => 21, 'name' => 'landing_url', 'value' => 'https://next-landing.test', 'load_policy_flag' => 'yes', 'origin' => 'next-import'],
+        ['import_id' => 22, 'name' => 'cache_rules', 'value' => 'cached', 'load_policy_flag' => 'yes', 'origin' => 'next-import'],
+    ],
+    [
+        'name' => 'app_setting_import_view',
+        'source' => 'main@view-cookie-149-current',
+        'trigger' => 'app_setting_import_view_io_insert',
+        'trigger_source' => 'main@trigger-cookie-149-current',
+        'columns' => ['import_id', 'name', 'value', 'load_policy_flag'],
+        'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy'],
+        'audit_label' => 'current-trigger-body',
+    ],
+    [
+        'name' => 'app_setting_import_view',
+        'source' => 'main@view-cookie-149-next',
+        'trigger' => 'app_setting_import_view_io_insert',
+        'trigger_source' => 'main@trigger-cookie-149-next',
+        'columns' => ['import_id', 'name', 'value', 'load_policy_flag', 'origin'],
+        'mapping' => ['import_id' => 'setting_id', 'name' => 'key_name', 'value' => 'key_value', 'load_policy_flag' => 'load_policy', 'origin' => 'source'],
+        'audit_label' => 'next-trigger-body',
+    ],
+    ['key_name'],
+    [
+        'setting_id' => static fn (array $old, array $incoming): mixed => $incoming['setting_id'],
+        'key_value' => static fn (array $old, array $incoming): mixed => $incoming['key_value'],
+        'load_policy' => static fn (array $old, array $incoming): mixed => $incoming['load_policy'],
+        'source' => static fn (array $old, array $incoming, string $phase): string => (string) ($incoming['source'] ?? $phase . '-trigger'),
+        'revision' => static fn (array $old): int => (int) $old['revision'] + 1,
+    ],
+    [
+        ['expr' => 'new.key_name', 'as' => 'name'],
+        ['expr' => 'new.key_value', 'as' => 'value'],
+        ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
     ],
 );
 
@@ -298,6 +350,16 @@ return [
         $t->same('app_settings_view_io_upsert', $plan['trigger']);
         $t->same(['base_url', 'cache_rules'], array_column($plan['current_rows'], 'key_name'));
         $t->same(['base_url'], array_column($plan['after_savepoint'], 'key_name'));
+    },
+    'trigger returning upsert view defaults are application settings' => static function (TestRunner $t) use ($returningUpsertDefaults): void {
+        $plan = $returningUpsertDefaults();
+
+        $t->same('key_name', $plan['key']);
+        $t->same('app_view_trigger_upsert_next149', $plan['savepoint']);
+        $t->same(true, $plan['trigger_source_changed']);
+        $t->same(['base_url', 'landing_url', 'module_registry'], array_column($plan['current_rows'], 'key_name'));
+        $t->same(['base_url', 'landing_url'], array_column($plan['after_savepoint'], 'key_name'));
+        $t->same(['landing_url', 'cache_rules'], array_column(array_column($plan['attempted_next_returning_rows'], 'returning'), 'name'));
     },
     'trigger deferred view returning defaults are application settings' => static function (TestRunner $t) use ($deferredDefaults): void {
         $plan = $deferredDefaults();

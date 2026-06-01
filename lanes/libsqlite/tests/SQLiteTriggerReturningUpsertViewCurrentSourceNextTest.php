@@ -5,9 +5,9 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan;
 
 $rows149 = [
-    ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
-    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'https://home.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
-    ['setting_id' => 3, 'key_name' => 'display_name', 'key_value' => 'Old Blog', 'load_policy' => 'no', 'revision' => 1, 'source' => 'seed'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
+    ['setting_id' => 3, 'key_name' => 'display_name', 'key_value' => 'Old Title', 'load_policy' => 'no', 'revision' => 1, 'source' => 'seed'],
 ];
 
 $currentView149 = [
@@ -46,12 +46,12 @@ $returning149 = [
     static fn (array $new, ?array $old, array $incoming, string $event, int $ordinal, string $source): string => $source . ':' . $event . ':' . $ordinal . ':' . ($old['key_name'] ?? 'new') . '>' . $new['key_name'],
 ];
 $currentInput149 = [
-    ['import_id' => 11, 'name' => 'siteurl', 'value' => 'https://current.test', 'load_policy_flag' => 'yes'],
+    ['import_id' => 11, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes'],
     ['import_id' => 12, 'name' => 'skip_current_setting', 'value' => 'blocked', 'load_policy_flag' => 'no', '_raise_ignore' => true],
     ['import_id' => 13, 'name' => 'fresh_feature', 'value' => 'enabled', 'load_policy_flag' => 'no'],
 ];
 $nextInput149 = [
-    ['import_id' => 21, 'name' => 'home', 'value' => 'https://next-home.test', 'load_policy_flag' => 'yes', 'origin' => 'next-import'],
+    ['import_id' => 21, 'name' => 'landing_url', 'value' => 'https://next-landing.test', 'load_policy_flag' => 'yes', 'origin' => 'next-import'],
     ['import_id' => 22, 'name' => 'display_name', 'value' => 'blocked next', 'load_policy_flag' => 'no', 'origin' => 'next-import', '_raise_ignore' => true],
     ['import_id' => 23, 'name' => 'cache_rules', 'value' => 'cached', 'load_policy_flag' => 'yes', 'origin' => 'next-import'],
 ];
@@ -93,23 +93,23 @@ $cases149 = [
     'pinned statement rows current only' => [static fn (): mixed => $pinned149()['statement_rows'], 3],
     'pinned attempted statement rows both sources' => [static fn (): mixed => $pinned149()['attempted_statement_rows'], 6],
     'pinned current returning count skips ignored' => [static fn (): mixed => count($pinned149()['current_returning_rows']), 2],
-    'pinned current returning names' => [static fn (): mixed => array_column(array_column($pinned149()['current_returning_rows'], 'returning'), 'name'), ['siteurl', 'fresh_feature']],
+    'pinned current returning names' => [static fn (): mixed => array_column(array_column($pinned149()['current_returning_rows'], 'returning'), 'name'), ['base_url', 'fresh_feature']],
     'pinned current returning trigger aliases' => [static fn (): mixed => array_column(array_column($pinned149()['current_returning_rows'], 'returning'), 'trigger_source_alias'), ['main@trigger-cookie-149-current', 'main@trigger-cookie-149-current']],
     'pinned old value for update' => [static fn (): mixed => $pinned149()['current_returning_rows'][0]['returning']['old_value'], 'https://old.test'],
     'pinned old value for insert null' => [static fn (): mixed => $pinned149()['current_returning_rows'][1]['returning']['old_value'], null],
-    'pinned callable traces' => [static fn (): mixed => array_column(array_column($pinned149()['current_returning_rows'], 'returning'), 'expr7'), ['main@trigger-cookie-149-current:update:0:siteurl>siteurl', 'main@trigger-cookie-149-current:insert:2:new>fresh_feature']],
+    'pinned callable traces' => [static fn (): mixed => array_column(array_column($pinned149()['current_returning_rows'], 'returning'), 'expr7'), ['main@trigger-cookie-149-current:update:0:base_url>base_url', 'main@trigger-cookie-149-current:insert:2:new>fresh_feature']],
     'pinned current skipped count' => [static fn (): mixed => count($pinned149()['current_skipped_rows']), 1],
     'pinned current skipped status' => [static fn (): mixed => $pinned149()['current_skipped_rows'][0]['status'], 'skipped-raise-ignore'],
     'pinned current skipped incoming name' => [static fn (): mixed => $pinned149()['current_skipped_rows'][0]['incoming_row']['key_name'], 'skip_current_setting'],
     'pinned yield statuses' => [static fn (): mixed => array_column($pinned149()['current_yield_stream'], 'status'), ['changed', 'skipped-raise-ignore', 'changed']],
     'pinned yield changed flags' => [static fn (): mixed => array_column($pinned149()['current_yield_stream'], 'changed'), [true, false, true]],
     'pinned skipped returning null' => [static fn (): mixed => $pinned149()['current_yield_stream'][1]['returning'], null],
-    'pinned current rows include fresh feature' => [static fn (): mixed => array_column($pinned149()['current_rows'], 'key_name'), ['siteurl', 'home', 'display_name', 'fresh_feature']],
-    'pinned current siteurl updated' => [static fn (): mixed => $pinned149()['current_rows'][0]['key_value'], 'https://current.test'],
-    'pinned after savepoint restores base' => [static fn (): mixed => array_column($pinned149()['after_savepoint'], 'key_name'), ['siteurl', 'home', 'display_name']],
+    'pinned current rows include fresh feature' => [static fn (): mixed => array_column($pinned149()['current_rows'], 'key_name'), ['base_url', 'landing_url', 'display_name', 'fresh_feature']],
+    'pinned current base_url updated' => [static fn (): mixed => $pinned149()['current_rows'][0]['key_value'], 'https://current.test'],
+    'pinned after savepoint restores base' => [static fn (): mixed => array_column($pinned149()['after_savepoint'], 'key_name'), ['base_url', 'landing_url', 'display_name']],
     'pinned after savepoint restores value' => [static fn (): mixed => $pinned149()['after_savepoint'][0]['key_value'], 'https://old.test'],
     'pinned next returning suppressed' => [static fn (): mixed => $pinned149()['next_returning_rows'], []],
-    'pinned attempted next returning names' => [static fn (): mixed => array_column(array_column($pinned149()['attempted_next_returning_rows'], 'returning'), 'name'), ['home', 'cache_rules']],
+    'pinned attempted next returning names' => [static fn (): mixed => array_column(array_column($pinned149()['attempted_next_returning_rows'], 'returning'), 'name'), ['landing_url', 'cache_rules']],
     'pinned attempted next trigger aliases' => [static fn (): mixed => array_column(array_column($pinned149()['attempted_next_returning_rows'], 'returning'), 'trigger_source_alias'), ['main@trigger-cookie-149-next', 'main@trigger-cookie-149-next']],
     'pinned attempted next skipped count' => [static fn (): mixed => count($pinned149()['attempted_next_skipped_rows']), 1],
     'pinned attempted next skipped name' => [static fn (): mixed => $pinned149()['attempted_next_skipped_rows'][0]['incoming_row']['key_name'], 'display_name'],
@@ -124,12 +124,12 @@ $cases149 = [
     'admitted changes include current and next' => [static fn (): mixed => $admitted149()['changes'], 4],
     'admitted next changes counted' => [static fn (): mixed => $admitted149()['next_changes'], 2],
     'admitted statement rows both phases' => [static fn (): mixed => $admitted149()['statement_rows'], 6],
-    'admitted next returning names' => [static fn (): mixed => array_column(array_column($admitted149()['next_returning_rows'], 'returning'), 'name'), ['home', 'cache_rules']],
-    'admitted final names' => [static fn (): mixed => array_column($admitted149()['after_savepoint'], 'key_name'), ['siteurl', 'home', 'display_name', 'fresh_feature', 'cache_rules']],
+    'admitted next returning names' => [static fn (): mixed => array_column(array_column($admitted149()['next_returning_rows'], 'returning'), 'name'), ['landing_url', 'cache_rules']],
+    'admitted final names' => [static fn (): mixed => array_column($admitted149()['after_savepoint'], 'key_name'), ['base_url', 'landing_url', 'display_name', 'fresh_feature', 'cache_rules']],
     'admitted final sources' => [static fn (): mixed => array_map(static fn (array $row): mixed => $row['source'] ?? null, $admitted149()['after_savepoint']), ['current-trigger', 'next-import', 'seed', null, 'next-import']],
-    'admitted home updated by next source' => [static fn (): mixed => $admitted149()['after_savepoint'][1]['key_value'], 'https://next-home.test'],
-    'admitted skipped display_name preserved' => [static fn (): mixed => $admitted149()['after_savepoint'][2]['key_value'], 'Old Blog'],
-    'admitted next trigger effects visible' => [static fn (): mixed => array_column($admitted149()['next_trigger_effects'], 'key_name'), ['home', 'cache_rules']],
+    'admitted landing_url updated by next source' => [static fn (): mixed => $admitted149()['after_savepoint'][1]['key_value'], 'https://next-landing.test'],
+    'admitted skipped display_name preserved' => [static fn (): mixed => $admitted149()['after_savepoint'][2]['key_value'], 'Old Title'],
+    'admitted next trigger effects visible' => [static fn (): mixed => array_column($admitted149()['next_trigger_effects'], 'key_name'), ['landing_url', 'cache_rules']],
     'admitted boundary' => [static fn (): mixed => $admitted149()['yield_boundary'], 'instead-of-view-trigger-next-source-admitted-after-current-drain'],
 
     'custom savepoint accepted' => [static fn (): mixed => $plan149(['savepoint' => 'app_custom_view_149'])['savepoint'], 'app_custom_view_149'],
@@ -142,7 +142,7 @@ $cases149 = [
     'empty view columns throws' => [static fn (): mixed => $plan149([], null, null, ['name' => 'v', 'source' => 'ok', 'trigger' => 'trg', 'trigger_source' => 'ok', 'columns' => [], 'mapping' => ['name' => 'key_name']]), InvalidArgumentException::class],
     'bad view mapping throws' => [static fn (): mixed => $plan149([], null, null, ['name' => 'v', 'source' => 'ok', 'trigger' => 'trg', 'trigger_source' => 'ok', 'columns' => ['name'], 'mapping' => ['missing' => 'key_name']]), InvalidArgumentException::class],
     'missing view column throws' => [static fn (): mixed => $plan149([], [['import_id' => 1, 'value' => 'x', 'load_policy_flag' => 'yes']]), InvalidArgumentException::class],
-    'duplicate base key throws' => [static fn (): mixed => SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan::execute(array_merge($rows149, [['key_name' => 'siteurl']]), [], [], $currentView149, $nextView149, ['key_name'], $assign149, $returning149), InvalidArgumentException::class],
+    'duplicate base key throws' => [static fn (): mixed => SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan::execute(array_merge($rows149, [['key_name' => 'base_url']]), [], [], $currentView149, $nextView149, ['key_name'], $assign149, $returning149), InvalidArgumentException::class],
 ];
 
 $tests = [];

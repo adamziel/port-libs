@@ -18814,6 +18814,168 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function whereLimitFaultUpdateDeleteCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite wherelfault dynamic corpus requires at least one retry case');
+        }
+
+        $source = 'wherelfault.test sections wherelfault-1.1, wherelfault-1.2, and wherelfault-2.1';
+        $templates = [
+            [
+                'wherelfault-1.1',
+                'DELETE',
+                'view-trigger',
+                'v1',
+                'DELETE FROM v1 ORDER BY a LIMIT 3',
+                'a ASC',
+                3,
+                null,
+                6,
+                6,
+                [1, 2, 3],
+                [['delete', 1], ['delete', 2], ['delete', 3]],
+                [],
+                null,
+                false,
+                true,
+                false,
+                'faultsim retry completes INSTEAD OF DELETE trigger selection over v1',
+            ],
+            [
+                'wherelfault-1.2',
+                'UPDATE',
+                'view-trigger',
+                'v1',
+                'UPDATE v1 SET b = 555 ORDER BY a LIMIT 3',
+                'a ASC',
+                3,
+                null,
+                6,
+                6,
+                [1, 2, 3],
+                [['update', 1], ['update', 2], ['update', 3]],
+                [[1, 555], [2, 555], [3, 555]],
+                ['b' => 555],
+                false,
+                true,
+                false,
+                'faultsim retry completes INSTEAD OF UPDATE trigger selection over v1',
+            ],
+            [
+                'wherelfault-2.1',
+                'DELETE',
+                'without-rowid-empty',
+                't2',
+                'DELETE FROM t2 WHERE c=? ORDER BY a DESC LIMIT 10',
+                'a DESC',
+                10,
+                [null],
+                0,
+                0,
+                [],
+                [],
+                [],
+                null,
+                true,
+                false,
+                true,
+                'faultsim retry preserves empty WITHOUT ROWID primary-key b-tree delete',
+            ],
+        ];
+
+        $checkpoints = [
+            'faultsim-restore-reopen',
+            'sqlite-master-schema-read',
+            'where-limit-rowset-select',
+            'order-by-limit-temp-btree',
+            'trigger-program-dispatch',
+            'without-rowid-primary-key-cursor',
+            'statement-rollback-before-retry',
+        ];
+
+        $out = [];
+        foreach (range(1, $cases) as $case) {
+            [
+                $section,
+                $operation,
+                $targetKind,
+                $table,
+                $statement,
+                $orderBy,
+                $limit,
+                $boundParameters,
+                $rowCountBefore,
+                $rowCountAfter,
+                $selectedKeys,
+                $logRows,
+                $updatedRows,
+                $updateSet,
+                $usesWithoutRowid,
+                $usesViewTrigger,
+                $parameterized,
+                $detail,
+            ] = $templates[($case - 1) % count($templates)];
+
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $faultAttempt = (($case * 11) + $batch + count($selectedKeys)) % 89;
+            $checkpoint = $checkpoints[$faultAttempt % count($checkpoints)];
+
+            $out[] = [
+                'source' => $source,
+                'upstream_file' => 'test/wherelfault.test',
+                'case' => $case,
+                'batch' => $batch,
+                'upstream_section' => $section,
+                'scenario' => $detail . ' dynamic batch ' . $batch,
+                'operation' => $operation,
+                'target_kind' => $targetKind,
+                'table' => $table,
+                'statement' => $statement,
+                'order_by' => $orderBy,
+                'limit' => $limit,
+                'bound_parameters' => $boundParameters,
+                'parameterized' => $parameterized,
+                'fault' => [
+                    'kind' => 'oom',
+                    'attempt' => $faultAttempt,
+                    'checkpoint' => $checkpoint,
+                    'recovered' => true,
+                ],
+                'schema_reopened_before_retry' => true,
+                'result_code' => 0,
+                'error' => null,
+                'row_count_before' => $rowCountBefore,
+                'row_count_after' => $rowCountAfter,
+                'selected_keys' => $selectedKeys,
+                'mutation_keys' => $selectedKeys,
+                'log_rows' => $logRows,
+                'updated_rows' => $updatedRows,
+                'update_set' => $updateSet,
+                'base_table_mutated' => !$usesViewTrigger && $selectedKeys !== [],
+                'uses_view_trigger' => $usesViewTrigger,
+                'uses_without_rowid_btree' => $usesWithoutRowid,
+                'primary_key' => $usesWithoutRowid ? ['a', 'b'] : [],
+                'qualified_rows' => $usesWithoutRowid ? 0 : 6,
+                'affected_rows' => count($selectedKeys),
+                'dependencies' => [
+                    'sqlite-wherelfault-faultsim-restore-reopen',
+                    'sqlite-wherelfault-update-delete-limit-rowset-selection',
+                    $usesViewTrigger
+                        ? 'sqlite-wherelfault-instead-of-trigger-side-effects'
+                        : 'sqlite-wherelfault-without-rowid-empty-delete',
+                ],
+                'detail' => $detail,
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{w:int,x:int,y:int}>
      */
     private static function where1BaseRows(): array

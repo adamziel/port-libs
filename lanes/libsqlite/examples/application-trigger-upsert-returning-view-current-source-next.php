@@ -8,16 +8,16 @@ use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan;
 
 $plan = SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan::execute(
     [
-        ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
-        ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'https://home.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
+        ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
+        ['setting_id' => 2, 'key_name' => 'landing_url', 'key_value' => 'https://landing.test', 'load_policy' => 'yes', 'revision' => 1, 'source' => 'seed'],
     ],
     [
-        ['import_id' => 11, 'name' => 'siteurl', 'value' => 'https://current.test', 'load_policy_flag' => 'yes'],
-        ['import_id' => 12, 'name' => 'home', 'value' => 'https://skip.test', 'load_policy_flag' => 'skip'],
-        ['import_id' => 13, 'name' => 'fresh_plugin', 'value' => 'enabled', 'load_policy_flag' => 'no'],
+        ['import_id' => 11, 'name' => 'base_url', 'value' => 'https://current.test', 'load_policy_flag' => 'yes'],
+        ['import_id' => 12, 'name' => 'landing_url', 'value' => 'https://skip.test', 'load_policy_flag' => 'skip'],
+        ['import_id' => 13, 'name' => 'module_registry', 'value' => 'enabled', 'load_policy_flag' => 'no'],
     ],
     [
-        ['import_id' => 21, 'name' => 'home', 'value' => 'https://next.test', 'load_policy_flag' => 'yes', 'origin' => 'next-import'],
+        ['import_id' => 21, 'name' => 'landing_url', 'value' => 'https://next.test', 'load_policy_flag' => 'yes', 'origin' => 'next-import'],
     ],
     [
         'name' => 'app_setting_import_view',
@@ -64,10 +64,10 @@ $summary = [
 if (in_array('--self-test', $argv, true)) {
     assert($summary['status'] === 'trigger-upsert-returning-view-current-source-retained-next144');
     assert($summary['nextSourceAdmitted'] === false);
-    assert($summary['currentReturningNames'] === ['siteurl', 'fresh_plugin']);
-    assert($summary['skippedNames'] === ['home']);
-    assert($summary['attemptedNextReturningNames'] === ['home']);
-    assert($summary['afterSavepointNames'] === ['siteurl', 'home']);
+    assert($summary['currentReturningNames'] === ['base_url', 'module_registry']);
+    assert($summary['skippedNames'] === ['landing_url']);
+    assert($summary['attemptedNextReturningNames'] === ['landing_url']);
+    assert($summary['afterSavepointNames'] === ['base_url', 'landing_url']);
     echo "application-trigger-upsert-returning-view-current-source-next144 self-test passed\n";
     return;
 }
