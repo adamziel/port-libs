@@ -93,7 +93,12 @@ final class SQLitePDO extends \PDO
     public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): \PDOStatement|false
     {
         $statement = $this->prepare($query);
-        $statement->execute();
+        try {
+            $statement->execute();
+        } catch (\PDOException $exception) {
+            $this->recordErrorInfo($statement->errorInfo());
+            throw $exception;
+        }
         if ($fetchMode !== null) {
             $statement->setFetchMode($fetchMode, ...$fetchModeArgs);
         }
@@ -103,6 +108,7 @@ final class SQLitePDO extends \PDO
 
     public function prepare(string $query, array $options = []): \PDOStatement|false
     {
+        $initialStatementErrorInfo = ['', $this->errorInfo[1], $this->errorInfo[2]];
         foreach ($options as $attribute => $value) {
             if ((int) $attribute !== \PDO::ATTR_CURSOR || $value !== \PDO::CURSOR_FWDONLY) {
                 throw new \PDOException('SQLitePDO prepare options are not supported');
@@ -114,7 +120,7 @@ final class SQLitePDO extends \PDO
 
         $this->validatePrepareSql($query);
 
-        return new SQLitePDOStatement($this, $query);
+        return new SQLitePDOStatement($this, $query, $initialStatementErrorInfo);
     }
 
     public function quote(string $string, int $type = \PDO::PARAM_STR): string|false
@@ -194,7 +200,12 @@ final class SQLitePDO extends \PDO
             if ($prepared === false) {
                 return false;
             }
-            $prepared->execute($params);
+            try {
+                $prepared->execute($params);
+            } catch (\PDOException $exception) {
+                $this->recordErrorInfo($prepared->errorInfo());
+                throw $exception;
+            }
             $this->lastChanges = $prepared->rowCount();
 
             return $this->lastChanges;
@@ -246,6 +257,25 @@ final class SQLitePDO extends \PDO
     public function errorInfo(): array
     {
         return $this->errorInfo;
+    }
+
+    /**
+     * @internal
+     * @return array{code:string,info:array{0:string,1:int|null,2:string|null}}
+     */
+    public function pdoErrorState(): array
+    {
+        return ['code' => $this->errorCode, 'info' => $this->errorInfo];
+    }
+
+    /**
+     * @internal
+     * @param array{code:string,info:array{0:string,1:int|null,2:string|null}} $state
+     */
+    public function restorePdoErrorState(array $state): void
+    {
+        $this->errorCode = $state['code'];
+        $this->errorInfo = $state['info'];
     }
 
     public function commit(): bool
@@ -362,12 +392,39 @@ final class SQLitePDO extends \PDO
         $this->errorInfo = ['00000', null, null];
     }
 
-    private function failure(string $message, ?\Throwable $previous = null): \PDOException
+    private function failure(string $message, ?\Throwable $previous = null, int $driverCode = 1): \PDOException
     {
         $this->errorCode = 'HY000';
-        $this->errorInfo = ['HY000', 1, $message];
+        $this->errorInfo = ['HY000', $driverCode, $message];
 
-        return new \PDOException($message, 0, $previous);
+        return $this->pdoException($message, $driverCode, $previous);
+    }
+
+    /** @param array{0:string,1:int|null,2:string|null} $errorInfo */
+    private function recordErrorInfo(array $errorInfo): void
+    {
+        $this->errorCode = $errorInfo[0];
+        $this->errorInfo = $errorInfo;
+    }
+
+    private function pdoException(string $message, int $driverCode = 1, ?\Throwable $previous = null): \PDOException
+    {
+        $exception = new \PDOException($message, 0, $previous);
+        $exception->errorInfo = ['HY000', $driverCode, $message];
+        $this->setExceptionCode($exception, 'HY000');
+
+        return $exception;
+    }
+
+    private function setExceptionCode(\PDOException $exception, string $code): void
+    {
+        try {
+            static $property = null;
+            $property ??= new \ReflectionProperty(\Exception::class, 'code');
+            $property->setAccessible(true);
+            $property->setValue($exception, $code);
+        } catch (\Throwable) {
+        }
     }
 
     private function pdoSqliteMessage(\Throwable $exception): string
@@ -667,7 +724,7 @@ final class SQLitePDO extends \PDO
                 $parameterCount = max($parameterCount, $index);
                 $zeroBased = $index - 1;
                 if (!array_key_exists($zeroBased, $parameters)) {
-                    throw $this->failure("SQLitePDO missing positional parameter {$token}");
+                    throw $this->failure("SQLitePDO missing positional parameter {$token}", null, 25);
                 }
                 $i = $end - 1;
                 continue;
@@ -683,7 +740,7 @@ final class SQLitePDO extends \PDO
                 $parameterCount = max($parameterCount, $namedParameterIndexes[$token]);
                 $bare = substr($token, 1);
                 if (!array_key_exists($token, $parameters) && !array_key_exists($bare, $parameters)) {
-                    throw $this->failure("SQLitePDO missing named parameter {$token}");
+                    throw $this->failure("SQLitePDO missing named parameter {$token}", null, 25);
                 }
                 if (array_key_exists($token, $parameters)) {
                     $usedKeys[$token] = true;
@@ -700,7 +757,7 @@ final class SQLitePDO extends \PDO
                 continue;
             }
             if (!array_key_exists((string) $key, $usedKeys)) {
-                throw $this->failure('column index out of range');
+                throw $this->failure('column index out of range', null, 25);
             }
         }
     }

@@ -44,21 +44,29 @@ final class SQLitePDOStatement extends \PDOStatement
     private int $fetchColumnIndex = 0;
     private string $fetchClass = 'stdClass';
     private ?object $fetchInto = null;
-    private string $errorCode = '00000';
+    private ?string $errorCode = null;
 
     /** @var array{0:string,1:int|null,2:string|null} */
-    private array $errorInfo = ['00000', null, null];
+    private array $errorInfo = ['', null, null];
 
     public function __construct(
         private readonly SQLitePDO $connection,
         private readonly string $sql,
+        array $initialErrorInfo = ['', null, null],
     ) {
+        $this->errorInfo = [
+            is_string($initialErrorInfo[0] ?? null) ? $initialErrorInfo[0] : '',
+            is_int($initialErrorInfo[1] ?? null) ? $initialErrorInfo[1] : null,
+            is_string($initialErrorInfo[2] ?? null) ? $initialErrorInfo[2] : null,
+        ];
+        $this->errorCode = $this->errorInfo[0] === '' ? null : $this->errorInfo[0];
     }
 
     public function execute(?array $params = null): bool
     {
         $requireBoundParameters = $params !== null;
         $parameters = $this->boundValues;
+        $connectionErrorState = $this->connection->pdoErrorState();
         foreach ($this->boundReferences as $key => &$value) {
             $parameters[$key] = $this->coerce($value, $this->boundReferenceTypes[$key] ?? \PDO::PARAM_STR);
         }
@@ -72,10 +80,11 @@ final class SQLitePDOStatement extends \PDOStatement
             }
             $result = $this->connection->executeSql($this->sql, $parameters, $requireBoundParameters);
         } catch (\PDOException $exception) {
-            $this->errorCode = $this->connection->errorCode() ?? 'HY000';
-            $this->errorInfo = $this->connection->errorInfo();
+            $this->errorInfo = $this->normalizeExceptionErrorInfo($exception);
+            $this->errorCode = $this->errorInfo[0];
+            $this->connection->restorePdoErrorState($connectionErrorState);
 
-            throw $exception;
+            throw $this->pdoException($this->errorInfo[2] ?? $exception->getMessage(), $this->errorInfo, $exception);
         }
         $this->rows = $result['rows'];
         $this->rowCount = $result['changes'];
@@ -170,6 +179,52 @@ final class SQLitePDOStatement extends \PDOStatement
     public function errorInfo(): array
     {
         return $this->errorInfo;
+    }
+
+    /** @return array{0:string,1:int|null,2:string|null} */
+    private function normalizeExceptionErrorInfo(\PDOException $exception): array
+    {
+        $errorInfo = $exception->errorInfo ?? null;
+        if (is_array($errorInfo)
+            && isset($errorInfo[0])
+            && is_string($errorInfo[0])
+            && array_key_exists(1, $errorInfo)
+            && array_key_exists(2, $errorInfo)
+        ) {
+            return [
+                $errorInfo[0],
+                is_int($errorInfo[1]) ? $errorInfo[1] : null,
+                is_string($errorInfo[2]) ? $errorInfo[2] : null,
+            ];
+        }
+
+        $connectionErrorInfo = $this->connection->errorInfo();
+        if ($connectionErrorInfo[0] !== '00000') {
+            return $connectionErrorInfo;
+        }
+
+        return ['HY000', 1, $exception->getMessage()];
+    }
+
+    /** @param array{0:string,1:int|null,2:string|null} $errorInfo */
+    private function pdoException(string $message, array $errorInfo, ?\Throwable $previous = null): \PDOException
+    {
+        $exception = new \PDOException($message, 0, $previous);
+        $exception->errorInfo = $errorInfo;
+        $this->setExceptionCode($exception, $errorInfo[0]);
+
+        return $exception;
+    }
+
+    private function setExceptionCode(\PDOException $exception, string $code): void
+    {
+        try {
+            static $property = null;
+            $property ??= new \ReflectionProperty(\Exception::class, 'code');
+            $property->setAccessible(true);
+            $property->setValue($exception, $code);
+        } catch (\Throwable) {
+        }
     }
 
     public function bindValue(string|int $param, mixed $value, int $type = \PDO::PARAM_STR): bool

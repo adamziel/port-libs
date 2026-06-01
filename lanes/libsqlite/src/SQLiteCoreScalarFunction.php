@@ -62,7 +62,8 @@ final class SQLiteCoreScalarFunction
             'sign' => self::sign($arguments),
             'ceil', 'ceiling', 'floor', 'trunc' => self::roundingMath($normalized, $arguments),
             'sqrt', 'exp', 'ln', 'log', 'log10', 'log2', 'pow', 'power', 'mod' => self::numericMath($normalized, $arguments),
-            'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'pi' => self::trigonometricMath($normalized, $arguments),
+            'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'degrees', 'radians',
+            'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh', 'pi' => self::trigonometricMath($normalized, $arguments),
             'typeof' => self::typeof($arguments),
             'subtype' => self::subtype($arguments),
             'quote' => self::quote($arguments),
@@ -334,7 +335,7 @@ final class SQLiteCoreScalarFunction
     /**
      * @param list<mixed> $arguments
      */
-    private static function roundingMath(string $functionName, array $arguments): ?float
+    private static function roundingMath(string $functionName, array $arguments): int|float|null
     {
         self::assertArity($functionName, $arguments, 1, 1);
         if ($arguments[0] === null) {
@@ -344,6 +345,10 @@ final class SQLiteCoreScalarFunction
         $number = self::coerceLosslessNumeric($arguments[0]);
         if ($number === null) {
             return null;
+        }
+
+        if (is_int($number)) {
+            return $number;
         }
 
         return match ($functionName) {
@@ -423,6 +428,14 @@ final class SQLiteCoreScalarFunction
             'cos' => cos((float) $left),
             'sin' => sin((float) $left),
             'tan' => tan((float) $left),
+            'degrees' => ((float) $left) * 180.0 / M_PI,
+            'radians' => ((float) $left) * M_PI / 180.0,
+            'sinh' => sinh((float) $left),
+            'cosh' => cosh((float) $left),
+            'tanh' => tanh((float) $left),
+            'asinh' => asinh((float) $left),
+            'acosh' => ((float) $left) < 1.0 ? null : acosh((float) $left),
+            'atanh' => ((float) $left) <= -1.0 || ((float) $left) >= 1.0 ? null : atanh((float) $left),
             default => throw new \InvalidArgumentException("Unsupported SQLite math function: {$functionName}"),
         };
     }
