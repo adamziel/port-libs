@@ -56,7 +56,7 @@
 ## Current Coordination Snapshot
 
 - 2026-06-01 supervisor continuation (AO session cleanup audit + Git/CSS
-  parity batch 00:20 UTC): audited the active-session concern from live tmux,
+  parity batch 00:15 UTC): audited the active-session concern from live tmux,
   process, disk, and team-check state. There is one attached tmux session
   (`main`), not multiple independent live tmux sessions. The visible pool is
   intentional capacity: one supervisor, one shell, and `10` active lane
