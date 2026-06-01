@@ -1846,13 +1846,69 @@ CSS,
 
         $t->same('.dep_card{background:green}.dep_token{color:#00f}.theme_theme{color:#ff0}.entry_entry{color:red}', $result['code']);
         $t->same([
-            ['root:card.css', 'entry.css'],
             ['root:theme.css', 'entry.css'],
+            ['root:card.css', 'entry.css'],
         ], $resolved);
         $t->same([
             'entry' => $moduleExport('entry_entry', [
                 $moduleLocal('dep_card'),
                 $moduleLocal('dep_token'),
+            ]),
+        ], $result['exports']);
+    },
+    'css bundler resolves imports before css module dependencies but hoists output like upstream' => static function (TestRunner $t) use ($moduleExport, $moduleLocal): void {
+        $files = [
+            '/entry.css' => <<<'CSS'
+@import "pkg:theme.css";
+
+.entry {
+  composes: token from "pkg:tokens.css";
+  color: red;
+}
+CSS,
+            '/theme.css' => '.theme { color: blue }',
+            '/tokens.css' => '.token { color: green }',
+        ];
+        $reads = [];
+        $resolved = [];
+
+        $result = (new CssBundler())->bundleCssModulesWithReader(
+            '/entry.css',
+            static function (string $file) use (&$reads, $files): string {
+                $reads[] = $file;
+                if (!array_key_exists($file, $files)) {
+                    throw new RuntimeException("Missing source-provider file {$file}");
+                }
+
+                return $files[$file];
+            },
+            static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return match ($specifier) {
+                    'pkg:theme.css' => '/theme.css',
+                    'pkg:tokens.css' => '/tokens.css',
+                    default => throw new RuntimeException("Unexpected CSS Modules specifier {$specifier}"),
+                };
+            },
+            [
+                'hashes' => [
+                    '/entry.css' => 'entry',
+                    '/theme.css' => 'theme',
+                    '/tokens.css' => 'tok',
+                ],
+            ]
+        );
+
+        $t->same('.tok_token{color:green}.theme_theme{color:#00f}.entry_entry{color:red}', $result['code']);
+        $t->same(['/entry.css', '/theme.css', '/tokens.css'], $reads);
+        $t->same([
+            ['pkg:theme.css', '/entry.css'],
+            ['pkg:tokens.css', '/entry.css'],
+        ], $resolved);
+        $t->same([
+            'entry' => $moduleExport('entry_entry', [
+                $moduleLocal('tok_token'),
             ]),
         ], $result['exports']);
     },
@@ -2054,8 +2110,8 @@ CSS;
         ], $result['exports']);
 
         $sourceMap = $result['sourceMap']->toArray(null, false);
-        $t->same(['modules/entry.css', 'tokens.css', 'theme.css'], $sourceMap['sources']);
-        $t->same([$entryCss, $tokensCss, $themeCss], $sourceMap['sourcesContent']);
+        $t->same(['modules/entry.css', 'theme.css', 'tokens.css'], $sourceMap['sources']);
+        $t->same([$entryCss, $themeCss, $tokensCss], $sourceMap['sourcesContent']);
         $t->same('', $sourceMap['mappings']);
 
         $readerFiles = [
@@ -2188,9 +2244,9 @@ CSS,
             $result['code']
         );
         $t->same([
+            ['pkg:theme.css', '/entry.css'],
             ['pkg:tokens.css', '/entry.css'],
             ['pkg:fallback.css', '/entry.css'],
-            ['pkg:theme.css', '/entry.css'],
         ], $resolved);
         $t->same([
             'card' => $moduleExport('entry_card'),
@@ -2404,8 +2460,8 @@ CSS,
                 ]),
             ], $result['exports']);
             $t->same([
-                ['pkg:tokens.module.css', $entry],
                 ['../base.css', $entry],
+                ['pkg:tokens.module.css', $entry],
             ], $resolved);
         });
     },

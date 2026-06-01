@@ -518,6 +518,64 @@ return [
         $t->same(null, $config->value('user', null, 'slash'));
     },
 
+    'conditional include POSIX blank class follows gix ascii whitespace boundary' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $tab = "\t";
+        $verticalTab = "\x0B";
+
+        $root = $tmpDir();
+        $worktree = $root . '/deploy' . $tab . 'site';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/blank.config', "[section]\nblank = matched-tab\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:deploy[[:blank:]]site/"]
+        path = ../blank.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('matched-tab', $config->value('section', null, 'blank'));
+
+        $root = $tmpDir();
+        $worktree = $root . '/deploy' . $verticalTab . 'site';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/blank.config', "[section]\nblank = should-not-load\n");
+        $write($worktree . '/control.config', "[section]\ncontrol = matched-vtab\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:deploy[[:blank:]]site/"]
+        path = ../blank.config
+        [includeIf "gitdir:deploy[[:cntrl:]]site/"]
+        path = ../control.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same(null, $config->value('section', null, 'blank'));
+        $t->same('matched-vtab', $config->value('section', null, 'control'));
+
+        $root = $tmpDir();
+        $write($root . '/tab-url', "[user]\ntab = matched\n");
+        $write($root . '/vtab-blank-url', "[user]\nvtabBlank = should-not-load\n");
+        $write($root . '/vtab-control-url', "[user]\nvtabControl = matched\n");
+        $write($root . '/config', <<<CFG
+        [remote "tab"]
+        url = "https://git.example.test/wp-content/blank-tab-{$tab}.git"
+        [remote "vtab"]
+        url = "https://git.example.test/wp-content/blank-vtab-{$verticalTab}.git"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/blank-tab-[[:blank:]].git"]
+        path = "tab-url"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/blank-vtab-[[:blank:]].git"]
+        path = "vtab-blank-url"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/blank-vtab-[[:cntrl:]].git"]
+        path = "vtab-control-url"
+        CFG);
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same('matched', $config->value('user', null, 'tab'));
+        $t->same(null, $config->value('user', null, 'vtabBlank'));
+        $t->same('matched', $config->value('user', null, 'vtabControl'));
+    },
+
     'conditional include malformed bracket classes abort like gix wildmatch' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
         $root = $tmpDir();
         $worktree = $root . '/work[[:word:]]';
@@ -945,6 +1003,9 @@ return [
         $t->same('matched', $fixture['reversedRangeStartUrlPolicy']);
         $t->same(null, $fixture['reversedRangeMiddleUrlPolicy']);
         $t->same('matched', $fixture['legacyBytePolicy']);
+        $t->same('matched', $fixture['blankTabUrlPolicy']);
+        $t->same(null, $fixture['blankVerticalTabUrlPolicy']);
+        $t->same('matched', $fixture['controlVerticalTabUrlPolicy']);
         $t->same('matched', $fixture['literalTildePathPolicy']);
         $t->same('matched', $fixture['installPrefixPathPolicy']);
         $t->same('matched', $fixture['literalPrefixPathPolicy']);
@@ -972,6 +1033,9 @@ return [
         $t->same($fixture['reversedRangeStartUrlPolicy'], $summary['reversedRangeStartUrlPolicy']);
         $t->same($fixture['reversedRangeMiddleUrlPolicy'], $summary['reversedRangeMiddleUrlPolicy']);
         $t->same($fixture['legacyBytePolicy'], $summary['legacyBytePolicy']);
+        $t->same($fixture['blankTabUrlPolicy'], $summary['blankTabUrlPolicy']);
+        $t->same($fixture['blankVerticalTabUrlPolicy'], $summary['blankVerticalTabUrlPolicy']);
+        $t->same($fixture['controlVerticalTabUrlPolicy'], $summary['controlVerticalTabUrlPolicy']);
         $t->same($fixture['literalTildePathPolicy'], $summary['literalTildePathPolicy']);
         $t->same($fixture['installPrefixPathPolicy'], $summary['installPrefixPathPolicy']);
         $t->same($fixture['literalPrefixPathPolicy'], $summary['literalPrefixPathPolicy']);

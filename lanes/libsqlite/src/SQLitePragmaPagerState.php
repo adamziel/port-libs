@@ -163,6 +163,58 @@ final class SQLitePragmaPagerState
     }
 
     /**
+     * @return array{
+     *     status:string,
+     *     operation:string,
+     *     schema:string,
+     *     before_generation:int,
+     *     after_generation:int,
+     *     generation_changed:bool,
+     *     cache_size:int,
+     *     default_cache_size:int,
+     *     synchronous:int,
+     *     page_size:int,
+     *     cache_spill:int,
+     *     dirty_default:bool,
+     *     rows:list<array{cache_size:int}>,
+     *     reason:string,
+     *     dependencies:list<string>
+     * }
+     */
+    public function schemaReload(string $schema = 'main', int $beforeGeneration = 0, ?int $afterGeneration = null): array
+    {
+        if ($beforeGeneration < 0 || ($afterGeneration !== null && $afterGeneration < 0)) {
+            throw new InvalidArgumentException('schema generations must be non-negative');
+        }
+
+        $schema = self::normalizeSchemaName($schema);
+        $this->ensureSchema($schema);
+        $afterGeneration ??= $beforeGeneration + 1;
+        $generationChanged = $afterGeneration !== $beforeGeneration;
+        $state = $this->schemas[$schema];
+
+        return [
+            'status' => 'ok',
+            'operation' => 'pragma-schema-reload-pager-state',
+            'schema' => $schema,
+            'before_generation' => $beforeGeneration,
+            'after_generation' => $afterGeneration,
+            'generation_changed' => $generationChanged,
+            'cache_size' => $state['cache_size'],
+            'default_cache_size' => $state['default_cache_size'],
+            'synchronous' => $state['synchronous'],
+            'page_size' => $state['page_size'],
+            'cache_spill' => $state['cache_spill'],
+            'dirty_default' => $state['dirty_default'],
+            'rows' => [['cache_size' => $state['cache_size']]],
+            'reason' => $generationChanged
+                ? 'schema_reload_preserves_connection_local_pager_pragmas'
+                : 'schema_generation_unchanged',
+            'dependencies' => ['sqlite-pragma-cache-size-state', 'sqlite-schema-cookie-live-reload'],
+        ];
+    }
+
+    /**
      * @return array<string, array<string, int|bool>>
      */
     public function state(): array

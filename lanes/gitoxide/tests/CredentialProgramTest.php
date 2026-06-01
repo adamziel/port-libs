@@ -53,6 +53,25 @@ return [
         $t->same(['git', 'credential-cache', '--timeout=3600', 'erase'], $external->command('erase'));
         $t->throws(InvalidArgumentException::class, static fn () => $external->command('refresh'));
     },
+    'credential program selects upstream platform builtin helpers without invoking them' => static function (TestRunner $t): void {
+        $linux = CredentialProgram::platformBuiltins('linux');
+        $t->same(1, count($linux));
+        $t->same(CredentialProgram::EXTERNAL_NAME, $linux[0]->kind);
+        $t->same('libsecret', $linux[0]->definition);
+        $t->same(['git', 'credential-libsecret', 'get'], $linux[0]->command('get'));
+
+        $macos = CredentialProgram::platformBuiltins('darwin');
+        $t->same(1, count($macos));
+        $t->same('osxkeychain', $macos[0]->definition);
+        $t->same(['git', 'credential-osxkeychain', 'store'], $macos[0]->command('store'));
+
+        $windows = CredentialProgram::platformBuiltins('windows');
+        $t->same(1, count($windows));
+        $t->same('manager-core', $windows[0]->definition);
+        $t->same(['git', 'credential-manager-core', 'erase'], $windows[0]->command('erase'));
+
+        $t->same([], CredentialProgram::platformBuiltins('freebsd'));
+    },
     'credential program preserves shell scripts for custom helper invocation' => static function (TestRunner $t): void {
         $script = CredentialProgram::fromCustomDefinition('!f() { test "$1" = get && echo "username=user"; }; f');
 
@@ -74,7 +93,12 @@ return [
             $fixture['commands']['tenantErase'],
         );
         $t->same(['git', 'credential', 'fill'], $fixture['commands']['builtinFill']);
+        $t->same(['git', 'credential-libsecret', 'get'], $fixture['platformDefaults']['linux'][0]['get']);
+        $t->same(['git', 'credential-osxkeychain', 'store'], $fixture['platformDefaults']['darwin'][0]['store']);
+        $t->same(['git', 'credential-manager-core', 'erase'], $fixture['platformDefaults']['windows'][0]['erase']);
+        $t->same([], $fixture['platformDefaults']['unknown']);
         $t->same($fixture['helperKinds'], $summary['helperKinds']);
+        $t->same($fixture['platformDefaults'], $summary['platformDefaults']);
         $t->contains('git credential-cache', $summary['wordpressUse']);
     },
 ];

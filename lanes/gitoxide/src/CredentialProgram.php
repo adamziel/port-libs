@@ -39,6 +39,22 @@ final class CredentialProgram
         );
     }
 
+    /**
+     * @return list<self>
+     */
+    public static function platformBuiltins(?string $osFamily = null): array
+    {
+        $platform = strtolower($osFamily ?? PHP_OS_FAMILY);
+        $helper = match ($platform) {
+            'darwin', 'mac', 'macos', 'osx' => 'osxkeychain',
+            'linux' => 'libsecret',
+            'windows', 'win32', 'winnt' => 'manager-core',
+            default => null,
+        };
+
+        return $helper === null ? [] : [self::fromCustomDefinition($helper)];
+    }
+
     public function suppressStderr(): self
     {
         return new self($this->kind, $this->definition, false);

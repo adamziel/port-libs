@@ -846,7 +846,9 @@ final class GitConfig
         $ranges = match ($class) {
             'alnum' => [[48, 57], [65, 90], [97, 122]],
             'alpha' => [[65, 90], [97, 122]],
-            'blank' => [[9, 13], [32, 32]],
+            // gix-glob uses Rust's ASCII whitespace helper for [:blank:],
+            // which includes HT, LF, FF, CR, and space, but not VT.
+            'blank' => [[9, 10], [12, 13], [32, 32]],
             'cntrl' => [[0, 31], [127, 127]],
             'digit' => [[48, 57]],
             'graph' => [[33, 126]],

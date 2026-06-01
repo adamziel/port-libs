@@ -9,6 +9,8 @@ $repo = $root . '/sites/wp-content.git';
 $gitDir = $repo . '/.git';
 $installPrefix = $root . '/git-install';
 $legacyByte = "\xFF";
+$blankTab = "\t";
+$blankVerticalTab = "\x0B";
 $trailingBackslashUrl = 'https://git.example.test/wp-content/trailing\\';
 $escapedTrailingBackslashUrl = str_replace('\\', '\\\\', $trailingBackslashUrl);
 mkdir($gitDir, 0777, true);
@@ -78,6 +80,21 @@ CFG);
 $write($repo . '/legacy-byte.config', <<<CFG
 [wordpress]
 legacyByte = matched
+CFG);
+
+$write($repo . '/blank-tab-url.config', <<<CFG
+[wordpress]
+blankTabUrl = matched
+CFG);
+
+$write($repo . '/blank-vtab-url.config', <<<CFG
+[wordpress]
+blankVtabUrl = should-not-load
+CFG);
+
+$write($repo . '/control-vtab-url.config', <<<CFG
+[wordpress]
+controlVtabUrl = matched
 CFG);
 
 $write($gitDir . '/~', <<<CFG
@@ -185,6 +202,10 @@ url = https://git.example.test/wp-content/site-z.git
 url = https://git.example.test/wp-content/range-middle-m.git
 [remote "legacy-byte"]
 url = https://git.example.test/wp-content/legacy-{$legacyByte}.git
+[remote "blank-tab"]
+url = "https://git.example.test/wp-content/blank-tab-{$blankTab}.git"
+[remote "blank-vtab"]
+url = "https://git.example.test/wp-content/blank-vtab-{$blankVerticalTab}.git"
 [remote "backslash-url"]
 url = https://windows.example.test\wp-content.git
 [remote "nested-content"]
@@ -217,6 +238,12 @@ path = ../reversed-range-start-url.config
 path = ../reversed-range-middle-url.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/legacy-?.git"]
 path = ../legacy-byte.config
+[includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/blank-tab-[[:blank:]].git"]
+path = ../blank-tab-url.config
+[includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/blank-vtab-[[:blank:]].git"]
+path = ../blank-vtab-url.config
+[includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/blank-vtab-[[:cntrl:]].git"]
+path = ../control-vtab-url.config
 [includeIf "gitdir:wp-content.git/"]
 path = ~
 [includeIf "gitdir:wp-content.git/"]
@@ -286,6 +313,9 @@ return [
     'reversedRangeStartUrlPolicy' => $config->value('wordpress', null, 'reversedRangeStartUrl'),
     'reversedRangeMiddleUrlPolicy' => $config->value('wordpress', null, 'reversedRangeMiddleUrl'),
     'legacyBytePolicy' => $config->value('wordpress', null, 'legacyByte'),
+    'blankTabUrlPolicy' => $config->value('wordpress', null, 'blankTabUrl'),
+    'blankVerticalTabUrlPolicy' => $config->value('wordpress', null, 'blankVtabUrl'),
+    'controlVerticalTabUrlPolicy' => $config->value('wordpress', null, 'controlVtabUrl'),
     'literalTildePathPolicy' => $config->value('wordpress', null, 'literalTildePath'),
     'installPrefixPathPolicy' => $config->value('wordpress', null, 'installPrefixPath'),
     'literalPrefixPathPolicy' => $config->value('wordpress', null, 'literalPrefixPath'),

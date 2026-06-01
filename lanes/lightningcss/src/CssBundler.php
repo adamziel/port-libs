@@ -315,6 +315,13 @@ final class CssBundler
         $cssModuleDependencySources = [];
         $cssModuleExports = $cssModuleResult['exports'] ?? [];
         $cssModuleReferences = $cssModuleResult['references'] ?? [];
+
+        $items = $this->topLevelItems($source, $file);
+        $splitItems = $this->splitTopLevelBundleItems($items);
+        $licenseComments = $splitItems['licenseComments'];
+        $contentItems = $splitItems['contentItems'];
+        $dependencies = $this->importDependenciesForItems($contentItems, $rule, $file);
+
         foreach ($this->cssModuleDependencySpecifiers($cssModuleExports, $cssModuleReferences) as $specifier) {
             $dependencyLocations = $cssModuleDependencyLocations[$specifier] ?? [
                 'read' => ['line' => 1, 'column' => 1],
@@ -349,6 +356,7 @@ final class CssBundler
             $cssModuleDependencySources[$specifier] = $depSourceIndex;
         }
 
+        $sourceChangedByReferences = false;
         foreach ($cssModuleReferences as $placeholder => $reference) {
             if (($reference['type'] ?? '') !== 'dependency') {
                 continue;
@@ -360,61 +368,23 @@ final class CssBundler
                 continue;
             }
 
-            $source = str_replace(
+            $replaced = str_replace(
                 (string) $placeholder,
                 $this->cssModuleDashedNameForSource($depSourceIndex, (string) ($reference['name'] ?? '')),
                 $source
             );
+
+            if ($replaced !== $source) {
+                $sourceChangedByReferences = true;
+                $source = $replaced;
+            }
         }
 
-        $items = $this->topLevelItems($source, $file);
-        $licenseComments = [];
-        $contentItems = [];
-        foreach ($items as $item) {
-            if (($item['type'] ?? null) === 'license-comment') {
-                $licenseComments[] = (string) $item['raw'];
-                continue;
-            }
-
-            $contentItems[] = $item;
-        }
-
-        $dependencies = [];
-        foreach ($contentItems as $item) {
-            if (($item['type'] ?? null) !== 'import') {
-                continue;
-            }
-
-            /** @var array{specifier:string,layer:?string,supports:?string,media:string,loc:array{line:int,column:int}} $import */
-            $import = $item['import'];
-            $layer = $this->combineLayer($rule['layer'], $import['layer'], $file, $import['loc']);
-            $media = $this->combineMediaAnd($rule['media'], $import['media'], $file, $import['loc']);
-            $supports = $this->combineSupportsAnd($rule['supports'], $import['supports']);
-            $resolved = $this->resolveImport($import['specifier'], $file, $import['loc']);
-
-            if (isset($resolved['external'])) {
-                $dependencies[] = [
-                    'type' => 'external',
-                    'url' => $resolved['external'],
-                ];
-                continue;
-            }
-
-            $dependencyRule = [
-                'layer' => $layer,
-                'supports' => $supports,
-                'media' => $media,
-                'loc' => $import['loc'],
-                'file' => $file,
-            ];
-            $dependencies[] = [
-                'type' => 'file',
-                'sourceIndex' => $this->loadFile(
-                    $resolved['file'],
-                    $dependencyRule,
-                    !$this->shouldPreserveResolvedPath($resolved)
-                ),
-            ];
+        if ($sourceChangedByReferences) {
+            $items = $this->topLevelItems($source, $file);
+            $splitItems = $this->splitTopLevelBundleItems($items);
+            $licenseComments = $splitItems['licenseComments'];
+            $contentItems = $splitItems['contentItems'];
         }
 
         $this->stylesheets[$sourceIndex]['items'] = $contentItems;
@@ -821,6 +791,77 @@ final class CssBundler
         }
 
         $references[] = $reference;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array{licenseComments:list<string>,contentItems:list<array<string, mixed>>}
+     */
+    private function splitTopLevelBundleItems(array $items): array
+    {
+        $licenseComments = [];
+        $contentItems = [];
+        foreach ($items as $item) {
+            if (($item['type'] ?? null) === 'license-comment') {
+                $licenseComments[] = (string) $item['raw'];
+                continue;
+            }
+
+            $contentItems[] = $item;
+        }
+
+        return [
+            'licenseComments' => $licenseComments,
+            'contentItems' => $contentItems,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $contentItems
+     * @param array{layer:?string,supports:?string,media:string,loc:array{line:int,column:int},file:string} $rule
+     * @return list<array<string, mixed>>
+     */
+    private function importDependenciesForItems(array $contentItems, array $rule, string $file): array
+    {
+        $dependencies = [];
+        foreach ($contentItems as $item) {
+            if (($item['type'] ?? null) !== 'import') {
+                continue;
+            }
+
+            /** @var array{specifier:string,layer:?string,supports:?string,media:string,loc:array{line:int,column:int}} $import */
+            $import = $item['import'];
+            $layer = $this->combineLayer($rule['layer'], $import['layer'], $file, $import['loc']);
+            $media = $this->combineMediaAnd($rule['media'], $import['media'], $file, $import['loc']);
+            $supports = $this->combineSupportsAnd($rule['supports'], $import['supports']);
+            $resolved = $this->resolveImport($import['specifier'], $file, $import['loc']);
+
+            if (isset($resolved['external'])) {
+                $dependencies[] = [
+                    'type' => 'external',
+                    'url' => $resolved['external'],
+                ];
+                continue;
+            }
+
+            $dependencyRule = [
+                'layer' => $layer,
+                'supports' => $supports,
+                'media' => $media,
+                'loc' => $import['loc'],
+                'file' => $file,
+            ];
+            $dependencies[] = [
+                'type' => 'file',
+                'sourceIndex' => $this->loadFile(
+                    $resolved['file'],
+                    $dependencyRule,
+                    !$this->shouldPreserveResolvedPath($resolved)
+                ),
+            ];
+        }
+
+        return $dependencies;
     }
 
     /**

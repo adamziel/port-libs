@@ -428,3 +428,63 @@ quit ordering, credential program definition parsing, smart HTTP proxy
 credential lifecycle, SSH credential context metadata, protocol, object,
 reference, sparse-checkout, pathspec, merge-base, or tree-merge behavior. The
 old May 25 smart HTTP receive-pack rework notes remain stale for this slice.
+
+---
+
+Slice: `gitoxide-credential-helper-context-parity-20260601T012007Z`
+Base accepted HEAD: `b9bbeca66ecf5a12b5cede18d997f59a57398d59`
+
+## Source Truth
+
+- Upstream `gix-credentials/src/helper/cascade.rs`
+  `Cascade::platform_builtin()` returns one configured helper per platform:
+  `osxkeychain` on macOS, `libsecret` on Linux, `manager-core` on Windows, and
+  no helper on other platforms.
+- Upstream stores those as custom credential helper program definitions, so
+  the command shape is external `git credential-<name>` plus the Git
+  credential action name `get`, `store`, or `erase`.
+
+## PHP Delta
+
+- `CredentialProgram::platformBuiltins()` now exposes deterministic native
+  command planning for the upstream platform default helper names without
+  invoking any helper process.
+- `CredentialProgramTest` covers Linux, macOS, Windows, and unknown-platform
+  selection plus get/store/erase action command shapes.
+- The WordPress credential-program fixture/example records the platform
+  default helper plans for deployment tooling preflight without reading
+  credential stores.
+
+## Verification
+
+- Red-first probe before the patch:
+  `php -r 'require "tools/bootstrap.php"; var_export(method_exists(PortLibs\\Gitoxide\\CredentialProgram::class, "platformBuiltins")); echo "\n";'`
+  returned `false`.
+- `php tools/run-tests.php lanes/gitoxide/tests/CredentialProgramTest.php`:
+  `1 test files, 44 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests/CredentialContextTest.php lanes/gitoxide/tests/CredentialCascadeTest.php lanes/gitoxide/tests/CredentialHelperExchangeTest.php lanes/gitoxide/tests/CredentialProgramTest.php`:
+  `4 test files, 265 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests`:
+  `40 test files, 6659 assertions, 0 failures`.
+- `php -l` reported no syntax errors for `CredentialProgram.php`,
+  `CredentialProgramTest.php`, the WordPress credential-program fixture, and
+  the WordPress credential-program example.
+- `php lanes/gitoxide/examples/wordpress-credential-program.php`: exited `0`.
+- JSON validation passed for `lanes/gitoxide/lane-status.json`.
+- `git diff --check -- lanes/gitoxide`: exited `0`.
+
+## Dependency Closure
+
+No new support component is needed. This slice only maps upstream platform
+helper command selection into native PHP command planning; it does not invoke
+credential helpers, read credential stores, inspect provider config, or
+require a shared support-library activation gate.
+
+## Non-Overlap
+
+This does not repeat accepted credential context parsing, URL destructuring,
+cascade quit ordering, helper exchange stdin validation, credential program
+custom-definition parsing, smart HTTP proxy credentials, SSH credential
+context metadata, receive-pack, pack/index, object database, reference,
+sparse-checkout, pathspec, merge-base, or tree-merge behavior. The May 25
+smart HTTP receive-pack rework notes remain stale for this slice.

@@ -1090,13 +1090,69 @@ $moduleMappedSources = $moduleMappedBundle['sourceMap']->toArray(null, false)['s
 if (
     $moduleMappedBundle['code'] !== '.tok_token{color:#00f}.theme_wp-block-theme{color:#ff0}.card_wp-block-card{color:red}'
     || ($moduleMappedBundle['exports']['wp-block-card']['composes'][0]['name'] ?? null) !== 'tok_token'
-    || $moduleMappedSources !== ['modules/card.css', 'tokens.module.css', 'theme.css']
+    || $moduleMappedSources !== ['modules/card.css', 'theme.css', 'tokens.module.css']
 ) {
     fwrite(STDERR, "Expected CSS Modules source-map bundle graph output\n");
     exit(1);
 }
 
 echo 'css-modules-source-map: collected' . PHP_EOL;
+
+$moduleOrderFiles = [
+    '/modules/order-card.css' => <<<'CSS'
+@import "pkg:theme.css";
+
+.wp-block-card {
+  composes: token from "pkg:tokens.css";
+  color: red;
+}
+CSS,
+    '/theme.css' => '.wp-block-theme { color: blue }',
+    '/tokens.css' => '.token { color: green }',
+];
+$moduleOrderReads = [];
+$moduleOrderResolved = [];
+$moduleOrderBundle = (new CssBundler())->bundleCssModulesWithReader(
+    '/modules/order-card.css',
+    static function (string $file) use (&$moduleOrderReads, $moduleOrderFiles): string {
+        $moduleOrderReads[] = $file;
+        if (!array_key_exists($file, $moduleOrderFiles)) {
+            throw new RuntimeException("Missing CSS Modules order file {$file}");
+        }
+
+        return $moduleOrderFiles[$file];
+    },
+    static function (string $specifier, string $originatingFile) use (&$moduleOrderResolved): string {
+        $moduleOrderResolved[] = [$specifier, $originatingFile];
+
+        return match ($specifier) {
+            'pkg:theme.css' => '/theme.css',
+            'pkg:tokens.css' => '/tokens.css',
+            default => throw new RuntimeException("Unexpected CSS Modules order specifier {$specifier}"),
+        };
+    },
+    [
+        'hashes' => [
+            '/modules/order-card.css' => 'card',
+            '/theme.css' => 'theme',
+            '/tokens.css' => 'tok',
+        ],
+    ]
+);
+
+if (
+    $moduleOrderBundle['code'] !== '.tok_token{color:green}.theme_wp-block-theme{color:#00f}.card_wp-block-card{color:red}'
+    || $moduleOrderReads !== ['/modules/order-card.css', '/theme.css', '/tokens.css']
+    || $moduleOrderResolved !== [
+        ['pkg:theme.css', '/modules/order-card.css'],
+        ['pkg:tokens.css', '/modules/order-card.css'],
+    ]
+) {
+    fwrite(STDERR, "Expected CSS Modules resolver/read order to match upstream import-first loading\n");
+    exit(1);
+}
+
+echo 'css-modules-import-first-resolution: ordered' . PHP_EOL;
 
 try {
     (new CssBundler())->bundleCssModules('/modules/missing-card.css', [

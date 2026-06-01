@@ -10,5 +10,6 @@ return [
     'helperKinds' => $fixture['helperKinds'],
     'cacheCommand' => implode(' ', $fixture['commands']['cacheGet']),
     'tenantCommand' => implode(' ', $fixture['commands']['tenantErase']),
+    'platformDefaults' => $fixture['platformDefaults'],
     'wordpressUse' => $fixture['wordpressUse'],
 ];

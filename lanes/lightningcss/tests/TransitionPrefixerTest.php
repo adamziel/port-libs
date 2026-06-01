@@ -2177,6 +2177,24 @@ CSS;
             $prefixer->prefixForTargets('.foo { background-color: lab(40% 56.6 39) }', ['safari' => 15])
         );
     },
+    'transition prefixer maps upstream xyz color mix target fallback' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{color:#008000a6;color:color(xyz .0771883 .154377 .0257295/.65)}',
+            $prefixer->prefixForTargets(
+                '.foo { color: color-mix(in xyz, transparent, green 65%); }',
+                ['chrome' => 95]
+            )
+        );
+        $t->same(
+            '.foo{color:color(xyz .0771883 .154377 .0257295/.65)}',
+            $prefixer->prefixForTargets(
+                '.foo { color: color-mix(in xyz, transparent, green 65%); }',
+                ['chrome' => 111]
+            )
+        );
+    },
     'transition prefixer maps upstream custom property advanced color supports' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .foo {

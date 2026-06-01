@@ -7999,14 +7999,15 @@ final class TransitionPrefixer
 
         foreach ($entries as $entry) {
             $isCustomProperty = str_starts_with($entry['property'], '--');
-            if (!$isCustomProperty && !$this->propertySupportsAdvancedColorFallback($entry['property'])) {
+            $normalized = $isCustomProperty
+                ? $entry['value']
+                : $this->normalizeBackgroundFallbackValue($entry['value']);
+
+            if (!$isCustomProperty && !$this->propertySupportsAdvancedColorFallback($entry['property'], $normalized)) {
                 $rewritten[] = $entry;
                 continue;
             }
 
-            $normalized = $isCustomProperty
-                ? $entry['value']
-                : $this->normalizeBackgroundFallbackValue($entry['value']);
             $srgbFallback = $this->advancedColorFallbackValue($normalized);
             if ($srgbFallback === null) {
                 $rewritten[] = $entry;
@@ -8049,8 +8050,12 @@ final class TransitionPrefixer
         return $changed;
     }
 
-    private function propertySupportsAdvancedColorFallback(string $property): bool
+    private function propertySupportsAdvancedColorFallback(string $property, string $value): bool
     {
+        if ($property === 'color') {
+            return stripos($value, 'light-dark(') === false;
+        }
+
         return in_array($property, [
             'background',
             'background-color',
@@ -8712,6 +8717,7 @@ final class TransitionPrefixer
             'color(prophoto-rgb .36589 .41717 .31333)' => '#6a805d',
             'color(rec2020 .4221 .4758 .35605)' => '#728765',
             'color(xyz-d50 .2005 .14089 .4472)' => '#7654cd',
+            'color(xyz .0771883 .154377 .0257295/.65)' => '#008000a6',
             'color(xyz .21661 .14602 .59452)' => '#7654cd',
             'lch(50.998% 135.363 338)' => '#ee00be',
             default => null,
