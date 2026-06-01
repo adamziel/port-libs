@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 18:16:52 UTC",
-    "sourceCommit": "33c91c20d5b3b62b8087e983a05bfe31f949cbd9",
-    "sourceCommitShort": "33c91c20d5b3",
+    "generated": "2026-06-01 18:24:05 UTC",
+    "sourceCommit": "c2aa57a1f4e69219e1df93df0bea3dcc1bbf047e",
+    "sourceCommitShort": "c2aa57a1f4e6",
     "sourceBranch": "unknown",
-    "dashboardCommit": "33c91c20d5b3b62b8087e983a05bfe31f949cbd9",
-    "dashboardCommitShort": "33c91c20d5b3",
+    "dashboardCommit": "c2aa57a1f4e69219e1df93df0bea3dcc1bbf047e",
+    "dashboardCommitShort": "c2aa57a1f4e6",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -15,20 +15,20 @@
             "state": "16 open failures",
             "progressPercent": "99.6",
             "completion": "99.6%",
-            "suite": "current-base libsqlite source-neutral trigger/upsert/view cleanup plu...",
-            "benchmark": "current-base libsqlite source-neutral trigger/upsert/view cleanup plu...",
+            "suite": "current-base libsqlite pager transient filename coverage plus row-val...",
+            "benchmark": "current-base libsqlite pager transient filename coverage plus row-val...",
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,161,089 pass / 16 fail",
+            "php": "6,185,105 pass / 16 fail",
             "phase": "current-base source integration accepted; broad full-lane/release par...",
-            "audit": "2026-06-01 18:22 UTC supervisor integration: source commit 972c970315...",
-            "currentWork": "Real upstream laststmtchanges trigger/FK dynamic coverage, real upstream window1 LEFT...",
-            "nextTarget": "Prioritize broad full-lane memory exhaustion and the 16 obser...",
+            "audit": "2026-06-01 18:29 UTC supervisor integration: source commit c2aa57a1f4...",
+            "currentWork": "Real upstream pager1 transient special-filename coverage, row-value source-neutral cl...",
+            "nextTarget": "Keep SQLitePDO native exception/silent/persistence regression...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "972c970"
+            "commit": "c2aa57a"
         },
         {
             "lane": "lightningcss",
