@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 19:47:21 UTC",
-    "sourceCommit": "99a2faf5648da6d68d02f40ddf196d913976b3f2",
-    "sourceCommitShort": "99a2faf5648d",
+    "generated": "2026-06-01 19:49:37 UTC",
+    "sourceCommit": "bbf07ec930a5158fedfa93c031b5ebff1618e6ab",
+    "sourceCommitShort": "bbf07ec930a5",
     "sourceBranch": "unknown",
-    "dashboardCommit": "99a2faf5648da6d68d02f40ddf196d913976b3f2",
-    "dashboardCommitShort": "99a2faf5648d",
+    "dashboardCommit": "bbf07ec930a5158fedfa93c031b5ebff1618e6ab",
+    "dashboardCommitShort": "bbf07ec930a5",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -59,8 +59,8 @@
             "priority": "Active",
             "queue": "Active",
             "state": "High coverage",
-            "progressPercent": "98.4",
-            "completion": "98.4%",
+            "progressPercent": "98.5",
+            "completion": "98.5%",
             "suite": "current-base Gitoxide loose-object header parity",
             "benchmark": "current-base Gitoxide loose-object header parity",
             "denominator": "2886",
@@ -68,13 +68,13 @@
             "coverage": "1,817 / 2,886 (63.0%)",
             "mapPercent": "63.0%",
             "unmapped": "1,069",
-            "php": "10,693 pass / 0 fail",
+            "php": "10,719 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 19:24 UTC supervisor integration: source commit 1e3c622231...",
-            "currentWork": "URL/refspec generated diagnostic authority normalization parity, loose-object header...",
+            "audit": "2026-06-01 19:51 UTC supervisor integration: source commit bbf07ec930...",
+            "currentWork": "Pack-index object traversal parity, URL/refspec generated diagnostic authority normal...",
             "nextTarget": "Keep Gitoxide workers on current-base sparse checkout, loose...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "1e3c622"
+            "commit": "bbf07ec"
         },
         {
             "lane": "readability",
