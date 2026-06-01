@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 10:18:47 UTC",
-    "sourceCommit": "58c721daebd4b9ab9498cb7095f7367eed32186b",
-    "sourceCommitShort": "58c721daebd4",
+    "generated": "2026-06-01 10:25:13 UTC",
+    "sourceCommit": "eacf219644d81cd359ffedbf3e529bc5617ed219",
+    "sourceCommitShort": "eacf219644d8",
     "sourceBranch": "unknown",
-    "dashboardCommit": "c6b272456fc7eec0f7044976d02c4a6a795d2d5c",
-    "dashboardCommitShort": "c6b272456fc7",
+    "dashboardCommit": "eacf219644d81cd359ffedbf3e529bc5617ed219",
+    "dashboardCommitShort": "eacf219644d8",
     "averageProgressPercent": "88.7",
     "lanes": [
         {
@@ -20,12 +20,12 @@
             "mapped": "1589",
             "coverage": "1,589 mapped / 1,589 upstream",
             "php": "5,792,118 pass / 7 fail",
-            "phase": "real upstream expression-affinity exprfault coverage accepted; broad...",
-            "audit": "2026-06-01 supervisor batch: accepted source 58c721dae with real upst...",
-            "currentWork": "Real upstream expression-affinity exprfault coverage integrated on current base.",
+            "phase": "real upstream select6 right-join empty-table coverage and source-neut...",
+            "audit": "2026-06-01 supervisor batch: accepted source eacf219644d8 with real u...",
+            "currentWork": "Real upstream select6 right-join empty-table dynamic coverage and source-neutral data...",
             "nextTarget": "Continue broad release/all parity blockers, source-neutral cl...",
             "remainingGate": "Broad release/all still has 7 known failures",
-            "commit": "58c721d"
+            "commit": "eacf219"
         },
         {
             "lane": "lightningcss",
@@ -37,15 +37,15 @@
             "suite": "current-base LightningCSS media-query and CSS Modules followup batch",
             "benchmark": "current-base LightningCSS media-query and CSS Modules followup batch",
             "denominator": "3532",
-            "mapped": "2365",
-            "coverage": "2,365 mapped / 3,532 upstream",
-            "php": "7,365 pass / 0 fail",
+            "mapped": "2369",
+            "coverage": "2,369 mapped / 3,532 upstream",
+            "php": "7,402 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor batch: accepted source 58c721dae with media-que...",
-            "currentWork": "Media-query range/layer parity and CSS Modules local/global compose parity integrated...",
+            "audit": "2026-06-01 supervisor batch: accepted source eacf219644d8 with bundle...",
+            "currentWork": "Bundle import graph, perspective-origin CSSOM, custom-property advanced-color fallbac...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, CSS Mo...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "58c721d"
+            "commit": "eacf219"
         },
         {
             "lane": "gitoxide",
@@ -57,15 +57,15 @@
             "suite": "current-base Gitoxide loose-object and sparse-checkout followup batch",
             "benchmark": "current-base Gitoxide loose-object and sparse-checkout followup batch",
             "denominator": "2886",
-            "mapped": "1779",
-            "coverage": "1,779 mapped / 2,886 upstream",
-            "php": "8,693 pass / 0 fail",
+            "mapped": "1781",
+            "coverage": "1,781 mapped / 2,886 upstream",
+            "php": "8,753 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor batch: accepted source 53e29b9d405a with loose-...",
-            "currentWork": "Loose-object CRLF structured-header integrity parity and sparse-checkout malformed PO...",
+            "audit": "2026-06-01 supervisor batch: accepted source eacf219644d8 with tree/p...",
+            "currentWork": "Tree/pathspec root-dot walk parity and URL/refspec instruction identity normalization...",
             "nextTarget": "Keep Gitoxide workers on current-base non-overlapping sparse-...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "53e29b9"
+            "commit": "eacf219"
         },
         {
             "lane": "readability",
