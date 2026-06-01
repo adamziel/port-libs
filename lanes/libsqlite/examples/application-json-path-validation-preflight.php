@@ -36,45 +36,45 @@ $schemaCell = static fn (array $values, int $rowId): string => SQLiteTableLeafCe
 );
 $indexCell = static fn (array $values): string => SQLiteIndexCell::encode(SQLiteRecord::encode($values));
 $textPath = static fn (string $expression): ?string => SQLiteCreateIndex::firstJsonTextOperatorExpression(
-    'CREATE INDEX fixture ON wp_options(' . $expression . ') WHERE option_value IS NOT NULL',
+    'CREATE INDEX fixture ON app_settings(' . $expression . ') WHERE key_value IS NOT NULL',
 )?->path;
 $extractPath = static fn (string $path): ?string => SQLiteCreateIndex::firstJsonExtractExpression(
-    "CREATE INDEX fixture ON wp_options(json_extract(option_value, '{$path}')) WHERE option_value IS NOT NULL",
+    "CREATE INDEX fixture ON app_settings(json_extract(key_value, '{$path}')) WHERE key_value IS NOT NULL",
 )?->path;
 
 $schemaPage = SQLiteTableLeafPage::assemble([
     $schemaCell([
         'table',
-        'wp_options',
-        'wp_options',
+        'app_settings',
+        'app_settings',
         2,
-        'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+        'CREATE TABLE app_settings(setting_id integer primary key, key_name text, key_value text, load_policy text)',
     ], 1),
     $schemaCell([
         'index',
-        'wp_options_json_empty_label',
-        'wp_options',
+        'app_settings_json_empty_label',
+        'app_settings',
         3,
-        'CREATE INDEX wp_options_json_empty_label ON wp_options(option_value ->> \'$.""\') WHERE option_value IS NOT NULL',
+        'CREATE INDEX app_settings_json_empty_label ON app_settings(key_value ->> \'$.""\') WHERE key_value IS NOT NULL',
     ], 2),
     $schemaCell([
         'index',
-        'wp_options_json_bad_reverse',
-        'wp_options',
+        'app_settings_json_bad_reverse',
+        'app_settings',
         4,
-        'CREATE INDEX wp_options_json_bad_reverse ON wp_options(option_value ->> \'$.plugin[#-]\') WHERE option_value IS NOT NULL',
+        'CREATE INDEX app_settings_json_bad_reverse ON app_settings(key_value ->> \'$.module[#-]\') WHERE key_value IS NOT NULL',
     ], 3),
     $schemaCell([
         'index',
-        'wp_options_json_bad_extract',
-        'wp_options',
+        'app_settings_json_bad_extract',
+        'app_settings',
         5,
-        'CREATE INDEX wp_options_json_bad_extract ON wp_options(json_extract(option_value, \'$.\')) WHERE option_value IS NOT NULL',
+        'CREATE INDEX app_settings_json_bad_extract ON app_settings(json_extract(key_value, \'$.\')) WHERE key_value IS NOT NULL',
     ], 4),
 ], $pageSize, 100, $makeFirstPage(5));
 
 $tablePage = SQLiteTableLeafPage::assemble([
-    $schemaCell([null, 'plugin_empty_label_settings', '{"":"empty-label","plugin":["bad"]}', 'no'], 1),
+    $schemaCell([null, 'module_empty_label_settings', '{"":"empty-label","module":["bad"]}', 'no'], 1),
 ], $pageSize);
 
 $database = SQLiteDatabase::fromBytes(
@@ -88,21 +88,21 @@ $database = SQLiteDatabase::fromBytes(
 $matches = $database->keyValueRowsByIndexedJsonValue('$.""', 'empty-label');
 
 echo json_encode([
-    'applicationUse' => 'Preflight copied wp_options JSON expression indexes and skip malformed SQLite JSON paths before trusting root pages.',
+    'applicationUse' => 'Preflight application settings JSON expression indexes and skip malformed SQLite JSON paths before trusting root pages.',
     'pathSyntax' => [
         'emptyQuotedLabel' => SQLiteJsonPath::isWellFormed('$.""'),
         'emptyBareLabel' => SQLiteJsonPath::isWellFormed('$.'),
-        'badReverseIndex' => SQLiteJsonPath::isWellFormed('$.plugin[#-]'),
-        'badHashDigits' => SQLiteJsonPath::isWellFormed('$.plugin[#9]'),
+        'badReverseIndex' => SQLiteJsonPath::isWellFormed('$.module[#-]'),
+        'badHashDigits' => SQLiteJsonPath::isWellFormed('$.module[#9]'),
     ],
     'normalizedExpressionPaths' => [
-        'emptyQuotedLabel' => $textPath('option_value ->> \'$.""\''),
-        'badReverseIndex' => $textPath('option_value ->> \'$.plugin[#-]\''),
+        'emptyQuotedLabel' => $textPath('key_value ->> \'$.""\''),
+        'badReverseIndex' => $textPath('key_value ->> \'$.module[#-]\''),
         'badJsonExtractPath' => $extractPath('$.'),
     ],
     'nativeRootPages' => [
-        'emptyQuotedLabel' => $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.""', 'empty-label'),
-        'malformedPluginPathSkipped' => $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.plugin', 'bad'),
+        'emptyQuotedLabel' => $database->indexRootPageForJsonExtractPointLookup('app_settings', 'key_value', '$.""', 'empty-label'),
+        'malformedModulePathSkipped' => $database->indexRootPageForJsonExtractPointLookup('app_settings', 'key_value', '$.module', 'bad'),
     ],
-    'matches' => array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $matches),
+    'matches' => array_map(static fn (SQLiteKeyValueRow $setting): string => $setting->keyName, $matches),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

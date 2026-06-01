@@ -853,6 +853,35 @@ return [
             $block->removeProperty($declarations, 'color-rendering')
         );
     },
+    'declaration block canonicalizes upstream svg stroke linejoin miter clip cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'stroke-linejoin: Miter-Clip !important; stroke-linecap: ROUND; color: red; --Line-Join: Miter-Clip';
+
+        $t->same(
+            [
+                'stroke-linejoin' => 'miter-clip !important',
+                'stroke-linecap' => 'round',
+                'color' => 'red',
+                '--Line-Join' => 'Miter-Clip',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'miter-clip', 'important' => true], $block->getProperty($declarations, 'stroke-linejoin'));
+        $t->same(['value' => 'round', 'important' => false], $block->getProperty($declarations, 'stroke-linecap'));
+        $t->same(['value' => 'Miter-Clip', 'important' => false], $block->getProperty($declarations, '--Line-Join'));
+        $t->same(
+            'stroke-linejoin: miter-clip; color: red',
+            $block->setProperty('stroke-linejoin: Miter; color: red', 'stroke-linejoin', 'Miter-Clip')
+        );
+        $t->same(
+            'color: red; stroke-linejoin: miter-clip !important',
+            $block->setProperty('stroke-linejoin: Miter; color: red', 'stroke-linejoin', 'Miter-Clip', true)
+        );
+        $t->same(
+            'stroke-linecap: round; color: red; --Line-Join: Miter-Clip',
+            $block->removeProperty($declarations, 'stroke-linejoin')
+        );
+    },
     'declaration block canonicalizes upstream clip path cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'clip-path: padding-box circle(50px at 0 100px) !important; -webkit-clip-path: url("clip.svg#star"); --Clip-Path: padding-box circle(50px at 0 100px)';

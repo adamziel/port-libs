@@ -1713,6 +1713,14 @@ CSS;
             $prefixer->prefixForTargets('.foo { -ms-touch-action: manipulation; touch-action: manipulation; }', ['ie' => 11])
         );
         $t->same(
+            '@supports ((-ms-touch-action:pan-y) or (touch-action:pan-y)){.foo{-ms-touch-action:pan-y;touch-action:pan-y}}',
+            $prefixer->prefixForTargets('@supports (touch-action: pan-y) { .foo { touch-action: pan-y; } }', ['ie' => 10])
+        );
+        $t->same(
+            '@supports (touch-action:pan-y){.foo{touch-action:pan-y}}',
+            $prefixer->prefixForTargets('@supports ((-ms-touch-action: pan-y) or (touch-action: pan-y)) { .foo { -ms-touch-action: pan-y; touch-action: pan-y; } }', ['ie' => 11])
+        );
+        $t->same(
             '.foo{text-orientation:upright}',
             $prefixer->prefixForTargets('.foo { text-orientation: upright; }', ['safari' => 10])
         );
@@ -1735,6 +1743,14 @@ CSS;
         $t->same(
             '.foo{text-orientation:upright}',
             $prefixer->prefixForTargets('.foo { -webkit-text-orientation: upright; text-orientation: upright; }', ['safari' => '13.2'])
+        );
+        $t->same(
+            '@supports ((-webkit-text-orientation:upright) or (text-orientation:upright)){.foo{-webkit-text-orientation:upright;text-orientation:upright}}',
+            $prefixer->prefixForTargets('@supports (text-orientation: upright) { .foo { text-orientation: upright; } }', ['safari' => '10.1'])
+        );
+        $t->same(
+            '@supports (text-orientation:upright){.foo{text-orientation:upright}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-text-orientation: upright) or (text-orientation: upright)) { .foo { -webkit-text-orientation: upright; text-orientation: upright; } }', ['safari' => '13.2'])
         );
         $t->same(
             '.foo{text-decoration-skip-ink:all}',

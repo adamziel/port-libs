@@ -586,6 +586,8 @@ return [
     'malformedPosixClassContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $malformedPosixClassRecords),
     'malformedPosixClassLetterSkipped' => !$malformedPosixClassPathspecs->isIncluded('wp-content/uploads/a/hero.jpg', false),
     'malformedPosixClassBracketSkipped' => !$malformedPosixClassPathspecs->isIncluded('wp-content/uploads/[/hero.jpg', false),
+    'malformedPosixClassLetterIncluded' => $malformedPosixClassPathspecs->isIncluded('wp-content/uploads/a/hero.jpg', false),
+    'malformedPosixClassBracketIncluded' => $malformedPosixClassPathspecs->isIncluded('wp-content/uploads/[/hero.jpg', false),
     'malformedPosixClassLiteralIncluded' => $malformedPosixClassPathspecs->isIncluded('wp-content/uploads/[[:alpha]/hero.jpg', false),
     'whitespaceDirectoryOnlyContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $whitespaceDirectoryOnlyRecords),
     'whitespaceDirectoryOnlySpaceFileIncluded' => $whitespaceDirectoryOnlyPathspecs->isIncluded('   ', false),

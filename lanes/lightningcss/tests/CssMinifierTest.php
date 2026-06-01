@@ -1331,6 +1331,14 @@ CSS
             $minifier->minify('.foo { font-family: "Helvetica", "Times New Roman", sans-serif; font-size: 12px; font-stretch: expanded; }')
         );
         $t->same('.foo{font-stretch:100%}', $minifier->minify('.foo { font-stretch: normal; }'));
+        $t->same('.foo{font-family:Helvetica,sans-serif}', $minifier->minify('.foo { font-family: Helvetica, Helvetica, sans-serif; }'));
+        $t->same(
+            '.foo{font-family:Helvetica,Segoe UI,sans-serif}',
+            $minifier->minify('.foo { font-family: "Helvetica", Helvetica, "Segoe UI", Segoe UI, sans-serif; }')
+        );
+        $t->same('.foo{font-family:"sans-serif",sans-serif}', $minifier->minify('.foo { font-family: "sans-serif", sans-serif, "sans-serif"; }'));
+        $t->same('.foo{font:16px Helvetica,sans-serif}', $minifier->minify('.foo { font: 16px Helvetica, Helvetica, sans-serif; }'));
+        $t->same('.foo{font-family:var(--font),var(--font),sans-serif}', $minifier->minify('.foo { font-family: var(--font), var(--font), sans-serif; }'));
     },
     'css minifier maps upstream font shorthand composition' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

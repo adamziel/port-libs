@@ -49,6 +49,7 @@ $keyValueFixtureFiles = [
     $libsqliteRoot . '/examples/application-composite-indexed-generated-setting-insert-plan.php',
     $libsqliteRoot . '/examples/application-index-split-setting-replacement-plan.php',
     $libsqliteRoot . '/examples/application-json-upsert-migration-current-next27.php',
+    $libsqliteRoot . '/examples/application-json-path-validation-preflight.php',
     $libsqliteRoot . '/examples/application-malformed-text-current-next70.php',
     $libsqliteRoot . '/examples/application-savepoint-key-value-import-diagnostics.php',
     $libsqliteRoot . '/examples/application-settings-import-wal-current-next.php',

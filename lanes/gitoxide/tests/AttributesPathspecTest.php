@@ -103,6 +103,72 @@ return [
             $attributes,
         ));
     },
+    'pathspec search resumes malformed POSIX class starts before attr filters like gix wildmatch' => static function (TestRunner $t): void {
+        $warnings = [];
+        set_error_handler(static function (int $errno, string $message) use (&$warnings): bool {
+            if (str_contains($message, 'preg_match()')) {
+                $warnings[] = $message;
+
+                return true;
+            }
+
+            return false;
+        });
+        try {
+            $attributes = GitAttributes::fromString(
+                "wp-content/uploads/[[:digit]ab] malformed-posix\n"
+                . "wp-content/uploads/[[:]ab] empty-name-posix\n"
+                . "wp-content/uploads/[[::]ab] double-colon-posix\n",
+                withBuiltInMacros: false,
+            );
+            $resumedPath = 'wp-content/uploads/[ab]';
+            $literalPatternPath = 'wp-content/uploads/[[:digit]ab]';
+
+            $t->same(['malformed-posix' => true], $attributes->attributesForPath($resumedPath, ['malformed-posix']));
+            $t->same(['empty-name-posix' => true], $attributes->attributesForPath($resumedPath, ['empty-name-posix']));
+            $t->same(['double-colon-posix' => null], $attributes->attributesForPath($resumedPath, ['double-colon-posix']));
+
+            $digitSearch = PathspecSearch::fromSpecs([
+                ':(glob,attr:malformed-posix)wp-content/uploads/[[:digit]ab]',
+            ]);
+            $digitMatch = $digitSearch->match($resumedPath, false, $attributes);
+            $t->same(PathspecMatch::KIND_WILDCARD, $digitMatch?->kind);
+            $t->same(true, $digitSearch->isIncluded($resumedPath, false, $attributes));
+            $t->same(false, $digitSearch->isIncluded($literalPatternPath, false, $attributes));
+            $t->same(true, PathspecMatcher::matchesOne(
+                ':(glob,attr:malformed-posix)wp-content/uploads/[[:digit]ab]',
+                $resumedPath,
+                false,
+                $attributes,
+            ));
+
+            $emptyNameSearch = PathspecSearch::fromSpecs([
+                ':(glob,attr:empty-name-posix)wp-content/uploads/[[:]ab]',
+            ]);
+            $t->same(true, $emptyNameSearch->isIncluded($resumedPath, false, $attributes));
+            $t->same(true, PathspecMatcher::matchesOne(
+                ':(glob,attr:empty-name-posix)wp-content/uploads/[[:]ab]',
+                $resumedPath,
+                false,
+                $attributes,
+            ));
+
+            $doubleColonSearch = PathspecSearch::fromSpecs([
+                ':(glob,attr:double-colon-posix)wp-content/uploads/[[::]ab]',
+            ]);
+            $t->same(false, $doubleColonSearch->isIncluded($resumedPath, false, $attributes));
+            $t->same(false, PathspecMatcher::matchesOne(
+                ':(glob,attr:double-colon-posix)wp-content/uploads/[[::]ab]',
+                $resumedPath,
+                false,
+                $attributes,
+            ));
+        } finally {
+            restore_error_handler();
+        }
+
+        $t->same([], $warnings);
+    },
     'attribute pathspec filters fold POSIX class names under icase like gix wildmatch' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString(
             "WP-CONTENT/uploads/[[:UPPER:]]LUGINS/** folded-class\n"
@@ -842,6 +908,11 @@ return [
         $t->same(['dated-upload' => true], $example['datedUploadAttributes']);
         $t->same(true, $example['datedUploadPathspecMatches']);
         $t->same(true, $example['slashClassDoesNotCrossDirectory']);
+        $t->same(['malformed-posix' => true], $example['malformedPosixAttributeMatchesLiteralOpen']);
+        $t->same(true, $example['malformedPosixPathspecSearchResumes']);
+        $t->same(true, $example['malformedPosixPathspecLiteralSkippedByAttribute']);
+        $t->same(true, $example['emptyNamePosixPathspecSearchResumes']);
+        $t->same(true, $example['doubleColonPosixPathspecSkipped']);
         $t->same(['folded-class' => null], $example['caseSensitivePosixClassNameAttributeSkipped']);
         $t->same(['folded-class' => true], $example['foldedPosixClassNameAttributeMatches']);
         $t->same(true, $example['caseSensitivePosixClassNamePathspecSkipped']);

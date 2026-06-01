@@ -417,8 +417,8 @@ return [
         $t->same(true, $spaceClass->isIncluded('wp-content/uploads/slot /photo.jpg', false));
         $t->same(true, $invalidClass->isIncluded('wp-content/uploads/[[:unknown:]]/photo.jpg', false));
         $t->same(false, $invalidClass->isIncluded('wp-content/uploads/unknown/photo.jpg', false));
-        $t->same(false, $malformedPosixClass->isIncluded('wp-content/uploads/a/photo.jpg', false));
-        $t->same(false, $malformedPosixClass->isIncluded('wp-content/uploads/[/photo.jpg', false));
+        $t->same(true, $malformedPosixClass->isIncluded('wp-content/uploads/a/photo.jpg', false));
+        $t->same(true, $malformedPosixClass->isIncluded('wp-content/uploads/[/photo.jpg', false));
         $t->same(PathspecMatch::KIND_VERBATIM, $malformedPosixClass->match('wp-content/uploads/[[:alpha]/photo.jpg', false)?->kind);
 
         $objects = [];
@@ -463,6 +463,8 @@ return [
             "wp-content/uploads/slot\v/photo.jpg",
             'wp-content/uploads/slot /photo.jpg',
             'wp-content/uploads/[[:unknown:]]/photo.jpg',
+            'wp-content/uploads/a/photo.jpg',
+            'wp-content/uploads/[/photo.jpg',
             'wp-content/uploads/[[:alpha]/photo.jpg',
         ], $walkPaths($records));
     },
@@ -1467,10 +1469,14 @@ return [
         $t->same(true, $example['danglingBackslashWildcardSkipped']);
         $t->same(true, $example['danglingBackslashLiteralStarIncluded']);
         $t->same([
+            'wp-content/uploads/a/hero.jpg',
+            'wp-content/uploads/[/hero.jpg',
             'wp-content/uploads/[[:alpha]/hero.jpg',
         ], $example['malformedPosixClassContentPaths']);
-        $t->same(true, $example['malformedPosixClassLetterSkipped']);
-        $t->same(true, $example['malformedPosixClassBracketSkipped']);
+        $t->same(false, $example['malformedPosixClassLetterSkipped']);
+        $t->same(false, $example['malformedPosixClassBracketSkipped']);
+        $t->same(true, $example['malformedPosixClassLetterIncluded']);
+        $t->same(true, $example['malformedPosixClassBracketIncluded']);
         $t->same(true, $example['malformedPosixClassLiteralIncluded']);
         $t->same([
             '   ',

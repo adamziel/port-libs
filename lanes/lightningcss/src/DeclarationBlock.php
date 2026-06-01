@@ -179,7 +179,7 @@ final class DeclarationBlock
         'fill-rule' => ['nonzero', 'evenodd'],
         'clip-rule' => ['nonzero', 'evenodd'],
         'stroke-linecap' => ['butt', 'round', 'square'],
-        'stroke-linejoin' => ['miter', 'round', 'bevel', 'arcs'],
+        'stroke-linejoin' => ['miter', 'miter-clip', 'round', 'bevel', 'arcs'],
         'color-interpolation' => ['auto', 'srgb', 'linearrgb'],
         'color-interpolation-filters' => ['auto', 'srgb', 'linearrgb'],
         'color-rendering' => ['auto', 'optimizespeed', 'optimizequality'],

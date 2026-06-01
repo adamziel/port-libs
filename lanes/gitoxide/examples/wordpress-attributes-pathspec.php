@@ -16,6 +16,9 @@ $classAttributes = GitAttributes::fromString(
     "wp-content/uploads/[[:digit:]][[:digit:]]/** dated-upload\n"
     . "\"wp-content/uploads/slot[[:blank:]]/**\" whitespace-upload\n"
     . "\"wp-content/uploads/[[:unknown:]]/**\" invalid-upload\n"
+    . "wp-content/uploads/[[:digit]ab] malformed-posix\n"
+    . "wp-content/uploads/[[:]ab] empty-name-posix\n"
+    . "wp-content/uploads/[[::]ab] double-colon-posix\n"
     . "wp-content/uploads/[z-a]/** reversed-range\n"
     . "wp-content/uploads/[!z-a]/** not-reversed-range\n"
     . "wp-content/uploads/[Z-A]/** folded-reversed-range\n"
@@ -143,6 +146,15 @@ $nestedAttributes = GitAttributes::fromSources([
 ]);
 $datedUploadSearch = PathspecSearch::fromSpecs([':(attr:dated-upload)wp-content/uploads/**']);
 $whitespaceUploadSearch = PathspecSearch::fromSpecs([':(attr:whitespace-upload)wp-content/uploads/**']);
+$malformedPosixSearch = PathspecSearch::fromSpecs([
+    ':(glob,attr:malformed-posix)wp-content/uploads/[[:digit]ab]',
+]);
+$emptyNamePosixSearch = PathspecSearch::fromSpecs([
+    ':(glob,attr:empty-name-posix)wp-content/uploads/[[:]ab]',
+]);
+$doubleColonPosixSearch = PathspecSearch::fromSpecs([
+    ':(glob,attr:double-colon-posix)wp-content/uploads/[[::]ab]',
+]);
 $posixClassNameFoldSearch = PathspecSearch::fromSpecs([
     ':(icase,attr:deploy)wp-content/uploads/[[:UPPER:]]LUGINS/**',
 ]);
@@ -175,6 +187,8 @@ $nestedDeploymentSearch = PathspecSearch::fromSpecs([
 $quotedSpacePath = 'wp-content/uploads/slot hero.jpg';
 $quotedFormFeedPath = "wp-content/uploads/form\x0chero.jpg";
 $posixClassNameFoldPath = 'wp-content/uploads/plugins/block.json';
+$malformedPosixPath = 'wp-content/uploads/[ab]';
+$malformedPosixLiteralPath = 'wp-content/uploads/[[:digit]ab]';
 $formFeedOnlyPath = "\f";
 $spacedFormFeedOnlyPath = " \f ";
 $embeddedFormFeedPath = "wp-content/uploads/slot\fhero.jpg";
@@ -280,6 +294,30 @@ return [
     'invalidClassDoesNotMatchLiteral' => !PathspecMatcher::matchesOne(
         ':(attr:invalid-upload)wp-content/uploads/**',
         'wp-content/uploads/[[:unknown:]]/photo.jpg',
+        false,
+        $classAttributes,
+    ),
+    'malformedPosixAttributeMatchesLiteralOpen' => $classAttributes->attributesForPath(
+        $malformedPosixPath,
+        ['malformed-posix'],
+    ),
+    'malformedPosixPathspecSearchResumes' => $malformedPosixSearch->isIncluded(
+        $malformedPosixPath,
+        false,
+        $classAttributes,
+    ),
+    'malformedPosixPathspecLiteralSkippedByAttribute' => !$malformedPosixSearch->isIncluded(
+        $malformedPosixLiteralPath,
+        false,
+        $classAttributes,
+    ),
+    'emptyNamePosixPathspecSearchResumes' => $emptyNamePosixSearch->isIncluded(
+        $malformedPosixPath,
+        false,
+        $classAttributes,
+    ),
+    'doubleColonPosixPathspecSkipped' => !$doubleColonPosixSearch->isIncluded(
+        $malformedPosixPath,
         false,
         $classAttributes,
     ),

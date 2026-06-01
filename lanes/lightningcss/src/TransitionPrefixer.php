@@ -1396,10 +1396,16 @@ final class TransitionPrefixer
             'overscroll-behavior' => [
                 '-ms-' => $targetOptions['overscrollBehaviorNeedsMs'] ?? false,
             ],
+            'touch-action' => [
+                '-ms-' => $targetOptions['touchActionNeedsMs'] ?? false,
+            ],
             'text-size-adjust' => [
                 '-webkit-' => $targetOptions['textSizeAdjustNeedsWebkit'] ?? false,
                 '-moz-' => $targetOptions['textSizeAdjustNeedsMoz'] ?? false,
                 '-ms-' => $targetOptions['textSizeAdjustNeedsMs'] ?? false,
+            ],
+            'text-orientation' => [
+                '-webkit-' => $targetOptions['textOrientationNeedsWebkit'] ?? false,
             ],
             'hyphens' => [
                 '-webkit-' => $targetOptions['hyphensNeedsWebkit'] ?? false,

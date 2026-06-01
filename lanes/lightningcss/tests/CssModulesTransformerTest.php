@@ -2116,6 +2116,11 @@ CSS;
             '.test { composes: foo , bar; color: red }' => '.EgL3uq_test{composes:foo , bar;color:red}',
             '.test { composes: foo, url( bar ); color: red }' => '.EgL3uq_test{composes:foo, url(bar);color:red}',
             '.test { composes: foo, "bar"; color: red }' => '.EgL3uq_test{composes:foo, "bar";color:red}',
+            '.test { composes: foo calc(1 + 2); color: red }' => '.EgL3uq_test{composes:foo calc(1 + 2);color:red}',
+            '.test { composes: foo max(1px, 2px); color: red }' => '.EgL3uq_test{composes:foo max(1px, 2px);color:red}',
+            '.test { composes: foo clamp(1px, 2px, 3px); color: red }' => '.EgL3uq_test{composes:foo clamp(1px, 2px, 3px);color:red}',
+            '.test { composes: foo var(--gap, calc(1 + 2)); color: red }' => '.EgL3uq_test{composes:foo var(--gap,calc(1 + 2));color:red}',
+            '.test { composes: foo round(nearest, 10px, 3px); color: red }' => '.EgL3uq_test{composes:foo round(nearest, 10px, 3px);color:red}',
         ];
 
         foreach ($cases as $css => $expectedCode) {

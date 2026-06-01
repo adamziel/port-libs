@@ -6,6 +6,8 @@ namespace PortLibs\LightningCSS;
 
 final class CssMinifier
 {
+    private const CSS_MODULES_COMPOSES_MATH_PLACEHOLDER_PREFIX = "\x1fLIGHTNINGCSS_COMPOSES_MATH_";
+
     private bool $recoverInvalidMediaFeatureValues = false;
 
     /**
@@ -121,6 +123,15 @@ final class CssMinifier
                 continue;
             }
 
+            if ($this->isComposesDeclarationMathOperator($char) && $this->isComposesDeclarationValueContext($output)) {
+                if ($pendingSpace) {
+                    $output .= ' ';
+                }
+                $output .= $char;
+                $pendingSpace = false;
+                continue;
+            }
+
             if (str_contains($tight, $char)) {
                 $output = rtrim($output);
                 $output .= $char;
@@ -129,6 +140,8 @@ final class CssMinifier
             }
 
             if ($pendingSpace && $this->needsComposesCommaSpace($output)) {
+                $output .= ' ';
+            } elseif ($pendingSpace && $this->needsComposesMathOperatorSpace($output)) {
                 $output .= ' ';
             } elseif ($pendingSpace && $this->needsSelectorDescendantSpaceAfterAttribute($output, $css, $i)) {
                 $output .= ' ';
@@ -3205,6 +3218,21 @@ final class CssMinifier
         return str_ends_with($output, ',') && $this->isComposesDeclarationValueContext($output);
     }
 
+    private function isComposesDeclarationMathOperator(string $char): bool
+    {
+        return $char === '+' || $char === '-' || $char === '*' || $char === '/';
+    }
+
+    private function needsComposesMathOperatorSpace(string $output): bool
+    {
+        if ($output === '') {
+            return false;
+        }
+
+        return $this->isComposesDeclarationMathOperator($output[strlen($output) - 1])
+            && $this->isComposesDeclarationValueContext($output);
+    }
+
     private function isDeclarationProperty(string $property): bool
     {
         return preg_match('/^(?:[_a-zA-Z]|-[_a-zA-Z]|--[_a-zA-Z])[-_a-zA-Z0-9]*$/', $property) === 1;
@@ -3261,11 +3289,14 @@ final class CssMinifier
             return ' ';
         }
 
-        $composesCommaWhitespace = strtolower($property) === 'composes'
+        $propertyLower = strtolower($property);
+        $composesCommaWhitespace = $propertyLower === 'composes'
             ? $this->topLevelCommaWhitespace($value)
             : [];
 
-        $value = $this->minifyMathFunctions($this->normalizeMathFunctionOperators($value));
+        $value = $propertyLower === 'composes'
+            ? $this->minifyCssModulesComposesFallbackValue($value)
+            : $this->minifyMathFunctions($this->normalizeMathFunctionOperators($value));
         $value = $this->minifyTransformValue($property, $value);
         $value = $this->minifyAnimationLonghandValue($property, $value);
         $value = $this->minifyTransitionLonghandValue($property, $value);
@@ -3302,6 +3333,94 @@ final class CssMinifier
         }
 
         return $value;
+    }
+
+    private function minifyCssModulesComposesFallbackValue(string $value): string
+    {
+        [$value, $mathFunctions] = $this->protectCssModulesComposesMathFunctions($value);
+        $value = $this->minifyMathFunctions($value);
+
+        return $mathFunctions === [] ? $value : strtr($value, $mathFunctions);
+    }
+
+    /**
+     * @return array{0:string,1:array<string,string>}
+     */
+    private function protectCssModulesComposesMathFunctions(string $value): array
+    {
+        $output = '';
+        $replacements = [];
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($this->startsUrlFunction($value, $i)) {
+                [$url, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $url;
+                $i = $offset;
+                continue;
+            }
+
+            if ($this->isIdentifierStart($char)) {
+                $identifier = $this->readIdentifier($value, $i);
+                $next = $i + strlen($identifier);
+                if (($value[$next] ?? '') === '(' && $this->isCssMathFunctionName($identifier)) {
+                    [$function, $offset] = $this->readFunctionRaw($value, $i);
+                    $placeholder = self::CSS_MODULES_COMPOSES_MATH_PLACEHOLDER_PREFIX . count($replacements) . "\x1f";
+                    $replacements[$placeholder] = $function;
+                    $output .= $placeholder;
+                    $i = $offset;
+                    continue;
+                }
+
+                $output .= $identifier;
+                $i = $next - 1;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return [$output, $replacements];
+    }
+
+    private function isCssMathFunctionName(string $identifier): bool
+    {
+        return in_array(strtolower($identifier), [
+            'abs',
+            'calc',
+            'clamp',
+            'exp',
+            'hypot',
+            'log',
+            'max',
+            'min',
+            'mod',
+            'pow',
+            'rem',
+            'round',
+            'sign',
+            'sqrt',
+        ], true);
     }
 
     /**
@@ -4507,10 +4626,24 @@ final class CssMinifier
 
     private function minifyFontFamilyList(string $value): string
     {
-        return implode(',', array_map(
-            fn (string $family): string => $this->minifyFontFamilyName($family),
-            $this->splitTopLevel($value, ',')
-        ));
+        $families = [];
+        $seen = [];
+
+        foreach ($this->splitTopLevel($value, ',') as $family) {
+            $minified = $this->minifyFontFamilyName($family);
+            $canDedupe = $minified !== ''
+                && preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*\(/', $minified) !== 1;
+            if ($canDedupe && isset($seen[$minified])) {
+                continue;
+            }
+
+            $families[] = $minified;
+            if ($canDedupe) {
+                $seen[$minified] = true;
+            }
+        }
+
+        return implode(',', $families);
     }
 
     private function minifyFontFamilyName(string $family): string

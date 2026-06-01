@@ -902,6 +902,35 @@ return [
         $t->same([1, 0], array_column($offset->getMappings(), 'nameIndex'));
         $t->same('EACAC,WADAD', $offset->writeVlq());
     },
+    'source map offset columns sorts only the targeted generated line' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('blocks/line-local.css');
+        $map->setSourceContent($sourceIndex, ".later{}\n.earlier{}\n");
+        $map->addMapping(0, 10, $sourceIndex, 0, 0, 'line0-later');
+        $map->addMapping(0, 2, $sourceIndex, 1, 0, 'line0-earlier');
+        $map->addMapping(1, 8, $sourceIndex, 2, 0, 'line1-later');
+        $map->addMapping(1, 3, $sourceIndex, 3, 0, 'line1-earlier');
+
+        $t->same([10, 2, 8, 3], array_column($map->getMappings(), 'generatedColumn'));
+        $t->same([0, 1, 2, 3], array_column($map->getMappings(), 'nameIndex'));
+
+        $map->offsetColumns(1, 5, 2);
+
+        $t->same([10, 2, 3, 10], array_column($map->getMappings(), 'generatedColumn'));
+        $t->same([0, 1, 3, 2], array_column($map->getMappings(), 'nameIndex'));
+        $t->same('EACAC,QADAD;GAGAG,OADAD', $map->writeVlq());
+        $t->same([2, 10, 3, 10], array_column($map->getMappings(), 'generatedColumn'));
+        $t->same([1, 0, 3, 2], array_column($map->getMappings(), 'nameIndex'));
+
+        $line0Closest = $map->findClosestMapping(0, 8);
+        $line1Closest = $map->findClosestMapping(1, 9);
+
+        $t->same(2, $line0Closest['generatedColumn'] ?? null);
+        $t->same(1, $line0Closest['nameIndex'] ?? null);
+        $t->same(3, $line1Closest['generatedColumn'] ?? null);
+        $t->same(3, $line1Closest['nameIndex'] ?? null);
+        $t->same(['line0-later', 'line0-earlier', 'line1-later', 'line1-earlier'], $map->getNames());
+    },
     'source map rejects start-column overflow before upstream sort entrypoint' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $map->addVlqMap(
