@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "library": "gitoxide",
-  "estimatedProgress": 94.3,
-  "suiteProgress": "Supervisor-integrated Gitoxide tree/pathspec malformed POSIX class fallback and URL from-bytes access-helper parity. Verification passed PHP lint, git diff --check, full Gitoxide lane 40 files / 7591 assertions / 0 failures, and touched examples.",
-  "phpPass": 7591,
+  "estimatedProgress": 94.4,
+  "suiteProgress": "Supervisor-integrated Gitoxide merge-base walk-start de-dup stale-bit clearing parity. Verification passed PHP lint, git diff --check, full Gitoxide lane 40 files / 7602 assertions / 0 failures, and touched example.",
+  "phpPass": 7602,
   "phpFail": 0,
   "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
   "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full Cargo runner not executed for isolated batch",
-  "audit": "2026-06-01 supervisor batch: full Gitoxide lane passed 40 files / 7591 assertions / 0 failures after accepting tree/pathspec malformed POSIX class fallback and URL from-bytes access-helper parity. Conservative mapped coverage moves to 1748 / 2886. Full upstream Cargo workspace was not executed.",
-  "currentWork": "Tree/pathspec malformed POSIX class fallback and URL from-bytes access-helper parity integrated on current base.",
-  "blocker": "Full upstream Cargo workspace remains unexecuted. Native PHP full-lane evidence is green at 7591 assertions; keep bounded Gitoxide workers on config/include, credential, object database, transport, tree/pathspec, partial-clone, protocol, URL/refspec, receive-pack, reference transaction, sparse-checkout, pack-index, and merge-base slices.",
-  "latestCommit": "a16249a96ea85947279c114b89312e6e6ce1a2cf",
-  "nextTask": "Keep three Gitoxide workers on current-base non-overlapping fetch sideband, send-pack, merge-base, URL/refspec, tree/pathspec, sparse-checkout, loose-object, config/include, object database, reference transaction, transport, protocol, and pack-index slices with full-lane PHP gates after each accepted batch.",
-  "commit": "a16249a"
+  "audit": "2026-06-01 supervisor batch: full Gitoxide lane passed 40 files / 7602 assertions / 0 failures after accepting merge-base walk-start de-dup stale-bit clearing parity. Conservative mapped coverage moves to 1749 / 2886. Full upstream Cargo workspace was not executed.",
+  "currentWork": "Merge-base walk-start de-dup stale-bit clearing parity integrated on current base.",
+  "blocker": "Full upstream Cargo workspace remains unexecuted. Native PHP full-lane evidence is green at 7602 assertions; keep bounded Gitoxide workers on fetch sideband, send-pack, receive-pack, merge-base, URL/refspec, tree/pathspec, sparse-checkout, loose-object, config/include, object database, reference transaction, transport, protocol, and pack-index slices.",
+  "latestCommit": "2b507a68454193d5c6f7980f7f71151a7209f29f",
+  "nextTask": "Keep three Gitoxide workers on current-base non-overlapping fetch sideband, send-pack, receive-pack, merge-base, URL/refspec, tree/pathspec, sparse-checkout, loose-object, config/include, object database, reference transaction, transport, protocol, and pack-index slices with full-lane PHP gates after each accepted batch.",
+  "commit": "2b507a6"
 }

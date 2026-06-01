@@ -169,7 +169,7 @@
     }
   },
   "benchmarkDenominator": {
-    "status": "current-base libsqlite pager/WAL replay",
+    "status": "current-base libsqlite json101 replay",
     "total": 1589,
     "mapped": 1589,
     "latestMappedAddition": "Mapped denominator remains complete at 1589 / 1589. Accepted source commit 4fbc50ac adds focused PHP evidence for real upstream e_fkey runtime intro dynamic corpus coverage and source-neutral STAT4 planner key-field cleanup without claiming release/all parity.",
@@ -3430,7 +3430,7 @@
     }
   },
   "latestFocusedSlice": "2026-06-01 supervisor replay: real upstream e_fkey runtime intro dynamic corpus plus source-neutral STAT4 planner key-field cleanup. Focused libsqlite gate passed 3 files / 10270 assertions / 0 failures; no new WordPress/wp_/numbered CurrentSourceNext strings in changed libsqlite source.",
-  "latestNativePhpVerification": "Source commit 96cca5011c5ea: PHP lint, git diff --check, focused libsqlite pager/WAL gate 3 files / 42079 assertions / 0 failures, SQLiteNoDomainSpecificApiTest green, and no new wp_/WordPress/numbered CurrentSourceNext strings were added under changed lanes/libsqlite/src.",
+  "latestNativePhpVerification": "Source commit 2b507a684541: PHP lint, git diff --check, focused libsqlite json101 gate 2 files / 12015 assertions / 0 failures, SQLiteNoDomainSpecificApiTest green, and no new wp_/WordPress/numbered CurrentSourceNext strings were added under changed lanes/libsqlite/src.",
   "runnerStatus": "2026-06-01 supervisor batch: focused libsqlite gate passed 2 files / 4015 assertions / 0 failures after accepting real upstream window4 scalar aggregate subquery dynamic corpus coverage. Mapped denominator remains 1589 / 1589; full release/all runner remains not green.",
   "latestCommit": "4fbc50ac3aa0fbe3e6031cb136f3f168e7e8266e",
   "latestFocusedCorpusBatch20260531T2250Z": {
@@ -3602,5 +3602,5 @@
     "nativeVerification": "PHP lint on changed/new libsqlite PHP files; git diff --check; focused libsqlite gate 3 files / 10270 assertions / 0 failures; no new WordPress/wp_/numbered CurrentSourceNext strings in changed libsqlite source",
     "upstreamEvidence": "hydrated SQLite upstream e_fkey runtime intro source sections plus source-neutral STAT4 planner handoff evidence; full release/all runner not executed for this micro-batch"
   },
-  "latestMappedAddition": "Mapped denominator remains complete at 1589 / 1589. Accepted source commit 96cca5011 adds focused PHP evidence for real upstream pager/WAL journal-mode dynamic corpus coverage without claiming release/all parity."
+  "latestMappedAddition": "Mapped denominator remains complete at 1589 / 1589. Accepted source commit 2b507a68 adds focused PHP evidence for real upstream json101 quoted-path SELECT dynamic corpus coverage without claiming release/all parity."
 }

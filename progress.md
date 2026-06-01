@@ -55,6 +55,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (merge/CSS/json replay intake): kept the
+  pool at 11 visible active workers, then apply-checked the six ready handoffs
+  on current `origin/main`. The libsqlite compound/window handoff was parked
+  because it still referenced `wp_options`, `CurrentSourceNext`, and numbered
+  `Next108` test names. Accepted the clean subset as source commit
+  `2b507a68454193d5c6f7980f7f71151a7209f29f` (`ports: integrate merge css
+  and json corpus parity`). The batch adds Gitoxide merge-base walk-start
+  de-dup stale-bit clearing parity, LightningCSS repeated import-position,
+  residual grid value, and box-shadow target-boundary parity, and libsqlite
+  real upstream `json101` quoted-path SELECT dynamic corpus coverage.
+  Verification passed PHP lint, `git diff --check`, full Gitoxide `40 files /
+  7602 assertions / 0 failures`, full LightningCSS `13 files / 6237 assertions
+  / 0 failures`, focused libsqlite `2 files / 12015 assertions / 0 failures`,
+  touched examples, and no new libsqlite WordPress/wp_/numbered
+  `CurrentSourceNext` source changes were accepted. Dashboard status should
+  report Gitoxide `1749 / 2886` mapped and `7602 pass / 0 fail`, LightningCSS
+  `2359 / 3532` mapped and `6237 pass / 0 fail`, and libsqlite `1589 / 1589`
+  mapped with `5603060 pass / 7 fail`.
+
 - 2026-06-01 supervisor continuation (pathspec/url/CSS replay intake): kept
   integration moving while preserving the live worker pool. The next ready
   batch was source-applied on current main, but the libsqlite row-value handoff
