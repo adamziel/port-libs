@@ -492,6 +492,52 @@ CSS;
             ],
         ]));
     },
+    'custom at-rules reject upstream literal SyntaxString components starting with hyphen' => static function (TestRunner $t): void {
+        $visited = false;
+
+        $t->throws(InvalidArgumentException::class, static function () use (&$visited): void {
+            (new CustomAtRuleTransformer())->transform('@mode -compact;', [
+                'mode' => [
+                    'prelude' => '-compact',
+                ],
+            ], [
+                'Rule' => [
+                    'custom' => [
+                        'mode' => static function () use (&$visited): array {
+                            $visited = true;
+
+                            return [];
+                        },
+                    ],
+                ],
+            ]);
+        });
+        $t->same(false, $visited);
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new CustomAtRuleTransformer())->transform('@mode -compact -compact;', [
+            'mode' => [
+                'prelude' => '-compact+',
+            ],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => (new CustomAtRuleTransformer())->transform('@states -compact, -compact;', [
+            'states' => [
+                'prelude' => '-compact#',
+            ],
+        ]));
+
+        $result = (new CustomAtRuleTransformer())->transform('@mode compact; .wp-block-card { color: red; }', [
+            'mode' => [
+                'prelude' => 'compact',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'mode' => static fn (): array => [],
+                ],
+            ],
+        ]);
+        $t->same('.wp-block-card{color:red}', $result);
+    },
     'custom at-rules parse upstream extended SyntaxString component preludes' => static function (TestRunner $t): void {
         $seen = [];
         $css = <<<'CSS'

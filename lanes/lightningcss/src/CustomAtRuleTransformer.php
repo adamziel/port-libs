@@ -3292,7 +3292,7 @@ final class CustomAtRuleTransformer
             return $this->tryCustomComponentValueAst($prelude, $type);
         }
 
-        if (preg_match('/^(-?(?:[_a-zA-Z\x{0080}-\x{10FFFF}])[-_a-zA-Z0-9\x{0080}-\x{10FFFF}]*)([+#]?)$/u', $grammar, $matches) === 1) {
+        if (preg_match('/^((?:[_a-zA-Z\x{0080}-\x{10FFFF}])[-_a-zA-Z0-9\x{0080}-\x{10FFFF}]*)([+#]?)$/u', $grammar, $matches) === 1) {
             $literal = $matches[1];
             $multiplier = $matches[2] ?? '';
             if ($multiplier === '+') {
