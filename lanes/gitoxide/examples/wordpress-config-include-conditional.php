@@ -35,6 +35,8 @@ return [
     'backslashUrlSlashPolicy' => $fixture['backslashUrlSlashPolicy'],
     'backslashUrlLiteralPolicy' => $fixture['backslashUrlLiteralPolicy'],
     'unboundedDoubleStarRejectedPolicy' => $fixture['unboundedDoubleStarRejectedPolicy'],
+    'recursionWithinPolicy' => $fixture['recursionWithinPolicy'],
+    'recursionExceededPolicy' => $fixture['recursionExceededPolicy'],
     'invalidPosixPolicy' => $fixture['invalidPosixPolicy'],
     'unclosedBracketPolicy' => $fixture['unclosedBracketPolicy'],
     'malformedPosixResumeUrlPolicy' => $fixture['malformedPosixResumeUrlPolicy'],

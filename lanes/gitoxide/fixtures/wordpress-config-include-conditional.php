@@ -13,6 +13,8 @@ $blankTab = "\t";
 $blankVerticalTab = "\x0B";
 $trailingBackslashUrl = 'https://git.example.test/wp-content/trailing\\';
 $escapedTrailingBackslashUrl = str_replace('\\', '\\\\', $trailingBackslashUrl);
+$recursionWithinBranchCondition = str_repeat('**/', 63) . 'deploy/site-a';
+$recursionExceededBranchCondition = str_repeat('**/', 64) . 'deploy/site-a';
 $escapedRepoCondition = str_replace('\\', '\\\\', $repo);
 $escapedGitDirCondition = str_replace('\\', '\\\\', $gitDir);
 $namedDeployUser = 'wpdeploy';
@@ -148,6 +150,16 @@ CFG);
 $write($repo . '/unbounded-double-star.config', <<<CFG
 [wordpress]
 unboundedDoubleStar = should-not-load
+CFG);
+
+$write($repo . '/recursion-within.config', <<<CFG
+[wordpress]
+recursionWithin = matched
+CFG);
+
+$write($repo . '/recursion-exceeded.config', <<<CFG
+[wordpress]
+recursionExceeded = should-not-load
 CFG);
 
 $write($repo . '/invalid-posix.config', <<<CFG
@@ -395,6 +407,10 @@ path = ../backslash-slash-url.config
 path = ../backslash-literal-url.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp/site**content.git"]
 path = ../unbounded-double-star.config
+[includeIf "onbranch:{$recursionWithinBranchCondition}"]
+path = ../recursion-within.config
+[includeIf "onbranch:{$recursionExceededBranchCondition}"]
+path = ../recursion-exceeded.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[[:word:]].git"]
 path = ../invalid-posix.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[.git"]
@@ -575,6 +591,8 @@ return [
     'backslashUrlSlashPolicy' => $config->value('wordpress', null, 'backslashUrlSlash'),
     'backslashUrlLiteralPolicy' => $config->value('wordpress', null, 'backslashUrlLiteral'),
     'unboundedDoubleStarRejectedPolicy' => $config->value('wordpress', null, 'unboundedDoubleStar'),
+    'recursionWithinPolicy' => $config->value('wordpress', null, 'recursionWithin'),
+    'recursionExceededPolicy' => $config->value('wordpress', null, 'recursionExceeded'),
     'invalidPosixPolicy' => $config->value('wordpress', null, 'invalidPosix'),
     'unclosedBracketPolicy' => $config->value('wordpress', null, 'unclosedBracket'),
     'malformedPosixResumeUrlPolicy' => $config->value('wordpress', null, 'malformedPosixResumeUrl'),

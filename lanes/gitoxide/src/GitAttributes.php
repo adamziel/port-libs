@@ -560,7 +560,7 @@ final class GitAttributes
         if ($path === '') {
             return false;
         }
-        if ($pattern['mustBeDirectory'] && $isDirectory === false) {
+        if ($pattern['mustBeDirectory'] && $isDirectory !== true) {
             return false;
         }
 

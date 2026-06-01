@@ -57,6 +57,29 @@ return [
         $t->same(['local' => null], $local->attributesForPath('a/B/D/g', ['local'], false));
         $t->same(['local' => true], $local->attributesForPath('a/B/D/g', ['local'], false, true));
     },
+    'directory only attribute patterns require explicit directory metadata like gix search' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString(
+            "wp-content/plugins/**/ deploy-directory\n"
+            . "wp-content/uploads/** deploy-file\n",
+            withBuiltInMacros: false,
+        );
+        $directoryPath = 'wp-content/plugins/gutenberg';
+        $childPath = 'wp-content/plugins/gutenberg/block.json';
+        $directoryPathspec = ':(attr:deploy-directory)wp-content/plugins/**';
+
+        $t->same(['deploy-directory' => true], $attributes->attributesForPath($directoryPath, ['deploy-directory'], true));
+        $t->same(['deploy-directory' => null], $attributes->attributesForPath($directoryPath, ['deploy-directory']));
+        $t->same(['deploy-directory' => null], $attributes->attributesForPath($directoryPath, ['deploy-directory'], false));
+        $t->same(['deploy-directory' => null], $attributes->attributesForPath($childPath, ['deploy-directory'], false));
+        $t->same(['deploy-file' => true], $attributes->attributesForPath('wp-content/uploads/logo.png', ['deploy-file'], false));
+
+        $t->same(false, PathspecMatcher::matchesOne($directoryPathspec, $directoryPath, null, $attributes));
+        $t->same(false, PathspecMatcher::matchesOne($directoryPathspec, $directoryPath, false, $attributes));
+        $t->same(true, PathspecMatcher::matchesOne($directoryPathspec, $directoryPath, true, $attributes));
+        $t->same(false, PathspecMatcher::matchesOne($directoryPathspec, $childPath, false, $attributes));
+        $t->same(false, PathspecSearch::fromSpecs([$directoryPathspec])->isIncluded($directoryPath, null, $attributes));
+        $t->same(true, PathspecSearch::fromSpecs([$directoryPathspec])->isIncluded($directoryPath, true, $attributes));
+    },
     'attribute pathspec filters use gix glob character class parity' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/uploads/[[:digit:]][[:digit:]]/** dated\n"
             . "wp-content/uploads/[!0-4][[:digit:]]/** late-year\n"
@@ -967,6 +990,12 @@ return [
         $t->same(true, $example['caseSensitivePosixClassNamePathspecSkipped']);
         $t->same(true, $example['foldedPosixClassNamePathspecMatches']);
         $t->same(true, $example['foldedPosixClassNameAttrPathspecMatches']);
+        $t->same(['deploy-directory' => true], $example['directoryOnlyAttributeMatchesExplicitDirectory']);
+        $t->same(['deploy-directory' => null], $example['directoryOnlyAttributeSkippedWithoutDirectoryMetadata']);
+        $t->same(['deploy-directory' => null], $example['directoryOnlyAttributeSkipsFileChild']);
+        $t->same(true, $example['directoryOnlyAttrPathspecRequiresDirectoryMetadata']);
+        $t->same(true, $example['directoryOnlyAttrPathspecMatchesExplicitDirectory']);
+        $t->same(true, $example['directoryOnlyAttrPathspecSkipsFileChild']);
         $t->same(['quoted-space' => true], $example['quotedSpaceUploadAttributes']);
         $t->same(true, $example['quotedSpaceUploadPathspecMatches']);
         $t->same(true, $example['quotedSpaceUploadOctalTextSkipped']);

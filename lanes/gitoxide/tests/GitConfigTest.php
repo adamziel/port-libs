@@ -511,6 +511,49 @@ return [
         $t->same('loaded', $config->value('user', null, 'bounded'));
     },
 
+    'conditional include wildmatch recursion guard mirrors gix glob limit' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
+        $withinLimit = str_repeat('**/', 63) . 'target';
+        $atLimit = str_repeat('**/', 64) . 'target';
+
+        $t->same('override-value', $loadConditionalValue('onbranch:' . $withinLimit, [
+            'branchName' => 'refs/heads/target',
+        ]));
+        $t->same('base-value', $loadConditionalValue('onbranch:' . $atLimit, [
+            'branchName' => 'refs/heads/target',
+        ]));
+
+        $root = $tmpDir();
+        $worktree = $root . '/target';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/within.config', "[guard]\ngitdirWithin = matched\n");
+        $write($worktree . '/limit.config', "[guard]\ngitdirLimit = should-not-load\n");
+        $write($gitDir . '/config', <<<CFG
+        [includeIf "gitdir:{$root}/{$withinLimit}/"]
+        path = ../within.config
+        [includeIf "gitdir:{$root}/{$atLimit}/"]
+        path = ../limit.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('matched', $config->value('guard', null, 'gitdirWithin'));
+        $t->same(null, $config->value('guard', null, 'gitdirLimit'));
+
+        $root = $tmpDir();
+        $write($root . '/within-url', "[guard]\nurlWithin = matched\n");
+        $write($root . '/limit-url', "[guard]\nurlLimit = should-not-load\n");
+        $write($root . '/config', <<<CFG
+        [remote "target"]
+        url = https://git.example.test/target.git
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/{$withinLimit}.git"]
+        path = "within-url"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/{$atLimit}.git"]
+        path = "limit-url"
+        CFG);
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same('matched', $config->value('guard', null, 'urlWithin'));
+        $t->same(null, $config->value('guard', null, 'urlLimit'));
+    },
+
     'conditional include bracket classes do not match slash separators' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
         $root = $tmpDir();
         $worktree = $root . '/work/tree';
@@ -1543,6 +1586,8 @@ return [
         $t->same(null, $fixture['backslashUrlSlashPolicy']);
         $t->same('matched', $fixture['backslashUrlLiteralPolicy']);
         $t->same(null, $fixture['unboundedDoubleStarRejectedPolicy']);
+        $t->same('matched', $fixture['recursionWithinPolicy']);
+        $t->same(null, $fixture['recursionExceededPolicy']);
         $t->same(null, $fixture['invalidPosixPolicy']);
         $t->same(null, $fixture['unclosedBracketPolicy']);
         $t->same('matched', $fixture['malformedPosixResumeUrlPolicy']);
@@ -1601,6 +1646,8 @@ return [
         $t->same($fixture['backslashUrlSlashPolicy'], $summary['backslashUrlSlashPolicy']);
         $t->same($fixture['backslashUrlLiteralPolicy'], $summary['backslashUrlLiteralPolicy']);
         $t->same($fixture['unboundedDoubleStarRejectedPolicy'], $summary['unboundedDoubleStarRejectedPolicy']);
+        $t->same($fixture['recursionWithinPolicy'], $summary['recursionWithinPolicy']);
+        $t->same($fixture['recursionExceededPolicy'], $summary['recursionExceededPolicy']);
         $t->same($fixture['invalidPosixPolicy'], $summary['invalidPosixPolicy']);
         $t->same($fixture['unclosedBracketPolicy'], $summary['unclosedBracketPolicy']);
         $t->same($fixture['malformedPosixResumeUrlPolicy'], $summary['malformedPosixResumeUrlPolicy']);

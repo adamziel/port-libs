@@ -30,6 +30,11 @@ $posixClassNameFoldAttributes = GitAttributes::fromString(
     . "wp-content/uploads/plugins/** deploy\n",
     withBuiltInMacros: false,
 );
+$directoryOnlyAttributes = GitAttributes::fromString(
+    "wp-content/plugins/**/ deploy-directory\n"
+    . "wp-content/uploads/** deploy-file\n",
+    withBuiltInMacros: false,
+);
 $quotedPatternAttributes = GitAttributes::fromString(
     "\"wp-content/uploads/slot\\040hero.jpg\" quoted-space\n"
     . "\"wp-content/uploads/form\\fhero.jpg\" formfeed-upload\n"
@@ -158,6 +163,7 @@ $doubleColonPosixSearch = PathspecSearch::fromSpecs([
 $posixClassNameFoldSearch = PathspecSearch::fromSpecs([
     ':(icase,attr:deploy)wp-content/uploads/[[:UPPER:]]LUGINS/**',
 ]);
+$directoryOnlyPathspec = ':(attr:deploy-directory)wp-content/plugins/**';
 $reversedRangeSearch = PathspecSearch::fromSpecs([':(attr:reversed-range)wp-content/uploads/[z-a]/**']);
 $foldedReversedRangeSearch = PathspecSearch::fromSpecs([':(icase)wp-content/uploads/[Z-A]/**']);
 $componentLocalDoubleStarSearch = PathspecSearch::fromSpecs([
@@ -187,6 +193,8 @@ $nestedDeploymentSearch = PathspecSearch::fromSpecs([
 $quotedSpacePath = 'wp-content/uploads/slot hero.jpg';
 $quotedFormFeedPath = "wp-content/uploads/form\x0chero.jpg";
 $posixClassNameFoldPath = 'wp-content/uploads/plugins/block.json';
+$directoryOnlyPath = 'wp-content/plugins/gutenberg';
+$directoryOnlyChildPath = 'wp-content/plugins/gutenberg/block.json';
 $malformedPosixPath = 'wp-content/uploads/[ab]';
 $malformedPosixLiteralPath = 'wp-content/uploads/[[:digit]ab]';
 $formFeedOnlyPath = "\f";
@@ -382,6 +390,35 @@ return [
         false,
         $posixClassNameFoldAttributes,
     ),
+    'directoryOnlyAttributeMatchesExplicitDirectory' => $directoryOnlyAttributes->attributesForPath(
+        $directoryOnlyPath,
+        ['deploy-directory'],
+        true,
+    ),
+    'directoryOnlyAttributeSkippedWithoutDirectoryMetadata' => $directoryOnlyAttributes->attributesForPath(
+        $directoryOnlyPath,
+        ['deploy-directory'],
+    ),
+    'directoryOnlyAttributeSkipsFileChild' => $directoryOnlyAttributes->attributesForPath(
+        $directoryOnlyChildPath,
+        ['deploy-directory'],
+        false,
+    ),
+    'directoryOnlyAttrPathspecRequiresDirectoryMetadata' => !PathspecMatcher::matchesOne(
+        $directoryOnlyPathspec,
+        $directoryOnlyPath,
+        null,
+        $directoryOnlyAttributes,
+    ),
+    'directoryOnlyAttrPathspecMatchesExplicitDirectory' => PathspecMatcher::matchesOne(
+        $directoryOnlyPathspec,
+        $directoryOnlyPath,
+        true,
+        $directoryOnlyAttributes,
+    ),
+    'directoryOnlyAttrPathspecSkipsFileChild' => !PathspecSearch::fromSpecs([
+        $directoryOnlyPathspec,
+    ])->isIncluded($directoryOnlyChildPath, false, $directoryOnlyAttributes),
     'quotedSpaceUploadAttributes' => $quotedPatternAttributes->attributesForPath(
         $quotedSpacePath,
         ['quoted-space'],

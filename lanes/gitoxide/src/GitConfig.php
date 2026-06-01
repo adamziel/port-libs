@@ -6,6 +6,8 @@ namespace PortLibs\Gitoxide;
 
 final class GitConfig
 {
+    private const WILDMATCH_RECURSION_LIMIT = 64;
+
     /**
      * @param list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}> $sections
      */
@@ -862,6 +864,10 @@ final class GitConfig
 
     private static function wildmatch(string $pattern, string $text, bool $ignoreCase): bool
     {
+        if (self::exceedsWildmatchDoubleStarRecursionLimit($pattern)) {
+            return false;
+        }
+
         $regex = '';
         $length = strlen($pattern);
 
@@ -933,6 +939,70 @@ final class GitConfig
 
         // Gitoxide's wildmatch works on BStr bytes, including malformed UTF-8.
         return preg_match('~\A' . $regex . '\z~' . ($ignoreCase ? 'i' : ''), $text) === 1;
+    }
+
+    private static function exceedsWildmatchDoubleStarRecursionLimit(string $pattern): bool
+    {
+        $depth = 0;
+        $length = strlen($pattern);
+
+        for ($index = 0; $index < $length;) {
+            if ($pattern[$index] === '\\') {
+                $depth = 0;
+                $index += 2;
+                continue;
+            }
+
+            if ($pattern[$index] === '[') {
+                $end = self::findCharacterClassEnd($pattern, $index);
+                $depth = 0;
+                $index = $end === null ? $index + 1 : $end + 1;
+                continue;
+            }
+
+            $nextIndex = self::pathComponentDoubleStarSlashEnd($pattern, $index);
+            if ($nextIndex !== null) {
+                $depth++;
+                if ($depth >= self::WILDMATCH_RECURSION_LIMIT) {
+                    return true;
+                }
+                $index = $nextIndex;
+                continue;
+            }
+
+            $depth = 0;
+            $index++;
+        }
+
+        return false;
+    }
+
+    private static function pathComponentDoubleStarSlashEnd(string $pattern, int $index): ?int
+    {
+        if (($pattern[$index] ?? null) !== '*') {
+            return null;
+        }
+
+        $length = strlen($pattern);
+        $starStart = $index;
+        while ($index + 1 < $length && $pattern[$index + 1] === '*') {
+            $index++;
+        }
+
+        if ($index - $starStart + 1 < 2 || ($starStart > 0 && $pattern[$starStart - 1] !== '/')) {
+            return null;
+        }
+
+        $nextByte = $pattern[$index + 1] ?? null;
+        if ($nextByte === '/') {
+            return $index + 2;
+        }
+
+        if ($nextByte === '\\' && ($pattern[$index + 2] ?? null) === '/') {
+            return $index + 3;
+        }
+
+        return null;
     }
 
     private static function findCharacterClassEnd(string $pattern, int $start): ?int
