@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 17:28:12 UTC",
-    "sourceCommit": "a4bef185002b359003e6bed7be8edf2bac9afe60",
-    "sourceCommitShort": "a4bef185002b",
+    "generated": "2026-06-01 17:35:08 UTC",
+    "sourceCommit": "a25bbddc9233ed27761d6d1c0152bb434c9c08f2",
+    "sourceCommitShort": "a25bbddc9233",
     "sourceBranch": "main",
-    "dashboardCommit": "a4bef185002b359003e6bed7be8edf2bac9afe60",
-    "dashboardCommitShort": "a4bef185002b",
+    "dashboardCommit": "a25bbddc9233ed27761d6d1c0152bb434c9c08f2",
+    "dashboardCommitShort": "a25bbddc9233",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,152,356 pass / 16 fail",
+            "php": "6,155,549 pass / 16 fail",
             "phase": "current-base source integration accepted; broad full-lane/release par...",
-            "audit": "2026-06-01 17:22 UTC supervisor integration: source commit f8d0129d24...",
-            "currentWork": "Row-value UPDATE/DELETE LIMIT BETWEEN-tail precedence, real upstream atof1.test rando...",
+            "audit": "2026-06-01 17:34 UTC supervisor integration: source commit a25bbddc92...",
+            "currentWork": "SQLitePDO native invalid-column/error-persistence/file-persistence parity, VFS file-c...",
             "nextTarget": "Prioritize broad full-lane memory exhaustion and the 16 obser...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "f8d0129"
+            "commit": "a25bbdd"
         },
         {
             "lane": "lightningcss",
