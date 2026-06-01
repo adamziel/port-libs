@@ -3431,10 +3431,10 @@
             "focusedUpstreamVeryquickShardCurrentSourceNext431": "The 2026-05-28 isolated current-source next431 suite veryquick-shard runner slice maps one additional runner-countability blocker row for launcher Base accepted HEAD fca16e3d, current integration source 8a447f44, lane-local zero-error guarded runner artifact rows, duplicate-runner gates, exact 96 focused PASS-line admission, focused current-source veryquick shard scope, and no release/all parity claim."
         }
     },
-    "latestFocusedSlice": "2026-06-01 supervisor integration: real upstream pragma.test pragma-3.5.2 through pragma-3.18 integrity target/limit routing. Focused PRAGMA corpus passed 1 file / 9759 assertions / 0 failures; no-domain guard passed; phpPass moves 6287267 -> 6288269; mapped denominator remains complete at 1589 / 1589.",
+    "latestFocusedSlice": "2026-06-01 supervisor integration: source-neutral encoding/default-source dynamic guard hardening. Gates passed: php -l changed test file; focused source-neutral/no-domain bundle 2 files / 85 assertions / 0 failures; production source scan only found allowed/non-domain false positives; git diff --check passed. No counter movement; phpPass remains 6288269, phpFail remains 16, mapped coverage remains 1589 / 1589.",
     "latestNativePhpVerification": "Source commit 99a2faf5648da6d68d02f40ddf196d913976b3f2: PHP lint, git diff --check, zero-domain source guard, focused trigger/FK plus row-value/no-domain gate 5 files / 15301 assertions / 0 failures, adjacent trigger/FK gate 6 files / 55356 assertions / 0 failures, and row-value examples passed.",
     "runnerStatus": "Focused PRAGMA integrity target/limit routing and no-domain gates passed. Broad release/all still has 16 known failures and was not rerun for this isolated integration.",
-    "latestCommit": "f30bb1f7aeed8c868a03a9a7518ef918794f32c6",
+    "latestCommit": "da72a2f35833c02672f36aaaa5b4d13bf9613c2d",
     "latestFocusedCorpusBatch20260531T2250Z": {
         "sourceCommit": "48a678f72e367c869dc62452fbad34f36daa273b",
         "selectedPassIncrease": 2411,
@@ -3605,7 +3605,7 @@
         "upstreamEvidence": "hydrated SQLite upstream e_fkey runtime intro source sections plus source-neutral STAT4 planner handoff evidence; full release/all runner not executed for this micro-batch"
     },
     "latestMappedAddition": "Source commit f30bb1f7ae adds 1002 accepted libsqlite PASS cases for real upstream pragma.test integrity_check/quick_check equals-form target and numeric-limit routing. Mapped denominator remains complete at 1589 / 1589; focused gates passed, while broad release parity remains open with 16 failures.",
-    "audit": "2026-06-01 supervisor accepted source 9b57a0640eb0 with focused B-tree/no-domain gate 3 files / 84898 assertions / 0 failures; broad release/all remains at 7 known failures.",
+    "audit": "2026-06-01 supervisor accepted source 9b57a0640eb0 with focused B-tree/no-domain gate 3 files / 84898 assertions / 0 failures; broad release/all remains at 7 known failures.\n2026-06-01 23:43 UTC supervisor integration: source commit da72a2f35833c02672f36aaaa5b4d13bf9613c2d accepted source-neutral encoding/default-source guard hardening. Changed PHP lint passed; focused source-neutral/no-domain bundle passed 2 files / 85 assertions / 0 failures; production source scan only found allowed CompileOptionName and non-domain PrerequisiteIds false positives; git diff --check passed. No phpPass or mapped-coverage movement; phpPass remains 6288269, phpFail remains 16, mapped coverage remains 1589 / 1589.",
     "latestFocusedCorpusBatch20260601T0820Z": {
         "sourceCommit": "2922247b0e6dda4df9c4afc836a7272ae2b0136e",
         "acceptedPassDelta": 2263,
@@ -3854,5 +3854,16 @@
         "acceptedPassCases": 1002,
         "nativeVerification": "PHP lint on changed libsqlite PHP files; focused PRAGMA corpus test 1 file / 9759 assertions / 0 failures; no-domain guard 1 file / 9 assertions / 0 failures; changed source/test/note WordPress-shaped text scan clean; git diff --check passed.",
         "upstreamEvidence": "Hydrated upstream .upstream-cache/libsqlite/test/pragma.test sections pragma-3.5.2, pragma-3.6, pragma-3.6b/3.6c, pragma-3.7, pragma-3.9b/3.9c, and pragma-3.10 through pragma-3.18. Broad release/all was not rerun."
+    },
+    "focusedSourceNeutralEncodingGuard20260601T231845Z": {
+        "sourceCommit": "da72a2f35833c02672f36aaaa5b4d13bf9613c2d",
+        "mappedSliceIncrease": 0,
+        "mappedBefore": 1589,
+        "mappedAfter": 1589,
+        "acceptedSlices": [
+            "dynamic production inventory for encoding/collation/LIKE/GLOB/affinity/UTF-16 source-neutral guard"
+        ],
+        "countingNote": "Source-neutral guard hardening only; no TestRunner PASS or mapped denominator movement is claimed.",
+        "nativeVerification": "php -l changed test file; focused source-neutral/no-domain bundle 2 files / 85 assertions / 0 failures; production source scan only found allowed CompileOptionName and non-domain PrerequisiteIds false positives; git diff --check passed."
     }
 }
