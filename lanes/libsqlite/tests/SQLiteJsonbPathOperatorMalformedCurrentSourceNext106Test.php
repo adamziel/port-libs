@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $validJsonb = new SQLiteBlobValue(SQLiteJsonB::encode([
-    'plugin' => [
+    'feature' => [
         'name' => 'forms',
         'enabled' => false,
         'priority' => 3,
@@ -18,75 +18,75 @@ $validJsonb = new SQLiteBlobValue(SQLiteJsonB::encode([
         ],
     ],
 ]));
-$malformedJsonb = new SQLiteBlobValue("\xcc" . '{"plugin":{"name":"broken"}}');
-$truncatedJsonb = new SQLiteBlobValue(substr(SQLiteJsonB::encode(['plugin' => ['name' => 'truncated', 'priority' => 9]]), 0, -1));
+$malformedJsonb = new SQLiteBlobValue("\xcc" . '{"feature":{"name":"broken"}}');
+$truncatedJsonb = new SQLiteBlobValue(substr(SQLiteJsonB::encode(['feature' => ['name' => 'truncated', 'priority' => 9]]), 0, -1));
 
 $currentRows = [
     [
-        'option_id' => 1,
-        'option_name' => 'plugin_cache_settings',
-        'option_value' => '{"plugin":{"name":"cache","enabled":true,"priority":7,"limits":{"daily":25},"rules":[{"name":"warm"},{"name":"serve"}]}}',
-        'autoload' => 'yes',
+        'setting_id' => 1,
+        'key_name' => 'feature_cache_settings',
+        'key_value' => '{"feature":{"name":"cache","enabled":true,"priority":7,"limits":{"daily":25},"rules":[{"name":"warm"},{"name":"serve"}]}}',
+        'load_policy' => 'yes',
     ],
     [
-        'option_id' => 2,
-        'option_name' => 'plugin_forms_settings',
-        'option_value' => $validJsonb,
-        'autoload' => 'no',
+        'setting_id' => 2,
+        'key_name' => 'feature_forms_settings',
+        'key_value' => $validJsonb,
+        'load_policy' => 'no',
     ],
     [
-        'option_id' => 3,
-        'option_name' => 'plugin_missing_settings',
-        'option_value' => '{"plugin":{"enabled":false}}',
-        'autoload' => 'no',
+        'setting_id' => 3,
+        'key_name' => 'feature_missing_settings',
+        'key_value' => '{"feature":{"enabled":false}}',
+        'load_policy' => 'no',
     ],
 ];
 
 $nextRows = [
     $currentRows[0],
     [
-        'option_id' => 2,
-        'option_name' => 'plugin_forms_settings',
-        'option_value' => $malformedJsonb,
-        'autoload' => 'no',
+        'setting_id' => 2,
+        'key_name' => 'feature_forms_settings',
+        'key_value' => $malformedJsonb,
+        'load_policy' => 'no',
     ],
     [
-        'option_id' => 3,
-        'option_name' => 'plugin_missing_settings',
-        'option_value' => '{"plugin":{"name":"empty","enabled":false}}',
-        'autoload' => 'no',
+        'setting_id' => 3,
+        'key_name' => 'feature_missing_settings',
+        'key_value' => '{"feature":{"name":"empty","enabled":false}}',
+        'load_policy' => 'no',
     ],
     [
-        'option_id' => 4,
-        'option_name' => 'plugin_truncated_settings',
-        'option_value' => $truncatedJsonb,
-        'autoload' => 'no',
+        'setting_id' => 4,
+        'key_name' => 'feature_truncated_settings',
+        'key_value' => $truncatedJsonb,
+        'load_policy' => 'no',
     ],
 ];
 
 $textPlan = static fn (): array => SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare(
     $currentRows,
     $nextRows,
-    '$.plugin.name',
+    '$.feature.name',
     '->>',
 );
 $valuePlan = static fn (): array => SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare(
     $currentRows,
     $nextRows,
-    '$.plugin.limits',
+    '$.feature.limits',
     '->',
 );
 $priorityPlan = static fn (): array => SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare(
     $currentRows,
     $nextRows,
-    '$.plugin.priority',
+    '$.feature.priority',
     '->>',
 );
-$select = static fn (string $sql, array $rows = null): array => SQLiteSelectSql::execute($sql, ['wp_options' => $rows ?? $nextRows]);
+$select = static fn (string $sql, array $rows = null): array => SQLiteSelectSql::execute($sql, ['app_settings' => $rows ?? $nextRows]);
 
 $tests = [
     'jsonb path operator malformed current source next106 records operator' => static fn (TestRunner $t) => $t->same('->>', $textPlan()['operator']),
-    'jsonb path operator malformed current source next106 records path' => static fn (TestRunner $t) => $t->same('$.plugin.name', $textPlan()['path']),
+    'jsonb path operator malformed current source next106 records path' => static fn (TestRunner $t) => $t->same('$.feature.name', $textPlan()['path']),
     'jsonb path operator malformed current source next106 counts current rows' => static fn (TestRunner $t) => $t->same(3, $textPlan()['currentRowCount']),
     'jsonb path operator malformed current source next106 counts next rows' => static fn (TestRunner $t) => $t->same(4, $textPlan()['nextRowCount']),
     'jsonb path operator malformed current source next106 counts current valid rows' => static fn (TestRunner $t) => $t->same(2, $textPlan()['currentValidRowCount']),
@@ -120,36 +120,36 @@ $tests = [
     'jsonb path operator malformed current source next106 numeric jsonb operator returns integer' => static fn (TestRunner $t) => $t->same(3, $priorityPlan()['currentSignature'][1]['result']),
     'jsonb path operator malformed current source next106 numeric missing path rowids' => static fn (TestRunner $t) => $t->same([3], $priorityPlan()['currentMissingPathRowids']),
     'jsonb path operator malformed current source next106 numeric next malformed rowids' => static fn (TestRunner $t) => $t->same([2, 4], $priorityPlan()['nextMalformedRowids']),
-    'jsonb path operator malformed current source next106 rejects malformed path' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare($currentRows, $nextRows, '$.plugin[#-]', '->>')),
-    'jsonb path operator malformed current source next106 rejects unsupported operator' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare($currentRows, $nextRows, '$.plugin.name', '#>')),
-    'jsonb path operator malformed current source next106 rejects missing json column' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare([['option_id' => 9]], [], '$.plugin.name')),
-    'jsonb path operator malformed current source next106 rejects non integer rowid' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare([['option_id' => '9', 'option_value' => '{}']], [], '$.plugin.name')),
-    'jsonb path operator malformed current source next106 rejects non json source type' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare([['option_id' => 9, 'option_value' => 12]], [], '$.plugin.name')),
-    'select sql jsonb path operator current source next106 aborts on projected malformed jsonb' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $select("SELECT option_value ->> '$.plugin.name' AS name FROM wp_options ORDER BY option_id")),
-    'select sql jsonb path operator current source next106 aborts on where malformed jsonb' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $select("SELECT option_name FROM wp_options WHERE option_value ->> '$.plugin.name' = 'cache' ORDER BY option_id")),
-    'select sql jsonb path operator current source next106 false and guard skips malformed source' => static fn (TestRunner $t) => $t->same([], array_column($select("SELECT option_name FROM wp_options WHERE 0 AND option_value ->> '$.plugin.name' = 'cache' ORDER BY option_id"), 'option_name')),
-    'select sql jsonb path operator current source next106 true or guard skips malformed source' => static fn (TestRunner $t) => $t->same(['plugin_cache_settings', 'plugin_forms_settings', 'plugin_missing_settings', 'plugin_truncated_settings'], array_column($select("SELECT option_name FROM wp_options WHERE 1 OR option_value ->> '$.plugin.name' = 'cache' ORDER BY option_id"), 'option_name')),
-    'select sql jsonb path operator current source next106 case lazy branch skips malformed source' => static fn (TestRunner $t) => $t->same(['safe', 'safe', 'safe', 'safe'], array_column($select("SELECT CASE WHEN 1 THEN 'safe' ELSE option_value ->> '$.plugin.name' END AS state FROM wp_options ORDER BY option_id"), 'state')),
-    'select sql jsonb path operator current source next106 limit stops before malformed source' => static fn (TestRunner $t) => $t->same(['cache'], array_column($select("SELECT option_value ->> '$.plugin.name' AS name FROM wp_options WHERE option_id = 1 LIMIT 1"), 'name')),
-    'select sql jsonb path operator current source next106 current rows project without abort' => static fn (TestRunner $t) => $t->same(['cache', 'forms', null], array_column($select("SELECT option_value ->> '$.plugin.name' AS name FROM wp_options ORDER BY option_id", $currentRows), 'name')),
-    'select sql jsonb path operator current source next106 current rows value fragments project' => static fn (TestRunner $t) => $t->same(['{"daily":25}', '{"daily":10}', null], array_column($select("SELECT option_value -> '$.plugin.limits' AS limits FROM wp_options ORDER BY option_id", $currentRows), 'limits')),
-    'select sql jsonb path operator current source next106 current rows filter text and jsonb' => static fn (TestRunner $t) => $t->same(['plugin_cache_settings', 'plugin_forms_settings'], array_column($select("SELECT option_name FROM wp_options WHERE option_value ->> '$.plugin.name' IN ('cache','forms') ORDER BY option_id", $currentRows), 'option_name')),
-    'select sql jsonb path operator current source next106 current rows numeric filter' => static fn (TestRunner $t) => $t->same(['plugin_cache_settings', 'plugin_forms_settings'], array_column($select("SELECT option_name FROM wp_options WHERE option_value ->> '$.plugin.priority' >= 3 ORDER BY option_id", $currentRows), 'option_name')),
+    'jsonb path operator malformed current source next106 rejects malformed path' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare($currentRows, $nextRows, '$.feature[#-]', '->>')),
+    'jsonb path operator malformed current source next106 rejects unsupported operator' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare($currentRows, $nextRows, '$.feature.name', '#>')),
+    'jsonb path operator malformed current source next106 rejects missing json column' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare([['setting_id' => 9]], [], '$.feature.name')),
+    'jsonb path operator malformed current source next106 rejects non integer rowid' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare([['setting_id' => '9', 'key_value' => '{}']], [], '$.feature.name')),
+    'jsonb path operator malformed current source next106 rejects non json source type' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare([['setting_id' => 9, 'key_value' => 12]], [], '$.feature.name')),
+    'select sql jsonb path operator current source next106 aborts on projected malformed jsonb' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $select("SELECT key_value ->> '$.feature.name' AS name FROM app_settings ORDER BY setting_id")),
+    'select sql jsonb path operator current source next106 aborts on where malformed jsonb' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $select("SELECT key_name FROM app_settings WHERE key_value ->> '$.feature.name' = 'cache' ORDER BY setting_id")),
+    'select sql jsonb path operator current source next106 false and guard skips malformed source' => static fn (TestRunner $t) => $t->same([], array_column($select("SELECT key_name FROM app_settings WHERE 0 AND key_value ->> '$.feature.name' = 'cache' ORDER BY setting_id"), 'key_name')),
+    'select sql jsonb path operator current source next106 true or guard skips malformed source' => static fn (TestRunner $t) => $t->same(['feature_cache_settings', 'feature_forms_settings', 'feature_missing_settings', 'feature_truncated_settings'], array_column($select("SELECT key_name FROM app_settings WHERE 1 OR key_value ->> '$.feature.name' = 'cache' ORDER BY setting_id"), 'key_name')),
+    'select sql jsonb path operator current source next106 case lazy branch skips malformed source' => static fn (TestRunner $t) => $t->same(['safe', 'safe', 'safe', 'safe'], array_column($select("SELECT CASE WHEN 1 THEN 'safe' ELSE key_value ->> '$.feature.name' END AS state FROM app_settings ORDER BY setting_id"), 'state')),
+    'select sql jsonb path operator current source next106 limit stops before malformed source' => static fn (TestRunner $t) => $t->same(['cache'], array_column($select("SELECT key_value ->> '$.feature.name' AS name FROM app_settings WHERE setting_id = 1 LIMIT 1"), 'name')),
+    'select sql jsonb path operator current source next106 current rows project without abort' => static fn (TestRunner $t) => $t->same(['cache', 'forms', null], array_column($select("SELECT key_value ->> '$.feature.name' AS name FROM app_settings ORDER BY setting_id", $currentRows), 'name')),
+    'select sql jsonb path operator current source next106 current rows value fragments project' => static fn (TestRunner $t) => $t->same(['{"daily":25}', '{"daily":10}', null], array_column($select("SELECT key_value -> '$.feature.limits' AS limits FROM app_settings ORDER BY setting_id", $currentRows), 'limits')),
+    'select sql jsonb path operator current source next106 current rows filter text and jsonb' => static fn (TestRunner $t) => $t->same(['feature_cache_settings', 'feature_forms_settings'], array_column($select("SELECT key_name FROM app_settings WHERE key_value ->> '$.feature.name' IN ('cache','forms') ORDER BY setting_id", $currentRows), 'key_name')),
+    'select sql jsonb path operator current source next106 current rows numeric filter' => static fn (TestRunner $t) => $t->same(['feature_cache_settings', 'feature_forms_settings'], array_column($select("SELECT key_name FROM app_settings WHERE key_value ->> '$.feature.priority' >= 3 ORDER BY setting_id", $currentRows), 'key_name')),
     'jsonb path operator malformed current source next106 valid-only next reader policy is runnable' => static function (TestRunner $t) use ($currentRows): void {
-        $plan = SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare($currentRows, $currentRows, '$.plugin.name');
+        $plan = SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare($currentRows, $currentRows, '$.feature.name');
         $t->same('next-jsonb-operator-source-is-runnable', $plan['nextReaderPolicy']);
         $t->same(false, $plan['statementWouldAbort']);
     },
-    'jsonb path operator malformed current source next106 stable source has stable reason' => static fn (TestRunner $t) => $t->same('stable-jsonb-operator-source', SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare($currentRows, $currentRows, '$.plugin.name')['reprepareReason']),
+    'jsonb path operator malformed current source next106 stable source has stable reason' => static fn (TestRunner $t) => $t->same('stable-jsonb-operator-source', SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare($currentRows, $currentRows, '$.feature.name')['reprepareReason']),
     'jsonb path operator malformed current source next106 changed text source has value reason' => static function (TestRunner $t) use ($currentRows): void {
         $changed = $currentRows;
-        $changed[0]['option_value'] = '{"plugin":{"name":"cache-next","enabled":true,"priority":8}}';
-        $plan = SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare($currentRows, $changed, '$.plugin.name');
+        $changed[0]['key_value'] = '{"feature":{"name":"cache-next","enabled":true,"priority":8}}';
+        $plan = SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare($currentRows, $changed, '$.feature.name');
         $t->same('jsonb-operator-path-result-changed', $plan['reprepareReason']);
         $t->same(true, $plan['valueChanged']);
     },
     'jsonb path operator malformed current source next106 source kind handles sql null' => static function (TestRunner $t): void {
-        $plan = SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare([['option_id' => 1, 'option_value' => null]], [], '$.plugin.name');
+        $plan = SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare([['setting_id' => 1, 'key_value' => null]], [], '$.feature.name');
         $t->same('sql-null', $plan['currentSignature'][0]['sourceKind']);
         $t->same(false, $plan['currentSignature'][0]['found']);
     },

@@ -982,6 +982,31 @@ CSS
             $t->same('.foo{color:' . $expected . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
         }
     },
+    'css minifier maps upstream hwb color-mix hue interpolation modes' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            'color-mix(in hwb, hwb(50deg 30% 40%), hwb(330deg 30% 40%))' => '#99594d',
+            'color-mix(in hwb, hwb(330deg 30% 40%), hwb(50deg 30% 40%))' => '#99594d',
+            'color-mix(in hwb, hwb(20deg 30% 40%), hwb(320deg 30% 40%))' => '#994d59',
+            'color-mix(in hwb, hwb(320deg 30% 40%), hwb(20deg 30% 40%))' => '#994d59',
+            'color-mix(in hwb shorter hue, hwb(50deg 30% 40%), hwb(330deg 30% 40%))' => '#99594d',
+            'color-mix(in hwb shorter hue, hwb(330deg 30% 40%), hwb(50deg 30% 40%))' => '#99594d',
+            'color-mix(in hwb shorter hue, hwb(20deg 30% 40%), hwb(320deg 30% 40%))' => '#994d59',
+            'color-mix(in hwb shorter hue, hwb(320deg 30% 40%), hwb(20deg 30% 40%))' => '#994d59',
+            'color-mix(in hwb longer hue, hwb(40deg 30% 40%), hwb(60deg 30% 40%))' => '#4d5999',
+            'color-mix(in hwb longer hue, hwb(60deg 30% 40%), hwb(40deg 30% 40%))' => '#4d5999',
+            'color-mix(in hwb increasing hue, hwb(60deg 30% 40%), hwb(40deg 30% 40%))' => '#4d5999',
+            'color-mix(in hwb increasing hue, hwb(330deg 30% 40%), hwb(50deg 30% 40%))' => '#99594d',
+            'color-mix(in hwb increasing hue, hwb(320deg 30% 40%), hwb(20deg 30% 40%))' => '#994d59',
+            'color-mix(in hwb decreasing hue, hwb(40deg 30% 40%), hwb(60deg 30% 40%))' => '#4d5999',
+            'color-mix(in hwb decreasing hue, hwb(50deg 30% 40%), hwb(330deg 30% 40%))' => '#99594d',
+            'color-mix(in hwb decreasing hue, hwb(20deg 30% 40%), hwb(320deg 30% 40%))' => '#994d59',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same('.foo{color:' . $expected . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
+        }
+    },
     'css minifier maps upstream hwb color-mix advanced origin normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
         $cases = [

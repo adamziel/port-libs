@@ -12,76 +12,76 @@ $indexes = static fn (): array => [
     [
         'name' => 'idx_operator_channel',
         'rootPage' => 1071,
-        'sql' => "CREATE INDEX idx_operator_channel ON wp_options((option_value ->> '$.plugin.channel') COLLATE NOCASE, option_name) WHERE autoload = 'yes'",
+        'sql' => "CREATE INDEX idx_operator_channel ON app_settings((key_value ->> '$.feature.channel') COLLATE NOCASE, key_name) WHERE load_policy = 'yes'",
     ],
     [
         'name' => 'idx_operator_priority',
         'rootPage' => 1072,
-        'sql' => "CREATE INDEX idx_operator_priority ON wp_options(option_value ->> '$.plugin.priority', option_id)",
+        'sql' => "CREATE INDEX idx_operator_priority ON app_settings(key_value ->> '$.feature.priority', setting_id)",
     ],
     [
         'name' => 'idx_operator_limits_json',
         'rootPage' => 1073,
-        'sql' => "CREATE INDEX idx_operator_limits_json ON wp_options((option_value -> '$.plugin.limits') COLLATE BINARY DESC, option_name)",
+        'sql' => "CREATE INDEX idx_operator_limits_json ON app_settings((key_value -> '$.feature.limits') COLLATE BINARY DESC, key_name)",
     ],
     [
         'name' => 'idx_operator_enabled_partial',
         'rootPage' => 1074,
-        'sql' => "CREATE INDEX idx_operator_enabled_partial ON wp_options(option_value ->> '$.plugin.enabled') WHERE option_value IS NOT NULL",
+        'sql' => "CREATE INDEX idx_operator_enabled_partial ON app_settings(key_value ->> '$.feature.enabled') WHERE key_value IS NOT NULL",
     ],
 ];
 
 $currentRows = static fn (): array => [
     [
-        'option_id' => 1,
-        'option_name' => 'plugin_cache_settings',
-        'autoload' => 'yes',
-        'option_value' => $jsonb(['plugin' => ['channel' => 'stable', 'priority' => 7, 'enabled' => true, 'limits' => ['daily' => 25]]]),
+        'setting_id' => 1,
+        'key_name' => 'feature_cache_settings',
+        'load_policy' => 'yes',
+        'key_value' => $jsonb(['feature' => ['channel' => 'stable', 'priority' => 7, 'enabled' => true, 'limits' => ['daily' => 25]]]),
     ],
     [
-        'option_id' => 2,
-        'option_name' => 'plugin_forms_settings',
-        'autoload' => 'no',
-        'option_value' => $jsonb(['plugin' => ['channel' => 'beta', 'priority' => 3, 'enabled' => false, 'limits' => ['daily' => 10]]]),
+        'setting_id' => 2,
+        'key_name' => 'feature_forms_settings',
+        'load_policy' => 'no',
+        'key_value' => $jsonb(['feature' => ['channel' => 'beta', 'priority' => 3, 'enabled' => false, 'limits' => ['daily' => 10]]]),
     ],
     [
-        'option_id' => 3,
-        'option_name' => 'plugin_seo_settings',
-        'autoload' => 'yes',
-        'option_value' => '{"plugin":{"channel":"dev","priority":5,"enabled":true,"limits":{"daily":12}}}',
+        'setting_id' => 3,
+        'key_name' => 'feature_seo_settings',
+        'load_policy' => 'yes',
+        'key_value' => '{"feature":{"channel":"dev","priority":5,"enabled":true,"limits":{"daily":12}}}',
     ],
     [
-        'option_id' => 4,
-        'option_name' => 'plugin_empty_settings',
-        'autoload' => 'yes',
-        'option_value' => null,
+        'setting_id' => 4,
+        'key_name' => 'feature_empty_settings',
+        'load_policy' => 'yes',
+        'key_value' => null,
     ],
 ];
 
 $nextRows = static fn (): array => [
     [
-        'option_id' => 1,
-        'option_name' => 'plugin_cache_settings',
-        'autoload' => 'yes',
-        'option_value' => $jsonb(['plugin' => ['channel' => 'rc', 'priority' => 8, 'enabled' => true, 'limits' => ['daily' => 30]]]),
+        'setting_id' => 1,
+        'key_name' => 'feature_cache_settings',
+        'load_policy' => 'yes',
+        'key_value' => $jsonb(['feature' => ['channel' => 'rc', 'priority' => 8, 'enabled' => true, 'limits' => ['daily' => 30]]]),
     ],
     [
-        'option_id' => 2,
-        'option_name' => 'plugin_forms_settings',
-        'autoload' => 'yes',
-        'option_value' => $jsonb(['plugin' => ['channel' => 'beta', 'priority' => 3, 'enabled' => false, 'limits' => ['daily' => 10]]]),
+        'setting_id' => 2,
+        'key_name' => 'feature_forms_settings',
+        'load_policy' => 'yes',
+        'key_value' => $jsonb(['feature' => ['channel' => 'beta', 'priority' => 3, 'enabled' => false, 'limits' => ['daily' => 10]]]),
     ],
     [
-        'option_id' => 3,
-        'option_name' => 'plugin_seo_settings',
-        'autoload' => 'no',
-        'option_value' => '{"plugin":{"channel":"dev","priority":9,"enabled":false,"limits":{"daily":12}}}',
+        'setting_id' => 3,
+        'key_name' => 'feature_seo_settings',
+        'load_policy' => 'no',
+        'key_value' => '{"feature":{"channel":"dev","priority":9,"enabled":false,"limits":{"daily":12}}}',
     ],
     [
-        'option_id' => 5,
-        'option_name' => 'plugin_shop_settings',
-        'autoload' => 'yes',
-        'option_value' => $jsonb(['plugin' => ['channel' => 'stable', 'priority' => 6, 'enabled' => true, 'limits' => ['daily' => 40]]]),
+        'setting_id' => 5,
+        'key_name' => 'feature_shop_settings',
+        'load_policy' => 'yes',
+        'key_value' => $jsonb(['feature' => ['channel' => 'stable', 'priority' => 6, 'enabled' => true, 'limits' => ['daily' => 40]]]),
     ],
 ];
 
@@ -101,7 +101,7 @@ $tests = [
     'jsonb generated index operator current source next107 parses operator indexes' => static fn (TestRunner $t) => $t->same(['idx_operator_channel', 'idx_operator_priority', 'idx_operator_limits_json', 'idx_operator_enabled_partial'], array_column($plan()['indexes'], 'name')),
     'jsonb generated index operator current source next107 preserves root pages' => static fn (TestRunner $t) => $t->same([1071, 1072, 1073, 1074], array_column($plan()['indexes'], 'rootPage')),
     'jsonb generated index operator current source next107 preserves operator families' => static fn (TestRunner $t) => $t->same(['->>', '->>', '->', '->>'], array_column($plan()['indexes'], 'operator')),
-    'jsonb generated index operator current source next107 preserves normalized paths' => static fn (TestRunner $t) => $t->same(['$.plugin.channel', '$.plugin.priority', '$.plugin.limits', '$.plugin.enabled'], array_column($plan()['indexes'], 'path')),
+    'jsonb generated index operator current source next107 preserves normalized paths' => static fn (TestRunner $t) => $t->same(['$.feature.channel', '$.feature.priority', '$.feature.limits', '$.feature.enabled'], array_column($plan()['indexes'], 'path')),
     'jsonb generated index operator current source next107 preserves collations' => static fn (TestRunner $t) => $t->same(['NOCASE', 'BINARY', 'BINARY', 'BINARY'], array_column($plan()['indexes'], 'collation')),
     'jsonb generated index operator current source next107 preserves descending flag' => static fn (TestRunner $t) => $t->same([false, false, true, false], array_column($plan()['indexes'], 'descending')),
     'jsonb generated index operator current source next107 marks partial indexes' => static fn (TestRunner $t) => $t->same([true, false, false, true], array_column($plan()['indexes'], 'partialPredicate') !== [] ? array_map(static fn ($p): bool => $p !== null, array_column($plan()['indexes'], 'partialPredicate')) : []),
@@ -131,23 +131,23 @@ $tests = [
     'jsonb generated index operator current source next107 inserted row enabled insert' => static fn (TestRunner $t) => $t->same(true, $entry($plan()['insert_entries'], 5, 'idx_operator_enabled_partial', 1) !== null),
     'jsonb generated index operator current source next107 delete entries keep operation labels' => static fn (TestRunner $t) => $t->same(['delete-current'], array_values(array_unique(array_column($plan()['delete_entries'], 'operation')))),
     'jsonb generated index operator current source next107 insert entries keep operation labels' => static fn (TestRunner $t) => $t->same(['insert-next'], array_values(array_unique(array_column($plan()['insert_entries'], 'operation')))),
-    'jsonb generated index operator current source next107 delete entries expose source column' => static fn (TestRunner $t) => $t->same(['option_value'], array_values(array_unique(array_column($plan()['delete_entries'], 'sourceColumn')))),
-    'jsonb generated index operator current source next107 insert entries expose source column' => static fn (TestRunner $t) => $t->same(['option_value'], array_values(array_unique(array_column($plan()['insert_entries'], 'sourceColumn')))),
+    'jsonb generated index operator current source next107 delete entries expose source column' => static fn (TestRunner $t) => $t->same(['key_value'], array_values(array_unique(array_column($plan()['delete_entries'], 'sourceColumn')))),
+    'jsonb generated index operator current source next107 insert entries expose source column' => static fn (TestRunner $t) => $t->same(['key_value'], array_values(array_unique(array_column($plan()['insert_entries'], 'sourceColumn')))),
     'jsonb generated index operator current source next107 row change embeds current value' => static fn (TestRunner $t) => $t->same('stable', $plan()['row_transitions'][0]['index_changes'][0]['currentValue']),
     'jsonb generated index operator current source next107 row change embeds next value' => static fn (TestRunner $t) => $t->same('rc', $plan()['row_transitions'][0]['index_changes'][0]['nextValue']),
     'jsonb generated index operator current source next107 row change embeds canonical json next value' => static fn (TestRunner $t) => $t->same('{"daily":30}', $plan()['row_transitions'][0]['index_changes'][2]['nextValue']),
-    'jsonb generated index operator current source next107 preserves deleted current row' => static fn (TestRunner $t) => $t->same('plugin_empty_settings', $plan()['row_transitions'][3]['current']['option_name']),
-    'jsonb generated index operator current source next107 preserves inserted next row' => static fn (TestRunner $t) => $t->same('plugin_shop_settings', $plan()['row_transitions'][4]['next']['option_name']),
+    'jsonb generated index operator current source next107 preserves deleted current row' => static fn (TestRunner $t) => $t->same('feature_empty_settings', $plan()['row_transitions'][3]['current']['key_name']),
+    'jsonb generated index operator current source next107 preserves inserted next row' => static fn (TestRunner $t) => $t->same('feature_shop_settings', $plan()['row_transitions'][4]['next']['key_name']),
     'jsonb generated index operator current source next107 ignores non operator indexes' => static function (TestRunner $t) use ($currentRows, $nextRows): void {
         $plan = SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan([
-            ['name' => 'idx_plain', 'sql' => 'CREATE INDEX idx_plain ON wp_options(option_name)'],
+            ['name' => 'idx_plain', 'sql' => 'CREATE INDEX idx_plain ON app_settings(key_name)'],
         ], $currentRows(), $nextRows());
         $t->same([], $plan['indexes']);
         $t->same([], $plan['delete_entries']);
         $t->same([], $plan['insert_entries']);
     },
     'jsonb generated index operator current source next107 rejects missing rowid' => static function (TestRunner $t) use ($indexes, $nextRows): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan($indexes(), [['option_value' => '{}']], $nextRows()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan($indexes(), [['key_value' => '{}']], $nextRows()));
     },
     'jsonb generated index operator current source next107 rejects duplicate rowid' => static function (TestRunner $t) use ($indexes, $currentRows, $nextRows): void {
         $rows = $currentRows();
@@ -155,10 +155,10 @@ $tests = [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan($indexes(), $rows, $nextRows()));
     },
     'jsonb generated index operator current source next107 rejects missing source column' => static function (TestRunner $t) use ($indexes, $nextRows): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan($indexes(), [['option_id' => 1]], $nextRows()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan($indexes(), [['setting_id' => 1]], $nextRows()));
     },
     'jsonb generated index operator current source next107 rejects non json source column' => static function (TestRunner $t) use ($indexes, $nextRows): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan($indexes(), [['option_id' => 1, 'autoload' => 'yes', 'option_value' => ['bad']]], $nextRows()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan($indexes(), [['setting_id' => 1, 'load_policy' => 'yes', 'key_value' => ['bad']]], $nextRows()));
     },
 ];
 

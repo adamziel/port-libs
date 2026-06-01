@@ -517,6 +517,30 @@ try {
     echo 'malformed-import-supports: rejected-before-read' . PHP_EOL;
 }
 
+$escapedSupportsBundle = (new CssBundler())->bundle('/escaped-supports-import.css', [
+    '/escaped-supports-import.css' => <<<'CSS'
+@import "remote-fonts.css" supports(\6e ot (font-tech(color-COLRv1)));
+@import "blocks/card.css" supports((display: grid) \61nd s\65lector(.wp-block-card > .wp-block-heading));
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/blocks/card.css' => '.wp-block-card { color: green; }',
+], static function (string $specifier, string $originatingFile): array|string {
+    if ($specifier === 'remote-fonts.css') {
+        return ['external' => 'https://fonts.example/blocks.css'];
+    }
+
+    return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+});
+
+if ($escapedSupportsBundle !== '@import "https://fonts.example/blocks.css" supports(not font-tech(color-COLRv1));@supports (display:grid) and selector(.wp-block-card > .wp-block-heading){.wp-block-card{color:green}}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected escaped import supports identifiers to normalize before bundling\n");
+    exit(1);
+}
+
+echo 'escaped-import-supports: normalized' . PHP_EOL;
+
 $mediaBooleanBundle = (new CssBundler())->bundle('/entry.css', [
     '/entry.css' => '@import "print.css" layer(theme.blocks) print; .entry { color: red }',
     '/print.css' => '@import "wide.css" not screen and (width >= 240px); .wp-block-query { color: blue }',

@@ -1501,6 +1501,37 @@ return [
         $t->same(['parent0', 'parent1', 'parent2', 'parent3', 'parent4', 'childRule'], $data['names']);
         $t->same(5, $decoded[1]['nameIndex']);
     },
+    'source map replaces parent mappings with leading empty child offset spans' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $entry = $parent->addSource('entry.css');
+        foreach ([0, 1, 2, 3, 4] as $line) {
+            $parent->addMapping($line, 0, $entry, $line, 0, 'parent' . $line);
+        }
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('child.css');
+        $child->setSourceContent($childSource, ".child{}\n");
+        $child->addMapping(0, 3, $childSource, 7, 1, 'childRule');
+        $child->offsetLines(0, 2);
+
+        $t->same(';;GAOCA', $child->writeVlq());
+
+        $parent->addSourceMap($child, 1);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $data = $parent->toArray(null, false);
+
+        $t->same('AAAAA;;;GCOCK;ADHDD', $parent->writeVlq());
+        $t->same([0, 3, 4], array_column($decoded, 'generatedLine'));
+        $t->same([0, 3, 0], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 1, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 7, 4], array_column($decoded, 'originalLine'));
+        $t->same([0, 5, 4], array_column($decoded, 'nameIndex'));
+        $t->same(['entry.css', 'child.css'], $data['sources']);
+        $t->same(['', ".child{}\n"], $data['sourcesContent']);
+        $t->same(['parent0', 'parent1', 'parent2', 'parent3', 'parent4', 'childRule'], $data['names']);
+        $t->same([], $child->getSources());
+        $t->same('', $child->writeVlq());
+    },
     'source map consumes nested source maps after upstream add_sourcemap merge' => static function (TestRunner $t): void {
         $parent = new SourceMap();
         $entry = $parent->addSource('entry.css');

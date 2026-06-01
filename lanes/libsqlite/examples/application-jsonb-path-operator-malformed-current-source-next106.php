@@ -10,57 +10,57 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $currentRows = [
     [
-        'option_id' => 1,
-        'option_name' => 'plugin_cache_settings',
-        'option_value' => '{"plugin":{"name":"cache","enabled":true,"priority":7,"limits":{"daily":25}}}',
-        'autoload' => 'yes',
+        'setting_id' => 1,
+        'key_name' => 'feature_cache_settings',
+        'key_value' => '{"feature":{"name":"cache","enabled":true,"priority":7,"limits":{"daily":25}}}',
+        'load_policy' => 'yes',
     ],
     [
-        'option_id' => 2,
-        'option_name' => 'plugin_forms_settings',
-        'option_value' => new SQLiteBlobValue(SQLiteJsonB::encode([
-            'plugin' => [
+        'setting_id' => 2,
+        'key_name' => 'feature_forms_settings',
+        'key_value' => new SQLiteBlobValue(SQLiteJsonB::encode([
+            'feature' => [
                 'name' => 'forms',
                 'enabled' => false,
                 'priority' => 3,
                 'limits' => ['daily' => 10],
             ],
         ])),
-        'autoload' => 'no',
+        'load_policy' => 'no',
     ],
 ];
 
 $nextRows = [
     $currentRows[0],
     [
-        'option_id' => 2,
-        'option_name' => 'plugin_forms_settings',
-        'option_value' => new SQLiteBlobValue("\xcc" . '{"plugin":{"name":"forms"}}'),
-        'autoload' => 'no',
+        'setting_id' => 2,
+        'key_name' => 'feature_forms_settings',
+        'key_value' => new SQLiteBlobValue("\xcc" . '{"feature":{"name":"forms"}}'),
+        'load_policy' => 'no',
     ],
     [
-        'option_id' => 3,
-        'option_name' => 'plugin_empty_settings',
-        'option_value' => '{"plugin":{"enabled":false}}',
-        'autoload' => 'no',
+        'setting_id' => 3,
+        'key_name' => 'feature_empty_settings',
+        'key_value' => '{"feature":{"enabled":false}}',
+        'load_policy' => 'no',
     ],
 ];
 
 $textPlan = SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare(
     $currentRows,
     $nextRows,
-    '$.plugin.name',
+    '$.feature.name',
     '->>',
 );
 $valuePlan = SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare(
     $currentRows,
     $nextRows,
-    '$.plugin.limits',
+    '$.feature.limits',
     '->',
 );
 
 echo json_encode([
-    'applicationUse' => 'Copied wp_options import diagnostics can keep the current JSONB path operator source stable while a next statement source contains malformed JSONB blobs, distinguishing malformed JSONB from missing JSON paths before native SELECT execution aborts.',
+    'applicationUse' => 'Copied app_settings import diagnostics can keep the current JSONB path operator source stable while a next statement source contains malformed JSONB blobs, distinguishing malformed JSONB from missing JSON paths before native SELECT execution aborts.',
     'textOperator' => [
         'path' => $textPlan['path'],
         'operator' => $textPlan['operator'],

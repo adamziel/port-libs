@@ -1334,7 +1334,7 @@ final class CssBundler
             } catch (CssBundleException $exception) {
                 throw new CssBundleException('parser-error', $exception->getMessage(), $file, $loc['line'], $loc['column']);
             }
-            $supports = trim(substr($rest, $open + 1, $close - $open - 1));
+            $supports = $this->normalizeSupportsIdentifierEscapes(trim(substr($rest, $open + 1, $close - $open - 1)));
             $this->validateImportSupportsCondition($supports, $file, $loc);
             $offset = $close + 1;
             $offset = $this->skipWhitespaceAndComments($rest, $offset);
@@ -1554,6 +1554,90 @@ final class CssBundler
     private function isSupportsLogicalOperator(string $identifier): bool
     {
         return strcasecmp($identifier, 'and') === 0 || strcasecmp($identifier, 'or') === 0;
+    }
+
+    private function normalizeSupportsIdentifierEscapes(string $condition): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($condition);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $condition[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $condition[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '/' && ($condition[$i + 1] ?? '') === '*') {
+                $end = strpos($condition, '*/', $i + 2);
+                if ($end === false) {
+                    throw new CssBundleException('parser-error', 'CSS contains an unbalanced comment');
+                }
+
+                $output .= substr($condition, $i, $end - $i + 2);
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($this->isSupportsIdentifierStart($condition, $i)) {
+                $identifier = $this->readCssIdentifierToken($condition, $i);
+                if ($identifier !== null) {
+                    $output .= $this->serializeCssIdentifier($identifier['name']);
+                    $i = $identifier['end'] - 1;
+                    continue;
+                }
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function isSupportsIdentifierStart(string $condition, int $offset): bool
+    {
+        $char = $condition[$offset] ?? '';
+        if ($char === '') {
+            return false;
+        }
+
+        if ($char === '\\') {
+            return $this->isValidCssEscape($condition, $offset);
+        }
+
+        $byte = ord($char);
+        if ($byte >= 0x80 || $char === '_' || ctype_alpha($char)) {
+            return true;
+        }
+
+        if ($char !== '-') {
+            return false;
+        }
+
+        $next = $condition[$offset + 1] ?? '';
+        if ($next === '') {
+            return false;
+        }
+
+        if ($next === '\\') {
+            return $this->isValidCssEscape($condition, $offset + 1);
+        }
+
+        return $next === '-' || $next === '_' || ctype_alpha($next) || ord($next) >= 0x80;
     }
 
     private function isValidSupportsInParens(string $value): bool
@@ -2170,6 +2254,41 @@ final class CssBundler
         }
 
         return $output . '"';
+    }
+
+    private function serializeCssIdentifier(string $identifier): string
+    {
+        $output = '';
+        $length = strlen($identifier);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $identifier[$i];
+            $byte = ord($char);
+
+            if ($i === 0 && ctype_digit($char)) {
+                $output .= '\\' . dechex($byte) . ' ';
+                continue;
+            }
+
+            if ($i === 1 && ($identifier[0] ?? '') === '-' && ctype_digit($char)) {
+                $output .= '\\' . dechex($byte) . ' ';
+                continue;
+            }
+
+            if ($this->isIdentifierChar($char) || $byte >= 0x80) {
+                $output .= $char;
+                continue;
+            }
+
+            if ($byte === 0 || ($byte >= 1 && $byte <= 31) || $byte === 127) {
+                $output .= '\\' . dechex($byte) . ' ';
+                continue;
+            }
+
+            $output .= '\\' . $char;
+        }
+
+        return $output;
     }
 
     private function supportsPrelude(string $condition): string

@@ -580,6 +580,52 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler decodes escaped import supports identifiers before graph resolution' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '@supports (display:grid) and (color:red){:root{--gap:1rem}}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "tokens.css" supports((display: grid) \61nd (color: red)); .entry { color: red }',
+                '/tokens.css' => ':root { --gap: 1rem }',
+            ], '/entry.css')
+        );
+
+        $t->same(
+            '@supports not (display:grid){:root{--gap:1rem}}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "tokens.css" supports(\6e ot (display: grid)); .entry { color: red }',
+                '/tokens.css' => ':root { --gap: 1rem }',
+            ], '/entry.css')
+        );
+
+        $t->same(
+            '@supports (width:1px) and (margin-left:-1px){:root{--gap:1rem}}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "tokens.css" supports((width: 1px) \61nd (margin-left: -1px)); .entry { color: red }',
+                '/tokens.css' => ':root { --gap: 1rem }',
+            ], '/entry.css')
+        );
+
+        $t->same(
+            '@supports selector(.wp-block-card > .wp-block-title){:root{--gap:1rem}}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "tokens.css" supports(s\65lector(.wp-block-card > .wp-block-title)); .entry { color: red }',
+                '/tokens.css' => ':root { --gap: 1rem }',
+            ], '/entry.css')
+        );
+
+        $resolved = [];
+        $t->same(
+            '@import "https://cdn.example/theme.css" supports((display:grid) and (color:red));.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "remote.css" supports((display: grid) \61nd (color: red)); .entry { color: red }',
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): array {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return ['external' => 'https://cdn.example/theme.css'];
+            })
+        );
+        $t->same([['remote.css', '/entry.css']], $resolved);
+    },
     'css bundler maps upstream url import modifiers with trailing media' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print{.b{color:green}}.a{color:red}',

@@ -16,8 +16,8 @@ final class SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan
         array $nextRows,
         string $path,
         string $operator = '->>',
-        string $jsonColumn = 'option_value',
-        string $rowidColumn = 'option_id',
+        string $jsonColumn = 'key_value',
+        string $rowidColumn = 'setting_id',
     ): array {
         if ($operator !== '->' && $operator !== '->>') {
             throw new \InvalidArgumentException('SQLite JSONB path operator current/next plan requires -> or ->>');

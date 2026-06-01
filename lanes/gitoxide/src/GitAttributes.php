@@ -270,6 +270,10 @@ final class GitAttributes
     {
         $out = '';
         $length = strlen($line);
+        if ($length < 2) {
+            return null;
+        }
+
         for ($i = 1; $i < $length; $i++) {
             $char = $line[$i];
             if ($char === '"') {
@@ -283,18 +287,49 @@ final class GitAttributes
                 return null;
             }
             $next = $line[++$i];
-            $out .= match ($next) {
+            if ($next === '0' || $next === '1' || $next === '2' || $next === '3') {
+                $octal = self::consumeQuotedPatternOctalByte($line, $i);
+                if ($octal === null) {
+                    return null;
+                }
+                $out .= $octal;
+                continue;
+            }
+
+            $replacement = match ($next) {
                 'n' => "\n",
                 'r' => "\r",
                 't' => "\t",
-                'b' => "\x08",
                 'a' => "\x07",
+                'b' => "\x08",
                 'v' => "\x0b",
-                default => $next,
+                'f' => "\x0c",
+                '"', '\\' => $next,
+                default => null,
             };
+            if ($replacement === null) {
+                return null;
+            }
+            $out .= $replacement;
         }
 
-        return null;
+        return [$out, ''];
+    }
+
+    private static function consumeQuotedPatternOctalByte(string $line, int &$index): ?string
+    {
+        if (!isset($line[$index + 1], $line[$index + 2])) {
+            return null;
+        }
+
+        $digits = $line[$index] . $line[$index + 1] . $line[$index + 2];
+        if (strspn($digits, '01234567') !== 3) {
+            return null;
+        }
+
+        $index += 2;
+
+        return chr(octdec($digits));
     }
 
     /**

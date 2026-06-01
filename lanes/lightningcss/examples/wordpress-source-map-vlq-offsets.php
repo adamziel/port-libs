@@ -226,6 +226,19 @@ $negativeChildLineOffsetChild->offsetLines(1, 2);
 $negativeChildLineOffsetParent->addSourceMap($negativeChildLineOffsetChild, -1);
 $negativeChildLineOffsetChildConsumed = $negativeChildLineOffsetChild->toJson(null, false);
 
+$leadingEmptyChildOffsetParent = new SourceMap();
+$leadingEmptyChildOffsetParentSource = $leadingEmptyChildOffsetParent->addSource('wp-content/themes/example/source-map-leading-child-parent.css');
+for ($line = 0; $line < 5; $line++) {
+    $leadingEmptyChildOffsetParent->addMapping($line, 0, $leadingEmptyChildOffsetParentSource, $line, 0, 'leading-parent-line-' . $line);
+}
+$leadingEmptyChildOffsetChild = new SourceMap();
+$leadingEmptyChildOffsetChildSource = $leadingEmptyChildOffsetChild->addSource('wp-content/themes/example/source-map-leading-child.css');
+$leadingEmptyChildOffsetChild->setSourceContent($leadingEmptyChildOffsetChildSource, ".wp-block-leading-child{}\n");
+$leadingEmptyChildOffsetChild->addMapping(0, 3, $leadingEmptyChildOffsetChildSource, 7, 1, 'leading-child-rule');
+$leadingEmptyChildOffsetChild->offsetLines(0, 2);
+$leadingEmptyChildOffsetParent->addSourceMap($leadingEmptyChildOffsetChild, 1);
+$leadingEmptyChildOffsetChildConsumed = $leadingEmptyChildOffsetChild->toJson(null, false);
+
 $generatedOnlyOffsetMap = new SourceMap();
 $generatedOnlyOffsetSource = $generatedOnlyOffsetMap->addSource('wp-content/themes/example/generated-offset.css');
 $generatedOnlyOffsetMap->setSourceContent($generatedOnlyOffsetSource, ".wp-block-generated-offset{display:block}\n");
@@ -793,6 +806,8 @@ $actual = [
     'rawLeadingSemicolonOffsetMap' => $rawLeadingSemicolonOffsetMap->toJson(null, false),
     'negativeChildLineOffsetMap' => $negativeChildLineOffsetParent->toJson(null, false),
     'negativeChildLineOffsetChildConsumed' => $negativeChildLineOffsetChildConsumed,
+    'leadingEmptyChildOffsetMap' => $leadingEmptyChildOffsetParent->toJson(null, false),
+    'leadingEmptyChildOffsetChildConsumed' => $leadingEmptyChildOffsetChildConsumed,
     'generatedOnlyOffsetMap' => $generatedOnlyOffsetMap->toJson(null, false),
     'mappingRecordOffsetMap' => $mappingRecordOffsetMap->toJson(null, false),
     'dedupedRawVlqOffsetMap' => $dedupedRawVlqOffsetMap->toJson(null, false),
@@ -887,6 +902,8 @@ if (($argv[1] ?? null) === '--self-test') {
         'rawLeadingSemicolonOffsetMap' => '{"version":3,"mappings":";;;;GACA","sources":["wp-content/themes/example/source-map-leading-semicolon.css"],"sourcesContent":[".wp-block-leading-semicolon{}"],"names":[]}',
         'negativeChildLineOffsetMap' => '{"version":3,"mappings":";;AAEAE;AACAC","sources":["wp-content/themes/example/negative-child-parent.css","wp-content/themes/example/negative-child.css"],"sourcesContent":[],"names":["negative-child-parent-0","negative-child-parent-1","negative-child-parent-2","negative-child-parent-3","negative-child-rule"]}',
         'negativeChildLineOffsetChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'leadingEmptyChildOffsetMap' => '{"version":3,"mappings":"AAAAA;;;GCOCK;ADHDD","sources":["wp-content/themes/example/source-map-leading-child-parent.css","wp-content/themes/example/source-map-leading-child.css"],"sourcesContent":["",".wp-block-leading-child{}\n"],"names":["leading-parent-line-0","leading-parent-line-1","leading-parent-line-2","leading-parent-line-3","leading-parent-line-4","leading-child-rule"]}',
+        'leadingEmptyChildOffsetChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'generatedOnlyOffsetMap' => '{"version":3,"mappings":";;Y,MAAAA;E","sources":["wp-content/themes/example/generated-offset.css"],"sourcesContent":[".wp-block-generated-offset{display:block}\n"],"names":["generated-offset-rule"]}',
         'mappingRecordOffsetMap' => '{"version":3,"mappings":";;OAIGA;M","sources":["wp-content/themes/example/source-map-record-offset.css"],"sourcesContent":[".wp-block-record-offset{}\n"],"names":["record-offset-rule"]}',
         'dedupedRawVlqOffsetMap' => '{"version":3,"mappings":";;GAAAA,ICEGC;GDACD","sources":["shared.css","blocks/card.css"],"sourcesContent":[".wp-block-shared{color:rebeccapurple}",".wp-block-card{color:red}"],"names":["shared-block-rule","card-block-rule"]}',

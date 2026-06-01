@@ -22,6 +22,12 @@ $classAttributes = GitAttributes::fromString(
     . "wp-content/plugins/foo[/]bar.php slash-class\n",
     withBuiltInMacros: false,
 );
+$quotedPatternAttributes = GitAttributes::fromString(
+    "\"wp-content/uploads/slot\\040hero.jpg\" quoted-space\n"
+    . "\"wp-content/uploads/form\\fhero.jpg\" formfeed-upload\n"
+    . "\"wp-content/uploads/bad\\qhero.jpg\" invalid-escape\n",
+    withBuiltInMacros: false,
+);
 $doubleStarAttributes = GitAttributes::fromString(
     "wp-content/plugins/a**f.php component-local\n"
     . "wp-content/plugins/**.php top-level-php\n"
@@ -98,6 +104,10 @@ $nestedDeploymentSearch = PathspecSearch::fromSpecs([
     ':!:(attr:-deploy)wp-content/plugins/gutenberg/build/**',
     ':!:(attr:export-ignore)wp-content/cache/**',
 ]);
+$quotedSpacePath = 'wp-content/uploads/slot hero.jpg';
+$quotedFormFeedPath = "wp-content/uploads/form\x0chero.jpg";
+$quotedSpaceSearch = PathspecSearch::fromSpecs([':(attr:quoted-space)wp-content/uploads/**']);
+$quotedFormFeedSearch = PathspecSearch::fromSpecs([':(attr:formfeed-upload)wp-content/uploads/**']);
 $valueTabRequirementRejected = false;
 try {
     PathspecMatcher::fromSpecs([":(attr:deploy=plugin\treview=yes)wp-content/plugins/**"]);
@@ -180,6 +190,28 @@ return [
         false,
         $classAttributes,
     ),
+    'quotedSpaceUploadAttributes' => $quotedPatternAttributes->attributesForPath(
+        $quotedSpacePath,
+        ['quoted-space'],
+    ),
+    'quotedSpaceUploadPathspecMatches' => $quotedSpaceSearch->isIncluded(
+        $quotedSpacePath,
+        false,
+        $quotedPatternAttributes,
+    ),
+    'quotedSpaceUploadOctalTextSkipped' => !$quotedSpaceSearch->isIncluded(
+        'wp-content/uploads/slot040hero.jpg',
+        false,
+        $quotedPatternAttributes,
+    ),
+    'quotedFormFeedUploadPathspecMatches' => $quotedFormFeedSearch->isIncluded(
+        $quotedFormFeedPath,
+        false,
+        $quotedPatternAttributes,
+    ),
+    'invalidQuotedEscapeAttributeSkipped' => !PathspecSearch::fromSpecs([
+        ':(attr:invalid-escape)wp-content/uploads/**',
+    ])->isIncluded('wp-content/uploads/badqhero.jpg', false, $quotedPatternAttributes),
     'slashClassDoesNotCrossDirectory' => !PathspecMatcher::matchesOne(
         ':(attr:slash-class)wp-content/plugins/**',
         'wp-content/plugins/foo/bar.php',

@@ -21,22 +21,22 @@ use PortLibs\LibSqlite\SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan;
 $jsonb = static fn (array $value): SQLiteBlobValue => new SQLiteBlobValue(SQLiteJsonB::encode($value));
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache_settings', 'autoload' => 'yes', 'option_value' => $jsonb(['plugin' => ['channel' => 'stable', 'priority' => 7, 'limits' => ['daily' => 25]]])],
-    ['option_id' => 2, 'option_name' => 'plugin_forms_settings', 'autoload' => 'no', 'option_value' => $jsonb(['plugin' => ['channel' => 'beta', 'priority' => 3, 'limits' => ['daily' => 10]]])],
+    ['setting_id' => 1, 'key_name' => 'feature_cache_settings', 'load_policy' => 'yes', 'key_value' => $jsonb(['feature' => ['channel' => 'stable', 'priority' => 7, 'limits' => ['daily' => 25]]])],
+    ['setting_id' => 2, 'key_name' => 'feature_forms_settings', 'load_policy' => 'no', 'key_value' => $jsonb(['feature' => ['channel' => 'beta', 'priority' => 3, 'limits' => ['daily' => 10]]])],
 ];
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache_settings', 'autoload' => 'yes', 'option_value' => $jsonb(['plugin' => ['channel' => 'rc', 'priority' => 8, 'limits' => ['daily' => 30]]])],
-    ['option_id' => 2, 'option_name' => 'plugin_forms_settings', 'autoload' => 'yes', 'option_value' => $jsonb(['plugin' => ['channel' => 'beta', 'priority' => 3, 'limits' => ['daily' => 10]]])],
+    ['setting_id' => 1, 'key_name' => 'feature_cache_settings', 'load_policy' => 'yes', 'key_value' => $jsonb(['feature' => ['channel' => 'rc', 'priority' => 8, 'limits' => ['daily' => 30]]])],
+    ['setting_id' => 2, 'key_name' => 'feature_forms_settings', 'load_policy' => 'yes', 'key_value' => $jsonb(['feature' => ['channel' => 'beta', 'priority' => 3, 'limits' => ['daily' => 10]]])],
 ];
 
 $plan = SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan([
-    ['name' => 'idx_wp_options_plugin_channel', 'rootPage' => 501, 'sql' => "CREATE INDEX idx_wp_options_plugin_channel ON wp_options((option_value ->> '$.plugin.channel') COLLATE NOCASE, option_name) WHERE autoload = 'yes'"],
-    ['name' => 'idx_wp_options_plugin_limits', 'rootPage' => 502, 'sql' => "CREATE INDEX idx_wp_options_plugin_limits ON wp_options((option_value -> '$.plugin.limits') COLLATE BINARY, option_name)"],
+    ['name' => 'idx_app_settings_feature_channel', 'rootPage' => 501, 'sql' => "CREATE INDEX idx_app_settings_feature_channel ON app_settings((key_value ->> '$.feature.channel') COLLATE NOCASE, key_name) WHERE load_policy = 'yes'"],
+    ['name' => 'idx_app_settings_feature_limits', 'rootPage' => 502, 'sql' => "CREATE INDEX idx_app_settings_feature_limits ON app_settings((key_value -> '$.feature.limits') COLLATE BINARY, key_name)"],
 ], $currentRows, $nextRows);
 
 echo json_encode([
     'scenario' => 'application-jsonb-generated-index-operator-current-source-next107',
-    'applicationUse' => 'Copied wp_options JSONB plugin settings can maintain generated expression indexes declared with SQLite JSON -> and ->> operators across current/next import rows, including partial autoload activation and canonical JSON object keys, without requiring ext/sqlite.',
+    'applicationUse' => 'Copied app_settings JSONB feature settings can maintain generated expression indexes declared with SQLite JSON -> and ->> operators across current/next import rows, including partial load_policy activation and canonical JSON object keys, without requiring ext/sqlite.',
     'indexes' => array_column($plan['indexes'], 'name'),
     'deleteEntries' => $plan['delete_entries'],
     'insertEntries' => $plan['insert_entries'],

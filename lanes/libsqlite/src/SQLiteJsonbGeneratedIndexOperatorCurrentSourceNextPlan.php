@@ -16,7 +16,7 @@ final class SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan
         array $indexDefinitions,
         array $currentRows,
         array $nextRows,
-        string $rowidColumn = 'option_id',
+        string $rowidColumn = 'setting_id',
     ): array {
         $indexes = self::operatorIndexes($indexDefinitions);
         $currentByRowid = self::rowsByRowid($currentRows, $rowidColumn, 'current');

@@ -103,6 +103,39 @@ return [
             $attributes,
         ));
     },
+    'quoted attribute patterns follow gix ansi c unquoting before attr pathspec matching' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString(
+            "\"wp-content/uploads/slot\\040hero.jpg\" quoted-space\n"
+            . "\"wp-content/uploads/form\\fhero.jpg\" formfeed-upload\n"
+            . "\"wp-content/uploads/bad\\qhero.jpg\" invalid-escape\n",
+            withBuiltInMacros: false,
+        );
+        $spacePath = 'wp-content/uploads/slot hero.jpg';
+        $formFeedPath = "wp-content/uploads/form\x0chero.jpg";
+
+        $t->same(['quoted-space' => true], $attributes->attributesForPath($spacePath, ['quoted-space']));
+        $t->same(['quoted-space' => null], $attributes->attributesForPath('wp-content/uploads/slot040hero.jpg', ['quoted-space']));
+        $t->same(['formfeed-upload' => true], $attributes->attributesForPath($formFeedPath, ['formfeed-upload']));
+        $t->same(['formfeed-upload' => null], $attributes->attributesForPath('wp-content/uploads/formfhero.jpg', ['formfeed-upload']));
+        $t->same(['invalid-escape' => null], $attributes->attributesForPath('wp-content/uploads/badqhero.jpg', ['invalid-escape']));
+
+        $t->same(true, PathspecMatcher::matchesOne(
+            ':(attr:quoted-space)wp-content/uploads/**',
+            $spacePath,
+            false,
+            $attributes,
+        ));
+        $t->same(false, PathspecMatcher::matchesOne(
+            ':(attr:quoted-space)wp-content/uploads/**',
+            'wp-content/uploads/slot040hero.jpg',
+            false,
+            $attributes,
+        ));
+        $t->same(true, PathspecSearch::fromSpecs([':(attr:formfeed-upload)wp-content/uploads/**'])
+            ->isIncluded($formFeedPath, false, $attributes));
+        $t->same(false, PathspecSearch::fromSpecs([':(attr:invalid-escape)wp-content/uploads/**'])
+            ->isIncluded('wp-content/uploads/badqhero.jpg', false, $attributes));
+    },
     'attribute pathspec filters follow gix reversed character range boundaries' => static function (TestRunner $t): void {
         $warnings = [];
         set_error_handler(static function (int $errno, string $message) use (&$warnings): bool {
@@ -568,6 +601,11 @@ return [
         $t->same(['dated-upload' => true], $example['datedUploadAttributes']);
         $t->same(true, $example['datedUploadPathspecMatches']);
         $t->same(true, $example['slashClassDoesNotCrossDirectory']);
+        $t->same(['quoted-space' => true], $example['quotedSpaceUploadAttributes']);
+        $t->same(true, $example['quotedSpaceUploadPathspecMatches']);
+        $t->same(true, $example['quotedSpaceUploadOctalTextSkipped']);
+        $t->same(true, $example['quotedFormFeedUploadPathspecMatches']);
+        $t->same(true, $example['invalidQuotedEscapeAttributeSkipped']);
         $t->same(['backslash-plugin' => true], $example['backslashPathAttributes']);
         $t->same(['backslash-plugin' => null], $example['slashPathDoesNotMatchBackslashAttribute']);
         $t->same(true, $example['backslashPathspecMatchesByte']);

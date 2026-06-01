@@ -6323,6 +6323,128 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    public static function win32NoLockProfile(string $scenario, array $options = []): array
+    {
+        $scenario = strtolower(trim($scenario));
+        $cacheScenarios = ['win32nolock-1.3', 'win32nolock-1.4', 'win32nolock-1.5', 'win32nolock-1.6', 'win32nolock-1.7'];
+        $lockScenarios = ['win32nolock-1.9.1', 'win32nolock-1.10.1', 'win32nolock-1.11.1', 'win32nolock-1.12.1'];
+        if (!in_array($scenario, array_merge($cacheScenarios, $lockScenarios), true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite win32nolock scenario: {$scenario}");
+        }
+
+        $initialA = (int) ($options['initial_a'] ?? 1);
+        $initialB = (int) ($options['initial_b'] ?? 2);
+        $pendingA = (int) ($options['pending_a'] ?? 3);
+        $pendingB = (int) ($options['pending_b'] ?? 4);
+        $releaseMemoryBytes = (int) ($options['release_memory_bytes'] ?? 1000000);
+        if ($initialA < 1 || $initialB < 1 || $pendingA < 1 || $pendingB < 1) {
+            throw new \InvalidArgumentException('SQLite win32nolock profile row values must be positive integers');
+        }
+        if ($releaseMemoryBytes < 1) {
+            throw new \InvalidArgumentException('SQLite win32nolock profile requires a positive release-memory request');
+        }
+
+        $initialRows = [[$initialA, $initialB]];
+        $pendingRow = [$pendingA, $pendingB];
+        $freshRows = [$initialRows[0], $pendingRow];
+        $profile = [
+            'status' => 'ok',
+            'script' => 'win32nolock.test',
+            'scenario' => $scenario,
+            'platform' => 'windows',
+            'initial_rows' => $initialRows,
+            'pending_row' => $pendingRow,
+            'fresh_rows' => $freshRows,
+            'dependencies' => [
+                'sqlite-upstream-win32nolock-vfs',
+                'sqlite-vfs-win32-none-no-lock',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+
+        if (in_array($scenario, $cacheScenarios, true)) {
+            $observedRows = match ($scenario) {
+                'win32nolock-1.3' => $freshRows,
+                'win32nolock-1.7' => $freshRows,
+                default => $initialRows,
+            };
+            $observedPhase = match ($scenario) {
+                'win32nolock-1.3' => 'primary_select_during_uncommitted_transaction',
+                'win32nolock-1.4' => 'peer_select_before_peer_transaction',
+                'win32nolock-1.5' => 'peer_select_inside_peer_transaction',
+                'win32nolock-1.6' => 'peer_select_after_primary_commit_before_cache_refresh',
+                default => 'peer_select_after_memory_release_refresh',
+            };
+
+            return $profile + [
+                'upstream' => [
+                    'win32nolock.test win32nolock-1.2 opens db and db2 with -vfs win32-none and disables db2 mmap',
+                    'win32nolock.test win32nolock-1.3 writer connection sees its uncommitted insert',
+                    'win32nolock.test win32nolock-1.4 peer win32-none reader keeps the preexisting cached rows',
+                    'win32nolock.test win32nolock-1.5 peer transaction reads the stale cached rows',
+                    'win32nolock.test win32nolock-1.6 peer still reads stale rows after writer commit',
+                    'win32nolock.test win32nolock-1.7 sqlite3_release_memory refreshes the peer view when memory management is available',
+                ],
+                'primary_vfs' => 'win32-none',
+                'peer_vfs' => 'win32-none',
+                'peer_mmap_size' => 0,
+                'lock_calls_suppressed' => true,
+                'primary_transaction' => ['begin' => true, 'committed' => false, 'inserted_row' => $pendingRow],
+                'primary_select_during_transaction' => $freshRows,
+                'peer_select_before_begin' => $initialRows,
+                'peer_select_inside_transaction' => $initialRows,
+                'primary_commit_result' => ['code' => 0, 'message' => 'ok'],
+                'peer_select_after_commit_before_cache_refresh' => $initialRows,
+                'release_memory_request_bytes' => $releaseMemoryBytes,
+                'peer_select_after_memory_release' => $freshRows,
+                'memory_release_required_for_peer_refresh' => true,
+                'observed_phase' => $observedPhase,
+                'observed_rows' => $observedRows,
+                'change_counter_visible_without_lock_refresh' => $scenario === 'win32nolock-1.7',
+                'reason' => 'win32_none_peer_cache_stays_stale_until_memory_release',
+            ];
+        }
+
+        $primaryVfs = in_array($scenario, ['win32nolock-1.10.1', 'win32nolock-1.12.1'], true) ? 'win32-none' : 'win32';
+        $peerVfs = in_array($scenario, ['win32nolock-1.11.1', 'win32nolock-1.12.1'], true) ? 'win32-none' : 'win32';
+        $peerBlocked = $primaryVfs === 'win32' && $peerVfs === 'win32';
+        $primarySuppressesLocks = $primaryVfs === 'win32-none';
+        $peerSuppressesLocks = $peerVfs === 'win32-none';
+
+        return $profile + [
+            'upstream' => [
+                'win32nolock.test win32nolock-1.9.1 two ordinary win32 handles reject the second BEGIN EXCLUSIVE',
+                'win32nolock.test win32nolock-1.10.1 win32-none writer plus ordinary peer both begin exclusive transactions',
+                'win32nolock.test win32nolock-1.11.1 ordinary writer plus win32-none peer both begin exclusive transactions',
+                'win32nolock.test win32nolock-1.12.1 two win32-none handles both begin exclusive transactions',
+            ],
+            'primary_vfs' => $primaryVfs,
+            'peer_vfs' => $peerVfs,
+            'primary_suppresses_locks' => $primarySuppressesLocks,
+            'peer_suppresses_locks' => $peerSuppressesLocks,
+            'primary_begin_exclusive' => ['code' => 0, 'message' => 'ok'],
+            'peer_begin_exclusive' => $peerBlocked
+                ? ['code' => 1, 'message' => 'database is locked']
+                : ['code' => 0, 'message' => 'ok'],
+            'peer_blocked_by_primary_exclusive' => $peerBlocked,
+            'both_exclusive_transactions_allowed' => !$peerBlocked,
+            'lock_arbitration' => $peerBlocked ? 'ordinary_win32_byte_range_lock' : 'win32_none_no_lock_bypass',
+            'lock_calls' => [
+                'primary_x_lock' => $primarySuppressesLocks ? 0 : 1,
+                'peer_x_lock' => $peerSuppressesLocks ? 0 : ($peerBlocked ? 1 : 1),
+                'primary_x_unlock' => $primarySuppressesLocks ? 0 : 1,
+                'peer_x_unlock' => $peerSuppressesLocks ? 0 : ($peerBlocked ? 0 : 1),
+            ],
+            'reason' => $peerBlocked
+                ? 'ordinary_win32_handles_enforce_exclusive_transaction_contention'
+                : 'win32_none_vfs_bypasses_exclusive_transaction_lock_arbitration',
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     private static function multiplexChunkFiles(string $baseName, int $chunkCount, bool $shortNames): array
