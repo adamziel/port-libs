@@ -169,7 +169,7 @@
         }
     },
     "benchmarkDenominator": {
-        "status": "current-base libsqlite B-tree/PRAGMA real corpus and source-neutral encoding/trigger batch",
+        "status": "current-base libsqlite pager/WAL and trigger/FK real corpus batch",
         "total": 1589,
         "mapped": 1589,
         "latestMappedAddition": "Mapped denominator remains complete at 1589 / 1589. Accepted source commit 4fbc50ac adds focused PHP evidence for real upstream e_fkey runtime intro dynamic corpus coverage and source-neutral STAT4 planner key-field cleanup without claiming release/all parity.",
