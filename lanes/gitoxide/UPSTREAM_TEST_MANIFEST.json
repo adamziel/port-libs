@@ -811,7 +811,7 @@
   "latestNativePhpVerification": "Source commit pending in current supervisor batch passed php -l on 32 changed/new PHP files across Gitoxide, LightningCSS, and libsqlite; Gitoxide full lane passed 40 files / 6720 assertions / 0 failures; 3 touched Gitoxide examples exited 0; git diff --check passed.",
   "runnerStatus": "2026-06-01 supervisor batch: full Gitoxide lane passed 40 files / 6720 assertions / 0 failures after accepting reference transaction delete write-mode, MIDX/full-prefix lookup, and rename-rename-delete-delete tree-merge parity. Conservative mapped coverage 1696 / 2886. Full upstream Cargo workspace was not executed.",
   "latestFocusedSlice": "2026-06-01 supervisor batch: reference transaction delete/write-mode reflog parity, pack-index/MIDX full and missing prefix parity, and tree-merge rename-rename-delete-delete resolve-tree parity. Full Gitoxide lane passed 40 files / 6720 assertions / 0 failures.",
-  "latestCommit": "dc6ff07aec68e1e84e6a2666ec51a11acc59324c",
+  "latestCommit": "e899fc4a21fdb01ae8459804f624b30e40cbd9f5",
   "focusedGitCssSqliteBacklogBatch20260601T0058Z": {
     "sourceCommit": "dc6ff07aec68e1e84e6a2666ec51a11acc59324c",
     "mappedSliceIncrease": 7,

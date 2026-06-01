@@ -1574,7 +1574,7 @@
     "focusedCssModulesCssomCustomAtRulesTargetsBatch20260531T2325Z": "CssModulesTransformer, DeclarationBlock, CustomAtRuleTransformer, and TransitionPrefixer now cover the accepted current-base batch from source commit 89903d30c04a."
   },
   "latestFocusedSlice": "2026-06-01 supervisor batch: import supports() pre-resolution validation plus CSS Modules escaped composes comments, transform CSSOM, custom at-rule unit visitors, and env() resolution media-prefixing. Full LightningCSS lane passed 13 files / 5386 assertions / 0 failures.",
-  "latestCommit": "dc6ff07aec68e1e84e6a2666ec51a11acc59324c",
+  "latestCommit": "e899fc4a21fdb01ae8459804f624b30e40cbd9f5",
   "audit": "2026-05-31 supervisor batch at source 84ba60c031f8: full LightningCSS lane passed 13 files / 4453 assertions / 0 failures. Conservative mapped coverage moves from 2117 / 3532 to 2145 / 3532: +27 relative non-sRGB origin relative-color checks and +1 redundant nested-negation media range/layer behavior; escaped media identifiers, repeated custom at-rule preludes, and reader lexical import identities deepen represented clusters.",
   "focusedGitCssSqliteBacklogBatch20260601T0058Z": {
     "sourceCommit": "dc6ff07aec68e1e84e6a2666ec51a11acc59324c",

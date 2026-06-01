@@ -12,6 +12,6 @@
   "blocker": "Broad libsqlite full-lane/release parity is not green: sampled failures reproduce on clean base 5b8711146. Stricter source cleanup is still required for pre-existing wp_ fixture text and CurrentSourceNext/CurrentNext/numbered-plan source names before declaring libsqlite complete.",
   "nextTask": "Keep two SQLite workers on broad full-lane failure triage and source-neutral cleanup, including b-tree vacuum pointer-map/cast affinity failures plus removing pre-existing wp_ fixture text and CurrentSourceNext/CurrentNext/numbered-plan source names.",
   "wordpressScenarioLatest": "No WordPress-specific libsqlite API was introduced in the latest accepted batch. Pre-existing wp_ fixture strings and CurrentSourceNext/CurrentNext class names remain cleanup debt.",
-  "latestCommit": "256829a937e910d6e9fcc40d24eedf8ae3406131",
-  "commit": "256829a937e910d6e9fcc40d24eedf8ae3406131"
+  "latestCommit": "e899fc4a21fdb01ae8459804f624b30e40cbd9f5",
+  "commit": "e899fc4a21fdb01ae8459804f624b30e40cbd9f5"
 }

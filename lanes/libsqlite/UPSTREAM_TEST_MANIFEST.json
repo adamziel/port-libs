@@ -3426,7 +3426,7 @@
   "latestFocusedSlice": "2026-06-01 supervisor batch: application WAL post-checkpoint tail followup plus real upstream atof1 REAL suffix 7000..7999 parity. Focused libsqlite gate passed 2 files / 17019 assertions / 0 failures with memory_limit=2048M; mapped denominator remains 1589 / 1589.",
   "latestNativePhpVerification": "Source commit pending in current supervisor batch passed php -l on 32 changed/new PHP files across Gitoxide, LightningCSS, and libsqlite; focused libsqlite gate passed 2 files / 17019 assertions / 0 failures with memory_limit=2048M; application WAL example exited 0; git diff --check and libsqlite source guard found no new WordPress-specific or numbered production source names.",
   "runnerStatus": "2026-06-01 supervisor batch: focused libsqlite gate passed 2 files / 17019 assertions / 0 failures with memory_limit=2048M after accepting application WAL post-checkpoint tail followup and atof1 REAL suffix 7000..7999 parity. Mapped coverage remains 1589 / 1589; release/all-runner parity remains open.",
-  "latestCommit": "dc6ff07aec68e1e84e6a2666ec51a11acc59324c",
+  "latestCommit": "e899fc4a21fdb01ae8459804f624b30e40cbd9f5",
   "latestFocusedCorpusBatch20260531T2250Z": {
     "sourceCommit": "48a678f72e367c869dc62452fbad34f36daa273b",
     "selectedPassIncrease": 2411,
@@ -3470,7 +3470,7 @@
   },
   "currentSlice": "2026-06-01 source 256829a937e910d6e9fcc40d24eedf8ae3406131: JSON101 hidden-root SELECT dynamic corpus and returning1 INSERT SELECT RETURNING transfer corpus.",
   "latestFocusedCorpusBatch20260601T0124Z": {
-    "sourceCommit": "pending-current-supervisor-batch",
+    "sourceCommit": "e899fc4a21fdb01ae8459804f624b30e40cbd9f5",
     "selectedPassIncrease": 14718,
     "selectedPassBefore": 5224352,
     "selectedPassAfter": 5239070,

@@ -10,7 +10,7 @@
   "audit": "2026-06-01 supervisor batch: full Gitoxide lane passed 40 files / 6720 assertions / 0 failures. Conservative mapped coverage moves from 1693 / 2886 to 1696 / 2886 for prepared reflog-only delete write-mode behavior, pack/MIDX full and missing prefix candidate parity, and rename-rename-delete-delete resolve-tree fixture behavior. Full upstream Cargo workspace was not executed.",
   "currentWork": "Reference transaction delete/write-mode reflog semantics, pack-index/MIDX prefix lookup boundaries, and rename-rename-delete-delete tree-merge resolve-tree behavior integrated on current base.",
   "blocker": "Full upstream Cargo workspace remains unexecuted. Native PHP full-lane evidence is green at 6720 assertions; keep bounded Gitoxide workers on config/include, credential, object database, transport, tree/pathspec, partial-clone, and protocol slices.",
-  "latestCommit": "256829a937e910d6e9fcc40d24eedf8ae3406131",
+  "latestCommit": "e899fc4a21fdb01ae8459804f624b30e40cbd9f5",
   "nextTask": "Keep three Gitoxide workers on current-base non-overlapping protocol, pack/object, reference transaction, config/include, credential, transport, tree/pathspec, sparse-checkout, URL/refspec, and merge-base slices with full-lane PHP gates after each accepted batch.",
-  "commit": "256829a937e910d6e9fcc40d24eedf8ae3406131"
+  "commit": "e899fc4a21fdb01ae8459804f624b30e40cbd9f5"
 }
