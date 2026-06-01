@@ -30,6 +30,7 @@ $root = new Tree([
     $blob('index.php'),
     $tree('wp-admin', new Tree([$blob('admin.php')])),
     $tree('wp-content', new Tree([
+        $tree('generated-cache', new Tree([$blob('manifest.json'), $blob('stale.tmp')])),
         $tree('mu-plugins', new Tree([$blob('Loader.PHP')])),
         $tree('plugins', new Tree([
             $tree('..', new Tree([$blob('secret.php')])),
@@ -157,6 +158,10 @@ $malformedPosixClassPathspecs = PathspecSearch::fromSpecs([
 $whitespaceDirectoryOnlyPathspecs = PathspecSearch::fromSpecs([
     '   /',
     "\f/",
+]);
+$negativeWildcardCachePathspecs = PathspecSearch::fromSpecs([
+    ':(glob)wp-content/*-cache/manifest.json',
+    ':!wp-content/*-cache',
 ]);
 $deploymentAttributes = GitAttributes::fromString(
     "wp-content/plugins/gutenberg/** deploy=plugin merge=union\n"
@@ -483,6 +488,20 @@ $whitespaceDirectoryOnlyRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$negativeWildcardCacheReadPaths = [];
+$negativeWildcardCacheRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $negativeWildcardCachePathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects, &$negativeWildcardCacheReadPaths): GitObject {
+        $negativeWildcardCacheReadPaths[] = $path;
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 
 return [
     'matchedContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $records),
@@ -557,6 +576,11 @@ return [
     'whitespaceDirectoryOnlySpaceFileIncluded' => $whitespaceDirectoryOnlyPathspecs->isIncluded('   ', false),
     'whitespaceDirectoryOnlyFormFeedFileIncluded' => $whitespaceDirectoryOnlyPathspecs->isIncluded("\f", false),
     'whitespaceDirectoryOnlySpaceMatchKind' => $whitespaceDirectoryOnlyPathspecs->match('   ', false)?->kind,
+    'negativeWildcardCacheDirectoryExcluded' => $negativeWildcardCachePathspecs->match('wp-content/generated-cache', true)?->isExcluded(),
+    'negativeWildcardCacheCanDescend' => $negativeWildcardCachePathspecs->canMatch('wp-content/generated-cache', true),
+    'negativeWildcardCacheReadPaths' => $negativeWildcardCacheReadPaths,
+    'negativeWildcardCacheContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $negativeWildcardCacheRecords),
+    'negativeWildcardCacheStaleSkipped' => !$negativeWildcardCachePathspecs->isIncluded('wp-content/generated-cache/stale.tmp', false),
     'attrFilteredContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $attrFilteredRecords),
     'attrFilteredWithoutProviderEmpty' => $attrFilteredWithoutProviderRecords === [],
     'rootEscapingPathspecRejected' => $rootEscapingPathspecRejected,

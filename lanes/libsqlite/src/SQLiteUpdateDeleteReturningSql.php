@@ -962,9 +962,10 @@ final class SQLiteUpdateDeleteReturningSql
         if ($currentDateTime !== null) {
             return SQLiteCoreScalarFunction::sqlFunctionArguments($currentDateTime, []);
         }
-        if (preg_match('/^CAST\s*\((.+)\s+AS\s+([A-Za-z]+)\s*\)$/is', $expression, $match) === 1) {
-            $value = self::limitExpressionValue(trim($match[1]));
-            return self::castLimitExpressionValue($value, strtoupper($match[2]));
+        $cast = self::splitLimitCastExpression($expression);
+        if ($cast !== null) {
+            $value = self::limitExpressionValue($cast['value']);
+            return self::castLimitExpressionValue($value, $cast['type']);
         }
         if (str_starts_with($expression, '+')) {
             return self::limitExpressionValue(substr($expression, 1));
@@ -1315,39 +1316,88 @@ final class SQLiteUpdateDeleteReturningSql
         return $value;
     }
 
+    /**
+     * @return array{value:string,type:string}|null
+     */
+    private static function splitLimitCastExpression(string $expression): ?array
+    {
+        if (preg_match('/^CAST\s*\((.*)\)$/is', $expression, $match) !== 1) {
+            return null;
+        }
+
+        $inner = trim($match[1]);
+        $asPosition = self::topLevelKeywordPosition($inner, 'AS');
+        if ($asPosition === null) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT CAST needs AS type-name');
+        }
+
+        $value = trim(substr($inner, 0, $asPosition));
+        $type = trim(substr($inner, $asPosition + strlen('AS')));
+        if ($value === '' || $type === '') {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT CAST needs expression and type-name');
+        }
+
+        return ['value' => $value, 'type' => $type];
+    }
+
     private static function castLimitExpressionValue(int|float|string|SQLiteBlobValue|null $value, string $type): int|float|string|null
     {
+        $affinity = self::castLimitTypeAffinity($type);
         if ($value === null) {
             return null;
         }
         if ($value instanceof SQLiteBlobValue) {
-            if ($type === 'BLOB' || $type === 'NONE') {
+            if ($affinity === 'BLOB') {
                 return null;
             }
             $value = $value->bytes;
         }
 
-        if ($type === 'INT' || $type === 'INTEGER') {
+        if ($affinity === 'INTEGER') {
             return (int) $value;
         }
-        if ($type === 'REAL' || $type === 'FLOAT' || $type === 'DOUBLE') {
+        if ($affinity === 'REAL') {
             return (float) $value;
         }
-        if ($type === 'TEXT' || $type === 'CHAR' || $type === 'CLOB') {
+        if ($affinity === 'TEXT') {
             return (string) $value;
         }
-        if ($type === 'NUMERIC') {
+        if ($affinity === 'NUMERIC') {
             if (is_int($value)) {
                 return $value;
             }
             $numeric = is_string($value) ? (float) $value : $value;
             return floor($numeric) === $numeric ? (int) $numeric : $numeric;
         }
-        if ($type === 'BLOB' || $type === 'NONE') {
+        if ($affinity === 'BLOB') {
             return null;
         }
 
         throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT CAST type {$type} is not supported");
+    }
+
+    private static function castLimitTypeAffinity(string $type): string
+    {
+        $normalized = strtoupper(trim($type));
+        $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
+        if ($normalized === '') {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT CAST type-name must not be empty');
+        }
+
+        if (str_contains($normalized, 'INT')) {
+            return 'INTEGER';
+        }
+        if (str_contains($normalized, 'CHAR') || str_contains($normalized, 'CLOB') || str_contains($normalized, 'TEXT')) {
+            return 'TEXT';
+        }
+        if (str_contains($normalized, 'BLOB') || $normalized === 'NONE') {
+            return 'BLOB';
+        }
+        if (str_contains($normalized, 'REAL') || str_contains($normalized, 'FLOA') || str_contains($normalized, 'DOUB')) {
+            return 'REAL';
+        }
+
+        return 'NUMERIC';
     }
 
     private static function evaluateLimitScalarFunction(string $function, string $arguments): int|float|string|SQLiteBlobValue|null

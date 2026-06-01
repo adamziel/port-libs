@@ -442,6 +442,54 @@ CSS,
 
         throw new RuntimeException('Expected late @import after post-import @layer statement exception');
     },
+    'css bundler preserves imports after unknown statement at-rules like upstream' => static function (TestRunner $t): void {
+        $reads = [];
+        $resolved = [];
+        $code = (new CssBundler())->bundleWithReader(
+            '/entry.css',
+            static function (string $file) use (&$reads): string {
+                $reads[] = $file;
+
+                return $file === '/entry.css'
+                    ? '@wp-bundle meta; @import "pkg:card\2e css" layer(theme.blocks) supports(display: grid) screen; .entry { color: red }'
+                    : '.card { color: green }';
+            },
+            static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return '/blocks/card.css';
+            }
+        );
+
+        $t->same(
+            '@wp-bundle meta;@import "pkg:card.css" layer(theme.blocks) supports(display:grid) screen;.entry{color:red}',
+            $code
+        );
+        $t->same(['/entry.css', '/blocks/card.css'], $reads);
+        $t->same([['pkg:card.css', '/entry.css']], $resolved);
+
+        $blockReads = [];
+        try {
+            (new CssBundler())->bundleWithReader('/entry.css', static function (string $file) use (&$blockReads): string {
+                $blockReads[] = $file;
+
+                return $file === '/entry.css'
+                    ? '@wp-bundle { color: red } @import "card.css"; .entry { color: red }'
+                    : '.card { color: green }';
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('parser-error', $exception->kind);
+            $t->same('@import rules must precede all rules aside from @charset and @layer statements', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(34, $exception->sourceColumn);
+            $t->same(['/entry.css'], $blockReads);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected block-form unknown at-rule to reject following @import');
+    },
     'css bundler rejects nested import rules before graph resolution' => static function (TestRunner $t): void {
         $assertNestedImportRejected = static function (string $css, int $line, int $column) use ($t): void {
             $reads = [];

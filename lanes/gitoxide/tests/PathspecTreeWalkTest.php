@@ -570,6 +570,107 @@ return [
         $t->same(true, $specificExcludes->canMatch('wp-content', true));
         $t->same(true, $specificExcludes->directoryMatchesPrefix('wp-content', true));
     },
+    'tree walk descends through excluded wildcard directories when descendants can match' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
+        $objects = [];
+        $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
+        $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
+            $object = $tree->toObject();
+            $objects[$object->oid()] = $object;
+
+            return new TreeEntry('040000', $name, $object->oid());
+        };
+        $root = new Tree([
+            $tree('wp-content', new Tree([
+                $tree('generated-cache', new Tree([
+                    $blob('manifest.json'),
+                    $blob('stale.tmp'),
+                ])),
+                $tree('media-cache', new Tree([
+                    $blob('manifest.json'),
+                ])),
+                $tree('generated', new Tree([
+                    $blob('manifest.json'),
+                ])),
+            ])),
+        ]);
+        $read = static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+            if (!isset($objects[$entry->oid])) {
+                throw new RuntimeException("Missing tree object for {$path}");
+            }
+
+            return $objects[$entry->oid];
+        };
+        $search = PathspecSearch::fromSpecs([
+            'wp-content/generated-cache/manifest.json',
+            'wp-content/media-cache/manifest.json',
+            ':!wp-content/*-cache',
+        ]);
+
+        $excludedDirectory = $search->match('wp-content/generated-cache', true);
+        $t->same(true, $excludedDirectory?->isExcluded());
+        $t->same(PathspecMatch::KIND_WILDCARD, $excludedDirectory?->kind);
+        $t->same(true, $search->canMatch('wp-content/generated-cache', true));
+        $t->same(true, $search->directoryMatchesPrefix('wp-content/generated-cache', true));
+        $t->same(true, $search->isIncluded('wp-content/generated-cache/manifest.json', false));
+        $t->same(false, $search->isIncluded('wp-content/generated-cache/stale.tmp', false));
+
+        $readPaths = [];
+        $records = TreePathspecWalk::breadthFirst(
+            $root,
+            $search,
+            static function (TreeEntry $entry, string $path) use ($read, &$readPaths): GitObject {
+                $readPaths[] = $path;
+
+                return $read($entry, $path);
+            },
+            includeTrees: false,
+        );
+
+        $t->same([
+            'wp-content/generated-cache/manifest.json',
+            'wp-content/media-cache/manifest.json',
+        ], $walkPaths($records));
+        $t->same([
+            'wp-content',
+            'wp-content/generated-cache',
+            'wp-content/media-cache',
+        ], $readPaths);
+
+        $withTrees = TreePathspecWalk::breadthFirst(
+            $root,
+            $search,
+            $read,
+            includeTrees: true,
+        );
+        $t->same([
+            'wp-content',
+            'wp-content/generated-cache/manifest.json',
+            'wp-content/media-cache/manifest.json',
+        ], $walkPaths($withTrees));
+
+        $directoryOnlyExclude = PathspecSearch::fromSpecs([
+            'wp-content/**',
+            ':!wp-content/generated-cache/',
+        ]);
+        $directoryOnlyMatch = $directoryOnlyExclude->match('wp-content/generated-cache', true);
+        $t->same(true, $directoryOnlyMatch?->isExcluded());
+        $t->same(PathspecMatch::KIND_VERBATIM, $directoryOnlyMatch?->kind);
+        $t->same(false, $directoryOnlyExclude->isIncluded('wp-content/generated-cache/manifest.json', false));
+
+        $directoryOnlyReadPaths = [];
+        $directoryOnlyPaths = $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $directoryOnlyExclude,
+            static function (TreeEntry $entry, string $path) use ($read, &$directoryOnlyReadPaths): GitObject {
+                $directoryOnlyReadPaths[] = $path;
+
+                return $read($entry, $path);
+            },
+            includeTrees: false,
+        ));
+        $t->same(false, in_array('wp-content/generated-cache', $directoryOnlyReadPaths, true));
+        $t->same(false, in_array('wp-content/generated-cache/manifest.json', $directoryOnlyPaths, true));
+    },
     'maps upstream can-match and directory-prefix pruning cases' => static function (TestRunner $t): void {
         $search = PathspecSearch::fromSpecs(['dir/*']);
         $t->same(false, $search->canMatch('a', null));
@@ -1327,5 +1428,12 @@ return [
         $t->same(true, $example['whitespaceDirectoryOnlySpaceFileIncluded']);
         $t->same(true, $example['whitespaceDirectoryOnlyFormFeedFileIncluded']);
         $t->same(PathspecMatch::KIND_VERBATIM, $example['whitespaceDirectoryOnlySpaceMatchKind']);
+        $t->same(true, $example['negativeWildcardCacheDirectoryExcluded']);
+        $t->same(true, $example['negativeWildcardCacheCanDescend']);
+        $t->same(true, in_array('wp-content/generated-cache', $example['negativeWildcardCacheReadPaths'], true));
+        $t->same([
+            'wp-content/generated-cache/manifest.json',
+        ], $example['negativeWildcardCacheContentPaths']);
+        $t->same(true, $example['negativeWildcardCacheStaleSkipped']);
     },
 ];

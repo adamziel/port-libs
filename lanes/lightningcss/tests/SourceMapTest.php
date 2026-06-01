@@ -2115,6 +2115,71 @@ return [
         $t->same([], $child->getNames());
         $t->same('', $child->writeVlq());
     },
+    'source map skips corrupt negative-offset child lines before remapping indexes' => static function (TestRunner $t): void {
+        $sourceParent = new SourceMap();
+        $sourceParentIndex = $sourceParent->addSource('parent.css');
+        $sourceParent->addMapping(0, 0, $sourceParentIndex, 0, 0, 'parentRule');
+
+        $sourceChild = new SourceMap();
+        $sourceChildIndex = $sourceChild->addSource('blocks/skipped-corrupt-source.css');
+        $sourceChild->setSourceContent($sourceChildIndex, ".skipped-source{}\n");
+        $sourceChild->addMapping(0, 4, $sourceChildIndex, 5, 1, 'skippedSourceName');
+
+        $corruptSourceMapping = Closure::bind(static function (SourceMap $sourceMap): void {
+            $sourceMap->mappings[0]['sourceIndex'] = 99;
+        }, null, SourceMap::class);
+        if ($corruptSourceMapping === null) {
+            throw new RuntimeException('Unable to bind SourceMap test helper.');
+        }
+
+        $corruptSourceMapping($sourceChild);
+        $sourceParent->addSourceMap($sourceChild, -1);
+
+        $t->same('AAAAA', $sourceParent->writeVlq());
+        $t->same(
+            '{"version":3,"mappings":"AAAAA","sources":["parent.css","blocks/skipped-corrupt-source.css"],"sourcesContent":["",".skipped-source{}\n"],"names":["parentRule","skippedSourceName"]}',
+            $sourceParent->toJson(null, false)
+        );
+        $t->same(
+            [['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0]],
+            $sourceParent->getMappings()
+        );
+        $t->same([], $sourceChild->getSources());
+        $t->same([], $sourceChild->getNames());
+        $t->same('', $sourceChild->writeVlq());
+
+        $nameParent = new SourceMap();
+        $nameParentIndex = $nameParent->addSource('parent-name.css');
+        $nameParent->addMapping(0, 0, $nameParentIndex, 0, 0, 'parentNameRule');
+
+        $nameChild = new SourceMap();
+        $nameChildIndex = $nameChild->addSource('blocks/skipped-corrupt-name.css');
+        $nameChild->setSourceContent($nameChildIndex, ".skipped-name{}\n");
+        $nameChild->addMapping(0, 6, $nameChildIndex, 7, 2, 'skippedName');
+
+        $corruptNameMapping = Closure::bind(static function (SourceMap $sourceMap): void {
+            $sourceMap->mappings[0]['nameIndex'] = 99;
+        }, null, SourceMap::class);
+        if ($corruptNameMapping === null) {
+            throw new RuntimeException('Unable to bind SourceMap test helper.');
+        }
+
+        $corruptNameMapping($nameChild);
+        $nameParent->addSourceMap($nameChild, -1);
+
+        $t->same('AAAAA', $nameParent->writeVlq());
+        $t->same(
+            '{"version":3,"mappings":"AAAAA","sources":["parent-name.css","blocks/skipped-corrupt-name.css"],"sourcesContent":["",".skipped-name{}\n"],"names":["parentNameRule","skippedName"]}',
+            $nameParent->toJson(null, false)
+        );
+        $t->same(
+            [['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0]],
+            $nameParent->getMappings()
+        );
+        $t->same([], $nameChild->getSources());
+        $t->same([], $nameChild->getNames());
+        $t->same('', $nameChild->writeVlq());
+    },
     'source map replaces parent lines with trailing empty child spans after skipped negative offsets' => static function (TestRunner $t): void {
         $parent = new SourceMap();
         $parentSource = $parent->addSource('parent.css');

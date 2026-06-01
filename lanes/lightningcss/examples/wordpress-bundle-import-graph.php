@@ -405,6 +405,35 @@ if ($escapedAtKeywordBundle !== '@layer reset,theme.blocks;@supports (display:gr
 
 echo 'escaped-at-keyword-import: resolved' . PHP_EOL;
 
+$unknownStatementReads = [];
+$unknownStatementResolved = [];
+$unknownStatementImportBundle = (new CssBundler())->bundleWithReader(
+    '/unknown-statement-import.css',
+    static function (string $file) use (&$unknownStatementReads): string {
+        $unknownStatementReads[] = $file;
+
+        return $file === '/unknown-statement-import.css'
+            ? '@wp-bundle meta; @import "pkg:card\2e css" layer(theme.blocks) supports(display: grid) screen; .wp-site-blocks { color: red }'
+            : '.wp-block-card { color: green; }';
+    },
+    static function (string $specifier, string $originatingFile) use (&$unknownStatementResolved): string {
+        $unknownStatementResolved[] = [$specifier, $originatingFile];
+
+        return '/blocks/card.css';
+    }
+);
+
+if (
+    $unknownStatementImportBundle !== '@wp-bundle meta;@import "pkg:card.css" layer(theme.blocks) supports(display:grid) screen;.wp-site-blocks{color:red}'
+    || $unknownStatementReads !== ['/unknown-statement-import.css', '/blocks/card.css']
+    || $unknownStatementResolved !== [['pkg:card.css', '/unknown-statement-import.css']]
+) {
+    fwrite(STDERR, "Expected statement-form unknown at-rule imports to resolve but remain preserved\n");
+    exit(1);
+}
+
+echo 'unknown-statement-import: preserved-after-resolution' . PHP_EOL;
+
 $escapedSpaceUrlBundle = (new CssBundler())->bundle('/escaped-space-url.css', [
     '/escaped-space-url.css' => '@import url(blocks/card\ hero.css); .wp-site-blocks { color: red; }',
     '/blocks/card hero.css' => '.wp-block-card { color: green; }',

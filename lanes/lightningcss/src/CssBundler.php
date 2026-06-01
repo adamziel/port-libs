@@ -794,6 +794,17 @@ final class CssBundler
                     continue;
                 }
 
+                /** @var array{specifier:string,layer:?string,supports:?string,media:string,loc:array{line:int,column:int}} $import */
+                $import = $item['import'];
+                if ($bodyStarted) {
+                    if (($dependency['type'] ?? null) === 'file') {
+                        $depIndex++;
+                    }
+
+                    $body .= $this->externalImportStatement($import['specifier'], $import);
+                    continue;
+                }
+
                 if (($dependency['type'] ?? null) === 'file') {
                     $depSourceIndex = (int) $dependency['sourceIndex'];
                     $resolved = $this->stylesheets[$depSourceIndex];
@@ -817,8 +828,6 @@ final class CssBundler
                     );
                 }
 
-                /** @var array{specifier:string,layer:?string,supports:?string,media:string,loc:array{line:int,column:int}} $import */
-                $import = $item['import'];
                 $output .= $this->externalImportStatement((string) $dependency['url'], $import);
                 continue;
             }
@@ -1157,7 +1166,7 @@ final class CssBundler
                 } elseif ($this->startsAtKeyword($css, $cursor, '@charset')) {
                     $this->validateCharsetStatement($raw, $file, $this->sourceLocation($css, $cursor));
                 } else {
-                    if (!$this->startsAtKeyword($css, $cursor, '@charset')) {
+                    if (!$this->isImportTransparentStatementAtRule($css, $cursor)) {
                         $importsAllowed = false;
                         $namespacesAllowed = false;
                     }
@@ -1268,6 +1277,22 @@ final class CssBundler
         }
 
         return $items;
+    }
+
+    private function isImportTransparentStatementAtRule(string $css, int $offset): bool
+    {
+        if (($css[$offset] ?? '') !== '@') {
+            return false;
+        }
+
+        if ($this->startsAtKeyword($css, $offset, '@custom-media')) {
+            return false;
+        }
+
+        return !$this->startsAtKeyword($css, $offset, '@import')
+            && !$this->startsAtKeyword($css, $offset, '@layer')
+            && !$this->startsAtKeyword($css, $offset, '@namespace')
+            && !$this->startsAtKeyword($css, $offset, '@charset');
     }
 
     private function assertNoNestedImportRules(string $css, int $start, int $end, string $file): void

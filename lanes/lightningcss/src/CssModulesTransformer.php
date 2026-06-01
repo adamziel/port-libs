@@ -2642,7 +2642,7 @@ final class CssModulesTransformer
                 ? $this->viewTransitionSelectorFunctionAt($selector, $i)
                 : null;
             if ($viewTransitionFunction !== null) {
-                $open = $i + strlen($viewTransitionFunction['prefix'] . $viewTransitionFunction['name']);
+                $open = $viewTransitionFunction['open'];
                 $close = $this->findMatchingParen($selector, $open);
                 $inner = substr($selector, $open + 1, $close - $open - 1);
                 $this->assertNoCssModulesModePseudoInViewTransitionSelectorArgs($inner);
@@ -4439,29 +4439,39 @@ final class CssModulesTransformer
     }
 
     /**
-     * @return array{prefix:string,name:string}|null
+     * @return array{prefix:string,name:string,open:int}|null
      */
     private function viewTransitionSelectorFunctionAt(string $selector, int $offset): ?array
     {
-        foreach ([
-            ':active-view-transition-type',
-            '::view-transition-group',
-            '::view-transition-image-pair',
-            '::view-transition-new',
-            '::view-transition-old',
-        ] as $function) {
-            $length = strlen($function);
-            if (strncasecmp(substr($selector, $offset, $length), $function, $length) !== 0) {
-                continue;
-            }
+        if (($selector[$offset] ?? '') !== ':') {
+            return null;
+        }
 
-            if (($selector[$offset + $length] ?? '') !== '(') {
-                continue;
-            }
+        $prefixLength = ($selector[$offset + 1] ?? '') === ':' ? 2 : 1;
+        $identifier = $this->readCssIdentifierToken($selector, $offset + $prefixLength);
+        if ($identifier === null || ($selector[$identifier['end']] ?? '') !== '(') {
+            return null;
+        }
 
+        $name = strtolower($identifier['decoded']);
+        if ($prefixLength === 1 && $name === 'active-view-transition-type') {
             return [
-                'prefix' => str_starts_with($function, '::') ? '::' : ':',
-                'name' => ltrim($function, ':'),
+                'prefix' => ':',
+                'name' => 'active-view-transition-type',
+                'open' => $identifier['end'],
+            ];
+        }
+
+        if ($prefixLength === 2 && in_array($name, [
+            'view-transition-group',
+            'view-transition-image-pair',
+            'view-transition-new',
+            'view-transition-old',
+        ], true)) {
+            return [
+                'prefix' => '::',
+                'name' => $name,
+                'open' => $identifier['end'],
             ];
         }
 

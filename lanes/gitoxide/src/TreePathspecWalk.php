@@ -27,7 +27,11 @@ final class TreePathspecWalk
                 $path = $directory === '' ? $entry->filename : $directory . '/' . $entry->filename;
                 $isTree = $entry->isTree();
                 $match = $pathspecs->match($path, $isTree, $attributes);
+                $canDescend = $isTree && $pathspecs->canMatch($path, true);
                 if ($match !== null && $match->isExcluded()) {
+                    if ($match->kind === PathspecMatch::KIND_WILDCARD && $canDescend) {
+                        $queue[] = [$path, self::readSubtree($readTree, $entry, $path)];
+                    }
                     continue;
                 }
                 if ($match !== null && ($includeTrees || !$isTree)) {
@@ -36,7 +40,7 @@ final class TreePathspecWalk
                 } elseif ($isTree && $includeTrees && $pathspecs->directoryMatchesPrefix($path, true)) {
                     $visited[] = [new TreeWalkEntry($path, $entry, PathspecMatch::KIND_PREFIX, 0), false, true];
                 }
-                if (!$isTree || !$pathspecs->canMatch($path, true)) {
+                if (!$canDescend) {
                     continue;
                 }
 

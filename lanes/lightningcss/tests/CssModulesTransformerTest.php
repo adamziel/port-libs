@@ -3294,6 +3294,48 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules decodes escaped view transition selector function names while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  composes: base;
+  color: red;
+}
+
+:root:ACTIVE-view-transition-\74 ype(card, page) {
+  color: blue;
+}
+
+:root::VIEW-transition-\67 roup(card.thumb) {
+  color: yellow;
+}
+
+:global(:root::view-transition-\6f ld(public-card)) .card {
+  color: green;
+}
+
+.base {
+  color: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_card{color:red}:root:active-view-transition-type(EgL3uq_card,EgL3uq_page){color:#00f}:root::view-transition-group(EgL3uq_card.EgL3uq_thumb){color:#ff0}:root::view-transition-old(public-card) .EgL3uq_card{color:green}.EgL3uq_base{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'page' => $export('EgL3uq_page'),
+            'thumb' => $export('EgL3uq_thumb'),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_card EgL3uq_base', CssModulesTransformer::exportClassList($result['exports'], 'card'));
+
+        foreach ([
+            ':root:active-view-transition-\74 ype(:local(card)) { color: red }',
+            ':root::view-transition-\67 roup(:global(card)) { color: red }',
+            ':global(:root::view-transition-\6f ld(:local(card))) { color: red }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
+        }
+    },
     'css modules decodes escaped custom idents before animation and view transition scoping while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card {

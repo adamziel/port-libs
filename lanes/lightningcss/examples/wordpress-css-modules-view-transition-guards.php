@@ -13,8 +13,12 @@ $css = <<<'CSS'
   color: red;
 }
 
-:root::view-transition-group(card) {
+:root::VIEW-transition-\67 roup(card) {
   opacity: .9;
+}
+
+:root:active-view-transition-\74 ype(card-enter, page) {
+  opacity: .7;
 }
 
 :global(:root::view-transition-old(public-card)) {
@@ -28,7 +32,7 @@ $result = (new CssModulesTransformer())->transform($css, [
 
 $invalidRejected = false;
 try {
-    (new CssModulesTransformer())->transform(':root::view-transition-group(:global(public-card)) { opacity: .5 }', [
+    (new CssModulesTransformer())->transform(':root::view-transition-\67 roup(:global(public-card)) { opacity: .5 }', [
         'hash' => 'BlockA',
     ]);
 } catch (InvalidArgumentException) {
@@ -48,7 +52,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '.BlockA_card{view-transition-name:BlockA_card-enter;color:red}:root::view-transition-group(BlockA_card){opacity:.9}:root::view-transition-old(public-card){opacity:.4}',
+    'code' => '.BlockA_card{view-transition-name:BlockA_card-enter;color:red}:root::view-transition-group(BlockA_card){opacity:.9}:root:active-view-transition-type(BlockA_card-enter,BlockA_page){opacity:.7}:root::view-transition-old(public-card){opacity:.4}',
     'cardClassList' => 'BlockA_card Core_reset',
     'invalidRejected' => true,
 ];

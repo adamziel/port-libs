@@ -89,6 +89,32 @@ try {
     $sameLineRejected = true;
 }
 
+$skippedCorruptParent = new SourceMap();
+$skippedCorruptParentSource = $skippedCorruptParent->addSource('wp-content/themes/example/skipped-corrupt-style.css');
+$skippedCorruptParent->setSourceContent($skippedCorruptParentSource, ".wp-block-skipped-parent{}\n");
+$skippedCorruptParent->addMapping(0, 0, $skippedCorruptParentSource, 0, 0, 'skipped-corrupt-parent');
+
+$skippedCorruptChild = new SourceMap();
+$skippedCorruptChildSource = $skippedCorruptChild->addSource('wp-content/themes/example/blocks/skipped-corrupt-child.css');
+$skippedCorruptChild->setSourceContent($skippedCorruptChildSource, ".wp-block-skipped-corrupt{}\n");
+$skippedCorruptChild->addMapping(0, 4, $skippedCorruptChildSource, 6, 1, 'skipped-corrupt-child');
+
+$corruptSkippedChildMapping = Closure::bind(static function (SourceMap $sourceMap): void {
+    $sourceMap->mappings[0]['sourceIndex'] = 99;
+}, null, SourceMap::class);
+if ($corruptSkippedChildMapping === null) {
+    throw new RuntimeException('Unable to bind SourceMap example helper.');
+}
+
+$corruptSkippedChildMapping($skippedCorruptChild);
+
+$skippedCorruptRejected = false;
+try {
+    $skippedCorruptParent->addSourceMap($skippedCorruptChild, -1);
+} catch (InvalidArgumentException) {
+    $skippedCorruptRejected = true;
+}
+
 $actual = [
     'rejected' => $rejected,
     'parentMap' => $parent->toJson(null, false),
@@ -105,6 +131,10 @@ $actual = [
     'sameLineAppliedLookup' => $sameLineParent->findClosestMapping(1, 4),
     'sameLineRetainedLookup' => $sameLineParent->findClosestMapping(2, 0),
     'sameLineChildConsumed' => $sameLineChild->toJson(null, false),
+    'skippedCorruptRejected' => $skippedCorruptRejected,
+    'skippedCorruptParentMap' => $skippedCorruptParent->toJson(null, false),
+    'skippedCorruptParentMappings' => $skippedCorruptParent->getMappings(),
+    'skippedCorruptChildConsumed' => $skippedCorruptChild->toJson(null, false),
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -135,6 +165,12 @@ if (($argv[1] ?? null) === '--self-test') {
         'sameLineAppliedLookup' => ['generatedLine' => 1, 'generatedColumn' => 4, 'sourceIndex' => 1, 'originalLine' => 10, 'originalColumn' => 1, 'nameIndex' => 4],
         'sameLineRetainedLookup' => ['generatedLine' => 2, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 2, 'originalColumn' => 0, 'nameIndex' => 2],
         'sameLineChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'skippedCorruptRejected' => false,
+        'skippedCorruptParentMap' => '{"version":3,"mappings":"AAAAA","sources":["wp-content/themes/example/skipped-corrupt-style.css","wp-content/themes/example/blocks/skipped-corrupt-child.css"],"sourcesContent":[".wp-block-skipped-parent{}\n",".wp-block-skipped-corrupt{}\n"],"names":["skipped-corrupt-parent","skipped-corrupt-child"]}',
+        'skippedCorruptParentMappings' => [
+            ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0],
+        ],
+        'skippedCorruptChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
     ];
 
     if ($actual !== $expected) {
