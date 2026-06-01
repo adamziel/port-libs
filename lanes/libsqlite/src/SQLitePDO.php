@@ -376,6 +376,12 @@ final class SQLitePDO extends \PDO
         if (preg_match('/^SQLite SELECT (?:expression|predicate) row is missing column (.+)$/', $message, $match) === 1) {
             return 'no such column: ' . $match[1];
         }
+        if (preg_match('/^SQLitePDO table ([A-Za-z_][A-Za-z0-9_]*) does not exist$/', $message, $match) === 1) {
+            return 'no such table: ' . $match[1];
+        }
+        if (preg_match('/^SQLite SELECT SQL (?:source )?table ([A-Za-z_][A-Za-z0-9_]*) is not available$/', $message, $match) === 1) {
+            return 'no such table: ' . $match[1];
+        }
         if (preg_match('/^SQLite SELECT SQL (variable number must be between \?1 and \?' . self::MAX_VARIABLE_NUMBER . ')$/', $message, $match) === 1) {
             return $match[1];
         }
@@ -415,7 +421,7 @@ final class SQLitePDO extends \PDO
                 }
             } catch (\Throwable $exception) {
                 $message = $this->pdoSqliteMessage($exception);
-                if ($this->isColumnResolutionError($message) || $this->isParameterResolutionError($message)) {
+                if ($this->isColumnResolutionError($message) || $this->isTableResolutionError($message) || $this->isParameterResolutionError($message)) {
                     throw $this->failure($message, $exception);
                 }
             }
@@ -610,6 +616,11 @@ final class SQLitePDO extends \PDO
     {
         return str_starts_with($message, 'no such column: ')
             || preg_match('/^table [A-Za-z_][A-Za-z0-9_]* has no column named [A-Za-z_][A-Za-z0-9_]*$/', $message) === 1;
+    }
+
+    private function isTableResolutionError(string $message): bool
+    {
+        return preg_match('/^no such table: [A-Za-z_][A-Za-z0-9_]*$/', $message) === 1;
     }
 
     private function isParameterResolutionError(string $message): bool

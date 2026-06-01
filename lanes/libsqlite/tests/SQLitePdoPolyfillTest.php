@@ -625,6 +625,130 @@ return [
         }
     },
 
+    'SQLitePDO file DSN invalid table identifiers match native PDO prepare exec and query errors' => static function (TestRunner $t) use ($sqlitePdoNativeAvailable): void {
+        $scratchRoot = __DIR__ . '/.sqlite-pdo-tmp';
+        if (!is_dir($scratchRoot) && !mkdir($scratchRoot)) {
+            throw new RuntimeException("Unable to create temporary test root: {$scratchRoot}");
+        }
+        chmod($scratchRoot, 0700);
+        $dir = $scratchRoot . '/sqlite-pdo-invalid-identifiers-' . bin2hex(random_bytes(6));
+        if (!mkdir($dir) && !is_dir($dir)) {
+            throw new RuntimeException("Unable to create temporary test directory: {$dir}");
+        }
+        chmod($dir, 0700);
+
+        $cases = [
+            'exec insert missing table' => ['exec', "INSERT INTO missing_table (name) VALUES ('Other')"],
+            'exec update missing table' => ['exec', "UPDATE missing_table SET name = 'Other' WHERE id = 1"],
+            'exec delete missing table' => ['exec', 'DELETE FROM missing_table WHERE id = 1'],
+            'query select missing table' => ['query', 'SELECT * FROM missing_table'],
+            'query join missing table' => ['query', 'SELECT test.name FROM test JOIN missing_table ON missing_table.id = test.id'],
+            'prepare insert missing table' => ['prepare', 'INSERT INTO missing_table (name) VALUES (?)', ['Other']],
+            'prepare update missing table' => ['prepare', 'UPDATE missing_table SET name = ? WHERE id = 1', ['Other']],
+            'prepare delete missing table' => ['prepare', 'DELETE FROM missing_table WHERE id = ?', [1]],
+            'prepare select missing table' => ['prepare', 'SELECT * FROM missing_table', []],
+            'prepare join missing table' => ['prepare', 'SELECT test.name FROM test JOIN missing_table ON missing_table.id = test.id', []],
+        ];
+
+        $exercise = static function (string $class, string $path) use ($cases): array {
+            $pdo = new $class('sqlite:' . $path, null, null, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+            $pdo->exec('CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)');
+            $pdo->exec("INSERT INTO test (name) VALUES ('Janet')");
+            $before = (string) file_get_contents($path);
+            $errors = [];
+
+            foreach ($cases as $name => $case) {
+                [$operation, $sql] = $case;
+                $parameters = $case[2] ?? [];
+                $statement = null;
+                $phase = $operation;
+                try {
+                    if ($operation === 'query') {
+                        $pdo->query($sql);
+                    } elseif ($operation === 'prepare') {
+                        $phase = 'prepare';
+                        $statement = $pdo->prepare($sql);
+                        $phase = 'execute';
+                        $statement->execute($parameters);
+                    } else {
+                        $pdo->exec($sql);
+                    }
+                    throw new RuntimeException("Expected PDOException for {$name}");
+                } catch (PDOException $exception) {
+                    $after = (string) file_get_contents($path);
+                    $errors[$name] = [
+                        'phase' => $phase,
+                        'message' => $exception->getMessage(),
+                        'error_code' => $pdo->errorCode(),
+                        'error_info' => $pdo->errorInfo(),
+                        'statement_was_created' => $statement instanceof PDOStatement,
+                        'statement_error_info' => $statement instanceof PDOStatement ? $statement->errorInfo() : null,
+                        'file_unchanged' => hash('sha256', $before) === hash('sha256', $after),
+                        'rows_after_error' => $pdo->query('SELECT * FROM test')->fetchAll(PDO::FETCH_ASSOC),
+                    ];
+                }
+            }
+
+            $reopened = new $class('sqlite:' . $path, null, null, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+
+            return [
+                'errors' => $errors,
+                'rows' => $reopened->query('SELECT * FROM test')->fetchAll(PDO::FETCH_ASSOC),
+                'file_unchanged' => hash('sha256', $before) === hash('sha256', (string) file_get_contents($path)),
+            ];
+        };
+
+        $polyfillPath = $dir . '/polyfill.sqlite';
+        $nativePath = $dir . '/native.sqlite';
+
+        try {
+            $polyfill = $exercise(SQLitePDO::class, $polyfillPath);
+            $native = $sqlitePdoNativeAvailable() ? $exercise(PDO::class, $nativePath) : null;
+
+            foreach (array_keys($cases) as $name) {
+                $expectedPhase = str_starts_with($name, 'prepare ') ? 'prepare' : strtok($name, ' ');
+                $t->same($expectedPhase, $polyfill['errors'][$name]['phase']);
+                $t->contains('no such table: missing_table', $polyfill['errors'][$name]['message']);
+                $t->same('HY000', $polyfill['errors'][$name]['error_code']);
+                $t->same('HY000', $polyfill['errors'][$name]['error_info'][0]);
+                $t->same(1, $polyfill['errors'][$name]['error_info'][1]);
+                $t->same('no such table: missing_table', $polyfill['errors'][$name]['error_info'][2]);
+                $t->same(false, $polyfill['errors'][$name]['statement_was_created']);
+                $t->same(null, $polyfill['errors'][$name]['statement_error_info']);
+                $t->same(true, $polyfill['errors'][$name]['file_unchanged']);
+                $t->same([['id' => 1, 'name' => 'Janet']], $polyfill['errors'][$name]['rows_after_error']);
+
+                if ($native !== null) {
+                    $t->same($native['errors'][$name]['phase'], $polyfill['errors'][$name]['phase']);
+                    $t->same($native['errors'][$name]['statement_was_created'], $polyfill['errors'][$name]['statement_was_created']);
+                    $t->same($native['errors'][$name]['error_info'][2], $polyfill['errors'][$name]['error_info'][2]);
+                    $t->same($native['errors'][$name]['rows_after_error'], $polyfill['errors'][$name]['rows_after_error']);
+                }
+            }
+
+            $t->same([['id' => 1, 'name' => 'Janet']], $polyfill['rows']);
+            $t->same(true, $polyfill['file_unchanged']);
+        } finally {
+            foreach ([$polyfillPath, $nativePath] as $path) {
+                if (is_file($path)) {
+                    unlink($path);
+                }
+            }
+            if (is_dir($dir)) {
+                rmdir($dir);
+            }
+            if (is_dir($scratchRoot) && (scandir($scratchRoot) ?: ['.', '..']) === ['.', '..']) {
+                rmdir($scratchRoot);
+            }
+        }
+    },
+
     'SQLitePDO reports PDO exceptions for invalid DSNs unsupported APIs and transaction misuse' => static function (TestRunner $t): void {
         $t->throws(PDOException::class, static fn () => new SQLitePDO('mysql:dbname=test'));
 
@@ -720,10 +844,10 @@ return [
         $t->same($into, $intoStatement->fetch());
         $t->same('first', $into->name);
 
-        $bad = $pdo->prepare('SELECT * FROM missing_table');
-        $t->throws(PDOException::class, static fn () => $bad->execute());
-        $t->same('HY000', $bad->errorCode());
-        $t->same('HY000', $bad->errorInfo()[0]);
+        $t->throws(PDOException::class, static fn () => $pdo->prepare('SELECT * FROM missing_table'));
+        $t->same('HY000', $pdo->errorCode());
+        $t->same('HY000', $pdo->errorInfo()[0]);
+        $t->same('no such table: missing_table', $pdo->errorInfo()[2]);
     },
 
     'SQLitePDO supports common fetchAll shapes prepare cursor option and quoted batch exec' => static function (TestRunner $t): void {
