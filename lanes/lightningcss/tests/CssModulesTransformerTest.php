@@ -281,6 +281,47 @@ CSS);
             throw new RuntimeException('Expected invalid CSS selector escape exception');
         }
     },
+    'css modules rejects escaped local global pseudo delimiters before composing exports' => static function (TestRunner $t) use ($export, $local): void {
+        $valid = (new CssModulesTransformer())->transform(<<<'CSS'
+:global(.wp\)button) .card {
+  color: red;
+}
+
+:local(.card\)wide) {
+  color: yellow;
+}
+
+.button {
+  composes: card\)wide;
+  color: white;
+}
+CSS);
+
+        $t->same('.wp\)button .EgL3uq_card{color:red}.EgL3uq_card\)wide{color:#ff0}.EgL3uq_button{color:#fff}', $valid['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'card)wide' => $export('EgL3uq_card)wide'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card)wide')]),
+        ], $valid['exports']);
+        $t->same([], $valid['references']);
+
+        foreach ([
+            ':global\(.legacy) .card { color: red }',
+            ':global\28 .legacy) .card { color: red }',
+            '.card:global\(.legacy) { color: red }',
+            ':local\(.card) { color: red }',
+            '.button { composes: base; color: blue } :local\(.card) { color: red } .base { color: white }',
+        ] as $css) {
+            try {
+                (new CssModulesTransformer())->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same('Unexpected token CloseParenthesis', $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream escaped CSS Modules pseudo delimiter exception');
+        }
+    },
     'css modules rejects upstream identifier-splitting selector comments before composing exports' => static function (TestRunner $t) use ($export, $local): void {
         $valid = (new CssModulesTransformer())->transform(<<<'CSS'
 .card/* build marker */.is-wide {

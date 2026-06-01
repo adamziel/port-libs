@@ -4981,7 +4981,7 @@ final class SQLiteSelectSql
             $filter = self::predicate(trim($filterMatch[1]), $tables);
         }
 
-        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\((.*)\)$/s', $sql, $match) === 1) {
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)$/s', $sql, $match) === 1) {
             $argumentSql = trim($match[2]);
             $distinct = false;
             if (preg_match('/^distinct(?:\s+|$)(.+)$/is', $argumentSql, $distinctMatch) === 1) {

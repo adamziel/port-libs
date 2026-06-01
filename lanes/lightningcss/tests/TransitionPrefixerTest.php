@@ -4005,6 +4005,30 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media (width >= clamp(10px, 15px, 20px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
+            '@layer blocks{@media (min-width:20px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= round(22px, 5px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:3px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= rem(18px, 5px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:3px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= mod(18px, 5px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:5px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= hypot(3px, 4px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:20px) and (max-width:25px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (round(22px, 5px) <= width <= round(up, 22px, 5px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media (20px<=width<=25px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (round(22px, 5px) <= width <= round(up, 22px, 5px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 102])
+        );
+        $t->same(
             '@layer blocks{@media (min-width:6px){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width >= calc(2 * 3px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
@@ -4297,6 +4321,10 @@ CSS;
         $t->throws(
             InvalidArgumentException::class,
             static fn () => $prefixer->prefixForTargets('@layer blocks { @media (resolution >= calc(1 + 1dppx)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $prefixer->prefixForTargets('@layer blocks { @media (resolution >= round(2dppx, 1dppx)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->throws(
             InvalidArgumentException::class,

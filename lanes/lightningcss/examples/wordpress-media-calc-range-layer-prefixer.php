@@ -25,6 +25,12 @@ $css = <<<'CSS'
       color: chartreuse;
     }
   }
+
+  @media (round(22px, 5px) <= width <= round(up, 22px, 5px)) {
+    .wp-block-query.is-rounded-window {
+      color: yellow;
+    }
+  }
 }
 CSS;
 
@@ -36,9 +42,9 @@ $actual = [
 ];
 
 $expected = [
-    'chrome85' => '@layer theme.blocks{@media not (max-width:calc(1px + 1rem)){.wp-block-query.is-fluid-gap{color:#ff0}}@media (min-aspect-ratio:.5){.wp-block-query.is-ratio-window{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:calc(100vw - 50px))){.wp-block-query.is-fluid-window{color:#7fff00}}}',
-    'firefox64' => '@layer theme.blocks{@media (width>calc(1px + 1rem)){.wp-block-query.is-fluid-gap{color:#ff0}}@media (aspect-ratio>=.5){.wp-block-query.is-ratio-window{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:calc(100vw - 50px))){.wp-block-query.is-fluid-window{color:#7fff00}}}',
-    'firefox85' => '@layer theme.blocks{@media (width>calc(1px + 1rem)){.wp-block-query.is-fluid-gap{color:#ff0}}@media (aspect-ratio>=.5){.wp-block-query.is-ratio-window{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:calc(100vw - 50px))){.wp-block-query.is-fluid-window{color:#7fff00}}}',
+    'chrome85' => '@layer theme.blocks{@media not (max-width:calc(1px + 1rem)){.wp-block-query.is-fluid-gap{color:#ff0}}@media (min-aspect-ratio:.5){.wp-block-query.is-ratio-window{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:calc(100vw - 50px))){.wp-block-query.is-fluid-window{color:#7fff00}}@media (min-width:20px) and (max-width:25px){.wp-block-query.is-rounded-window{color:#ff0}}}',
+    'firefox64' => '@layer theme.blocks{@media (width>calc(1px + 1rem)){.wp-block-query.is-fluid-gap{color:#ff0}}@media (aspect-ratio>=.5){.wp-block-query.is-ratio-window{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:calc(100vw - 50px))){.wp-block-query.is-fluid-window{color:#7fff00}}@media (min-width:20px) and (max-width:25px){.wp-block-query.is-rounded-window{color:#ff0}}}',
+    'firefox85' => '@layer theme.blocks{@media (width>calc(1px + 1rem)){.wp-block-query.is-fluid-gap{color:#ff0}}@media (aspect-ratio>=.5){.wp-block-query.is-ratio-window{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:calc(100vw - 50px))){.wp-block-query.is-fluid-window{color:#7fff00}}@media (min-width:20px) and (max-width:25px){.wp-block-query.is-rounded-window{color:#ff0}}}',
 ];
 
 if (($argv[1] ?? null) === '--self-test' && $actual !== $expected) {

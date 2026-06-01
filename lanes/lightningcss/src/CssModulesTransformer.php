@@ -1888,6 +1888,7 @@ final class CssModulesTransformer
     {
         $this->assertNoCommentIdentifierBoundariesInSelectorList($selectorList);
         $this->assertNoInvalidEscapesInSelectorList($selectorList);
+        $this->assertNoUnexpectedSelectorCloseParentheses($selectorList);
         $this->assertSelectorPseudoElementBoundaries($selectorList);
 
         $rewritten = [];
@@ -1951,6 +1952,72 @@ final class CssModulesTransformer
             if ($next !== '') {
                 $i++;
             }
+        }
+    }
+
+    private function assertNoUnexpectedSelectorCloseParentheses(string $selectorList): void
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($selectorList);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selectorList[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\' && $i + 1 < $length) {
+                    $i++;
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '\\') {
+                $escapeEnd = $this->cssEscapeEnd($selectorList, $i);
+                if ($escapeEnd !== null) {
+                    $i = $escapeEnd;
+                    continue;
+                }
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($bracketDepth > 0) {
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+
+            if ($char !== ')') {
+                continue;
+            }
+
+            if ($parenDepth === 0) {
+                throw new \InvalidArgumentException('Unexpected token CloseParenthesis');
+            }
+
+            $parenDepth--;
         }
     }
 

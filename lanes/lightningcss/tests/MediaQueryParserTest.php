@@ -246,6 +246,13 @@ return [
         $t->same('(1<=aspect-ratio<=3)', $parser->minifyList('(1 <= aspect-ratio <= max(2, 3))'));
         $t->same('(theme-ratio>=.5)', $parser->minifyList('(theme-ratio >= max(1 / 2, 1 / 3))'));
         $t->same('(theme-ratio>=.5)', $parser->minifyList('(theme-ratio >= clamp(1 / 4, 1 / 2, 3 / 4))'));
+        $t->same('(width>=20px)', $parser->minifyList('(width >= round(22px, 5px))'));
+        $t->same('(width>=25px)', $parser->minifyList('(width >= round(up, 22px, 5px))'));
+        $t->same('(width>=3px)', $parser->minifyList('(width >= rem(18px, 5px))'));
+        $t->same('(width>=3px)', $parser->minifyList('(width >= mod(18px, 5px))'));
+        $t->same('(width>=5px)', $parser->minifyList('(width >= hypot(3px, 4px))'));
+        $t->same('(width>=2px)', $parser->minifyList('(width >= abs(-2px))'));
+        $t->same('(20px<=width<=25px)', $parser->minifyList('(round(22px, 5px) <= width <= round(up, 22px, 5px))'));
         $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= calc(1 + 1))'));
         $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= max(1, 2))'));
         $t->same('(1<=-moz-device-pixel-ratio<=2)', $parser->minifyList('(1 <= -moz-device-pixel-ratio <= calc(1 + 1))'));
@@ -259,6 +266,13 @@ return [
         $t->same('(min-aspect-ratio:1) and (max-aspect-ratio:3)', $parser->lowerRangeSyntaxList('(1 <= aspect-ratio <= max(2, 3))'));
         $t->same('(min-theme-ratio:.5)', $parser->lowerRangeSyntaxList('(theme-ratio >= max(1 / 2, 1 / 3))'));
         $t->same('(min-theme-ratio:.5)', $parser->lowerRangeSyntaxList('(theme-ratio >= clamp(1 / 4, 1 / 2, 3 / 4))'));
+        $t->same('(min-width:20px)', $parser->lowerRangeSyntaxList('(width >= round(22px, 5px))'));
+        $t->same('(min-width:3px)', $parser->lowerRangeSyntaxList('(width >= rem(18px, 5px))'));
+        $t->same('(min-width:3px)', $parser->lowerRangeSyntaxList('(width >= mod(18px, 5px))'));
+        $t->same('(min-width:5px)', $parser->lowerRangeSyntaxList('(width >= hypot(3px, 4px))'));
+        $t->same('(min-width:2px)', $parser->lowerRangeSyntaxList('(width >= abs(-2px))'));
+        $t->same('(min-width:20px) and (max-width:25px)', $parser->lowerRangeSyntaxList('(round(22px, 5px) <= width <= round(up, 22px, 5px))'));
+        $t->same('(min-width:round(22px,5vw))', $parser->lowerRangeSyntaxList('(width >= round(22px, 5vw))'));
         $t->same('(not (max-width:100px)) and (not (min-width:calc(100vw - 50px)))', $parser->lowerRangeSyntaxList('(100px < width < calc(100vw-50px))'));
         $t->same('(-webkit-min-device-pixel-ratio:2)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio >= calc(1 + 1))'));
         $t->same('(-webkit-min-device-pixel-ratio:2)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio >= max(1, 2))'));
@@ -278,6 +292,10 @@ return [
         $t->same(
             '@layer blocks{@media (aspect-ratio>=.5){.wp-block-query{color:#ff0}}}',
             (new CssMinifier())->minify('@layer blocks { @media (aspect-ratio >= max(1 / 2, 1 / 3)) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (20px<=width<=25px){.wp-block-query{color:#ff0}}}',
+            (new CssMinifier())->minify('@layer blocks { @media (round(22px, 5px) <= width <= round(up, 22px, 5px)) { .wp-block-query { color: yellow; } } }')
         );
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('&test, speech'));
     },
@@ -659,6 +677,7 @@ return [
             '@layer blocks { @media (prefers-color-scheme = dark) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (color >= calc(1 + 1)) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (resolution >= calc(1 + 1dppx)) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (resolution >= round(2dppx, 1dppx)) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (width >= calc(6px / 2px)) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (width >= var(--theme-breakpoint)) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media var(--theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',

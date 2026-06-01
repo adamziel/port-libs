@@ -809,7 +809,7 @@ final class MediaQueryParser
             return true;
         }
 
-        if (preg_match('/^(?:calc|clamp|max|min)\(/i', $value) === 1) {
+        if (preg_match('/^(?:calc|clamp|max|min|round|rem|mod|hypot|abs)\(/i', $value) === 1) {
             if (preg_match('/^calc\(/i', $value) === 1 && $this->isInvalidSimpleMultiplicativeCalc($value)) {
                 return false;
             }
@@ -818,9 +818,10 @@ final class MediaQueryParser
                 'integer', 'resolution' => false,
                 'ratio' => preg_match('/^calc\(/i', $value) === 1
                     ? $this->foldSimpleUnitlessCalc($value) !== null
-                    : $this->foldSimpleMathFunction($value, $type) !== $value,
+                    : preg_match('/^(?:clamp|max|min)\(/i', $value) === 1 && $this->foldSimpleMathFunction($value, $type) !== $value,
                 'number' => $this->foldSimpleUnitlessCalc($value) !== null
-                    || preg_match('/^(?:clamp|max|min)\(/i', $value) === 1,
+                    || preg_match('/^(?:clamp|max|min)\(/i', $value) === 1
+                    || $this->foldSimpleMathFunction($value, $type) !== $value,
                 default => true,
             };
         }
@@ -937,7 +938,7 @@ final class MediaQueryParser
             return $value;
         }
 
-        if (preg_match('/^(min|max|clamp)\(/i', $value, $matches) !== 1) {
+        if (preg_match('/^(min|max|clamp|round|rem|mod|hypot|abs)\(/i', $value, $matches) !== 1) {
             return $value;
         }
 
@@ -952,46 +953,122 @@ final class MediaQueryParser
         }
 
         $args = $this->splitTopLevel(substr($value, $open + 1, -1), ',');
-        if (($function === 'clamp' && count($args) !== 3) || ($function !== 'clamp' && count($args) < 2)) {
-            return $value;
-        }
-
-        $values = [];
-        foreach ($args as $arg) {
-            $comparable = $this->comparableMathValue($arg, $type);
-            if ($comparable === null) {
+        if ($function === 'min' || $function === 'max' || $function === 'clamp') {
+            if (($function === 'clamp' && count($args) !== 3) || ($function !== 'clamp' && count($args) < 2)) {
                 return $value;
             }
 
-            $values[] = $comparable;
-        }
-
-        if (!$this->mathValuesShareComparableUnit($values)) {
-            return $value;
-        }
-
-        if ($function === 'min' || $function === 'max') {
-            $selected = $values[0];
-            foreach (array_slice($values, 1) as $candidate) {
-                if (($function === 'min' && $candidate['number'] < $selected['number'])
-                    || ($function === 'max' && $candidate['number'] > $selected['number'])
-                ) {
-                    $selected = $candidate;
-                }
+            $values = $this->comparableMediaMathArguments($args, $type);
+            if ($values === null) {
+                return $value;
             }
 
-            return $this->formatComparableMathValue($selected, $type);
+            if ($function === 'min' || $function === 'max') {
+                $selected = $values[0];
+                foreach (array_slice($values, 1) as $candidate) {
+                    if (($function === 'min' && $candidate['number'] < $selected['number'])
+                        || ($function === 'max' && $candidate['number'] > $selected['number'])
+                    ) {
+                        $selected = $candidate;
+                    }
+                }
+
+                return $this->formatComparableMathValue($selected, $type);
+            }
+
+            [$minimum, $center, $maximum] = $values;
+            if ($center['number'] > $maximum['number']) {
+                $center = $maximum;
+            }
+            if ($center['number'] < $minimum['number']) {
+                $center = $minimum;
+            }
+
+            return $this->formatComparableMathValue($center, $type);
         }
 
-        [$minimum, $center, $maximum] = $values;
-        if ($center['number'] > $maximum['number']) {
-            $center = $maximum;
-        }
-        if ($center['number'] < $minimum['number']) {
-            $center = $minimum;
+        if ($function === 'round') {
+            $strategy = 'nearest';
+            if (count($args) === 3) {
+                $strategy = strtolower(trim($args[0]));
+                $args = array_slice($args, 1);
+            }
+            if (count($args) !== 2 || !in_array($strategy, ['nearest', 'down', 'up', 'to-zero'], true)) {
+                return $value;
+            }
+
+            $values = $this->comparableMediaMathArguments($args, $type);
+            if ($values === null || abs($values[1]['number']) < PHP_FLOAT_EPSILON) {
+                return $value;
+            }
+
+            $quotient = $values[0]['number'] / $values[1]['number'];
+            $rounded = match ($strategy) {
+                'down' => floor($quotient),
+                'up' => ceil($quotient),
+                'to-zero' => $quotient < 0 ? ceil($quotient) : floor($quotient),
+                default => round($quotient),
+            };
+            $values[0]['number'] = $rounded * $values[1]['number'];
+
+            return $this->formatComparableMathValue($values[0], $type);
         }
 
-        return $this->formatComparableMathValue($center, $type);
+        if ($function === 'rem' || $function === 'mod') {
+            if (count($args) !== 2) {
+                return $value;
+            }
+
+            $values = $this->comparableMediaMathArguments($args, $type);
+            if ($values === null || abs($values[1]['number']) < PHP_FLOAT_EPSILON) {
+                return $value;
+            }
+
+            if ($function === 'rem') {
+                $values[0]['number'] = fmod($values[0]['number'], $values[1]['number']);
+            } else {
+                $values[0]['number'] = fmod(fmod($values[0]['number'], $values[1]['number']) + $values[1]['number'], $values[1]['number']);
+            }
+
+            return $this->formatComparableMathValue($values[0], $type);
+        }
+
+        if ($function === 'hypot') {
+            if ($args === []) {
+                return $value;
+            }
+
+            $values = $this->comparableMediaMathArguments($args, $type, false);
+            if ($values === null) {
+                return $value;
+            }
+
+            $sum = 0.0;
+            foreach ($values as $candidate) {
+                $sum += $candidate['number'] ** 2;
+            }
+
+            $values[0]['number'] = sqrt($sum);
+
+            return $this->formatComparableMathValue($values[0], $type);
+        }
+
+        if ($function === 'abs') {
+            if (count($args) !== 1) {
+                return $value;
+            }
+
+            $values = $this->comparableMediaMathArguments($args, $type, false);
+            if ($values === null) {
+                return $value;
+            }
+
+            $values[0]['number'] = abs($values[0]['number']);
+
+            return $this->formatComparableMathValue($values[0], $type);
+        }
+
+        return $value;
     }
 
     /**
@@ -1043,6 +1120,25 @@ final class MediaQueryParser
             'unit' => $unit,
             'ratio' => false,
         ];
+    }
+
+    /**
+     * @param list<string> $args
+     * @return list<array{number:float,unit:string,ratio:bool}>|null
+     */
+    private function comparableMediaMathArguments(array $args, ?string $type, bool $allowPercent = true): ?array
+    {
+        $values = [];
+        foreach ($args as $arg) {
+            $comparable = $this->comparableMathValue($arg, $type);
+            if ($comparable === null || (!$allowPercent && $comparable['unit'] === '%')) {
+                return null;
+            }
+
+            $values[] = $comparable;
+        }
+
+        return $this->mathValuesShareComparableUnit($values) ? $values : null;
     }
 
     /**

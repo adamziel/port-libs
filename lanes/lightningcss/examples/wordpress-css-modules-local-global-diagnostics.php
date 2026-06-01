@@ -32,6 +32,7 @@ foreach ([
     ':local .button { color: red }',
     ':global(.wp-block-button, .wp-block-file) .button { color: red }',
     ':local() { color: red }',
+    ':global\(.wp-block-button) .button { color: red }',
 ] as $invalidCss) {
     try {
         $transformer->transform($invalidCss, [
@@ -75,6 +76,7 @@ $expected = [
         ':local .button { color: red }' => 'Ambiguous CSS module class not supported',
         ':global(.wp-block-button, .wp-block-file) .button { color: red }' => 'Unexpected token Comma',
         ':local() { color: red }' => 'Invalid empty selector',
+        ':global\(.wp-block-button) .button { color: red }' => 'Unexpected token CloseParenthesis',
     ],
 ];
 
