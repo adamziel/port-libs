@@ -117,7 +117,8 @@ $tests = [
     'planner stat4 expression partial current source next185 no missing rowids' => static fn (TestRunner $t) => $t->same([], $plan185()['missingCurrentRowids']),
     'planner stat4 expression partial current source next185 provenance count' => static fn (TestRunner $t) => $t->same(4, count($plan185()['currentSourceRowProvenance'])),
     'planner stat4 expression partial current source next185 provenance sources' => static fn (TestRunner $t) => $t->same(['current', 'current', 'current', 'current'], array_column($plan185()['currentSourceRowProvenance'], 'source')),
-    'planner stat4 expression partial current source next185 provenance names' => static fn (TestRunner $t) => $t->same(['plugin_seo', 'Plugin_Mail', 'plugin_forms', 'Plugin_Forms'], array_column($plan185()['currentSourceRowProvenance'], 'option_name')),
+    'planner stat4 expression partial current source next185 provenance key column' => static fn (TestRunner $t) => $t->same(['option_name', 'option_name', 'option_name', 'option_name'], array_column($plan185()['currentSourceRowProvenance'], 'keyColumn')),
+    'planner stat4 expression partial current source next185 provenance key values' => static fn (TestRunner $t) => $t->same(['plugin_seo', 'Plugin_Mail', 'plugin_forms', 'Plugin_Forms'], array_column($plan185()['currentSourceRowProvenance'], 'keyValue')),
     'planner stat4 expression partial current source next185 provenance sample keys' => static fn (TestRunner $t) => $t->same(['plugin_seo', 'plugin_mail', 'plugin_forms', null], array_column($plan185()['currentSourceRowProvenance'], 'sampleKey')),
     'planner stat4 expression partial current source next185 provenance anchors' => static fn (TestRunner $t) => $t->same([true, true, true, false], array_column($plan185()['currentSourceRowProvenance'], 'stat4Anchor')),
     'planner stat4 expression partial current source next185 projected rows retained' => static fn (TestRunner $t) => $t->same('mail', $plan185()['projectedRows'][1]['option_value']),
@@ -145,7 +146,7 @@ $tests = [
     'planner stat4 expression partial current source next185 zero window ready' => static fn (TestRunner $t) => $t->same('stat4-expression-partial-current-source-next185-ready', $plan185(0, 0)['status']),
     'planner stat4 expression partial current source next185 zero window provenance' => static fn (TestRunner $t) => $t->same([], $plan185(0, 0)['currentSourceRowProvenance']),
     'planner stat4 expression partial current source next185 tail window' => static fn (TestRunner $t) => $t->same([21, 40, 10], $plan185(5, 4)['matchedRowids']),
-    'planner stat4 expression partial current source next185 tail provenance names' => static fn (TestRunner $t) => $t->same(['Plugin_Forms', 'plugin_cache', 'plugin_alpha'], array_column($plan185(5, 4)['currentSourceRowProvenance'], 'option_name')),
+    'planner stat4 expression partial current source next185 tail provenance key values' => static fn (TestRunner $t) => $t->same(['Plugin_Forms', 'plugin_cache', 'plugin_alpha'], array_column($plan185(5, 4)['currentSourceRowProvenance'], 'keyValue')),
     'planner stat4 expression partial current source next185 invalid current indexes' => static function (TestRunner $t) use ($current185, $plan185): void {
         $bad = $current185();
         $bad['indexes'] = 'bad';

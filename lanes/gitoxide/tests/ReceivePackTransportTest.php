@@ -9,6 +9,7 @@ use PortLibs\Gitoxide\ReceivePackClient;
 use PortLibs\Gitoxide\ReceivePackAdvertisement;
 use PortLibs\Gitoxide\SendPackSession;
 use PortLibs\Gitoxide\SmartHttpReceivePackTransport;
+use PortLibs\Gitoxide\SmartHttpStatusException;
 use PortLibs\Gitoxide\SshReceivePackTransport;
 use PortLibs\Gitoxide\StreamReceivePackTransport;
 
@@ -970,6 +971,87 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['protocolVersion' => 0]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['protocolVersion' => 3]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['protocolVersion' => '2']));
+    },
+    'smart http receive-pack classifies HTTP status failures like gix transport' => static function (TestRunner $t) use ($packet, $flush): void {
+        $expectStatus = static function (callable $callback, int $status, string $kind, bool $retryable) use ($t): SmartHttpStatusException {
+            try {
+                $callback();
+            } catch (SmartHttpStatusException $exception) {
+                $t->same($status, $exception->statusCode());
+                $t->same($kind, $exception->kind());
+                $t->same($retryable, $exception->retryable());
+                $t->contains("Received HTTP status {$status}", $exception->getMessage());
+
+                return $exception;
+            }
+
+            throw new RuntimeException("Expected smart HTTP status {$status} exception");
+        };
+
+        $t->same([
+            'status' => 401,
+            'kind' => 'permission_denied',
+            'retryable' => false,
+            'message' => 'Received HTTP status 401',
+        ], SmartHttpReceivePackTransport::classifyHttpStatus(401));
+        $t->same([
+            'status' => 500,
+            'kind' => 'connection_aborted',
+            'retryable' => true,
+            'message' => 'Received HTTP status 500',
+        ], SmartHttpReceivePackTransport::classifyHttpStatus(500));
+        $t->same('other', SmartHttpReceivePackTransport::classifyHttpStatus(404)['kind']);
+
+        $unauthorized = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static fn (): array => [
+                'status' => 401,
+                'headers' => ['Content-Type' => 'text/plain', 'WWW-Authenticate' => 'Basic realm="Git"'],
+                'body' => 'Repository not found.',
+            ],
+        );
+        $unauthorizedException = $expectStatus(
+            static fn () => $unauthorized->readAdvertisement(),
+            401,
+            'permission_denied',
+            false,
+        );
+        $t->contains('smart HTTP receive-pack advertisement', $unauthorizedException->getMessage());
+
+        $notFound = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static fn (): array => ['status' => 404, 'headers' => ['Content-Type' => 'text/plain'], 'body' => 'Not Found'],
+        );
+        $expectStatus(static fn () => $notFound->readAdvertisement(), 404, 'other', false);
+
+        $serverError = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static fn (): array => ['status' => 500, 'headers' => ['Content-Type' => 'text/plain'], 'body' => 'error'],
+        );
+        $expectStatus(static fn () => $serverError->readAdvertisement(), 500, 'connection_aborted', true);
+
+        $advertisement = $packet("58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a refs/heads/main\0report-status object-format=sha1\n") . $flush;
+        $postRequests = [];
+        $postServerError = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body) use (&$postRequests, $packet, $flush, $advertisement): array {
+                $postRequests[] = ['method' => $method, 'url' => $url, 'headers' => $headers, 'body' => $body];
+                if ($method === 'GET') {
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                        'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                    ];
+                }
+
+                return ['status' => 503, 'headers' => ['Content-Type' => 'text/plain'], 'body' => 'temporarily unavailable'];
+            },
+        );
+        $t->same($advertisement, $postServerError->readAdvertisement());
+        $postServerError->writeRequest('0000');
+        $expectStatus(static fn () => $postServerError->readResponse(), 503, 'connection_aborted', true);
+        $t->same(['GET', 'POST'], array_column($postRequests, 'method'));
+        $t->same('0000', $postRequests[1]['body']);
     },
     'smart http receive-pack urls headers and response validation follow git http protocol' => static function (TestRunner $t) use ($packet, $flush): void {
         $t->same(
@@ -2740,6 +2822,124 @@ return [
         $t->same('wp_domain=trail', $trailingDotDomainCookieRequests[1]['headers']['Cookie']);
         $t->same($trailingDotDomainCookieRequest->requestBytes(), $trailingDotDomainCookieRequests[1]['body']);
 
+        $trailingDotDomainAttributeRequests = [];
+        $trailingDotDomainAttributeHelperCalls = 0;
+        $trailingDotDomainAttributeBlob = new GitObject('blob', 'WordPress trailing-dot Domain-attribute cookie no-proxy payload');
+        $trailingDotDomainAttributeClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test./wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$trailingDotDomainAttributeRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $trailingDotDomainAttributeRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_domain_attr=trail; Domain=example.test.; Path=/; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'proxy' => 'http://proxy.example.test:8080',
+                    'noProxy' => 'example.test',
+                    'proxyCredentialHelper' => static function () use (&$trailingDotDomainAttributeHelperCalls): array {
+                        $trailingDotDomainAttributeHelperCalls++;
+
+                        return ['username' => 'trailing-dot-domain-attribute-user', 'password' => 'trailing-dot-domain-attribute-pass'];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $trailingDotDomainAttributeSession = $trailingDotDomainAttributeClient->handshake();
+        $trailingDotDomainAttributeSession->createOrUpdate('refs/heads/main', $trailingDotDomainAttributeBlob->oid());
+        $trailingDotDomainAttributeRequest = $trailingDotDomainAttributeSession->buildRequest([$trailingDotDomainAttributeBlob]);
+
+        $trailingDotDomainAttributeResponse = $trailingDotDomainAttributeClient->send($trailingDotDomainAttributeRequest);
+
+        $t->same(true, $trailingDotDomainAttributeResponse->isSuccessful());
+        $t->same(0, $trailingDotDomainAttributeHelperCalls);
+        $t->same([[], []], array_column($trailingDotDomainAttributeRequests, 'httpOptions'));
+        $t->same('wp_domain_attr=trail', $trailingDotDomainAttributeRequests[1]['headers']['Cookie']);
+        $t->same($trailingDotDomainAttributeRequest->requestBytes(), $trailingDotDomainAttributeRequests[1]['body']);
+
+        $doubleTrailingDotDomainAttributeRequests = [];
+        $doubleTrailingDotDomainAttributeHelperCalls = 0;
+        $doubleTrailingDotDomainAttributeBlob = new GitObject('blob', 'WordPress double trailing-dot Domain-attribute cookie payload');
+        $doubleTrailingDotDomainAttributeClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test./wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$doubleTrailingDotDomainAttributeRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $doubleTrailingDotDomainAttributeRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_domain_attr=reject; Domain=example.test..; Path=/; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'proxy' => 'http://proxy.example.test:8080',
+                    'noProxy' => 'example.test',
+                    'proxyCredentialHelper' => static function () use (&$doubleTrailingDotDomainAttributeHelperCalls): array {
+                        $doubleTrailingDotDomainAttributeHelperCalls++;
+
+                        return ['username' => 'double-trailing-dot-domain-user', 'password' => 'double-trailing-dot-domain-pass'];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $doubleTrailingDotDomainAttributeSession = $doubleTrailingDotDomainAttributeClient->handshake();
+        $doubleTrailingDotDomainAttributeSession->createOrUpdate('refs/heads/main', $doubleTrailingDotDomainAttributeBlob->oid());
+        $doubleTrailingDotDomainAttributeRequest = $doubleTrailingDotDomainAttributeSession->buildRequest([$doubleTrailingDotDomainAttributeBlob]);
+
+        $doubleTrailingDotDomainAttributeResponse = $doubleTrailingDotDomainAttributeClient->send($doubleTrailingDotDomainAttributeRequest);
+
+        $t->same(true, $doubleTrailingDotDomainAttributeResponse->isSuccessful());
+        $t->same(0, $doubleTrailingDotDomainAttributeHelperCalls);
+        $t->same([[], []], array_column($doubleTrailingDotDomainAttributeRequests, 'httpOptions'));
+        $t->same(null, $doubleTrailingDotDomainAttributeRequests[1]['headers']['Cookie'] ?? null);
+        $t->same($doubleTrailingDotDomainAttributeRequest->requestBytes(), $doubleTrailingDotDomainAttributeRequests[1]['body']);
+
         $trailingDotPatternRequests = [];
         $trailingDotPatternHelperCalls = 0;
         $trailingDotPatternTransport = new SmartHttpReceivePackTransport(
@@ -4280,6 +4480,39 @@ return [
             'useShell' => false,
         ], $shellDisabledContext['sshFeatureProbe']);
 
+        $fallbackContext = SshReceivePackTransport::connectorContext(
+            'ssh://deploy@git.example.test:2222/var/www/wp-content.git',
+            ['protocolVersion' => 2, 'programKind' => 'putty', 'commandWithoutShellFallback' => 'ssh --fallback'],
+        );
+        $t->same('putty', $fallbackContext['programKind']);
+        $t->same('ssh --fallback', $fallbackContext['sshCommand']);
+        $t->same(true, $fallbackContext['disallowShell']);
+        $t->same(false, $fallbackContext['useShell']);
+        $t->same(['-P', '2222', 'deploy@git.example.test'], $fallbackContext['sshArguments']);
+        $t->same(null, $fallbackContext['sshFeatureProbe']);
+
+        $fallbackProbeContext = SshReceivePackTransport::connectorContext(
+            'deploy@git.example.test:wp-content.git',
+            ['commandWithoutShellFallback' => 'ssh --fallback'],
+        );
+        $t->same('simple', $fallbackProbeContext['programKind']);
+        $t->same('ssh --fallback', $fallbackProbeContext['sshCommand']);
+        $t->same(true, $fallbackProbeContext['disallowShell']);
+        $t->same(false, $fallbackProbeContext['useShell']);
+        $t->same([
+            'command' => 'ssh --fallback',
+            'arguments' => ['-G', 'git.example.test'],
+            'useShell' => false,
+        ], $fallbackProbeContext['sshFeatureProbe']);
+
+        $commandPrecedenceContext = SshReceivePackTransport::connectorContext(
+            'deploy@git.example.test:wp-content.git',
+            ['sshCommand' => 'echo hi', 'commandWithoutShellFallback' => 'ssh --fallback'],
+        );
+        $t->same('echo hi', $commandPrecedenceContext['sshCommand']);
+        $t->same(false, $commandPrecedenceContext['disallowShell']);
+        $t->same(true, $commandPrecedenceContext['useShell']);
+
         $explicitSimpleContext = SshReceivePackTransport::connectorContext(
             'deploy@-git-proxy.example.test:wp-content.git',
             ['programKind' => 'simple', 'sshCommand' => 'echo hi'],
@@ -4302,6 +4535,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy@git.example.test:2222/repo.git', ['programKind' => 'simple']));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy@git.example.test/repo.git', ['programKind' => 'unknown']));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy@git.example.test/repo.git', ['sshCommand' => "ssh\n"]));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy@git.example.test/repo.git', ['commandWithoutShellFallback' => "ssh\n"]));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy@git.example.test/repo.git', ['disallowShell' => 'yes']));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://git.example.test/repo.git', ['identityUsername' => ['deploy']]));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://git.example.test/repo.git', ['identityUsername' => '-deploy']));
@@ -4560,6 +4794,13 @@ return [
         $t->same('version=2:session-id', $fixture['smartHttpProtocolHeaderBoundary']['downgradeDiscoveryGitProtocol']);
         $t->same(null, $fixture['smartHttpProtocolHeaderBoundary']['downgradePostGitProtocol']);
         $t->same(true, $fixture['smartHttpProtocolHeaderBoundary']['downgradePostBodyPreserved']);
+        $t->same('permission_denied', $fixture['smartHttpStatusBoundary']['unauthorized']['kind']);
+        $t->same(false, $fixture['smartHttpStatusBoundary']['unauthorized']['retryable']);
+        $t->same('other', $fixture['smartHttpStatusBoundary']['notFound']['kind']);
+        $t->same('connection_aborted', $fixture['smartHttpStatusBoundary']['serverError']['kind']);
+        $t->same(true, $fixture['smartHttpStatusBoundary']['serverError']['retryable']);
+        $t->same('connection_aborted', $fixture['smartHttpStatusBoundary']['postServerError']['kind']);
+        $t->same(['GET', 'POST'], $fixture['smartHttpStatusBoundary']['postServerErrorRequestMethods']);
         $t->same(true, $fixture['advertisementErrorReported']);
         $t->same(true, $fixture['oversizeAdvertisementRejected']);
         $t->same(true, $fixture['unsafeSshHostDelimiterRejected']);
@@ -4620,6 +4861,19 @@ return [
             'arguments' => ['-G', 'git.example.test'],
             'useShell' => false,
         ], $fixture['sshDisallowShellContext']['sshFeatureProbe']);
+        $t->same('ssh --fallback', $fixture['sshFallbackContext']['sshCommand']);
+        $t->same(true, $fixture['sshFallbackContext']['disallowShell']);
+        $t->same(false, $fixture['sshFallbackContext']['useShell']);
+        $t->same(['-P', '2222', 'deploy@git.example.test'], $fixture['sshFallbackContext']['sshArguments']);
+        $t->same([
+            'command' => 'ssh --fallback',
+            'arguments' => ['-G', 'git.example.test'],
+            'useShell' => false,
+        ], $fixture['sshFallbackFeatureProbeContext']['sshFeatureProbe']);
+        $t->same('echo hi', $fixture['sshCommandPrecedenceContext']['sshCommand']);
+        $t->same(false, $fixture['sshCommandPrecedenceContext']['disallowShell']);
+        $t->same(true, $fixture['sshCommandPrecedenceContext']['useShell']);
+        $t->same(true, $fixture['unsafeSshFallbackCommandRejected']);
         $t->same(null, $fixture['sshExplicitSimpleNoFeatureProbeContext']['sshFeatureProbe']);
         $t->same(['deploy@-git-proxy.example.test'], $fixture['sshExplicitSimpleNoFeatureProbeContext']['sshArguments']);
         $t->same(null, $fixture['sshExplicitKindOptionLikeHostContext']['sshFeatureProbe']);
@@ -4727,6 +4981,12 @@ return [
         $t->same(true, $summary['trailingDotDomainCookieBypassedProxy']);
         $t->same(0, $summary['trailingDotDomainCookieHelperCalls']);
         $t->same($fixture['trailingDotDomainCookiePostCookieHeader'], $summary['trailingDotDomainCookiePostCookieHeader']);
+        $t->same(true, $fixture['trailingDotDomainAttributeCookieBypassedProxy']);
+        $t->same(0, $fixture['trailingDotDomainAttributeCookieHelperCalls']);
+        $t->same('wp_domain_attr=trail', $fixture['trailingDotDomainAttributeCookiePostCookieHeader']);
+        $t->same(true, $summary['trailingDotDomainAttributeCookieBypassedProxy']);
+        $t->same(0, $summary['trailingDotDomainAttributeCookieHelperCalls']);
+        $t->same($fixture['trailingDotDomainAttributeCookiePostCookieHeader'], $summary['trailingDotDomainAttributeCookiePostCookieHeader']);
         $t->same(true, $fixture['portQualifiedNoProxyUsedProxy']);
         $t->same(2, $fixture['portQualifiedNoProxyHelperCalls']);
         $t->same('Basic ' . base64_encode('port-literal-proxy-user:port-literal-proxy-pass'), $fixture['portQualifiedNoProxyAuthorizationSent']);

@@ -8952,6 +8952,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $selectedName = (string) (($base['selectedPlan']['name'] ?? ''));
             $preparedIndex = self::stat4IndexByName($preparedSource, $selectedName);
             $currentIndex = self::stat4IndexByName($currentSource, $selectedName);
+            $keyColumn = self::stat4KeyColumnForPartialKeyFields($currentIndex, 'next185 sample provenance');
             $preparedSamples = self::stat4SampleRows($preparedIndex);
             $currentSamples = self::stat4SampleRows($currentIndex);
             $currentRowsById = self::stat4RowsById($currentSource);
@@ -8978,7 +8979,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'currentSignature' => self::stablePlanSignature($currentSamples),
             ];
             $sampleDelta['changed'] = $sampleDelta['preparedSignature'] !== $sampleDelta['currentSignature'];
-            $provenance = self::stat4WindowProvenance($windowRowids, $currentRowsById, $currentSamples);
+            $provenance = self::stat4WindowProvenance($windowRowids, $currentRowsById, $currentSamples, $keyColumn);
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next182-ready'
                 && $sampleDelta['changed'] === true
                 && $missing === []
@@ -9128,7 +9129,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array{key:mixed,rowid:int,neq:mixed,nlt:mixed,ndlt:mixed}> $samples
          * @return list<array<string,mixed>>
          */
-        private static function stat4WindowProvenance(array $rowids, array $rowsById, array $samples): array
+        private static function stat4WindowProvenance(array $rowids, array $rowsById, array $samples, string $keyColumn): array
         {
             $sampleMap = [];
             foreach ($samples as $sample) {
@@ -9140,7 +9141,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $out[] = [
                     'rowid' => $rowid,
                     'source' => $row === null ? 'missing-current-row' : 'current',
-                    'option_name' => is_array($row) ? ($row['option_name'] ?? null) : null,
+                    'keyColumn' => $keyColumn,
+                    'keyValue' => is_array($row) ? ($row[$keyColumn] ?? null) : null,
                     'sampleKey' => $sampleMap[$rowid]['key'] ?? null,
                     'stat4Anchor' => isset($sampleMap[$rowid]),
                 ];

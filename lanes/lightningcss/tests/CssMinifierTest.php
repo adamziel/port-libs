@@ -1923,6 +1923,24 @@ CSS
                 '.grid-auto-flow-row-auto-rows { grid: auto-flow 40px / 1fr 90px; grid-template-areas: "a"; }'
             )
         );
+        $t->same(
+            '.grid-auto-flow-row-auto-rows-multiple{grid:auto-flow 40px max-content/1fr;grid-template-areas:".a"}',
+            $minifier->minify(
+                '.grid-auto-flow-row-auto-rows-multiple { grid: auto-flow 40px max-content / 1fr; grid-template-areas: ". a"; }'
+            )
+        );
+        $t->same(
+            '.grid-auto-flow-column-auto-rows{grid:1fr 3fr/auto-flow 40px;grid-template-areas:"a"}',
+            $minifier->minify(
+                '.grid-auto-flow-column-auto-rows { grid: 1fr 3fr / auto-flow 40px; grid-template-areas: "a"; }'
+            )
+        );
+        $t->same(
+            '.grid-auto-flow-column-auto-rows-multiple{grid:1fr/auto-flow 40px max-content;grid-template-areas:".a"}',
+            $minifier->minify(
+                '.grid-auto-flow-column-auto-rows-multiple { grid: 1fr / auto-flow 40px max-content; grid-template-areas: ". a"; }'
+            )
+        );
     },
     'css minifier maps upstream property rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

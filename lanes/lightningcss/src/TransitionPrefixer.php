@@ -645,6 +645,7 @@ final class TransitionPrefixer
         $modernColorChanged = $this->rewriteModernColorFunctionEntries($entries, $targetOptions);
         $fontTargetChanged = $this->rewriteFontTargetFallbackEntries($entries, $targetOptions);
         $fontTypographyPrefixChanged = $this->rewriteFontTypographyPrefixEntries($entries, $targetOptions);
+        $imageRenderingPrefixChanged = $this->rewriteImageRenderingPrefixEntries($entries, $targetOptions);
         $lengthTargetChanged = $this->rewriteLengthTargetFallbackEntries($entries, $targetOptions);
         $logicalBorderFallback = $this->rewriteLogicalBorderFallbackRule(
             $selectors,
@@ -680,7 +681,7 @@ final class TransitionPrefixer
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
         $selectorVariants = $this->selectorPrefixVariants($selectors, $targetOptions);
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $cssRegionsChanged || $shapeChanged || $unicodeBidiChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $cssRegionsChanged || $shapeChanged || $unicodeBidiChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $imageRenderingPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
             return $this->serializeRulesForSelectors($selectorVariants ?? [$selectors], $entries) . implode('', $supportRules);
         }
 
@@ -974,6 +975,7 @@ final class TransitionPrefixer
         }
 
         $rewritten = $this->rewriteSupportsDeclarationPrefixes($condition, $condition, $prefixGroups);
+        $rewritten = $this->rewriteSupportsImageRenderingPrefixes($rewritten, $condition, $targetOptions);
 
         return '@supports ' . $rewritten;
     }
@@ -1185,6 +1187,96 @@ final class TransitionPrefixer
         $alternatives[] = $this->supportsDeclarationCondition($declaration['property'], $declaration['value']);
 
         return '(' . implode(' or ', $alternatives) . ')';
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteSupportsImageRenderingPrefixes(string $condition, string $rootCondition, array $targetOptions): string
+    {
+        $logical = $this->splitSupportsConditionByLogicalOperator($condition);
+        if ($logical !== null) {
+            $operators = array_values(array_unique(array_map(
+                static fn (array $item): string => $item['type'] === 'operator' ? $item['value'] : '',
+                $logical
+            )));
+            $operators = array_values(array_filter($operators, static fn (string $operator): bool => $operator !== ''));
+
+            if ($operators === ['or']) {
+                $conditions = [];
+                foreach ($logical as $item) {
+                    if ($item['type'] === 'operator') {
+                        continue;
+                    }
+
+                    if ($this->shouldDropSupportsImageRenderingCondition($item['value'], $rootCondition, $targetOptions)) {
+                        continue;
+                    }
+
+                    $conditions[] = $this->rewriteSupportsImageRenderingPrefixes($item['value'], $rootCondition, $targetOptions);
+                }
+
+                return $conditions === [] ? $condition : implode(' or ', $conditions);
+            }
+
+            $parts = [];
+            foreach ($logical as $item) {
+                $parts[] = $item['type'] === 'operator'
+                    ? $item['value']
+                    : $this->rewriteSupportsImageRenderingPrefixes($item['value'], $rootCondition, $targetOptions);
+            }
+
+            return implode(' ', $parts);
+        }
+
+        $declaration = $this->parseSupportsDeclarationCondition($condition);
+        if ($declaration === null) {
+            return $condition;
+        }
+
+        $info = $this->imageRenderingPixelatedInfo($declaration['property'], $declaration['value']);
+        if ($info === null || $info['prefix'] !== '') {
+            return $condition;
+        }
+
+        $alternatives = [];
+        foreach ($this->imageRenderingPixelatedFallbackValues() as $prefix => $fallback) {
+            if (!(($this->imageRenderingNeededFallbacks($targetOptions))[$prefix] ?? false)) {
+                continue;
+            }
+            if ($this->supportsConditionHasDeclaration($rootCondition, $fallback['property'], $fallback['value'])) {
+                continue;
+            }
+
+            $alternatives[] = $this->supportsDeclarationCondition($fallback['property'], $fallback['value']);
+        }
+
+        if ($alternatives === []) {
+            return $this->supportsDeclarationCondition($declaration['property'], $declaration['value']);
+        }
+
+        $alternatives[] = $this->supportsDeclarationCondition($declaration['property'], $declaration['value']);
+
+        return '(' . implode(' or ', $alternatives) . ')';
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function shouldDropSupportsImageRenderingCondition(string $condition, string $rootCondition, array $targetOptions): bool
+    {
+        $declaration = $this->parseSupportsDeclarationCondition($condition);
+        if ($declaration === null) {
+            return false;
+        }
+
+        $info = $this->imageRenderingPixelatedInfo($declaration['property'], $declaration['value']);
+        if ($info === null || $info['prefix'] === '') {
+            return false;
+        }
+
+        return !(($this->imageRenderingNeededFallbacks($targetOptions))[$info['prefix']] ?? false)
+            && $this->supportsConditionHasDeclaration($rootCondition, 'image-rendering', 'pixelated');
     }
 
     /**
@@ -1760,6 +1852,11 @@ final class TransitionPrefixer
                 || $this->targetAtLeast($normalized, 'ie', [8]),
             'overscrollBehaviorNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [17])
                 || $this->targetAtLeast($normalized, 'ie', [10]),
+            'imageRenderingPixelatedNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [5], [6])
+                || $this->targetInRange($normalized, 'safari', [0], [6]),
+            'imageRenderingPixelatedNeedsMoz' => $this->targetInRange($normalized, 'firefox', [3, 6], [64]),
+            'imageRenderingPixelatedNeedsO' => $this->targetInRange($normalized, 'opera', [11, 6], [12, 1]),
+            'imageRenderingNeedsMs' => $this->targetAtLeast($normalized, 'ie', [7]),
             'textOrientationNeedsWebkit' => $this->targetInRange($normalized, 'safari', [10, 1], [13, 1]),
             'touchActionNeedsMs' => $this->targetInRange($normalized, 'ie', [10], [10]),
             'textDecorationSkipInkNeedsWebkit' => $this->targetAtLeast($normalized, 'ios_saf', [8])
@@ -6143,6 +6240,129 @@ final class TransitionPrefixer
         return $this->rewriteVendorPrefixedDeclarationGroup($entries, 'font-kerning', [
             '-webkit-' => $targetOptions['fontKerningNeedsWebkit'] ?? false,
         ]) || $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteImageRenderingPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $neededFallbacks = $this->imageRenderingNeededFallbacks($targetOptions);
+        $hasUnprefixedPixelated = false;
+        $hasRelevantDeclaration = false;
+        $prefixedFallbacks = [];
+
+        foreach ($entries as $entry) {
+            $info = $this->imageRenderingPixelatedInfo($entry['property'], $entry['value']);
+            if ($info === null) {
+                continue;
+            }
+
+            $hasRelevantDeclaration = true;
+            if ($info['prefix'] === '' && !$entry['important']) {
+                $hasUnprefixedPixelated = true;
+                continue;
+            }
+
+            if ($info['prefix'] !== '') {
+                $prefixedFallbacks[$info['prefix']] = true;
+            }
+        }
+
+        if (!$hasRelevantDeclaration || !$hasUnprefixedPixelated) {
+            return false;
+        }
+
+        $rewritten = [];
+        $changed = false;
+        foreach ($entries as $entry) {
+            $info = $this->imageRenderingPixelatedInfo($entry['property'], $entry['value']);
+            if ($info === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if (
+                $info['prefix'] !== ''
+                && !$entry['important']
+                && !($neededFallbacks[$info['prefix']] ?? false)
+            ) {
+                $changed = true;
+                continue;
+            }
+
+            if ($info['prefix'] === '' && !$entry['important']) {
+                foreach ($this->imageRenderingPixelatedFallbackValues() as $prefix => $fallback) {
+                    if (!($neededFallbacks[$prefix] ?? false) || isset($prefixedFallbacks[$prefix])) {
+                        continue;
+                    }
+
+                    $rewritten[] = $this->declarationEntry($fallback['property'], $fallback['value']);
+                    $prefixedFallbacks[$prefix] = true;
+                    $changed = true;
+                }
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+        return true;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return array<string, bool>
+     */
+    private function imageRenderingNeededFallbacks(array $targetOptions): array
+    {
+        return [
+            '-ms-' => $targetOptions['imageRenderingNeedsMs'] ?? false,
+            '-webkit-' => $targetOptions['imageRenderingPixelatedNeedsWebkit'] ?? false,
+            '-moz-' => $targetOptions['imageRenderingPixelatedNeedsMoz'] ?? false,
+            '-o-' => $targetOptions['imageRenderingPixelatedNeedsO'] ?? false,
+        ];
+    }
+
+    /**
+     * @return array{prefix:string}|null
+     */
+    private function imageRenderingPixelatedInfo(string $property, string $value): ?array
+    {
+        $value = strtolower(trim($value));
+        if ($property === '-ms-interpolation-mode' && $value === 'nearest-neighbor') {
+            return ['prefix' => '-ms-'];
+        }
+
+        if ($property !== 'image-rendering') {
+            return null;
+        }
+
+        return match ($value) {
+            'pixelated' => ['prefix' => ''],
+            '-webkit-optimize-contrast' => ['prefix' => '-webkit-'],
+            '-moz-crisp-edges' => ['prefix' => '-moz-'],
+            '-o-pixelated' => ['prefix' => '-o-'],
+            default => null,
+        };
+    }
+
+    /**
+     * @return array<string, array{property:string,value:string}>
+     */
+    private function imageRenderingPixelatedFallbackValues(): array
+    {
+        return [
+            '-ms-' => ['property' => '-ms-interpolation-mode', 'value' => 'nearest-neighbor'],
+            '-webkit-' => ['property' => 'image-rendering', 'value' => '-webkit-optimize-contrast'],
+            '-moz-' => ['property' => 'image-rendering', 'value' => '-moz-crisp-edges'],
+            '-o-' => ['property' => 'image-rendering', 'value' => '-o-pixelated'],
+        ];
     }
 
     /**

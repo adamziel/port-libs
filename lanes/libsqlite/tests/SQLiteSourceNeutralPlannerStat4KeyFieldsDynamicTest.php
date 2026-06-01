@@ -71,6 +71,8 @@ $lateCurrentSourceFenceMethods = [
     'sampleTapeFenceCurrentSourceSampleTapeValidation',
     'matchedRowsByExpressionCurrentSourceSampleTapeValidation',
     'rowExpressionKeyCurrentSourceSampleTapeValidation',
+    'materializeCurrentSourcePayloadWindowFence',
+    'stat4WindowProvenance',
     'materializeCurrentSourceDuplicateCardinalityValidation',
     'duplicateCardinalityFenceCurrentSourceDuplicateCardinalityValidation',
     'expressionKeyCurrentSourceDuplicateCardinalityValidation',
@@ -140,6 +142,10 @@ return [
     'planner stat4 partial estimate expression key uses generic key field' => static fn (TestRunner $t) => $t->same('module_search', $callPrivate('rowExpressionKeyCurrentSourcePartialEstimateFence', ['key_name' => 'Module_Search'], 'key_name')),
     'planner stat4 residual where uses generic lower key field' => static fn (TestRunner $t) => $t->same('module_search', $callPrivate('leftValueCurrentSourceResidualWhereValidation', ['expression' => 'lower(key_name)'], ['key_name' => 'Module_Search'])),
     'planner stat4 sample tape expression key uses generic key field' => static fn (TestRunner $t) => $t->same('module_sync', $callPrivate('rowExpressionKeyCurrentSourceSampleTapeValidation', ['key_name' => 'Module_Sync'], 'key_name')),
+    'planner stat4 sample provenance uses generic key column' => static fn (TestRunner $t) => $t->same(
+        [['rowid' => 7, 'source' => 'current', 'keyColumn' => 'key_name', 'keyValue' => 'Module_Sync', 'sampleKey' => 'module_sync', 'stat4Anchor' => true]],
+        $callPrivate('stat4WindowProvenance', [7], [7 => ['rowid' => 7, 'key_name' => 'Module_Sync']], [['key' => 'module_sync', 'rowid' => 7, 'neq' => 1, 'nlt' => 0, 'ndlt' => 0]], 'key_name')
+    ),
     'planner stat4 duplicate cardinality expression key uses generic key field' => static fn (TestRunner $t) => $t->same('module_cache', $callPrivate('expressionKeyCurrentSourceDuplicateCardinalityValidation', ['key_name' => 'Module_Cache'], 'key_name')),
     'planner stat4 boundary peer expression key uses generic key field' => static fn (TestRunner $t) => $t->same('module_auth', $callPrivate('expressionKeyStat4BoundaryPeer', ['key_name' => 'Module_Auth'], 'key_name')),
     'planner stat4 duplicate run expression key uses generic key field' => static fn (TestRunner $t) => $t->same('module_forms', $callPrivate('rowExpressionKeyCurrentSourceDuplicateRunValidation', ['key_name' => 'Module_Forms'], 'key_name')),

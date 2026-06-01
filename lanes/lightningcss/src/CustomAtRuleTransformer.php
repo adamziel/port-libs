@@ -54,6 +54,12 @@ final class CustomAtRuleTransformer
     private $mediaRuleExitVisitor = null;
 
     /** @var callable|null */
+    private $supportsRuleVisitor = null;
+
+    /** @var callable|null */
+    private $supportsRuleExitVisitor = null;
+
+    /** @var callable|null */
     private $mediaQueryVisitor = null;
 
     /** @var callable|null */
@@ -306,6 +312,41 @@ final class CustomAtRuleTransformer
 
                     return count($rules) === 1 ? $rules[0] : $rules;
                 },
+                'supports' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    $rules = [$rule];
+                    $changed = false;
+                    foreach ($visitors as $visitor) {
+                        $callback = self::supportsRuleVisitorCallback($visitor);
+                        if ($callback === null) {
+                            continue;
+                        }
+
+                        $nextRules = [];
+                        foreach ($rules as $currentRule) {
+                            $replacement = $callback($currentRule, $transformer);
+                            if ($replacement === null) {
+                                $nextRules[] = $currentRule;
+                                continue;
+                            }
+
+                            $changed = true;
+                            foreach (self::normalizeRuleVisitorReplacement($replacement, 'Rule.supports') as $nextRule) {
+                                $nextRules[] = $nextRule;
+                            }
+                        }
+
+                        $rules = $nextRules;
+                        if ($rules === []) {
+                            break;
+                        }
+                    }
+
+                    if (!$changed) {
+                        return null;
+                    }
+
+                    return count($rules) === 1 ? $rules[0] : $rules;
+                },
             ],
             'RuleExit' => [
                 'custom' => static function (array $rule, self $transformer) use ($visitors): mixed {
@@ -381,6 +422,41 @@ final class CustomAtRuleTransformer
 
                             $changed = true;
                             foreach (self::normalizeRuleVisitorReplacement($replacement, 'RuleExit.media') as $nextRule) {
+                                $nextRules[] = $nextRule;
+                            }
+                        }
+
+                        $rules = $nextRules;
+                        if ($rules === []) {
+                            break;
+                        }
+                    }
+
+                    if (!$changed) {
+                        return null;
+                    }
+
+                    return count($rules) === 1 ? $rules[0] : $rules;
+                },
+                'supports' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    $rules = [$rule];
+                    $changed = false;
+                    foreach ($visitors as $visitor) {
+                        $callback = self::supportsRuleExitVisitorCallback($visitor);
+                        if ($callback === null) {
+                            continue;
+                        }
+
+                        $nextRules = [];
+                        foreach ($rules as $currentRule) {
+                            $replacement = $callback($currentRule, $transformer);
+                            if ($replacement === null) {
+                                $nextRules[] = $currentRule;
+                                continue;
+                            }
+
+                            $changed = true;
+                            foreach (self::normalizeRuleVisitorReplacement($replacement, 'RuleExit.supports') as $nextRule) {
                                 $nextRules[] = $nextRule;
                             }
                         }
@@ -1077,6 +1153,18 @@ final class CustomAtRuleTransformer
         $mediaExitVisitor = $ruleExitSubVisitors['media'] ?? null;
         if (is_callable($mediaExitVisitor)) {
             $this->mediaRuleExitVisitor = $mediaExitVisitor;
+        }
+
+        $this->supportsRuleVisitor = null;
+        $supportsVisitor = $ruleSubVisitors['supports'] ?? $visitor['supports'] ?? null;
+        if (is_callable($supportsVisitor)) {
+            $this->supportsRuleVisitor = $supportsVisitor;
+        }
+
+        $this->supportsRuleExitVisitor = null;
+        $supportsExitVisitor = $ruleExitSubVisitors['supports'] ?? null;
+        if (is_callable($supportsExitVisitor)) {
+            $this->supportsRuleExitVisitor = $supportsExitVisitor;
         }
 
         $this->mediaQueryVisitor = is_callable($visitor['MediaQuery'] ?? null) ? $visitor['MediaQuery'] : null;
@@ -2464,12 +2552,31 @@ final class CustomAtRuleTransformer
      */
     private function processSupportsRule(string $condition, string $body, ?array $parentSelectors, ?array $loc = null): string
     {
+        if ($this->ruleVisitor !== null) {
+            $replacement = $this->callAnyRuleVisitor($this->buildSupportsRule($condition, $body, $parentSelectors, $loc));
+            if ($replacement !== null) {
+                return $this->emitReplacement($replacement, $parentSelectors);
+            }
+        }
+
+        if ($this->supportsRuleVisitor !== null) {
+            $rule = $this->buildSupportsRule($condition, $body, $parentSelectors, $loc);
+            $replacement = ($this->supportsRuleVisitor)($rule, $this);
+            if ($replacement !== null) {
+                return $this->emitReplacement($replacement, $parentSelectors);
+            }
+        }
+
         $conditionCss = $this->supportsConditionVisitor !== null || $this->supportsConditionExitVisitor !== null
             ? $this->returnedSupportsConditionToCss($this->applySupportsConditionVisitors($this->parseSupportsConditionForVisitor($condition)))
             : $this->rewriteAtRulePreludeValue($condition);
         $bodyCss = $parentSelectors === null
             ? $this->processRuleList($body)
             : $this->processStyleBody($body, $parentSelectors);
+        $exitReplacement = $this->applySupportsRuleExit($this->buildVisitedSupportsRule($conditionCss, $bodyCss, $parentSelectors, $loc), $parentSelectors);
+        if ($exitReplacement !== null) {
+            return $exitReplacement;
+        }
 
         return '@supports ' . $conditionCss . '{' . $bodyCss . '}';
     }
@@ -2640,6 +2747,42 @@ final class CustomAtRuleTransformer
             'value' => [
                 'loc' => $loc ?? $this->defaultSourceLocation(),
                 'query' => $this->parseMediaQueryForVisitor($query),
+                'rules' => $this->parseReturnedRuleList($body, null),
+            ],
+            'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
+            'parentSelectors' => $parentSelectors ?? [],
+        ];
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     * @return array{type:string,value:array{loc:array{source_index:int,line:int,column:int},condition:array<string, mixed>,rules:list<array<string, mixed>>},context:string,parentSelectors:list<string>}
+     */
+    private function buildSupportsRule(string $condition, string $body, ?array $parentSelectors, ?array $loc = null): array
+    {
+        return [
+            'type' => 'supports',
+            'value' => [
+                'loc' => $loc ?? $this->defaultSourceLocation(),
+                'condition' => $this->parseSupportsConditionForVisitor($condition),
+                'rules' => $this->parseReturnedRuleList($body, $parentSelectors),
+            ],
+            'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
+            'parentSelectors' => $parentSelectors ?? [],
+        ];
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     * @return array{type:string,value:array{loc:array{source_index:int,line:int,column:int},condition:array<string, mixed>,rules:list<array<string, mixed>>},context:string,parentSelectors:list<string>}
+     */
+    private function buildVisitedSupportsRule(string $condition, string $body, ?array $parentSelectors, ?array $loc = null): array
+    {
+        return [
+            'type' => 'supports',
+            'value' => [
+                'loc' => $loc ?? $this->defaultSourceLocation(),
+                'condition' => $this->parseSupportsConditionForVisitor($condition),
                 'rules' => $this->parseReturnedRuleList($body, null),
             ],
             'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
@@ -3859,6 +4002,26 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * @param array<string, mixed> $rule
+     * @param list<string>|null $parentSelectors
+     */
+    private function applySupportsRuleExit(array $rule, ?array $parentSelectors): ?string
+    {
+        $genericReplacement = $this->callAnyRuleExitVisitor($rule);
+        if ($genericReplacement !== null) {
+            return $this->emitReplacement($genericReplacement, $parentSelectors);
+        }
+
+        if ($this->supportsRuleExitVisitor === null) {
+            return null;
+        }
+
+        $replacement = ($this->supportsRuleExitVisitor)($rule, $this);
+
+        return $replacement === null ? null : $this->emitReplacement($replacement, $parentSelectors);
+    }
+
+    /**
      * @param list<string>|null $parentSelectors
      */
     private function emitReplacement(mixed $replacement, ?array $parentSelectors): string
@@ -4793,6 +4956,45 @@ final class CustomAtRuleTransformer
 
         if (is_array($ruleConfig) && is_callable($ruleConfig['media'] ?? null)) {
             return $ruleConfig['media'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function supportsRuleVisitorCallback(array $visitor): ?callable
+    {
+        $ruleConfig = $visitor['Rule'] ?? null;
+        if (is_callable($ruleConfig)) {
+            return $ruleConfig;
+        }
+
+        if (is_array($ruleConfig) && is_callable($ruleConfig['supports'] ?? null)) {
+            return $ruleConfig['supports'];
+        }
+
+        $supportsConfig = $visitor['supports'] ?? null;
+        if (is_callable($supportsConfig)) {
+            return $supportsConfig;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function supportsRuleExitVisitorCallback(array $visitor): ?callable
+    {
+        $ruleConfig = $visitor['RuleExit'] ?? null;
+        if (is_callable($ruleConfig)) {
+            return $ruleConfig;
+        }
+
+        if (is_array($ruleConfig) && is_callable($ruleConfig['supports'] ?? null)) {
+            return $ruleConfig['supports'];
         }
 
         return null;

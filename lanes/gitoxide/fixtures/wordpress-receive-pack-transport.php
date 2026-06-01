@@ -9,6 +9,8 @@ use PortLibs\Gitoxide\SendPackSession;
 use PortLibs\Gitoxide\GitDaemonReceivePackTransport;
 use PortLibs\Gitoxide\ProtocolCapabilities;
 use PortLibs\Gitoxide\PushCommand;
+use PortLibs\Gitoxide\SmartHttpReceivePackTransport;
+use PortLibs\Gitoxide\SmartHttpStatusException;
 use PortLibs\Gitoxide\SshReceivePackTransport;
 use PortLibs\Gitoxide\StreamReceivePackTransport;
 use PortLibs\Gitoxide\Tree;
@@ -193,6 +195,18 @@ return [
         'deploy@git.example.test:wp-content.git',
         ['sshCommand' => 'echo hi', 'disallowShell' => true],
     ),
+    'sshFallbackContext' => SshReceivePackTransport::connectorContext(
+        'ssh://deploy@git.example.test:2222/var/www/wp-content.git',
+        ['protocolVersion' => 2, 'programKind' => 'putty', 'commandWithoutShellFallback' => 'ssh --fallback'],
+    ),
+    'sshFallbackFeatureProbeContext' => SshReceivePackTransport::connectorContext(
+        'deploy@git.example.test:wp-content.git',
+        ['commandWithoutShellFallback' => 'ssh --fallback'],
+    ),
+    'sshCommandPrecedenceContext' => SshReceivePackTransport::connectorContext(
+        'deploy@git.example.test:wp-content.git',
+        ['sshCommand' => 'echo hi', 'commandWithoutShellFallback' => 'ssh --fallback'],
+    ),
     'sshExplicitSimpleNoFeatureProbeContext' => SshReceivePackTransport::connectorContext(
         'deploy@-git-proxy.example.test:wp-content.git',
         ['programKind' => 'simple', 'sshCommand' => 'echo hi'],
@@ -292,7 +306,7 @@ return [
     })(),
     'unsafeSmartHttpCredentialControlByteRejected' => (static function (): bool {
         try {
-            \PortLibs\Gitoxide\SmartHttpReceivePackTransport::infoRefsUrl('https://deploy:bad%0atoken@git.example.test/wp-content.git');
+            SmartHttpReceivePackTransport::infoRefsUrl('https://deploy:bad%0atoken@git.example.test/wp-content.git');
         } catch (InvalidArgumentException) {
             return true;
         }
@@ -301,7 +315,7 @@ return [
     })(),
     'unsafeSmartHttpCredentialTabRejected' => (static function (): bool {
         try {
-            \PortLibs\Gitoxide\SmartHttpReceivePackTransport::infoRefsUrl('https://bad%09deploy:token@git.example.test/wp-content.git');
+            SmartHttpReceivePackTransport::infoRefsUrl('https://bad%09deploy:token@git.example.test/wp-content.git');
         } catch (InvalidArgumentException) {
             return true;
         }
@@ -319,7 +333,7 @@ return [
     })(),
     'unsafeSmartHttpProxyHostDelimiterRejected' => (static function (): bool {
         try {
-            new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+            new SmartHttpReceivePackTransport(
                 'https://git.example.test/wp-content.git',
                 null,
                 [],
@@ -335,7 +349,7 @@ return [
     })(),
     'unsafeSmartHttpEncodedPathControlByteRejected' => (static function (): bool {
         try {
-            \PortLibs\Gitoxide\SmartHttpReceivePackTransport::infoRefsUrl('https://git.example.test/wp%0acontent.git');
+            SmartHttpReceivePackTransport::infoRefsUrl('https://git.example.test/wp%0acontent.git');
         } catch (InvalidArgumentException) {
             return true;
         }
@@ -344,7 +358,7 @@ return [
     })(),
     'unsafeSmartHttpExtraParameterTabRejected' => (static function (): bool {
         try {
-            new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+            new SmartHttpReceivePackTransport(
                 'https://git.example.test/wp-content.git',
                 null,
                 ["version\t=2"]
@@ -357,7 +371,7 @@ return [
     })(),
     'unsafeSmartHttpHeaderTabRejected' => (static function (): bool {
         try {
-            new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+            new SmartHttpReceivePackTransport(
                 'https://git.example.test/wp-content.git',
                 null,
                 [],
@@ -372,7 +386,7 @@ return [
     })(),
     'unsafeSmartHttpNoProxyDelimiterRejected' => (static function (): bool {
         try {
-            new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+            new SmartHttpReceivePackTransport(
                 'https://git.example.test/wp-content.git',
                 null,
                 [],
@@ -388,7 +402,7 @@ return [
     })(),
     'unsafeSmartHttpRawUrlControlByteRejected' => (static function (): bool {
         try {
-            \PortLibs\Gitoxide\SmartHttpReceivePackTransport::infoRefsUrl("https://git.example.test/wp-content.git\t");
+            SmartHttpReceivePackTransport::infoRefsUrl("https://git.example.test/wp-content.git\t");
         } catch (InvalidArgumentException) {
             return true;
         }
@@ -397,7 +411,7 @@ return [
     })(),
     'unsafeSmartHttpRawProxyControlByteRejected' => (static function (): bool {
         try {
-            new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+            new SmartHttpReceivePackTransport(
                 'https://git.example.test/wp-content.git',
                 null,
                 [],
@@ -412,7 +426,7 @@ return [
         return false;
     })(),
     'smartHttpAdvertisementWithoutServiceHeaderAccepted' => (static function () use ($advertisementBytes): bool {
-        $transport = new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+        $transport = new SmartHttpReceivePackTransport(
             'https://git.example.test/wp-content.git',
             static fn (): array => [
                 'status' => 200,
@@ -430,7 +444,7 @@ return [
             . $flush;
         $requests = [];
         $client = new ReceivePackClient(
-            new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+            new SmartHttpReceivePackTransport(
                 'https://git.example.test/wp-content.git',
                 static function (string $method, string $url, array $headers, ?string $body) use (&$requests, $packet, $flush, $advertisementBytes, $responseBytes): array {
                     $requests[] = ['method' => $method, 'url' => $url, 'body' => $body];
@@ -468,7 +482,7 @@ return [
     })(),
     'smartHttpHeaderBoundary' => (static function () use ($packet, $flush, $advertisementBytes, $blob): array {
         $defaultRequests = [];
-        $defaultTransport = new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+        $defaultTransport = new SmartHttpReceivePackTransport(
             'https://git.example.test/wp-content.git',
             static function (string $method, string $url, array $headers, ?string $body) use (&$defaultRequests, $packet, $flush, $advertisementBytes): array {
                 $defaultRequests[] = [
@@ -493,7 +507,7 @@ return [
             . $flush;
         $overrideRequests = [];
         $client = new ReceivePackClient(
-            new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+            new SmartHttpReceivePackTransport(
                 'https://git.example.test/wp-content.git',
                 static function (string $method, string $url, array $headers, ?string $body) use (&$overrideRequests, $packet, $flush, $advertisementBytes, $responseBytes): array {
                     $overrideRequests[] = [
@@ -545,7 +559,7 @@ return [
             . $flush;
         $requests = [];
         $client = new ReceivePackClient(
-            new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+            new SmartHttpReceivePackTransport(
                 'https://git.example.test/wp-content.git',
                 static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$requests, $packet, $flush, $advertisementBytes, $responseBytes): array {
                     $requests[] = [
@@ -611,7 +625,7 @@ return [
     'smartHttpProtocolHeaderBoundary' => (static function () use ($packet, $flush, $advertisementBytes): array {
         $v2Advertisement = $packet("version 2\n") . $flush;
         $v2Requests = [];
-        $v2Transport = new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+        $v2Transport = new SmartHttpReceivePackTransport(
             'https://git.example.test/wp-content.git',
             static function (string $method, string $url, array $headers, ?string $body) use (&$v2Requests, $packet, $flush, $v2Advertisement): array {
                 $v2Requests[] = [
@@ -645,7 +659,7 @@ return [
         $v2Transport->readResponse();
 
         $downgradeRequests = [];
-        $downgradeTransport = new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+        $downgradeTransport = new SmartHttpReceivePackTransport(
             'https://git.example.test/wp-content.git',
             static function (string $method, string $url, array $headers, ?string $body) use (&$downgradeRequests, $packet, $flush, $advertisementBytes): array {
                 $downgradeRequests[] = [
@@ -686,6 +700,75 @@ return [
             'downgradeDiscoveryGitProtocol' => $downgradeRequests[0]['headers']['Git-Protocol'] ?? null,
             'downgradePostGitProtocol' => $downgradeRequests[1]['headers']['Git-Protocol'] ?? null,
             'downgradePostBodyPreserved' => $downgradeRequests[1]['body'] === '0000',
+        ];
+    })(),
+    'smartHttpStatusBoundary' => (static function () use ($packet, $flush, $advertisementBytes): array {
+        $captureStatus = static function (callable $operation): array {
+            try {
+                $operation();
+            } catch (SmartHttpStatusException $exception) {
+                return [
+                    'status' => $exception->statusCode(),
+                    'kind' => $exception->kind(),
+                    'retryable' => $exception->retryable(),
+                    'message' => $exception->getMessage(),
+                ];
+            }
+
+            return ['status' => 0, 'kind' => 'none', 'retryable' => false, 'message' => ''];
+        };
+
+        $unauthorized = $captureStatus(static fn () => (new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static fn (): array => [
+                'status' => 401,
+                'headers' => ['Content-Type' => 'text/plain', 'WWW-Authenticate' => 'Basic realm="Git"'],
+                'body' => 'Repository not found.',
+            ],
+        ))->readAdvertisement());
+
+        $notFound = $captureStatus(static fn () => (new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static fn (): array => ['status' => 404, 'headers' => ['Content-Type' => 'text/plain'], 'body' => 'Not Found'],
+        ))->readAdvertisement());
+
+        $serverError = $captureStatus(static fn () => (new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static fn (): array => ['status' => 500, 'headers' => ['Content-Type' => 'text/plain'], 'body' => 'error'],
+        ))->readAdvertisement());
+
+        $postServerErrorRequests = [];
+        $postServerErrorTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body) use (&$postServerErrorRequests, $packet, $flush, $advertisementBytes): array {
+                $postServerErrorRequests[] = ['method' => $method, 'url' => $url, 'body' => $body];
+
+                if ($method === 'GET') {
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                        'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                    ];
+                }
+
+                return ['status' => 503, 'headers' => ['Content-Type' => 'text/plain'], 'body' => 'temporarily unavailable'];
+            },
+        );
+        $postServerErrorTransport->readAdvertisement();
+        $postServerErrorTransport->writeRequest('0000');
+        $postServerError = $captureStatus(static fn () => $postServerErrorTransport->readResponse());
+
+        return [
+            'unauthorized' => $unauthorized,
+            'notFound' => $notFound,
+            'serverError' => $serverError,
+            'postServerError' => $postServerError,
+            'postServerErrorRequestMethods' => array_column($postServerErrorRequests, 'method'),
+            'classifications' => [
+                401 => SmartHttpReceivePackTransport::classifyHttpStatus(401),
+                404 => SmartHttpReceivePackTransport::classifyHttpStatus(404),
+                500 => SmartHttpReceivePackTransport::classifyHttpStatus(500),
+            ],
         ];
     })(),
     'streamWatchdogTimeoutReported' => (static function (): bool {
@@ -840,6 +923,18 @@ return [
 
         return false;
     })(),
+    'unsafeSshFallbackCommandRejected' => (static function (): bool {
+        try {
+            SshReceivePackTransport::connectorContext(
+                'deploy@git.example.test:wp-content.git',
+                ['commandWithoutShellFallback' => "ssh\nfallback"],
+            );
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+
+        return false;
+    })(),
     'unsafeSshIdentityUsernameRejected' => (static function (): bool {
         try {
             SshReceivePackTransport::connectorContext(
@@ -864,5 +959,5 @@ return [
 
         return false;
     })(),
-    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, accept smart HTTP receive-pack advertisements with or without the optional service announcement, accept any matching receive-pack Content-Type header value when intermediaries duplicate response headers, surface receive-pack advertisement ERR packets and oversized packet-line boundaries before ref parsing, preflight SSH targets including explicit bracketed IPv6 URLs, scp-like bracketed IPv6 hosts without user info, scp-like usernames containing at-signs, legacy ssh+git/git+ssh receive-pack URLs, URL-form non-numeric port-looking host suffixes, upstream root-path receive-pack targets, and credential-helper identity username replacement/clearing before handing streams to a caller-approved SSH adapter, reject scp-like bracketed IPv6 hosts with user info like upstream Gitoxide, normalize scp-like /~ repository paths before remote git-receive-pack command construction, pass protocol-v2 GIT_PROTOCOL, locale, redacted credential-helper context metadata, and upstream-shaped Git environment-removal keys to an opted-in adapter without owning live SSH authentication, plan upstream SSH, plink, putty, tortoiseplink, simple-client, disallow-shell argv boundaries, and non-executing -G feature probes for unknown SSH commands, classify caller-provided SSH stderr lines into upstream permission, host-resolution, and connection failure buckets, allow option-looking SSH hosts only when an explicit user makes the combined user@host argument safe, reject option-looking hosts during unknown-command feature probing unless the caller pins an explicit program kind, reject unsafe or ambiguous SSH identity usernames, reject clearing an identity username when that exposes an option-looking host as a raw SSH command argument, reject numeric SSH port overflows, URL-form SSH authorities beyond the upstream 1024-byte pre-path boundary, decoded SSH host/user delimiters including encoded at-sign or colon username delimiters, reject unsupported SSH URL passwords, reject legacy SSH hosts that look like command-line options without an explicit user, reject decoded smart HTTP credential control bytes, URL/proxy/no-proxy host delimiters, raw URL/proxy control bytes, encoded URL path control bytes, Git-Protocol extra-parameter control bytes, and caller header control bytes, and construct git-daemon service requests from validated git:// URLs or explicit absolute repository URL paths with decoded URL components, upstream-style value-only or key=value extra parameters, no control bytes, decoded host delimiters, or malformed extra parameters, while preserving bracketed IPv6 virtual-host targets.',
+    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, accept smart HTTP receive-pack advertisements with or without the optional service announcement, accept any matching receive-pack Content-Type header value when intermediaries duplicate response headers, surface receive-pack advertisement ERR packets and oversized packet-line boundaries before ref parsing, preflight SSH targets including explicit bracketed IPv6 URLs, scp-like bracketed IPv6 hosts without user info, scp-like usernames containing at-signs, legacy ssh+git/git+ssh receive-pack URLs, URL-form non-numeric port-looking host suffixes, upstream root-path receive-pack targets, and credential-helper identity username replacement/clearing before handing streams to a caller-approved SSH adapter, reject scp-like bracketed IPv6 hosts with user info like upstream Gitoxide, normalize scp-like /~ repository paths before remote git-receive-pack command construction, pass protocol-v2 GIT_PROTOCOL, locale, redacted credential-helper context metadata, and upstream-shaped Git environment-removal keys to an opted-in adapter without owning live SSH authentication, plan upstream SSH, plink, putty, tortoiseplink, simple-client, disallow-shell argv boundaries, command-without-shell fallback boundaries, and non-executing -G feature probes for unknown SSH commands, classify caller-provided SSH stderr lines into upstream permission, host-resolution, and connection failure buckets, allow option-looking SSH hosts only when an explicit user makes the combined user@host argument safe, reject option-looking hosts during unknown-command feature probing unless the caller pins an explicit program kind, reject unsafe or ambiguous SSH identity usernames, reject clearing an identity username when that exposes an option-looking host as a raw SSH command argument, reject numeric SSH port overflows, URL-form SSH authorities beyond the upstream 1024-byte pre-path boundary, decoded SSH host/user delimiters including encoded at-sign or colon username delimiters, reject unsupported SSH URL passwords, reject legacy SSH hosts that look like command-line options without an explicit user, reject decoded smart HTTP credential control bytes, URL/proxy/no-proxy host delimiters, raw URL/proxy control bytes, encoded URL path control bytes, Git-Protocol extra-parameter control bytes, and caller header control bytes, and construct git-daemon service requests from validated git:// URLs or explicit absolute repository URL paths with decoded URL components, upstream-style value-only or key=value extra parameters, no control bytes, decoded host delimiters, or malformed extra parameters, while preserving bracketed IPv6 virtual-host targets.',
 ];

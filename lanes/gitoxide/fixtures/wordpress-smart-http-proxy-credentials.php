@@ -465,6 +465,62 @@ $trailingDotDomainCookieSession = $trailingDotDomainCookieClient->handshake();
 $trailingDotDomainCookieSession->createOrUpdate('refs/heads/main', $trailingDotDomainCookieBlob->oid());
 $trailingDotDomainCookieResponse = $trailingDotDomainCookieClient->send($trailingDotDomainCookieSession->buildRequest([$trailingDotDomainCookieBlob]));
 
+$trailingDotDomainAttributeCookieRequests = [];
+$trailingDotDomainAttributeCookieHelperCalls = 0;
+$trailingDotDomainAttributeCookieBlob = new GitObject('blob', 'WordPress trailing-dot Domain-attribute cookie no-proxy payload');
+$trailingDotDomainAttributeCookieResponseBytes = $packet("\x01" . $packet("unpack ok\n"))
+    . $packet("\x01" . $packet("ok refs/heads/main\n"))
+    . $packet("\x01" . $flush)
+    . $flush;
+$trailingDotDomainAttributeCookieClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://git.example.test./wp-content.git',
+        static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$trailingDotDomainAttributeCookieRequests, $packet, $flush, $advertisementBytes, $trailingDotDomainAttributeCookieResponseBytes): array {
+            $trailingDotDomainAttributeCookieRequests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'timeout' => $timeout,
+                'httpOptions' => $httpOptions,
+            ];
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'headers' => [
+                        'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                        'Set-Cookie' => 'wp_domain_attr=trail; Domain=example.test.; Path=/; Secure',
+                    ],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                'body' => $trailingDotDomainAttributeCookieResponseBytes,
+            ];
+        },
+        [],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+        [
+            'proxy' => 'http://wp-proxy.example.test:8080',
+            'noProxy' => 'example.test',
+            'proxyCredentialHelper' => static function () use (&$trailingDotDomainAttributeCookieHelperCalls): array {
+                $trailingDotDomainAttributeCookieHelperCalls++;
+
+                return ['username' => 'trailing-dot-domain-attribute-user', 'password' => 'trailing-dot-domain-attribute-pass'];
+            },
+        ],
+    ),
+    'port-libs/wordpress',
+);
+$trailingDotDomainAttributeCookieSession = $trailingDotDomainAttributeCookieClient->handshake();
+$trailingDotDomainAttributeCookieSession->createOrUpdate('refs/heads/main', $trailingDotDomainAttributeCookieBlob->oid());
+$trailingDotDomainAttributeCookieResponse = $trailingDotDomainAttributeCookieClient->send($trailingDotDomainAttributeCookieSession->buildRequest([$trailingDotDomainAttributeCookieBlob]));
+
 $portQualifiedNoProxyRequests = [];
 $portQualifiedNoProxyHelperCalls = 0;
 $portQualifiedNoProxyBlob = new GitObject('blob', 'WordPress port-qualified no-proxy payload');
@@ -980,6 +1036,11 @@ return [
         && ($trailingDotDomainCookieRequests[1]['httpOptions'] ?? null) === [],
     'trailingDotDomainCookieHelperCalls' => $trailingDotDomainCookieHelperCalls,
     'trailingDotDomainCookiePostCookieHeader' => $trailingDotDomainCookieRequests[1]['headers']['Cookie'] ?? null,
+    'trailingDotDomainAttributeCookieBypassedProxy' => $trailingDotDomainAttributeCookieResponse->isSuccessful()
+        && ($trailingDotDomainAttributeCookieRequests[0]['httpOptions'] ?? null) === []
+        && ($trailingDotDomainAttributeCookieRequests[1]['httpOptions'] ?? null) === [],
+    'trailingDotDomainAttributeCookieHelperCalls' => $trailingDotDomainAttributeCookieHelperCalls,
+    'trailingDotDomainAttributeCookiePostCookieHeader' => $trailingDotDomainAttributeCookieRequests[1]['headers']['Cookie'] ?? null,
     'portQualifiedNoProxyUsedProxy' => $portQualifiedNoProxyResponse->isSuccessful()
         && isset($portQualifiedNoProxyRequests[0]['httpOptions']['proxy'])
         && isset($portQualifiedNoProxyRequests[1]['httpOptions']['proxy']),
@@ -1032,5 +1093,5 @@ return [
     'notModifiedProxyPostCookieHeader' => $notModifiedProxyRequests[1]['headers']['Cookie'] ?? null,
     'proxyAuthorizationSent' => $requests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'originProxyHeaderLeaked' => isset($requests[0]['headers']['Proxy-Authorization']),
-    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, canonicalize default proxy ports out of credential-helper context while preserving concrete proxy streams, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass bracketed IPv6 literal repository hosts without consulting proxy helpers, preserve proxy use for curl-style port-qualified noProxy literal tokens, use HTTPS-specific and all-proxy fallbacks with receive-pack cookies intact, treat an explicitly empty HTTPS proxy as disabling lower all-proxy fallback, keep an HTTP-origin request direct when a safe redirect upgrades it to HTTPS, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
+    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, canonicalize default proxy ports out of credential-helper context while preserving concrete proxy streams, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass bracketed IPv6 literal repository hosts without consulting proxy helpers, preserve proxy use for curl-style port-qualified noProxy literal tokens, use HTTPS-specific and all-proxy fallbacks with receive-pack cookies intact, treat an explicitly empty HTTPS proxy as disabling lower all-proxy fallback, keep an HTTP-origin request direct when a safe redirect upgrades it to HTTPS, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies and curl-accepted trailing-dot Domain attributes from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
 ];

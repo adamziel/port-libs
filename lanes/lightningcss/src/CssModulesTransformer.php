@@ -2265,6 +2265,7 @@ final class CssModulesTransformer
         $output = '';
         $quote = null;
         $bracketDepth = 0;
+        $afterPseudoElement = false;
         $length = strlen($selector);
 
         for ($i = 0; $i < $length; $i++) {
@@ -2308,6 +2309,10 @@ final class CssModulesTransformer
                 continue;
             }
 
+            if ($bracketDepth === 0 && !$afterPseudoElement && $this->cssModulesPseudoElementAt($selector, $i) !== null) {
+                $afterPseudoElement = true;
+            }
+
             $forgivingSelectorFunction = $bracketDepth === 0 ? $this->forgivingSelectorFunctionAt($selector, $i) : null;
             if ($forgivingSelectorFunction !== null) {
                 $inner = substr(
@@ -2315,7 +2320,9 @@ final class CssModulesTransformer
                     $forgivingSelectorFunction['open'] + 1,
                     $forgivingSelectorFunction['close'] - $forgivingSelectorFunction['open'] - 1
                 );
-                $rewrittenSelectors = $this->rewriteForgivingSelectorListParts($inner, $mode, $locals);
+                $rewrittenSelectors = $afterPseudoElement
+                    ? $this->rewritePseudoElementForgivingSelectorListParts($inner)
+                    : $this->rewriteForgivingSelectorListParts($inner, $mode, $locals);
                 if (
                     $forgivingSelectorFunction['decodedName'] === 'is'
                     && count($rewrittenSelectors) === 1
@@ -2369,6 +2376,16 @@ final class CssModulesTransformer
                     $negationSelectorFunction['open'] + 1,
                     $negationSelectorFunction['close'] - $negationSelectorFunction['open'] - 1
                 );
+
+                if ($afterPseudoElement) {
+                    $output .= ':'
+                        . $negationSelectorFunction['canonicalName']
+                        . '('
+                        . $this->rewritePseudoElementStrictSelectorList($inner)
+                        . ')';
+                    $i = $negationSelectorFunction['close'];
+                    continue;
+                }
 
                 $output .= ':'
                     . $negationSelectorFunction['canonicalName']
@@ -2559,6 +2576,123 @@ final class CssModulesTransformer
         }
 
         return trim($output);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function rewritePseudoElementForgivingSelectorListParts(string $selectorList): array
+    {
+        $rewritten = [];
+
+        foreach ($this->splitTopLevel($selectorList, ',') as $selector) {
+            if (!$this->selectorCanFollowPseudoElement($selector)) {
+                continue;
+            }
+
+            $candidateLocals = [];
+            $rewrittenSelector = $this->rewriteSelectorFragment($selector, 'global', $candidateLocals);
+            if ($rewrittenSelector === '' || $candidateLocals !== []) {
+                continue;
+            }
+
+            $rewritten[] = $rewrittenSelector;
+        }
+
+        return $rewritten;
+    }
+
+    private function rewritePseudoElementStrictSelectorList(string $selectorList): string
+    {
+        $rewritten = [];
+
+        foreach ($this->splitTopLevel($selectorList, ',') as $selector) {
+            if (!$this->selectorCanFollowPseudoElement($selector)) {
+                throw new \InvalidArgumentException('CSS pseudo-elements cannot be followed by selectors');
+            }
+
+            $candidateLocals = [];
+            $rewrittenSelector = $this->rewriteSelectorFragment($selector, 'global', $candidateLocals);
+            if ($rewrittenSelector === '' || $candidateLocals !== []) {
+                throw new \InvalidArgumentException('CSS pseudo-elements cannot be followed by selectors');
+            }
+
+            $rewritten[] = $rewrittenSelector;
+        }
+
+        return implode(',', $rewritten);
+    }
+
+    private function selectorCanFollowPseudoElement(string $selector): bool
+    {
+        $selector = trim($selector);
+        if ($selector === '') {
+            return false;
+        }
+
+        $length = strlen($selector);
+        $cursor = 0;
+
+        while ($cursor < $length) {
+            if (ctype_space($selector[$cursor])) {
+                return trim(substr($selector, $cursor)) === '';
+            }
+
+            if ($selector[$cursor] !== ':' || ($selector[$cursor + 1] ?? '') === ':') {
+                return false;
+            }
+
+            $token = $this->readCssIdentifierToken($selector, $cursor + 1);
+            if ($token === null) {
+                return false;
+            }
+
+            $name = strtolower($token['decoded']);
+            if ($name === 'local' || $name === 'global') {
+                return false;
+            }
+
+            $cursor = $token['end'];
+            if (($selector[$cursor] ?? '') !== '(') {
+                continue;
+            }
+
+            $close = $this->findMatchingParen($selector, $cursor);
+            $inner = substr($selector, $cursor + 1, $close - $cursor - 1);
+            if ($this->selectorFunctionArgumentsMustFollowPseudoElement($name)) {
+                foreach ($this->splitTopLevel($inner, ',') as $innerSelector) {
+                    if (!$this->selectorCanFollowPseudoElement($innerSelector)) {
+                        return false;
+                    }
+                }
+            } elseif ($this->selectorFunctionArgumentsContainCssModulesModePseudo($inner)) {
+                return false;
+            }
+
+            $cursor = $close + 1;
+        }
+
+        return true;
+    }
+
+    private function selectorFunctionArgumentsMustFollowPseudoElement(string $name): bool
+    {
+        return in_array($name, ['-moz-any', '-webkit-any', 'has', 'is', 'not', 'where'], true);
+    }
+
+    private function selectorFunctionArgumentsContainCssModulesModePseudo(string $arguments): bool
+    {
+        $length = strlen($arguments);
+        for ($i = 0; $i < $length; $i++) {
+            if (
+                $this->cssModulesPseudoFunctionAt($arguments, $i, 'global') !== null
+                || $this->cssModulesPseudoFunctionAt($arguments, $i, 'local') !== null
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function assertSelectorNamespaceDelimiter(string $selector, int $offset): void

@@ -45,7 +45,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param callable(string, ?string, ?int, string, float): array{read: resource, write: resource} $connector
-     * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, disallowShell?: bool, identityUsername?: ?string} $options
+     * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, commandWithoutShellFallback?: string, disallowShell?: bool, identityUsername?: ?string} $options
      */
     public static function connect(string $url, callable $connector, float $timeout = 30.0, array $options = []): self
     {
@@ -86,7 +86,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
     }
 
     /**
-     * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, disallowShell?: bool, identityUsername?: ?string} $options
+     * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, commandWithoutShellFallback?: string, disallowShell?: bool, identityUsername?: ?string} $options
      * @return array{
      *     host: string,
      *     user: ?string,
@@ -525,7 +525,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
     }
 
     /**
-     * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, disallowShell?: bool, identityUsername?: ?string} $options
+     * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, commandWithoutShellFallback?: string, disallowShell?: bool, identityUsername?: ?string} $options
      * @return array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool, useShell: bool, featureProbeRequired: bool, identityUsernameProvided: bool, identityUsername: ?string}
      */
     private static function normalizeConnectOptions(array $options): array
@@ -538,6 +538,17 @@ final class SshReceivePackTransport implements ReceivePackTransport
         $sshCommand = $options['sshCommand'] ?? null;
         if ($sshCommand !== null && (!is_string($sshCommand) || $sshCommand === '' || self::hasControlBytes($sshCommand))) {
             throw new \InvalidArgumentException('SSH receive-pack sshCommand must be a non-empty string without control bytes');
+        }
+
+        $fallbackCommand = $options['commandWithoutShellFallback'] ?? null;
+        if ($fallbackCommand !== null && (!is_string($fallbackCommand) || $fallbackCommand === '' || self::hasControlBytes($fallbackCommand))) {
+            throw new \InvalidArgumentException('SSH receive-pack commandWithoutShellFallback must be a non-empty string without control bytes');
+        }
+
+        $fallbackActive = false;
+        if ($sshCommand === null && $fallbackCommand !== null) {
+            $sshCommand = $fallbackCommand;
+            $fallbackActive = true;
         }
 
         $programKind = $options['programKind'] ?? null;
@@ -558,6 +569,9 @@ final class SshReceivePackTransport implements ReceivePackTransport
         $disallowShell = $options['disallowShell'] ?? false;
         if (!is_bool($disallowShell)) {
             throw new \InvalidArgumentException('SSH receive-pack disallowShell must be a boolean');
+        }
+        if ($fallbackActive) {
+            $disallowShell = true;
         }
 
         $identityUsernameProvided = array_key_exists('identityUsername', $options);

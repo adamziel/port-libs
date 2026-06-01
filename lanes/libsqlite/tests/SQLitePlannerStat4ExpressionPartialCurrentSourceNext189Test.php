@@ -153,7 +153,7 @@ $tests = [
     'planner stat4 expression partial current source next189 projected row retained' => static fn (TestRunner $t) => $t->same('mail', $plan189()['projectedRows'][1]['option_value']),
     'planner stat4 expression partial current source next189 duplicate projected row retained' => static fn (TestRunner $t) => $t->same('forms-copy', $plan189()['projectedRows'][3]['option_value']),
     'planner stat4 expression partial current source next189 sample delta inherited' => static fn (TestRunner $t) => $t->same(true, $plan189()['sampleDeltaFence']['changed']),
-    'planner stat4 expression partial current source next189 provenance inherited' => static fn (TestRunner $t) => $t->same(['plugin_seo', 'Plugin_Mail', 'plugin_forms', 'Plugin_Forms'], array_column($plan189()['currentSourceRowProvenance'], 'option_name')),
+    'planner stat4 expression partial current source next189 provenance inherited' => static fn (TestRunner $t) => $t->same(['plugin_seo', 'Plugin_Mail', 'plugin_forms', 'Plugin_Forms'], array_column($plan189()['currentSourceRowProvenance'], 'keyValue')),
     'planner stat4 expression partial current source next189 detail' => static fn (TestRunner $t) => $t->contains('NEXT189 PAYLOAD PARTIAL FENCE', $plan189()['detail']),
     'planner stat4 expression partial current source next189 dependency marker' => static fn (TestRunner $t) => $t->true(in_array('sqlite-sqlplanner-stat4-expression-partial-current-source-next189', $plan189()['dependencies'], true)),
     'planner stat4 expression partial current source next189 dependency closure' => static fn (TestRunner $t) => $t->contains('no new support component needed', $plan189()['dependency_closure']),

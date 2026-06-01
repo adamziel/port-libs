@@ -451,6 +451,59 @@ CSS);
             $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
         }
     },
+    'css modules filters selector functions after pseudo-elements without exporting dropped locals' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card::before:has(:hover, .child, :global(.legacy)) {
+  color: red;
+}
+
+.card::selection:where(.draft, :local(.selected)) {
+  color: yellow;
+}
+
+.card::part(icon):is(.active) {
+  color: blue;
+}
+
+.card::cue(.caption):has(.cueChild) {
+  color: green;
+}
+
+.button {
+  composes: card;
+  color: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_card:before:has(:hover){color:red}.EgL3uq_card::selection:where(){color:#ff0}.EgL3uq_card::part(icon):is(){color:#00f}.EgL3uq_card::cue(.EgL3uq_caption):has(){color:green}.EgL3uq_button{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'caption' => $export('EgL3uq_caption'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+
+        $validPseudoOnly = (new CssModulesTransformer())->transform('.card::before:not(:active, :hover) { color: red }');
+        $t->same('.EgL3uq_card:before:not(:active,:hover){color:red}', $validPseudoOnly['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+        ], $validPseudoOnly['exports']);
+
+        $chainedPseudoTail = (new CssModulesTransformer())->transform('.card::before:is(.child, :active):hover { color: red }');
+        $t->same('.EgL3uq_card:before:active:hover{color:red}', $chainedPseudoTail['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+        ], $chainedPseudoTail['exports']);
+
+        foreach ([
+            '.card::before:not(.child) { color: red }',
+            '.card::before:not(:local(.child)) { color: red }',
+            '.card::part(icon):not(:global(.legacy)) { color: red }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
+        }
+    },
     'css modules scopes upstream cue selectors while preserving local global composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card::cue(:global(.wp-caption) .captionTitle) {

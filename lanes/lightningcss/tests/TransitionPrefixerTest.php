@@ -952,6 +952,38 @@ CSS;
             $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['chrome' => 137])
         );
     },
+    'transition prefixer maps upstream image-rendering pixelated browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = '.foo { image-rendering: pixelated; }';
+        $allFallbacks = '.foo{-ms-interpolation-mode:nearest-neighbor;image-rendering:-webkit-optimize-contrast;image-rendering:-moz-crisp-edges;image-rendering:-o-pixelated;image-rendering:pixelated}';
+
+        $t->same('.foo{image-rendering:-webkit-optimize-contrast;image-rendering:pixelated}', $prefixer->prefixForTargets($css, ['safari' => 6]));
+        $t->same('.foo{image-rendering:pixelated}', $prefixer->prefixForTargets($css, ['safari' => 7]));
+        $t->same('.foo{image-rendering:-webkit-optimize-contrast;image-rendering:pixelated}', $prefixer->prefixForTargets($css, ['ios_saf' => 6]));
+        $t->same('.foo{image-rendering:pixelated}', $prefixer->prefixForTargets($css, ['ios_saf' => 7]));
+        $t->same('.foo{image-rendering:-moz-crisp-edges;image-rendering:pixelated}', $prefixer->prefixForTargets($css, ['firefox' => 64]));
+        $t->same('.foo{image-rendering:pixelated}', $prefixer->prefixForTargets($css, ['firefox' => 65]));
+        $t->same('.foo{image-rendering:-o-pixelated;image-rendering:pixelated}', $prefixer->prefixForTargets($css, ['opera' => '12.1']));
+        $t->same('.foo{image-rendering:pixelated}', $prefixer->prefixForTargets($css, ['opera' => 13]));
+        $t->same('.foo{image-rendering:pixelated}', $prefixer->prefixForTargets($css, ['ie' => 6]));
+        $t->same('.foo{-ms-interpolation-mode:nearest-neighbor;image-rendering:pixelated}', $prefixer->prefixForTargets($css, ['ie' => 7]));
+        $t->same($allFallbacks, $prefixer->prefixForTargets($css, ['safari' => 6, 'firefox' => 64, 'opera' => '12.1', 'ie' => 11]));
+
+        $staleFallbacks = '.foo { -ms-interpolation-mode: nearest-neighbor; image-rendering: -webkit-optimize-contrast; image-rendering: -moz-crisp-edges; image-rendering: -o-pixelated; image-rendering: pixelated; }';
+        $t->same('.foo{image-rendering:pixelated}', $prefixer->prefixForTargets($staleFallbacks, ['chrome' => 120]));
+        $t->same(
+            '.foo{image-rendering:-moz-crisp-edges;image-rendering:pixelated}',
+            $prefixer->prefixForTargets('.foo { image-rendering: -moz-crisp-edges; image-rendering: pixelated; }', ['firefox' => 64])
+        );
+        $t->same(
+            '@supports ((image-rendering:-moz-crisp-edges) or (image-rendering:pixelated)){.foo{image-rendering:-moz-crisp-edges;image-rendering:pixelated}}',
+            $prefixer->prefixForTargets('@supports (image-rendering: pixelated) { .foo { image-rendering: pixelated; } }', ['firefox' => 64])
+        );
+        $t->same(
+            '@supports (image-rendering:pixelated){.foo{image-rendering:pixelated}}',
+            $prefixer->prefixForTargets('@supports (image-rendering: -moz-crisp-edges) or (image-rendering: pixelated) { .foo { image-rendering: -moz-crisp-edges; image-rendering: pixelated; } }', ['chrome' => 120])
+        );
+    },
     'transition prefixer maps upstream multi-column target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $css = '.foo { columns: 12em; column-gap: 20px; column-rule: 1px solid black; column-count: 3; column-span: all; column-fill: balance; }';

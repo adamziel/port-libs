@@ -74,6 +74,27 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         return $target['url'] . '/git-receive-pack';
     }
 
+    /**
+     * @return array{status: int, kind: string, retryable: bool, message: string}
+     */
+    public static function classifyHttpStatus(int $status): array
+    {
+        if ($status === 401) {
+            $kind = 'permission_denied';
+        } elseif ($status >= 500 && $status <= 599) {
+            $kind = 'connection_aborted';
+        } else {
+            $kind = 'other';
+        }
+
+        return [
+            'status' => $status,
+            'kind' => $kind,
+            'retryable' => $kind === 'connection_aborted',
+            'message' => "Received HTTP status {$status}",
+        ];
+    }
+
     public function readAdvertisement(): string
     {
         if ($this->advertisementRead) {
@@ -1383,7 +1404,9 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private static function assertStatus(array $response, array $allowedStatuses, string $label): void
     {
         if (!in_array($response['status'], $allowedStatuses, true)) {
-            throw new \RuntimeException("{$label} returned HTTP status {$response['status']}");
+            $status = self::classifyHttpStatus($response['status']);
+
+            throw new SmartHttpStatusException($status['status'], $status['kind'], $status['retryable'], $label);
         }
     }
 
@@ -1517,7 +1540,14 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             }
             if ($name === 'domain') {
                 $candidate = strtolower(ltrim($value, '.'));
-                if ($candidate === '' || self::containsControlByte($candidate) || preg_match('/[\s\/\\\\]/', $candidate) === 1) {
+                if (str_ends_with($candidate, '.')) {
+                    $candidate = substr($candidate, 0, -1);
+                }
+                if ($candidate === ''
+                    || str_ends_with($candidate, '.')
+                    || self::containsControlByte($candidate)
+                    || preg_match('/[\s\/\\\\]/', $candidate) === 1
+                ) {
                     return null;
                 }
                 if (!self::domainMatches($domain, $candidate)) {

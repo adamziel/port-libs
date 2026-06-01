@@ -4638,6 +4638,127 @@ CSS;
             'exit:declaration:flex',
         ], $seen);
     },
+    'custom at-rules map upstream Rule supports visitors for known supports rules' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Rule' => [
+                'supports' => static function (array $rule) use (&$seen): array {
+                    $seen = [
+                        'type' => $rule['type'] ?? null,
+                        'conditionType' => $rule['value']['condition']['type'] ?? null,
+                        'property' => $rule['value']['condition']['propertyId']['property'] ?? null,
+                        'value' => $rule['value']['condition']['value'] ?? null,
+                        'childType' => $rule['value']['rules'][0]['type'] ?? null,
+                        'childSelector' => $rule['value']['rules'][0]['value']['selectors'][0][0]['name'] ?? null,
+                    ];
+
+                    $rule['value']['condition']['value'] = 'flex';
+                    $rule['value']['rules'][0]['value']['selectors'][0][0]['name'] = 'wp-card';
+
+                    return $rule;
+                },
+            ],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('@supports (display: grid) { .card { width: 16px; } }', [], $visitor);
+
+        $t->same('@supports (display:flex){.wp-card{width:16px}}', $result);
+        $t->same([
+            'type' => 'supports',
+            'conditionType' => 'declaration',
+            'property' => 'display',
+            'value' => 'grid',
+            'childType' => 'style',
+            'childSelector' => 'card',
+        ], $seen);
+    },
+    'custom at-rules apply upstream RuleExit supports visitors after children' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Length' => static function (array $length): ?array {
+                return $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null;
+            },
+            'RuleExit' => [
+                'supports' => static function (array $rule) use (&$seen): array {
+                    $seen = [
+                        'type' => $rule['type'] ?? null,
+                        'conditionValue' => $rule['value']['condition']['value'] ?? null,
+                        'childRaw' => $rule['value']['rules'][0]['value']['declarations']['declarations'][0]['raw'] ?? null,
+                    ];
+                    $rule['value']['condition'] = [
+                        'type' => 'declaration',
+                        'propertyId' => ['property' => 'display'],
+                        'value' => 'flex',
+                    ];
+
+                    return $rule;
+                },
+            ],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('@supports (display: grid) { .card { width: 16px; } }', [], $visitor);
+
+        $t->same('@supports (display:flex){.card{width:1rem}}', $result);
+        $t->same([
+            'type' => 'supports',
+            'conditionValue' => 'grid',
+            'childRaw' => '1rem',
+        ], $seen);
+    },
+    'custom at-rules compose upstream Rule supports visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'supports' => static function (array $rule) use (&$seen): array {
+                        $seen[] = 'supports:' . ($rule['value']['condition']['value'] ?? '');
+                        $rule['value']['condition']['value'] = 'flex';
+
+                        return $rule;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'supports' => static function (array $rule) use (&$seen): array {
+                        $seen[] = 'supports:' . ($rule['value']['condition']['value'] ?? '');
+                        $rule['value']['rules'][] = [
+                            'type' => 'style',
+                            'value' => [
+                                'selectors' => [
+                                    [
+                                        ['type' => 'class', 'name' => 'supports-ready'],
+                                    ],
+                                ],
+                                'declarations' => [
+                                    'declarations' => [[
+                                        'property' => 'color',
+                                        'value' => [
+                                            'type' => 'rgb',
+                                            'r' => 255,
+                                            'g' => 255,
+                                            'b' => 0,
+                                            'alpha' => 1,
+                                        ],
+                                    ]],
+                                    'importantDeclarations' => [],
+                                ],
+                            ],
+                        ];
+
+                        return $rule;
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@supports (display: grid) { .card { color: red; } }', [], $visitor);
+
+        $t->same('@supports (display:flex){.card{color:red}.supports-ready{color:#ff0}}', $result);
+        $t->same(['supports:grid', 'supports:flex'], $seen);
+    },
     'custom at-rules compose upstream Selector prefix visitors' => static function (TestRunner $t): void {
         $seenSelectorTypes = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([
