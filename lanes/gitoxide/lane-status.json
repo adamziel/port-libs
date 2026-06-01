@@ -2,15 +2,15 @@
     "schemaVersion": 1,
     "library": "gitoxide",
     "estimatedProgress": 93.1,
-    "suiteProgress": "Supervisor-integrated Gitoxide merge-base and URL/refspec replay. Verification passed PHP lint, git diff --check, full Gitoxide lane 40 files / 7134 assertions / 0 failures, and touched examples.",
-    "phpPass": 7134,
+    "suiteProgress": "Supervisor-integrated Gitoxide fetch-sideband, receive-pack, and send-pack transport slices. Verification passed PHP lint, git diff --check, full Gitoxide lane 40 files / 7166 assertions / 0 failures, and touched examples.",
+    "phpPass": 7166,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full Cargo runner not executed for isolated batch",
-    "audit": "2026-06-01 supervisor replay: full Gitoxide lane passed 40 files / 7134 assertions / 0 failures after accepting merge-base generation hydration and URL credential mutation/access-helper parity. Conservative mapped coverage moves to 1716 / 2886. Full upstream Cargo workspace was not executed.",
-    "currentWork": "Merge-base generation hydration and Git URL credential mutation/access-helper parity integrated on current base.",
-    "blocker": "Full upstream Cargo workspace remains unexecuted. Native PHP full-lane evidence is green at 7134 assertions; keep bounded Gitoxide workers on config/include, credential, object database, transport, tree/pathspec, partial-clone, protocol, URL/refspec, receive-pack, reference transaction, and merge-base slices.",
-    "latestCommit": "2c6f6944dfb97e3e856bf480c1667d5e8c0211a3",
+    "audit": "2026-06-01 supervisor replay: full Gitoxide lane passed 40 files / 7166 assertions / 0 failures after accepting fetch response-end sideband, receive-pack dot-segment redirect, and send-pack empty rejected status parity. Conservative mapped coverage moves to 1719 / 2886. Full upstream Cargo workspace was not executed.",
+    "currentWork": "Gitoxide transport/protocol fetch-sideband, receive-pack redirect, and send-pack status parity integrated on current base.",
+    "blocker": "Full upstream Cargo workspace remains unexecuted. Native PHP full-lane evidence is green at 7166 assertions; keep bounded Gitoxide workers on config/include, credential, object database, transport, tree/pathspec, partial-clone, protocol, URL/refspec, receive-pack, reference transaction, and merge-base slices.",
+    "latestCommit": "1d2e8073b901a121abddb7ab0fe41d40859d0c30",
     "nextTask": "Keep three Gitoxide workers on current-base non-overlapping protocol, pack/object, reference transaction, config/include, credential, transport, tree/pathspec, sparse-checkout, URL/refspec, and merge-base slices with full-lane PHP gates after each accepted batch.",
-    "commit": "2c6f6944dfb97e3e856bf480c1667d5e8c0211a3"
+    "commit": "1d2e8073b901a121abddb7ab0fe41d40859d0c30"
 }

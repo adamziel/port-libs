@@ -2,16 +2,16 @@
   "schemaVersion": 1,
   "library": "libsqlite",
   "estimatedProgress": 99.4,
-  "suiteProgress": "Supervisor-integrated libsqlite real-upstream window corpus and STAT4 source-neutral cleanup. Verification passed PHP lint, git diff --check, focused libsqlite gate 2 files / 9101 assertions / 0 failures, and no new WordPress/wp_ strings under libsqlite src.",
-  "phpPass": 5430413,
+  "suiteProgress": "Supervisor-integrated libsqlite row-value source-neutral cleanup and real-upstream trigger/fkey dynamic corpus coverage. Verification passed PHP lint, git diff --check, focused libsqlite gate 9 files / 2196 assertions / 0 failures, and no new WordPress/wp_ strings under libsqlite src.",
+  "phpPass": 5432018,
   "phpFail": 7,
   "wordpressScenarios": "Generic application/self-test coverage now includes skipscan2 optoverview people/height skip-scan thresholds, PRAGMA trusted_schema schema-function safety, e_select2 derived-source SELECT joins, expression-affinity comparison and IN-list semantics, WAL rollback JSON tails and checkpoint-followup tail recovery, key-value WAL import cleanup, FK parent-index diagnostics, row-value UPDATE/DELETE LIMIT execution including random() expressions, master-journal WAL pager behavior, PRAGMA lock_proxy_file and data_store_directory handling, SELECT/window planner behavior, trigger/fkey limits, date/time modifier behavior, B-tree left-join/index/delete guards, JSON/JSONB update/subtype/char-built validity behavior, VFS fallocate/shared-lock/batch-atomic lifecycle and win32lock retry behavior, pager WAL reused-log prefix recovery, pager crash recovery, and app-WAL post-checkpoint tail recovery. No domain-specific libsqlite API is accepted.",
   "phase": "focused source-neutral cleanup and real-upstream dynamic corpus accepted; broad full-lane and release/all parity remain open",
-  "audit": "2026-06-01 supervisor replay: accepted source 32968214da11 with real upstream window4 dynamic section 11/12 corpus coverage and STAT4 source-neutral cleanup. Worker evidence adds 1007 focused PASS cases / 9021 assertions from the window corpus; STAT4 cleanup did not change pass counters. Mapped denominator remains 1589 / 1589; cumulative selected libsqlite evidence moves to 5430413 pass with 7 known broad-lane failures.",
-  "currentWork": "Real upstream window4 dynamic section 11/12 corpus coverage and STAT4 source-neutral planner cleanup integrated on current base.",
+  "audit": "2026-06-01 supervisor replay: accepted source 1d2e8073b901 with Gitoxide transport, LightningCSS source-map/target/bundle slices, and libsqlite row-value source-neutral plus trigger/fkey dynamic coverage. Libsqlite focused gate passed 9 files / 2196 assertions / 0 failures, including 1605 added focused PASS lines from trigger/fkey dynamic coverage. Mapped denominator remains 1589 / 1589; cumulative selected libsqlite evidence moves to 5432018 pass with 7 known broad-lane failures.",
+  "currentWork": "Source-neutral row-value cleanup and real-upstream trigger/fkey dynamic coverage integrated on current base.",
   "blocker": "Broad libsqlite full-lane/release parity is not green: sampled failures reproduce on clean base. Stricter source cleanup remains required for pre-existing wp_ fixture text and CurrentSourceNext/CurrentNext/numbered-plan source names before declaring libsqlite complete.",
   "nextTask": "Continue broad release/all parity blockers, source-neutral cleanup of pre-existing wp_ fixture text and CurrentSourceNext/CurrentNext/numbered-plan names, and non-overlapping real-corpus trigger, B-tree/index, window, and STAT4 coverage.",
   "wordpressScenarioLatest": "Latest accepted batch kept source-neutral production source/API guardrails while adding generic skipscan2 optoverview B-tree/index planner coverage. Pre-existing wp_ fixture strings and CurrentSourceNext/CurrentNext class names remain cleanup debt.",
-  "latestCommit": "32968214da11d1ea0184eb35ec39d5bdf2de8678",
-  "commit": "32968214da11d1ea0184eb35ec39d5bdf2de8678"
+  "latestCommit": "1d2e8073b901a121abddb7ab0fe41d40859d0c30",
+  "commit": "1d2e8073b901a121abddb7ab0fe41d40859d0c30"
 }

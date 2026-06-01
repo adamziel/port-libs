@@ -42,8 +42,8 @@
 - Composer: unavailable on current PATH; prior bootstrap recorded 2.8.12.
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
-- Memory: current supervisor sample reports 27 GiB total and about 9.6 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 369G available after bounded cache/log/worktree cleanup; `/tmp` has about 3.4G available. Preserve dirty work and use bounded cleanup/refill only.
+- Memory: current supervisor sample reports 27 GiB total and about 18 GiB available.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 367G available after bounded cache/log/worktree cleanup; `/tmp` has about 9.2G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool is
   capped at 11 visible development windows: 6 LightningCSS, 3 Gitoxide, and 2
@@ -54,6 +54,23 @@
   refilled immediately.
 
 ## Current Coordination Snapshot
+
+- 2026-06-01 supervisor continuation (eighth replay intake 03:38 UTC):
+  accepted 10 source-only handoffs as source commit
+  `1d2e8073b901a121abddb7ab0fe41d40859d0c30` (`ports: integrate git
+  transport css target and sqlite trigger slices`). The batch adds Gitoxide
+  fetch response-end sideband, receive-pack dot-segment redirect, and send-pack
+  empty rejected status parity; LightningCSS bundle import graph, source-map
+  VLQ offsets, media-query boundary, property-value font target, and
+  target-prefix boundary slices; and libsqlite source-neutral row-value cleanup
+  plus real-upstream trigger/fkey dynamic coverage. Verification passed PHP
+  lint, `git diff --check`, full Gitoxide `40 files / 7166 assertions / 0
+  failures`, full LightningCSS `13 files / 5793 assertions / 0 failures`,
+  focused libsqlite `9 files / 2196 assertions / 0 failures`, touched examples,
+  and no new `wp_`/WordPress strings under `lanes/libsqlite/src`. Dashboard
+  status should report Gitoxide `1719 / 2886` mapped and `7166 pass / 0 fail`,
+  LightningCSS `2320 / 3532` mapped and `5793 pass / 0 fail`, and libsqlite
+  `1589 / 1589` mapped with `5432018 pass / 7 fail`.
 
 - 2026-06-01 supervisor continuation (seventh replay intake 03:25 UTC):
   accepted 5 source-only handoffs as source commit
