@@ -14,6 +14,7 @@ $remoteAlternative = $remote->withAlternativeForm(true);
 $unsafeRemote = GitUrl::parse($fixture['unsafeRemoteUrl']);
 $rootRemote = GitUrl::parse($fixture['rootRemoteUrl']);
 $emptyPortRemote = GitUrl::parse($fixture['emptyPortRemoteUrl']);
+$legacySshRemote = GitUrl::parse($fixture['legacySshRemoteUrl']);
 $localMirror = GitUrl::parse($fixture['localMirrorUrl']);
 $canonicalFileMirror = GitUrl::parse($fixture['canonicalFileMirrorUrl']);
 $canonicalFileMirrorAlternative = $canonicalFileMirror->withAlternativeForm(true);
@@ -147,6 +148,7 @@ $summary = [
     'rootRemotePathIsRoot' => $rootRemote->pathIsRoot(),
     'rootRemotePathArgumentSafety' => $rootRemote->pathArgumentSafety(),
     'emptyPortRemote' => $emptyPortRemote->toArray(),
+    'legacySshRemote' => $legacySshRemote->toArray(),
     'localMirror' => $localMirror->toArray(),
     'canonicalFileMirror' => $canonicalFileMirror->toArray(),
     'canonicalFileMirrorAlternativeUrl' => $canonicalFileMirrorAlternative->toBytes(),
@@ -221,6 +223,24 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if ($summary['emptyPortRemote']['path'] !== $fixture['expectedEmptyPortRemotePath']) {
         throw new RuntimeException('Unexpected empty-port remote path');
+    }
+    if ($summary['legacySshRemote']['scheme'] !== $fixture['expectedLegacySshRemoteScheme']) {
+        throw new RuntimeException('Unexpected legacy SSH remote scheme');
+    }
+    if ($summary['legacySshRemote']['user'] !== $fixture['expectedLegacySshRemoteUser']) {
+        throw new RuntimeException('Unexpected legacy SSH remote user');
+    }
+    if ($summary['legacySshRemote']['host'] !== $fixture['expectedLegacySshRemoteHost']) {
+        throw new RuntimeException('Unexpected legacy SSH remote host');
+    }
+    if ($summary['legacySshRemote']['port'] !== $fixture['expectedLegacySshRemotePort']) {
+        throw new RuntimeException('Unexpected legacy SSH remote port');
+    }
+    if ($summary['legacySshRemote']['path'] !== $fixture['expectedLegacySshRemotePath']) {
+        throw new RuntimeException('Unexpected legacy SSH remote path');
+    }
+    if ($summary['legacySshRemote']['normalized'] !== $fixture['expectedLegacySshRemoteUrl']) {
+        throw new RuntimeException('Unexpected legacy SSH remote normalized URL');
     }
     if ($summary['localMirror']['normalized'] !== $fixture['expectedLocalMirrorUrl']) {
         throw new RuntimeException('Unexpected normalized local mirror URL');

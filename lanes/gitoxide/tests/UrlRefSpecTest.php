@@ -596,6 +596,116 @@ return [
         $t->same(null, $nonNumericPortRemainsHostText->port());
         $t->same('ssh://host.xz:abc/path', $nonNumericPortRemainsHostText->toBytes());
     },
+    'git url normalizes generated diagnostic authority cases like gix-url baseline' => static function (TestRunner $t): void {
+        $cases = [
+            'file://User@[::1]/~re:po' => [
+                GitUrl::SCHEME_FILE,
+                'User',
+                null,
+                '[::1]',
+                null,
+                '/~re:po',
+                'file://User@[::1]/~re:po',
+                null,
+            ],
+            'file://[::1]/repo' => [
+                GitUrl::SCHEME_FILE,
+                null,
+                null,
+                '[::1]',
+                null,
+                '/repo',
+                'file://[::1]/repo',
+                null,
+            ],
+            'ssh+git://host:/~repo' => [
+                GitUrl::SCHEME_SSH,
+                null,
+                null,
+                'host',
+                null,
+                '~repo',
+                'ssh://host/~repo',
+                22,
+            ],
+            'git+ssh://User@[::1]:/re:po' => [
+                GitUrl::SCHEME_SSH,
+                'User',
+                null,
+                '::1',
+                null,
+                '/re:po',
+                'ssh://User@::1/re:po',
+                22,
+            ],
+            'git://User@[::1]:22/repo' => [
+                GitUrl::SCHEME_GIT,
+                'User',
+                null,
+                '[::1]',
+                22,
+                '/repo',
+                'git://User@[::1]:22/repo',
+                22,
+            ],
+            'host.xz:/~repo' => [
+                GitUrl::SCHEME_SSH,
+                null,
+                null,
+                'host.xz',
+                null,
+                '~repo',
+                'host.xz:~repo',
+                22,
+            ],
+            '[::1]:/~re/po' => [
+                GitUrl::SCHEME_SSH,
+                null,
+                null,
+                '::1',
+                null,
+                '~re/po',
+                '[::1]:~re/po',
+                22,
+            ],
+            './[::1]:re/po' => [
+                GitUrl::SCHEME_FILE,
+                null,
+                null,
+                null,
+                null,
+                './[::1]:re/po',
+                './[::1]:re/po',
+                null,
+            ],
+            'ssh://host.xz:65535/repo' => [
+                GitUrl::SCHEME_SSH,
+                null,
+                null,
+                'host.xz',
+                65535,
+                '/repo',
+                'ssh://host.xz:65535/repo',
+                65535,
+            ],
+        ];
+
+        foreach ($cases as $input => [$scheme, $user, $password, $host, $port, $path, $normalized, $defaultPort]) {
+            $url = GitUrl::parse($input);
+            $t->same($scheme, $url->scheme(), "{$input} scheme");
+            $t->same($user, $url->user(), "{$input} user");
+            $t->same($password, $url->password(), "{$input} password");
+            $t->same($host, $url->host(), "{$input} host");
+            $t->same($port, $url->port(), "{$input} port");
+            $t->same($path, $url->path(), "{$input} path");
+            $t->same($normalized, $url->toBytes(), "{$input} normalized bytes");
+            $t->same($defaultPort, $url->portOrDefault(), "{$input} default port");
+            $t->same($url->toArray()['normalized'], $url->toBytes(), "{$input} array normalized bytes");
+
+            $roundtrip = GitUrl::parse($url->toBytes());
+            $t->same($url->toArray(), $roundtrip->toArray(), "{$input} normalized roundtrip");
+        }
+    },
     'git url keeps unix colon path classification like gix-url' => static function (TestRunner $t): void {
         $driveLike = GitUrl::parse('x:/path/to/git');
         $t->same(GitUrl::SCHEME_SSH, $driveLike->scheme());
@@ -1319,6 +1429,12 @@ return [
         $t->same($fixture['expectedEmptyPortRemoteHost'], $summary['emptyPortRemote']['host']);
         $t->same($fixture['expectedEmptyPortRemotePath'], $summary['emptyPortRemote']['path']);
         $t->same($fixture['expectedEmptyPortRemoteUrl'], $summary['emptyPortRemote']['normalized']);
+        $t->same($fixture['expectedLegacySshRemoteScheme'], $summary['legacySshRemote']['scheme']);
+        $t->same($fixture['expectedLegacySshRemoteUser'], $summary['legacySshRemote']['user']);
+        $t->same($fixture['expectedLegacySshRemoteHost'], $summary['legacySshRemote']['host']);
+        $t->same($fixture['expectedLegacySshRemotePort'], $summary['legacySshRemote']['port']);
+        $t->same($fixture['expectedLegacySshRemotePath'], $summary['legacySshRemote']['path']);
+        $t->same($fixture['expectedLegacySshRemoteUrl'], $summary['legacySshRemote']['normalized']);
         $t->same($fixture['expectedLocalMirrorScheme'], $summary['localMirror']['scheme']);
         $t->same($fixture['expectedLocalMirrorUser'], $summary['localMirror']['user']);
         $t->same($fixture['expectedLocalMirrorHost'], $summary['localMirror']['host']);
