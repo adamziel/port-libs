@@ -609,12 +609,34 @@ final class MediaQueryParser
 
     private function validateDiscreteMediaFeature(string $name, string $value, string $feature): void
     {
-        if ($name === 'grid') {
-            $value = trim($value);
-            if (preg_match('/^[+-]?\d+$/', $value) !== 1 || !in_array((int) $value, [0, 1], true)) {
-                throw new \InvalidArgumentException("Invalid media query feature value: {$feature}");
-            }
+        $type = $this->knownMediaFeatureType($name) ?? 'unknown';
+        if (!$this->isValidDiscreteMediaFeatureValue($type, $value)) {
+            throw new \InvalidArgumentException("Invalid media query feature value: {$feature}");
         }
+    }
+
+    private function isValidDiscreteMediaFeatureValue(string $type, string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        if (preg_match('/^env\(/i', $value) === 1) {
+            return true;
+        }
+
+        return match ($type) {
+            'boolean' => preg_match('/^[+-]?\d+$/', $value) === 1 && in_array((int) $value, [0, 1], true),
+            'ident' => preg_match('/^' . $this->cssIdentifierPattern() . '$/', $value) === 1,
+            'integer',
+            'number',
+            'length',
+            'resolution',
+            'ratio',
+            'unknown' => $this->isValidRangeValue($type, $value),
+            default => false,
+        };
     }
 
     private function isRangeComparableMediaFeature(string $name): bool

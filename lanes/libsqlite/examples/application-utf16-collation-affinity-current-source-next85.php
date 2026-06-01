@@ -9,22 +9,22 @@ use PortLibs\LibSqlite\SQLiteUtf16CollationAffinityCursor;
 $enc = static fn (string $text, int|string $encoding): string => SQLiteUtf16CollationAffinityCursor::encodeText($text, $encoding);
 
 $rows = [
-    ['option_id' => 1, 'option_value_bytes' => $enc('02', 'UTF-16LE'), 'text_encoding' => 2, 'option_name' => 'wp_plugin_priority', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_value_bytes' => $enc('10', 'UTF-16BE'), 'text_encoding' => 3, 'option_name' => 'wp_plugin_priority', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_value_bytes' => $enc('Plugin_Alpha ', 'UTF-16LE'), 'text_encoding' => 2, 'option_name' => 'wp_plugin_slug', 'autoload' => 'no'],
-    ['option_id' => 4, 'option_value' => 2, 'option_name' => 'wp_plugin_priority_int', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_value_bytes' => $enc('02', 'UTF-16LE'), 'text_encoding' => 2, 'key_name' => 'module_priority', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_value_bytes' => $enc('10', 'UTF-16BE'), 'text_encoding' => 3, 'key_name' => 'module_priority', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_value_bytes' => $enc('Module_Alpha ', 'UTF-16LE'), 'text_encoding' => 2, 'key_name' => 'module_slug', 'load_policy' => 'no'],
+    ['setting_id' => 4, 'key_value' => 2, 'key_name' => 'module_priority_int', 'load_policy' => 'yes'],
 ];
 
-$numeric = SQLiteUtf16CollationAffinityCursor::optionRowValueSeek(
+$numeric = SQLiteUtf16CollationAffinityCursor::settingRowValueSeek(
     $rows,
     ['valueBytes' => $enc('2', 'UTF-16BE'), 'textEncoding' => 3],
     'NUMERIC',
     'NUMERIC',
 );
 
-$text = SQLiteUtf16CollationAffinityCursor::optionRowValueSeek(
+$text = SQLiteUtf16CollationAffinityCursor::settingRowValueSeek(
     $rows,
-    'Plugin_Alpha',
+    'Module_Alpha',
     'TEXT',
     'TEXT',
     'RTRIM',

@@ -21,8 +21,15 @@ final class ProtocolV2FetchExchange
     ) {
     }
 
-    public static function fromPacketLines(string $bytes, bool $sidebandAll = false, ?string $expectedService = null): self
-    {
+    /**
+     * @param null|callable(bool, string):bool $progressHandler Receives sideband error/progress text. Return false to abort.
+     */
+    public static function fromPacketLines(
+        string $bytes,
+        bool $sidebandAll = false,
+        ?string $expectedService = null,
+        ?callable $progressHandler = null
+    ): self {
         $messages = self::splitMessages($bytes);
         if (count($messages) < 3) {
             throw new \RuntimeException('protocol v2 fetch exchange: expected capability, ls-refs, and fetch response messages');
@@ -48,7 +55,7 @@ final class ProtocolV2FetchExchange
         return new self(
             ProtocolCapabilities::fromV2PacketLines($capabilityBytes, $expectedService),
             LsRefsCommand::parseV2PacketLines($messages[$next]),
-            FetchResponse::fromV2PacketLines($messages[$next + 1], $sidebandAll),
+            FetchResponse::fromV2PacketLines($messages[$next + 1], $sidebandAll, $progressHandler),
             $capabilityBytes,
             $messages[$next],
             $messages[$next + 1],

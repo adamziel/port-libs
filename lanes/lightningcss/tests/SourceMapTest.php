@@ -731,6 +731,29 @@ return [
         $t->same(['first', 'start-a', 'start-b', 'boundary'], $data['names']);
         $t->same(['.compiled{}'], $data['sourcesContent']);
     },
+    'source map trims trailing negative column-offset windows without appending mappings' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('compiled.css');
+        $map->setSourceContent($sourceIndex, '.compiled{}');
+        $map->addMapping(0, 0, $sourceIndex, 0, 0, 'first');
+        $map->addMapping(0, 10, $sourceIndex, 1, 0, 'middle');
+        $map->addMapping(0, 20, $sourceIndex, 2, 0, 'trailing');
+
+        $map->offsetColumns(0, 30, -15);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $data = $map->toArray(null, false);
+
+        $t->same('AAAAA,UACAC', $map->writeVlq());
+        $t->same([0, 10], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 1], array_column($decoded, 'originalLine'));
+        $t->same([0, 1], array_column($decoded, 'nameIndex'));
+        $t->same(['first', 'middle', 'trailing'], $data['names']);
+        $t->same(['.compiled{}'], $data['sourcesContent']);
+
+        $beforeNoop = $map->writeVlq();
+        $map->offsetColumns(0, 100, 7);
+        $t->same($beforeNoop, $map->writeVlq());
+    },
     'source map sorts out-of-order raw vlq generated columns before offsets' => static function (TestRunner $t): void {
         $raw = new SourceMap();
         $raw->addVlqMap(

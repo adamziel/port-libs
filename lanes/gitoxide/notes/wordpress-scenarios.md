@@ -378,8 +378,10 @@ so repository traversal can intentionally enumerate complete deploy trees.
 headers while keeping already-signed import commits stable. The protocol v1
 push-response example now parses proc-receive fall-through statuses, and the
 same example preserves receive-pack empty rejection text when a deployment hook
-sends `ng <ref> ` with a trailing separator. The sparse-checkout example now
-normalizes absolute pathspecs under the worktree root for deployment selection.
+sends `ng <ref> ` with a trailing separator and parses valid object-id option
+prefixes before non-whitespace hook diagnostics. The sparse-checkout example
+now normalizes absolute pathspecs under the worktree root for deployment
+selection.
 
 ## WordPress Protocol And Merge-Base Priority Examples
 

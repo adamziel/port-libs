@@ -37,18 +37,27 @@ $keyValueSourceFiles = [
     $sourceRoot . '/SQLiteKeyValueRowReplacementPlan.php',
     $sourceRoot . '/SQLiteKeyValueRowsWalImportPlan.php',
     $sourceRoot . '/SQLiteKeyValueRowWritePlan.php',
+    $sourceRoot . '/SQLiteMalformedTextCurrentNextCursor.php',
     $sourceRoot . '/SQLiteTenantImportSavepointPlan.php',
     $sourceRoot . '/SQLiteTenantKeyValueWalPlan.php',
+    $sourceRoot . '/SQLiteUtf16CollationAffinityCursor.php',
+    $sourceRoot . '/SQLiteUtf16CollationAffinitySourceSwitchPlan.php',
 ];
 $keyValueFixtureFiles = [
     $libsqliteRoot . '/examples/application-current-smoke-key-value-import.php',
+    $libsqliteRoot . '/examples/application-malformed-text-current-next70.php',
     $libsqliteRoot . '/examples/application-savepoint-key-value-import-diagnostics.php',
     $libsqliteRoot . '/examples/application-settings-import-wal-current-next.php',
     $libsqliteRoot . '/examples/application-tenant-keyvalue-import-savepoint-current-next37.php',
+    $libsqliteRoot . '/examples/application-utf16-affinity-source-switch-current-source-next100.php',
+    $libsqliteRoot . '/examples/application-utf16-collation-affinity-current-source-next85.php',
     $libsqliteRoot . '/tests/SQLiteApplicationCurrentSmokePlanTest.php',
     $libsqliteRoot . '/tests/SQLiteApplicationSettingsImportWalCurrentNext34Test.php',
     $libsqliteRoot . '/tests/SQLiteApplicationSettingsTenantWalCurrentNext42Test.php',
+    $libsqliteRoot . '/tests/SQLiteMalformedTextCurrentNext70Test.php',
     $libsqliteRoot . '/tests/SQLiteTenantKeyValueImportSavepointCurrentNext37Test.php',
+    $libsqliteRoot . '/tests/SQLiteUtf16CollationAffinityCurrentSourceNext85Test.php',
+    $libsqliteRoot . '/tests/SQLiteUtf16CollationAffinitySourceSwitchCurrentSourceNext100Test.php',
 ];
 $forbiddenNamePattern = 'WordPress|wordpress|WP|Wp|wp_|wpError|wp_error|OptionRow|optionRow|optionImport|optionsWalRows|upsertRecursiveViewSourceOption|Multisite|Network|Autoload|autoload|BlogId|blogId|OptionsTable|optionsTable|(?<!Compile)OptionName|(?<!compile)optionName|(?<!Compile)OptionValue|(?<!compile)optionValue|(?<!Compile)OptionId|(?<!compile)optionId';
 

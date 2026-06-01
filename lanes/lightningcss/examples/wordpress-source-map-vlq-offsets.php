@@ -658,6 +658,19 @@ $duplicateBoundaryNegativeMap = SourceMap::fromJson(
 $duplicateBoundaryNegativeMap->offsetColumns(0, 5, -3);
 $duplicateBoundaryNegativeClosest = $duplicateBoundaryNegativeMap->findClosestMapping(0, 2);
 
+$trailingNegativeWindowMap = new SourceMap();
+$trailingNegativeWindowSource = $trailingNegativeWindowMap->addSource('wp-content/themes/example/source-map-trailing-window.css');
+$trailingNegativeWindowMap->setSourceContent($trailingNegativeWindowSource, '.wp-block-trailing-window{}');
+$trailingNegativeWindowMap->addMapping(0, 0, $trailingNegativeWindowSource, 0, 0, 'trailing-window-first');
+$trailingNegativeWindowMap->addMapping(0, 10, $trailingNegativeWindowSource, 1, 0, 'trailing-window-middle');
+$trailingNegativeWindowMap->addMapping(0, 20, $trailingNegativeWindowSource, 2, 0, 'trailing-window-drained');
+$trailingNegativeWindowMap->offsetColumns(0, 30, -15);
+$trailingNegativeWindowColumns = array_column(SourceMap::decodeVlq($trailingNegativeWindowMap->writeVlq()), 'generatedColumn');
+$trailingNegativeWindowNames = $trailingNegativeWindowMap->getNames();
+$trailingNegativeWindowBeforeNoop = $trailingNegativeWindowMap->toJson(null, false);
+$trailingNegativeWindowMap->offsetColumns(0, 100, 7);
+$trailingNegativeWindowNoop = $trailingNegativeWindowBeforeNoop === $trailingNegativeWindowMap->toJson(null, false);
+
 $unsortedRawVlqMap = new SourceMap();
 $unsortedRawVlqMap->addVlqMap(
     'UAAAA,RACAC',
@@ -1032,6 +1045,10 @@ $actual = [
     'duplicateBoundaryNestedChildConsumed' => $duplicateBoundaryNestedChildConsumed,
     'duplicateBoundaryNegativeMap' => $duplicateBoundaryNegativeMap->toJson(null, false),
     'duplicateBoundaryNegativeClosest' => $duplicateBoundaryNegativeClosest,
+    'trailingNegativeWindowMap' => $trailingNegativeWindowMap->toJson(null, false),
+    'trailingNegativeWindowColumns' => $trailingNegativeWindowColumns,
+    'trailingNegativeWindowNames' => $trailingNegativeWindowNames,
+    'trailingNegativeWindowNoop' => $trailingNegativeWindowNoop,
     'unsortedRawVlqMap' => $unsortedRawVlqMap->toJson(null, false),
     'unsortedRawVlqPositiveOffsetMap' => $unsortedRawVlqPositiveOffsetMap->toJson(null, false),
     'unsortedRawVlqNegativeOffsetMap' => $unsortedRawVlqNegativeOffsetMap->toJson(null, false),
@@ -1162,6 +1179,10 @@ if (($argv[1] ?? null) === '--self-test') {
         'duplicateBoundaryNestedChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'duplicateBoundaryNegativeMap' => '{"version":3,"mappings":"AAAAA,EACAC,AAEAE","sources":["wp-content/themes/example/source-map-duplicate-boundary.css"],"sourcesContent":[".wp-block-duplicate-boundary{}"],"names":["first-boundary-rule","start-boundary-a","start-boundary-b","shifted-boundary-rule"]}',
         'duplicateBoundaryNegativeClosest' => ['generatedLine' => 0, 'generatedColumn' => 2, 'sourceIndex' => 0, 'originalLine' => 3, 'originalColumn' => 0, 'nameIndex' => 3],
+        'trailingNegativeWindowMap' => '{"version":3,"mappings":"AAAAA,UACAC","sources":["wp-content/themes/example/source-map-trailing-window.css"],"sourcesContent":[".wp-block-trailing-window{}"],"names":["trailing-window-first","trailing-window-middle","trailing-window-drained"]}',
+        'trailingNegativeWindowColumns' => [0, 10],
+        'trailingNegativeWindowNames' => ['trailing-window-first', 'trailing-window-middle', 'trailing-window-drained'],
+        'trailingNegativeWindowNoop' => true,
         'unsortedRawVlqMap' => '{"version":3,"mappings":"EACAC,QADAD","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',
         'unsortedRawVlqPositiveOffsetMap' => '{"version":3,"mappings":"EACAC,WADAD","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',
         'unsortedRawVlqNegativeOffsetMap' => '{"version":3,"mappings":"EAAAA","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',

@@ -7,30 +7,30 @@ use PortLibs\LibSqlite\SQLiteMalformedTextCurrentNextCursor;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $rows = [
-    ['option_id' => 1, 'option_name' => 'plugin_alpha', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => "plugin_\xc3", 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => "Plugin_\xc3", 'autoload' => 'no'],
-    ['option_id' => 4, 'option_name' => "plugin_\xc3 ", 'autoload' => 'yes'],
-    ['option_id' => 5, 'option_name' => "plugin_\xe2\x82", 'autoload' => 'yes'],
-    ['option_id' => 6, 'option_name' => 'plugin_é', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'module_alpha', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => "module_\xc3", 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => "Module_\xc3", 'load_policy' => 'no'],
+    ['setting_id' => 4, 'key_name' => "module_\xc3 ", 'load_policy' => 'yes'],
+    ['setting_id' => 5, 'key_name' => "module_\xe2\x82", 'load_policy' => 'yes'],
+    ['setting_id' => 6, 'key_name' => 'module_é', 'load_policy' => 'yes'],
 ];
 
 $cursor = new SQLiteMalformedTextCurrentNextCursor(
-    array_map(static fn (array $row): array => ['key' => $row['option_name'], 'rowid' => $row['option_id'], 'payload' => $row], $rows),
+    array_map(static fn (array $row): array => ['key' => $row['key_name'], 'rowid' => $row['setting_id'], 'payload' => $row], $rows),
     'NOCASE',
 );
-$cursor->seek("PLUGIN_\xc3");
-$range = SQLiteMalformedTextCurrentNextCursor::optionRowNameRange($rows, "plugin_\xc3", "plugin_\xc4", 'NOCASE', ['autoload' => 'yes']);
+$cursor->seek("MODULE_\xc3");
+$range = SQLiteMalformedTextCurrentNextCursor::settingRowKeyRange($rows, "module_\xc3", "module_\xc4", 'NOCASE', ['load_policy' => 'yes']);
 
 $report = [
     'scenario' => 'application-malformed-text-current-next70',
-    'currentNext' => $cursor->currentNextPlan("PLUGIN_\xc3"),
-    'autoloadYesRangeRowids' => array_column($range, 'rowid'),
-    'autoloadYesRangeNamesHex' => array_map(
-        static fn (array $entry): string => bin2hex((string) $entry['payload']['option_name']),
+    'currentNext' => $cursor->currentNextPlan("MODULE_\xc3"),
+    'loadPolicyYesRangeRowids' => array_column($range, 'rowid'),
+    'loadPolicyYesRangeNamesHex' => array_map(
+        static fn (array $entry): string => bin2hex((string) $entry['payload']['key_name']),
         $range,
     ),
-    'applicationUse' => 'Copied wp_options imports can inspect malformed option_name bytes with SQLite-style BINARY/NOCASE/RTRIM ordering, preserving current/next cursor diagnostics before repair tools rewrite or drop damaged rows.',
+    'applicationUse' => 'Application settings imports can inspect malformed key_name bytes with SQLite-style BINARY/NOCASE/RTRIM ordering, preserving current/next cursor diagnostics before repair tools rewrite or drop damaged rows.',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -38,7 +38,7 @@ if (($argv[1] ?? null) === '--self-test') {
         $report['currentNext']['currentRowid'] !== 2
         || $report['currentNext']['nextRowid'] !== 3
         || $report['currentNext']['currentMalformedUtf8'] !== true
-        || $report['autoloadYesRangeRowids'] !== [2, 4, 6]
+        || $report['loadPolicyYesRangeRowids'] !== [2, 4, 6]
     ) {
         fwrite(STDERR, "application-malformed-text-current-next70 self-test failed\n");
         exit(1);

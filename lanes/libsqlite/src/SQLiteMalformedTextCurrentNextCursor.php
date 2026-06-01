@@ -169,12 +169,12 @@ final class SQLiteMalformedTextCurrentNextCursor
      * @param array<string,mixed> $filters
      * @return list<array{key:mixed,rowid:int,payload:array<string,mixed>}>
      */
-    public static function keyValueRowKeyRange(array $rows, mixed $lowerInclusive, mixed $upperExclusive, string $collation = 'BINARY', array $filters = []): array
+    public static function settingRowKeyRange(array $rows, mixed $lowerInclusive, mixed $upperExclusive, string $collation = 'BINARY', array $filters = []): array
     {
         $entries = [];
         foreach ($rows as $index => $row) {
-            if (!is_array($row) || !array_key_exists('option_name', $row)) {
-                throw new \InvalidArgumentException('Application option rows require option_name');
+            if (!is_array($row) || !array_key_exists('key_name', $row)) {
+                throw new \InvalidArgumentException('Application setting rows require key_name');
             }
             foreach ($filters as $column => $expected) {
                 if (!array_key_exists($column, $row) || $row[$column] !== $expected) {
@@ -182,8 +182,8 @@ final class SQLiteMalformedTextCurrentNextCursor
                 }
             }
             $entries[] = [
-                'key' => $row['option_name'],
-                'rowid' => is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1,
+                'key' => $row['key_name'],
+                'rowid' => is_int($row['setting_id'] ?? null) ? $row['setting_id'] : $index + 1,
                 'payload' => $row,
             ];
         }

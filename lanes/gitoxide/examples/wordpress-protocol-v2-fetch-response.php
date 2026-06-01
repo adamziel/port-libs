@@ -14,7 +14,17 @@ $overflowProgressResponse = FetchResponse::fromV2PacketLines($fixture['overflowP
 $suffixlessAckResponse = FetchResponse::fromV2PacketLines($fixture['suffixlessAckResponse']);
 $refInWantResponse = FetchResponse::fromV2PacketLines($fixture['refInWantResponse']);
 $sha256Response = FetchResponse::fromV2PacketLines($fixture['sha256Response']);
-$cloneExchange = ProtocolV2FetchExchange::fromPacketLines($fixture['cloneExchangeResponse']);
+$cloneExchangeProgressMessages = [];
+$cloneExchange = ProtocolV2FetchExchange::fromPacketLines(
+    $fixture['cloneExchangeResponse'],
+    false,
+    null,
+    static function (bool $isError, string $text) use (&$cloneExchangeProgressMessages): bool {
+        $cloneExchangeProgressMessages[] = ['isError' => $isError, 'text' => $text];
+
+        return true;
+    }
+);
 $responseEndNoPackResponse = FetchResponse::fromV2PacketLines($fixture['responseEndNoPackResponse']);
 $responseEndPackResponse = FetchResponse::fromV2PacketLines($fixture['responseEndPackResponse']);
 $delimiterPackResponse = FetchResponse::fromV2PacketLines($fixture['delimiterPackResponse']);
@@ -137,6 +147,10 @@ return [
     'cloneExchangeParsed' => $cloneExchange->remoteRefs()[0]->target === 'refs/heads/main'
         && $cloneExchange->fetchResponse()->packData() === $fixture['packData']
         && $cloneExchange->fetchResponse()->progressMessages() === ['Enumerating objects: 1, done.'],
+    'cloneExchangeProgressMessages' => $cloneExchangeProgressMessages,
+    'cloneExchangeProgressHandled' => $cloneExchangeProgressMessages === [
+        ['isError' => false, 'text' => 'Enumerating objects: 1, done.'],
+    ],
     'cloneExchangePackTrailer' => bin2hex(substr($cloneExchange->fetchResponse()->packData(), -20)),
     'responseEndNoPackParsed' => $responseEndNoPackResponse->hasPack() === false
         && count($responseEndNoPackResponse->acknowledgements()) === 1

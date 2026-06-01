@@ -161,7 +161,7 @@ final class SQLiteUtf16CollationAffinityCursor
      * @param list<array<string,mixed>> $rows
      * @return list<array{rowid:int,value:mixed,storage:string,encoding:?string,valueBytesHex:?string,comparisonToProbe:?int,payload:array<string,mixed>,position:int}>
      */
-    public static function keyValueRowValueSeek(
+    public static function settingRowValueSeek(
         array $rows,
         mixed $probe,
         string $leftAffinity = 'TEXT',
@@ -170,27 +170,27 @@ final class SQLiteUtf16CollationAffinityCursor
     ): array {
         $entries = [];
         foreach ($rows as $row) {
-            if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 affinity Application seek requires integer option_id');
+            if (!isset($row['setting_id']) || !is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException('SQLite UTF-16 affinity application setting seek requires integer setting_id');
             }
-            if (!array_key_exists('option_value_bytes', $row) && !array_key_exists('option_value', $row)) {
-                throw new \InvalidArgumentException('SQLite UTF-16 affinity Application seek requires option_value or option_value_bytes');
+            if (!array_key_exists('key_value_bytes', $row) && !array_key_exists('key_value', $row)) {
+                throw new \InvalidArgumentException('SQLite UTF-16 affinity application setting seek requires key_value or key_value_bytes');
             }
             $entry = [
-                'rowid' => $row['option_id'],
+                'rowid' => $row['setting_id'],
                 'payload' => $row,
             ];
-            if (array_key_exists('option_value_bytes', $row)) {
-                if (!is_string($row['option_value_bytes'])) {
-                    throw new \InvalidArgumentException('SQLite UTF-16 affinity Application seek requires string option_value_bytes');
+            if (array_key_exists('key_value_bytes', $row)) {
+                if (!is_string($row['key_value_bytes'])) {
+                    throw new \InvalidArgumentException('SQLite UTF-16 affinity application setting seek requires string key_value_bytes');
                 }
                 if (!isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
-                    throw new \InvalidArgumentException('SQLite UTF-16 affinity Application seek requires integer text_encoding');
+                    throw new \InvalidArgumentException('SQLite UTF-16 affinity application setting seek requires integer text_encoding');
                 }
-                $entry['valueBytes'] = $row['option_value_bytes'];
+                $entry['valueBytes'] = $row['key_value_bytes'];
                 $entry['textEncoding'] = $row['text_encoding'];
             } else {
-                $entry['value'] = $row['option_value'];
+                $entry['value'] = $row['key_value'];
             }
             $entries[] = $entry;
         }

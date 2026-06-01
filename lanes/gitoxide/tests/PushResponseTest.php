@@ -260,6 +260,38 @@ return [
         $t->same(null, $invalidOnlyStatus->newObject);
         $t->same(true, $invalidOnlyStatus->hasReportOption());
     },
+    'parses report-status-v2 object-id prefixes before non-hex diagnostics like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
+        $old = str_repeat('A', 40);
+        $new = str_repeat('B', 64);
+        $direct = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/wp-release accepted after hook suffix diagnostics\n")
+            . $packet("option old-oid {$old}#pre-receive-suffix\n")
+            . $packet("option new-oid {$new}:accepted-by-hook\n")
+            . $flush
+        );
+        $sideband = PushResponse::fromSidebandPacketLines(
+            $packet("\x02remote: status suffix diagnostics\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/for/wp-release\n"))
+            . $packet("\x01" . $packet("option old-oid {$old}#pre-receive-suffix\n"))
+            . $packet("\x01" . $packet("option new-oid {$new}:accepted-by-hook\n"))
+            . $packet("\x01" . $flush)
+            . $flush
+        )->forExpectedRefNames(['refs/for/wp-release']);
+        $directStatus = $direct->refStatuses()[0];
+        $sidebandStatus = $sideband->refStatuses()[0];
+
+        $t->same(true, $direct->isSuccessful());
+        $t->same('accepted after hook suffix diagnostics', $directStatus->message);
+        $t->same(strtolower($old), $directStatus->oldObject);
+        $t->same(strtolower($new), $directStatus->newObject);
+        $t->same(true, $directStatus->hasReportOption());
+        $t->same(true, $sideband->isSuccessful());
+        $t->same(['remote: status suffix diagnostics'], $sideband->progressMessages());
+        $t->same(strtolower($old), $sidebandStatus->oldObject);
+        $t->same(strtolower($new), $sidebandStatus->newObject);
+    },
     'accepts valueless report-status-v2 options like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
         $response = PushResponse::fromReportStatusPacketLines(
             $packet("unpack ok\n")
@@ -633,6 +665,7 @@ return [
             ->forExpectedRefNames([$fixture['valuelessOptionRef']['requested']])
             ->refStatuses()[0];
         $malformedObjectOption = PushResponse::fromReportStatusPacketLines($fixture['malformedObjectOptionResponse'])->refStatuses()[0];
+        $objectPrefixDiagnostic = PushResponse::fromReportStatusPacketLines($fixture['objectPrefixDiagnosticResponse'])->refStatuses()[0];
         $emptyUnpackStatus = PushResponse::fromReportStatusPacketLines($fixture['emptyUnpackStatusResponse']);
 
         $t->same(true, $response->isSuccessful());
@@ -671,6 +704,10 @@ return [
         $t->same($fixture['malformedObjectOptionRef']['oldObject'], $malformedObjectOption->oldObject);
         $t->same($fixture['malformedObjectOptionRef']['newObject'], $malformedObjectOption->newObject);
         $t->same(true, $malformedObjectOption->hasReportOption());
+        $t->same($fixture['objectPrefixDiagnosticRef']['requested'], $objectPrefixDiagnostic->refName);
+        $t->same($fixture['objectPrefixDiagnosticRef']['oldObject'], $objectPrefixDiagnostic->oldObject);
+        $t->same($fixture['objectPrefixDiagnosticRef']['newObject'], $objectPrefixDiagnostic->newObject);
+        $t->same(true, $objectPrefixDiagnostic->hasReportOption());
         $t->same('', $emptyUnpackStatus->unpackStatus());
         $t->same(false, $emptyUnpackStatus->unpackOk());
         $t->same($fixture['emptyUnpackStatusRef']['message'], $emptyUnpackStatus->rejectedRefs()[0]->message);
@@ -717,6 +754,7 @@ return [
         $t->same(true, $summary['delimiterTerminatedAccepted']);
         $t->same(true, $summary['valuelessReportStatusOptionsAccepted']);
         $t->same(true, $summary['malformedObjectOptionsIgnored']);
+        $t->same(true, $summary['objectPrefixDiagnosticSuffixesParsed']);
         $t->same(true, $summary['emptyUnpackStatusRejected']);
     },
 ];

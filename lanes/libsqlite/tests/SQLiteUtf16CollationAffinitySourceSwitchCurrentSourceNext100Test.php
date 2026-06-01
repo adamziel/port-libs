@@ -8,11 +8,11 @@ use PortLibs\LibSqlite\SQLiteUtf16CollationAffinitySourceSwitchPlan;
 $tests = [];
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteUtf16CollationAffinityCursor::encodeText($text, $encoding);
-$row = static fn (int $id, mixed $value, int|string $encoding = 'UTF-16LE', string $name = 'wp_option'): array => is_string($value)
+$row = static fn (int $id, mixed $value, int|string $encoding = 'UTF-16LE', string $name = 'app_setting'): array => is_string($value)
     ? [
-        'option_id' => $id,
-        'option_name' => $name,
-        'option_value_bytes' => $enc($value, $encoding),
+        'setting_id' => $id,
+        'key_name' => $name,
+        'key_value_bytes' => $enc($value, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8', 1 => 1,
             'UTF-16LE', 2 => 2,
@@ -20,31 +20,31 @@ $row = static fn (int $id, mixed $value, int|string $encoding = 'UTF-16LE', stri
         },
     ]
     : [
-        'option_id' => $id,
-        'option_name' => $name,
-        'option_value' => $value,
+        'setting_id' => $id,
+        'key_name' => $name,
+        'key_value' => $value,
     ];
 
 $currentRows = [
-    $row(1, '02', 'UTF-16LE', 'wp_plugin_priority'),
-    $row(2, '2.0', 'UTF-16BE', 'wp_plugin_priority_real'),
-    $row(3, '10', 'UTF-16LE', 'wp_plugin_priority_later'),
-    $row(4, 'Plugin_Alpha ', 'UTF-16LE', 'wp_plugin_slug'),
-    $row(5, 'plugin_beta', 'UTF-16BE', 'wp_plugin_slug_beta'),
-    $row(6, 2, 'UTF-8', 'wp_plugin_priority_native'),
+    $row(1, '02', 'UTF-16LE', 'module_priority'),
+    $row(2, '2.0', 'UTF-16BE', 'module_priority_real'),
+    $row(3, '10', 'UTF-16LE', 'module_priority_later'),
+    $row(4, 'Module_Alpha ', 'UTF-16LE', 'module_slug'),
+    $row(5, 'module_beta', 'UTF-16BE', 'module_slug_beta'),
+    $row(6, 2, 'UTF-8', 'module_priority_native'),
 ];
 
 $nextRows = [
-    $row(1, '02', 'UTF-16BE', 'wp_plugin_priority'),
-    $row(2, '2x', 'UTF-16BE', 'wp_plugin_priority_real'),
-    $row(3, '10', 'UTF-16LE', 'wp_plugin_priority_later'),
-    $row(4, 'Plugin_Alpha', 'UTF-16LE', 'wp_plugin_slug'),
-    $row(5, 'plugin_beta', 'UTF-16BE', 'wp_plugin_slug_beta'),
-    $row(6, 2, 'UTF-8', 'wp_plugin_priority_native'),
-    $row(7, '2', 'UTF-16LE', 'wp_plugin_priority_new'),
+    $row(1, '02', 'UTF-16BE', 'module_priority'),
+    $row(2, '2x', 'UTF-16BE', 'module_priority_real'),
+    $row(3, '10', 'UTF-16LE', 'module_priority_later'),
+    $row(4, 'Module_Alpha', 'UTF-16LE', 'module_slug'),
+    $row(5, 'module_beta', 'UTF-16BE', 'module_slug_beta'),
+    $row(6, 2, 'UTF-8', 'module_priority_native'),
+    $row(7, '2', 'UTF-16LE', 'module_priority_new'),
 ];
 
-$numericPlan = static fn (): array => SQLiteUtf16CollationAffinitySourceSwitchPlan::keyValueRowValueSourceSwitch(
+$numericPlan = static fn (): array => SQLiteUtf16CollationAffinitySourceSwitchPlan::settingRowValueSourceSwitch(
     $currentRows,
     $nextRows,
     ['valueBytes' => $enc('2', 'UTF-16LE'), 'textEncoding' => 2],
@@ -74,7 +74,7 @@ $numericCases = [
     'retained rowids keep seek order from current source' => ['retainedRowids', [1, 2, 6, 3, 4, 5]],
     'entered rowids report new numeric peer' => ['enteredRowids', [7]],
     'exited rowids are empty because changed text remains after probe' => ['exitedRowids', []],
-    'encoding changed rowid is first option' => ['changedEncodingRowids', [1]],
+    'encoding changed rowid is first setting' => ['changedEncodingRowids', [1]],
     'bytes changed rowids include reencoded, decoded, and numeric text changes' => ['changedBytesRowids', [1, 2, 4]],
     'decoded changed rowids include changed numeric and trimmed text' => ['changedDecodedValueRowids', [2, 4]],
     'coerced storage changed rowid detects numeric text fallback' => ['changedCoercedStorageRowids', [2]],
@@ -101,33 +101,33 @@ foreach ($numericCases as $name => [$path, $expected]) {
 }
 
 $textCurrentRows = [
-    $row(10, 'Plugin_Alpha ', 'UTF-16LE', 'wp_plugin_slug'),
-    $row(11, 'plugin_alpha', 'UTF-16BE', 'wp_plugin_slug_alias'),
-    $row(12, 'plugin_beta', 'UTF-16LE', 'wp_plugin_slug_beta'),
-    $row(13, 'theme_alpha', 'UTF-8', 'wp_theme_slug'),
+    $row(10, 'Module_Alpha ', 'UTF-16LE', 'module_slug'),
+    $row(11, 'module_alpha', 'UTF-16BE', 'module_slug_alias'),
+    $row(12, 'module_beta', 'UTF-16LE', 'module_slug_beta'),
+    $row(13, 'layout_alpha', 'UTF-8', 'layout_slug'),
 ];
 
 $textNextRows = [
-    $row(10, 'Plugin_Alpha ', 'UTF-16BE', 'wp_plugin_slug'),
-    $row(11, 'plugin_alpha', 'UTF-16BE', 'wp_plugin_slug_alias'),
-    $row(12, 'plugin_beta ', 'UTF-16LE', 'wp_plugin_slug_beta'),
-    $row(13, 'theme_alpha', 'UTF-8', 'wp_theme_slug'),
+    $row(10, 'Module_Alpha ', 'UTF-16BE', 'module_slug'),
+    $row(11, 'module_alpha', 'UTF-16BE', 'module_slug_alias'),
+    $row(12, 'module_beta ', 'UTF-16LE', 'module_slug_beta'),
+    $row(13, 'layout_alpha', 'UTF-8', 'layout_slug'),
 ];
 
-$textPlan = static fn (): array => SQLiteUtf16CollationAffinitySourceSwitchPlan::keyValueRowValueSourceSwitch(
+$textPlan = static fn (): array => SQLiteUtf16CollationAffinitySourceSwitchPlan::settingRowValueSourceSwitch(
     $textCurrentRows,
     $textNextRows,
-    'plugin_alpha ',
+    'module_alpha ',
     'TEXT',
     'TEXT',
     'RTRIM',
-    'wp_options-current',
-    'wp_options-next',
+    'app_settings-current',
+    'app_settings-next',
 );
 
 $textCases = [
-    'text rtrim current rowids start at alpha peers' => ['currentRowids', [11, 12, 13]],
-    'text rtrim next rowids start at alpha peers' => ['nextRowids', [11, 12, 13]],
+    'text rtrim current rowids start at alpha peers' => ['currentRowids', [11, 12]],
+    'text rtrim next rowids start at alpha peers' => ['nextRowids', [11, 12]],
     'text rtrim changed source name invalidates cursor' => ['invalidationReasons.0', 'source-name'],
     'text rtrim changed beta bytes invalidates cursor' => ['invalidationReasons.1', 'value-bytes'],
     'text rtrim changed decoded beta value is detected' => ['invalidationReasons.2', 'decoded-value'],
@@ -159,21 +159,21 @@ $stableRows = [
 ];
 
 $tests['utf16 collation affinity source switch nextOneZeroZero stable source does not invalidate'] = static function (TestRunner $t) use ($stableRows, $enc): void {
-    $plan = SQLiteUtf16CollationAffinitySourceSwitchPlan::keyValueRowValueSourceSwitch($stableRows, $stableRows, ['valueBytes' => $enc('2', 'UTF-16BE'), 'textEncoding' => 3], 'NUMERIC', 'NONE', 'BINARY', 'same', 'same');
+    $plan = SQLiteUtf16CollationAffinitySourceSwitchPlan::settingRowValueSourceSwitch($stableRows, $stableRows, ['valueBytes' => $enc('2', 'UTF-16BE'), 'textEncoding' => 3], 'NUMERIC', 'NONE', 'BINARY', 'same', 'same');
     $t->same(false, $plan['cursorInvalidated']);
 };
 
 $tests['utf16 collation affinity source switch nextOneZeroZero stable source has no reasons'] = static function (TestRunner $t) use ($stableRows, $enc): void {
-    $plan = SQLiteUtf16CollationAffinitySourceSwitchPlan::keyValueRowValueSourceSwitch($stableRows, $stableRows, ['valueBytes' => $enc('2', 'UTF-16BE'), 'textEncoding' => 3], 'NUMERIC', 'NONE', 'BINARY', 'same', 'same');
+    $plan = SQLiteUtf16CollationAffinitySourceSwitchPlan::settingRowValueSourceSwitch($stableRows, $stableRows, ['valueBytes' => $enc('2', 'UTF-16BE'), 'textEncoding' => 3], 'NUMERIC', 'NONE', 'BINARY', 'same', 'same');
     $t->same([], $plan['invalidationReasons']);
 };
 
 $tests['utf16 collation affinity source switch nextOneZeroZero rejects malformed next utf16 bytes'] = static function (TestRunner $t) use ($stableRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinitySourceSwitchPlan::keyValueRowValueSourceSwitch($stableRows, [['option_id' => 1, 'option_value_bytes' => "\x70", 'text_encoding' => 2]], 'p'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinitySourceSwitchPlan::settingRowValueSourceSwitch($stableRows, [['setting_id' => 1, 'key_value_bytes' => "\x70", 'text_encoding' => 2]], 'p'));
 };
 
 $tests['utf16 collation affinity source switch nextOneZeroZero rejects unsupported collation'] = static function (TestRunner $t) use ($stableRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinitySourceSwitchPlan::keyValueRowValueSourceSwitch($stableRows, $stableRows, 'p', 'TEXT', 'TEXT', 'WP_LOCALE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinitySourceSwitchPlan::settingRowValueSourceSwitch($stableRows, $stableRows, 'p', 'TEXT', 'TEXT', 'APP_LOCALE'));
 };
 
 return $tests;

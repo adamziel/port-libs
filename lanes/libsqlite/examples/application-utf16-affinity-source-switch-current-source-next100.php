@@ -9,9 +9,9 @@ use PortLibs\LibSqlite\SQLiteUtf16CollationAffinitySourceSwitchPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteUtf16CollationAffinityCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $value, int|string $encoding, string $name): array => [
-    'option_id' => $id,
-    'option_name' => $name,
-    'option_value_bytes' => $enc($value, $encoding),
+    'setting_id' => $id,
+    'key_name' => $name,
+    'key_value_bytes' => $enc($value, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -20,29 +20,29 @@ $row = static fn (int $id, string $value, int|string $encoding, string $name): a
 ];
 
 $currentRows = [
-    $row(1, '02', 'UTF-16LE', 'wp_plugin_priority'),
-    $row(2, '2.0', 'UTF-16BE', 'wp_plugin_priority_real'),
-    $row(3, '10', 'UTF-16LE', 'wp_plugin_priority_later'),
-    $row(4, 'Plugin_Alpha ', 'UTF-16LE', 'wp_plugin_slug'),
+    $row(1, '02', 'UTF-16LE', 'module_priority'),
+    $row(2, '2.0', 'UTF-16BE', 'module_priority_real'),
+    $row(3, '10', 'UTF-16LE', 'module_priority_later'),
+    $row(4, 'Module_Alpha ', 'UTF-16LE', 'module_slug'),
 ];
 
 $nextRows = [
-    $row(1, '02', 'UTF-16BE', 'wp_plugin_priority'),
-    $row(2, '2x', 'UTF-16BE', 'wp_plugin_priority_real'),
-    $row(3, '10', 'UTF-16LE', 'wp_plugin_priority_later'),
-    $row(4, 'Plugin_Alpha', 'UTF-16LE', 'wp_plugin_slug'),
-    $row(5, '2', 'UTF-16LE', 'wp_plugin_priority_new'),
+    $row(1, '02', 'UTF-16BE', 'module_priority'),
+    $row(2, '2x', 'UTF-16BE', 'module_priority_real'),
+    $row(3, '10', 'UTF-16LE', 'module_priority_later'),
+    $row(4, 'Module_Alpha', 'UTF-16LE', 'module_slug'),
+    $row(5, '2', 'UTF-16LE', 'module_priority_new'),
 ];
 
-$plan = SQLiteUtf16CollationAffinitySourceSwitchPlan::optionRowValueSourceSwitch(
+$plan = SQLiteUtf16CollationAffinitySourceSwitchPlan::settingRowValueSourceSwitch(
     $currentRows,
     $nextRows,
     ['valueBytes' => $enc('2', 'UTF-16LE'), 'textEncoding' => 2],
     'NUMERIC',
     'NONE',
     'BINARY',
-    'wp-options-current',
-    'wp-options-next',
+    'app-settings-current',
+    'app-settings-next',
 );
 
 echo json_encode(

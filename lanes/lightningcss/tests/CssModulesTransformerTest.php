@@ -640,6 +640,46 @@ CSS);
 
         $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform('.card:n\6f t(:global(.legacy, .wide), .kept) { color: red }'));
     },
+    'css modules canonicalizes language direction pseudos and rejects local global args while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:D\49 R(ltr) {
+  color: red;
+}
+
+.card:l\61 ng(en, fr) {
+  color: yellow;
+}
+
+.button {
+  composes: card;
+  color: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_card:dir(ltr){color:red}.EgL3uq_card:lang(en,fr){color:#ff0}.EgL3uq_button{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+
+        foreach ([
+            '.card:dir(:global(ltr)) { color: red } .button { composes: card; color: white }',
+            '.card:dir(:local(ltr)) { color: red } .button { composes: card; color: white }',
+            '.card:lang(:global(en)) { color: red } .button { composes: card; color: white }',
+            '.card:l\61 ng(en, :local(fr)) { color: red } .button { composes: card; color: white }',
+        ] as $css) {
+            try {
+                (new CssModulesTransformer())->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same('Unexpected token Colon', $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream language selector function exception');
+        }
+    },
     'css modules leaves upstream host-context arguments public while preserving local composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 :host-context(.public-theme) .card {

@@ -125,7 +125,7 @@ final class PushRefStatus
     private static function parseObjectIdOption(string $value): ?string
     {
         foreach ([64, 40] as $length) {
-            if (preg_match('/^([0-9a-fA-F]{' . $length . '})(?:[ \t\r].*)?$/', $value, $matches) === 1) {
+            if (preg_match('/^([0-9a-fA-F]{' . $length . '})(?:$|[^0-9a-fA-F])/', $value, $matches) === 1) {
                 return strtolower($matches[1]);
             }
         }

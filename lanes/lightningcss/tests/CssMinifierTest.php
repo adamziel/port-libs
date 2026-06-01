@@ -1508,6 +1508,7 @@ CSS
             $minifier->minify('.foo { grid: "a" minmax(100px, max-content) "b" 20%; }')
         );
         $t->same('.foo{grid:100px/200px}', $minifier->minify('.foo { grid: 100px / 200px; }'));
+        $t->same('.foo{grid:none}', $minifier->minify('.foo { grid: none }'));
         $t->same(
             '.foo{grid:minmax(400px,min-content)/repeat(auto-fill,50px)}',
             $minifier->minify('.foo { grid: minmax(400px, min-content) / repeat(auto-fill, 50px); }')
@@ -1526,6 +1527,7 @@ CSS
         );
         $t->same('.foo{grid-auto-flow:dense}', $minifier->minify('.foo { grid-auto-flow: row dense; }'));
         $t->same('.foo{grid-auto-flow:dense}', $minifier->minify('.foo { grid-auto-flow: dense row; }'));
+        $t->same('.foo{grid-auto-flow:column dense}', $minifier->minify('.foo { grid-auto-flow: column dense; }'));
         $t->same('.foo{grid-auto-flow:column dense}', $minifier->minify('.foo { grid-auto-flow: dense column; }'));
         $t->same('.foo{grid-row-start:2 some-line}', $minifier->minify('.foo { grid-row-start: some-line 2; }'));
         $t->same('.foo{grid-row-start:span some-line}', $minifier->minify('.foo { grid-row-start: span some-line 1; }'));
@@ -1603,6 +1605,8 @@ CSS
             '.foo { grid-template-columns: 200px repeat(auto-fill, 100px) 300px; }' => '.foo{grid-template-columns:200px repeat(auto-fill,100px) 300px}',
             '.foo { grid-template-columns: [linename1 linename2] 100px repeat(auto-fit, [linename1] 300px) [linename3]; }' => '.foo{grid-template-columns:[linename1 linename2]100px repeat(auto-fit,[linename1]300px)[linename3]}',
             '.foo { grid-template-rows: [linename1 linename2] 100px repeat(auto-fit, [linename1] 300px) [linename3]; }' => '.foo{grid-template-rows:[linename1 linename2]100px repeat(auto-fit,[linename1]300px)[linename3]}',
+            '.foo { grid-template: auto 1fr / auto 1fr auto; }' => '.foo{grid-template:auto 1fr/auto 1fr auto}',
+            '.foo { grid-template: [linename1 linename2] 100px repeat(auto-fit, [linename1] 300px) [linename3] / [linename1 linename2] 100px repeat(auto-fit, [linename1] 300px) [linename3]; }' => '.foo{grid-template:[linename1 linename2]100px repeat(auto-fit,[linename1]300px)[linename3]/[linename1 linename2]100px repeat(auto-fit,[linename1]300px)[linename3]}',
         ];
 
         foreach ($cases as $css => $expected) {

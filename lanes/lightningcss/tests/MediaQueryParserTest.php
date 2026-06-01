@@ -141,8 +141,20 @@ return [
         $t->same('(width>=240px)', $parser->minifyList('(width >= 240px),'));
         $t->same('(hover:hover)', $parser->minifyList('(hover: hover)'));
         $t->same('(hover)', $parser->minifyList('(hover)'));
+        $t->same('(hover:env(--wp-hover))', $parser->minifyList('(hover: env(--wp-hover))'));
+        $t->same('(prefers-color-scheme:env(--wp-scheme))', $parser->minifyList('(prefers-color-scheme: env(--wp-scheme))'));
+        $t->same('(width:240px)', $parser->minifyList('(width: 240px)'));
+        $t->same('(height:0)', $parser->minifyList('(height: 0)'));
+        $t->same('(resolution:2dppx)', $parser->minifyList('(resolution: 2dppx)'));
+        $t->same('(color:2)', $parser->minifyList('(color: +2)'));
+        $t->same('(color-index:2)', $parser->minifyList('(color-index: 02)'));
+        $t->same('(monochrome:0)', $parser->minifyList('(monochrome: -0)'));
         $t->same('(aspect-ratio:11/5)', $parser->minifyList('(aspect-ratio: 11 / 5)'));
         $t->same('(aspect-ratio:2)', $parser->minifyList('(aspect-ratio: 2/1)'));
+        $t->same('(theme-state:10)', $parser->minifyList('(theme-state: 10)'));
+        $t->same('(theme-ratio:3/2)', $parser->minifyList('(theme-ratio: 3 / 2)'));
+        $t->same('(theme-breakpoint:15rem)', $parser->minifyList('(theme-breakpoint: 15rem)'));
+        $t->same('(theme-density:1.5dppx)', $parser->minifyList('(theme-density: 1.5dppx)'));
         $t->same('(grid:1)', $parser->minifyList('(grid: +1)'));
         $t->same('(grid:1)', $parser->minifyList('(grid: 01)'));
         $t->same('(grid:0)', $parser->minifyList('(grid: +0)'));
@@ -261,6 +273,20 @@ return [
             '(grid: -1)',
             '(grid: 1.0)',
             '(grid: true)',
+            '(hover: 1)',
+            '(pointer: 1)',
+            '(orientation: 1)',
+            '(prefers-color-scheme: 10)',
+            '(update: 2px)',
+            '(display-mode: 1/2)',
+            '(width: var(--theme-breakpoint))',
+            '(resolution: 2)',
+            '(color: 1.0)',
+            '(color-index: 1e0)',
+            '(aspect-ratio: 2px)',
+            '(theme-state: var(--foo))',
+            '(theme-state: #fff)',
+            '(theme-state: url(foo))',
             '(prefers-color-scheme = dark)',
             '(color >= calc(1 + 1))',
             '(color >= 1e0)',
@@ -510,6 +536,7 @@ return [
         $t->same('@layer blocks{@media not all and (color){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media not all and (color) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media screen and ((color) or (hover)){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media screen and ((color) or (hover)) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (grid:1){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (grid: +1) { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks{@media (prefers-color-scheme:env(--wp-scheme)) and (width:240px){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (prefers-color-scheme: env(--wp-scheme)) and (width: 240px) { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media (width=240px){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media not (width = 240px) { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media (--wp-breakpoint=env(--wp-breakpoint)){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media not (--wp-breakpoint = env(--wp-breakpoint)) { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media screen and (width>=240px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media scr\\65 en and (w\\69 dth >= 240px) { .foo { color: chartreuse } } }'));
@@ -560,6 +587,12 @@ return [
             '@layer blocks { @media (scan >= 1) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (grid: 10) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (grid: 1.0) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (hover: 1) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (prefers-color-scheme: 10) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (width: var(--theme-breakpoint)) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (resolution: 2) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (color: 1.0) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (theme-state: #fff) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (prefers-color-scheme = dark) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (color >= calc(1 + 1)) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (resolution >= calc(1 + 1dppx)) { .wp-block-query { color: chartreuse; } } }',

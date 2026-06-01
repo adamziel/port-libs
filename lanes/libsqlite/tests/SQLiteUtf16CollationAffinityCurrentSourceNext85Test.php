@@ -13,15 +13,15 @@ $entry = static fn (int $rowid, mixed $value, string $encoding = 'UTF-16LE', arr
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
         'UTF-16BE', 3 => 3,
-    }, 'rowid' => $rowid, 'payload' => $payload + ['option_id' => $rowid, 'option_value' => $value]]
-    : ['value' => $value, 'rowid' => $rowid, 'payload' => $payload + ['option_id' => $rowid, 'option_value' => $value]];
+    }, 'rowid' => $rowid, 'payload' => $payload + ['setting_id' => $rowid, 'key_value' => $value]]
+    : ['value' => $value, 'rowid' => $rowid, 'payload' => $payload + ['setting_id' => $rowid, 'key_value' => $value]];
 
 $numericEntries = [
     $entry(1, '2', 'UTF-16LE'),
     $entry(2, '02', 'UTF-16BE'),
     $entry(3, '2.0', 'UTF-16LE'),
     $entry(4, '10', 'UTF-16BE'),
-    $entry(5, 'plugin_2', 'UTF-16LE'),
+    $entry(5, 'module_2', 'UTF-16LE'),
     $entry(6, 2),
     $entry(7, new SQLiteBlobValue('2')),
     $entry(8, null),
@@ -64,13 +64,13 @@ foreach ($numericCases as $name => [$advance, $path, $expected]) {
 }
 
 $textEntries = [
-    $entry(10, 'Plugin_Alpha', 'UTF-16LE'),
-    $entry(11, 'plugin_alpha', 'UTF-16BE'),
-    $entry(12, 'plugin_alpha ', 'UTF-16LE'),
-    $entry(13, 'plugin_beta', 'UTF-16BE'),
-    $entry(14, 'plugin_Éclair', 'UTF-16LE'),
-    $entry(15, 'plugin_éclair', 'UTF-16BE'),
-    $entry(16, 'theme_alpha', 'UTF-8'),
+    $entry(10, 'Module_Alpha', 'UTF-16LE'),
+    $entry(11, 'module_alpha', 'UTF-16BE'),
+    $entry(12, 'module_alpha ', 'UTF-16LE'),
+    $entry(13, 'module_beta', 'UTF-16BE'),
+    $entry(14, 'module_Éclair', 'UTF-16LE'),
+    $entry(15, 'module_éclair', 'UTF-16BE'),
+    $entry(16, 'layout_alpha', 'UTF-8'),
 ];
 
 $text = static fn (string $collation, mixed $probe): SQLiteUtf16CollationAffinityCursor => new SQLiteUtf16CollationAffinityCursor(
@@ -82,21 +82,21 @@ $text = static fn (string $collation, mixed $probe): SQLiteUtf16CollationAffinit
 );
 
 $textCases = [
-    'nocase uppercase seek lands on utf16le uppercase alpha' => ['NOCASE', 'PLUGIN_ALPHA', 0, 'currentRowid', 10],
-    'nocase uppercase alpha equals probe' => ['NOCASE', 'PLUGIN_ALPHA', 0, 'currentEqualsProbe', true],
-    'nocase next utf16be lowercase alpha also equals' => ['NOCASE', 'PLUGIN_ALPHA', 0, 'nextComparisonToProbe', 0],
-    'nocase lower peer encoding is utf16be' => ['NOCASE', 'PLUGIN_ALPHA', 1, 'currentEncoding', 'UTF-16BE'],
-    'nocase padded alpha compares after exact alpha' => ['NOCASE', 'PLUGIN_ALPHA', 2, 'comparisonToProbe', 1],
-    'nocase e acute does not fold to uppercase e acute' => ['NOCASE', 'plugin_éclair', 0, 'currentRowid', 15],
-    'nocase e acute current is utf16be' => ['NOCASE', 'plugin_éclair', 0, 'currentEncoding', 'UTF-16BE'],
-    'binary uppercase sorts before lowercase seek target' => ['BINARY', 'plugin_alpha', 0, 'currentRowid', 11],
-    'binary exact lowercase alpha equals probe' => ['BINARY', 'plugin_alpha', 0, 'comparisonToProbe', 0],
-    'binary next padded lowercase alpha is after probe' => ['BINARY', 'plugin_alpha', 0, 'nextComparisonToProbe', 1],
-    'rtrim padded probe lands on unpadded lowercase alpha' => ['RTRIM', 'plugin_alpha ', 0, 'currentRowid', 11],
-    'rtrim unpadded alpha equals padded probe' => ['RTRIM', 'plugin_alpha ', 0, 'currentEqualsProbe', true],
-    'rtrim next padded alpha equals same probe' => ['RTRIM', 'plugin_alpha ', 0, 'nextComparisonToProbe', 0],
-    'rtrim padded peer keeps utf16le bytes' => ['RTRIM', 'plugin_alpha ', 1, 'currentBytesHex', '70006c007500670069006e005f0061006c007000680061002000'],
-    'utf8 text encoding can share cursor with utf16 rows' => ['NOCASE', 'theme_alpha', 0, 'currentEncoding', 'UTF-8'],
+    'nocase uppercase seek lands on utf16le uppercase alpha' => ['NOCASE', 'MODULE_ALPHA', 0, 'currentRowid', 10],
+    'nocase uppercase alpha equals probe' => ['NOCASE', 'MODULE_ALPHA', 0, 'currentEqualsProbe', true],
+    'nocase next utf16be lowercase alpha also equals' => ['NOCASE', 'MODULE_ALPHA', 0, 'nextComparisonToProbe', 0],
+    'nocase lower peer encoding is utf16be' => ['NOCASE', 'MODULE_ALPHA', 1, 'currentEncoding', 'UTF-16BE'],
+    'nocase padded alpha compares after exact alpha' => ['NOCASE', 'MODULE_ALPHA', 2, 'comparisonToProbe', 1],
+    'nocase e acute does not fold to uppercase e acute' => ['NOCASE', 'module_éclair', 0, 'currentRowid', 15],
+    'nocase e acute current is utf16be' => ['NOCASE', 'module_éclair', 0, 'currentEncoding', 'UTF-16BE'],
+    'binary uppercase sorts before lowercase seek target' => ['BINARY', 'module_alpha', 0, 'currentRowid', 11],
+    'binary exact lowercase alpha equals probe' => ['BINARY', 'module_alpha', 0, 'comparisonToProbe', 0],
+    'binary next padded lowercase alpha is after probe' => ['BINARY', 'module_alpha', 0, 'nextComparisonToProbe', 1],
+    'rtrim padded probe lands on unpadded lowercase alpha' => ['RTRIM', 'module_alpha ', 0, 'currentRowid', 11],
+    'rtrim unpadded alpha equals padded probe' => ['RTRIM', 'module_alpha ', 0, 'currentEqualsProbe', true],
+    'rtrim next padded alpha equals same probe' => ['RTRIM', 'module_alpha ', 0, 'nextComparisonToProbe', 0],
+    'rtrim padded peer keeps utf16le bytes' => ['RTRIM', 'module_alpha ', 1, 'currentBytesHex', '6d006f00640075006c0065005f0061006c007000680061002000'],
+    'utf8 text encoding can share cursor with utf16 rows' => ['NOCASE', 'layout_alpha', 0, 'currentEncoding', 'UTF-8'],
 ];
 
 foreach ($textCases as $name => [$collation, $probe, $advance, $path, $expected]) {
@@ -114,12 +114,12 @@ $tests['utf16 collation affinity current source nextEightFive remaining numeric 
 };
 
 $tests['utf16 collation affinity current source nextEightFive remaining rtrim rowids after padded alpha seek'] = static function (TestRunner $t) use ($text): void {
-    $t->same([11, 12, 13, 14, 15, 16], array_column($text('RTRIM', 'plugin_alpha ')->remaining(), 'rowid'));
+    $t->same([11, 12, 13, 14, 15], array_column($text('RTRIM', 'module_alpha ')->remaining(), 'rowid'));
 };
 
 $tests['utf16 collation affinity current source nextEightFive seek can replace probe with utf16be bytes'] = static function (TestRunner $t) use ($text, $enc): void {
     $cursor = $text('NOCASE', 'zzz');
-    $cursor->seek(['valueBytes' => $enc('plugin_beta', 'UTF-16BE'), 'textEncoding' => 3]);
+    $cursor->seek(['valueBytes' => $enc('module_beta', 'UTF-16BE'), 'textEncoding' => 3]);
     $t->same(13, $cursor->currentNextPlan()['currentRowid']);
 };
 
@@ -131,30 +131,30 @@ $tests['utf16 collation affinity current source nextEightFive eof keeps dependen
     $t->same('sqlite-utf16-decode', $text('BINARY', 'zzzz')->currentNextPlan()['dependencies'][0]);
 };
 
-$wpRows = [
-    ['option_id' => 21, 'option_value_bytes' => $enc('02', 'UTF-16LE'), 'text_encoding' => 2, 'autoload' => 'yes'],
-    ['option_id' => 22, 'option_value_bytes' => $enc('10', 'UTF-16BE'), 'text_encoding' => 3, 'autoload' => 'yes'],
-    ['option_id' => 23, 'option_value_bytes' => $enc('Plugin_Alpha ', 'UTF-16LE'), 'text_encoding' => 2, 'autoload' => 'no'],
-    ['option_id' => 24, 'option_value' => 2, 'autoload' => 'yes'],
+$settingRows = [
+    ['setting_id' => 21, 'key_value_bytes' => $enc('02', 'UTF-16LE'), 'text_encoding' => 2, 'load_policy' => 'yes'],
+    ['setting_id' => 22, 'key_value_bytes' => $enc('10', 'UTF-16BE'), 'text_encoding' => 3, 'load_policy' => 'yes'],
+    ['setting_id' => 23, 'key_value_bytes' => $enc('Module_Alpha ', 'UTF-16LE'), 'text_encoding' => 2, 'load_policy' => 'no'],
+    ['setting_id' => 24, 'key_value' => 2, 'load_policy' => 'yes'],
 ];
 
-$tests['utf16 collation affinity current source nextEightFive application numeric seek includes utf16 and integer peers'] = static function (TestRunner $t) use ($wpRows, $enc): void {
-    $rows = SQLiteUtf16CollationAffinityCursor::keyValueRowValueSeek($wpRows, ['valueBytes' => $enc('2', 'UTF-16BE'), 'textEncoding' => 3], 'NUMERIC', 'NONE');
+$tests['utf16 collation affinity current source nextEightFive application numeric seek includes utf16 and integer peers'] = static function (TestRunner $t) use ($settingRows, $enc): void {
+    $rows = SQLiteUtf16CollationAffinityCursor::settingRowValueSeek($settingRows, ['valueBytes' => $enc('2', 'UTF-16BE'), 'textEncoding' => 3], 'NUMERIC', 'NONE');
     $t->same([21, 24, 22, 23], array_column($rows, 'rowid'));
 };
 
-$tests['utf16 collation affinity current source nextEightFive application text seek reports decoded payload'] = static function (TestRunner $t) use ($wpRows): void {
-    $rows = SQLiteUtf16CollationAffinityCursor::keyValueRowValueSeek($wpRows, 'Plugin_Alpha', 'TEXT', 'TEXT', 'RTRIM');
-    $t->same('Plugin_Alpha ', $rows[0]['value']);
+$tests['utf16 collation affinity current source nextEightFive application text seek reports decoded payload'] = static function (TestRunner $t) use ($settingRows): void {
+    $rows = SQLiteUtf16CollationAffinityCursor::settingRowValueSeek($settingRows, 'Module_Alpha', 'TEXT', 'TEXT', 'RTRIM');
+    $t->same('Module_Alpha ', $rows[0]['value']);
 };
 
-$tests['utf16 collation affinity current source nextEightFive application text seek reports utf16le encoding'] = static function (TestRunner $t) use ($wpRows): void {
-    $rows = SQLiteUtf16CollationAffinityCursor::keyValueRowValueSeek($wpRows, 'Plugin_Alpha', 'TEXT', 'TEXT', 'RTRIM');
+$tests['utf16 collation affinity current source nextEightFive application text seek reports utf16le encoding'] = static function (TestRunner $t) use ($settingRows): void {
+    $rows = SQLiteUtf16CollationAffinityCursor::settingRowValueSeek($settingRows, 'Module_Alpha', 'TEXT', 'TEXT', 'RTRIM');
     $t->same('UTF-16LE', $rows[0]['encoding']);
 };
 
 $tests['utf16 collation affinity current source nextEightFive encoder rejects malformed utf8'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::encodeText("plugin_\xc3", 'UTF-16LE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::encodeText("module_\xc3", 'UTF-16LE'));
 };
 
 $tests['utf16 collation affinity current source nextEightFive rejects odd utf16 source bytes'] = static function (TestRunner $t): void {
@@ -178,7 +178,7 @@ $tests['utf16 collation affinity current source nextEightFive rejects unsupporte
 };
 
 $tests['utf16 collation affinity current source nextEightFive rejects unsupported collation'] = static function (TestRunner $t) use ($textEntries): void {
-    $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16CollationAffinityCursor($textEntries, 'p', 'TEXT', 'TEXT', 'WP_LOCALE'));
+    $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16CollationAffinityCursor($textEntries, 'p', 'TEXT', 'TEXT', 'APP_LOCALE'));
 };
 
 $tests['utf16 collation affinity current source nextEightFive rejects missing payload'] = static function (TestRunner $t): void {
@@ -193,16 +193,16 @@ $tests['utf16 collation affinity current source nextEightFive rejects non string
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16CollationAffinityCursor([['valueBytes' => 10, 'textEncoding' => 2, 'rowid' => 1, 'payload' => []]], 'p'));
 };
 
-$tests['utf16 collation affinity current source nextEightFive application rejects missing option value'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::keyValueRowValueSeek([['option_id' => 1]], 'p'));
+$tests['utf16 collation affinity current source nextEightFive application rejects missing setting value'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::settingRowValueSeek([['setting_id' => 1]], 'p'));
 };
 
 $tests['utf16 collation affinity current source nextEightFive application rejects missing encoding'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::keyValueRowValueSeek([['option_id' => 1, 'option_value_bytes' => 'p']], 'p'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::settingRowValueSeek([['setting_id' => 1, 'key_value_bytes' => 'p']], 'p'));
 };
 
-$tests['utf16 collation affinity current source nextEightFive application rejects non integer option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::keyValueRowValueSeek([['option_id' => '1', 'option_value' => 'p']], 'p'));
+$tests['utf16 collation affinity current source nextEightFive application rejects non integer setting id'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::settingRowValueSeek([['setting_id' => '1', 'key_value' => 'p']], 'p'));
 };
 
 return $tests;

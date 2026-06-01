@@ -2235,6 +2235,24 @@ final class CssModulesTransformer
                 continue;
             }
 
+            $languageSelectorFunction = $bracketDepth === 0 ? $this->languageSelectorFunctionAt($selector, $i) : null;
+            if ($languageSelectorFunction !== null) {
+                $inner = substr(
+                    $selector,
+                    $languageSelectorFunction['open'] + 1,
+                    $languageSelectorFunction['close'] - $languageSelectorFunction['open'] - 1
+                );
+                $this->assertNoCssModulesModePseudoInSelectorFunctionArgs($inner, 'Unexpected token Colon');
+
+                $output .= ':'
+                    . $languageSelectorFunction['canonicalName']
+                    . '('
+                    . $this->serializeLanguageSelectorFunctionArgs($inner)
+                    . ')';
+                $i = $languageSelectorFunction['close'];
+                continue;
+            }
+
             $globalPseudo = $bracketDepth === 0 ? $this->cssModulesPseudoFunctionAt($selector, $i, 'global') : null;
             if ($globalPseudo !== null) {
                 $open = $globalPseudo['open'];
@@ -2579,6 +2597,44 @@ final class CssModulesTransformer
             '-webkit-any' => '-webkit-any',
             default => $decodedName,
         };
+    }
+
+    /**
+     * @return array{canonicalName:string,open:int,close:int}|null
+     */
+    private function languageSelectorFunctionAt(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset] ?? '') !== ':' || ($selector[$offset + 1] ?? '') === ':') {
+            return null;
+        }
+
+        $token = $this->readCssIdentifierToken($selector, $offset + 1);
+        if ($token === null || ($selector[$token['end']] ?? '') !== '(') {
+            return null;
+        }
+
+        $decodedName = strtolower($token['decoded']);
+        if (!in_array($decodedName, ['dir', 'lang'], true)) {
+            return null;
+        }
+
+        return [
+            'canonicalName' => $decodedName,
+            'open' => $token['end'],
+            'close' => $this->findMatchingParen($selector, $token['end']),
+        ];
+    }
+
+    private function serializeLanguageSelectorFunctionArgs(string $inner): string
+    {
+        if (!$this->minify) {
+            return $inner;
+        }
+
+        return implode(',', array_map(
+            static fn (string $part): string => trim($part),
+            $this->splitTopLevel($inner, ',')
+        ));
     }
 
     /**
@@ -3655,6 +3711,14 @@ final class CssModulesTransformer
 
     private function assertNoCssModulesModePseudoInViewTransitionSelectorArgs(string $args): void
     {
+        $this->assertNoCssModulesModePseudoInSelectorFunctionArgs(
+            $args,
+            'CSS Modules :local and :global selectors are not valid inside view-transition selector functions'
+        );
+    }
+
+    private function assertNoCssModulesModePseudoInSelectorFunctionArgs(string $args, string $message): void
+    {
         $quote = null;
         $length = strlen($args);
 
@@ -3692,7 +3756,7 @@ final class CssModulesTransformer
                 || $this->cssModulesBarePseudoNameAt($args, $i, 'global')
                 || $this->cssModulesBarePseudoNameAt($args, $i, 'local')
             ) {
-                throw new \InvalidArgumentException('CSS Modules :local and :global selectors are not valid inside view-transition selector functions');
+                throw new \InvalidArgumentException($message);
             }
         }
     }

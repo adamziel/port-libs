@@ -566,6 +566,46 @@ return [
         $t->same($fixture['remoteProgressCount'], count($response->remoteProgress()));
         $t->same([], $response->errorMessages());
     },
+    'passes protocol v2 exchange fetch sideband progress through caller handlers' => static function (TestRunner $t) use ($runtimeMessage): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v2-fetch-response.php';
+        $calls = [];
+        $exchange = ProtocolV2FetchExchange::fromPacketLines(
+            $fixture['cloneExchangeResponse'],
+            false,
+            null,
+            static function (bool $isError, string $text) use (&$calls): bool {
+                $calls[] = ['isError' => $isError, 'text' => $text];
+
+                return true;
+            }
+        );
+
+        $t->same($fixture['packData'], $exchange->fetchResponse()->packData());
+        $t->same(['Enumerating objects: 1, done.'], $exchange->fetchResponse()->progressMessages());
+        $t->same([
+            ['isError' => false, 'text' => 'Enumerating objects: 1, done.'],
+        ], $calls);
+
+        $abortedCalls = [];
+        $t->same(
+            'fetch response: interrupted by user',
+            rtrim($runtimeMessage(static function () use ($fixture, &$abortedCalls): void {
+                ProtocolV2FetchExchange::fromPacketLines(
+                    $fixture['cloneExchangeResponse'],
+                    false,
+                    null,
+                    static function (bool $isError, string $text) use (&$abortedCalls): bool {
+                        $abortedCalls[] = ['isError' => $isError, 'text' => $text];
+
+                        return false;
+                    }
+                );
+            }))
+        );
+        $t->same([
+            ['isError' => false, 'text' => 'Enumerating objects: 1, done.'],
+        ], $abortedCalls);
+    },
     'parses upstream v2 ref-in-want wanted-refs response with sideband pack' => static function (TestRunner $t): void {
         $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-ref-in-want-sideband.php';
         $fixture = $fixtures['refInWant'];
@@ -808,6 +848,10 @@ return [
         $t->same(true, $summary['sha256ObjectFormatParsed']);
         $t->same($fixture['sha256PackTrailer'], $summary['sha256PackTrailer']);
         $t->same(true, $summary['cloneExchangeParsed']);
+        $t->same(true, $summary['cloneExchangeProgressHandled']);
+        $t->same([
+            ['isError' => false, 'text' => 'Enumerating objects: 1, done.'],
+        ], $summary['cloneExchangeProgressMessages']);
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['cloneExchangePackTrailer']);
         $t->same(true, $summary['responseEndNoPackParsed']);
         $t->same(true, $summary['responseEndPackParsed']);

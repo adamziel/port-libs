@@ -17,6 +17,7 @@ $emptyUnpackStatusResponse = PushResponse::fromReportStatusPacketLines($fixture[
 $valuelessOptionResponse = PushResponse::fromReportStatusPacketLines($fixture['valuelessOptionResponse'])
     ->forExpectedRefNames([$fixture['valuelessOptionRef']['requested']]);
 $malformedObjectOptionResponse = PushResponse::fromReportStatusPacketLines($fixture['malformedObjectOptionResponse']);
+$objectPrefixDiagnosticResponse = PushResponse::fromReportStatusPacketLines($fixture['objectPrefixDiagnosticResponse']);
 $expectedFilteredResponse = PushResponse::fromReportStatusPacketLines($fixture['expectedFilterResponse'])
     ->forExpectedRefNames($fixture['expectedRefNames']);
 $multiReportResponse = PushResponse::fromReportStatusPacketLines($fixture['multiReportResponse'])
@@ -146,6 +147,16 @@ return [
         ],
         $malformedObjectOptionResponse->refStatuses()
     ),
+    'objectPrefixDiagnosticRefs' => array_map(
+        static fn (PushRefStatus $status): array => [
+            'requestedRef' => $status->refName,
+            'status' => $status->status,
+            'oldObject' => $status->oldObject,
+            'newObject' => $status->newObject,
+            'hasReportOption' => $status->hasReportOption(),
+        ],
+        $objectPrefixDiagnosticResponse->refStatuses()
+    ),
     'expectedFilteredRefs' => array_map(
         static fn (PushRefStatus $status): array => [
             'requestedRef' => $status->refName,
@@ -209,6 +220,10 @@ return [
         && $malformedObjectOptionResponse->refStatuses()[0]->oldObject === $fixture['malformedObjectOptionRef']['oldObject']
         && $malformedObjectOptionResponse->refStatuses()[0]->newObject === $fixture['malformedObjectOptionRef']['newObject']
         && $malformedObjectOptionResponse->refStatuses()[0]->hasReportOption(),
+    'objectPrefixDiagnosticSuffixesParsed' => $objectPrefixDiagnosticResponse->isSuccessful()
+        && $objectPrefixDiagnosticResponse->refStatuses()[0]->oldObject === $fixture['objectPrefixDiagnosticRef']['oldObject']
+        && $objectPrefixDiagnosticResponse->refStatuses()[0]->newObject === $fixture['objectPrefixDiagnosticRef']['newObject']
+        && $objectPrefixDiagnosticResponse->refStatuses()[0]->hasReportOption(),
     'expectedUnknownStatusIgnored' => count($expectedFilteredResponse->refStatuses()) === 2,
     'expectedLastStatusWon' => $expectedFilteredResponse->refStatuses()[0]->message === 'post-update hook accepted',
     'multiReportStatusPreserved' => array_map(
