@@ -179,6 +179,37 @@ if (
 
 echo 'source-map-input-offset: remapped' . PHP_EOL;
 
+$stringFragmentBlockMap = 'data:application/json;base64,' . base64_encode(json_encode([
+    'version' => 3,
+    'mappings' => 'AAAA',
+    'sources' => ['blocks/string-fragment-card.scss'],
+    'sourcesContent' => ['.wp-block-card { color: $theme-green }'],
+    'names' => [],
+], JSON_THROW_ON_ERROR));
+
+$stringFragmentBundle = (new CssBundler())->bundleWithSourceMap('/theme.css', [
+    '/theme.css' => '@import "blocks/label.css"; @import "blocks/string-fragment-card.css"; .wp-site-blocks { color: red }',
+    '/blocks/label.css' => '.wp-block-label:before { content: ".wp-block-card{color:green}"; color: blue }',
+    '/blocks/string-fragment-card.css' => ".wp-block-card { color: green }\n/*# sourceMappingURL={$stringFragmentBlockMap} */",
+], null, '/');
+$stringFragmentDecoded = SourceMap::decodeVlq($stringFragmentBundle['sourceMap']->toArray(null, false)['mappings']);
+
+if (
+    $stringFragmentBundle['code'] !== '.wp-block-label:before{content:".wp-block-card{color:green}";color:#00f}.wp-block-card{color:green}.wp-site-blocks{color:red}'
+    || $stringFragmentBundle['sourceMap']->toArray(null, false)['sources'] !== [
+        'theme.css',
+        'blocks/label.css',
+        'blocks/string-fragment-card.scss',
+    ]
+    || ($stringFragmentDecoded[0]['generatedColumn'] ?? null) !== strlen('.wp-block-label:before{content:".wp-block-card{color:green}";color:#00f}')
+    || ($stringFragmentDecoded[0]['sourceIndex'] ?? null) !== 2
+) {
+    fwrite(STDERR, "Expected inline input source map to skip earlier quoted block CSS fragments\n");
+    exit(1);
+}
+
+echo 'source-map-input-string-fragment: remapped' . PHP_EOL;
+
 $literalSourceMap = 'data:application/json;base64,' . base64_encode(json_encode([
     'version' => 3,
     'mappings' => 'AAAA',

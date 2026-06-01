@@ -6813,13 +6813,7 @@ final class CustomAtRuleTransformer
                     'type' => $lowerName === 'var' ? 'var' : 'function',
                     'value' => $lowerName === 'var'
                         ? $this->parseVariable($argumentsCss, $token)
-                        : [
-                            'name' => $name,
-                            'arguments' => array_map(
-                                fn (string $argument): mixed => $this->parseComponentValue($argument),
-                                $this->splitTopLevel($argumentsCss, ',')
-                            ),
-                        ],
+                        : $this->parseGenericFunctionValue($name, $argumentsCss),
                 ];
             }
         }
@@ -6843,6 +6837,46 @@ final class CustomAtRuleTransformer
         }
 
         return ['type' => 'raw', 'value' => $token];
+    }
+
+    /**
+     * @return array{name:string,arguments:list<mixed>,argumentSeparator?:string}
+     */
+    private function parseGenericFunctionValue(string $name, string $argumentsCss): array
+    {
+        $commaArguments = $this->splitTopLevel($argumentsCss, ',');
+        if (count($commaArguments) > 1) {
+            return [
+                'name' => $name,
+                'arguments' => array_map(
+                    fn (string $argument): mixed => $this->parseComponentValue($argument),
+                    $commaArguments
+                ),
+            ];
+        }
+
+        $singleArgument = trim($commaArguments[0] ?? '');
+        if ($singleArgument === '') {
+            return [
+                'name' => $name,
+                'arguments' => [],
+            ];
+        }
+
+        $cursor = 0;
+        $components = $this->parseNestedComponentValueList($singleArgument, $cursor, null)['components'];
+        if (count($components) > 1) {
+            return [
+                'name' => $name,
+                'arguments' => $components,
+                'argumentSeparator' => 'space',
+            ];
+        }
+
+        return [
+            'name' => $name,
+            'arguments' => [$this->parseComponentValue($singleArgument)],
+        ];
     }
 
     /**
@@ -8016,7 +8050,9 @@ final class CustomAtRuleTransformer
             return '';
         }
 
-        return implode(',', array_map(fn (mixed $argument): string => $this->serializeVisitorValue($argument), $arguments));
+        $separator = ($function['argumentSeparator'] ?? null) === 'space' ? ' ' : ',';
+
+        return implode($separator, array_map(fn (mixed $argument): string => $this->serializeVisitorValue($argument), $arguments));
     }
 
     /**
@@ -8757,7 +8793,9 @@ final class CustomAtRuleTransformer
             }
 
             $name = (string) ($function['name'] ?? '');
-            $separator = strtolower($name) === 'calc' ? '' : ',';
+            $separator = strtolower($name) === 'calc'
+                ? ''
+                : (($function['argumentSeparator'] ?? null) === 'space' ? ' ' : ',');
 
             return $name . '(' . implode($separator, array_map(fn (mixed $argument): string => $this->serializeVisitorValue($argument), $arguments)) . ')';
         }

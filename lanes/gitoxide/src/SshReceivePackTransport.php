@@ -205,7 +205,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
         }
 
         try {
-            $parts = parse_url($url);
+            $parts = self::parseSshUrlWithBareIpv6Authority($url) ?? parse_url($url);
         } catch (\ValueError $error) {
             throw new \InvalidArgumentException('SSH receive-pack transport could not parse repository URL', 0, $error);
         }
@@ -330,6 +330,97 @@ final class SshReceivePackTransport implements ReceivePackTransport
         }
 
         return $path;
+    }
+
+    /**
+     * PHP's URL parser treats the final segment of a bare IPv6 SSH authority as
+     * a port. Gitoxide's gix-url keeps colon-rich unbracketed authorities as the
+     * host instead, leaving explicit ports to bracketed IPv6 forms.
+     *
+     * @return array{scheme: string, host: string, path: string, user?: string, pass?: string, query?: string, fragment?: string}|null
+     */
+    private static function parseSshUrlWithBareIpv6Authority(string $url): ?array
+    {
+        $schemeSeparator = strpos($url, '://');
+        if ($schemeSeparator === false) {
+            return null;
+        }
+
+        $scheme = substr($url, 0, $schemeSeparator);
+        if (!self::isSshScheme($scheme)) {
+            return null;
+        }
+
+        $remainder = substr($url, $schemeSeparator + 3);
+        $pathPosition = strpos($remainder, '/');
+        if ($pathPosition === false) {
+            return null;
+        }
+
+        $authority = substr($remainder, 0, $pathPosition);
+        if ($authority === '') {
+            return null;
+        }
+
+        $host = $authority;
+        $user = null;
+        $pass = null;
+        $userPosition = strrpos($authority, '@');
+        if ($userPosition !== false) {
+            $userInfo = substr($authority, 0, $userPosition);
+            $host = substr($authority, $userPosition + 1);
+            if ($host === '') {
+                return null;
+            }
+            if (str_contains($userInfo, ':')) {
+                [$user, $pass] = explode(':', $userInfo, 2);
+            } else {
+                $user = $userInfo;
+            }
+        }
+
+        if (str_starts_with($host, '[')) {
+            return null;
+        }
+
+        if (substr_count($host, ':') < 2) {
+            return null;
+        }
+
+        $path = substr($remainder, $pathPosition);
+        $fragment = null;
+        $fragmentPosition = strpos($path, '#');
+        if ($fragmentPosition !== false) {
+            $fragment = substr($path, $fragmentPosition + 1);
+            $path = substr($path, 0, $fragmentPosition);
+        }
+
+        $query = null;
+        $queryPosition = strpos($path, '?');
+        if ($queryPosition !== false) {
+            $query = substr($path, $queryPosition + 1);
+            $path = substr($path, 0, $queryPosition);
+        }
+
+        $parts = [
+            'scheme' => $scheme,
+            'host' => $host,
+            'path' => $path,
+        ];
+        if ($user !== null) {
+            $parts['user'] = $user;
+        }
+        if ($pass !== null) {
+            $parts['pass'] = $pass;
+        }
+        if ($query !== null) {
+            $parts['query'] = $query;
+        }
+        if ($fragment !== null) {
+            $parts['fragment'] = $fragment;
+        }
+
+        return $parts;
     }
 
     /**

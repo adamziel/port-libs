@@ -102,8 +102,9 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         $this->advertisementRead = true;
-        $response = $this->request('GET', self::infoRefsUrl($this->repositoryUrl), $this->advertisementHeaders(), null, true, [200, 304]);
-        self::assertStatus($response, [200, 304], 'smart HTTP receive-pack advertisement');
+        $acceptedStatuses = $this->advertisementAcceptedStatuses();
+        $response = $this->request('GET', self::infoRefsUrl($this->repositoryUrl), $this->advertisementHeaders(), null, true, $acceptedStatuses);
+        self::assertStatus($response, $acceptedStatuses, 'smart HTTP receive-pack advertisement');
         self::assertContentType($response, 'application/x-git-receive-pack-advertisement', 'smart HTTP receive-pack advertisement');
         $this->rememberCookies(
             $response['headers'],
@@ -157,6 +158,14 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         );
 
         return $response['body'];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function advertisementAcceptedStatuses(): array
+    {
+        return $this->httpOptions['followRedirects'] === 'none' ? [200] : [200, 304];
     }
 
     /**

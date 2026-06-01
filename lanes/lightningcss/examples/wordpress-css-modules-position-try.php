@@ -8,12 +8,14 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $css = <<<'CSS'
 @position-try --popover-below {
+  composes: legacy-popover;
   top: anchor(bottom);
   margin: 0;
 }
 
 @supports (anchor-name: --wp-menu-anchor) {
   @position-try --popover-above {
+    composes: legacy-popover from global;
     bottom: anchor(top);
   }
 }

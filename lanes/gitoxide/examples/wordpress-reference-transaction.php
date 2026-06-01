@@ -604,6 +604,31 @@ try {
     $preparedPhasedDeleteError = $exception->getMessage();
 }
 
+$preparedPhasedUpdateDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-phased-update-' . bin2hex(random_bytes(4));
+$preparedPhasedUpdateStore = new ReferenceStore($preparedPhasedUpdateDir, null, $fixture['namespace']);
+$preparedPhasedUpdatePrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedPhasedUpdateCommitter = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+$preparedPhasedUpdate = $preparedPhasedUpdateStore->prepareLooseUpdateTransaction(
+    [
+        $fixture['preparedPhasedUpdateRefs'][0] => ReferenceTarget::object($fixture['reviewCommit']),
+        $fixture['preparedPhasedUpdateRefs'][1] => ReferenceTarget::object($fixture['productionCommit']),
+    ],
+    'sha1',
+    $preparedPhasedUpdateCommitter,
+    $fixture['preparedPhasedUpdateReflogMessage'],
+    true,
+);
+$preparedPhasedUpdateFirstPath = $preparedPhasedUpdateDir . '/' . $preparedPhasedUpdatePrefix . $fixture['preparedPhasedUpdateRefs'][0];
+$preparedPhasedUpdateSecondPath = $preparedPhasedUpdateDir . '/' . $preparedPhasedUpdatePrefix . $fixture['preparedPhasedUpdateRefs'][1];
+mkdir($preparedPhasedUpdateSecondPath, 0777, true);
+file_put_contents($preparedPhasedUpdateSecondPath . '/blocker.txt', 'not empty');
+$preparedPhasedUpdateError = null;
+try {
+    $preparedPhasedUpdate->commit();
+} catch (RuntimeException $exception) {
+    $preparedPhasedUpdateError = $exception->getMessage();
+}
+
 return [
     'namespace' => $fixture['namespace'],
     'productionCommit' => $production->targetObjectId(),
@@ -774,5 +799,13 @@ return [
     'preparedPhasedDeleteSecondReflogBlocked' => is_dir($preparedPhasedDeleteSecondLogPath),
     'preparedPhasedDeleteLocksPreserved' => is_file($preparedPhasedDeleteFirstPath . '.lock')
         && is_file($preparedPhasedDeleteSecondPath . '.lock'),
+    'preparedPhasedUpdateError' => $preparedPhasedUpdateError,
+    'preparedPhasedUpdateFirstRefStillExists' => $preparedPhasedUpdateStore->tryFind($fixture['preparedPhasedUpdateRefs'][0]) !== null,
+    'preparedPhasedUpdateSecondRefStillExists' => $preparedPhasedUpdateStore->tryFind($fixture['preparedPhasedUpdateRefs'][1]) !== null,
+    'preparedPhasedUpdateFirstLockCleaned' => !is_file($preparedPhasedUpdateFirstPath . '.lock'),
+    'preparedPhasedUpdateSecondLockPreserved' => is_file($preparedPhasedUpdateSecondPath . '.lock'),
+    'preparedPhasedUpdateSecondBlockerPreserved' => is_file($preparedPhasedUpdateSecondPath . '/blocker.txt'),
+    'preparedPhasedUpdateFirstReflog' => $preparedPhasedUpdateStore->reflogContents($fixture['preparedPhasedUpdateRefs'][0]),
+    'preparedPhasedUpdateSecondReflog' => $preparedPhasedUpdateStore->reflogContents($fixture['preparedPhasedUpdateRefs'][1]),
     'wordpressUse' => $fixture['wordpressUse'],
 ];

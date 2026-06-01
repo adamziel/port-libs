@@ -4989,6 +4989,134 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{type:string,name:string,table?:string,tbl_name?:string,sql:string}> $catalog
+     * @return array<string,mixed>
+     */
+    public static function dropTriggerMalformedSchemaPlan(
+        array $catalog,
+        string $dropName,
+        string $corruptSql = 'nonsense',
+        bool $defensiveDisabled = true
+    ): array {
+        if ($catalog === []) {
+            throw new \InvalidArgumentException('SQLite trigger7 schema catalog cannot be empty');
+        }
+
+        $dropName = self::identifier($dropName, 'drop trigger name');
+        $corruptSql = trim($corruptSql);
+        if ($corruptSql === '') {
+            throw new \InvalidArgumentException('SQLite trigger7 corrupt schema SQL cannot be empty');
+        }
+
+        $records = [];
+        foreach (array_values($catalog) as $record) {
+            $type = strtolower(trim((string) ($record['type'] ?? '')));
+            if (!in_array($type, ['table', 'trigger', 'view', 'index'], true)) {
+                throw new \InvalidArgumentException('SQLite trigger7 schema record type is unsupported');
+            }
+
+            $records[] = [
+                'type' => $type,
+                'name' => self::identifier((string) ($record['name'] ?? ''), 'schema object name'),
+                'table' => self::identifier((string) ($record['tbl_name'] ?? $record['table'] ?? $record['name'] ?? ''), 'schema object table'),
+                'sql' => trim((string) ($record['sql'] ?? '')),
+            ];
+        }
+
+        if (!$defensiveDisabled) {
+            return [
+                'source' => 'trigger7.test trigger7-99.1',
+                'operation' => 'drop-trigger-malformed-schema-guard',
+                'status' => 'write-blocked',
+                'drop_trigger' => $dropName,
+                'defensive_disabled' => false,
+                'writable_schema' => false,
+                'writable_schema_update_applied' => false,
+                'schema_reopened' => false,
+                'schema_parse_status' => 'not-reparsed',
+                'error' => 'writable_schema update rejected while defensive mode is enabled',
+                'catalog_before_count' => count($records),
+                'catalog_after_count' => count($records),
+                'catalog_names_after' => array_values(array_column($records, 'name')),
+                'trigger_removed' => false,
+                'drop_blocked_by_malformed_schema' => false,
+                'dependencies' => [
+                    'sqlite-trigger7-defensive-mode-blocks-writable-schema-corruption',
+                ],
+            ];
+        }
+
+        $corrupted = [];
+        $parseErrors = [];
+        foreach ($records as $record) {
+            $record['original_sql'] = $record['sql'];
+            $record['sql'] = $corruptSql;
+            $record['malformed_sql'] = preg_match(
+                '/^\s*CREATE\s+(?:(?:TEMP|TEMPORARY)\s+)?(?:TABLE|TRIGGER|VIEW|(?:UNIQUE\s+)?INDEX)\b/i',
+                $corruptSql
+            ) !== 1;
+
+            if ($record['malformed_sql']) {
+                $parseErrors[] = [
+                    'type' => $record['type'],
+                    'name' => $record['name'],
+                    'error' => 'malformed database schema (' . $record['name'] . ')',
+                ];
+            }
+            $corrupted[] = $record;
+        }
+
+        $dropTargetExists = false;
+        foreach ($corrupted as $record) {
+            if ($record['type'] === 'trigger' && $record['name'] === $dropName) {
+                $dropTargetExists = true;
+                break;
+            }
+        }
+
+        $blocked = $parseErrors !== [];
+        $after = $corrupted;
+        $dropped = null;
+        if (!$blocked) {
+            $after = [];
+            foreach ($corrupted as $record) {
+                if ($record['type'] === 'trigger' && $record['name'] === $dropName) {
+                    $dropped = $record;
+                    continue;
+                }
+                $after[] = $record;
+            }
+        }
+
+        return [
+            'source' => 'trigger7.test trigger7-99.1',
+            'operation' => 'drop-trigger-malformed-schema-guard',
+            'status' => $blocked ? 'schema-error' : 'commit-ok',
+            'drop_trigger' => $dropName,
+            'drop_target_exists' => $dropTargetExists,
+            'defensive_disabled' => true,
+            'writable_schema' => true,
+            'writable_schema_update_applied' => true,
+            'corrupt_sql' => $corruptSql,
+            'schema_reopened' => true,
+            'schema_parse_status' => $blocked ? 'malformed' : 'ok',
+            'error' => $blocked ? $parseErrors[0]['error'] : null,
+            'schema_parse_errors' => $parseErrors,
+            'corrupt_record_count' => count($corrupted),
+            'catalog_before_count' => count($records),
+            'catalog_after_count' => count($after),
+            'catalog_names_after' => array_values(array_column($after, 'name')),
+            'trigger_removed' => $dropped !== null,
+            'drop_blocked_by_malformed_schema' => $blocked,
+            'dependencies' => [
+                'sqlite-trigger7-writable-schema-corruption-rechecked-on-drop-trigger',
+                'sqlite-trigger7-drop-trigger-blocks-on-malformed-schema',
+                'sqlite-trigger7-malformed-schema-preserves-trigger-catalog',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{schema:string,name:string,table:string,event:string,timing:string}> $triggers
      * @return array<string,mixed>
      */

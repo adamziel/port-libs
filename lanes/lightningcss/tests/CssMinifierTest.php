@@ -2074,6 +2074,34 @@ CSS
             )
         );
     },
+    'css minifier maps upstream standalone grid shorthand values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            '.foo { grid: none }' => '.foo{grid:none}',
+            '.foo { grid: "a" 100px "b" 1fr }' => '.foo{grid:"a"100px"b"1fr}',
+            '.foo { grid: [linename1] "a" 100px [linename2] }' => '.foo{grid:[linename1]"a"100px[linename2]}',
+            '.foo { grid: "a" 200px "b" min-content }' => '.foo{grid:"a"200px"b"min-content}',
+            '.foo { grid: "a" minmax(100px, max-content) "b" 20% }' => '.foo{grid:"a"minmax(100px,max-content)"b"20%}',
+            '.foo { grid: 100px / 200px }' => '.foo{grid:100px/200px}',
+            '.foo { grid: minmax(400px, min-content) / repeat(auto-fill, 50px) }' => '.foo{grid:minmax(400px,min-content)/repeat(auto-fill,50px)}',
+            '.foo { grid: 200px / auto-flow }' => '.foo{grid:200px/auto-flow}',
+            '.foo { grid: 30% / auto-flow dense }' => '.foo{grid:30%/auto-flow dense}',
+            '.foo { grid: 30% / dense auto-flow }' => '.foo{grid:30%/auto-flow dense}',
+            '.foo { grid: repeat(3, [line1 line2 line3] 200px) / auto-flow 300px }' => '.foo{grid:repeat(3,[line1 line2 line3]200px)/auto-flow 300px}',
+            '.foo { grid: [line1] minmax(20em, max-content) / auto-flow dense 40% }' => '.foo{grid:[line1]minmax(20em,max-content)/auto-flow dense 40%}',
+            '.foo { grid: none / auto-flow 1fr }' => '.foo{grid:none/auto-flow 1fr}',
+            '.foo { grid: auto-flow / 200px }' => '.foo{grid:none/200px}',
+            '.foo { grid: auto-flow dense / 30% }' => '.foo{grid:auto-flow dense/30%}',
+            '.foo { grid: dense auto-flow / 30% }' => '.foo{grid:auto-flow dense/30%}',
+            '.foo { grid: auto-flow 300px / repeat(3, [line1 line2 line3] 200px) }' => '.foo{grid:auto-flow 300px/repeat(3,[line1 line2 line3]200px)}',
+            '.foo { grid: auto-flow dense 40% / [line1] minmax(20em, max-content) }' => '.foo{grid:auto-flow dense 40%/[line1]minmax(20em,max-content)}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
     'css minifier maps upstream property rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

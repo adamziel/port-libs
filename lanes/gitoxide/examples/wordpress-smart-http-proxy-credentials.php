@@ -154,5 +154,19 @@ return [
     ),
     'notModifiedProxyCredentialsErased' => $fixture['notModifiedProxyErasures'],
     'notModifiedProxyPostCookieHeader' => $fixture['notModifiedProxyPostCookieHeader'],
+    'notModifiedNoRedirectRejected' => $fixture['notModifiedNoRedirectRejected'],
+    'notModifiedNoRedirectStatusCode' => $fixture['notModifiedNoRedirectStatusCode'],
+    'notModifiedNoRedirectKind' => $fixture['notModifiedNoRedirectKind'],
+    'notModifiedNoRedirectHelperCalls' => $fixture['notModifiedNoRedirectHelperCalls'],
+    'notModifiedNoRedirectCredentialsStored' => $fixture['notModifiedNoRedirectStores'],
+    'notModifiedNoRedirectCredentialsErased' => array_map(
+        static fn (array $entry): array => [
+            'proxyUrl' => $entry[0],
+            'requestHost' => $entry[1],
+            'username' => $entry[2]['username'],
+        ],
+        $fixture['notModifiedNoRedirectErasures']
+    ),
+    'notModifiedNoRedirectRequestCount' => $fixture['notModifiedNoRedirectRequestCount'],
     'wordpressUse' => $fixture['wordpressUse'],
 ];

@@ -190,6 +190,14 @@ final class CssModulesTransformer
             return $this->rewritePositionTryDeclarationList($body);
         }
 
+        if (preg_match('/^@counter-style\b/i', $prelude) === 1) {
+            return $this->rewriteDescriptorDeclarationList($body, false, false);
+        }
+
+        if (preg_match('/^@font-palette-values\b/i', $prelude) === 1) {
+            return $this->rewriteDescriptorDeclarationList($body, true, false);
+        }
+
         if (!$this->cssModulesAtRuleBodyIsParsed($prelude)) {
             return $this->preserveRawAtRuleBody($body);
         }
@@ -1617,7 +1625,12 @@ final class CssModulesTransformer
 
         $tail = substr($body, $cursor);
         if (trim($tail) !== '') {
-            $output .= $this->rewriteViewTransitionDeclarationStatement($tail);
+            $rewrittenTail = $this->rewriteViewTransitionDeclarationStatement($tail);
+            if (trim($rewrittenTail) !== '' && !str_ends_with(rtrim($rewrittenTail), ';')) {
+                $rewrittenTail .= ';';
+            }
+
+            $output .= $rewrittenTail;
         } else {
             $output .= $tail;
         }
@@ -1638,7 +1651,12 @@ final class CssModulesTransformer
             return $statement;
         }
 
-        $property = strtolower(trim(substr($withoutSemicolon, 0, $colon)));
+        $rawProperty = trim(substr($withoutSemicolon, 0, $colon));
+        $property = $this->normalizedDeclarationPropertyName($rawProperty);
+        if ($property === 'composes') {
+            return '';
+        }
+
         if ($property !== 'types') {
             return $statement;
         }
@@ -1655,9 +1673,91 @@ final class CssModulesTransformer
             return $body;
         }
 
-        $composes = [];
+        return $this->rewriteDescriptorDeclarationList($body, false, true);
+    }
 
-        return $this->rewriteTrailingDeclarations($body, $composes, 1, true, false);
+    private function rewriteDescriptorDeclarationList(
+        string $body,
+        bool $dropInvalidComposes,
+        bool $rewriteNonComposes
+    ): string {
+        $output = '';
+        $cursor = 0;
+
+        while (($semicolon = $this->findNextTopLevel($body, ';', $cursor)) !== null) {
+            $statement = substr($body, $cursor, $semicolon - $cursor + 1);
+            $output .= $this->rewriteDescriptorDeclarationStatement(
+                $statement,
+                $dropInvalidComposes,
+                $rewriteNonComposes
+            );
+            $cursor = $semicolon + 1;
+        }
+
+        $tail = substr($body, $cursor);
+        if (trim($tail) === '') {
+            return $output . $tail;
+        }
+
+        $rewrittenTail = $this->rewriteDescriptorDeclarationStatement(
+            $tail,
+            $dropInvalidComposes,
+            $rewriteNonComposes
+        );
+
+        if (trim($rewrittenTail) !== '' && !str_ends_with(rtrim($rewrittenTail), ';')) {
+            $rewrittenTail .= ';';
+        }
+
+        return $output . $rewrittenTail;
+    }
+
+    private function rewriteDescriptorDeclarationStatement(
+        string $statement,
+        bool $dropInvalidComposes,
+        bool $rewriteNonComposes
+    ): string {
+        $trimmed = trim($statement);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $withoutSemicolon = rtrim($trimmed, ';');
+        $colon = $this->findNextTopLevel($withoutSemicolon, ':', 0);
+        if ($colon === null) {
+            return $statement;
+        }
+
+        $rawProperty = trim(substr($withoutSemicolon, 0, $colon));
+        if (!$this->isValidDeclarationPropertyName($rawProperty)) {
+            return $rewriteNonComposes ? '' : $statement;
+        }
+
+        $property = $this->normalizedDeclarationPropertyName($rawProperty);
+        if ($property !== 'composes') {
+            if (!$rewriteNonComposes) {
+                return $statement;
+            }
+
+            $composes = [];
+
+            return $this->rewriteDeclarationStatement($statement, $composes, 1, true, false);
+        }
+
+        if ($dropInvalidComposes) {
+            return '';
+        }
+
+        [$value, $priority] = $this->splitDeclarationPriority(trim(substr($withoutSemicolon, $colon + 1)));
+        try {
+            $this->parseComposesValue($value);
+
+            return '';
+        } catch (\InvalidArgumentException) {
+            $trailingSemicolon = str_ends_with(rtrim($statement), ';') ? ';' : '';
+
+            return 'composes:' . $this->serializeInvalidComposesValue($value) . $priority . $trailingSemicolon;
+        }
     }
 
     private function assertNoNestedComposesInAtRuleDeclarations(string $body): void

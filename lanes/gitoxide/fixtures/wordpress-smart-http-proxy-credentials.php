@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\ReceivePackClient;
 use PortLibs\Gitoxide\SmartHttpReceivePackTransport;
+use PortLibs\Gitoxide\SmartHttpStatusException;
 
 $packet = static fn (string $payload): string => sprintf('%04x', strlen($payload) + 4) . $payload;
 $flush = '0000';
@@ -1110,6 +1111,59 @@ $notModifiedProxySession = $notModifiedProxyClient->handshake();
 $notModifiedProxySession->createOrUpdate('refs/heads/main', $notModifiedProxyBlob->oid());
 $notModifiedProxyResponse = $notModifiedProxyClient->send($notModifiedProxySession->buildRequest([$notModifiedProxyBlob]));
 
+$notModifiedNoRedirectRequests = [];
+$notModifiedNoRedirectHelperCalls = [];
+$notModifiedNoRedirectStores = [];
+$notModifiedNoRedirectErasures = [];
+$notModifiedNoRedirectStatusCode = null;
+$notModifiedNoRedirectKind = null;
+$notModifiedNoRedirectTransport = new SmartHttpReceivePackTransport(
+    'https://git.example.test/wp-content.git',
+    static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$notModifiedNoRedirectRequests): array {
+        $notModifiedNoRedirectRequests[] = [
+            'method' => $method,
+            'url' => $url,
+            'headers' => $headers,
+            'body' => $body,
+            'timeout' => $timeout,
+            'httpOptions' => $httpOptions,
+        ];
+
+        return [
+            'status' => 304,
+            'headers' => [
+                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                'Set-Cookie' => 'no_redirect_gate=opened; Path=/; Secure',
+            ],
+            'body' => '',
+        ];
+    },
+    [],
+    5.0,
+    ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+    [
+        'proxy' => 'http://wp-proxy.example.test:8080',
+        'followRedirects' => false,
+        'proxyCredentialHelper' => static function (string $proxyUrl, string $requestHost) use (&$notModifiedNoRedirectHelperCalls): array {
+            $notModifiedNoRedirectHelperCalls[] = [$proxyUrl, $requestHost];
+
+            return ['username' => 'not-modified-no-redirect-user', 'password' => 'not-modified-no-redirect-pass'];
+        },
+        'proxyCredentialStore' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$notModifiedNoRedirectStores): void {
+            $notModifiedNoRedirectStores[] = [$proxyUrl, $requestHost, $credentials];
+        },
+        'proxyCredentialErase' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$notModifiedNoRedirectErasures): void {
+            $notModifiedNoRedirectErasures[] = [$proxyUrl, $requestHost, $credentials];
+        },
+    ],
+);
+try {
+    $notModifiedNoRedirectTransport->readAdvertisement();
+} catch (SmartHttpStatusException $exception) {
+    $notModifiedNoRedirectStatusCode = $exception->statusCode();
+    $notModifiedNoRedirectKind = $exception->kind();
+}
+
 return [
     'advertisementBytes' => $advertisement,
     'helperCalls' => $helperCalls,
@@ -1234,7 +1288,14 @@ return [
     'notModifiedProxyStores' => $notModifiedProxyStores,
     'notModifiedProxyErasures' => $notModifiedProxyErasures,
     'notModifiedProxyPostCookieHeader' => $notModifiedProxyRequests[1]['headers']['Cookie'] ?? null,
+    'notModifiedNoRedirectRejected' => $notModifiedNoRedirectStatusCode === 304,
+    'notModifiedNoRedirectStatusCode' => $notModifiedNoRedirectStatusCode,
+    'notModifiedNoRedirectKind' => $notModifiedNoRedirectKind,
+    'notModifiedNoRedirectHelperCalls' => $notModifiedNoRedirectHelperCalls,
+    'notModifiedNoRedirectStores' => $notModifiedNoRedirectStores,
+    'notModifiedNoRedirectErasures' => $notModifiedNoRedirectErasures,
+    'notModifiedNoRedirectRequestCount' => count($notModifiedNoRedirectRequests),
     'proxyAuthorizationSent' => $requests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'originProxyHeaderLeaked' => isset($requests[0]['headers']['Proxy-Authorization']),
-    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, canonicalize default proxy ports out of credential-helper context while preserving concrete proxy streams, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass bracketed IPv6 literal repository hosts without consulting proxy helpers, preserve proxy use for curl-style port-qualified noProxy literal tokens, carry curl-compatible root-scoped non-slash Path cookies through authenticated receive-pack proxies, use HTTPS-specific and all-proxy fallbacks with receive-pack cookies intact, treat an explicitly empty HTTPS proxy as disabling lower all-proxy fallback, keep an HTTP-origin request direct when a safe redirect upgrades it to HTTPS, resolve protocol-relative redirects through the same smart HTTP proxy while preserving scoped cookies, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies and curl-accepted trailing-dot Domain attributes from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
+    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, canonicalize default proxy ports out of credential-helper context while preserving concrete proxy streams, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass bracketed IPv6 literal repository hosts without consulting proxy helpers, preserve proxy use for curl-style port-qualified noProxy literal tokens, carry curl-compatible root-scoped non-slash Path cookies through authenticated receive-pack proxies, use HTTPS-specific and all-proxy fallbacks with receive-pack cookies intact, treat an explicitly empty HTTPS proxy as disabling lower all-proxy fallback, keep an HTTP-origin request direct when a safe redirect upgrades it to HTTPS, resolve protocol-relative redirects through the same smart HTTP proxy while preserving scoped cookies, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies and curl-accepted trailing-dot Domain attributes from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or default redirect-mode 304 smart HTTP responses, preserve accepted 304 discovery cookies into receive-pack POSTs, and erase helper credentials when no-redirect mode rejects a 304 or when unexpected proxy/origin statuses arrive.',
 ];

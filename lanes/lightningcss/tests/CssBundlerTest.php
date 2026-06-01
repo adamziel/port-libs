@@ -287,6 +287,37 @@ CSS,
         $t->same(0, $decoded[0]['originalLine']);
         $t->same(0, $decoded[0]['originalColumn']);
     },
+    'css bundler offsets inline source maps after earlier string fragment matches' => static function (TestRunner $t): void {
+        $inputMap = 'data:application/json;base64,' . base64_encode(json_encode([
+            'version' => 3,
+            'mappings' => 'AAAA',
+            'sources' => ['blocks/card.scss'],
+            'sourcesContent' => ['.card { color: $theme-green }'],
+            'names' => [],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = (new CssBundler())->bundleWithSourceMap('/theme/entry.css', [
+            '/theme/entry.css' => '@import "blocks/label.css"; @import "blocks/card.css"; .entry { color: red }',
+            '/theme/blocks/label.css' => '.label:before { content: ".card{color:green}"; color: blue }',
+            '/theme/blocks/card.css' => ".card { color: green }\n/*# sourceMappingURL={$inputMap} */",
+        ], null, '/theme');
+
+        $data = $result['sourceMap']->toArray(null, false);
+        $decoded = SourceMap::decodeVlq($data['mappings']);
+        $expectedColumn = strlen('.label:before{content:".card{color:green}";color:#00f}');
+
+        $t->same('.label:before{content:".card{color:green}";color:#00f}.card{color:green}.entry{color:red}', $result['code']);
+        $t->same(['entry.css', 'blocks/label.css', 'blocks/card.scss'], $data['sources']);
+        $t->same([
+            '@import "blocks/label.css"; @import "blocks/card.css"; .entry { color: red }',
+            '.label:before { content: ".card{color:green}"; color: blue }',
+            '.card { color: $theme-green }',
+        ], $data['sourcesContent']);
+        $t->same($expectedColumn, $decoded[0]['generatedColumn']);
+        $t->same(2, $decoded[0]['sourceIndex']);
+        $t->same(0, $decoded[0]['originalLine']);
+        $t->same(0, $decoded[0]['originalColumn']);
+    },
     'css bundler ignores source map url markers inside imported string literals' => static function (TestRunner $t): void {
         $literalMap = 'data:application/json;base64,' . base64_encode(json_encode([
             'version' => 3,

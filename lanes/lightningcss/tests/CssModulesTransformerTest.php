@@ -3319,6 +3319,73 @@ CSS, [
             'card' => $export('EgL3uq_card'),
         ], $disabled['exports']);
     },
+    'css modules handles upstream at-rule composes descriptors without export composition' => static function (TestRunner $t) use ($export, $dashed, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+@counter-style card-bullets {
+  composes: card reset;
+  symbols: A B;
+}
+
+@font-palette-values --editor-palette {
+  composes: card from global;
+  font-family: Inter;
+}
+
+@view-transition {
+  composes: card from "./theme.css";
+  types: card-enter;
+}
+
+@position-try --card-popover {
+  composes: card;
+  left: anchor(left);
+}
+
+.card {
+  composes: reset;
+  color: red;
+}
+
+.reset {
+  color: blue;
+}
+CSS, [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('@counter-style EgL3uq_card-bullets{symbols:A B}@font-palette-values --EgL3uq_editor-palette{font-family:Inter}@view-transition{types:EgL3uq_card-enter}@position-try --EgL3uq_card-popover{left:anchor(left)}.EgL3uq_card{color:red}.EgL3uq_reset{color:#00f}', $result['code']);
+        $t->same([
+            'card-bullets' => $export('EgL3uq_card-bullets'),
+            '--editor-palette' => $dashed('--EgL3uq_editor-palette'),
+            'card-enter' => $export('EgL3uq_card-enter'),
+            '--card-popover' => $dashed('--EgL3uq_card-popover'),
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_reset')]),
+            'reset' => $export('EgL3uq_reset'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_card EgL3uq_reset', CssModulesTransformer::exportClassList($result['exports'], 'card'));
+
+        $invalidFallback = (new CssModulesTransformer())->transform(<<<'CSS'
+@counter-style card {
+  composes: token calc(1 + 2);
+  symbols: A;
+}
+
+@position-try --bad {
+  composes: token calc(1 + 2);
+  left: anchor(left);
+}
+CSS, [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('@counter-style EgL3uq_card{composes:token calc(1 + 2);symbols:A}@position-try --EgL3uq_bad{composes:token calc(1 + 2);left:anchor(left)}', $invalidFallback['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            '--bad' => $dashed('--EgL3uq_bad'),
+        ], $invalidFallback['exports']);
+        $t->same([], $invalidFallback['references']);
+    },
     'css modules prunes upstream unused symbols while preserving surviving composes exports' => static function (TestRunner $t) use ($export, $local, $dependency): void {
         $css = <<<'CSS'
 @property --unused-accent {

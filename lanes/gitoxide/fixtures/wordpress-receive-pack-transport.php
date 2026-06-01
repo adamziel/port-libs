@@ -119,6 +119,16 @@ return [
         'ssh://deploy@[2001:db8::42]:2222/srv/wp-content.git',
         ['protocolVersion' => 2],
     ),
+    'sshBareIpv6Target' => SshReceivePackTransport::parseRepositoryUrl('ssh://deploy@2001:db8::42/wp-content.git'),
+    'sshBareIpv6Context' => SshReceivePackTransport::connectorContext(
+        'ssh://deploy@2001:db8::42/wp-content.git',
+        ['protocolVersion' => 2],
+    ),
+    'sshBareIpv6NumericTailTarget' => SshReceivePackTransport::parseRepositoryUrl('ssh://2001:db8::42:2222/wp-content.git'),
+    'sshBareIpv6NumericTailContext' => SshReceivePackTransport::connectorContext(
+        'ssh://2001:db8::42:2222/wp-content.git',
+        ['protocolVersion' => 2],
+    ),
     'sshScpIpv6Target' => SshReceivePackTransport::parseRepositoryUrl('[2001:db8::42]:wp-content.git'),
     'sshScpIpv6Context' => SshReceivePackTransport::connectorContext(
         '[2001:db8::42]:wp-content.git',

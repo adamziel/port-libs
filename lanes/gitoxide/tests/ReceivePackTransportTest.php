@@ -4290,6 +4290,62 @@ return [
         $t->same('not_modified_gate=opened', $notModifiedRequests[1]['headers']['Cookie']);
         $t->same($notModifiedRequest->requestBytes(), $notModifiedRequests[1]['body']);
 
+        $notModifiedNoRedirectRequests = [];
+        $notModifiedNoRedirectHelperCalls = [];
+        $notModifiedNoRedirectStores = [];
+        $notModifiedNoRedirectErasures = [];
+        $notModifiedNoRedirectError = null;
+        $notModifiedNoRedirectTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$notModifiedNoRedirectRequests): array {
+                $notModifiedNoRedirectRequests[] = [
+                    'method' => $method,
+                    'url' => $url,
+                    'headers' => $headers,
+                    'body' => $body,
+                    'httpOptions' => $httpOptions,
+                ];
+
+                return [
+                    'status' => 304,
+                    'headers' => [
+                        'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                        'Set-Cookie' => 'no_redirect_gate=opened; Path=/; Secure',
+                    ],
+                    'body' => '',
+                ];
+            },
+            [],
+            30.0,
+            [],
+            [
+                'proxy' => 'http://proxy.example.test:8080',
+                'followRedirects' => false,
+                'proxyCredentialHelper' => static function (string $proxyUrl, string $requestHost) use (&$notModifiedNoRedirectHelperCalls): array {
+                    $notModifiedNoRedirectHelperCalls[] = [$proxyUrl, $requestHost];
+
+                    return ['username' => 'no-redirect-user', 'password' => 'no-redirect-pass'];
+                },
+                'proxyCredentialStore' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$notModifiedNoRedirectStores): void {
+                    $notModifiedNoRedirectStores[] = [$proxyUrl, $requestHost, $credentials];
+                },
+                'proxyCredentialErase' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$notModifiedNoRedirectErasures): void {
+                    $notModifiedNoRedirectErasures[] = [$proxyUrl, $requestHost, $credentials];
+                },
+            ]
+        );
+        try {
+            $notModifiedNoRedirectTransport->readAdvertisement();
+        } catch (SmartHttpStatusException $exception) {
+            $notModifiedNoRedirectError = $exception;
+        }
+        $t->same(304, $notModifiedNoRedirectError?->statusCode());
+        $t->same('other', $notModifiedNoRedirectError?->kind());
+        $t->same([['http://proxy.example.test:8080', 'git.example.test']], $notModifiedNoRedirectHelperCalls);
+        $t->same([], $notModifiedNoRedirectStores);
+        $t->same([['http://proxy.example.test:8080', 'git.example.test', ['username' => 'no-redirect-user', 'password' => 'no-redirect-pass']]], $notModifiedNoRedirectErasures);
+        $t->same(1, count($notModifiedNoRedirectRequests));
+
         $helperControlByteTransport = new SmartHttpReceivePackTransport(
             'https://git.example.test/wp-content.git',
             static fn (): array => ['status' => 500, 'headers' => [], 'body' => 'should not run'],
@@ -4834,6 +4890,23 @@ return [
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '2001:db8::42'], $scpIpv6Context['sshArguments']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '2001:db8::42', 'git-receive-pack', "'wp-content.git'"], $scpIpv6Context['sshInvocationArguments']);
         $t->same("path=wp-content.git\nprotocol=ssh\nhost=[2001:db8::42]\n", $scpIpv6Context['credentialContext']->storageBytes());
+        $bareIpv6Context = SshReceivePackTransport::connectorContext(
+            'ssh://deploy@2001:db8::42/wp-content.git',
+            ['protocolVersion' => 2],
+        );
+        $t->same('2001:db8::42', $bareIpv6Context['host']);
+        $t->same(null, $bareIpv6Context['port']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@2001:db8::42'], $bareIpv6Context['sshArguments']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@2001:db8::42', 'git-receive-pack', "'/wp-content.git'"], $bareIpv6Context['sshInvocationArguments']);
+        $t->same("path=wp-content.git\nprotocol=ssh\nhost=[2001:db8::42]\nusername=deploy\n", $bareIpv6Context['credentialContext']->storageBytes());
+        $bareIpv6NumericTailContext = SshReceivePackTransport::connectorContext(
+            'ssh://2001:db8::42:2222/wp-content.git',
+            ['protocolVersion' => 2],
+        );
+        $t->same('2001:db8::42:2222', $bareIpv6NumericTailContext['host']);
+        $t->same(null, $bareIpv6NumericTailContext['port']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '2001:db8::42:2222'], $bareIpv6NumericTailContext['sshArguments']);
+        $t->same("path=wp-content.git\nprotocol=ssh\nhost=[2001:db8::42:2222]\n", $bareIpv6NumericTailContext['credentialContext']->storageBytes());
         $optionLikeHostContext = SshReceivePackTransport::connectorContext('deploy@-git-proxy.example.test:wp-content.git', ['protocolVersion' => 2]);
         $t->same('-git-proxy.example.test', $optionLikeHostContext['host']);
         $t->same('deploy', $optionLikeHostContext['user']);
@@ -5072,6 +5145,18 @@ return [
             'port' => 2222,
             'path' => '/srv/wp-content.git',
         ], SshReceivePackTransport::parseRepositoryUrl('ssh://deploy@[2001:db8::42]:2222/srv/wp-content.git'));
+        $t->same([
+            'host' => '2001:db8::42',
+            'user' => 'deploy',
+            'port' => null,
+            'path' => '/wp-content.git',
+        ], SshReceivePackTransport::parseRepositoryUrl('ssh://deploy@2001:db8::42/wp-content.git'));
+        $t->same([
+            'host' => '2001:db8::42:2222',
+            'user' => null,
+            'port' => null,
+            'path' => '/wp-content.git',
+        ], SshReceivePackTransport::parseRepositoryUrl('ssh://2001:db8::42:2222/wp-content.git'));
         $t->same([
             'host' => '2001:db8::42',
             'user' => null,
@@ -5386,6 +5471,13 @@ return [
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '2001:db8::42'], $fixture['sshScpIpv6Context']['sshArguments']);
         $t->same('2001:db8::42', $fixture['sshScpIpv6Target']['host']);
         $t->same(null, $fixture['sshScpIpv6Target']['user']);
+        $t->same('2001:db8::42', $fixture['sshBareIpv6Target']['host']);
+        $t->same(null, $fixture['sshBareIpv6Target']['port']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@2001:db8::42'], $fixture['sshBareIpv6Context']['sshArguments']);
+        $t->same("path=wp-content.git\nprotocol=ssh\nhost=[2001:db8::42]\nusername=deploy\n", $fixture['sshBareIpv6Context']['credentialContext']->storageBytes());
+        $t->same('2001:db8::42:2222', $fixture['sshBareIpv6NumericTailTarget']['host']);
+        $t->same(null, $fixture['sshBareIpv6NumericTailTarget']['port']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '2001:db8::42:2222'], $fixture['sshBareIpv6NumericTailContext']['sshArguments']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@git.example.test'], $fixture['sshProtocolV2Context']['sshArguments']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@git.example.test', 'git-receive-pack', "'/var/www/wp-content.git'"], $fixture['sshProtocolV2Context']['sshInvocationArguments']);
         $t->same("git-receive-pack 'wp content/important'\\!'repo'\\''s.git'", $fixture['sshBangPathCommand']);
@@ -5625,6 +5717,26 @@ return [
         ], $summary['notModifiedProxyCredentialsStored']);
         $t->same([], $summary['notModifiedProxyCredentialsErased']);
         $t->same('not_modified_gate=opened', $summary['notModifiedProxyPostCookieHeader']);
+        $t->same(true, $fixture['notModifiedNoRedirectRejected']);
+        $t->same(304, $fixture['notModifiedNoRedirectStatusCode']);
+        $t->same('other', $fixture['notModifiedNoRedirectKind']);
+        $t->same([['http://wp-proxy.example.test:8080', 'git.example.test']], $fixture['notModifiedNoRedirectHelperCalls']);
+        $t->same([], $fixture['notModifiedNoRedirectStores']);
+        $t->same([['http://wp-proxy.example.test:8080', 'git.example.test', ['username' => 'not-modified-no-redirect-user', 'password' => 'not-modified-no-redirect-pass']]], $fixture['notModifiedNoRedirectErasures']);
+        $t->same(1, $fixture['notModifiedNoRedirectRequestCount']);
+        $t->same(true, $summary['notModifiedNoRedirectRejected']);
+        $t->same(304, $summary['notModifiedNoRedirectStatusCode']);
+        $t->same('other', $summary['notModifiedNoRedirectKind']);
+        $t->same($fixture['notModifiedNoRedirectHelperCalls'], $summary['notModifiedNoRedirectHelperCalls']);
+        $t->same([], $summary['notModifiedNoRedirectCredentialsStored']);
+        $t->same([
+            [
+                'proxyUrl' => 'http://wp-proxy.example.test:8080',
+                'requestHost' => 'git.example.test',
+                'username' => 'not-modified-no-redirect-user',
+            ],
+        ], $summary['notModifiedNoRedirectCredentialsErased']);
+        $t->same(1, $summary['notModifiedNoRedirectRequestCount']);
         $t->contains('refs/heads/main', $fixture['advertisementBytes']);
         $t->contains('refs/heads/main', $fixture['usernameOnlyProxyAdvertisementBytes']);
     },

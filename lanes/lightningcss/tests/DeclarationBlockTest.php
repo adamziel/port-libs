@@ -2660,9 +2660,17 @@ return [
         $block = new DeclarationBlock();
 
         $container = 'container: wp-query-card / inline-size';
+        $escapedContainer = 'container: wp-\\71 uery-card is-\\77 ide / inline-size';
         $t->same(['value' => 'wp-query-card / inline-size', 'important' => false], $block->getProperty($container, 'container'));
         $t->same(['value' => 'wp-query-card', 'important' => false], $block->getProperty($container, 'container-name'));
         $t->same(['value' => 'inline-size', 'important' => false], $block->getProperty($container, 'container-type'));
+        $t->same(['container' => 'wp-query-card is-wide / inline-size'], $block->parse($escapedContainer));
+        $t->same(['value' => 'wp-query-card is-wide / inline-size', 'important' => false], $block->getProperty($escapedContainer, 'container'));
+        $t->same(['value' => 'wp-query-card is-wide', 'important' => false], $block->getProperty($escapedContainer, 'container-name'));
+        $t->same(
+            ['value' => '\\31 wp-card is-wide', 'important' => false],
+            $block->getProperty('container-name: \\31 wp-card is-\\77 ide', 'container-name')
+        );
         $t->same(
             ['value' => 'wp-query-card / size', 'important' => true],
             $block->getProperty('container-name: wp-query-card !important; container-type: size !important', 'container')
@@ -3725,6 +3733,14 @@ return [
             $block->setProperty('container: wp-query-card / inline-size', 'container-name', 'wp-query-card is-wide')
         );
         $t->same(
+            'container: wp-query-card is-wide / inline-size',
+            $block->setProperty('container: wp-query-card / inline-size', 'container-name', 'wp-\\71 uery-card is-\\77 ide')
+        );
+        $t->same(
+            'color: red; container: \\31 wp-card is-wide / inline-size',
+            $block->setProperty('color: red', 'container', '\\31 wp-card is-\\77 ide / inline-size')
+        );
+        $t->same(
             'container-name: wp-query-card; container-type: size',
             $block->setProperty('container-name: wp-query-card; container-type: inline-size', 'container-type', 'size')
         );
@@ -4626,6 +4642,10 @@ return [
         $t->same(
             'container-name: wp-query-card; color: red',
             $block->removeProperty('container: wp-query-card / inline-size; color: red', 'container-type')
+        );
+        $t->same(
+            'container-name: wp-query-card is-wide; color: red',
+            $block->removeProperty('container: wp-\\71 uery-card is-\\77 ide / inline-size; color: red', 'container-type')
         );
         $t->same(
             'container-type: normal; color: red',

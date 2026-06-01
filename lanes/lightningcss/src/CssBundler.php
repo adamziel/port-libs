@@ -578,7 +578,7 @@ final class CssBundler
 
         foreach ($this->pendingInputSourceMaps as $inputSourceMap) {
             $generatedCss = $inputSourceMap['generatedCss'];
-            $offset = $generatedCss === '' ? 0 : strpos($code, $generatedCss);
+            $offset = $generatedCss === '' ? 0 : $this->generatedCssFragmentOffset($code, $generatedCss);
             if ($offset === false) {
                 $offset = 0;
             }
@@ -594,6 +594,20 @@ final class CssBundler
                 false
             );
         }
+    }
+
+    private function generatedCssFragmentOffset(string $code, string $fragment): int|false
+    {
+        $offset = 0;
+        while (($match = strpos($code, $fragment, $offset)) !== false) {
+            if (!$this->isCssOffsetInsideStringOrComment($code, $match)) {
+                return $match;
+            }
+
+            $offset = $match + 1;
+        }
+
+        return false;
     }
 
     private function sourceMapUrl(string $source): ?string

@@ -1043,6 +1043,40 @@ return [
         $t->same($old, $store->find('refs/heads/review/plugin-a')->targetObjectId());
         $t->same(true, is_file($dir . '/refs/heads/review/plugin-b.lock'));
     },
+    'prepared reference transaction writes reflogs before a later lock commit failure' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-reflog-before-lock-fail-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $transaction = $store->prepareLooseUpdateTransaction(
+            [
+                'refs/heads/review/plugin-a' => ReferenceTarget::object($old),
+                'refs/heads/review/plugin-b' => ReferenceTarget::object($new),
+            ],
+            'sha1',
+            $committer,
+            'prepared staged publish',
+            true,
+        );
+        mkdir($dir . '/refs/heads/review/plugin-b', 0777, true);
+        file_put_contents($dir . '/refs/heads/review/plugin-b/blocker.txt', 'not empty');
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => $transaction->commit(),
+        );
+
+        $firstLine = str_repeat('0', 40) . " {$old} Deploy Bot <deploy@example.com> 1234 +0000\tprepared staged publish\n";
+        $secondLine = str_repeat('0', 40) . " {$new} Deploy Bot <deploy@example.com> 1234 +0000\tprepared staged publish\n";
+        $t->same(false, $transaction->isOpen());
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/review/plugin-a'));
+        $t->same(false, is_file($dir . '/refs/heads/review/plugin-a.lock'));
+        $t->same(true, is_file($dir . '/refs/heads/review/plugin-b.lock'));
+        $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/review/plugin-b.lock'));
+        $t->same(true, is_file($dir . '/refs/heads/review/plugin-b/blocker.txt'));
+        $t->same(null, $store->tryFind('refs/heads/review/plugin-b'));
+        $t->same($firstLine, $store->reflogContents('refs/heads/review/plugin-a'));
+        $t->same($secondLine, $store->reflogContents('refs/heads/review/plugin-b'));
+    },
     'prepared reference transaction commit writes object reflogs before publishing locks' => static function (TestRunner $t) use ($old, $new): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-reflog-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -2402,6 +2436,23 @@ return [
         $t->same($fixture['expectedPreparedPhasedDeleteFirstReflogExists'], $summary['preparedPhasedDeleteFirstReflogExists']);
         $t->same($fixture['expectedPreparedPhasedDeleteSecondReflogBlocked'], $summary['preparedPhasedDeleteSecondReflogBlocked']);
         $t->same($fixture['expectedPreparedPhasedDeleteLocksPreserved'], $summary['preparedPhasedDeleteLocksPreserved']);
+        $t->same(
+            $fixture['expectedPreparedPhasedUpdateErrorPrefix'],
+            substr((string) $summary['preparedPhasedUpdateError'], 0, strlen($fixture['expectedPreparedPhasedUpdateErrorPrefix'])),
+        );
+        $t->same($fixture['expectedPreparedPhasedUpdateFirstRefStillExists'], $summary['preparedPhasedUpdateFirstRefStillExists']);
+        $t->same($fixture['expectedPreparedPhasedUpdateSecondRefStillExists'], $summary['preparedPhasedUpdateSecondRefStillExists']);
+        $t->same($fixture['expectedPreparedPhasedUpdateFirstLockCleaned'], $summary['preparedPhasedUpdateFirstLockCleaned']);
+        $t->same($fixture['expectedPreparedPhasedUpdateSecondLockPreserved'], $summary['preparedPhasedUpdateSecondLockPreserved']);
+        $t->same($fixture['expectedPreparedPhasedUpdateSecondBlockerPreserved'], $summary['preparedPhasedUpdateSecondBlockerPreserved']);
+        $t->same(
+            str_repeat('0', 40) . ' ' . $fixture['reviewCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedPhasedUpdateReflogMessage'] . "\n",
+            $summary['preparedPhasedUpdateFirstReflog'],
+        );
+        $t->same(
+            str_repeat('0', 40) . ' ' . $fixture['productionCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedPhasedUpdateReflogMessage'] . "\n",
+            $summary['preparedPhasedUpdateSecondReflog'],
+        );
         $t->contains('idempotent prepared writes', $summary['wordpressUse']);
         $t->contains('packed-ref transaction locks', $summary['wordpressUse']);
         $t->contains('prepared packed-refs commit phase', $summary['wordpressUse']);
@@ -2419,6 +2470,7 @@ return [
         $t->contains('protected Windows device refnames', $summary['wordpressUse']);
         $t->contains('broken dereferenced tenant HEAD', $summary['wordpressUse']);
         $t->contains('later prepared reflog deletion fails', $summary['wordpressUse']);
+        $t->contains('prepared lock publication fails', $summary['wordpressUse']);
     },
     'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-deref-reference-transaction.php';

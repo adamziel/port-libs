@@ -1383,6 +1383,10 @@ final class TransitionPrefixer
             'clip-path' => [
                 '-webkit-' => $targetOptions['clipPathNeedsWebkit'] ?? false,
             ],
+            'background-clip' => [
+                '-webkit-' => $targetOptions['backgroundClipNeedsWebkit'] ?? false,
+                '-ms-' => $targetOptions['backgroundClipNeedsMs'] ?? false,
+            ],
             'shape-outside' => [
                 '-webkit-' => $targetOptions['shapeNeedsWebkit'] ?? false,
             ],

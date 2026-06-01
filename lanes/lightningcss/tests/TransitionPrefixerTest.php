@@ -2035,6 +2035,26 @@ CSS;
             '.foo{background:url(img.png);-ms-background-clip:text;background-clip:text}',
             $prefixer->prefixForTargets('.foo { background: url(img.png); background-clip: text; }', ['edge' => 13])
         );
+        $t->same(
+            '@supports ((-webkit-background-clip:text) or (background-clip:text)){.foo{-webkit-background-clip:text;background-clip:text}}',
+            $prefixer->prefixForTargets('@supports (background-clip: text) { .foo { background-clip: text; } }', ['chrome' => 119])
+        );
+        $t->same(
+            '@supports (background-clip:text){.foo{background-clip:text}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-background-clip: text) or (background-clip: text)) { .foo { -webkit-background-clip: text; background-clip: text; } }', ['chrome' => 120])
+        );
+        $t->same(
+            '@supports ((-ms-background-clip:text) or (background-clip:text)){.foo{-ms-background-clip:text;background-clip:text}}',
+            $prefixer->prefixForTargets('@supports (background-clip: text) { .foo { background-clip: text; } }', ['edge' => 13])
+        );
+        $t->same(
+            '@supports ((-webkit-background-clip:text) or (background-clip:text)){.foo{-webkit-background-clip:text;background-clip:text}}',
+            $prefixer->prefixForTargets('@supports (background-clip: text) { .foo { background-clip: text; } }', ['safari' => 13])
+        );
+        $t->same(
+            '@supports (background-clip:text){.foo{background-clip:text}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-background-clip: text) or (background-clip: text)) { .foo { -webkit-background-clip: text; background-clip: text; } }', ['safari' => 14])
+        );
     },
     'transition prefixer maps upstream background size and origin browser boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();

@@ -9937,7 +9937,71 @@ final class DeclarationBlock
             return in_array($lower, self::CONTAINER_TYPES, true) ? $lower : $value;
         }
 
-        return strcasecmp($value, 'none') === 0 ? 'none' : $value;
+        return $this->normalizeContainerNameListValue($value) ?? $value;
+    }
+
+    private function normalizeContainerNameListValue(string $value): ?string
+    {
+        $names = [];
+        $cursor = 0;
+        $length = strlen($value);
+
+        while (true) {
+            while ($cursor < $length && ctype_space($value[$cursor])) {
+                $cursor++;
+            }
+            if ($cursor >= $length) {
+                break;
+            }
+
+            if (!$this->canStartCssIdentifierToken($value, $cursor, $length)) {
+                return null;
+            }
+
+            $token = $this->readCssIdentifierToken($value, $cursor);
+            if ($token === null) {
+                return null;
+            }
+
+            $name = $token['name'];
+            $lower = strtolower($name);
+            if ($lower === 'none') {
+                while ($token['end'] < $length && ctype_space($value[$token['end']])) {
+                    $token['end']++;
+                }
+
+                return $names === [] && $token['end'] >= $length ? 'none' : null;
+            }
+            if (in_array($lower, ['and', 'not', 'or', 'initial', 'inherit', 'unset', 'default', 'revert', 'revert-layer'], true)) {
+                return null;
+            }
+
+            $names[] = $this->serializeCssIdentifier($name);
+            $cursor = $token['end'];
+        }
+
+        return $names === [] ? null : implode(' ', $names);
+    }
+
+    private function canStartCssIdentifierToken(string $value, int $offset, int $end): bool
+    {
+        $char = $value[$offset] ?? '';
+        if ($char === '\\') {
+            return $this->readCssEscape($value, $offset, $end) !== null;
+        }
+        if ($char === '-' && $offset + 1 < $end) {
+            $next = $value[$offset + 1];
+            if ($next === '\\') {
+                return $this->readCssEscape($value, $offset + 1, $end) !== null;
+            }
+
+            return $next === '-'
+                || ctype_alpha($next)
+                || $next === '_'
+                || ord($next) >= 0x80;
+        }
+
+        return $char === '_' || ctype_alpha($char) || ($char !== '' && ord($char) >= 0x80);
     }
 
     private function isContainerProperty(string $property): bool
@@ -14166,6 +14230,16 @@ final class DeclarationBlock
             return $this->normalizeFontLonghandValue($property, $value);
         }
 
+        if ($property === 'container') {
+            $components = $this->parseContainerComponents($value);
+
+            return $components === null ? $value : $this->serializeContainerComponents($components);
+        }
+
+        if ($this->isContainerLonghand($property)) {
+            return $this->normalizeContainerLonghandValue($property, $value);
+        }
+
         if ($property === 'font-palette') {
             return $this->normalizeFontPaletteDeclarationValue($value);
         }
@@ -15984,7 +16058,7 @@ final class DeclarationBlock
 
     private function isCssIdentifierChar(string $char): bool
     {
-        return preg_match('/[-a-zA-Z0-9_]/', $char) === 1;
+        return preg_match('/[-a-zA-Z0-9_]/', $char) === 1 || ord($char) >= 0x80;
     }
 
     /**
