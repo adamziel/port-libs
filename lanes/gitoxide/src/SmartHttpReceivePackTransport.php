@@ -1559,10 +1559,10 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             }
             if ($name === 'path') {
                 $pathValue = trim($rawValue, " \t");
-                if ($pathValue === '' || !str_starts_with($pathValue, '/') || self::containsControlByte($pathValue)) {
+                if ($pathValue === '' || self::containsControlByte($pathValue)) {
                     return null;
                 }
-                $path = $pathValue;
+                $path = str_starts_with($pathValue, '/') ? $pathValue : '/';
             }
         }
 

@@ -2035,6 +2035,7 @@ return [
         $t->same(true, $redirectExample['maxAgeRedirectCookieRetained']);
         $t->same(true, $redirectExample['pathScopedRedirectCookieOmitted']);
         $t->same(true, $redirectExample['foreignDomainRedirectCookieOmitted']);
+        $t->same(true, $redirectExample['noSlashPathRedirectCookieRootScoped']);
         $t->same(true, $redirectExample['malformedPathRedirectCookiesOmitted']);
         $t->same(true, $redirectExample['secureCookiePlainRedirectOmitted']);
         $t->same(true, $redirectExample['defaultPathRedirectCookieOmitted']);
@@ -2282,6 +2283,99 @@ return [
         $t->throws(RuntimeException::class, static fn () => $missingLocationPostRedirectClient->send($missingLocationPostRedirectRequest));
         $t->same(['GET', 'POST'], array_column($missingLocationPostRedirectRequests, 'method'));
         $t->same($missingLocationPostRedirectRequest->requestBytes(), $missingLocationPostRedirectRequests[1]['body']);
+    },
+    'smart http receive-pack follows upstream same-port scheme upgrade redirect boundaries' => static function (TestRunner $t) use ($packet, $flush): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress smart HTTP same-port redirect payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $requests = [];
+        $client = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'http://git.example.test:8443/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$requests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $requests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                    ];
+
+                    if (count($requests) === 1) {
+                        return [
+                            'status' => 301,
+                            'headers' => [
+                                'Location' => 'https://git.example.test:8443/redirected.git/info/refs?service=git-receive-pack',
+                                'Set-Cookie' => 'same_port_redirect=ok; Path=/; Secure',
+                            ],
+                            'body' => '',
+                        ];
+                    }
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'same_port_repo=ready; Path=/redirected.git; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                ['version=1'],
+                9.0,
+                ['User-Agent' => 'port-libs-test/same-port-redirect']
+            ),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+        $request = $session->buildRequest([$blob]);
+
+        $response = $client->send($request);
+
+        $t->same(true, $response->isSuccessful());
+        $t->same(3, count($requests));
+        $t->same('http://git.example.test:8443/wp-content.git/info/refs?service=git-receive-pack', $requests[0]['url']);
+        $t->same('https://git.example.test:8443/redirected.git/info/refs?service=git-receive-pack', $requests[1]['url']);
+        $t->same('https://git.example.test:8443/redirected.git/git-receive-pack', $requests[2]['url']);
+        $t->same('same_port_redirect=ok', $requests[1]['headers']['Cookie']);
+        $t->same('same_port_repo=ready; same_port_redirect=ok', $requests[2]['headers']['Cookie']);
+        $t->same('version=1', $requests[2]['headers']['Git-Protocol']);
+        $t->same($request->requestBytes(), $requests[2]['body']);
+
+        $rejectedRequests = [];
+        $rejectedTransport = new SmartHttpReceivePackTransport(
+            'http://git.example.test:8080/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body) use (&$rejectedRequests): array {
+                $rejectedRequests[] = [
+                    'method' => $method,
+                    'url' => $url,
+                    'headers' => $headers,
+                    'body' => $body,
+                ];
+
+                return [
+                    'status' => 301,
+                    'headers' => ['Location' => 'https://git.example.test:8443/redirected.git/info/refs?service=git-receive-pack'],
+                    'body' => '',
+                ];
+            },
+        );
+
+        $t->throws(RuntimeException::class, static fn () => $rejectedTransport->readAdvertisement());
+        $t->same(1, count($rejectedRequests));
+        $t->same('http://git.example.test:8080/wp-content.git/info/refs?service=git-receive-pack', $rejectedRequests[0]['url']);
     },
     'smart http receive-pack follows upstream curl redirect limit for discovery' => static function (TestRunner $t) use ($packet, $flush): void {
         $advertisement = $packet("58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a refs/heads/main\0report-status object-format=sha1\n") . $flush;
@@ -3178,6 +3272,64 @@ return [
         ], $defaultPortProxyStores);
         $t->same('wp_session=default-port', $defaultPortProxyRequests[1]['headers']['Cookie']);
         $t->same($defaultPortProxyRequest->requestBytes(), $defaultPortProxyRequests[1]['body']);
+
+        $pathNoSlashCookieRequests = [];
+        $pathNoSlashCookieBlob = new GitObject('blob', 'WordPress path-no-slash cookie proxy payload');
+        $pathNoSlashCookieClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$pathNoSlashCookieRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $pathNoSlashCookieRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => [
+                                    'wp_root=wide; Path=wp-content.git; Secure',
+                                    'wp_empty=skip; Path=; Secure',
+                                ],
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'proxy' => 'http://path-cookie-proxy.example.test:8080',
+                    'proxyCredentials' => ['username' => 'path-cookie-user', 'password' => 'path-cookie-pass'],
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $pathNoSlashCookieSession = $pathNoSlashCookieClient->handshake();
+        $pathNoSlashCookieSession->createOrUpdate('refs/heads/main', $pathNoSlashCookieBlob->oid());
+        $pathNoSlashCookieRequest = $pathNoSlashCookieSession->buildRequest([$pathNoSlashCookieBlob]);
+
+        $pathNoSlashCookieResponse = $pathNoSlashCookieClient->send($pathNoSlashCookieRequest);
+
+        $t->same(true, $pathNoSlashCookieResponse->isSuccessful());
+        $t->same('tcp://path-cookie-proxy.example.test:8080', $pathNoSlashCookieRequests[0]['httpOptions']['proxy']);
+        $t->same('tcp://path-cookie-proxy.example.test:8080', $pathNoSlashCookieRequests[1]['httpOptions']['proxy']);
+        $t->same('Basic ' . base64_encode('path-cookie-user:path-cookie-pass'), $pathNoSlashCookieRequests[0]['httpOptions']['proxyAuthorization']);
+        $t->same('wp_root=wide', $pathNoSlashCookieRequests[1]['headers']['Cookie']);
+        $t->same(false, str_contains($pathNoSlashCookieRequests[1]['headers']['Cookie'], 'wp_empty='));
+        $t->same($pathNoSlashCookieRequest->requestBytes(), $pathNoSlashCookieRequests[1]['body']);
 
         $httpsFallbackRequests = [];
         $httpsFallbackHelperCalls = 0;
@@ -4843,6 +4995,16 @@ return [
         $t->same('version=2:session-id', $fixture['smartHttpProtocolHeaderBoundary']['downgradeDiscoveryGitProtocol']);
         $t->same(null, $fixture['smartHttpProtocolHeaderBoundary']['downgradePostGitProtocol']);
         $t->same(true, $fixture['smartHttpProtocolHeaderBoundary']['downgradePostBodyPreserved']);
+        $t->same([
+            'http://git.example.test:8443/wp-content.git/info/refs?service=git-receive-pack',
+            'https://git.example.test:8443/redirected.git/info/refs?service=git-receive-pack',
+            'https://git.example.test:8443/redirected.git/git-receive-pack',
+        ], $fixture['smartHttpSamePortRedirectBoundary']['requestUrls']);
+        $t->same('wp_same_port_repo=ready; wp_same_port_redirect=ok', $fixture['smartHttpSamePortRedirectBoundary']['postCookie']);
+        $t->same(true, $fixture['smartHttpSamePortRedirectBoundary']['postBodyPreserved']);
+        $t->same(true, $fixture['smartHttpSamePortRedirectBoundary']['responseSuccessful']);
+        $t->same(true, $fixture['smartHttpSamePortRedirectBoundary']['differentPortUpgradeRejected']);
+        $t->same(1, $fixture['smartHttpSamePortRedirectBoundary']['differentPortRequestCount']);
         $t->same('permission_denied', $fixture['smartHttpStatusBoundary']['unauthorized']['kind']);
         $t->same(false, $fixture['smartHttpStatusBoundary']['unauthorized']['retryable']);
         $t->same('other', $fixture['smartHttpStatusBoundary']['notFound']['kind']);
@@ -4995,6 +5157,18 @@ return [
         ], $summary['defaultPortProxyCredentialsStored']);
         $t->same(false, $summary['defaultPortProxyOriginProxyHeaderLeaked']);
         $t->same($fixture['defaultPortProxyPostCookieHeader'], $summary['defaultPortProxyPostCookieHeader']);
+        $t->same(true, $fixture['pathNoSlashCookieResponseSuccessful']);
+        $t->same(true, $fixture['pathNoSlashCookieUsedProxy']);
+        $t->same('Basic ' . base64_encode('path-cookie-user:path-cookie-pass'), $fixture['pathNoSlashCookieAuthorizationSent']);
+        $t->same(false, $fixture['pathNoSlashCookieOriginProxyHeaderLeaked']);
+        $t->same('wp_root=wide', $fixture['pathNoSlashCookiePostCookieHeader']);
+        $t->same(true, $fixture['pathNoSlashCookieEmptyPathOmitted']);
+        $t->same(true, $summary['pathNoSlashCookieResponseSuccessful']);
+        $t->same(true, $summary['pathNoSlashCookieUsedProxy']);
+        $t->same($fixture['pathNoSlashCookieAuthorizationSent'], $summary['pathNoSlashCookieAuthorizationSent']);
+        $t->same(false, $summary['pathNoSlashCookieOriginProxyHeaderLeaked']);
+        $t->same($fixture['pathNoSlashCookiePostCookieHeader'], $summary['pathNoSlashCookiePostCookieHeader']);
+        $t->same(true, $summary['pathNoSlashCookieEmptyPathOmitted']);
         $t->same(true, $fixture['cidrNoProxyBypassedProxy']);
         $t->same(0, $fixture['cidrNoProxyHelperCalls']);
         $t->same('wp_session=cidr', $fixture['cidrNoProxyPostCookieHeader']);

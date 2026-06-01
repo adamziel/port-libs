@@ -499,6 +499,11 @@ final class SQLiteSelectExpression
             throw new \InvalidArgumentException("SQLite SELECT expression function {$function} arguments must be a list");
         }
 
+        $normalized = strtolower($function);
+        if ($normalized === 'implies_nonnull_row') {
+            return self::impliesNonNullRow($row, $arguments);
+        }
+
         $evaluated = [];
         foreach ($arguments as $argument) {
             if (is_array($argument)) {
@@ -509,7 +514,6 @@ final class SQLiteSelectExpression
             $evaluated[] = $argument;
         }
 
-        $normalized = strtolower($function);
         if ($normalized === 'json' || $normalized === 'jsonb') {
             return self::jsonExpressionResult($normalized, SQLiteJsonCanonical::jsonSqlFunctionArguments($normalized, $evaluated));
         }
@@ -626,6 +630,70 @@ final class SQLiteSelectExpression
         }
 
         return SQLiteCoreScalarFunction::sqlFunctionArguments($function, $evaluated);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<mixed> $arguments
+     */
+    private static function impliesNonNullRow(array $row, array $arguments): int
+    {
+        if (count($arguments) !== 2 || !is_array($arguments[0]) || !is_array($arguments[1])) {
+            throw new \InvalidArgumentException('SQLite internal implies_nonnull_row() expects an expression and a row column');
+        }
+        if (!self::expressionReferencesColumn($arguments[1])) {
+            throw new \InvalidArgumentException('SQLite internal implies_nonnull_row() row argument must reference a column');
+        }
+
+        $nullExtendedRow = self::nullExtendedRow($row);
+        self::evaluate($nullExtendedRow, $arguments[1]);
+
+        $value = self::evaluate($nullExtendedRow, $arguments[0]);
+
+        return $value === null && self::expressionReferencesColumn($arguments[0]) ? 1 : 0;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return array<string,mixed>
+     */
+    private static function nullExtendedRow(array $row): array
+    {
+        $nullExtended = [];
+        foreach ($row as $column => $value) {
+            $nullExtended[$column] = is_string($column) && str_starts_with($column, '__sqlite_') ? $value : null;
+        }
+
+        return $nullExtended;
+    }
+
+    private static function expressionReferencesColumn(mixed $expression): bool
+    {
+        if (!is_array($expression)) {
+            return false;
+        }
+        if (($expression['type'] ?? null) === 'column') {
+            return true;
+        }
+
+        foreach ($expression as $value) {
+            if (!is_array($value)) {
+                continue;
+            }
+            if (array_is_list($value)) {
+                foreach ($value as $item) {
+                    if (self::expressionReferencesColumn($item)) {
+                        return true;
+                    }
+                }
+                continue;
+            }
+            if (self::expressionReferencesColumn($value)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function jsonExpressionResult(string $function, string|SQLiteBlobValue|null $value): SQLiteJsonSubtypeValue|SQLiteBlobValue|null

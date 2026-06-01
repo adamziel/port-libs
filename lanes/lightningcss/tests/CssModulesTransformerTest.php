@@ -844,6 +844,43 @@ CSS);
         $t->same([], $result['references']);
         $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
 
+        $quotedLanguages = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:lang("en-US", "fr") {
+  color: red;
+}
+
+.card:l\61 ng("zh\2d Hans", fr) {
+  color: yellow;
+}
+
+.button {
+  composes: card;
+  color: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_card:lang(en-US,fr){color:red}.EgL3uq_card:lang(zh-Hans,fr){color:#ff0}.EgL3uq_button{color:#fff}', $quotedLanguages['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $quotedLanguages['exports']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($quotedLanguages['exports'], 'button'));
+
+        $escapedDirection = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:DIR(r\74 l) {
+  color: red;
+}
+
+.card:lang("en US") {
+  color: blue;
+}
+CSS);
+
+        $t->same('.EgL3uq_card:dir(rtl){color:red}.EgL3uq_card:lang(en\ US){color:#00f}', $escapedDirection['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+        ], $escapedDirection['exports']);
+
         foreach ([
             '.card:dir(:global(ltr)) { color: red } .button { composes: card; color: white }',
             '.card:dir(:local(ltr)) { color: red } .button { composes: card; color: white }',
@@ -858,6 +895,16 @@ CSS);
             }
 
             throw new RuntimeException('Expected upstream language selector function exception');
+        }
+
+        foreach ([
+            '.card:lang(1) { color: red }',
+            '.card:lang("en" "fr") { color: red }',
+            '.card:dir("ltr") { color: red }',
+            '.card:dir(ltr, rtl) { color: red }',
+            '.card:dir(foo) { color: red }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
         }
     },
     'css modules canonicalizes no-argument pseudos while preserving local global composes' => static function (TestRunner $t) use ($export, $local): void {

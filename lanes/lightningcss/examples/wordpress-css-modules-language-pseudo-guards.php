@@ -7,12 +7,16 @@ use PortLibs\LightningCSS\CssModulesTransformer;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $css = <<<'CSS'
-.card:D\49 R(ltr) {
+.card:D\49 R(r\74 l) {
   color: red;
 }
 
-.card:l\61 ng(en, fr) {
+.card:l\61 ng("en-US", "fr") {
   color: yellow;
+}
+
+.card:lang("en US") {
+  border-color: blue;
 }
 
 .button {
@@ -30,6 +34,8 @@ $diagnostics = [];
 foreach ([
     '.card:dir(:global(ltr)) { color: red }',
     '.card:l\61 ng(en, :local(fr)) { color: red }',
+    '.card:dir("ltr") { color: red }',
+    '.card:lang(1) { color: red }',
 ] as $invalidCss) {
     try {
         $transformer->transform($invalidCss, [
@@ -49,7 +55,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '.BlockA_card:dir(ltr){color:red}.BlockA_card:lang(en,fr){color:#ff0}.BlockA_button{color:#fff}',
+    'code' => '.BlockA_card:dir(rtl){color:red}.BlockA_card:lang(en-US,fr){color:#ff0}.BlockA_card:lang(en\ US){border-color:#00f}.BlockA_button{color:#fff}',
     'exports' => [
         'card' => [
             'name' => 'BlockA_card',
@@ -71,6 +77,8 @@ $expected = [
     'diagnostics' => [
         '.card:dir(:global(ltr)) { color: red }' => 'Unexpected token Colon',
         '.card:l\61 ng(en, :local(fr)) { color: red }' => 'Unexpected token Colon',
+        '.card:dir("ltr") { color: red }' => 'Invalid CSS direction selector argument',
+        '.card:lang(1) { color: red }' => 'Invalid CSS language selector argument',
     ],
 ];
 

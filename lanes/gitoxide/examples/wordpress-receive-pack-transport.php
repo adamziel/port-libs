@@ -115,6 +115,10 @@ return [
     'smartHttpProtocolDowngradePostHeader' => $fixture['smartHttpProtocolHeaderBoundary']['downgradePostGitProtocol'],
     'smartHttpProtocolPostBodyPreserved' => $fixture['smartHttpProtocolHeaderBoundary']['v2PostBodyPreserved']
         && $fixture['smartHttpProtocolHeaderBoundary']['downgradePostBodyPreserved'],
+    'smartHttpSamePortRedirectUrls' => $fixture['smartHttpSamePortRedirectBoundary']['requestUrls'],
+    'smartHttpSamePortRedirectPostCookie' => $fixture['smartHttpSamePortRedirectBoundary']['postCookie'],
+    'smartHttpSamePortRedirectPostBodyPreserved' => $fixture['smartHttpSamePortRedirectBoundary']['postBodyPreserved'],
+    'smartHttpDifferentPortUpgradeRejected' => $fixture['smartHttpSamePortRedirectBoundary']['differentPortUpgradeRejected'],
     'smartHttpUnauthorizedStatusKind' => $fixture['smartHttpStatusBoundary']['unauthorized']['kind'],
     'smartHttpNotFoundStatusKind' => $fixture['smartHttpStatusBoundary']['notFound']['kind'],
     'smartHttpServerStatusRetryable' => $fixture['smartHttpStatusBoundary']['serverError']['retryable'],

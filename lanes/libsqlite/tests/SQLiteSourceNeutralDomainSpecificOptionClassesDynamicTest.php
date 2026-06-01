@@ -37,8 +37,13 @@ $sourceFiles = [
     $sourceRoot . '/SQLiteTriggerSavepointReturningRecursiveCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerUpsertSavepointCurrentNextPlan.php',
     $sourceRoot . '/SQLiteUpdateDeleteTriggerOrderPlan.php',
     $sourceRoot . '/SQLiteUpsertReturningTriggerPlan.php',
+];
+$fixtureFiles = [
+    $libsqliteRoot . '/examples/application-trigger-upsert-savepoint-current-next.php',
+    $libsqliteRoot . '/tests/SQLiteTriggerUpsertSavepointCurrentNextTest.php',
 ];
 
 $legacyDomainMatches = static function () use ($sourceFiles, $libsqliteRoot): array {
@@ -57,6 +62,42 @@ $legacyDomainMatches = static function () use ($sourceFiles, $libsqliteRoot): ar
     $matches = [];
 
     foreach ($sourceFiles as $file) {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read {$file}");
+        }
+        if (preg_match_all($pattern, $contents, $fileMatches) < 1) {
+            continue;
+        }
+        $relative = str_replace($libsqliteRoot . '/', '', $file);
+        foreach ($fileMatches[0] as $match) {
+            $matches[] = "{$relative}: {$match}";
+        }
+    }
+
+    return $matches;
+};
+
+$legacyFixtureMatches = static function () use ($fixtureFiles, $libsqliteRoot): array {
+    $terms = [
+        'wp' . '_',
+        'wp' . '-import',
+        'opt' . 'ion_id',
+        'opt' . 'ion_name',
+        'opt' . 'ion_value',
+        'auto' . 'load',
+        'site' . 'url',
+        'active' . '_plugins',
+        'plug' . 'in_seed',
+        'bad' . '_plugin',
+        'skip' . '_plugin',
+        'blocked' . '-plugin-option',
+        'ignored' . '-plugin-option',
+    ];
+    $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
+    $matches = [];
+
+    foreach ($fixtureFiles as $file) {
         $contents = file_get_contents($file);
         if ($contents === false) {
             throw new RuntimeException("Unable to read {$file}");
@@ -119,6 +160,7 @@ $trigger = [
 
 return [
     'source-neutral dml trigger source files contain no legacy domain strings' => static fn (TestRunner $t) => $t->same([], $legacyDomainMatches()),
+    'source-neutral trigger upsert savepoint fixtures contain no legacy domain strings' => static fn (TestRunner $t) => $t->same([], $legacyFixtureMatches()),
     'dml trigger default row id is setting id' => static function (TestRunner $t) use ($settingRows, $trigger): void {
         $plan = SQLiteDmlTriggerCurrentNextPlan::insertRows(
             $settingRows,

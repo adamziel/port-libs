@@ -14,6 +14,7 @@ return [
     'maxAgeRedirectCookieRetained' => $fixture['maxAgeRedirectCookieRetained'],
     'pathScopedRedirectCookieOmitted' => $fixture['pathScopedRedirectCookieOmitted'],
     'foreignDomainRedirectCookieOmitted' => $fixture['foreignDomainRedirectCookieOmitted'],
+    'noSlashPathRedirectCookieRootScoped' => $fixture['noSlashPathRedirectCookieRootScoped'],
     'malformedPathRedirectCookiesOmitted' => $fixture['malformedPathRedirectCookiesOmitted'],
     'secureCookiePlainRedirectOmitted' => $fixture['secureCookiePlainRedirectOmitted'],
     'defaultPathRedirectCookieOmitted' => $fixture['defaultPathRedirectCookieOmitted'],

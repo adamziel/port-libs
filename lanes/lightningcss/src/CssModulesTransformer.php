@@ -2528,7 +2528,7 @@ final class CssModulesTransformer
                 $output .= ':'
                     . $languageSelectorFunction['canonicalName']
                     . '('
-                    . $this->serializeLanguageSelectorFunctionArgs($inner)
+                    . $this->serializeLanguageSelectorFunctionArgs($languageSelectorFunction['canonicalName'], $inner)
                     . ')';
                 $i = $languageSelectorFunction['close'];
                 continue;
@@ -3273,16 +3273,70 @@ final class CssModulesTransformer
         ];
     }
 
-    private function serializeLanguageSelectorFunctionArgs(string $inner): string
+    private function serializeLanguageSelectorFunctionArgs(string $functionName, string $inner): string
     {
         if (!$this->minify) {
             return $inner;
         }
 
-        return implode(',', array_map(
-            static fn (string $part): string => trim($part),
-            $this->splitTopLevel($inner, ',')
-        ));
+        $parts = $this->splitTopLevel($inner, ',');
+        if ($parts === []) {
+            throw new \InvalidArgumentException('Invalid CSS language selector argument');
+        }
+
+        if ($functionName === 'dir') {
+            if (count($parts) !== 1) {
+                throw new \InvalidArgumentException('Invalid CSS direction selector argument');
+            }
+
+            $direction = $this->parseLanguageSelectorIdentifier($parts[0]);
+            $direction = $direction === null ? null : strtolower($direction);
+            if ($direction !== 'ltr' && $direction !== 'rtl') {
+                throw new \InvalidArgumentException('Invalid CSS direction selector argument');
+            }
+
+            return $direction;
+        }
+
+        $serialized = [];
+        foreach ($parts as $part) {
+            $language = $this->parseLanguageSelectorIdentifierOrString($part);
+            if ($language === null) {
+                throw new \InvalidArgumentException('Invalid CSS language selector argument');
+            }
+
+            $serialized[] = $this->escapeCssIdentifier($language);
+        }
+
+        return implode(',', $serialized);
+    }
+
+    private function parseLanguageSelectorIdentifierOrString(string $part): ?string
+    {
+        $part = trim($part);
+        if ($part === '') {
+            return null;
+        }
+
+        $quote = $part[0];
+        if ($quote === '"' || $quote === "'") {
+            $end = $this->findStringTokenEnd($part, 0);
+            if ($end !== strlen($part) - 1) {
+                return null;
+            }
+
+            return $this->decodeCssStringToken(substr($part, 1, -1));
+        }
+
+        return $this->parseLanguageSelectorIdentifier($part);
+    }
+
+    private function parseLanguageSelectorIdentifier(string $part): ?string
+    {
+        $part = trim($part);
+        $token = $this->readCssIdentifierToken($part, 0);
+
+        return $token !== null && $token['end'] === strlen($part) ? $token['decoded'] : null;
     }
 
     /**

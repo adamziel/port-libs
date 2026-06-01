@@ -703,6 +703,93 @@ return [
             'downgradePostBodyPreserved' => $downgradeRequests[1]['body'] === '0000',
         ];
     })(),
+    'smartHttpSamePortRedirectBoundary' => (static function () use ($packet, $flush, $advertisementBytes, $blob): array {
+        $responseBytes = $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $requests = [];
+        $client = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'http://git.example.test:8443/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$requests, $packet, $flush, $advertisementBytes, $responseBytes): array {
+                    $requests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                    ];
+
+                    if (count($requests) === 1) {
+                        return [
+                            'status' => 301,
+                            'headers' => [
+                                'Location' => 'https://git.example.test:8443/redirected.git/info/refs?service=git-receive-pack',
+                                'Set-Cookie' => 'wp_same_port_redirect=ok; Path=/; Secure',
+                            ],
+                            'body' => '',
+                        ];
+                    }
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_same_port_repo=ready; Path=/redirected.git; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                ['version=1'],
+            ),
+            'port-libs/wordpress',
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+        $request = $session->buildRequest([$blob]);
+        $response = $client->send($request);
+
+        $mismatchRequests = [];
+        $mismatchRejected = false;
+        try {
+            (new SmartHttpReceivePackTransport(
+                'http://git.example.test:8080/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$mismatchRequests): array {
+                    $mismatchRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                    ];
+
+                    return [
+                        'status' => 301,
+                        'headers' => ['Location' => 'https://git.example.test:8443/redirected.git/info/refs?service=git-receive-pack'],
+                        'body' => '',
+                    ];
+                },
+            ))->readAdvertisement();
+        } catch (RuntimeException $exception) {
+            $mismatchRejected = str_contains($exception->getMessage(), 'does not share authority');
+        }
+
+        return [
+            'requestUrls' => array_column($requests, 'url'),
+            'postCookie' => $requests[2]['headers']['Cookie'] ?? null,
+            'postBodyPreserved' => $requests[2]['body'] === $request->requestBytes(),
+            'responseSuccessful' => $response->isSuccessful(),
+            'differentPortUpgradeRejected' => $mismatchRejected,
+            'differentPortRequestCount' => count($mismatchRequests),
+        ];
+    })(),
     'smartHttpStatusBoundary' => (static function () use ($packet, $flush, $advertisementBytes): array {
         $captureStatus = static function (callable $operation): array {
             try {

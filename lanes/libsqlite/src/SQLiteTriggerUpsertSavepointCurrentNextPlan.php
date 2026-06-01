@@ -62,7 +62,7 @@ final class SQLiteTriggerUpsertSavepointCurrentNextPlan
                     'status' => 'changed',
                     'savepoint_action' => 'release-row',
                     'wal_frame' => $nextWalFrame,
-                    'option_name' => $incoming['option_name'] ?? null,
+                    'key_name' => $incoming['key_name'] ?? null,
                 ];
             } catch (SQLiteTriggerUpsertSavepointCurrentNextSignal $signal) {
                 if ($signal->action === 'ignore') {
@@ -72,7 +72,7 @@ final class SQLiteTriggerUpsertSavepointCurrentNextPlan
                         'savepoint_action' => 'release-row',
                         'wal_frame' => $nextWalFrame,
                         'reason' => $signal->reason,
-                        'option_name' => $signal->row['option_name'] ?? null,
+                        'key_name' => $signal->row['key_name'] ?? null,
                     ];
                     $state['yielded'][] = self::yieldRow($signal->ordinal, 'skipped', $signal->event, $signal->old, $signal->row, $signal->depth, $signal->sourceTrigger, $signal->reason);
                     continue;
@@ -89,7 +89,7 @@ final class SQLiteTriggerUpsertSavepointCurrentNextPlan
                     'savepoint_action' => 'rollback-row',
                     'wal_frame' => $nextWalFrame,
                     'reason' => $signal->reason,
-                    'option_name' => $signal->row['option_name'] ?? null,
+                    'key_name' => $signal->row['key_name'] ?? null,
                     'rolled_back_count' => count($rolledBackRows),
                 ];
                 $state['trigger_effects'][] = [
@@ -237,9 +237,9 @@ final class SQLiteTriggerUpsertSavepointCurrentNextPlan
             'event' => $event,
             'depth' => $depth,
             'source_trigger' => $sourceTrigger,
-            'old_name' => $old['option_name'] ?? null,
-            'option_name' => $new['option_name'] ?? null,
-            'option_value' => $new['option_value'] ?? null,
+            'old_key' => $old['key_name'] ?? null,
+            'key_name' => $new['key_name'] ?? null,
+            'key_value' => $new['key_value'] ?? null,
             'reason' => $reason,
         ];
     }
