@@ -15,7 +15,7 @@ final class SQLiteUpsertReturningSql
     public static function execute(string $sql, array $tables, ?array $uniqueConstraints = null, array $views = []): array
     {
         self::rejectViewUpsert($sql, $views);
-        $parsed = self::parse($sql);
+        $parsed = self::parse($sql, self::targetColumnsByTable($tables));
         $target = $parsed['target'];
         if (!isset($tables[$target]) || !is_array($tables[$target]) || !array_is_list($tables[$target])) {
             throw new \InvalidArgumentException("SQLite UPSERT RETURNING target table {$target} is missing");
@@ -180,9 +180,10 @@ final class SQLiteUpsertReturningSql
     }
 
     /**
+     * @param array<string,list<string>>|null $tableColumns
      * @return array{target:string,target_alias:?string,insert_policy:'default'|'ignore'|'replace',columns:list<string>,incoming_rows:list<array<string,mixed>>,conflict_target:list<string>,conflict_where:?string,action:'update'|'nothing',assignments:array<string,string>,where:?string,returning:string,conflict_arms:list<array{target:list<string>|null,conflict_where:?string,action:'update'|'nothing',assignments:array<string,string>,where:?string}>}
      */
-    public static function parse(string $sql): array
+    public static function parse(string $sql, ?array $tableColumns = null): array
     {
         $sql = trim(rtrim($sql, " \t\n\r\0\x0B;"));
         $withRows = null;
@@ -239,11 +240,12 @@ final class SQLiteUpsertReturningSql
             $offset += strlen($targetAlias);
             $offset = self::skipWhitespace($sql, $offset);
         }
-        if (($sql[$offset] ?? null) !== '(') {
-            throw new \InvalidArgumentException('SQLite UPSERT RETURNING requires a target column list');
+        if (($sql[$offset] ?? null) === '(') {
+            [$columnSql, $offset] = self::consumeParenthesized($sql, $offset);
+            $columns = self::identifierList($columnSql, 'SQLite UPSERT RETURNING target column');
+        } else {
+            $columns = self::inferredTargetColumns($target, $tableColumns);
         }
-        [$columnSql, $offset] = self::consumeParenthesized($sql, $offset);
-        $columns = self::identifierList($columnSql, 'SQLite UPSERT RETURNING target column');
         if ($columns === []) {
             throw new \InvalidArgumentException('SQLite UPSERT RETURNING target column list cannot be empty');
         }
@@ -293,6 +295,64 @@ final class SQLiteUpsertReturningSql
             'returning' => $returning,
             'conflict_arms' => $conflictArms,
         ];
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array<string,list<string>>
+     */
+    private static function targetColumnsByTable(array $tables): array
+    {
+        $columnsByTable = [];
+        foreach ($tables as $table => $rows) {
+            if (!is_string($table) || !is_array($rows) || !array_is_list($rows)) {
+                continue;
+            }
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $columns = [];
+                foreach (array_keys($row) as $column) {
+                    if (!is_string($column) || $column === '') {
+                        continue;
+                    }
+                    $columns[] = $column;
+                }
+                if ($columns !== []) {
+                    $columnsByTable[$table] = $columns;
+                    break;
+                }
+            }
+        }
+
+        return $columnsByTable;
+    }
+
+    /**
+     * @param array<string,list<string>>|null $tableColumns
+     * @return list<string>
+     */
+    private static function inferredTargetColumns(string $target, ?array $tableColumns): array
+    {
+        if ($tableColumns === null) {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING requires a target column list');
+        }
+
+        foreach ($tableColumns as $table => $columns) {
+            if (!is_string($table) || strcasecmp($table, $target) !== 0 || !is_array($columns) || !array_is_list($columns)) {
+                continue;
+            }
+            foreach ($columns as $column) {
+                if (!is_string($column) || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $column) !== 1) {
+                    throw new \InvalidArgumentException('SQLite UPSERT RETURNING inferred target column is malformed');
+                }
+            }
+
+            return array_values($columns);
+        }
+
+        throw new \InvalidArgumentException('SQLite UPSERT RETURNING requires a target column list');
     }
 
     /**
