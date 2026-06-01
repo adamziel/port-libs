@@ -833,10 +833,10 @@
             "upstreamEvidence": "static Gitoxide config include/wildmatch and credential helper mapping from worker evidence; full Cargo workspace runner not executed"
         }
     },
-    "latestNativePhpVerification": "Source commit 8135a394aa28c2059afc0c2655ed4d0c7b9084e1: PHP lint on changed Gitoxide PHP files, git diff --check, focused Tree/GitObject/ObjectDatabase tests 3 files / 754 assertions / 0 failures, wordpress-object-database.php smoke, and full Gitoxide lane 40 files / 10780 assertions / 0 failures.",
-    "runnerStatus": "Full Gitoxide PHP lane passed 40 files / 10780 assertions / 0 failures after loose-object empty tree mode integrity parity. Full upstream Cargo workspace runner was not executed.",
-    "latestFocusedSlice": "2026-06-01 supervisor integration: loose-object empty tree entry mode integrity parity adds one conservative gix-object/gix-odb row. Focused Tree/GitObject/ObjectDatabase tests passed 3 files / 754 assertions / 0 failures; full Gitoxide lane passed 40 files / 10780 assertions / 0 failures; phpPass moves 10761 -> 10780 (+19); mapped coverage moves 1818 -> 1819 / 2886; full upstream Cargo workspace was not executed.",
-    "latestCommit": "8135a394aa28c2059afc0c2655ed4d0c7b9084e1",
+    "latestNativePhpVerification": "Source commit 88b9510abd709f26765dc5011873036461f51fdf: PHP lint on changed Gitoxide PHP files; focused GitConfig/AttributesPathspec gate 2 files / 737 assertions / 0 failures; config and attributes examples exited 0; full Gitoxide lane 40 files / 10803 assertions / 0 failures; git diff --check passed.",
+    "runnerStatus": "Full Gitoxide PHP lane passed 40 files / 10803 assertions / 0 failures after config value wrapping and attributes/pathspec parity. Full upstream Cargo workspace was not executed.",
+    "latestFocusedSlice": "2026-06-01 supervisor integration: config value wrapping and attributes/pathspec parity. Focused GitConfig/AttributesPathspec gate passed 2 files / 737 assertions / 0 failures; config and attributes examples exited 0; full Gitoxide lane passed 40 files / 10803 assertions / 0 failures; phpPass moves 10780 -> 10803 (+23); mapped coverage remains 1819 / 2886; Cargo workspace was not executed.",
+    "latestCommit": "88b9510abd709f26765dc5011873036461f51fdf",
     "focusedGitCssSqliteBacklogBatch20260601T0058Z": {
         "sourceCommit": "dc6ff07aec68e1e84e6a2666ec51a11acc59324c",
         "mappedSliceIncrease": 7,
@@ -854,7 +854,7 @@
         "nativeVerification": "git diff --check; PHP lint on 56 changed/new PHP files; full Gitoxide lane 40 files / 6592 assertions / 0 failures; accepted examples exit 0",
         "upstreamEvidence": "static Gitoxide attributes/pathspec, loose-object integrity, sparse-checkout, URL/refspec, tree/pathspec, merge-base, and protocol-v2 sideband mapping from worker evidence; full Cargo workspace runner not executed"
     },
-    "currentWork": "Receive-pack empty extra-parameter handling and send-pack object-format receive-status parity integrated on current base.",
+    "currentWork": "Config value continuation wrapping and attributes/pathspec parity are covered on current base, alongside accepted loose-object, merge-base, credential, pack, reference, tree/pathspec, transport, and URL/refspec parity.",
     "transportProtocolFollowup20260601T0213Z": {
         "sourceCommit": "7e6823e48e4539f9046818b83142d3cf5ae9d0c7",
         "mappedSliceIncrease": 3,
@@ -966,7 +966,7 @@
         "nativeVerification": "PHP lint on changed/new Gitoxide PHP files; git diff --check; full Gitoxide lane 40 files / 7554 assertions / 0 failures; touched example exits 0",
         "upstreamEvidence": "worker evidence cites targeted gix-attributes/gix-pathspec parser field splitting parity; full Cargo workspace runner not executed"
     },
-    "audit": "2026-06-01 supervisor accepted source 1a0db522af74 with full Gitoxide PHP lane 40 files / 9574 assertions / 0 failures; Cargo workspace remains unexecuted.",
+    "audit": "2026-06-01 supervisor accepted source 1a0db522af74 with full Gitoxide PHP lane 40 files / 9574 assertions / 0 failures; Cargo workspace remains unexecuted.\n2026-06-01 23:31 UTC supervisor integration: source commit 88b9510abd709f26765dc5011873036461f51fdf accepted Gitoxide config value wrapping plus attributes/pathspec parity. Changed PHP lint passed; git diff --check passed; focused GitConfig/AttributesPathspec tests passed 2 files / 737 assertions / 0 failures; wordpress-config-include-conditional.php and wordpress-attributes-pathspec.php smokes exited 0; full Gitoxide PHP lane passed 40 files / 10803 assertions / 0 failures. phpPass moves 10780 -> 10803 (+23); mapped coverage remains 1819 / 2886. Full upstream Cargo workspace was not executed.",
     "focusedReferencePackTreeBatch20260601T0820Z": {
         "sourceCommit": "2922247b0e6dda4df9c4afc836a7272ae2b0136e",
         "mappedSliceIncrease": 3,
@@ -1229,5 +1229,18 @@
         "nativeVerification": "PHP lint on changed Gitoxide PHP files; git diff --check; focused Tree/GitObject/ObjectDatabase tests passed 3 files / 754 assertions / 0 failures; wordpress-object-database.php smoke exited 0; full Gitoxide lane passed 40 files / 10780 assertions / 0 failures.",
         "upstreamEvidence": "Worker note cites gix-object/src/tree/mod.rs EntryMode::extract_from_bytes()/kind() and gix-odb loose verify decode flow at upstream commit 87433ed33eee9ba974111d20b854f6acb07cd4a6. Full Cargo workspace was not executed.",
         "sourceCommit": "8135a394aa28c2059afc0c2655ed4d0c7b9084e1"
+    },
+    "focusedConfigAttributesWrapParity20260601T230942Z": {
+        "sourceCommit": "88b9510abd709f26765dc5011873036461f51fdf",
+        "mappedSliceIncrease": 0,
+        "mappedBefore": 1819,
+        "mappedAfter": 1819,
+        "acceptedSlices": [
+            "gix-config LF/CRLF/EOF config value continuation wrapping and CR-only rejection boundaries",
+            "attributes/pathspec fixture expansion for wrapped config values and pathspec parity"
+        ],
+        "countingNote": "This deepens already represented config include and attributes/pathspec clusters; no conservative mapped row is added.",
+        "nativeVerification": "PHP lint on changed Gitoxide PHP files; focused GitConfig/AttributesPathspec gate 2 files / 737 assertions / 0 failures; wordpress-config-include-conditional.php and wordpress-attributes-pathspec.php smokes exited 0; full Gitoxide lane 40 files / 10803 assertions / 0 failures; git diff --check passed.",
+        "upstreamEvidence": "Worker cited cached gix-config and gix-attributes parser/test files for value wrapping and attribute/pathspec semantics. Full upstream Cargo workspace was not executed."
     }
 }
