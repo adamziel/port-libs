@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 13:19:19 UTC",
-    "sourceCommit": "1615cf4831b25b939685986a0898b376cc262ab3",
-    "sourceCommitShort": "1615cf4831b2",
+    "generated": "2026-06-01 13:23:25 UTC",
+    "sourceCommit": "edd0c16272ff8b4b6a41ca56f776a91cde26100e",
+    "sourceCommitShort": "edd0c16272ff",
     "sourceBranch": "main",
-    "dashboardCommit": "1615cf4831b25b939685986a0898b376cc262ab3",
-    "dashboardCommitShort": "1615cf4831b2",
+    "dashboardCommit": "edd0c16272ff8b4b6a41ca56f776a91cde26100e",
+    "dashboardCommitShort": "edd0c16272ff",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -24,11 +24,11 @@
             "unmapped": "0",
             "php": "5,896,017 pass / 7 fail",
             "phase": "focused source integration accepted; broad full-lane/release parity r...",
-            "audit": "2026-06-01 supervisor VFS/PDO follow-up: changed PHP lint passed incl...",
-            "currentWork": "VFS lock-proxy interprocess corpus follow-up integrated on current base; SQLitePDO in...",
+            "audit": "2026-06-01 supervisor PDO hardening follow-up: SQLitePDO now reports...",
+            "currentWork": "SQLitePDO invalid scalar identifier error hardening integrated on current base; typo...",
             "nextTarget": "Prioritize broad full-lane memory exhaustion in SQLiteJsonImp...",
             "remainingGate": "Broad release/all still has 7 known failures",
-            "commit": "1615cf4"
+            "commit": "edd0c16"
         },
         {
             "lane": "lightningcss",
