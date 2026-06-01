@@ -34,6 +34,11 @@ $missingNulHeaderMessage = null;
 $missingNulReadRejected = false;
 $missingNulIntegrityRejected = false;
 $missingNulIntegrityMessage = null;
+$noTypeSizeDelimiterHeaderRejected = false;
+$noTypeSizeDelimiterHeaderMessage = null;
+$noTypeSizeDelimiterReadRejected = false;
+$noTypeSizeDelimiterIntegrityRejected = false;
+$noTypeSizeDelimiterIntegrityMessage = null;
 $allocationLimitRejected = false;
 $allocationLimitMessage = null;
 $trailingStreamIgnored = false;
@@ -173,6 +178,35 @@ try {
 } catch (RuntimeException $exception) {
     $missingNulIntegrityRejected = true;
     $missingNulIntegrityMessage = $exception->getMessage();
+}
+
+$noTypeSizeDelimiterDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-no-delimiter-' . bin2hex(random_bytes(4)) . '/objects';
+$noTypeSizeDelimiterPath = $noTypeSizeDelimiterDirectory . '/' . substr($fixture['noTypeSizeDelimiterOid'], 0, 2) . '/' . substr($fixture['noTypeSizeDelimiterOid'], 2);
+if (!is_dir(dirname($noTypeSizeDelimiterPath)) && !mkdir(dirname($noTypeSizeDelimiterPath), 0777, true) && !is_dir(dirname($noTypeSizeDelimiterPath))) {
+    throw new RuntimeException('Unable to create object-header no-delimiter fixture directory');
+}
+$noTypeSizeDelimiterCompressed = gzcompress($fixture['noTypeSizeDelimiterStorage']);
+if ($noTypeSizeDelimiterCompressed === false) {
+    throw new RuntimeException('Unable to compress object-header no-delimiter fixture');
+}
+file_put_contents($noTypeSizeDelimiterPath, $noTypeSizeDelimiterCompressed);
+$noTypeSizeDelimiterStore = LooseObjectStore::fromObjectsDirectory($noTypeSizeDelimiterDirectory);
+try {
+    $noTypeSizeDelimiterStore->readHeader($fixture['noTypeSizeDelimiterOid']);
+} catch (InvalidArgumentException $exception) {
+    $noTypeSizeDelimiterHeaderRejected = true;
+    $noTypeSizeDelimiterHeaderMessage = $exception->getMessage();
+}
+try {
+    $noTypeSizeDelimiterStore->read($fixture['noTypeSizeDelimiterOid']);
+} catch (InvalidArgumentException $exception) {
+    $noTypeSizeDelimiterReadRejected = $exception->getMessage() === "Expected '<type> <size>'";
+}
+try {
+    $noTypeSizeDelimiterStore->verifyIntegrity();
+} catch (RuntimeException $exception) {
+    $noTypeSizeDelimiterIntegrityRejected = true;
+    $noTypeSizeDelimiterIntegrityMessage = $exception->getMessage();
 }
 
 $trailingObjectsDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-trailing-' . bin2hex(random_bytes(4)) . '/objects';
@@ -323,6 +357,11 @@ return [
     'missingNulReadRejected' => $missingNulReadRejected,
     'missingNulIntegrityRejected' => $missingNulIntegrityRejected,
     'missingNulIntegrityMessage' => $missingNulIntegrityMessage,
+    'noTypeSizeDelimiterHeaderRejected' => $noTypeSizeDelimiterHeaderRejected,
+    'noTypeSizeDelimiterHeaderMessage' => $noTypeSizeDelimiterHeaderMessage,
+    'noTypeSizeDelimiterReadRejected' => $noTypeSizeDelimiterReadRejected,
+    'noTypeSizeDelimiterIntegrityRejected' => $noTypeSizeDelimiterIntegrityRejected,
+    'noTypeSizeDelimiterIntegrityMessage' => $noTypeSizeDelimiterIntegrityMessage,
     'allocationLimitBytes' => $boundedStore->allocationLimitBytes(),
     'oversizedHeaderSize' => $oversizedHeader['size'],
     'allocationLimitRejected' => $allocationLimitRejected,

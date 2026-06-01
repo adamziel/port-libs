@@ -1382,6 +1382,7 @@ return [
     'declaration block reads upstream background attachment origin and clip cssom longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $background = 'background: url(hero.jpg) fixed border-box content-box, linear-gradient(red, green) local padding-box';
+        $sizedBackground = 'background: red url(hero.jpg) 20px 10px / cover no-repeat fixed border-box content-box';
 
         $t->same(['value' => 'fixed, local', 'important' => false], $block->getProperty($background, 'background-attachment'));
         $t->same(['value' => 'border-box, padding-box', 'important' => false], $block->getProperty($background, 'background-origin'));
@@ -1391,6 +1392,11 @@ return [
         $t->same(['value' => 'border-box', 'important' => false], $block->getProperty('background: url(hero.jpg)', 'background-clip'));
         $t->same(['value' => 'url(hero.jpg) text', 'important' => false], $block->getProperty('background: url(hero.jpg) text', 'background'));
         $t->same(['value' => 'text', 'important' => false], $block->getProperty('background: url(hero.jpg) text', 'background-clip'));
+        $t->same(['value' => 'cover', 'important' => false], $block->getProperty($sizedBackground, 'background-size'));
+        $t->same(['value' => 'no-repeat', 'important' => false], $block->getProperty($sizedBackground, 'background-repeat'));
+        $t->same(['value' => 'fixed', 'important' => false], $block->getProperty($sizedBackground, 'background-attachment'));
+        $t->same(['value' => 'border-box', 'important' => false], $block->getProperty($sizedBackground, 'background-origin'));
+        $t->same(['value' => 'content-box', 'important' => false], $block->getProperty($sizedBackground, 'background-clip'));
     },
     'declaration block reads upstream mask border source cssom longhand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
@@ -3200,6 +3206,14 @@ return [
             'background: url(a.png), url(b.png); background-clip: text',
             $block->setProperty('background: url(a.png), url(b.png)', 'background-clip', 'text')
         );
+        $t->same(
+            'background: url(hero.jpg) 20px 10px / 50px 100px no-repeat local text',
+            $block->setProperty(
+                'background: url(hero.jpg) 20px 10px/50px 100px repeat-x local padding-box text',
+                'background-repeat',
+                'no-repeat'
+            )
+        );
     },
     'declaration block sets upstream border side longhands without decomposing' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
@@ -4129,6 +4143,14 @@ return [
         $t->same(
             'background-color: #0000; background-image: url(hero.jpg); background-position-x: 20px; background-position-y: 10px; background-repeat: repeat; background-attachment: scroll; background-origin: padding-box; background-clip: border-box; color: #00f',
             $block->removeProperty('background: url(hero.jpg) 20px 10px / cover; color: blue', 'background-size')
+        );
+        $t->same(
+            'background-color: red; background-image: url(hero.jpg); background-position-x: 20px; background-position-y: 10px; background-repeat: no-repeat; background-attachment: fixed; background-origin: border-box; background-clip: content-box; color: #00f',
+            $block->removeProperty('background: red url(hero.jpg) 20px 10px / cover no-repeat fixed border-box content-box; color: blue', 'background-size')
+        );
+        $t->same(
+            'background-color: red; background-image: url(hero.jpg); background-position-x: 20px; background-position-y: 10px; background-size: cover; background-attachment: fixed; background-origin: border-box; background-clip: content-box; color: #00f',
+            $block->removeProperty('background: red url(hero.jpg) 20px 10px / cover no-repeat fixed border-box content-box; color: blue', 'background-repeat')
         );
     },
     'declaration block removes upstream border longhands by splitting shorthands' => static function (TestRunner $t): void {

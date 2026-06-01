@@ -50,6 +50,10 @@ final class GitObject
      */
     public static function decodeLooseHeader(string $bytes): array
     {
+        if (strpos($bytes, ' ') === false) {
+            throw new \InvalidArgumentException("Expected '<type> <size>'");
+        }
+
         $nul = strpos($bytes, "\0");
         if ($nul === false) {
             throw new \InvalidArgumentException('Did not find 0 byte in header');

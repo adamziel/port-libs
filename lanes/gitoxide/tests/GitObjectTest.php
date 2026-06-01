@@ -347,6 +347,36 @@ return [
         file_put_contents($badPath, 'not-zlib');
         $t->throws(RuntimeException::class, static fn () => $store->readHeader($badZlibOid));
     },
+    'loose object integrity rejects missing type-size delimiter before missing-NUL checks' => static function (TestRunner $t) use ($writeLooseStorage): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-no-type-size-delimiter-' . bin2hex(random_bytes(4)) . '/objects';
+        $oid = str_repeat('9', 40);
+        $storage = 'blob14wordpressblock';
+        $writeLooseStorage($objectsDirectory, $oid, $storage);
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+
+        foreach ([
+            'decodeLooseHeader' => static fn () => GitObject::decodeLooseHeader($storage),
+            'fromStorageBytes' => static fn () => GitObject::fromStorageBytes($storage),
+            'readHeader' => static fn () => $store->readHeader($oid),
+            'tryReadHeader' => static fn () => $store->tryReadHeader($oid),
+            'read' => static fn () => $store->read($oid),
+        ] as $operation => $callback) {
+            try {
+                $callback();
+                throw new RuntimeException("Expected no-delimiter loose object {$operation} to fail");
+            } catch (InvalidArgumentException $exception) {
+                $t->same("Expected '<type> <size>'", $exception->getMessage());
+            }
+        }
+
+        try {
+            $store->verifyIntegrity();
+            throw new RuntimeException('Expected no-delimiter loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$oid} could not be read exactly", $exception->getMessage());
+            $t->contains("Expected '<type> <size>'", $exception->getMessage());
+        }
+    },
     'loose object header rejects truncated first inflate windows before trusting size' => static function (TestRunner $t) use ($writeLooseCompressed, $truncatedBeforeHeaderWindowCompletes): void {
         $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-truncated-header-window-' . bin2hex(random_bytes(4)) . '/objects';
         $oid = str_repeat('7', 40);
@@ -976,6 +1006,11 @@ return [
         $t->same(true, $summary['missingNulReadRejected']);
         $t->same(true, $summary['missingNulIntegrityRejected']);
         $t->contains('Did not find 0 byte in header', $summary['missingNulIntegrityMessage']);
+        $t->same(true, $summary['noTypeSizeDelimiterHeaderRejected']);
+        $t->same("Expected '<type> <size>'", $summary['noTypeSizeDelimiterHeaderMessage']);
+        $t->same(true, $summary['noTypeSizeDelimiterReadRejected']);
+        $t->same(true, $summary['noTypeSizeDelimiterIntegrityRejected']);
+        $t->contains("Expected '<type> <size>'", $summary['noTypeSizeDelimiterIntegrityMessage']);
         $t->same($fixture['allocationLimitBytes'], $summary['allocationLimitBytes']);
         $t->same(4096, $summary['oversizedHeaderSize']);
         $t->same(true, $summary['allocationLimitRejected']);

@@ -26,7 +26,8 @@ final class TreePathspecWalk
             foreach ($tree->entries as $entry) {
                 $path = $directory === '' ? $entry->filename : $directory . '/' . $entry->filename;
                 $isTree = $entry->isTree();
-                $match = $pathspecs->match($path, $isTree, $attributes);
+                $matchesAsDirectory = $isTree || $entry->isCommit();
+                $match = $pathspecs->match($path, $matchesAsDirectory, $attributes);
                 $canDescend = $isTree && $pathspecs->canMatch($path, true);
                 if ($match !== null && $match->isExcluded()) {
                     if ($match->kind === PathspecMatch::KIND_WILDCARD && $canDescend) {

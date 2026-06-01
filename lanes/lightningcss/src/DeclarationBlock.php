@@ -7528,12 +7528,12 @@ final class DeclarationBlock
             $token = $tokens[$i];
             $lower = strtolower($token);
             if ($token === '/') {
-                $sizeTokens = [];
-                for ($i++; $i < count($tokens); $i++) {
-                    $sizeTokens[] = $tokens[$i];
+                [$size, $nextIndex] = $this->consumeBackgroundSizeAfterSlash($tokens, $i + 1);
+                if ($size !== null) {
+                    $parsed['size'] = $size;
+                    $i = $nextIndex - 1;
+                    continue;
                 }
-                $parsed['size'] = implode(' ', $sizeTokens);
-                break;
             }
             if (str_contains($token, '/') && $token !== '/' && $parsed['size'] === null) {
                 [$before, $after] = array_pad(explode('/', $token, 2), 2, '');
@@ -7541,12 +7541,12 @@ final class DeclarationBlock
                     $positionTokens[] = $before;
                 }
                 if ($after !== '') {
-                    $sizeTokens = [$after];
-                    for ($i++; $i < count($tokens); $i++) {
-                        $sizeTokens[] = $tokens[$i];
+                    [$size, $nextIndex] = $this->consumeBackgroundSizeAfterSlash($tokens, $i + 1, $after);
+                    if ($size !== null) {
+                        $parsed['size'] = $size;
+                        $i = $nextIndex - 1;
+                        continue;
                     }
-                    $parsed['size'] = implode(' ', $sizeTokens);
-                    break;
                 }
             } elseif ($this->isBackgroundImageToken($token)) {
                 $parsed['image'] = $token;
@@ -7581,6 +7581,60 @@ final class DeclarationBlock
         }
 
         return $parsed;
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{0:?string,1:int}
+     */
+    private function consumeBackgroundSizeAfterSlash(array $tokens, int $startIndex, ?string $firstToken = null): array
+    {
+        $index = $startIndex;
+        $sizeTokens = [];
+        if ($firstToken !== null && $firstToken !== '') {
+            $sizeTokens[] = $firstToken;
+        } elseif (isset($tokens[$index])) {
+            $sizeTokens[] = $tokens[$index];
+            $index++;
+        } else {
+            return [null, $startIndex];
+        }
+
+        $firstLower = strtolower($sizeTokens[0]);
+        if (in_array($firstLower, ['cover', 'contain'], true)) {
+            return [implode(' ', $sizeTokens), $index];
+        }
+
+        if (
+            isset($tokens[$index])
+            && count($sizeTokens) < 2
+            && $this->isBackgroundSizeComponentToken($tokens[$index])
+        ) {
+            $sizeTokens[] = $tokens[$index];
+            $index++;
+        }
+
+        return [implode(' ', $sizeTokens), $index];
+    }
+
+    private function isBackgroundSizeComponentToken(string $token): bool
+    {
+        $lower = strtolower($token);
+        if (in_array($lower, ['cover', 'contain', 'auto'], true)) {
+            return true;
+        }
+        if (
+            $this->isBackgroundRepeatToken($lower)
+            || $this->isBackgroundAttachmentToken($lower)
+            || $this->isBackgroundBoxToken($lower)
+            || $this->isBackgroundClipKeyword($lower)
+            || $this->isBackgroundColorToken($token)
+            || $this->isBackgroundImageToken($token)
+        ) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

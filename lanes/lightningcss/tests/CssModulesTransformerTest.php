@@ -691,6 +691,49 @@ CSS);
             throw new RuntimeException('Expected upstream nth-child formula CSS Modules mode-pseudo exception');
         }
     },
+    'css modules rejects upstream invalid nth-child formulas before composing exports' => static function (TestRunner $t) use ($export, $local): void {
+        $transformer = new CssModulesTransformer();
+        $invalid = [
+            '.button { composes: card; color: white } .card:nth-child(.ghost) { color: red } .card { color: blue }' => "Unexpected token Delim('.')",
+            '.button { composes: card; color: white } .card:nth-last-child(#ghost) { color: red } .card { color: blue }' => 'Unexpected token IDHash("ghost")',
+            '.button { composes: card; color: white } .card:nth-child([data-state]) { color: red } .card { color: blue }' => 'Unexpected token SquareBracketBlock',
+            '.button { composes: card; color: white } .card:nth-child(calc(1)) { color: red } .card { color: blue }' => 'Unexpected token Function("calc")',
+            '.button { composes: card; color: white } .card:nth-child(2 n) { color: red } .card { color: blue }' => 'Unexpected token Ident("n")',
+            '.button { composes: card; color: white } .card:nth-child(+ 2) { color: red } .card { color: blue }' => 'Unexpected token WhiteSpace(" ")',
+        ];
+
+        foreach ($invalid as $css => $message) {
+            try {
+                $transformer->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same($message, $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream invalid nth-child formula exception');
+        }
+
+        $valid = $transformer->transform(<<<'CSS'
+.card:nth-child(+n of .item),
+.card:nth-last-child(-n + 1 of .item) {
+  color: red;
+}
+
+.button {
+  composes: card;
+  color: blue;
+}
+CSS);
+
+        $t->same('.EgL3uq_card:nth-child(n of .EgL3uq_item),.EgL3uq_card:nth-last-child(-n+1 of .EgL3uq_item){color:red}.EgL3uq_button{color:#00f}', $valid['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'item' => $export('EgL3uq_item'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $valid['exports']);
+        $t->same([], $valid['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($valid['exports'], 'button'));
+    },
     'css modules filters upstream forgiving local global selector lists while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card:is(:global(.legacy, .wp-button), .kept, .other) {
@@ -2863,6 +2906,115 @@ CSS);
                 'isReferenced' => true,
             ],
         ], $quoted['exports']);
+    },
+    'css modules scopes upstream animation timeline dashed idents while preserving local global composes' => static function (TestRunner $t) use ($export, $local, $referenced, $dashed): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  animation-timeline: --card-scroll, scroll(), view();
+  composes: base;
+  color: red;
+}
+
+:global(.wp-block) .card {
+  animation-timeline: --global-scroll;
+  color: yellow;
+}
+
+.base {
+  color: blue;
+}
+CSS, [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('.EgL3uq_card{animation-timeline:--EgL3uq_card-scroll,scroll(),view();color:red}.wp-block .EgL3uq_card{animation-timeline:--EgL3uq_global-scroll;color:#ff0}.EgL3uq_base{color:#00f}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            '--card-scroll' => $dashed('--EgL3uq_card-scroll'),
+            '--global-scroll' => $dashed('--EgL3uq_global-scroll'),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_card EgL3uq_base', CssModulesTransformer::exportClassList($result['exports'], 'card'));
+
+        $shorthand = (new CssModulesTransformer())->transform(<<<'CSS'
+.motion {
+  animation: fade 1s --entry-scroll;
+  composes: card;
+  color: white;
+}
+
+.card {
+  color: red;
+}
+
+@keyframes fade {
+  from { opacity: 0 }
+  to { opacity: 1 }
+}
+CSS, [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('.EgL3uq_motion{animation:1s EgL3uq_fade --EgL3uq_entry-scroll;color:#fff}.EgL3uq_card{color:red}@keyframes EgL3uq_fade{0%{opacity:0}to{opacity:1}}', $shorthand['code']);
+        $t->same([
+            'motion' => $export('EgL3uq_motion', [$local('EgL3uq_card')]),
+            'fade' => $referenced('EgL3uq_fade'),
+            '--entry-scroll' => $dashed('--EgL3uq_entry-scroll'),
+            'card' => $export('EgL3uq_card'),
+        ], $shorthand['exports']);
+
+        $quotedReserved = (new CssModulesTransformer())->transform('.motion { animation: "none" 1s --entry-scroll; color: white }', [
+            'dashedIdents' => true,
+        ]);
+        $t->same('.EgL3uq_motion{animation:1s "none" --EgL3uq_entry-scroll;color:#fff}', $quotedReserved['code']);
+        $t->same([
+            'motion' => $export('EgL3uq_motion'),
+            'none' => $referenced('EgL3uq_none'),
+            '--entry-scroll' => $dashed('--EgL3uq_entry-scroll'),
+        ], $quotedReserved['exports']);
+
+        $firstDashedName = (new CssModulesTransformer())->transform(<<<'CSS'
+.motion {
+  animation: --entry-scroll 1s;
+  composes: card;
+  color: white;
+}
+
+.card {
+  color: red;
+}
+CSS, [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('.EgL3uq_motion{animation:1s EgL3uq_--entry-scroll;color:#fff}.EgL3uq_card{color:red}', $firstDashedName['code']);
+        $t->same([
+            'motion' => $export('EgL3uq_motion', [$local('EgL3uq_card')]),
+            '--entry-scroll' => $referenced('EgL3uq_--entry-scroll'),
+            'card' => $export('EgL3uq_card'),
+        ], $firstDashedName['exports']);
+
+        $animationDisabled = (new CssModulesTransformer())->transform(<<<'CSS'
+.motion {
+  animation: fade 1s --entry-scroll;
+  color: white;
+}
+
+@keyframes fade {
+  from { opacity: 0 }
+  to { opacity: 1 }
+}
+CSS, [
+            'animation' => false,
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('.EgL3uq_motion{animation:1s fade --EgL3uq_entry-scroll;color:#fff}@keyframes fade{0%{opacity:0}to{opacity:1}}', $animationDisabled['code']);
+        $t->same([
+            'motion' => $export('EgL3uq_motion'),
+            '--entry-scroll' => $dashed('--EgL3uq_entry-scroll'),
+        ], $animationDisabled['exports']);
     },
     'css modules leaves upstream transition property ids public while preserving local global composes' => static function (TestRunner $t) use ($export, $local, $dashed): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'

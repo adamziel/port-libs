@@ -465,14 +465,14 @@ final class LooseObjectStore
                 }
 
                 if (strlen($inflated) < self::HEADER_MAX_SIZE) {
-                    throw new \InvalidArgumentException('Did not find 0 byte in header');
+                    self::throwNoTypeSizeDelimiterOrMissingNul($inflated);
                 }
 
                 throw new \InvalidArgumentException('Loose object header exceeds maximum size of 64 bytes');
             }
         }
 
-        throw new \InvalidArgumentException('Did not find 0 byte in header');
+        self::throwNoTypeSizeDelimiterOrMissingNul($inflated);
     }
 
     private static function inflateStorageBytesExactly(string $compressed, string $oid): string
@@ -514,7 +514,7 @@ final class LooseObjectStore
                         throw new \InvalidArgumentException('Loose object header exceeds maximum size of 64 bytes');
                     }
                     if ($status === ZLIB_STREAM_END) {
-                        throw new \InvalidArgumentException('Did not find 0 byte in header');
+                        self::throwNoTypeSizeDelimiterOrMissingNul($inflated);
                     }
                     continue;
                 }
@@ -546,7 +546,7 @@ final class LooseObjectStore
         }
 
         if ($expectedLength === null) {
-            throw new \InvalidArgumentException('Did not find 0 byte in header');
+            self::throwNoTypeSizeDelimiterOrMissingNul($inflated);
         }
 
         $actualLength = strlen($inflated);
@@ -569,5 +569,14 @@ final class LooseObjectStore
         } catch (\InvalidArgumentException $exception) {
             throw new \RuntimeException("{$object->type} object {$oid} could not be decoded: {$exception->getMessage()}", 0, $exception);
         }
+    }
+
+    private static function throwNoTypeSizeDelimiterOrMissingNul(string $inflated): never
+    {
+        if (!str_contains($inflated, ' ')) {
+            throw new \InvalidArgumentException("Expected '<type> <size>'");
+        }
+
+        throw new \InvalidArgumentException('Did not find 0 byte in header');
     }
 }

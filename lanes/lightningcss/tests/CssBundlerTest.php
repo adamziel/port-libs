@@ -351,6 +351,37 @@ CSS,
         $t->same(0, $decoded[0]['originalLine']);
         $t->same(0, $decoded[0]['originalColumn']);
     },
+    'css bundler offsets duplicate inline source map fragments in emitted import order' => static function (TestRunner $t): void {
+        $screenMap = 'data:application/json;base64,' . base64_encode(json_encode([
+            'version' => 3,
+            'mappings' => 'AAAA',
+            'sources' => ['blocks/screen-card.scss'],
+            'sourcesContent' => ['.card { color: $screen-green }'],
+            'names' => [],
+        ], JSON_THROW_ON_ERROR));
+        $printMap = 'data:application/json;base64,' . base64_encode(json_encode([
+            'version' => 3,
+            'mappings' => 'AAAA',
+            'sources' => ['blocks/print-card.scss'],
+            'sourcesContent' => ['.card { color: $print-green }'],
+            'names' => [],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = (new CssBundler())->bundleWithSourceMap('/theme/entry.css', [
+            '/theme/entry.css' => '@import "blocks/screen-card.css" screen; @import "blocks/print-card.css" print; .entry { color: red }',
+            '/theme/blocks/screen-card.css' => ".card { color: green }\n/*# sourceMappingURL={$screenMap} */",
+            '/theme/blocks/print-card.css' => ".card { color: green }\n/*# sourceMappingURL={$printMap} */",
+        ], null, '/theme');
+
+        $data = $result['sourceMap']->toArray(null, false);
+        $decoded = SourceMap::decodeVlq($data['mappings']);
+
+        $t->same('@media screen{.card{color:green}}@media print{.card{color:green}}.entry{color:red}', $result['code']);
+        $t->same(['entry.css', 'blocks/screen-card.scss', 'blocks/print-card.scss'], $data['sources']);
+        $t->same([14, 46], array_column($decoded, 'generatedColumn'));
+        $t->same([1, 2], array_column($decoded, 'sourceIndex'));
+        $t->same(46, strlen('@media screen{.card{color:green}}@media print{'));
+    },
     'css bundler ignores source map url markers inside imported string literals' => static function (TestRunner $t): void {
         $literalMap = 'data:application/json;base64,' . base64_encode(json_encode([
             'version' => 3,

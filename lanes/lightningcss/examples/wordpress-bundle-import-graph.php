@@ -242,6 +242,41 @@ if (
 
 echo 'source-map-input-string-fragment: remapped' . PHP_EOL;
 
+$duplicateScreenMap = 'data:application/json;base64,' . base64_encode(json_encode([
+    'version' => 3,
+    'mappings' => 'AAAA',
+    'sources' => ['blocks/screen-card.scss'],
+    'sourcesContent' => ['.wp-block-card { color: $screen-green }'],
+    'names' => [],
+], JSON_THROW_ON_ERROR));
+$duplicatePrintMap = 'data:application/json;base64,' . base64_encode(json_encode([
+    'version' => 3,
+    'mappings' => 'AAAA',
+    'sources' => ['blocks/print-card.scss'],
+    'sourcesContent' => ['.wp-block-card { color: $print-green }'],
+    'names' => [],
+], JSON_THROW_ON_ERROR));
+$duplicateFragmentBundle = (new CssBundler())->bundleWithSourceMap('/theme.css', [
+    '/theme.css' => '@import "blocks/screen-card.css" screen; @import "blocks/print-card.css" print; .wp-site-blocks { color: red }',
+    '/blocks/screen-card.css' => ".wp-block-card { color: green }\n/*# sourceMappingURL={$duplicateScreenMap} */",
+    '/blocks/print-card.css' => ".wp-block-card { color: green }\n/*# sourceMappingURL={$duplicatePrintMap} */",
+], null, '/');
+$duplicateFragmentDecoded = SourceMap::decodeVlq($duplicateFragmentBundle['sourceMap']->toArray(null, false)['mappings']);
+
+if (
+    $duplicateFragmentBundle['code'] !== '@media screen{.wp-block-card{color:green}}@media print{.wp-block-card{color:green}}.wp-site-blocks{color:red}'
+    || array_column($duplicateFragmentDecoded, 'generatedColumn') !== [
+        strlen('@media screen{'),
+        strlen('@media screen{.wp-block-card{color:green}}@media print{'),
+    ]
+    || array_column($duplicateFragmentDecoded, 'sourceIndex') !== [1, 2]
+) {
+    fwrite(STDERR, "Expected duplicate generated block CSS fragments to remap in emitted import order\n");
+    exit(1);
+}
+
+echo 'source-map-duplicate-fragment-offset: remapped' . PHP_EOL;
+
 $literalSourceMap = 'data:application/json;base64,' . base64_encode(json_encode([
     'version' => 3,
     'mappings' => 'AAAA',

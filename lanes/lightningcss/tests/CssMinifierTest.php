@@ -786,6 +786,14 @@ CSS
             $t->same('.foo{color:' . $expectedColor . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
         }
     },
+    'css minifier preserves upstream unresolved currentColor relative lch' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{color:lch(from currentColor l c sin(h))}',
+            $minifier->minify('.foo { color: lch(from currentColor l c sin(h)); }')
+        );
+    },
     'css minifier maps upstream color calc components in custom property values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

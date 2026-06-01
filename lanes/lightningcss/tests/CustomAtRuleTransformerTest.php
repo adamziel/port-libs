@@ -1524,6 +1524,113 @@ CSS;
             $seen['rule']['preludeAst']['value']
         ));
     },
+    'custom at-rules visit upstream hash tokens in universal token-list preludes' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-design-token #wp-card #123slot #wp\2d icon;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'id-hash' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:id-hash:' . $token['value'];
+
+                        if ($token['value'] !== 'wp-card') {
+                            if ($token['value'] !== 'wp-icon') {
+                                return null;
+                            }
+
+                            return [
+                                'type' => 'token',
+                                'value' => [
+                                    'type' => 'id-hash',
+                                    'value' => 'wp-icon-live',
+                                ],
+                            ];
+                        }
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'id-hash',
+                                'value' => 'wp-card-live',
+                            ],
+                        ];
+                    },
+                    'hash' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:hash:' . $token['value'];
+
+                        if ($token['value'] !== '123slot') {
+                            return null;
+                        }
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'hash',
+                                'value' => '456slot',
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'wp-design-token' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['prelude'];
+                            $seen['rule'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-design-token' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'token:id-hash:wp-card',
+            'token:hash:123slot',
+            'token:id-hash:wp-icon',
+            'rule:#wp-card-live #456slot #wp-icon-live',
+        ], $seen['events']);
+        $t->same('#wp-card-live #456slot #wp-icon-live', $seen['rule']['prelude']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same([
+            'id-hash',
+            'hash',
+            'id-hash',
+        ], array_map(
+            static fn (array $component): string => $component['value']['type'],
+            $seen['rule']['preludeAst']['value']
+        ));
+        $t->same([
+            'wp-card-live',
+            '456slot',
+            'wp-icon-live',
+        ], array_map(
+            static fn (array $component): string => $component['value']['value'],
+            $seen['rule']['preludeAst']['value']
+        ));
+    },
     'custom at-rules visit upstream universal token-list component preludes' => static function (TestRunner $t): void {
         $seen = [
             'events' => [],

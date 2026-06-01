@@ -868,6 +868,54 @@ return [
             $t->contains('Did not find 0 byte in header', $exception->getMessage());
         }
     },
+    'object database loose integrity reports missing type-size delimiters across primary and alternate stores' => static function (TestRunner $t) use ($writeCompressedLooseBytes, $looseObjectPath): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-no-type-size-delimiter-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateGitDir = $root . '/shared-cache/.git';
+        $alternateObjectsDir = $alternateGitDir . '/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+
+        $primaryOid = str_repeat('9', 40);
+        $alternateOid = str_repeat('a', 40);
+        $writeCompressedLooseBytes($gitDir, $primaryOid, 'blob13primaryexport');
+        $writeCompressedLooseBytes($alternateGitDir, $alternateOid, 'tag19alternatepackagetag');
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $database = new ObjectDatabase($gitDir);
+        foreach ([
+            'primary header' => static fn () => $database->readHeader($primaryOid),
+            'primary body' => static fn () => $database->read($primaryOid),
+            'alternate header' => static fn () => $database->readHeader($alternateOid),
+            'alternate body' => static fn () => $database->read($alternateOid),
+        ] as $operation => $callback) {
+            try {
+                $callback();
+                throw new RuntimeException("Expected no-delimiter loose object {$operation} to fail");
+            } catch (InvalidArgumentException $exception) {
+                $t->same("Expected '<type> <size>'", $exception->getMessage());
+            }
+        }
+
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected primary no-delimiter loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$primaryOid} could not be read exactly", $exception->getMessage());
+            $t->contains("Expected '<type> <size>'", $exception->getMessage());
+        }
+
+        unlink($looseObjectPath($gitDir, $primaryOid));
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected alternate no-delimiter loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$alternateOid} could not be read exactly", $exception->getMessage());
+            $t->contains("Expected '<type> <size>'", $exception->getMessage());
+        }
+    },
     'object database loose integrity canonicalizes zero-padded size headers across alternates' => static function (TestRunner $t) use ($writeCompressedLooseBytes): void {
         $root = sys_get_temp_dir() . '/port-libs-git-odb-zero-padded-size-' . bin2hex(random_bytes(4));
         $gitDir = $root . '/site/.git';

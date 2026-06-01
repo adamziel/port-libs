@@ -7,7 +7,7 @@ use PortLibs\LightningCSS\CustomAtRuleTransformer;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $css = <<<'CSS'
-@wp-token-list theme("card-gap") var(--wp-gap) env(--wp-breakpoint) 2--wp-fluid-step @--wp-accent --wp-gap-alias 90deg 250ms 2dppx url(blocks/card/icon.svg);
+@wp-token-list theme("card-gap") var(--wp-gap) env(--wp-breakpoint) 2--wp-fluid-step @--wp-accent #wp-card #123slot #wp\2d icon --wp-gap-alias 90deg 250ms 2dppx url(blocks/card/icon.svg);
 
 .wp-block-card {
   color: red;
@@ -57,6 +57,32 @@ $result = $transformer->transform($css, [
             return $url;
         },
         'Token' => [
+            'id-hash' => static function (array $token): ?array {
+                if (($token['value'] ?? '') !== 'wp-card' && ($token['value'] ?? '') !== 'wp-icon') {
+                    return null;
+                }
+
+                return [
+                    'type' => 'token',
+                    'value' => [
+                        'type' => 'id-hash',
+                        'value' => ($token['value'] ?? '') === 'wp-card' ? 'wp-card-live' : 'wp-icon-live',
+                    ],
+                ];
+            },
+            'hash' => static function (array $token): ?array {
+                if (($token['value'] ?? '') !== '123slot') {
+                    return null;
+                }
+
+                return [
+                    'type' => 'token',
+                    'value' => [
+                        'type' => 'hash',
+                        'value' => '456slot',
+                    ],
+                ];
+            },
             'dimension' => static fn (array $token): array => [
                 'type' => 'function',
                 'value' => [
@@ -106,7 +132,7 @@ $result = $transformer->transform($css, [
     ],
 ]));
 
-$expected = ':root{--wp-token-list:24px 1rem 782px calc(2*var(--wp-fluid-step)) #056ef0 --wp-gap-alias 0.25turn 0.25s 192dpi url(theme/blocks/card/icon.svg)}.wp-block-card{color:red}';
+$expected = ':root{--wp-token-list:24px 1rem 782px calc(2*var(--wp-fluid-step)) #056ef0 #wp-card-live #456slot #wp-icon-live --wp-gap-alias 0.25turn 0.25s 192dpi url(theme/blocks/card/icon.svg)}.wp-block-card{color:red}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {
@@ -121,8 +147,17 @@ if (($argv[1] ?? null) === '--self-test') {
         static fn (array $component): string => (string) ($component['type'] ?? ''),
         $seenPreludeAst['value'] ?? []
     );
-    if ($componentTypes !== ['length', 'length', 'length', 'function', 'color', 'dashed-ident', 'angle', 'time', 'resolution', 'url']) {
+    if ($componentTypes !== ['length', 'length', 'length', 'function', 'color', 'token', 'token', 'token', 'dashed-ident', 'angle', 'time', 'resolution', 'url']) {
         fwrite(STDERR, "Unexpected token-list component types:\n" . json_encode($componentTypes) . "\n");
+        exit(1);
+    }
+
+    $hashTokenTypes = array_map(
+        static fn (array $component): string => (string) ($component['value']['type'] ?? ''),
+        array_slice($seenPreludeAst['value'] ?? [], 5, 3)
+    );
+    if ($hashTokenTypes !== ['id-hash', 'hash', 'id-hash']) {
+        fwrite(STDERR, "Unexpected hash token-list component types:\n" . json_encode($hashTokenTypes) . "\n");
         exit(1);
     }
 

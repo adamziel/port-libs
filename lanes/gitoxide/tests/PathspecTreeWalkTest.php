@@ -580,6 +580,67 @@ return [
         $t->same(PathspecMatch::KIND_PREFIX, $search->match('wp-content/plugins/gutenberg/block.json', false)?->kind);
         $t->same(false, $search->isIncluded('wp-content/plugins/akismet/akismet.php', false));
     },
+    'walk treats gitlinks as directory pathspec candidates without descending' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
+        $objects = [];
+        $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
+        $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
+            $object = $tree->toObject();
+            $objects[$object->oid()] = $object;
+
+            return new TreeEntry('040000', $name, $object->oid());
+        };
+        $root = new Tree([
+            $tree('wp-content', new Tree([
+                $tree('plugins', new Tree([
+                    new TreeEntry('160000', 'commerce-submodule', str_repeat('2', 40)),
+                    $tree('gutenberg', new Tree([$blob('block.json')])),
+                ])),
+            ])),
+        ]);
+        $read = static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+            if (!isset($objects[$entry->oid])) {
+                throw new RuntimeException("Missing tree object for {$path}");
+            }
+
+            return $objects[$entry->oid];
+        };
+        $search = PathspecSearch::fromSpecs([
+            'wp-content/plugins/commerce-submodule/',
+            'wp-content/plugins/gutenberg/',
+        ]);
+
+        $t->same(PathspecMatch::KIND_VERBATIM, $search->match('wp-content/plugins/commerce-submodule', true)?->kind);
+        $t->same(null, $search->match('wp-content/plugins/commerce-submodule', false));
+
+        $readPaths = [];
+        $records = TreePathspecWalk::breadthFirst(
+            $root,
+            $search,
+            static function (TreeEntry $entry, string $path) use ($read, &$readPaths): GitObject {
+                $readPaths[] = $path;
+
+                return $read($entry, $path);
+            },
+            includeTrees: false,
+        );
+
+        $t->same([
+            'wp-content/plugins/commerce-submodule',
+            'wp-content/plugins/gutenberg/block.json',
+        ], $walkPaths($records));
+        $t->same([
+            'wp-content',
+            'wp-content/plugins',
+            'wp-content/plugins/gutenberg',
+        ], $readPaths);
+
+        $excluded = PathspecSearch::fromSpecs([
+            'wp-content/plugins/**',
+            ':!wp-content/plugins/commerce-submodule/',
+        ]);
+        $t->same(true, $excluded->match('wp-content/plugins/commerce-submodule', true)?->isExcluded());
+        $t->same(false, $excluded->isIncluded('wp-content/plugins/commerce-submodule', true));
+    },
     'applies exclude pathspecs before includes and all-excluded fallback' => static function (TestRunner $t): void {
         $search = PathspecSearch::fromSpecs(['wp-content/plugins/gutenberg/', ':!wp-content/plugins/gutenberg/build/']);
 
@@ -1466,6 +1527,15 @@ return [
         $t->same('wp-content/plugins/gutenberg', $example['pluginPruningHintDirectory']);
         $t->same(null, $example['callerPrefixOnlyPruningHint']);
         $t->same('wp-content/plugins/gutenberg', $example['directoryOnlyPruningHint']);
+        $t->same([
+            'wp-content/plugins/commerce-submodule',
+        ], $example['gitlinkDirectoryContentPaths']);
+        $t->same([
+            'wp-content',
+            'wp-content/plugins',
+        ], $example['gitlinkDirectoryReadPaths']);
+        $t->same(PathspecMatch::KIND_VERBATIM, $example['gitlinkDirectoryMatchKind']);
+        $t->same(true, $example['gitlinkDirectoryFileModeSkipped']);
         $t->same(false, $example['excludeNilCanDescendIntoContent']);
         $t->same([], $example['excludeNilContentPaths']);
         $t->same([], $example['excludeNilReadPaths']);
@@ -1500,6 +1570,7 @@ return [
         $t->same('.', $example['parentToRootDotCommonPrefix']);
         $t->same('wp-content', $example['prefixedDotPrefixDirectory']);
         $t->same([
+            'wp-content/plugins/commerce-submodule',
             'wp-content/plugins/safe.php',
             'wp-content/plugins/weird\\name.php',
             'wp-content/plugins/dangling\\',

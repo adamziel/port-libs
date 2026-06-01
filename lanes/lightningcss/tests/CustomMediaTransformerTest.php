@@ -234,6 +234,47 @@ CSS;
             $transformAndMinify($css)
         );
     },
+    'custom media transformer resolves escaped dashed identifiers in range layers and imports' => static function (TestRunner $t) use ($transformAndMinify): void {
+        $css = <<<'CSS'
+@custom-media --wp\2d wide (width >= 782px);
+
+@import url(./blocks/query.css) layer(theme.blocks) (--wp\2d wide);
+
+@layer theme.blocks {
+  @media (--wp\2d wide) and (hover) {
+    .wp-block-query {
+      color: yellow;
+    }
+  }
+}
+CSS;
+
+        $t->same(
+            '@import "./blocks/query.css" layer(theme.blocks) (width>=782px);@layer theme.blocks{@media (width>=782px) and (hover){.wp-block-query{color:#ff0}}}',
+            $transformAndMinify($css)
+        );
+
+        $t->same(
+            '@media (width>=782px){.wp-block-query{color:#ff0}}',
+            $transformAndMinify('@custom-media --wp-wide (min-width: 782px); @media (--wp\2d wide) { .wp-block-query { color: yellow } }')
+        );
+
+        $t->same(
+            '@media (width>=782px) and (pointer:fine){.wp-block-navigation{color:green}}',
+            $transformAndMinify('@custom-media --wp\2d wide (width >= 782px); @custom-media --wp\2d interactive (--wp-wide) and (pointer: fine); @media (--wp\2d interactive) { .wp-block-navigation { color: green } }')
+        );
+
+        try {
+            (new CustomMediaTransformer())->transform('@media (--wp\2d missing) { .wp-block-query { color: yellow } }');
+        } catch (CustomMediaException $exception) {
+            $t->same('custom-media-not-defined', $exception->kind);
+            $t->same('--wp-missing', $exception->name);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected escaped custom media undefined exception');
+    },
     'custom media transformer maps upstream negated range aliases' => static function (TestRunner $t) use ($transformAndMinify): void {
         $css = <<<'CSS'
 @custom-media --not-width not (min-width: 300px);

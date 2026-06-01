@@ -316,6 +316,61 @@ $ipv6LiteralNoProxySession = $ipv6LiteralNoProxyClient->handshake();
 $ipv6LiteralNoProxySession->createOrUpdate('refs/heads/main', $ipv6LiteralNoProxyBlob->oid());
 $ipv6LiteralNoProxyResponse = $ipv6LiteralNoProxyClient->send($ipv6LiteralNoProxySession->buildRequest([$ipv6LiteralNoProxyBlob]));
 
+$ipv6CidrNoProxyRequests = [];
+$ipv6CidrNoProxyHelperCalls = 0;
+$ipv6CidrNoProxyBlob = new GitObject('blob', 'WordPress IPv6 CIDR no-proxy payload');
+$ipv6CidrNoProxyResponseBytes = $packet("\x01" . $packet("unpack ok\n"))
+    . $packet("\x01" . $packet("ok refs/heads/main\n"))
+    . $packet("\x01" . $flush)
+    . $flush;
+$ipv6CidrNoProxyClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://[2001:db8::10]/wp-content.git',
+        static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$ipv6CidrNoProxyRequests, $packet, $flush, $advertisementBytes, $ipv6CidrNoProxyResponseBytes): array {
+            $ipv6CidrNoProxyRequests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'httpOptions' => $httpOptions,
+            ];
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'headers' => [
+                        'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                        'Set-Cookie' => 'wp_session=ipv6-cidr; Path=/; Secure',
+                    ],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                'body' => $ipv6CidrNoProxyResponseBytes,
+            ];
+        },
+        [],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+        [
+            'proxy' => 'http://wp-proxy.example.test:8080',
+            'noProxy' => '[2001:db8::]/32',
+            'proxyCredentialHelper' => static function () use (&$ipv6CidrNoProxyHelperCalls): array {
+                $ipv6CidrNoProxyHelperCalls++;
+
+                return ['username' => 'ipv6-cidr-user', 'password' => 'ipv6-cidr-pass'];
+            },
+        ],
+    ),
+    'port-libs/wordpress',
+);
+$ipv6CidrNoProxySession = $ipv6CidrNoProxyClient->handshake();
+$ipv6CidrNoProxySession->createOrUpdate('refs/heads/main', $ipv6CidrNoProxyBlob->oid());
+$ipv6CidrNoProxyResponse = $ipv6CidrNoProxyClient->send($ipv6CidrNoProxySession->buildRequest([$ipv6CidrNoProxyBlob]));
+
 $wildcardLiteralNoProxyRequests = [];
 $wildcardLiteralNoProxyHelperCalls = 0;
 $wildcardLiteralNoProxyTransport = new SmartHttpReceivePackTransport(
@@ -1202,6 +1257,11 @@ return [
         && ($ipv6LiteralNoProxyRequests[1]['httpOptions'] ?? null) === [],
     'ipv6LiteralNoProxyHelperCalls' => $ipv6LiteralNoProxyHelperCalls,
     'ipv6LiteralNoProxyPostCookieHeader' => $ipv6LiteralNoProxyRequests[1]['headers']['Cookie'] ?? null,
+    'ipv6CidrNoProxyBypassedProxy' => $ipv6CidrNoProxyResponse->isSuccessful()
+        && ($ipv6CidrNoProxyRequests[0]['httpOptions'] ?? null) === []
+        && ($ipv6CidrNoProxyRequests[1]['httpOptions'] ?? null) === [],
+    'ipv6CidrNoProxyHelperCalls' => $ipv6CidrNoProxyHelperCalls,
+    'ipv6CidrNoProxyPostCookieHeader' => $ipv6CidrNoProxyRequests[1]['headers']['Cookie'] ?? null,
     'wildcardLiteralNoProxyAdvertisementBytes' => $wildcardLiteralNoProxyAdvertisement,
     'wildcardLiteralNoProxyHelperCalls' => $wildcardLiteralNoProxyHelperCalls,
     'wildcardLiteralNoProxyUsedProxy' => isset($wildcardLiteralNoProxyRequests[0]['httpOptions']['proxy']),
@@ -1297,5 +1357,5 @@ return [
     'notModifiedNoRedirectRequestCount' => count($notModifiedNoRedirectRequests),
     'proxyAuthorizationSent' => $requests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'originProxyHeaderLeaked' => isset($requests[0]['headers']['Proxy-Authorization']),
-    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, canonicalize default proxy ports out of credential-helper context while preserving concrete proxy streams, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass bracketed IPv6 literal repository hosts without consulting proxy helpers, preserve proxy use for curl-style port-qualified noProxy literal tokens, carry curl-compatible root-scoped non-slash Path cookies through authenticated receive-pack proxies, use HTTPS-specific and all-proxy fallbacks with receive-pack cookies intact, treat an explicitly empty HTTPS proxy as disabling lower all-proxy fallback, keep an HTTP-origin request direct when a safe redirect upgrades it to HTTPS, resolve protocol-relative redirects through the same smart HTTP proxy while preserving scoped cookies, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies and curl-accepted trailing-dot Domain attributes from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or default redirect-mode 304 smart HTTP responses, preserve accepted 304 discovery cookies into receive-pack POSTs, and erase helper credentials when no-redirect mode rejects a 304 or when unexpected proxy/origin statuses arrive.',
+    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, canonicalize default proxy ports out of credential-helper context while preserving concrete proxy streams, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass bracketed IPv6 literal repository hosts without consulting proxy helpers, bypass bracketed IPv6 CIDR noProxy ranges while preserving receive-pack cookies, preserve proxy use for curl-style port-qualified noProxy literal tokens, carry curl-compatible root-scoped non-slash Path cookies through authenticated receive-pack proxies, use HTTPS-specific and all-proxy fallbacks with receive-pack cookies intact, treat an explicitly empty HTTPS proxy as disabling lower all-proxy fallback, keep an HTTP-origin request direct when a safe redirect upgrades it to HTTPS, resolve protocol-relative redirects through the same smart HTTP proxy while preserving scoped cookies, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies and curl-accepted trailing-dot Domain attributes from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or default redirect-mode 304 smart HTTP responses, preserve accepted 304 discovery cookies into receive-pack POSTs, and erase helper credentials when no-redirect mode rejects a 304 or when unexpected proxy/origin statuses arrive.',
 ];

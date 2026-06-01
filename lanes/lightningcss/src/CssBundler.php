@@ -28,8 +28,11 @@ final class CssBundler
 
     private bool $cssModules = false;
 
-    /** @var list<array{sourceMap:SourceMap, generatedCss:string}> */
+    /** @var list<array{sourceIndex:int,sourceMap:SourceMap,generatedCss:string}> */
     private array $pendingInputSourceMaps = [];
+
+    /** @var list<int> */
+    private array $emittedSourceIndexes = [];
 
     /** @var array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,pure?:bool,unusedSymbols?:list<string>,unused_symbols?:list<string>,pseudoClasses?:array<string,string>,pseudo_classes?:array<string,string>,projectRoot?:string,project_root?:string} */
     private array $cssModuleOptions = [];
@@ -241,6 +244,7 @@ final class CssBundler
         $this->sourceMap = $sourceMapProjectRoot === null ? null : new SourceMap($sourceMapProjectRoot);
         $this->sourceMapProjectRoot = $sourceMapProjectRoot ?? '/';
         $this->pendingInputSourceMaps = [];
+        $this->emittedSourceIndexes = [];
         $this->stylesheets = [];
         $this->cycleConsumedLayers = [];
         $this->cssModules = $cssModules;
@@ -313,7 +317,7 @@ final class CssBundler
 
         $source = $this->readFile($file, $rule);
         if ($this->sourceMap !== null) {
-            $this->addBundleSource($file, $source);
+            $this->addBundleSource($sourceIndex, $file, $source);
         }
 
         $cssModuleResult = null;
@@ -546,7 +550,7 @@ final class CssBundler
         return $this->files[$file];
     }
 
-    private function addBundleSource(string $file, string $source): void
+    private function addBundleSource(int $sourceIndex, string $file, string $source): void
     {
         if ($this->sourceMap === null) {
             return;
@@ -556,6 +560,7 @@ final class CssBundler
         if ($sourceMapUrl !== null && str_starts_with(strtolower($sourceMapUrl), 'data:')) {
             try {
                 $this->pendingInputSourceMaps[] = [
+                    'sourceIndex' => $sourceIndex,
                     'sourceMap' => SourceMap::fromDataUrl($sourceMapUrl, $this->sourceMapProjectRoot),
                     'generatedCss' => (new CssMinifier())->minify($source, false, true),
                 ];
@@ -576,12 +581,37 @@ final class CssBundler
             return;
         }
 
+        $pendingBySourceIndex = [];
         foreach ($this->pendingInputSourceMaps as $inputSourceMap) {
-            $generatedCss = $inputSourceMap['generatedCss'];
-            $offset = $generatedCss === '' ? 0 : $this->generatedCssFragmentOffset($code, $generatedCss);
-            if ($offset === false) {
-                $offset = 0;
+            $pendingBySourceIndex[$inputSourceMap['sourceIndex']][] = $inputSourceMap;
+        }
+
+        $orderedInputSourceMaps = [];
+        foreach ($this->emittedSourceIndexes as $sourceIndex) {
+            foreach ($pendingBySourceIndex[$sourceIndex] ?? [] as $inputSourceMap) {
+                $orderedInputSourceMaps[] = $inputSourceMap;
             }
+
+            unset($pendingBySourceIndex[$sourceIndex]);
+        }
+
+        foreach ($pendingBySourceIndex as $inputSourceMaps) {
+            foreach ($inputSourceMaps as $inputSourceMap) {
+                $orderedInputSourceMaps[] = $inputSourceMap;
+            }
+        }
+
+        $searchOffset = 0;
+        foreach ($orderedInputSourceMaps as $inputSourceMap) {
+            $generatedCss = $inputSourceMap['generatedCss'];
+            $offset = $generatedCss === '' ? 0 : $this->generatedCssFragmentOffset($code, $generatedCss, $searchOffset);
+            if ($offset === false) {
+                $offset = $this->generatedCssFragmentOffset($code, $generatedCss, 0);
+                if ($offset === false) {
+                    $offset = 0;
+                }
+            }
+            $searchOffset = $offset + max(1, strlen($generatedCss));
 
             $line = substr_count(substr($code, 0, $offset), "\n");
             $lastLineBreak = strrpos(substr($code, 0, $offset), "\n");
@@ -596,9 +626,9 @@ final class CssBundler
         }
     }
 
-    private function generatedCssFragmentOffset(string $code, string $fragment): int|false
+    private function generatedCssFragmentOffset(string $code, string $fragment, int $startOffset = 0): int|false
     {
-        $offset = 0;
+        $offset = max(0, $startOffset);
         while (($match = strpos($code, $fragment, $offset)) !== false) {
             if (!$this->isCssOffsetInsideStringOrComment($code, $match)) {
                 return $match;
@@ -879,6 +909,10 @@ final class CssBundler
             if (!$this->startsAtKeyword($raw, 0, '@charset')) {
                 $bodyStarted = true;
             }
+        }
+
+        if (trim($body) !== '') {
+            $this->emittedSourceIndexes[] = $sourceIndex;
         }
 
         $layer = isset($this->cycleConsumedLayers[$sourceIndex]) ? null : $stylesheet['layer'];

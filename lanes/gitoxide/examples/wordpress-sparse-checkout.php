@@ -50,6 +50,12 @@ $posixClassPathspec = SparseCheckoutSpec::fromPathspecs([
 $posixSpaceClassPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)wp-content/uploads/slot[[:space:]]/**',
 ]);
+$foldedPosixClassNamePathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob,icase)wp-content/uploads/[[:UPPER:]]LUGINS/**',
+]);
+$foldedUnknownPosixClassNamePathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob,icase)wp-content/uploads/[[:UNKNOWN:]]*.jpg',
+]);
 $malformedPosixClassPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)wp-content/uploads/[[:alpha]/photo.jpg',
 ]);
@@ -295,6 +301,10 @@ return [
     'pathspecPosixSpaceTabSkipped' => $posixSpaceClassPathspec->skipWorktree("wp-content/uploads/slot\t/photo.jpg", false),
     'pathspecInvalidClassLiteralFallbackIncluded' => $posixClassPathspec->includesPath('wp-content/uploads/[[:unknown:]]*.jpg', false),
     'pathspecInvalidClassWildcardExpansionSkipped' => $posixClassPathspec->skipWorktree('wp-content/uploads/[[:unknown:]]hero.jpg', false),
+    'pathspecIcaseUpperPosixClassNameIncluded' => $foldedPosixClassNamePathspec->includesPath('wp-content/uploads/plugins/block.json', false),
+    'pathspecIcaseUpperPosixClassNameDirectoryIncluded' => $foldedPosixClassNamePathspec->includesPath('wp-content/uploads/plugins', true),
+    'pathspecIcaseUnknownPosixClassNameFallbackIncluded' => $foldedUnknownPosixClassNamePathspec->includesPath('wp-content/uploads/[[:UNKNOWN:]]*.jpg', false),
+    'pathspecIcaseUnknownPosixClassNameWildcardSkipped' => $foldedUnknownPosixClassNamePathspec->skipWorktree('wp-content/uploads/[[:UNKNOWN:]]hero.jpg', false),
     'pathspecMalformedPosixAlphaSkipped' => $malformedPosixClassPathspec->skipWorktree('wp-content/uploads/a/photo.jpg', false),
     'pathspecMalformedPosixOpenBracketIncluded' => $malformedPosixClassPathspec->includesPath('wp-content/uploads/[/photo.jpg', false),
     'pathspecMalformedPosixLiteralFallbackIncluded' => $malformedPosixClassPathspec->includesPath('wp-content/uploads/[[:alpha]/photo.jpg', false),

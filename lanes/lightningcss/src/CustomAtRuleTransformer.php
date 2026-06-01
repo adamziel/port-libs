@@ -6761,6 +6761,10 @@ final class CustomAtRuleTransformer
             ];
         }
 
+        if (($hashToken = $this->parseHashTokenValue($token)) !== null) {
+            return $hashToken;
+        }
+
         if (
             strlen($token) >= 2
             && (($token[0] === '"' && $token[strlen($token) - 1] === '"') || ($token[0] === "'" && $token[strlen($token) - 1] === "'"))
@@ -6837,6 +6841,35 @@ final class CustomAtRuleTransformer
         }
 
         return ['type' => 'raw', 'value' => $token];
+    }
+
+    /**
+     * @return array{type:string,raw:string,value:array{type:string,value:string}}|null
+     */
+    private function parseHashTokenValue(string $token): ?array
+    {
+        if ($token === '' || $token[0] !== '#') {
+            return null;
+        }
+
+        $raw = substr($token, 1);
+        if (
+            $raw === ''
+            || preg_match('/^(?:\\\\[0-9a-fA-F]{1,6}\s?|\\\\[^\r\n\f]|[-_a-zA-Z0-9\x{0080}-\x{10FFFF}])+$/u', $raw) !== 1
+        ) {
+            return null;
+        }
+
+        $value = $this->decodeCssEscapes($raw);
+
+        return [
+            'type' => 'token',
+            'raw' => $token,
+            'value' => [
+                'type' => $this->isCssIdentifierToken($value) ? 'id-hash' : 'hash',
+                'value' => $value,
+            ],
+        ];
     }
 
     /**

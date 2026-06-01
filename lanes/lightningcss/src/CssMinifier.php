@@ -7094,7 +7094,8 @@ final class CssMinifier
 
     private function minifyAnimationTimelineToken(string $token): string
     {
-        $lower = strtolower(trim($token));
+        $trimmed = trim($token);
+        $lower = strtolower($trimmed);
         if (preg_match('/^scroll\((.*)\)$/', $lower, $matches) === 1) {
             $parts = $this->splitWhitespaceTopLevel($matches[1]);
             sort($parts);
@@ -7115,6 +7116,10 @@ final class CssMinifier
             }
 
             return 'view(' . implode(' ', $parts) . ')';
+        }
+
+        if (str_starts_with($trimmed, '--')) {
+            return $trimmed;
         }
 
         return $lower;

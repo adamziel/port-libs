@@ -137,8 +137,19 @@ $emptyLineOffsetMap->addMapping(0, 0, $emptyLineOffsetSource, 0, 0);
 $emptyLineOffsetMap->offsetLines(1, 2);
 $emptyLineOffsetBeforeColumnNoop = $emptyLineOffsetMap->toJson(null, false);
 $emptyLineOffsetMap->offsetColumns(1, 3, 2);
-$emptyLineOffsetMap->offsetColumns(1, 3, -4);
-$emptyLineOffsetMap->offsetColumns(2, 0, -1);
+$emptyLineColumnNegativeUnderflowGuard = false;
+try {
+    $emptyLineOffsetMap->offsetColumns(1, 3, -4);
+} catch (InvalidArgumentException) {
+    $emptyLineColumnNegativeUnderflowGuard = true;
+}
+$emptyLineColumnZeroUnderflowGuard = false;
+try {
+    $emptyLineOffsetMap->offsetColumns(2, 0, -1);
+} catch (InvalidArgumentException) {
+    $emptyLineColumnZeroUnderflowGuard = true;
+}
+$emptyLineOffsetMap->offsetColumns(2, 3, -2);
 $emptyLineOffsetMap->offsetColumns(5, 3, -4);
 $emptyLineOffsetMap->offsetColumns(5, 4294967295, 1);
 $emptyLineColumnOffsetNoop = $emptyLineOffsetBeforeColumnNoop === $emptyLineOffsetMap->toJson(null, false);
@@ -1072,6 +1083,7 @@ $actual = [
     'lineSpanMap' => $inlineEditorMap->toJson(null, false),
     'emptyLineColumnOffsetMap' => $emptyLineOffsetMap->toJson(null, false),
     'emptyLineColumnOffsetNoop' => $emptyLineColumnOffsetNoop,
+    'emptyLineColumnNegativeUnderflowGuard' => $emptyLineColumnNegativeUnderflowGuard && $emptyLineColumnZeroUnderflowGuard,
     'emptyLineColumnOverflowGuard' => $emptyLineColumnOverflowGuard && $emptyLineOffsetBeforeColumnNoop === $emptyLineOffsetMap->toJson(null, false),
     'bufferRoundTripMap' => $bufferRoundTripMap->toJson(null, false),
     'negativeLinePastSpanGuard' => $negativeLinePastSpanGuard && $negativeLinePastSpanBeforeGuard === $negativeLinePastSpanMap->toJson(null, false),
@@ -1238,6 +1250,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'lineSpanMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/editor-inline.css"],"sourcesContent":[".wp-block-spacer {\n  margin-top: 1rem;\n}\n"],"names":[]}',
         'emptyLineColumnOffsetMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/empty-line-offset.css"],"sourcesContent":[".wp-block-empty-line-offset {}\n"],"names":[]}',
         'emptyLineColumnOffsetNoop' => true,
+        'emptyLineColumnNegativeUnderflowGuard' => true,
         'emptyLineColumnOverflowGuard' => true,
         'bufferRoundTripMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/empty-line-offset.css"],"sourcesContent":[".wp-block-empty-line-offset {}\n"],"names":[]}',
         'negativeLinePastSpanGuard' => true,

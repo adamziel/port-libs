@@ -564,7 +564,7 @@ final class SourceMap
         $startColumn = null;
         if ($generatedColumnOffset > 0 && $generatedLine < $this->generatedLineCount) {
             $startColumn = $this->offsetNonNegative($generatedColumn, $generatedColumnOffset, 'column + column offset');
-        } elseif ($generatedColumnOffset < 0 && $lineHasMappings) {
+        } elseif ($generatedColumnOffset < 0 && ($lineHasMappings || $generatedLine < $this->generatedLineCount)) {
             $startColumn = $this->offsetNonNegative($generatedColumn, $generatedColumnOffset, 'column + column offset');
         }
 

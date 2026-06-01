@@ -55,17 +55,79 @@ final class CustomMediaTransformer
             }
 
             $prelude = trim(substr($css, $start, $end - $start));
-            if (preg_match('/^(--[-_a-zA-Z0-9]+)\s+(.+)$/s', $prelude, $matches) !== 1) {
+            $definition = $this->parseCustomMediaDefinitionPrelude($prelude);
+            if ($definition === null) {
                 throw new \InvalidArgumentException("Invalid @custom-media rule: {$prelude}");
             }
 
-            $definitions[$matches[1]] = trim($matches[2]);
-            $definitionLocations[$matches[1]] = $this->sourceLocation($position);
+            $definitions[$definition['name']] = $definition['query'];
+            $definitionLocations[$definition['name']] = $this->sourceLocation($position);
             $ranges[] = ['start' => $position, 'end' => $end + 1];
             $offset = $end + 1;
         }
 
         return [$definitions, $definitionLocations, $ranges];
+    }
+
+    /**
+     * @return array{name:string,query:string}|null
+     */
+    private function parseCustomMediaDefinitionPrelude(string $prelude): ?array
+    {
+        $name = $this->readCustomMediaNameToken($prelude, 0);
+        if ($name === null) {
+            return null;
+        }
+
+        $separatorOffset = $name['end'];
+        if (!$this->hasWhitespaceOrCommentAt($prelude, $separatorOffset)) {
+            return null;
+        }
+
+        $queryOffset = $this->skipWhitespaceAndComments($prelude, $separatorOffset);
+        $query = trim(substr($prelude, $queryOffset));
+        if ($query === '') {
+            return null;
+        }
+
+        return [
+            'name' => $name['name'],
+            'query' => $query,
+        ];
+    }
+
+    /**
+     * @return array{name:string,end:int}|null
+     */
+    private function readCustomMediaNameToken(string $value, int $offset): ?array
+    {
+        $offset = $this->skipWhitespaceAndComments($value, $offset);
+        $token = $this->readCssIdentifierToken($value, $offset);
+        if ($token === null || !str_starts_with($token['name'], '--')) {
+            return null;
+        }
+
+        return $token;
+    }
+
+    private function customMediaReferenceName(string $inner): ?string
+    {
+        $trimmed = trim($inner);
+        $token = $this->readCustomMediaNameToken($trimmed, 0);
+        if ($token === null) {
+            return null;
+        }
+
+        $end = $this->skipWhitespaceAndComments($trimmed, $token['end']);
+
+        return $end === strlen($trimmed) ? $token['name'] : null;
+    }
+
+    private function hasWhitespaceOrCommentAt(string $value, int $offset): bool
+    {
+        $char = $value[$offset] ?? '';
+
+        return $char !== '' && (ctype_space($char) || ($char === '/' && ($value[$offset + 1] ?? '') === '*'));
     }
 
     /**
@@ -546,9 +608,9 @@ final class CustomMediaTransformer
 
             $close = $this->findMatchingDelimiter($query, $i, '(', ')');
             $inner = substr($query, $i + 1, $close - $i - 1);
-            $trimmed = trim($inner);
-            if (preg_match('/^--[-_a-zA-Z0-9]+$/', $trimmed) === 1) {
-                $references[$trimmed] = true;
+            $reference = $this->customMediaReferenceName($inner);
+            if ($reference !== null) {
+                $references[$reference] = true;
             } else {
                 foreach ($this->collectCustomMediaReferences($inner) as $reference) {
                     $references[$reference] = true;
@@ -604,7 +666,7 @@ final class CustomMediaTransformer
 
             $close = $this->findMatchingDelimiter($query, $i, '(', ')');
             $inner = substr($query, $i + 1, $close - $i - 1);
-            if (preg_match('/^\s*--[-_a-zA-Z0-9]+\s*$/', $inner) === 1) {
+            if ($this->customMediaReferenceName($inner) !== null) {
                 $output .= '(custom-media)';
             } else {
                 $output .= '(' . $this->stripCustomMediaReferences($inner) . ')';
@@ -705,9 +767,9 @@ final class CustomMediaTransformer
 
             $close = $this->findMatchingDelimiter($query, $i, '(', ')');
             $inner = substr($query, $i + 1, $close - $i - 1);
-            $trimmed = trim($inner);
-            if (preg_match('/^--[-_a-zA-Z0-9]+$/', $trimmed) === 1) {
-                $output .= $this->resolveCustomMedia($trimmed, $stack);
+            $reference = $this->customMediaReferenceName($inner);
+            if ($reference !== null) {
+                $output .= $this->resolveCustomMedia($reference, $stack);
                 $i = $close;
                 continue;
             }

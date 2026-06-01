@@ -725,6 +725,69 @@ return [
 
         $t->same(["slot\v", '[[:unknown:]]*.jpg'], $entryNames($combined->includedTreeEntries($uploads, 'wp-content/uploads')));
     },
+    'pathspec sparse checkout folds POSIX class names under icase like gix wildmatch' => static function (TestRunner $t) use ($entryNames): void {
+        $warnings = [];
+        set_error_handler(static function (int $errno, string $message) use (&$warnings): bool {
+            if (str_contains($message, 'preg_match()')) {
+                $warnings[] = $message;
+
+                return true;
+            }
+
+            return false;
+        });
+
+        try {
+            $foldedUpperName = SparseCheckoutSpec::fromPathspecs([
+                ':(glob,icase)wp-content/uploads/[[:UPPER:]]LUGINS/**',
+            ]);
+            $foldedLowerName = SparseCheckoutSpec::fromPathspecs([
+                ':(glob,icase)wp-content/uploads/[[:LOWER:]]lug-ins/**',
+            ]);
+            $caseSensitiveUpperName = SparseCheckoutSpec::fromPathspecs([
+                ':(glob)wp-content/uploads/[[:UPPER:]]LUGINS/**',
+            ]);
+            $foldedUnknownName = SparseCheckoutSpec::fromPathspecs([
+                ':(glob,icase)wp-content/uploads/[[:UNKNOWN:]]*.jpg',
+            ]);
+            $combined = SparseCheckoutSpec::fromPathspecs([
+                ':(glob,icase)wp-content/uploads/[[:UPPER:]]LUGINS/**',
+                ':(glob,icase)wp-content/uploads/[[:UNKNOWN:]]*.jpg',
+            ]);
+
+            $t->same(true, $foldedUpperName->includesPath('wp-content/uploads/plugins/block.json', false));
+            $t->same(true, $foldedUpperName->includesPath('wp-content/uploads/PLUGINS/block.json', false));
+            $t->same(true, $foldedUpperName->includesPath('wp-content/uploads/plugins', true));
+            $t->same(false, $foldedUpperName->includesPath('wp-content/uploads/0LUGINS/block.json', false));
+            $t->same(true, $foldedLowerName->includesPath('wp-content/uploads/Plug-ins/block.json', false));
+            $t->same(false, $foldedLowerName->includesPath('wp-content/uploads/0lug-ins/block.json', false));
+
+            $t->same(false, $caseSensitiveUpperName->includesPath('wp-content/uploads/plugins/block.json', false));
+            $t->same(true, $caseSensitiveUpperName->includesPath('wp-content/uploads/[[:UPPER:]]LUGINS/**', false));
+
+            $t->same(false, $foldedUnknownName->includesPath('wp-content/uploads/[[:UNKNOWN:]]hero.jpg', false));
+            $t->same(true, $foldedUnknownName->includesPath('wp-content/uploads/[[:UNKNOWN:]]*.jpg', false));
+
+            $tree = str_repeat('2', 40);
+            $blob = str_repeat('1', 40);
+            $uploads = new Tree([
+                new TreeEntry('040000', 'plugins', $tree),
+                new TreeEntry('040000', 'PLUGINS', $tree),
+                new TreeEntry('040000', '0LUGINS', $tree),
+                new TreeEntry('100644', '[[:UNKNOWN:]]*.jpg', $blob),
+                new TreeEntry('100644', '[[:UNKNOWN:]]hero.jpg', $blob),
+            ]);
+
+            $t->same(
+                ['plugins', 'PLUGINS', '0LUGINS', '[[:UNKNOWN:]]*.jpg'],
+                $entryNames($combined->includedTreeEntries($uploads, 'wp-content/uploads')),
+            );
+        } finally {
+            restore_error_handler();
+        }
+
+        $t->same([], $warnings);
+    },
     'pathspec sparse checkout resumes malformed POSIX class starts before verbatim fallback' => static function (TestRunner $t): void {
         $warnings = [];
         set_error_handler(static function (int $errno, string $message) use (&$warnings): bool {

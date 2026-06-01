@@ -33,6 +33,8 @@ $diagnostics = [];
 foreach ([
     '.card:nth-child(:local(.item)) { color: red }',
     '.card:nth-last-child(2n + :global(.wp-block-post)) { color: red }',
+    '.card:nth-child(.ghost) { color: red } .button { composes: card; color: white }',
+    '.card:nth-child(+ 2) { color: red } .button { composes: card; color: white }',
 ] as $invalidCss) {
     try {
         (new CssModulesTransformer())->transform($invalidCss, [
@@ -89,6 +91,8 @@ $expected = [
     'diagnostics' => [
         '.card:nth-child(:local(.item)) { color: red }' => 'Unexpected token Colon',
         '.card:nth-last-child(2n + :global(.wp-block-post)) { color: red }' => 'Unexpected token Colon',
+        '.card:nth-child(.ghost) { color: red } .button { composes: card; color: white }' => "Unexpected token Delim('.')",
+        '.card:nth-child(+ 2) { color: red } .button { composes: card; color: white }' => 'Unexpected token WhiteSpace(" ")',
     ],
 ];
 

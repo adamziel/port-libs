@@ -2935,34 +2935,63 @@ return [
 
         $ipv6CidrBypassRequests = [];
         $ipv6CidrBypassHelperCalls = 0;
-        $ipv6CidrBypassTransport = new SmartHttpReceivePackTransport(
-            'https://[2001:db8::10]/wp-content.git',
-            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$ipv6CidrBypassRequests, $packet, $flush): array {
-                $ipv6CidrBypassRequests[] = ['url' => $url, 'httpOptions' => $httpOptions];
+        $ipv6CidrBypassBlob = new GitObject('blob', 'WordPress IPv6 CIDR no-proxy payload');
+        $ipv6CidrBypassClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://[2001:db8::10]/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$ipv6CidrBypassRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $ipv6CidrBypassRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
 
-                return [
-                    'status' => 200,
-                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
-                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
-                ];
-            },
-            [],
-            30.0,
-            [],
-            [
-                'proxy' => 'http://proxy.example.test:8080',
-                'noProxy' => '[2001:db8::]/32',
-                'proxyCredentialHelper' => static function () use (&$ipv6CidrBypassHelperCalls): array {
-                    $ipv6CidrBypassHelperCalls++;
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_session=ipv6-cidr; Path=/; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
 
-                    return ['username' => 'ipv6-proxy-user', 'password' => 'ipv6-proxy-pass'];
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
                 },
-            ]
+                [],
+                30.0,
+                [],
+                [
+                    'proxy' => 'http://proxy.example.test:8080',
+                    'noProxy' => '[2001:db8::]/32',
+                    'proxyCredentialHelper' => static function () use (&$ipv6CidrBypassHelperCalls): array {
+                        $ipv6CidrBypassHelperCalls++;
+
+                        return ['username' => 'ipv6-proxy-user', 'password' => 'ipv6-proxy-pass'];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
         );
-        $ipv6CidrBypassTransport->readAdvertisement();
+        $ipv6CidrBypassSession = $ipv6CidrBypassClient->handshake();
+        $ipv6CidrBypassSession->createOrUpdate('refs/heads/main', $ipv6CidrBypassBlob->oid());
+        $ipv6CidrBypassRequest = $ipv6CidrBypassSession->buildRequest([$ipv6CidrBypassBlob]);
+
+        $ipv6CidrBypassResponse = $ipv6CidrBypassClient->send($ipv6CidrBypassRequest);
+
+        $t->same(true, $ipv6CidrBypassResponse->isSuccessful());
         $t->same(0, $ipv6CidrBypassHelperCalls);
-        $t->same([], $ipv6CidrBypassRequests[0]['httpOptions']);
+        $t->same([[], []], array_column($ipv6CidrBypassRequests, 'httpOptions'));
         $t->same('https://[2001:db8::10]/wp-content.git/info/refs?service=git-receive-pack', $ipv6CidrBypassRequests[0]['url']);
+        $t->same('wp_session=ipv6-cidr', $ipv6CidrBypassRequests[1]['headers']['Cookie']);
+        $t->same($ipv6CidrBypassRequest->requestBytes(), $ipv6CidrBypassRequests[1]['body']);
 
         $ipv6LiteralBypassRequests = [];
         $ipv6LiteralBypassHelperCalls = 0;
@@ -5564,6 +5593,12 @@ return [
         $t->same($fixture['ipv6LiteralNoProxyBypassedProxy'], $summary['ipv6LiteralNoProxyBypassedProxy']);
         $t->same($fixture['ipv6LiteralNoProxyHelperCalls'], $summary['ipv6LiteralNoProxyHelperCalls']);
         $t->same($fixture['ipv6LiteralNoProxyPostCookieHeader'], $summary['ipv6LiteralNoProxyPostCookieHeader']);
+        $t->same(true, $fixture['ipv6CidrNoProxyBypassedProxy']);
+        $t->same(0, $fixture['ipv6CidrNoProxyHelperCalls']);
+        $t->same('wp_session=ipv6-cidr', $fixture['ipv6CidrNoProxyPostCookieHeader']);
+        $t->same($fixture['ipv6CidrNoProxyBypassedProxy'], $summary['ipv6CidrNoProxyBypassedProxy']);
+        $t->same($fixture['ipv6CidrNoProxyHelperCalls'], $summary['ipv6CidrNoProxyHelperCalls']);
+        $t->same($fixture['ipv6CidrNoProxyPostCookieHeader'], $summary['ipv6CidrNoProxyPostCookieHeader']);
         $t->same(true, $fixture['wildcardLiteralNoProxyUsedProxy']);
         $t->same(1, $fixture['wildcardLiteralNoProxyHelperCalls']);
         $t->same('Basic ' . base64_encode('literal-wildcard-proxy-user:literal-wildcard-proxy-pass'), $fixture['wildcardLiteralNoProxyAuthorizationSent']);

@@ -1935,7 +1935,7 @@ return [
         $t->same(['parent0', 'parent1', 'parent2', 'parent3', 'child'], $parentData['names']);
         $t->same([], $child->getSources());
     },
-    'source map ignores column offsets on empty generated-line spans like upstream' => static function (TestRunner $t): void {
+    'source map applies upstream column-offset guards on empty generated-line spans' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $sourceIndex = $map->addSource('theme.css');
         $map->addMapping(0, 0, $sourceIndex, 0, 0);
@@ -1947,9 +1947,15 @@ return [
         $beforeColumnNoop = $map->writeVlq();
         $map->offsetColumns(1, 3, 2);
         $t->same($beforeColumnNoop, $map->writeVlq());
-        $map->offsetColumns(1, 3, -4);
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->offsetColumns(1, 3, -4);
+        });
         $t->same($beforeColumnNoop, $map->writeVlq());
-        $map->offsetColumns(2, 0, -1);
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->offsetColumns(2, 0, -1);
+        });
+        $t->same($beforeColumnNoop, $map->writeVlq());
+        $map->offsetColumns(2, 3, -2);
         $t->same($beforeColumnNoop, $map->writeVlq());
         $map->offsetColumns(5, 3, -4);
         $t->same($beforeColumnNoop, $map->writeVlq());

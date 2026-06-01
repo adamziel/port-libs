@@ -904,8 +904,9 @@ final class CssModulesTransformer
     private function rewriteCssModuleDeclarationValue(string $property, string $value): ?string
     {
         return match ($property) {
-            'animation' => $this->animation ? $this->rewriteAnimationShorthandValue($value) : null,
+            'animation' => ($this->animation || $this->dashedIdents) ? $this->rewriteAnimationShorthandValue($value) : null,
             'animation-name' => $this->animation ? $this->rewriteAnimationNameValue($value) : null,
+            'animation-timeline' => $this->dashedIdents ? $this->rewriteAnimationTimelineValue($value) : null,
             'list-style' => $this->rewriteListStyleValue($value),
             'list-style-type' => $this->rewriteListStyleTypeValue($value),
             'transition-property' => $this->rewriteTransitionPropertyValue($value),
@@ -1025,20 +1026,51 @@ final class CssModulesTransformer
         ));
     }
 
+    private function rewriteAnimationTimelineValue(string $value): ?string
+    {
+        if (preg_match('/(^|,)\s*(,|$)/', $value) === 1) {
+            return null;
+        }
+
+        $parts = $this->splitTopLevel($value, ',');
+        if ($parts === []) {
+            return null;
+        }
+
+        $rewritten = [];
+        $changed = false;
+
+        foreach ($parts as $part) {
+            $replacement = $this->rewriteAnimationTimelineToken($part);
+            $rewritten[] = $replacement ?? $part;
+            $changed = $changed || $replacement !== null;
+        }
+
+        return $changed ? implode(',', $rewritten) : null;
+    }
+
     private function rewriteAnimationShorthandValue(string $value): string
     {
         $animations = [];
         foreach ($this->splitTopLevel($value, ',') as $animation) {
             $tokens = $this->splitWhitespaceTopLevel($animation);
             $rewritten = [];
-            $scopedName = false;
+            $sawName = false;
 
             foreach ($tokens as $token) {
-                if (!$scopedName) {
-                    $replacement = $this->rewriteAnimationNameToken($token);
+                if (!$sawName) {
+                    $replacement = $this->rewriteAnimationNameToken($token, $this->animation);
                     if ($replacement !== null) {
                         $rewritten[] = $replacement;
-                        $scopedName = true;
+                        $sawName = true;
+                        continue;
+                    }
+                }
+
+                if ($sawName && $this->dashedIdents) {
+                    $replacement = $this->rewriteAnimationTimelineToken($token);
+                    if ($replacement !== null) {
+                        $rewritten[] = $replacement;
                         continue;
                     }
                 }
@@ -1052,7 +1084,7 @@ final class CssModulesTransformer
         return implode(',', $animations);
     }
 
-    private function rewriteAnimationNameToken(string $token): ?string
+    private function rewriteAnimationNameToken(string $token, bool $scope = true): ?string
     {
         if ($token === '' || $this->isAnimationShorthandKeyword($token) || $this->isAnimationShorthandNonNameToken($token)) {
             return null;
@@ -1060,11 +1092,19 @@ final class CssModulesTransformer
 
         if ($this->isQuotedToken($token)) {
             $name = $this->decodeCssStringToken(substr($token, 1, -1));
-            if ($name === '' || $this->isAnimationShorthandKeyword($name)) {
+            if ($name === '') {
                 return null;
             }
 
-            return $this->escapeCssIdentifier($this->scopeCustomIdentReference($name));
+            if ($this->isAnimationShorthandKeyword($name)) {
+                if ($scope) {
+                    $this->scopeCustomIdentReference($name);
+                }
+
+                return $token;
+            }
+
+            return $this->escapeCssIdentifier($scope ? $this->scopeCustomIdentReference($name) : $name);
         }
 
         $decoded = $this->decodeCssIdentifierToken($token);
@@ -1072,7 +1112,17 @@ final class CssModulesTransformer
             return null;
         }
 
-        return $this->escapeCssIdentifier($this->scopeCustomIdentReference($decoded));
+        return $this->escapeCssIdentifier($scope ? $this->scopeCustomIdentReference($decoded) : $decoded);
+    }
+
+    private function rewriteAnimationTimelineToken(string $token): ?string
+    {
+        $parsed = $this->readCssIdentifierToken($token, 0);
+        if ($parsed === null || $parsed['end'] !== strlen($token) || !str_starts_with($parsed['decoded'], '--')) {
+            return null;
+        }
+
+        return $this->escapeCssIdentifier($this->scopeDashedIdent($parsed['decoded'], false));
     }
 
     private function isAnimationShorthandKeyword(string $token): bool
@@ -3591,6 +3641,8 @@ final class CssModulesTransformer
 
     private function minifyNthChildFormula(string $formula): string
     {
+        $this->assertValidNthChildFormula($formula);
+
         $formula = strtolower(trim(preg_replace('/\s+/', '', $formula) ?? $formula));
         if ($formula === '') {
             return '';
@@ -3644,6 +3696,65 @@ final class CssModulesTransformer
         }
 
         return $formula;
+    }
+
+    private function assertValidNthChildFormula(string $formula): void
+    {
+        $trimmed = trim($formula);
+        if ($trimmed === '') {
+            throw new \InvalidArgumentException('Unexpected end of input');
+        }
+
+        if (preg_match('/^(?:odd|even|[+-]?\d+|[+-]?(?:\d*)n(?:\s*[+-]\s*\d+)?)$/i', $trimmed) === 1) {
+            return;
+        }
+
+        $this->throwNthChildFormulaTokenError($formula);
+    }
+
+    private function throwNthChildFormulaTokenError(string $formula): void
+    {
+        $offset = strspn($formula, " \t\r\n\f");
+        $first = $formula[$offset] ?? '';
+        $afterFirst = $formula[$offset + 1] ?? '';
+        if (($first === '+' || $first === '-') && ctype_space($afterFirst)) {
+            throw new \InvalidArgumentException('Unexpected token WhiteSpace(" ")');
+        }
+
+        $length = strlen($formula);
+        for ($i = $offset; $i < $length; $i++) {
+            $char = $formula[$i];
+            if (ctype_space($char) || $char === '+' || $char === '-' || ctype_digit($char)) {
+                continue;
+            }
+
+            if ($char === '.') {
+                throw new \InvalidArgumentException("Unexpected token Delim('.')");
+            }
+
+            if ($char === '#') {
+                $token = $this->readCssIdentifierToken($formula, $i + 1);
+                $name = $token === null ? '' : $token['decoded'];
+                throw new \InvalidArgumentException('Unexpected token IDHash("' . $name . '")');
+            }
+
+            if ($char === '[') {
+                throw new \InvalidArgumentException('Unexpected token SquareBracketBlock');
+            }
+
+            $token = $this->readCssIdentifierToken($formula, $i);
+            if ($token !== null) {
+                if (($formula[$token['end']] ?? '') === '(') {
+                    throw new \InvalidArgumentException('Unexpected token Function("' . $token['decoded'] . '")');
+                }
+
+                throw new \InvalidArgumentException('Unexpected token Ident("' . $token['decoded'] . '")');
+            }
+
+            throw new \InvalidArgumentException('Invalid nth-child formula');
+        }
+
+        throw new \InvalidArgumentException('Invalid nth-child formula');
     }
 
     private function assertNoCssModulesModePseudoInNthChildFormula(string $formula): void

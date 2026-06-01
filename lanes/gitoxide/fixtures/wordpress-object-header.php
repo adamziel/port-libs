@@ -9,6 +9,7 @@ $looseHeader = 'blob ' . strlen($blockBlobBody) . "\0";
 $positiveSizeLooseHeader = 'blob +' . strlen($blockBlobBody) . "\0";
 $zeroPaddedSizeLooseHeader = 'blob ' . str_pad((string) strlen($blockBlobBody), 5, '0', STR_PAD_LEFT) . "\0";
 $lfSizeLooseHeader = 'blob ' . strlen($blockBlobBody) . "\n\0";
+$noTypeSizeDelimiterStorage = 'blob20WordPressBlockExport';
 $emptyBlobBody = '';
 $negativeZeroSizeLooseHeader = "blob -0\0";
 $canonicalEmptyBlobHeader = "blob 0\0";
@@ -28,6 +29,8 @@ return [
     'zeroPaddedSizeLooseHeaderOid' => hash('sha1', $zeroPaddedSizeLooseHeader . $blockBlobBody),
     'lfSizeLooseHeader' => $lfSizeLooseHeader,
     'lfSizeLooseHeaderOid' => hash('sha1', $lfSizeLooseHeader . $blockBlobBody),
+    'noTypeSizeDelimiterStorage' => $noTypeSizeDelimiterStorage,
+    'noTypeSizeDelimiterOid' => str_repeat('9', 40),
     'negativeZeroSizeLooseHeader' => $negativeZeroSizeLooseHeader,
     'negativeZeroSizeLooseHeaderOid' => hash('sha1', $negativeZeroSizeLooseHeader . $emptyBlobBody),
     'emptyBlobOid' => hash('sha1', $canonicalEmptyBlobHeader . $emptyBlobBody),
@@ -43,5 +46,5 @@ return [
     'oversizedLooseHeader' => $oversizedLooseHeader,
     'oversizedLooseObjectOid' => str_repeat('a', 40),
     'allocationLimitMessage' => "Loose object declared size 4096 exceeds allocation limit {$allocationLimitBytes} bytes",
-    'wordpressUse' => 'A WordPress import or deployment tool can decode canonical, upstream-accepted signed-size, and zero-padded loose object headers for block-content blobs, reject LF-tailed and missing-NUL loose-object size headers before trusting advertised sizes, reject oversized loose-object declarations before allocating them, reject truncated first-window compressed headers before trusting advertised sizes, and ignore trailing compressed bytes or late same-stream overrun bytes after the declared object body without invoking git cat-file.',
+    'wordpressUse' => 'A WordPress import or deployment tool can decode canonical, upstream-accepted signed-size, and zero-padded loose object headers for block-content blobs, reject LF-tailed, missing-NUL, and missing type-size delimiter loose-object headers before trusting advertised sizes, reject oversized loose-object declarations before allocating them, reject truncated first-window compressed headers before trusting advertised sizes, and ignore trailing compressed bytes or late same-stream overrun bytes after the declared object body without invoking git cat-file.',
 ];
