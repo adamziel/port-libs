@@ -166,6 +166,11 @@ return [
         $pluginReview => 0x40000000,
         $themeReview => 0x40000000,
     ],
+    'zeroCommitGraphGenerations' => [
+        $release => 0,
+        $pluginReview => 0,
+        $themeReview => 0,
+    ],
     'timestampSkewExpectedBase' => $timestampSkewCenter2,
     'timestampSkewLeftReview' => $timestampSkewLeftReview,
     'timestampSkewRightReview' => $timestampSkewRightReview,

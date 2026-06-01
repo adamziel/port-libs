@@ -11,6 +11,7 @@ final class MergeBaseFinder
     private const FLAG_STALE = 4;
     private const FLAG_RESULT = 8;
     private const COMMIT_GRAPH_GENERATION_INFINITY = 0xffffffff;
+    private const COMMIT_GRAPH_GENERATION_MIN = 1;
     private const COMMIT_GRAPH_GENERATION_MAX = 0x3fffffff;
 
     /**
@@ -758,10 +759,14 @@ final class MergeBaseFinder
         $generation = ($this->commitGraphGeneration)($oid);
         if (
             $generation !== null
-            && (!is_int($generation) || $generation < 0 || $generation > self::COMMIT_GRAPH_GENERATION_MAX)
+            && (
+                !is_int($generation)
+                || $generation < self::COMMIT_GRAPH_GENERATION_MIN
+                || $generation > self::COMMIT_GRAPH_GENERATION_MAX
+            )
         ) {
             throw new \InvalidArgumentException(
-                'Commit graph generation provider must return a non-negative integer up to 0x3fffffff or null',
+                'Commit graph generation provider must return a positive integer up to 0x3fffffff or null',
             );
         }
 

@@ -544,10 +544,18 @@ return [
             static fn (string $oid): ?Commit => $commits[$oid] ?? null,
             commitGraphGeneration: static fn (string $oid): int => 0x40000000,
         );
+        $zeroGenerationFinder = new MergeBaseFinder(
+            static fn (string $oid): ?Commit => $commits[$oid] ?? null,
+            commitGraphGeneration: static fn (string $oid): int => 0,
+        );
 
         $t->throws(
             InvalidArgumentException::class,
             static fn () => $invalidGenerationFinder->mergeBase($pluginReview, $themeReview),
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $zeroGenerationFinder->mergeBase($pluginReview, $themeReview),
         );
     },
     'maps upstream commit graph redundant pruning without inflating below result generation' => static function (TestRunner $t) use ($oid): void {
@@ -1381,11 +1389,19 @@ BASELINE;
             },
             commitGraphGeneration: static fn (string $oid): ?int => $fixture['invalidCommitGraphGenerations'][$oid] ?? null,
         );
+        $zeroGenerationFinder = new MergeBaseFinder(
+            static function (string $oid) use ($fixture): ?Commit {
+                return $fixture['commits'][$oid] ?? null;
+            },
+            commitGraphGeneration: static fn (string $oid): ?int => $fixture['zeroCommitGraphGenerations'][$oid] ?? null,
+        );
         $t->same($fixture['releaseBaseline'], $maxGenerationFinder->mergeBase($fixture['pluginReview'], $fixture['themeReview']));
         $t->same($fixture['releaseBaseline'], $example['maxGenerationBase']);
         $t->same(true, $example['maxGenerationProviderKeepsReleaseBaseline']);
         $t->same(true, $example['invalidCommitGraphGenerationRejected']);
+        $t->same(true, $example['zeroCommitGraphGenerationRejected']);
         $t->throws(InvalidArgumentException::class, static fn () => $invalidGenerationFinder->mergeBase($fixture['pluginReview'], $fixture['themeReview']));
+        $t->throws(InvalidArgumentException::class, static fn () => $zeroGenerationFinder->mergeBase($fixture['pluginReview'], $fixture['themeReview']));
         $t->same(
             [$fixture['commitGraphOnlyReleaseBaseline']],
             $commitGraphOnlyFinder->mergeBases($fixture['commitGraphOnlyPluginReview'], $fixture['commitGraphOnlyThemeReview']),

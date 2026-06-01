@@ -49,6 +49,12 @@ $invalidGenerationFinder = new MergeBaseFinder(
     },
     commitGraphGeneration: static fn (string $oid): ?int => $fixture['invalidCommitGraphGenerations'][$oid] ?? null,
 );
+$zeroGenerationFinder = new MergeBaseFinder(
+    static function (string $oid) use ($fixture): ?Commit {
+        return $fixture['commits'][$oid] ?? null;
+    },
+    commitGraphGeneration: static fn (string $oid): ?int => $fixture['zeroCommitGraphGenerations'][$oid] ?? null,
+);
 $commitGraphOnlyObjectReads = [];
 $commitGraphOnlyFinder = new MergeBaseFinder(
     static function (string $oid) use ($fixture, &$commitGraphOnlyObjectReads): ?Commit {
@@ -161,6 +167,12 @@ try {
     $invalidGenerationFinder->mergeBase($fixture['pluginReview'], $fixture['themeReview']);
 } catch (InvalidArgumentException) {
     $invalidGenerationRejected = true;
+}
+$zeroGenerationRejected = false;
+try {
+    $zeroGenerationFinder->mergeBase($fixture['pluginReview'], $fixture['themeReview']);
+} catch (InvalidArgumentException) {
+    $zeroGenerationRejected = true;
 }
 $commitGraphOnlyBases = $commitGraphOnlyFinder->mergeBases(
     $fixture['commitGraphOnlyPluginReview'],
@@ -437,6 +449,7 @@ return [
     'maxGenerationBase' => $maxGenerationBase,
     'maxGenerationProviderKeepsReleaseBaseline' => $maxGenerationBase === $fixture['releaseBaseline'],
     'invalidCommitGraphGenerationRejected' => $invalidGenerationRejected,
+    'zeroCommitGraphGenerationRejected' => $zeroGenerationRejected,
     'commitGraphOnlyHeads' => $fixture['commitGraphOnlyHeads'],
     'commitGraphOnlyBases' => $commitGraphOnlyBases,
     'commitGraphOnlyStableBases' => $commitGraphOnlyStableBases,
