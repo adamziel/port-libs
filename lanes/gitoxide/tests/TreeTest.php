@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\IndexEntry;
+use PortLibs\Gitoxide\MergeIndexEntry;
+use PortLibs\Gitoxide\MergeWorktreeFile;
 use PortLibs\Gitoxide\Tree;
 use PortLibs\Gitoxide\TreeEntry;
 
@@ -45,7 +48,27 @@ return [
         $t->same($everything, $roundTrip->storageBytes());
         $t->same($object->oid(), $roundTrip->toObject()->oid());
     },
+    'tree parser accepts empty entry modes as gix-object mode zero' => static function (TestRunner $t) use ($entry): void {
+        $oid = '4d5fcadc293a348e88f777dc0920f11e7d71441c';
+        $body = $entry('', 'block.html', $oid);
+        $tree = Tree::parse($body);
+
+        $t->same(1, count($tree->entries));
+        $t->same('', $tree->entries[0]->mode);
+        $t->same('block.html', $tree->entries[0]->filename);
+        $t->same($oid, $tree->entries[0]->oid);
+        $t->same('commit', $tree->entries[0]->kind());
+        $t->same($body, $tree->storageBytes());
+    },
+    'empty tree mode exception does not apply to index and merge entries' => static function (TestRunner $t): void {
+        $oid = str_repeat('0', 40);
+
+        $t->throws(InvalidArgumentException::class, static fn () => new IndexEntry('file.php', IndexEntry::STAGE_NORMAL, '', $oid));
+        $t->throws(InvalidArgumentException::class, static fn () => new MergeIndexEntry('file.php', MergeIndexEntry::STAGE_OURS, '', $oid));
+        $t->throws(InvalidArgumentException::class, static fn () => new MergeWorktreeFile('file.php', '', $oid, ''));
+    },
     'entry mode helpers follow gix-object kind semantics' => static function (TestRunner $t): void {
+        $t->same('commit', (new TreeEntry('', 'empty-mode', str_repeat('0', 40)))->kind());
         $t->same('blob', (new TreeEntry('100645', 'file', str_repeat('0', 40)))->kind());
         $t->same('blob-executable', (new TreeEntry('100700', 'file', str_repeat('0', 40)))->kind());
         $t->same('link', (new TreeEntry('121234', 'link', str_repeat('0', 40)))->kind());

@@ -41,7 +41,7 @@ final class Tree
             }
 
             $mode = substr($body, $offset, $space - $offset);
-            TreeEntry::assertValidMode($mode);
+            TreeEntry::assertValidMode($mode, true);
 
             $nameStart = $space + 1;
             $nul = strpos($body, "\0", $nameStart);

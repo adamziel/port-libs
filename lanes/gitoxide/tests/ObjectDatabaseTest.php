@@ -1734,5 +1734,6 @@ return [
         ], $summary['looseIntegrityCaseDuplicateVerifiedIds']);
         $t->same(true, $summary['looseIntegrityCrLfCommitHeaderRejected']);
         $t->same(true, $summary['looseIntegrityCrLfTagHeaderRejected']);
+        $t->same(true, $summary['looseIntegrityEmptyTreeModeAccepted']);
     },
 ];

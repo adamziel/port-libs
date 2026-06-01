@@ -291,6 +291,23 @@ try {
         && str_contains($exception->getMessage(), 'Git tag target must be a 40-character sha1 hex object id');
 }
 
+$emptyModeTreeGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-empty-tree-mode-' . bin2hex(random_bytes(4)) . '/.git';
+$emptyModeTreeTarget = str_repeat('0', 40);
+$emptyModeTreeTargetBytes = hex2bin($emptyModeTreeTarget);
+if ($emptyModeTreeTargetBytes === false) {
+    throw new RuntimeException('Unable to decode empty-mode tree target oid');
+}
+$emptyModeTreeStore = new LooseObjectStore($emptyModeTreeGitDir);
+$emptyModeTreeOid = $emptyModeTreeStore->write(new GitObject('tree', " block-template.html\0" . $emptyModeTreeTargetBytes));
+$emptyModeTreeDatabase = new ObjectDatabase($emptyModeTreeGitDir);
+$emptyModeTree = Tree::parse($emptyModeTreeDatabase->read($emptyModeTreeOid)->body);
+$emptyModeTreeIntegrity = $emptyModeTreeDatabase->verifyLooseIntegrity();
+$looseIntegrityEmptyTreeModeAccepted = $emptyModeTree->entries[0]->mode === ''
+    && $emptyModeTree->entries[0]->filename === 'block-template.html'
+    && $emptyModeTree->entries[0]->oid === $emptyModeTreeTarget
+    && $emptyModeTree->entries[0]->kind() === 'commit'
+    && in_array($emptyModeTreeOid, $emptyModeTreeIntegrity[0]['statistics']['verifiedObjectIds'], true);
+
 return [
     'packedObjects' => $database->packedObjectCount(),
     'totalIterableObjects' => count($database->objectIds()),
@@ -343,4 +360,5 @@ return [
     'looseIntegrityCaseDuplicateVerifiedIds' => $caseDuplicateIntegrity[0]['statistics']['verifiedObjectIds'],
     'looseIntegrityCrLfCommitHeaderRejected' => $looseIntegrityCrLfCommitHeaderRejected,
     'looseIntegrityCrLfTagHeaderRejected' => $looseIntegrityCrLfTagHeaderRejected,
+    'looseIntegrityEmptyTreeModeAccepted' => $looseIntegrityEmptyTreeModeAccepted,
 ];

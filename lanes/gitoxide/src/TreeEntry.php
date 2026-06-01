@@ -11,7 +11,7 @@ final class TreeEntry
         public readonly string $filename,
         public readonly string $oid,
     ) {
-        self::assertValidMode($mode);
+        self::assertValidMode($mode, true);
         if (str_contains($filename, "\0")) {
             throw new \InvalidArgumentException('Tree entry filename cannot contain NUL bytes');
         }
@@ -20,8 +20,12 @@ final class TreeEntry
         }
     }
 
-    public static function assertValidMode(string $mode): void
+    public static function assertValidMode(string $mode, bool $allowEmptyMode = false): void
     {
+        if ($allowEmptyMode && $mode === '') {
+            // gix-object treats an immediate space delimiter as mode value 0.
+            return;
+        }
         if (!preg_match('/^[0-7]{1,7}$/', $mode)) {
             throw new \InvalidArgumentException('Tree entry mode must be one to seven octal digits');
         }

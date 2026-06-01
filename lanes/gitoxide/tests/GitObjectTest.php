@@ -748,6 +748,32 @@ return [
         $t->same($expected, $summary['verifiedObjectIds']);
         $t->same($gitDir . '/objects', $store->objectsDirectory());
     },
+    'loose object integrity accepts empty tree entry modes like gix-object' => static function (TestRunner $t): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-integrity-empty-tree-mode-' . bin2hex(random_bytes(4)) . '/.git';
+        $store = new LooseObjectStore($gitDir);
+        $targetOid = str_repeat('0', 40);
+        $targetBytes = hex2bin($targetOid);
+        if ($targetBytes === false) {
+            throw new RuntimeException('Unable to decode empty-mode tree target oid');
+        }
+        $treeObject = new GitObject('tree', " block.html\0" . $targetBytes);
+        $treeOid = $store->write($treeObject);
+        $treeHeader = $store->readHeader($treeOid);
+        $parsed = Tree::parse($store->read($treeOid)->body);
+        $summary = $store->verifyIntegrity();
+
+        $t->same('tree', $treeHeader['type']);
+        $t->same(strlen($treeObject->body), $treeHeader['size']);
+        $t->same(1, count($parsed->entries));
+        $t->same('', $parsed->entries[0]->mode);
+        $t->same('block.html', $parsed->entries[0]->filename);
+        $t->same($targetOid, $parsed->entries[0]->oid);
+        $t->same('commit', $parsed->entries[0]->kind());
+        $t->same([
+            'numObjects' => 1,
+            'verifiedObjectIds' => [$treeOid],
+        ], $summary);
+    },
     'loose object integrity honors interruption callbacks after verified objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-integrity-interrupt-' . bin2hex(random_bytes(4)) . '/.git';
         $store = new LooseObjectStore($gitDir);
