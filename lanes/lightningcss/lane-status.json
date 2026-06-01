@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "library": "LightningCSS",
-  "estimatedProgress": 99.4,
-  "suiteProgress": "Supervisor-integrated LightningCSS position-try minifier parity, source-map duplicate-column VLQ offset boundaries, and font/supports target-prefixing boundaries. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 6403 assertions / 0 failures, and touched example self-tests.",
-  "phpPass": 6403,
+  "estimatedProgress": 99.45,
+  "suiteProgress": "Supervisor-integrated LightningCSS resolver object-shape parity, CSS Modules selector-valued pseudo canonicalization, and custom at-rule comma token-list visitor parity. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 6429 assertions / 0 failures, and touched example self-tests.",
+  "phpPass": 6429,
   "phpFail": 0,
   "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
   "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-  "audit": "2026-06-01 supervisor batch: full LightningCSS lane passed 13 files / 6403 assertions / 0 failures after accepting position-try minifier parity, source-map duplicate-column VLQ offset boundaries, and font/supports target-prefixing boundaries. Full upstream Rust/Node/WASM runners were not executed.",
-  "currentWork": "Position-try minifier parity, source-map duplicate-column VLQ offset boundaries, and font/supports target-prefixing boundaries integrated on current base.",
-  "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 6403 assertions; continue source-map, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices.",
-  "latestCommit": "80840b7a340d86eed256d4673ad2aa614340ca6d",
+  "audit": "2026-06-01 supervisor batch: full LightningCSS lane passed 13 files / 6429 assertions / 0 failures after accepting resolver object-shape parity, CSS Modules selector-valued pseudo canonicalization, and custom at-rule comma token-list visitor parity. Full upstream Rust/Node/WASM runners were not executed.",
+  "currentWork": "Resolver object-shape parity, CSS Modules selector-valued pseudo canonicalization, and custom at-rule comma token-list visitor parity integrated on current base.",
+  "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 6429 assertions; continue source-map, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices.",
+  "latestCommit": "eb171fc435769d710fd5e1caee46d546f4e18d95",
   "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media queries, property values, target prefixing, CSSOM, and custom at-rules with full-lane PHP gates.",
-  "commit": "80840b7"
+  "commit": "eb171fc"
 }
