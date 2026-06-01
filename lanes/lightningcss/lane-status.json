@@ -2,15 +2,15 @@
     "schemaVersion": 1,
     "library": "LightningCSS",
     "estimatedProgress": 99.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS bundle/import diagnostics, CSS Modules pseudo canonicalization, source-map VLQ offsets, and target-prefix writing/filter support boundaries. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 6875 assertions / 0 failures, and changed example smokes.",
-    "phpPass": 6875,
+    "suiteProgress": "Supervisor-integrated LightningCSS bundle/import diagnostics, media range/layer recovery, font oblique default-angle values, CSS Modules pseudo canonicalization, source-map VLQ offsets, and target-prefix writing/filter support boundaries. Verification passed PHP lint, git diff --check, changed example smokes, and full LightningCSS lane 13 files / 6894 assertions / 0 failures.",
+    "phpPass": 6894,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata including host/slotted compose boundaries, custom at-rule visitors and percentage preludes, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation including text-spacing reads/writes, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 supervisor batch: accepted source dfde8639e with bundle/import, CSS Modules, source-map, and target-prefix followups. Full LightningCSS lane passed 13 files / 6875 assertions / 0 failures; full upstream Rust/Node/WASM runners were not executed.",
-    "currentWork": "Bundle/import graph diagnostics, CSS Modules pseudo canonicalization, raw VLQ source-map offsets, and writing/filter target-prefix boundaries integrated on current base.",
+    "audit": "2026-06-01 supervisor batch: accepted source 7e0732a1 with bundle/import graph reader paths, media range/layer recovery, and font oblique default-angle followups. Full LightningCSS lane passed 13 files / 6894 assertions / 0 failures; full upstream Rust/Node/WASM runners were not executed.",
+    "currentWork": "Bundle/import graph reader paths, media range/layer recovery, font oblique default-angle values, CSS Modules pseudo canonicalization, raw VLQ source-map offsets, and target-prefix boundaries integrated on current base.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "dfde8639ec184531438b4b64831a0eeb040763c6",
+    "latestCommit": "7e0732a1ba7b797e3b473ec22a70c60e2221f22e",
     "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices; rebase deferred custom-at/media conflicts before retry.",
-    "commit": "dfde8639ec184531438b4b64831a0eeb040763c6"
+    "commit": "7e0732a1ba7b797e3b473ec22a70c60e2221f22e"
 }

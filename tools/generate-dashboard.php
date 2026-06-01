@@ -89,6 +89,22 @@ $formatCount = static function (mixed $value): string {
     return $value;
 };
 
+$numericCount = static function (mixed $value): int {
+    if (is_int($value)) {
+        return $value;
+    }
+
+    if (is_float($value)) {
+        return (int) $value;
+    }
+
+    if (is_string($value) && preg_match('/^\s*([\d,]+)/', $value, $matches) === 1) {
+        return (int) str_replace(',', '', $matches[1]);
+    }
+
+    return 0;
+};
+
 $shortCommit = static function (string $value): string {
     $value = trim($value);
     if ($value === '' || $value === 'none') {
@@ -116,28 +132,33 @@ $blockerSummary = static function (string $value) use ($firstSentence, $shorten)
     return $shorten($firstSentence($value), 88);
 };
 
-$scenarioSummary = static function (mixed $manifestScenario, mixed $statusScenario): string {
-    if (is_array($manifestScenario)) {
-        $count = count($manifestScenario);
-
-        return $count . ' / ' . $count;
+$projectState = static function (string $lane, float $progress, int $phpFail, string $blocker): string {
+    $normalizedBlocker = strtolower($blocker);
+    if ($lane === 'dolt') {
+        return 'Parked';
     }
 
-    if (is_string($manifestScenario) && trim($manifestScenario) !== '') {
-        return '1 / 1';
+    if ($phpFail > 0) {
+        return number_format($phpFail) . ' failures open';
     }
 
-    if (is_array($statusScenario)) {
-        $count = count($statusScenario);
-
-        return $count . ' / ' . $count;
+    if ($progress >= 99.0 && (str_contains($normalizedBlocker, 'not run') || str_contains($normalizedBlocker, 'upstream'))) {
+        return 'PHP green; upstream gap';
     }
 
-    if (is_string($statusScenario) && trim($statusScenario) !== '') {
-        return 'tracked';
+    if ($progress >= 99.0) {
+        return 'Near complete';
     }
 
-    return 'pending';
+    if ($progress >= 95.0) {
+        return 'High coverage';
+    }
+
+    if ($progress >= 80.0) {
+        return 'Active port';
+    }
+
+    return 'Needs catch-up';
 };
 
 $rows = [];
@@ -156,33 +177,54 @@ foreach ($laneDirs as $dir) {
     $totalProgress += $progress;
     $mapped = $metricSummary($manifest['benchmarkDenominator']['mapped'] ?? null);
     $denominator = $metricSummary($manifest['benchmarkDenominator']['total'] ?? null);
+    $phpPass = $numericCount($status['phpPass'] ?? 0);
+    $phpFail = $numericCount($status['phpFail'] ?? 0);
     $library = $stringValue($status['library'] ?? null, $lane);
     $currentWork = $stringValue($status['currentWork'] ?? $manifest['nativeImplementation']['currentSlice'] ?? null, 'none');
     $nextTask = $stringValue($status['nextTask'] ?? $manifest['nextTask'] ?? null, 'none');
     $blocker = $stringValue($status['blocker'] ?? null, 'none');
     $manifestStatus = $stringValue($manifest['benchmarkDenominator']['status'] ?? null, 'pending');
+    $displayOrder = [
+        'libsqlite' => 1,
+        'lightningcss' => 2,
+        'gitoxide' => 3,
+        'readability' => 4,
+        'pandoc' => 5,
+        'quadrable' => 6,
+        'syncthing' => 7,
+        'difftastic' => 8,
+        'rclone' => 9,
+        'markerpdf' => 10,
+        'esbuild' => 11,
+        'dolt' => 99,
+    ];
 
     $rows[] = [
         'lane' => $lane,
+        'order' => $displayOrder[$lane] ?? 50,
         'library' => $library,
+        'state' => $projectState($lane, $progress, $phpFail, $blocker),
         'progressPercent' => number_format($progress, 1),
         'suite' => $shorten($manifestStatus, 72),
         'benchmark' => $shorten($manifestStatus, 72),
         'denominator' => $denominator,
         'mapped' => $mapped,
         'coverage' => $formatCount($mapped) . ' / ' . $formatCount($denominator),
-        'php' => $formatCount($status['phpPass'] ?? 0) . ' pass / ' . $formatCount($status['phpFail'] ?? 0) . ' fail',
-        'wordpressScenarios' => $scenarioSummary($manifest['wordpressScenario'] ?? null, $status['wordpressScenarios'] ?? null),
+        'php' => $formatCount($phpPass) . ' pass / ' . $formatCount($phpFail) . ' fail',
         'phase' => $shorten($stringValue($status['phase'] ?? null, 'planning'), 72),
         'audit' => $shorten($stringValue($status['audit'] ?? null, 'not started'), 72),
-        'currentWork' => $shorten($currentWork, 84),
-        'nextTarget' => $shorten($nextTask, 84),
-        'blocker' => $blockerSummary($blocker),
+        'currentWork' => $shorten($currentWork, 64),
+        'nextTarget' => $shorten($nextTask, 64),
+        'blocker' => $shorten($blockerSummary($blocker), 58),
         'commit' => $shortCommit($stringValue($status['latestCommit'] ?? null, 'none')),
         'statusPath' => 'lanes/' . rawurlencode($lane) . '/lane-status.json',
         'manifestPath' => 'lanes/' . rawurlencode($lane) . '/UPSTREAM_TEST_MANIFEST.json',
     ];
 }
+
+usort($rows, static function (array $left, array $right): int {
+    return [$left['order'], $left['library']] <=> [$right['order'], $right['library']];
+});
 
 $average = $rows === [] ? 0.0 : $totalProgress / count($rows);
 $generated = gmdate('Y-m-d H:i:s') . ' UTC';
@@ -204,12 +246,13 @@ $htmlRows = '';
 foreach ($rows as $row) {
     $htmlRows .= '<tr>'
         . '<th scope="row"><a href="' . $escape($row['statusPath']) . '">' . $escape($row['library']) . '</a></th>'
+        . '<td>' . $escape($row['state']) . '</td>'
         . '<td class="num">' . $escape($row['progressPercent']) . '%</td>'
         . '<td class="num">' . $escape($row['php']) . '</td>'
         . '<td class="num"><a href="' . $escape($row['manifestPath']) . '">' . $escape($row['coverage']) . '</a></td>'
         . '<td>' . $escape($row['currentWork']) . '</td>'
-        . '<td>' . $escape($row['nextTarget']) . '</td>'
         . '<td>' . $escape($row['blocker']) . '</td>'
+        . '<td>' . $escape($row['nextTarget']) . '</td>'
         . '<td class="commit">' . $escape($row['commit']) . '</td>'
         . '</tr>' . "\n";
 }
@@ -223,12 +266,12 @@ $html = <<<HTML
   <title>Native PHP Porting Progress</title>
   <style>
     :root { color-scheme: light dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    body { margin: 0; padding: 20px; background: Canvas; color: CanvasText; }
+    body { margin: 0; padding: 16px; background: Canvas; color: CanvasText; }
     a { color: LinkText; }
-    h1 { margin: 0 0 6px; font-size: 22px; }
-    .meta { margin: 0 0 14px; color: color-mix(in srgb, CanvasText 68%, Canvas); font-size: 13px; }
     .table-wrap { overflow-x: auto; }
-    table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 13px; line-height: 1.35; }
+    table { width: 100%; min-width: 1080px; border-collapse: collapse; font-size: 13px; line-height: 1.32; }
+    caption { caption-side: top; text-align: left; font-weight: 600; padding: 0 0 10px; }
+    caption span { color: color-mix(in srgb, CanvasText 68%, Canvas); font-weight: 400; }
     th, td { border: 1px solid color-mix(in srgb, CanvasText 16%, Canvas); padding: 7px 8px; text-align: left; vertical-align: top; }
     thead th { background: color-mix(in srgb, CanvasText 8%, Canvas); position: sticky; top: 0; }
     tbody th { background: color-mix(in srgb, CanvasText 3%, Canvas); white-space: nowrap; }
@@ -238,19 +281,19 @@ $html = <<<HTML
   </style>
 </head>
 <body>
-  <h1>Native PHP Porting Progress</h1>
-  <p class="meta">Generated {$escape($generated)} from source {$escape($sourceCommitShort)}. Average progress {$escape(number_format($average, 1))}%.</p>
   <div class="table-wrap">
     <table>
+      <caption>Native PHP Porting Progress <span>generated {$escape($generated)} from source {$escape($sourceCommitShort)}; average {$escape(number_format($average, 1))}%</span></caption>
       <thead>
         <tr>
           <th>Project</th>
+          <th>State</th>
           <th>Progress</th>
           <th>PHP Tests</th>
           <th>Mapped</th>
-          <th>State</th>
-          <th>Next</th>
+          <th>Focus</th>
           <th>Gap</th>
+          <th>Next</th>
           <th>Commit</th>
         </tr>
       </thead>
@@ -273,24 +316,19 @@ $progressRows = '';
 foreach ($rows as $row) {
     $progressRows .= '| '
         . '[' . $markdownCell($row['library']) . '](' . $row['statusPath'] . ') | '
+        . $markdownCell($row['state']) . ' | '
         . $markdownCell($row['progressPercent'] . '%') . ' | '
         . $markdownCell($row['php']) . ' | '
         . '[' . $markdownCell($row['coverage']) . '](' . $row['manifestPath'] . ') | '
         . $markdownCell($row['currentWork']) . ' | '
-        . $markdownCell($row['nextTarget']) . ' | '
         . $markdownCell($row['blocker']) . ' | '
+        . $markdownCell($row['nextTarget']) . ' | '
         . $markdownCell($row['commit']) . " |\n";
 }
 
 $progressMd = <<<MD
-# Native PHP Porting Progress
-
-Generated: {$generated}
-Source snapshot: `{$sourceCommitShort}`
-Average progress: `{$markdownCell(number_format($average, 1))}%`
-
-| Project | Progress | PHP Tests | Mapped | State | Next | Gap | Commit |
-| --- | ---: | ---: | ---: | --- | --- | --- | --- |
+| Project | State | Progress | PHP Tests | Mapped | Focus | Gap | Next | Commit |
+| --- | --- | ---: | ---: | ---: | --- | --- | --- | --- |
 {$progressRows}
 MD;
 
@@ -305,7 +343,7 @@ file_put_contents($root . '/porting-summary.json', json_encode([
     'dashboardCommitShort' => $dashboardCommitShort,
     'averageProgressPercent' => number_format($average, 1),
     'lanes' => array_map(static function (array $row): array {
-        unset($row['statusPath'], $row['manifestPath']);
+        unset($row['statusPath'], $row['manifestPath'], $row['order']);
 
         return $row;
     }, $rows),
