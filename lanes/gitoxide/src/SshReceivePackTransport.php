@@ -270,6 +270,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
             throw new \InvalidArgumentException('SCP-like SSH receive-pack URL does not support bracketed IPv6 hosts with a user');
         }
 
+        self::validateScpLikeBracketedHost($hostPart);
         $host = self::normalizeHost(self::decodeComponent($hostPart, 'host'));
 
         $user = $userPart !== null
@@ -305,6 +306,21 @@ final class SshReceivePackTransport implements ReceivePackTransport
         }
 
         return str_contains(substr($url, 0, $colon), '/') ? null : $colon;
+    }
+
+    private static function validateScpLikeBracketedHost(string $hostPart): void
+    {
+        if (!str_starts_with($hostPart, '[')) {
+            return;
+        }
+
+        $bracketEnd = strpos($hostPart, ']');
+        if ($bracketEnd === false) {
+            throw new \InvalidArgumentException('SCP-like SSH receive-pack IPv6 host is missing closing bracket');
+        }
+        if ($bracketEnd !== strlen($hostPart) - 1) {
+            throw new \InvalidArgumentException('SCP-like SSH receive-pack IPv6 host contains invalid suffix');
+        }
     }
 
     private static function normalizeSshPath(string $path): string

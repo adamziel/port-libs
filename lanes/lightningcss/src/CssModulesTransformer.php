@@ -820,7 +820,7 @@ final class CssModulesTransformer
                 continue;
             }
 
-            if ($pendingSpace && !in_array($char, [')', ',', ';'], true)) {
+            if ($pendingSpace && !in_array($char, [')', ';'], true)) {
                 $output .= ' ';
             }
 

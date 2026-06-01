@@ -78,7 +78,9 @@ final class CssMinifier
             }
 
             if ($char === '"' || $char === "'") {
-                if ($pendingSpace && $this->needsSpaceBefore($output, $char)) {
+                if ($pendingSpace && $this->needsComposesCommaSpace($output)) {
+                    $output .= ' ';
+                } elseif ($pendingSpace && $this->needsSpaceBefore($output, $char)) {
                     $output .= ' ';
                 }
                 $pendingSpace = false;
@@ -110,6 +112,15 @@ final class CssMinifier
                 continue;
             }
 
+            if ($char === ',' && $this->isComposesDeclarationValueContext($output)) {
+                if ($pendingSpace) {
+                    $output .= ' ';
+                }
+                $output .= $char;
+                $pendingSpace = false;
+                continue;
+            }
+
             if (str_contains($tight, $char)) {
                 $output = rtrim($output);
                 $output .= $char;
@@ -117,7 +128,9 @@ final class CssMinifier
                 continue;
             }
 
-            if ($pendingSpace && $this->needsSelectorDescendantSpaceAfterAttribute($output, $css, $i)) {
+            if ($pendingSpace && $this->needsComposesCommaSpace($output)) {
+                $output .= ' ';
+            } elseif ($pendingSpace && $this->needsSelectorDescendantSpaceAfterAttribute($output, $css, $i)) {
                 $output .= ' ';
             } elseif ($pendingSpace && $this->needsSpaceBefore($output, $char)) {
                 $output .= ' ';
@@ -3165,6 +3178,33 @@ final class CssMinifier
         return trim(substr($output, $start));
     }
 
+    private function isComposesDeclarationValueContext(string $output): bool
+    {
+        $block = strrpos($output, '{');
+        if ($block === false) {
+            return false;
+        }
+
+        $closeBlock = strrpos($output, '}');
+        if ($closeBlock !== false && $closeBlock > $block) {
+            return false;
+        }
+
+        $semicolon = strrpos($output, ';');
+        $start = max($block, $semicolon === false ? -1 : $semicolon) + 1;
+        $colon = strpos($output, ':', $start);
+        if ($colon === false) {
+            return false;
+        }
+
+        return strtolower(trim(substr($output, $start, $colon - $start))) === 'composes';
+    }
+
+    private function needsComposesCommaSpace(string $output): bool
+    {
+        return str_ends_with($output, ',') && $this->isComposesDeclarationValueContext($output);
+    }
+
     private function isDeclarationProperty(string $property): bool
     {
         return preg_match('/^(?:[_a-zA-Z]|-[_a-zA-Z]|--[_a-zA-Z])[-_a-zA-Z0-9]*$/', $property) === 1;
@@ -3221,6 +3261,10 @@ final class CssMinifier
             return ' ';
         }
 
+        $composesCommaWhitespace = strtolower($property) === 'composes'
+            ? $this->topLevelCommaWhitespace($value)
+            : [];
+
         $value = $this->minifyMathFunctions($this->normalizeMathFunctionOperators($value));
         $value = $this->minifyTransformValue($property, $value);
         $value = $this->minifyAnimationLonghandValue($property, $value);
@@ -3251,7 +3295,157 @@ final class CssMinifier
             $value = $this->minifyLightDarkFunctions($value);
         }
 
-        return $this->minifyAttrFunctions($value);
+        $value = $this->minifyAttrFunctions($value);
+
+        if ($composesCommaWhitespace !== []) {
+            return $this->restoreTopLevelCommaWhitespace($value, $composesCommaWhitespace);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return list<array{left:string,right:string}>
+     */
+    private function topLevelCommaWhitespace(string $value): array
+    {
+        $commas = [];
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\' && $i + 1 < $length) {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($char !== ',' || $parenDepth !== 0 || $bracketDepth !== 0) {
+                continue;
+            }
+
+            $left = '';
+            for ($cursor = $i - 1; $cursor >= 0 && ctype_space($value[$cursor]); $cursor--) {
+                $left = $value[$cursor] . $left;
+            }
+
+            $right = '';
+            for ($cursor = $i + 1; $cursor < $length && ctype_space($value[$cursor]); $cursor++) {
+                $right .= $value[$cursor];
+            }
+
+            $commas[] = [
+                'left' => $left === '' ? '' : ' ',
+                'right' => $right === '' ? '' : ' ',
+            ];
+        }
+
+        return $commas;
+    }
+
+    /**
+     * @param list<array{left:string,right:string}> $commas
+     */
+    private function restoreTopLevelCommaWhitespace(string $value, array $commas): string
+    {
+        $output = '';
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $commaIndex = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === ',' && $parenDepth === 0 && $bracketDepth === 0 && isset($commas[$commaIndex])) {
+                $output = rtrim($output);
+                $output .= $commas[$commaIndex]['left'] . ',' . $commas[$commaIndex]['right'];
+                while ($i + 1 < $length && ctype_space($value[$i + 1])) {
+                    $i++;
+                }
+                $commaIndex++;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
     }
 
     private function minifyAttrFunctions(string $value): string

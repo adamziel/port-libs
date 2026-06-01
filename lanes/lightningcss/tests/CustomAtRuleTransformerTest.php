@@ -6007,4 +6007,79 @@ CSS;
         $t->same(['unit' => 'rem', 'value' => 1.0], $seen['rule']['preludeAst']['value'][6]['value']);
         $t->same('published', $seen['rule']['preludeAst']['value'][7]['value']['value']);
     },
+    'custom at-rules visit upstream generic function prelude arguments before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-design-token theme(16px,--wp-gap,draft);
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-design-token' => ['prelude' => '*'],
+        ], [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                if ($length['unit'] !== 'px') {
+                    return null;
+                }
+
+                $seen['events'][] = 'length:' . $length['value'] . $length['unit'];
+
+                return ['unit' => 'rem', 'value' => $length['value'] / 16];
+            },
+            'DashedIdent' => static function (string $ident) use (&$seen): string {
+                $seen['events'][] = 'dashed:' . $ident;
+
+                return '--theme-' . substr($ident, 2);
+            },
+            'Token' => [
+                'ident' => static function (array $token) use (&$seen): ?string {
+                    if (($token['value'] ?? null) !== 'draft') {
+                        return null;
+                    }
+
+                    $seen['events'][] = 'token:ident:' . $token['value'];
+
+                    return 'live';
+                },
+            ],
+            'Rule' => [
+                'custom' => [
+                    'wp-design-token' => static function (array $rule) use (&$seen): array {
+                        $seen['events'][] = 'rule:' . $rule['prelude'];
+                        $seen['rule'] = [
+                            'prelude' => $rule['prelude'],
+                            'preludeAst' => $rule['preludeAst'],
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same([
+            'length:16px',
+            'dashed:--wp-gap',
+            'token:ident:draft',
+            'rule:theme(1rem,--theme-wp-gap,live)',
+        ], $seen['events']);
+        $t->same('theme(1rem,--theme-wp-gap,live)', $seen['rule']['prelude']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same('function', $seen['rule']['preludeAst']['value'][0]['type']);
+        $t->same('theme', $seen['rule']['preludeAst']['value'][0]['value']['name']);
+        $t->same(['length', 'dashed-ident', 'token'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['preludeAst']['value'][0]['value']['arguments']
+        ));
+        $t->same(['unit' => 'rem', 'value' => 1.0], $seen['rule']['preludeAst']['value'][0]['value']['arguments'][0]['value']);
+        $t->same('--theme-wp-gap', $seen['rule']['preludeAst']['value'][0]['value']['arguments'][1]['value']);
+        $t->same('live', $seen['rule']['preludeAst']['value'][0]['value']['arguments'][2]['value']['value']);
+    },
 ];

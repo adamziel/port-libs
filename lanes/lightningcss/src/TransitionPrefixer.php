@@ -2299,8 +2299,8 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'opera', [15], [41])
                 || $this->targetInRange($normalized, 'safari', [7], [9])
                 || $this->targetInRange($normalized, 'samsung', [4], [5]),
-            'textDecorationNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [8], [26])
-                || $this->targetInRange($normalized, 'safari', [8], [26]),
+            'textDecorationNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [8], [26, 1])
+                || $this->targetInRange($normalized, 'safari', [8], [26, 1]),
             'textDecorationLonghandNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [8], [12])
                 || $this->targetInRange($normalized, 'safari', [8], [12]),
             'textDecorationNeedsMoz' => $this->targetInRange($normalized, 'firefox', [6], [35]),

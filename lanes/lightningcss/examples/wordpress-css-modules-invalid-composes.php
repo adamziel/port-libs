@@ -26,6 +26,11 @@ $css = <<<'CSS'
   color: yellow;
 }
 
+.cardList {
+  composes: utility, "legacy-card";
+  color: purple;
+}
+
 .cardEscaped {
   c\6f mposes: utility \66 rom;
   color: green;
@@ -51,7 +56,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '.BlockA_card{composes:from global;color:red}.BlockA_button{color:#00f}.BlockA_reset{color:#fff}.BlockA_cardLegacy{composes:heading from "./typography.css" extra;color:#ff0}.BlockA_cardEscaped{composes:utility from;color:green}.BlockA_utility{color:#fff}.BlockA_from{color:#00f}',
+    'code' => '.BlockA_card{composes:from global;color:red}.BlockA_button{color:#00f}.BlockA_reset{color:#fff}.BlockA_cardLegacy{composes:heading from "./typography.css" extra;color:#ff0}.BlockA_cardList{composes:utility, "legacy-card";color:purple}.BlockA_cardEscaped{composes:utility from;color:green}.BlockA_utility{color:#fff}.BlockA_from{color:#00f}',
     'exports' => [
         'card' => [
             'name' => 'BlockA_card',
@@ -75,6 +80,11 @@ $expected = [
         ],
         'cardLegacy' => [
             'name' => 'BlockA_cardLegacy',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'cardList' => [
+            'name' => 'BlockA_cardList',
             'composes' => [],
             'isReferenced' => false,
         ],

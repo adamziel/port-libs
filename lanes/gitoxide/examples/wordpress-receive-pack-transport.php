@@ -135,6 +135,8 @@ return [
     'unsafeSshHostDelimiterRejected' => $fixture['unsafeSshHostDelimiterRejected'],
     'unsafeSshUserDelimiterRejected' => $fixture['unsafeSshUserDelimiterRejected'],
     'unsafeSshScpIpv6UserRejected' => $fixture['unsafeSshScpIpv6UserRejected'],
+    'unsafeSshMalformedBracketRejected' => $fixture['unsafeSshMalformedBracketRejected'],
+    'unsafeSshBracketSuffixRejected' => $fixture['unsafeSshBracketSuffixRejected'],
     'unsafeSshEncodedUserDelimiterRejected' => $fixture['unsafeSshEncodedUserDelimiterRejected'],
     'unsafeSshPasswordRejected' => $fixture['unsafeSshPasswordRejected'],
     'unsafeSshLegacyHostRejected' => $fixture['unsafeSshLegacyHostRejected'],

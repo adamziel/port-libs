@@ -3677,6 +3677,22 @@ CSS;
             '.foo{-webkit-text-decoration:underline dotted;text-decoration:underline dotted}',
             $prefixer->prefixForTargets('.foo { text-decoration: underline dotted; }', ['safari' => 16])
         );
+        $t->same(
+            '.foo{-webkit-text-decoration:underline double;text-decoration:underline double}',
+            $prefixer->prefixForTargets('.foo { text-decoration: double underline; }', ['safari' => '26.1'])
+        );
+        $t->same(
+            '.foo{text-decoration:underline double}',
+            $prefixer->prefixForTargets('.foo { text-decoration: underline double; }', ['safari' => '26.2'])
+        );
+        $t->same(
+            '.foo{-webkit-text-decoration:underline dotted;text-decoration:underline dotted}',
+            $prefixer->prefixForTargets('.foo { text-decoration: dotted underline; }', ['ios_saf' => '26.1'])
+        );
+        $t->same(
+            '.foo{text-decoration:underline dotted}',
+            $prefixer->prefixForTargets('.foo { text-decoration: underline dotted; }', ['ios_saf' => '26.2'])
+        );
     },
     'transition prefixer maps upstream text decoration thickness target fallbacks' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();

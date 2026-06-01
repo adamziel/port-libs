@@ -5042,6 +5042,8 @@ return [
             'port' => null,
             'path' => 'wp-content.git',
         ], SshReceivePackTransport::parseRepositoryUrl('[2001:db8::42]:wp-content.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('[::1:wp-content.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('[::1]suffix:wp-content.git'));
         $t->same([
             'host' => 'git.example.test',
             'user' => 'deploy',
@@ -5263,6 +5265,8 @@ return [
         $t->same(true, $fixture['unsafeSshHostDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshUserDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshScpIpv6UserRejected']);
+        $t->same(true, $fixture['unsafeSshMalformedBracketRejected']);
+        $t->same(true, $fixture['unsafeSshBracketSuffixRejected']);
         $t->same(true, $fixture['unsafeSshEncodedUserDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshPasswordRejected']);
         $t->same('~/wp-content.git', $fixture['sshLegacySchemeTarget']['path']);

@@ -2057,6 +2057,12 @@ CSS;
             '.test { composes: revert-layer; color: red }' => '.EgL3uq_test{composes:revert-layer;color:red}',
             '.test { composes: "foo"; color: red }' => '.EgL3uq_test{composes:"foo";color:red}',
             '.test { composes: foo url(bar); color: red }' => '.EgL3uq_test{composes:foo url(bar);color:red}',
+            '.test { composes: foo,bar; color: red }' => '.EgL3uq_test{composes:foo,bar;color:red}',
+            '.test { composes: foo, bar; color: red }' => '.EgL3uq_test{composes:foo, bar;color:red}',
+            '.test { composes: foo ,bar; color: red }' => '.EgL3uq_test{composes:foo ,bar;color:red}',
+            '.test { composes: foo , bar; color: red }' => '.EgL3uq_test{composes:foo , bar;color:red}',
+            '.test { composes: foo, url( bar ); color: red }' => '.EgL3uq_test{composes:foo, url(bar);color:red}',
+            '.test { composes: foo, "bar"; color: red }' => '.EgL3uq_test{composes:foo, "bar";color:red}',
         ];
 
         foreach ($cases as $css => $expectedCode) {

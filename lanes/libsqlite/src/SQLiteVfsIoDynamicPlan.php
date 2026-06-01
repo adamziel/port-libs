@@ -4992,6 +4992,145 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function lockProxyInterprocessProfile(
+        string $databasePath,
+        int $childHostId = 2,
+        int $parentHostId = 3,
+        string $childProxyRequest = ':auto:',
+        string $blockedProxyRequest = 'notmine',
+        string $retryProxyRequest = 'mine',
+        int $schemaRowCount = 1,
+        bool $childBeginsReadTransaction = true
+    ): array {
+        $databasePath = trim($databasePath);
+        $childProxyRequest = trim($childProxyRequest);
+        $blockedProxyRequest = trim($blockedProxyRequest);
+        $retryProxyRequest = trim($retryProxyRequest);
+
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite lock6 proxy-lock profile requires a database path');
+        }
+        if ($childHostId < 1 || $parentHostId < 1) {
+            throw new \InvalidArgumentException('SQLite lock6 proxy-lock host ids must be positive');
+        }
+        if ($childHostId === $parentHostId) {
+            throw new \InvalidArgumentException('SQLite lock6 proxy-lock profile requires distinct child and parent host ids');
+        }
+        if ($childProxyRequest === '' || $blockedProxyRequest === '' || $retryProxyRequest === '') {
+            throw new \InvalidArgumentException('SQLite lock6 proxy-lock file requests cannot be empty');
+        }
+        if ($schemaRowCount < 1) {
+            throw new \InvalidArgumentException('SQLite lock6 proxy-lock profile requires at least one schema row');
+        }
+
+        $pragma = static function (string $value): string {
+            return "PRAGMA lock_proxy_file='" . str_replace("'", "''", $value) . "'";
+        };
+
+        $schemaRows = [];
+        foreach (range(1, $schemaRowCount) as $rowNumber) {
+            $schemaRows[] = [
+                'type' => $rowNumber === 1 ? 'table' : 'index',
+                'name' => sprintf('app_schema_%04d', $rowNumber),
+            ];
+        }
+
+        $state = new SQLitePragmaLockProxyFileState();
+        $childOpen = $state->open($databasePath, $childHostId, true);
+        $childConnection = $childOpen['connection'];
+        $childAssignment = $state->pragma($childConnection, $pragma($childProxyRequest));
+        $childSelect = $state->selectSchema($childConnection, $schemaRows);
+        $childProxyQuery = $state->pragma($childConnection, 'PRAGMA lock_proxy_file');
+
+        $parentLockStatusBeforeOpen = ['main' => 'unlocked', 'temp' => 'closed'];
+        $parentOpen = $state->open($databasePath, $parentHostId, true);
+        $parentConnection = $parentOpen['connection'];
+        $parentBlockedOpenSelect = $state->selectSchema($parentConnection, $schemaRows);
+        $parentAutoAssignment = $state->pragma($parentConnection, $pragma(':auto:'));
+        $parentAutoNotHeldRows = [['lock_proxy_file' => ':auto: (not held)']];
+
+        $blockedAssignment = $state->pragma($parentConnection, $pragma($blockedProxyRequest));
+        $blockedSelect = $state->selectSchema($parentConnection, $schemaRows);
+        $blockedProxyQuery = $state->pragma($parentConnection, 'PRAGMA lock_proxy_file');
+
+        $childReadTransaction = [
+            'status' => $childBeginsReadTransaction ? 'ok' : 'skipped',
+            'operation' => 'begin-read-transaction',
+            'rows' => $childBeginsReadTransaction ? $schemaRows : [],
+            'holds_proxy_lock' => $childBeginsReadTransaction,
+        ];
+
+        $childClose = $state->close($childConnection);
+        $activeLocksAfterChildClose = $state->activeLocks();
+
+        $retryAssignment = $state->pragma($parentConnection, $pragma($retryProxyRequest));
+        $retrySelect = $state->selectSchema($parentConnection, $schemaRows);
+
+        return [
+            'status' => 'ok',
+            'script' => 'lock6.test',
+            'scenario' => 'lock6-1',
+            'upstream' => [
+                'lock6.test lock6-1.1 child process force proxy locking auto proxy and sqlite_master read',
+                'lock6.test lock6-1.2 parent lock_status remains main unlocked temp closed',
+                'lock6.test lock6-1.3 different host opening selected schema reports database is locked',
+                'lock6.test lock6-1.4 auto proxy query returns :auto: (not held)',
+                'lock6.test lock6-1.4.1 notmine proxy remains locked while child holds proxy',
+                'lock6.test lock6-1.4.2 PRAGMA lock_proxy_file reports notmine',
+                'lock6.test lock6-1.5 child read transaction keeps proxy lock',
+                'lock6.test lock6-1.6 parent mine proxy succeeds after child closes',
+            ],
+            'database' => $databasePath,
+            'child_host_id' => $childHostId,
+            'parent_host_id' => $parentHostId,
+            'force_proxy_locking' => true,
+            'schema_rows' => $schemaRows,
+            'child_open' => $childOpen,
+            'child_proxy_request' => $childProxyRequest,
+            'child_assignment' => $childAssignment,
+            'child_auto_proxy_file' => $childAssignment['proxy_file'],
+            'child_auto_proxy_matches_upstream' => is_string($childAssignment['proxy_file'])
+                && $childAssignment['proxy_file'] === $databasePath . ':auto:',
+            'child_select_status' => $childSelect['status'],
+            'child_select' => $childSelect,
+            'child_proxy_query_rows' => $childProxyQuery['rows'],
+            'parent_lock_status_before_open' => $parentLockStatusBeforeOpen,
+            'parent_open' => $parentOpen,
+            'parent_open_result' => $parentBlockedOpenSelect['status'] === 'error'
+                ? [1, $parentBlockedOpenSelect['error']]
+                : [0, 'ok'],
+            'parent_select_blocked_reason' => $parentBlockedOpenSelect['reason'],
+            'parent_blocked_open_select' => $parentBlockedOpenSelect,
+            'parent_auto_assignment' => $parentAutoAssignment,
+            'parent_auto_not_held_rows' => $parentAutoNotHeldRows,
+            'blocked_proxy_request' => $blockedProxyRequest,
+            'blocked_assignment' => $blockedAssignment,
+            'blocked_proxy_file' => $blockedAssignment['proxy_file'],
+            'blocked_select' => $blockedSelect,
+            'blocked_query_rows' => $blockedProxyQuery['rows'],
+            'child_read_transaction' => $childReadTransaction,
+            'child_close' => $childClose,
+            'active_locks_after_child_close' => $activeLocksAfterChildClose,
+            'retry_proxy_request' => $retryProxyRequest,
+            'retry_assignment' => $retryAssignment,
+            'retry_proxy_file' => $retryAssignment['proxy_file'],
+            'retry_select' => $retrySelect,
+            'database_accessible_after_child_close' => $retrySelect['status'] === 'ok',
+            'interprocess_lock_prevented_cross_host_schema_read' => $parentBlockedOpenSelect['status'] === 'error'
+                && $blockedSelect['status'] === 'error',
+            'reason' => 'proxy_locking_vfs_blocks_second_host_until_original_auto_proxy_holder_closes',
+            'dependencies' => [
+                'sqlite-upstream-lock6-test',
+                'sqlite-vfs-lock-proxy-interprocess',
+                'sqlite-pragma-lock-proxy-file-state',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function superlockProfile(
         string $scenario,
         int $walFrames = 0,

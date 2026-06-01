@@ -7876,6 +7876,18 @@ final class CustomAtRuleTransformer
                 return $this->customPreludeTokenListCssReplacement($replacement, $originalCss, $depth);
             }
 
+            $hasFunctionExitVisitor = ($this->functionExitVisitors[strtolower($name)] ?? $this->genericFunctionExitVisitor) !== null;
+            $arguments = $function['arguments'] ?? [];
+            if (!$hasFunctionExitVisitor && is_array($arguments)) {
+                $visitedArguments = $this->visitCustomPreludeTokenList($arguments, $depth + 1, $skipTokenType);
+                if ($visitedArguments['changed']) {
+                    $function['arguments'] = $visitedArguments['value'];
+                    $component['value'] = $function;
+
+                    return ['value' => [$component], 'changed' => true];
+                }
+            }
+
             $visited = $this->visitFunctionExit($name, $argumentsCss, $raw);
             $visitedCss = $this->serializeVisitorValue($visited);
             if ($visitedCss !== $originalCss) {
