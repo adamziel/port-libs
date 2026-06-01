@@ -995,6 +995,7 @@ final class CssBundler
             }
 
             $close = $this->findMatchingDelimiter($css, $blockOpen, '{', '}');
+            $this->assertNoNestedImportRules($css, $blockOpen + 1, $close, $file);
             $importsAllowed = false;
             $items[] = [
                 'type' => 'other',
@@ -1004,6 +1005,63 @@ final class CssBundler
         }
 
         return $items;
+    }
+
+    private function assertNoNestedImportRules(string $css, int $start, int $end, string $file): void
+    {
+        $quote = null;
+        $statementStart = true;
+        for ($i = $start; $i < $end; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '/' && ($css[$i + 1] ?? '') === '*') {
+                $commentEnd = strpos($css, '*/', $i + 2);
+                if ($commentEnd === false) {
+                    throw new CssBundleException('parser-error', 'CSS contains an unbalanced comment');
+                }
+                $i = $commentEnd + 1;
+                continue;
+            }
+
+            if (ctype_space($char)) {
+                continue;
+            }
+
+            if ($statementStart && $this->startsAtKeyword($css, $i, '@import')) {
+                $loc = $this->sourceLocation($css, $i);
+                throw new CssBundleException(
+                    'parser-error',
+                    'Unknown at rule: @import',
+                    $file,
+                    $loc['line'],
+                    $loc['column'],
+                );
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $statementStart = false;
+                continue;
+            }
+
+            if ($char === '\\') {
+                $i = $this->cssEscapeEndOffset($css, $i);
+                $statementStart = false;
+                continue;
+            }
+
+            $statementStart = $char === ';' || $char === '{' || $char === '}';
+        }
     }
 
     /**

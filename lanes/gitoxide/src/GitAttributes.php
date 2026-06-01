@@ -540,13 +540,39 @@ final class GitAttributes
             }
             if ($char === '*') {
                 if (($pattern[$i + 1] ?? '') === '*') {
-                    $next = $pattern[$i + 2] ?? '';
-                    if ($next === '/') {
-                        $regex .= '(?:.*/)?';
-                        $i += 2;
-                    } else {
-                        $regex .= '.*';
+                    if (!$pathAware) {
+                        $next = $pattern[$i + 2] ?? '';
+                        if ($next === '/') {
+                            $regex .= '(?:.*/)?';
+                            $i += 2;
+                        } else {
+                            $regex .= '.*';
+                            $i++;
+                        }
+                        continue;
+                    }
+
+                    $starStart = $i;
+                    while (($pattern[$i + 1] ?? '') === '*') {
                         $i++;
+                    }
+                    $next = $pattern[$i + 1] ?? null;
+                    $nextIsSlash = $next === '/';
+                    $nextIsEscapedSlash = $next === '\\' && ($pattern[$i + 2] ?? null) === '/';
+                    $atComponentBoundary = $starStart === 0 || ($pattern[$starStart - 1] ?? null) === '/';
+                    if ($atComponentBoundary && ($next === null || $nextIsSlash || $nextIsEscapedSlash)) {
+                        if ($next === null) {
+                            $regex .= '.*';
+                        } else {
+                            $regex .= '(?:.*/)?';
+                        }
+                        if ($nextIsSlash) {
+                            $i++;
+                        } elseif ($nextIsEscapedSlash) {
+                            $i += 2;
+                        }
+                    } else {
+                        $regex .= '[^/]*';
                     }
                 } else {
                     $regex .= $pathAware ? '[^/]*' : '.*';

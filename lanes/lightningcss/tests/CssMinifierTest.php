@@ -910,6 +910,7 @@ CSS
             'color-mix(in hsl, oklab(0% 0.365 -0.16) 100%, rgb(0, 0, 0) 0%)' => '#000',
             'color-mix(in hsl, oklch(100% 0.399 336.3) 100%, rgb(0, 0, 0) 0%)' => '#fff',
             'color-mix(in hsl, oklch(0% 0.399 336.3) 100%, rgb(0, 0, 0) 0%)' => '#000',
+            'color-mix(in hsl, hsl(120 100% 49.898%) 80%, yellow)' => '#33fe00',
         ];
 
         foreach ($cases as $input => $expected) {

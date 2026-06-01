@@ -256,6 +256,7 @@ final class TransitionPrefixer
         $printColorAdjustChanged = $this->rewritePrintColorAdjustPrefixEntries($entries, $targetOptions);
         $columnsChanged = $this->rewriteColumnsPrefixEntries($entries, $targetOptions);
         $uiPrefixChanged = $this->rewriteUiPrefixEntries($entries, $targetOptions);
+        $cursorPrefixChanged = $this->rewriteCursorPrefixEntries($entries, $targetOptions);
         $boxSizingChanged = $this->rewriteBoxSizingPrefixEntries($entries, $targetOptions);
         $objectFitChanged = $this->rewriteObjectFitPrefixEntries($entries, $targetOptions);
         $textCompatibilityPrefixChanged = $this->rewriteTextCompatibilityPrefixEntries($entries, $targetOptions);
@@ -332,7 +333,7 @@ final class TransitionPrefixer
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
         $selectorVariants = $this->selectorPrefixVariants($selectors, $targetOptions);
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $lengthTargetChanged || $selectorVariants !== null) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $lengthTargetChanged || $selectorVariants !== null) {
             return $this->serializeRulesForSelectors($selectorVariants ?? [$selectors], $entries) . implode('', $supportRules);
         }
 
@@ -1147,6 +1148,14 @@ final class TransitionPrefixer
             'appearanceNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [79]),
             'appearanceNeedsMs' => isset($normalized['ie'])
                 || $this->targetInRange($normalized, 'edge', [12], [18]),
+            'cursorZoomNeedsWebkit' => $this->targetInRange($normalized, 'chrome', [4], [36])
+                || $this->targetInRange($normalized, 'opera', [15], [23])
+                || $this->targetInRange($normalized, 'safari', [3, 1], [8]),
+            'cursorZoomNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [23]),
+            'cursorGrabNeedsWebkit' => $this->targetInRange($normalized, 'chrome', [4], [67])
+                || $this->targetInRange($normalized, 'opera', [15], [54])
+                || $this->targetInRange($normalized, 'safari', [3, 1], [10]),
+            'cursorGrabNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [25]),
             'boxSizingNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [3])
                 || $this->targetInRange($normalized, 'chrome', [4], [9])
                 || $this->targetInRange($normalized, 'ios_saf', [3], [4, 2])
@@ -4659,6 +4668,149 @@ final class TransitionPrefixer
             '-moz-' => $targetOptions['appearanceNeedsMoz'] ?? false,
             '-ms-' => $targetOptions['appearanceNeedsMs'] ?? false,
         ]) || $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteCursorPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $knownPrefixedValues = [];
+        $unprefixedBaseValues = [];
+
+        foreach ($entries as $entry) {
+            if ($entry['important'] || $entry['property'] !== 'cursor') {
+                continue;
+            }
+
+            $info = $this->cursorPrefixInfo($entry['value']);
+            if ($info === null) {
+                continue;
+            }
+
+            if ($info['prefix'] === '') {
+                $unprefixedBaseValues[$info['baseValue']] = true;
+                continue;
+            }
+
+            $knownPrefixedValues[$info['prefix'] . $info['baseValue']] = true;
+        }
+
+        $rewritten = [];
+        $changed = false;
+        foreach ($entries as $entry) {
+            if ($entry['important'] || $entry['property'] !== 'cursor') {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $info = $this->cursorPrefixInfo($entry['value']);
+            if ($info === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if ($info['prefix'] !== '') {
+                if (!$this->cursorPrefixNeeded($info['keyword'], $info['prefix'], $targetOptions) && isset($unprefixedBaseValues[$info['baseValue']])) {
+                    $changed = true;
+                    continue;
+                }
+
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            foreach (['-webkit-', '-moz-'] as $prefix) {
+                if (!$this->cursorPrefixNeeded($info['keyword'], $prefix, $targetOptions)) {
+                    continue;
+                }
+
+                $prefixedValue = $info['prefixedValues'][$prefix];
+                if (isset($knownPrefixedValues[$prefix . $info['baseValue']])) {
+                    continue;
+                }
+
+                $rewritten[] = $this->declarationEntry('cursor', $prefixedValue);
+                $knownPrefixedValues[$prefix . $info['baseValue']] = true;
+                $changed = true;
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+
+        return true;
+    }
+
+    /**
+     * @return array{keyword:string,prefix:string,baseValue:string,prefixedValues:array<string,string>}|null
+     */
+    private function cursorPrefixInfo(string $value): ?array
+    {
+        if ($this->containsCustomPropertyReference($value)) {
+            return null;
+        }
+
+        $parts = $this->splitTopLevel($value, ',');
+        if ($parts === []) {
+            return null;
+        }
+
+        $lastIndex = array_key_last($parts);
+        $lastValue = strtolower(trim($parts[$lastIndex]));
+        $prefix = '';
+        $keyword = $lastValue;
+
+        foreach (['-webkit-', '-moz-'] as $candidate) {
+            if (str_starts_with($lastValue, $candidate)) {
+                $prefix = $candidate;
+                $keyword = substr($lastValue, strlen($candidate));
+                break;
+            }
+        }
+
+        if (!in_array($keyword, ['zoom-in', 'zoom-out', 'grab', 'grabbing'], true)) {
+            return null;
+        }
+
+        $baseParts = $parts;
+        $baseParts[$lastIndex] = $keyword;
+        $baseValue = implode(',', $baseParts);
+        $prefixedValues = [];
+        foreach (['-webkit-', '-moz-'] as $candidate) {
+            $prefixedParts = $parts;
+            $prefixedParts[$lastIndex] = $candidate . $keyword;
+            $prefixedValues[$candidate] = implode(',', $prefixedParts);
+        }
+
+        return [
+            'keyword' => $keyword,
+            'prefix' => $prefix,
+            'baseValue' => $baseValue,
+            'prefixedValues' => $prefixedValues,
+        ];
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function cursorPrefixNeeded(string $keyword, string $prefix, array $targetOptions): bool
+    {
+        if ($keyword === 'zoom-in' || $keyword === 'zoom-out') {
+            return $prefix === '-webkit-'
+                ? ($targetOptions['cursorZoomNeedsWebkit'] ?? false)
+                : ($targetOptions['cursorZoomNeedsMoz'] ?? false);
+        }
+
+        return $prefix === '-webkit-'
+            ? ($targetOptions['cursorGrabNeedsWebkit'] ?? false)
+            : ($targetOptions['cursorGrabNeedsMoz'] ?? false);
     }
 
     /**

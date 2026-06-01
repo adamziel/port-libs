@@ -383,10 +383,6 @@ final class LooseObjectStore
                 throw new \RuntimeException("Unable to inflate loose object: {$oid}");
             }
 
-            if ($decoded === '') {
-                continue;
-            }
-
             $inflated .= $decoded;
             if ($expectedLength === null) {
                 $nul = strpos($inflated, "\0");
@@ -406,6 +402,15 @@ final class LooseObjectStore
 
             if ($expectedLength !== null && strlen($inflated) > $expectedLength) {
                 throw new \RuntimeException("Loose object inflated size mismatch: expected {$expectedLength}, got " . strlen($inflated));
+            }
+
+            if ($expectedLength !== null && inflate_get_status($context) === ZLIB_STREAM_END) {
+                $actualLength = strlen($inflated);
+                if ($actualLength !== $expectedLength) {
+                    throw new \RuntimeException("Loose object inflated size mismatch: expected {$expectedLength}, got {$actualLength}");
+                }
+
+                return $inflated;
             }
         }
 

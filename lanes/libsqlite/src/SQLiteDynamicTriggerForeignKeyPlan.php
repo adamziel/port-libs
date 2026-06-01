@@ -5560,6 +5560,169 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     /**
      * @param list<array<string,mixed>> $parents
      * @param list<array<string,mixed>> $children
+     * @param array{case?:string,event:string,action:string,where?:array<string,mixed>,set?:array<string,mixed>,parent_columns?:list<string>,child_columns?:list<string>,child_defaults?:array<string,mixed>,parent_affinities?:array<string,string>,parent_collations?:array<string,string>} $statement
+     * @return array<string,mixed>
+     */
+    public static function eForeignKeyActionSatisfactionPlan(array $parents, array $children, array $statement): array
+    {
+        $event = strtolower(trim((string) ($statement['event'] ?? '')));
+        $action = strtolower(trim((string) ($statement['action'] ?? '')));
+        if (!in_array($event, ['update', 'delete'], true)) {
+            throw new \InvalidArgumentException('SQLite e_fkey action satisfaction event is unsupported');
+        }
+        if (!in_array($action, ['cascade', 'set default'], true)) {
+            throw new \InvalidArgumentException('SQLite e_fkey action satisfaction action is unsupported');
+        }
+        if ($event === 'delete' && $action === 'cascade') {
+            throw new \InvalidArgumentException('SQLite e_fkey action satisfaction delete action is unsupported');
+        }
+
+        $parentColumns = self::identifierList($statement['parent_columns'] ?? ['id'], 'e_fkey action parent columns');
+        $childColumns = self::identifierList($statement['child_columns'] ?? ['parent_id'], 'e_fkey action child columns');
+        if (count($parentColumns) !== count($childColumns)) {
+            throw new \InvalidArgumentException('SQLite e_fkey action satisfaction key width mismatch');
+        }
+
+        $parentAffinities = self::foreignKeyColumnModes($statement['parent_affinities'] ?? [], $parentColumns, ['none', 'text', 'numeric', 'integer'], 'affinity');
+        $parentCollations = self::foreignKeyColumnModes($statement['parent_collations'] ?? [], $parentColumns, ['binary', 'nocase', 'rtrim'], 'collation');
+        $where = $statement['where'] ?? [];
+        $set = $statement['set'] ?? [];
+        if ($event === 'update' && $set === []) {
+            throw new \InvalidArgumentException('SQLite e_fkey action satisfaction update SET list is empty');
+        }
+
+        $defaultChildRow = [];
+        if ($action === 'set default') {
+            $defaults = $statement['child_defaults'] ?? [];
+            foreach ($childColumns as $childColumn) {
+                if (!array_key_exists($childColumn, $defaults)) {
+                    throw new \InvalidArgumentException("SQLite e_fkey action satisfaction default is missing {$childColumn}");
+                }
+                $defaultChildRow[$childColumn] = $defaults[$childColumn];
+            }
+        }
+
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $originalParents = $parents;
+        $originalChildren = $children;
+        $targetIndexes = [];
+        foreach ($parents as $index => $parent) {
+            if (self::rowMatches($parent, $where)) {
+                $targetIndexes[] = $index;
+            }
+        }
+        if ($targetIndexes === []) {
+            throw new \InvalidArgumentException('SQLite e_fkey action satisfaction target parent row was not found');
+        }
+
+        $actions = [];
+        $matchedParentKeys = [];
+        $deletedParentKeys = [];
+        foreach ($targetIndexes as $targetIndex) {
+            $oldParent = self::foreignKeyNormalizeParentRow($parents[$targetIndex], $parentColumns, $parentAffinities);
+            $oldParentKey = self::foreignKeyRowKey($oldParent, $parentColumns);
+            $matchedParentKeys[] = $oldParentKey;
+
+            $newParentKey = null;
+            if ($event === 'update') {
+                $newParent = $oldParent;
+                foreach ($set as $column => $value) {
+                    $newParent[self::identifier((string) $column, 'e_fkey action update column')] = $value;
+                }
+                $newParent = self::foreignKeyNormalizeParentRow($newParent, $parentColumns, $parentAffinities);
+                $parents[$targetIndex] = $newParent;
+                $newParentKey = self::foreignKeyRowKey($newParent, $parentColumns);
+            } else {
+                $deletedParentKeys[] = $oldParentKey;
+                unset($parents[$targetIndex]);
+            }
+
+            foreach ($children as $childIndex => $child) {
+                if (!self::foreignKeyChildMatchesParentKey($child, $childColumns, $oldParentKey, $parentColumns, $parentAffinities, $parentCollations)) {
+                    continue;
+                }
+
+                $oldChildKey = self::foreignKeyRowKey($children[$childIndex], $childColumns);
+                if ($action === 'cascade') {
+                    foreach ($childColumns as $position => $childColumn) {
+                        $children[$childIndex][$childColumn] = $newParentKey[$position] ?? null;
+                    }
+                } else {
+                    foreach ($childColumns as $childColumn) {
+                        $children[$childIndex][$childColumn] = $defaultChildRow[$childColumn];
+                    }
+                }
+
+                $actions[] = [
+                    'child_index' => $childIndex,
+                    'action' => $action === 'cascade' ? 'cascade-child-key' : 'set-default-child-key',
+                    'old_child_key' => $oldChildKey,
+                    'new_child_key' => self::foreignKeyRowKey($children[$childIndex], $childColumns),
+                    'target_parent_key' => $oldParentKey,
+                ];
+            }
+        }
+
+        $parents = array_values($parents);
+        $violations = self::foreignKeyCompositeViolations($parents, $children, $parentColumns, $childColumns, $parentAffinities, $parentCollations);
+        $rolledBack = $violations !== [];
+        $committedParents = $rolledBack ? $originalParents : $parents;
+        $committedChildren = $rolledBack ? $originalChildren : $children;
+
+        $defaultKey = $defaultChildRow === [] ? null : self::foreignKeyRowKey($defaultChildRow, $childColumns);
+        $defaultParentPresent = null;
+        if ($defaultChildRow !== []) {
+            $defaultParentPresent = false;
+            foreach ($parents as $parent) {
+                $parent = self::foreignKeyNormalizeParentRow($parent, $parentColumns, $parentAffinities);
+                if (self::foreignKeyChildMatchesParentKey($defaultChildRow, $childColumns, self::foreignKeyRowKey($parent, $parentColumns), $parentColumns, $parentAffinities, $parentCollations)) {
+                    $defaultParentPresent = true;
+                    break;
+                }
+            }
+        }
+
+        return [
+            'source' => 'e_fkey.test e_fkey-48.1..50.5',
+            'operation' => 'foreign-key-action-must-remain-satisfied',
+            'case' => (string) ($statement['case'] ?? ''),
+            'status' => $rolledBack ? 'constraint-failed' : 'commit-ok',
+            'event' => $event,
+            'action' => $action,
+            'parent_columns' => $parentColumns,
+            'child_columns' => $childColumns,
+            'parent_affinities' => $parentAffinities,
+            'parent_collations' => $parentCollations,
+            'matched_parent_count' => count($matchedParentKeys),
+            'matched_parent_keys' => $matchedParentKeys,
+            'deleted_parent_keys' => $deletedParentKeys,
+            'default_child_key' => $defaultKey,
+            'default_parent_present' => $defaultParentPresent,
+            'action_count' => count($actions),
+            'action_rows' => $actions,
+            'attempted_parent_rows' => $parents,
+            'attempted_child_rows' => $children,
+            'committed_parent_rows' => $committedParents,
+            'committed_child_rows' => $committedChildren,
+            'attempted_parent_key_values' => array_map(static fn (array $row): array => self::foreignKeyRowKey($row, $parentColumns), $parents),
+            'attempted_child_key_values' => array_map(static fn (array $row): array => self::foreignKeyRowKey($row, $childColumns), $children),
+            'committed_parent_key_values' => array_map(static fn (array $row): array => self::foreignKeyRowKey($row, $parentColumns), $committedParents),
+            'committed_child_key_values' => array_map(static fn (array $row): array => self::foreignKeyRowKey($row, $childColumns), $committedChildren),
+            'violation_count' => count($violations),
+            'violations' => $violations,
+            'statement_rolled_back' => $rolledBack,
+            'dependencies' => [
+                'sqlite-efkey48-on-update-cascade-rewrites-each-referencing-child',
+                'sqlite-efkey49-actions-still-require-default-parent-key',
+                'sqlite-efkey50-set-default-delete-fails-until-default-parent-exists',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
      * @param array<string,mixed> $incoming
      * @return array<string,mixed>
      */

@@ -539,6 +539,42 @@ try {
     echo 'post-import-layer: rejected' . PHP_EOL;
 }
 
+$nestedImportReads = [];
+try {
+    (new CssBundler())->bundleWithReader(
+        '/nested-import.css',
+        static function (string $file) use (&$nestedImportReads): string {
+            $nestedImportReads[] = $file;
+
+            return $file === '/nested-import.css'
+                ? <<<'CSS'
+@media screen {
+  @import "blocks/card.css";
+  .wp-site-blocks { color: red }
+}
+CSS
+                : '.wp-block-card { color: green; }';
+        }
+    );
+
+    fwrite(STDERR, "Expected nested @import in block-theme CSS to be rejected before reading block CSS\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== 'Unknown at rule: @import'
+        || $exception->sourceFile !== '/nested-import.css'
+        || $exception->sourceLine !== 2
+        || $exception->sourceColumn !== 3
+        || $nestedImportReads !== ['/nested-import.css']
+    ) {
+        fwrite(STDERR, 'Unexpected nested @import diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'nested-import: rejected-before-read' . PHP_EOL;
+}
+
 try {
     (new CssBundler())->bundle('/theme.css', [
         '/theme.css' => '@import "tokens.css"; .wp-site-blocks { color: red }',

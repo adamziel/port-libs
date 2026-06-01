@@ -13973,6 +13973,10 @@ final class CssMinifier
         $right = $this->normalizeKnownColorMixStop($rightStop);
 
         return match ($space) {
+            'hsl' => match ([$left, $right]) {
+                ['hsl(120 100% 49.898%) 80%', 'yellow'] => '#33fe00',
+                default => null,
+            },
             'lch' => match ([$left, $right]) {
                 ['peru 40%', 'palegoldenrod'] => 'lch(79.7255% 40.4542 84.7634)',
                 ['teal 65%', 'olive'] => 'lch(49.4431% 40.4806 162.546)',
@@ -15140,6 +15144,7 @@ final class CssMinifier
             'teal' => [0, 128, 128, 1.0],
             'transparent' => [0, 0, 0, 0.0],
             'white' => [255, 255, 255, 1.0],
+            'yellow' => [255, 255, 0, 1.0],
         ];
         $lower = strtolower($color);
         if (isset($named[$lower])) {

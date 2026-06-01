@@ -168,6 +168,46 @@ return [
         $t->same(true, PathspecMatcher::matchesOne(':(glob)wp-content/plugins/f\\\\oo/block.json', $backslashPath, false));
         $t->same(false, PathspecMatcher::matchesOne(':(glob)wp-content/plugins/f\\\\oo/block.json', $slashPath, false));
     },
+    'attribute pathspec filters keep path aware double star component local like gix wildmatch' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString(
+            "wp-content/plugins/a**f.php component-local\n"
+            . "wp-content/plugins/**.php top-level-php\n"
+            . "wp-content/plugins/**/block.json recursive-block\n",
+            withBuiltInMacros: false,
+        );
+
+        $t->same(['component-local' => true], $attributes->attributesForPath('wp-content/plugins/af.php', ['component-local']));
+        $t->same(['component-local' => true], $attributes->attributesForPath('wp-content/plugins/axf.php', ['component-local']));
+        $t->same(['component-local' => null], $attributes->attributesForPath('wp-content/plugins/a/x/f.php', ['component-local']));
+        $t->same(['top-level-php' => true], $attributes->attributesForPath('wp-content/plugins/index.php', ['top-level-php']));
+        $t->same(['top-level-php' => null], $attributes->attributesForPath('wp-content/plugins/nested/index.php', ['top-level-php']));
+        $t->same(['recursive-block' => true], $attributes->attributesForPath('wp-content/plugins/block.json', ['recursive-block']));
+        $t->same(['recursive-block' => true], $attributes->attributesForPath('wp-content/plugins/nested/block.json', ['recursive-block']));
+        $t->same(['recursive-block' => null], $attributes->attributesForPath('wp-content/plugins/nested/xblock.json', ['recursive-block']));
+
+        $componentLocal = ':(glob,attr:component-local)wp-content/plugins/a**f.php';
+        $topLevelPhp = ':(glob,attr:top-level-php)wp-content/plugins/**.php';
+        $recursiveBlock = ':(glob,attr:recursive-block)wp-content/plugins/**/block.json';
+
+        $t->same(true, PathspecMatcher::matchesOne($componentLocal, 'wp-content/plugins/axf.php', false, $attributes));
+        $t->same(false, PathspecMatcher::matchesOne($componentLocal, 'wp-content/plugins/a/x/f.php', false, $attributes));
+        $t->same(true, PathspecMatcher::matchesOne($topLevelPhp, 'wp-content/plugins/index.php', false, $attributes));
+        $t->same(false, PathspecMatcher::matchesOne($topLevelPhp, 'wp-content/plugins/nested/index.php', false, $attributes));
+        $t->same(true, PathspecMatcher::matchesOne($recursiveBlock, 'wp-content/plugins/block.json', false, $attributes));
+        $t->same(true, PathspecMatcher::matchesOne($recursiveBlock, 'wp-content/plugins/nested/block.json', false, $attributes));
+        $t->same(false, PathspecMatcher::matchesOne($recursiveBlock, 'wp-content/plugins/nested/xblock.json', false, $attributes));
+
+        $t->same(true, PathspecSearch::fromSpecs([$componentLocal])->isIncluded('wp-content/plugins/axf.php', false, $attributes));
+        $t->same(false, PathspecSearch::fromSpecs([$componentLocal])->isIncluded('wp-content/plugins/a/x/f.php', false, $attributes));
+        $t->same(true, PathspecSearch::fromSpecs([$topLevelPhp])->isIncluded('wp-content/plugins/index.php', false, $attributes));
+        $t->same(false, PathspecSearch::fromSpecs([$topLevelPhp])->isIncluded('wp-content/plugins/nested/index.php', false, $attributes));
+        $t->same(true, PathspecSearch::fromSpecs([$recursiveBlock])->isIncluded('wp-content/plugins/block.json', false, $attributes));
+        $t->same(true, PathspecSearch::fromSpecs([$recursiveBlock])->isIncluded('wp-content/plugins/nested/block.json', false, $attributes));
+        $t->same(false, PathspecSearch::fromSpecs([$recursiveBlock])->isIncluded('wp-content/plugins/nested/xblock.json', false, $attributes));
+
+        $shellGlob = PathspecSearch::fromSpecs(['wp-content/plugins/**.php']);
+        $t->same(true, $shellGlob->isIncluded('wp-content/plugins/nested/index.php', false));
+    },
     'pathspec parser accepts upstream attribute magic and escaped values' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/plugins/** deploy=plugin kind=one,two\n"
             . "wp-content/themes/** deploy=theme kind=one-two\n"

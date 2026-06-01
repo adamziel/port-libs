@@ -22,6 +22,12 @@ $classAttributes = GitAttributes::fromString(
     . "wp-content/plugins/foo[/]bar.php slash-class\n",
     withBuiltInMacros: false,
 );
+$doubleStarAttributes = GitAttributes::fromString(
+    "wp-content/plugins/a**f.php component-local\n"
+    . "wp-content/plugins/**.php top-level-php\n"
+    . "wp-content/plugins/**/block.json recursive-block\n",
+    withBuiltInMacros: false,
+);
 $backslashAttributes = GitAttributes::fromString(
     'wp-content/plugins/f\\\\oo/block.json backslash-plugin' . "\n"
     . 'wp-content/plugins/f/oo/block.json slash-plugin' . "\n",
@@ -67,6 +73,15 @@ $datedUploadSearch = PathspecSearch::fromSpecs([':(attr:dated-upload)wp-content/
 $whitespaceUploadSearch = PathspecSearch::fromSpecs([':(attr:whitespace-upload)wp-content/uploads/**']);
 $reversedRangeSearch = PathspecSearch::fromSpecs([':(attr:reversed-range)wp-content/uploads/[z-a]/**']);
 $foldedReversedRangeSearch = PathspecSearch::fromSpecs([':(icase)wp-content/uploads/[Z-A]/**']);
+$componentLocalDoubleStarSearch = PathspecSearch::fromSpecs([
+    ':(glob,attr:component-local)wp-content/plugins/a**f.php',
+]);
+$topLevelDoubleStarSearch = PathspecSearch::fromSpecs([
+    ':(glob,attr:top-level-php)wp-content/plugins/**.php',
+]);
+$recursiveDoubleStarSearch = PathspecSearch::fromSpecs([
+    ':(glob,attr:recursive-block)wp-content/plugins/**/block.json',
+]);
 $nestedDeploymentSearch = PathspecSearch::fromSpecs([
     ':(attr:deploy=plugin)wp-content/plugins/**',
     ':(attr:deploy=theme)wp-content/themes/**',
@@ -160,6 +175,41 @@ return [
         'wp-content/plugins/foo/bar.php',
         false,
         $classAttributes,
+    ),
+    'componentLocalDoubleStarAttributes' => $doubleStarAttributes->attributesForPath(
+        'wp-content/plugins/axf.php',
+        ['component-local'],
+    ),
+    'componentLocalDoubleStarSkipsNestedPath' => !PathspecMatcher::matchesOne(
+        ':(glob,attr:component-local)wp-content/plugins/a**f.php',
+        'wp-content/plugins/a/x/f.php',
+        false,
+        $doubleStarAttributes,
+    ),
+    'componentLocalDoubleStarSearchMatchesSibling' => $componentLocalDoubleStarSearch->isIncluded(
+        'wp-content/plugins/axf.php',
+        false,
+        $doubleStarAttributes,
+    ),
+    'topLevelDoubleStarSkipsNestedPhp' => !$topLevelDoubleStarSearch->isIncluded(
+        'wp-content/plugins/nested/index.php',
+        false,
+        $doubleStarAttributes,
+    ),
+    'recursiveDoubleStarMatchesDirectBlock' => $recursiveDoubleStarSearch->isIncluded(
+        'wp-content/plugins/block.json',
+        false,
+        $doubleStarAttributes,
+    ),
+    'recursiveDoubleStarMatchesNestedBlock' => $recursiveDoubleStarSearch->isIncluded(
+        'wp-content/plugins/nested/block.json',
+        false,
+        $doubleStarAttributes,
+    ),
+    'recursiveDoubleStarSkipsSuffixBlock' => !$recursiveDoubleStarSearch->isIncluded(
+        'wp-content/plugins/nested/xblock.json',
+        false,
+        $doubleStarAttributes,
     ),
     'backslashPathAttributes' => $backslashAttributes->attributesForPath(
         $backslashPath,

@@ -807,6 +807,113 @@ CSS;
             ])
         );
     },
+    'transition prefixer maps upstream cursor value target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{cursor:-webkit-zoom-in;cursor:-moz-zoom-in;cursor:zoom-in;cursor:-webkit-zoom-out;cursor:-moz-zoom-out;cursor:zoom-out}',
+            $prefixer->prefixForTargets('.foo { cursor: zoom-in; cursor: zoom-out; }', [
+                'chrome' => 36,
+                'firefox' => 23,
+                'safari' => 8,
+                'opera' => 23,
+            ])
+        );
+        $t->same(
+            '.foo{cursor:-webkit-zoom-in;cursor:zoom-in}',
+            $prefixer->prefixForTargets('.foo { cursor: zoom-in; }', ['chrome' => 36])
+        );
+        $t->same(
+            '.foo{cursor:zoom-in}',
+            $prefixer->prefixForTargets('.foo { cursor: zoom-in; }', ['chrome' => 37])
+        );
+        $t->same(
+            '.foo{cursor:-moz-zoom-out;cursor:zoom-out}',
+            $prefixer->prefixForTargets('.foo { cursor: zoom-out; }', ['firefox' => 23])
+        );
+        $t->same(
+            '.foo{cursor:zoom-out}',
+            $prefixer->prefixForTargets('.foo { cursor: zoom-out; }', ['firefox' => 24])
+        );
+        $t->same(
+            '.foo{cursor:-webkit-zoom-in;cursor:zoom-in}',
+            $prefixer->prefixForTargets('.foo { cursor: zoom-in; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{cursor:zoom-in}',
+            $prefixer->prefixForTargets('.foo { cursor: zoom-in; }', ['safari' => 9])
+        );
+        $t->same(
+            '.foo{cursor:-webkit-zoom-out;cursor:zoom-out}',
+            $prefixer->prefixForTargets('.foo { cursor: zoom-out; }', ['opera' => 23])
+        );
+        $t->same(
+            '.foo{cursor:zoom-out}',
+            $prefixer->prefixForTargets('.foo { cursor: zoom-out; }', ['opera' => 24])
+        );
+        $t->same(
+            '.foo{cursor:-webkit-grab;cursor:-moz-grab;cursor:grab;cursor:-webkit-grabbing;cursor:-moz-grabbing;cursor:grabbing}',
+            $prefixer->prefixForTargets('.foo { cursor: grab; cursor: grabbing; }', [
+                'chrome' => 67,
+                'firefox' => 25,
+                'safari' => 10,
+                'opera' => 54,
+            ])
+        );
+        $t->same(
+            '.foo{cursor:-webkit-grab;cursor:grab}',
+            $prefixer->prefixForTargets('.foo { cursor: grab; }', ['chrome' => 67])
+        );
+        $t->same(
+            '.foo{cursor:grab}',
+            $prefixer->prefixForTargets('.foo { cursor: grab; }', ['chrome' => 68])
+        );
+        $t->same(
+            '.foo{cursor:-moz-grabbing;cursor:grabbing}',
+            $prefixer->prefixForTargets('.foo { cursor: grabbing; }', ['firefox' => 25])
+        );
+        $t->same(
+            '.foo{cursor:grabbing}',
+            $prefixer->prefixForTargets('.foo { cursor: grabbing; }', ['firefox' => 26])
+        );
+        $t->same(
+            '.foo{cursor:-webkit-grab;cursor:grab}',
+            $prefixer->prefixForTargets('.foo { cursor: grab; }', ['safari' => 10])
+        );
+        $t->same(
+            '.foo{cursor:grab}',
+            $prefixer->prefixForTargets('.foo { cursor: grab; }', ['safari' => 11])
+        );
+        $t->same(
+            '.foo{cursor:-webkit-grabbing;cursor:grabbing}',
+            $prefixer->prefixForTargets('.foo { cursor: grabbing; }', ['opera' => 54])
+        );
+        $t->same(
+            '.foo{cursor:grabbing}',
+            $prefixer->prefixForTargets('.foo { cursor: grabbing; }', ['opera' => 55])
+        );
+        $t->same(
+            '.foo{cursor:url("hand.cur"),-webkit-grab;cursor:url("hand.cur"),grab}',
+            $prefixer->prefixForTargets('.foo { cursor: url("hand.cur"), grab; }', ['safari' => 10])
+        );
+        $t->same(
+            '.foo{cursor:-webkit-grab;cursor:grab}',
+            $prefixer->prefixForTargets('.foo { cursor: -webkit-grab; cursor: grab; }', ['safari' => 10])
+        );
+        $t->same(
+            '.foo{cursor:grab}',
+            $prefixer->prefixForTargets('.foo { cursor: -webkit-grab; cursor: -moz-grab; cursor: grab; }', [
+                'chrome' => 68,
+                'firefox' => 26,
+                'safari' => 11,
+                'opera' => 55,
+            ])
+        );
+        $t->same(
+            '.foo{cursor:-webkit-grab}',
+            $prefixer->prefixForTargets('.foo { cursor: -webkit-grab; }', ['chrome' => 68])
+        );
+    },
     'transition prefixer maps upstream ui browser boundary targets' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

@@ -19,12 +19,31 @@ $negativeZeroSizeObject = GitObject::fromStorageBytes($negativeZeroSizeStorage);
 $strictRejectsReadAhead = false;
 $allocationLimitRejected = false;
 $allocationLimitMessage = null;
+$trailingStreamIgnored = false;
+$trailingStreamIntegrityVerified = false;
 
 try {
     GitObject::fromStorageBytes($storage . 'next loose object bytes already buffered');
 } catch (InvalidArgumentException) {
     $strictRejectsReadAhead = true;
 }
+
+$trailingObjectsDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-trailing-' . bin2hex(random_bytes(4)) . '/objects';
+$trailingPath = $trailingObjectsDirectory . '/' . substr($object->oid(), 0, 2) . '/' . substr($object->oid(), 2);
+if (!is_dir(dirname($trailingPath)) && !mkdir(dirname($trailingPath), 0777, true) && !is_dir(dirname($trailingPath))) {
+    throw new RuntimeException('Unable to create object-header trailing-stream fixture directory');
+}
+$trailingPrimaryStream = gzcompress($storage);
+$trailingIgnoredStream = gzcompress("blob 13\0stale payload");
+if ($trailingPrimaryStream === false || $trailingIgnoredStream === false) {
+    throw new RuntimeException('Unable to compress object-header trailing-stream fixture');
+}
+file_put_contents($trailingPath, $trailingPrimaryStream . $trailingIgnoredStream);
+$trailingStore = LooseObjectStore::fromObjectsDirectory($trailingObjectsDirectory);
+$trailingStreamIgnored = $trailingStore->read($object->oid())->body === $fixture['blockBlobBody'];
+$trailingIntegrity = $trailingStore->verifyIntegrity();
+$trailingStreamIntegrityVerified = $trailingIntegrity['numObjects'] === 1
+    && $trailingIntegrity['verifiedObjectIds'] === [$object->oid()];
 
 $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-' . bin2hex(random_bytes(4)) . '/objects';
 $oversizedPath = $objectsDirectory . '/' . substr($fixture['oversizedLooseObjectOid'], 0, 2) . '/' . substr($fixture['oversizedLooseObjectOid'], 2);
@@ -65,4 +84,6 @@ return [
     'oversizedHeaderSize' => $oversizedHeader['size'],
     'allocationLimitRejected' => $allocationLimitRejected,
     'allocationLimitMessage' => $allocationLimitMessage,
+    'trailingStreamIgnored' => $trailingStreamIgnored,
+    'trailingStreamIntegrityVerified' => $trailingStreamIntegrityVerified,
 ];

@@ -404,14 +404,40 @@ final class PathspecSearch
             }
             if ($char === '*') {
                 if (($pattern[$i + 1] ?? '') === '*') {
+                    if ($matchSlash) {
+                        while (($pattern[$i + 1] ?? '') === '*') {
+                            $i++;
+                        }
+                        if (($pattern[$i + 1] ?? '') === '/') {
+                            $regex .= '(?:.*/)?';
+                            $i++;
+                        } else {
+                            $regex .= '.*';
+                        }
+                        continue;
+                    }
+
+                    $starStart = $i;
                     while (($pattern[$i + 1] ?? '') === '*') {
                         $i++;
                     }
-                    if (($pattern[$i + 1] ?? '') === '/') {
-                        $regex .= '(?:.*/)?';
-                        $i++;
+                    $next = $pattern[$i + 1] ?? null;
+                    $nextIsSlash = $next === '/';
+                    $nextIsEscapedSlash = $next === '\\' && ($pattern[$i + 2] ?? null) === '/';
+                    $atComponentBoundary = $starStart === 0 || ($pattern[$starStart - 1] ?? null) === '/';
+                    if ($atComponentBoundary && ($next === null || $nextIsSlash || $nextIsEscapedSlash)) {
+                        if ($next === null) {
+                            $regex .= '.*';
+                        } else {
+                            $regex .= '(?:.*/)?';
+                        }
+                        if ($nextIsSlash) {
+                            $i++;
+                        } elseif ($nextIsEscapedSlash) {
+                            $i += 2;
+                        }
                     } else {
-                        $regex .= '.*';
+                        $regex .= '[^/]*';
                     }
                 } else {
                     $regex .= $matchSlash ? '.*' : '[^/]*';

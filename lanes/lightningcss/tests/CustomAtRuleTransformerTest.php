@@ -688,6 +688,97 @@ CSS;
         $t->same('192dpi', $seen['rules']['density']['prelude']);
         $t->same(['type' => 'dpi', 'value' => 192.0], $seen['rules']['density']['preludeAst']['value']);
     },
+    'custom at-rules visit upstream ratio component preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'ratios' => [],
+            'rules' => [],
+        ];
+        $css = <<<'CSS'
+@viewport 16 / 9 {
+  .hero {
+    color: yellow;
+  }
+}
+
+@ratios 1/1, 3/2;
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Ratio' => static function (array $ratio) use (&$seen): array {
+                    $seen['ratios'][] = $ratio;
+
+                    return match ($ratio) {
+                        [16.0, 9.0] => [4.0, 3.0],
+                        [1.0, 1.0] => [2.0, 1.0],
+                        [3.0, 2.0] => [9.0, 4.0],
+                        default => $ratio,
+                    };
+                },
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'viewport' => static function (array $rule) use (&$seen): array {
+                            $seen['rules']['viewport'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [
+                                'type' => 'media',
+                                'value' => [
+                                    'query' => [
+                                        'mediaQueries' => [[
+                                            'mediaType' => 'all',
+                                            'condition' => [
+                                                'type' => 'feature',
+                                                'value' => [
+                                                    'type' => 'plain',
+                                                    'name' => 'aspect-ratio',
+                                                    'value' => $rule['preludeAst'],
+                                                ],
+                                            ],
+                                        ]],
+                                    ],
+                                    'rules' => $rule['bodyRules'],
+                                ],
+                            ];
+                        },
+                        'ratios' => static function (array $rule) use (&$seen): array {
+                            $seen['rules']['ratios'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'viewport' => [
+                'prelude' => '<ratio>',
+                'body' => 'rule-list',
+            ],
+            'ratios' => [
+                'prelude' => '<ratio>#',
+            ],
+        ], $visitor);
+
+        $t->same('@media (aspect-ratio:4/3){.hero{color:#ff0}}', $result);
+        $t->same([[16.0, 9.0], [1.0, 1.0], [3.0, 2.0]], $seen['ratios']);
+        $t->same('4/3', $seen['rules']['viewport']['prelude']);
+        $t->same(['type' => 'ratio', 'value' => [4.0, 3.0]], $seen['rules']['viewport']['preludeAst']);
+        $t->same('2,9/4', $seen['rules']['ratios']['prelude']);
+        $t->same('repeated', $seen['rules']['ratios']['preludeAst']['type']);
+        $t->same([[2.0, 1.0], [9.0, 4.0]], array_map(
+            static fn (array $component): array => $component['value'],
+            $seen['rules']['ratios']['preludeAst']['value']['components']
+        ));
+    },
     'custom at-rules map upstream bundler mixin visitor after import resolution' => static function (TestRunner $t) use ($customDefinitions, $mixinVisitor): void {
         $mixins = [];
         $result = (new CustomAtRuleTransformer())->bundle('/apply.css', [

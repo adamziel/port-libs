@@ -124,6 +124,9 @@ final class CustomAtRuleTransformer
     private $timeVisitor = null;
 
     /** @var callable|null */
+    private $ratioVisitor = null;
+
+    /** @var callable|null */
     private $resolutionVisitor = null;
 
     /** @var callable|null */
@@ -732,6 +735,9 @@ final class CustomAtRuleTransformer
             'Time' => static function (array $time, self $transformer) use ($visitors): mixed {
                 return self::callComposedUnitVariantVisitors($visitors, 'Time', $time, $transformer);
             },
+            'Ratio' => static function (array $ratio, self $transformer) use ($visitors): mixed {
+                return self::callComposedRatioVisitors($visitors, $ratio, $transformer);
+            },
             'Resolution' => static function (array $resolution, self $transformer) use ($visitors): mixed {
                 return self::callComposedUnitVariantVisitors($visitors, 'Resolution', $resolution, $transformer);
             },
@@ -1200,6 +1206,7 @@ final class CustomAtRuleTransformer
         $this->lengthVisitor = is_callable($visitor['Length'] ?? null) ? $visitor['Length'] : null;
         $this->angleVisitor = is_callable($visitor['Angle'] ?? null) ? $visitor['Angle'] : null;
         $this->timeVisitor = is_callable($visitor['Time'] ?? null) ? $visitor['Time'] : null;
+        $this->ratioVisitor = is_callable($visitor['Ratio'] ?? null) ? $visitor['Ratio'] : null;
         $this->resolutionVisitor = is_callable($visitor['Resolution'] ?? null) ? $visitor['Resolution'] : null;
         $this->colorVisitor = is_callable($visitor['Color'] ?? null) ? $visitor['Color'] : null;
         $this->urlVisitor = is_callable($visitor['Url'] ?? null) ? $visitor['Url'] : null;
@@ -2603,7 +2610,7 @@ final class CustomAtRuleTransformer
                 'value' => [
                     'type' => 'plain',
                     'name' => strtolower($matches[1]),
-                    'value' => $this->parseMediaFeatureValueForVisitor($matches[2]),
+                    'value' => $this->parseMediaFeatureValueForVisitor($matches[2], strtolower($matches[1])),
                 ],
             ];
         }
@@ -2614,7 +2621,7 @@ final class CustomAtRuleTransformer
                     'type' => 'range',
                     'name' => strtolower($matches[1]),
                     'operator' => $this->mediaComparisonName($matches[2]),
-                    'value' => $this->parseMediaFeatureValueForVisitor($matches[3]),
+                    'value' => $this->parseMediaFeatureValueForVisitor($matches[3], strtolower($matches[1])),
                 ],
             ];
         }
@@ -2639,9 +2646,18 @@ final class CustomAtRuleTransformer
         };
     }
 
-    private function parseMediaFeatureValueForVisitor(string $value): mixed
+    private function parseMediaFeatureValueForVisitor(string $value, ?string $featureName = null): mixed
     {
         $value = trim($value);
+        if (
+            ($featureName !== null && str_ends_with($featureName, 'aspect-ratio'))
+            || str_contains($value, '/')
+        ) {
+            $ratio = $this->tryCustomRatioPreludeAst($value);
+            if ($ratio['matched']) {
+                return $ratio['value'];
+            }
+        }
         if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z%]+)$/', $value, $matches) === 1) {
             return [
                 'type' => 'length',
@@ -3014,6 +3030,7 @@ final class CustomAtRuleTransformer
             'image' => $this->tryCustomImagePreludeAst($value),
             'angle' => $this->tryCustomAnglePreludeAst($value),
             'time' => $this->tryCustomTimePreludeAst($value),
+            'ratio' => $this->tryCustomRatioPreludeAst($value),
             'resolution' => $this->tryCustomResolutionPreludeAst($value),
             'transform-function' => $this->tryCustomTransformFunctionPreludeAst($value),
             'transform-list' => $this->tryCustomTransformListPreludeAst($value),
@@ -3198,6 +3215,27 @@ final class CustomAtRuleTransformer
                 'value' => [
                     'type' => strtolower($matches[2]) === 'ms' ? 'milliseconds' : 'seconds',
                     'value' => (float) $matches[1],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array{matched:bool,value:mixed}
+     */
+    private function tryCustomRatioPreludeAst(string $prelude): array
+    {
+        if (preg_match('/^([+-]?(?:\\d+|\\d*\\.\\d+))(?:\\s*\\/\\s*([+-]?(?:\\d+|\\d*\\.\\d+)))?$/', trim($prelude), $matches) !== 1) {
+            return ['matched' => false, 'value' => null];
+        }
+
+        return [
+            'matched' => true,
+            'value' => [
+                'type' => 'ratio',
+                'value' => [
+                    (float) $matches[1],
+                    isset($matches[2]) && $matches[2] !== '' ? (float) $matches[2] : 1.0,
                 ],
             ],
         ];
@@ -3847,7 +3885,7 @@ final class CustomAtRuleTransformer
     private function serializeReturnedMediaFeatureValue(mixed $value): string
     {
         if (is_array($value)) {
-            if (in_array(($value['type'] ?? null), ['length', 'dimension', 'rgb', 'token', 'raw', 'var', 'env', 'function', 'ident'], true)) {
+            if (in_array(($value['type'] ?? null), ['length', 'dimension', 'rgb', 'token', 'raw', 'var', 'env', 'function', 'ident', 'ratio'], true)) {
                 return $this->serializeVisitorValue($value);
             }
             if (($value['type'] ?? null) === 'length' && isset($value['value']) && is_array($value['value'])) {
@@ -4193,6 +4231,29 @@ final class CustomAtRuleTransformer
             $replacement = $callback($value, $transformer);
             if ($replacement !== null) {
                 $value = $transformer->normalizeUnitVariantVisitorValue($replacement, $visitorName);
+                $changed = true;
+            }
+        }
+
+        return $changed ? $value : null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $visitors
+     * @param array<int, int|float> $value
+     */
+    private static function callComposedRatioVisitors(array $visitors, array $value, self $transformer): mixed
+    {
+        $changed = false;
+        foreach ($visitors as $visitor) {
+            $callback = self::ratioVisitorCallback($visitor);
+            if ($callback === null) {
+                continue;
+            }
+
+            $replacement = $callback($value, $transformer);
+            if ($replacement !== null) {
+                $value = $transformer->normalizeRatioVisitorValue($replacement);
                 $changed = true;
             }
         }
@@ -4694,6 +4755,16 @@ final class CustomAtRuleTransformer
         $config = $visitor[$visitorName] ?? null;
 
         return is_callable($config) ? $config : null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function ratioVisitorCallback(array $visitor): ?callable
+    {
+        $ratioConfig = $visitor['Ratio'] ?? null;
+
+        return is_callable($ratioConfig) ? $ratioConfig : null;
     }
 
     /**
@@ -6250,6 +6321,16 @@ final class CustomAtRuleTransformer
             }
         }
 
+        if (($value['type'] ?? null) === 'ratio' && $this->ratioVisitor !== null && is_array($value['value'] ?? null)) {
+            $replacement = ($this->ratioVisitor)($this->normalizeRatioVisitorValue($value['value']), $this);
+            if ($replacement !== null) {
+                return [
+                    'type' => 'ratio',
+                    'value' => $this->normalizeRatioVisitorValue($replacement),
+                ];
+            }
+        }
+
         $color = $this->colorComponents($value);
         if ($color !== null && $this->colorVisitor !== null) {
             $replacement = ($this->colorVisitor)($color, $this);
@@ -6290,6 +6371,28 @@ final class CustomAtRuleTransformer
             'type' => strtolower($type),
             'value' => $number,
         ];
+    }
+
+    /**
+     * @return array{0:int|float,1:int|float}
+     */
+    private function normalizeRatioVisitorValue(mixed $value): array
+    {
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException('Ratio visitor must return a two-number ratio array or null');
+        }
+
+        if (($value['type'] ?? null) === 'ratio' && is_array($value['value'] ?? null)) {
+            $value = $value['value'];
+        }
+
+        $first = $value[0] ?? null;
+        $second = $value[1] ?? null;
+        if ((!is_int($first) && !is_float($first)) || (!is_int($second) && !is_float($second))) {
+            throw new \InvalidArgumentException('Ratio visitor must return a two-number ratio array or null');
+        }
+
+        return [$first, $second];
     }
 
     /**
@@ -6465,6 +6568,9 @@ final class CustomAtRuleTransformer
         if ($type === 'length-percentage' && isset($value['value']) && is_array($value['value'])) {
             return $this->serializeVisitorValue($value['value']);
         }
+        if ($type === 'ratio' && isset($value['value']) && is_array($value['value'])) {
+            return $this->serializeRatioValue($this->normalizeRatioVisitorValue($value['value']));
+        }
         if (in_array($type, ['angle', 'time', 'resolution'], true) && isset($value['value']) && is_array($value['value'])) {
             return $this->serializeUnitVariantValue($value['value']);
         }
@@ -6593,6 +6699,17 @@ final class CustomAtRuleTransformer
         };
 
         return $this->formatNumber($number) . $unit;
+    }
+
+    /**
+     * @param array{0:int|float,1:int|float} $ratio
+     */
+    private function serializeRatioValue(array $ratio): string
+    {
+        $first = $this->formatNumber($ratio[0]);
+        $second = $this->formatNumber($ratio[1]);
+
+        return $second === '1' ? $first : $first . '/' . $second;
     }
 
     /**

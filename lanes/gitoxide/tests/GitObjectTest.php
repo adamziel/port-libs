@@ -21,6 +21,13 @@ $writeLooseStorage = static function (string $objectsDirectory, string $oid, str
     }
     file_put_contents($path, $compressed);
 };
+$writeLooseCompressed = static function (string $objectsDirectory, string $oid, string $compressedBytes) use ($looseObjectPath): void {
+    $path = $looseObjectPath($objectsDirectory, $oid);
+    if (!is_dir(dirname($path)) && !mkdir(dirname($path), 0777, true) && !is_dir(dirname($path))) {
+        throw new RuntimeException('Unable to create compressed loose object test directory');
+    }
+    file_put_contents($path, $compressedBytes);
+};
 
 return [
     'git blob oid matches canonical git hashing' => static function (TestRunner $t): void {
@@ -200,6 +207,37 @@ return [
         }
         file_put_contents($badPath, 'not-zlib');
         $t->throws(RuntimeException::class, static fn () => $store->readHeader($badZlibOid));
+    },
+    'loose object integrity ignores trailing compressed streams after the declared object' => static function (TestRunner $t) use ($writeLooseCompressed): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-trailing-loose-stream-' . bin2hex(random_bytes(4)) . '/objects';
+        $object = new GitObject('blob', 'WordPress deployment loose object');
+        $oid = $object->oid();
+        $objectStream = gzcompress($object->storageBytes());
+        $trailingStream = gzcompress("blob 13\0stale payload");
+        if ($objectStream === false || $trailingStream === false) {
+            throw new RuntimeException('Unable to compress trailing loose-object stream fixture');
+        }
+        $writeLooseCompressed($objectsDirectory, $oid, $objectStream . $trailingStream);
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+
+        $t->same('WordPress deployment loose object', $store->read($oid)->body);
+        $t->same([
+            'type' => 'blob',
+            'size' => strlen($object->body),
+            'headerLength' => strlen('blob ' . strlen($object->body) . "\0"),
+        ], $store->readHeader($oid));
+        $t->same([
+            'numObjects' => 1,
+            'verifiedObjectIds' => [$oid],
+        ], $store->verifyIntegrity());
+
+        $overrunOid = hash('sha1', "blob 3\0abc");
+        $overrunStream = gzcompress("blob 3\0abcdef");
+        if ($overrunStream === false) {
+            throw new RuntimeException('Unable to compress overrun loose-object stream fixture');
+        }
+        $writeLooseCompressed($objectsDirectory, $overrunOid, $overrunStream);
+        $t->throws(RuntimeException::class, static fn () => $store->read($overrunOid));
     },
     'loose object store rejects empty object files before zlib header decoding' => static function (TestRunner $t) use ($looseObjectPath): void {
         $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-empty-loose-' . bin2hex(random_bytes(4)) . '/objects';
@@ -518,5 +556,7 @@ return [
         $t->same(4096, $summary['oversizedHeaderSize']);
         $t->same(true, $summary['allocationLimitRejected']);
         $t->same($fixture['allocationLimitMessage'], $summary['allocationLimitMessage']);
+        $t->same(true, $summary['trailingStreamIgnored']);
+        $t->same(true, $summary['trailingStreamIntegrityVerified']);
     },
 ];

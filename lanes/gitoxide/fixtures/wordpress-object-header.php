@@ -28,5 +28,5 @@ return [
     'oversizedLooseHeader' => $oversizedLooseHeader,
     'oversizedLooseObjectOid' => str_repeat('a', 40),
     'allocationLimitMessage' => "Loose object declared size 4096 exceeds allocation limit {$allocationLimitBytes} bytes",
-    'wordpressUse' => 'A WordPress import or deployment tool can decode canonical and upstream-accepted signed-size loose object headers for block-content blobs and reject oversized loose-object declarations before allocating them, without invoking git cat-file.',
+    'wordpressUse' => 'A WordPress import or deployment tool can decode canonical and upstream-accepted signed-size loose object headers for block-content blobs, reject oversized loose-object declarations before allocating them, and ignore trailing compressed bytes after the declared object stream without invoking git cat-file.',
 ];

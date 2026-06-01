@@ -378,6 +378,59 @@ CSS,
 
         throw new RuntimeException('Expected late @import after post-import @layer statement exception');
     },
+    'css bundler rejects nested import rules before graph resolution' => static function (TestRunner $t): void {
+        $assertNestedImportRejected = static function (string $css, int $line, int $column) use ($t): void {
+            $reads = [];
+            try {
+                (new CssBundler())->bundleWithReader('/entry.css', static function (string $file) use (&$reads, $css): string {
+                    $reads[] = $file;
+
+                    return $file === '/entry.css'
+                        ? $css
+                        : ':root { --gap: 1rem }';
+                });
+            } catch (CssBundleException $exception) {
+                $t->same('parser-error', $exception->kind);
+                $t->same('Unknown at rule: @import', $exception->getMessage());
+                $t->same('/entry.css', $exception->sourceFile);
+                $t->same($line, $exception->sourceLine);
+                $t->same($column, $exception->sourceColumn);
+                $t->same(['/entry.css'], $reads);
+
+                return;
+            }
+
+            throw new RuntimeException('Expected nested @import rule parser exception');
+        };
+
+        $assertNestedImportRejected(<<<'CSS'
+@media screen {
+  @import "tokens.css";
+  .entry { color: red }
+}
+CSS, 2, 3);
+
+        $assertNestedImportRejected(<<<'CSS'
+@layer theme {
+  @\69mport "tokens.css";
+  .entry { color: red }
+}
+CSS, 2, 3);
+
+        $assertNestedImportRejected(<<<'CSS'
+.entry {
+  color: red;
+  @import "tokens.css";
+}
+CSS, 3, 3);
+
+        $t->same(
+            '@media screen{.entry{--import-token:"@import \\"tokens.css\\"";color:red}}',
+            (new CssBundler())->bundle('/entry.css', [
+                '/entry.css' => '@media screen { .entry { --import-token: "@import \"tokens.css\""; color: red } }',
+            ])
+        );
+    },
     'css bundler wraps imported files in supports media and layer conditions' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@supports (color:green){@media print{.b{color:green}}}.a{color:red}',
