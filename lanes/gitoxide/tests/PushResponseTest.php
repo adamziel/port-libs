@@ -268,6 +268,36 @@ return [
         $t->same('refs/heads/main', $missingOnly->rejectedRefs()[0]->refName);
         $t->same('remote failed to report status', $missingOnly->rejectedRefs()[0]->message);
     },
+    'marks unpack-only receive-status refs as remote failures like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
+        $raw = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $flush
+        );
+        $filtered = $raw->forExpectedRefNames(['refs/heads/main', 'refs/tags/wp-release']);
+        $sideband = PushResponse::fromSidebandPacketLines(
+            $packet("\x02Checking connectivity: 100% (2/2)\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $flush)
+            . $flush
+        )->forExpectedRefNames(['refs/heads/main']);
+
+        $t->same(true, $raw->unpackOk());
+        $t->same('ok', $raw->unpackStatus());
+        $t->same([], $raw->refStatuses());
+        $t->same(false, $raw->isSuccessful());
+        $t->same(false, $filtered->isSuccessful());
+        $t->same(2, count($filtered->refStatuses()));
+        $t->same('refs/heads/main', $filtered->refStatuses()[0]->refName);
+        $t->same(PushRefStatus::REJECTED, $filtered->refStatuses()[0]->status);
+        $t->same('remote failed to report status', $filtered->refStatuses()[0]->message);
+        $t->same('refs/tags/wp-release', $filtered->refStatuses()[1]->refName);
+        $t->same(PushRefStatus::REJECTED, $filtered->refStatuses()[1]->status);
+        $t->same('remote failed to report status', $filtered->refStatuses()[1]->message);
+        $t->same(false, $sideband->isSuccessful());
+        $t->same(['Checking connectivity: 100% (2/2)'], $sideband->progressMessages());
+        $t->same('refs/heads/main', $sideband->rejectedRefs()[0]->refName);
+        $t->same('remote failed to report status', $sideband->rejectedRefs()[0]->message);
+    },
     'rejects report-status-v2 options after unrequested refs like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
         $unknownWithKnownOption = PushResponse::fromReportStatusPacketLines(
             $packet("unpack ok\n")
@@ -437,14 +467,17 @@ return [
         $t->same('refs/heads/main', $sideband->refStatuses()[0]->refName);
         $t->same(true, $outerDelimiter->isSuccessful());
         $t->same('refs/heads/main', $outerDelimiter->refStatuses()[0]->refName);
-        $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines(
+        $delimiterOnly = PushResponse::fromReportStatusPacketLines(
             $packet("unpack ok\n")
             . '0001'
-        ));
+        )->forExpectedRefNames(['refs/heads/main']);
+        $t->same(false, $delimiterOnly->isSuccessful());
+        $t->same('refs/heads/main', $delimiterOnly->rejectedRefs()[0]->refName);
+        $t->same('remote failed to report status', $delimiterOnly->rejectedRefs()[0]->message);
     },
     'guards malformed push response packet streams' => static function (TestRunner $t) use ($packet, $flush): void {
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromSidebandPacketLines($packet("\x09bad band") . $flush));
-        $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($flush));
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("ok refs/heads/main\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet("option refname refs/heads/main\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet("ok main\n") . $flush));
@@ -546,6 +579,11 @@ return [
         $t->same(true, $summary['emptyPacketLineRejected']);
         $t->same(true, $summary['unrequestedOptionRejected']);
         $t->same(true, $summary['missingExpectedStatusRejected']);
+        $t->same($fixture['unpackOnlyExpectedRefs'], array_map(
+            static fn (array $status): string => $status['requestedRef'],
+            $summary['unpackOnlyExpectedRefs']
+        ));
+        $t->same(true, $summary['unpackOnlyExpectedRefsRejected']);
         $t->same(true, $summary['fatalAfterStatusRejected']);
         $t->same(true, $summary['emptyErrorSidebandAccepted']);
         $t->same(true, $summary['responseEndTerminatedAccepted']);

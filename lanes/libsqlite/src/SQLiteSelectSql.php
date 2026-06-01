@@ -7,6 +7,9 @@ namespace PortLibs\LibSqlite;
 final class SQLiteSelectSql
 {
     private const MAX_VARIABLE_NUMBER = 32766;
+    private const HIDDEN_WILDCARD_METADATA_PREFIX = '__sqlite_hidden_wildcard_columns';
+    private const JSON_TABLE_SOURCE_COLUMNS = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path', 'json', 'root'];
+    private const JSON_TABLE_HIDDEN_WILDCARD_COLUMNS = ['json', 'root'];
 
     /**
      * @param array<string,list<array<string,mixed>>> $tables
@@ -86,6 +89,7 @@ final class SQLiteSelectSql
     {
         return $column === '__sqlite_column_affinities'
             || $column === '__sqlite_column_collations'
+            || str_starts_with($column, self::HIDDEN_WILDCARD_METADATA_PREFIX)
             || str_ends_with($column, '.__sqlite_column_affinities')
             || str_ends_with($column, '.__sqlite_column_collations');
     }
@@ -2738,7 +2742,7 @@ final class SQLiteSelectSql
             return [];
         }
 
-        return SQLiteJsonTablePlan::visibleRows($function, $constraints);
+        return SQLiteJsonTablePlan::projectedRows($function, $constraints, self::JSON_TABLE_SOURCE_COLUMNS);
     }
 
     /**
@@ -2755,6 +2759,10 @@ final class SQLiteSelectSql
             $qualified[$index][$prefix . '.rowid'] = $row['id'];
             $qualified[$index][$prefix . '._rowid_'] = $row['id'];
             $qualified[$index][$prefix . '.oid'] = $row['id'];
+            $qualified[$index][self::HIDDEN_WILDCARD_METADATA_PREFIX . '.' . $prefix] = array_map(
+                static fn (string $column): string => $prefix . '.' . $column,
+                self::JSON_TABLE_HIDDEN_WILDCARD_COLUMNS,
+            );
         }
 
         return $qualified;
@@ -2773,6 +2781,7 @@ final class SQLiteSelectSql
             $rows[$index]['rowid'] = $row['id'];
             $rows[$index]['_rowid_'] = $row['id'];
             $rows[$index]['oid'] = $row['id'];
+            $rows[$index][self::HIDDEN_WILDCARD_METADATA_PREFIX] = self::JSON_TABLE_HIDDEN_WILDCARD_COLUMNS;
         }
 
         return $rows;
@@ -3986,7 +3995,7 @@ final class SQLiteSelectSql
     {
         return array_map(
             static fn (string $column): string => $alias . '.' . $column,
-            ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path', 'rowid', '_rowid_', 'oid'],
+            array_merge(self::JSON_TABLE_SOURCE_COLUMNS, ['rowid', '_rowid_', 'oid']),
         );
     }
 

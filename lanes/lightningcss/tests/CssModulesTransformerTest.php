@@ -2121,4 +2121,41 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules rejects local global pseudos inside upstream view transition selector functions' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  composes: base;
+  color: red;
+}
+
+:root::view-transition-group(card) {
+  opacity: .5;
+}
+
+:global(:root::view-transition-old(public-card)) {
+  opacity: .25;
+}
+
+.base {
+  color: blue;
+}
+CSS);
+
+        $t->same('.EgL3uq_card{color:red}:root::view-transition-group(EgL3uq_card){opacity:.5}:root::view-transition-old(public-card){opacity:.25}.EgL3uq_base{color:#00f}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        foreach ([
+            ':root::view-transition-group(:global(public-card)) { opacity: .5 }',
+            ':root::view-transition-new(:local(card)) { opacity: .5 }',
+            ':root:active-view-transition-type(:global(public-card), card) { opacity: .5 }',
+            ':global(:root::view-transition-group(:local(card))) { opacity: .5 }',
+            ':global(:root::view-transition-group(:global(card))) { opacity: .5 }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
+        }
+    },
 ];

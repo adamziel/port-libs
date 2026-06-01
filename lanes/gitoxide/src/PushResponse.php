@@ -133,7 +133,10 @@ final class PushResponse
 
     public function isSuccessful(): bool
     {
-        return $this->unpackOk() && $this->rejectedRefs() === [] && $this->errorMessages === [];
+        return $this->unpackOk()
+            && $this->refStatuses !== []
+            && $this->rejectedRefs() === []
+            && $this->errorMessages === [];
     }
 
     /**
@@ -245,9 +248,6 @@ final class PushResponse
         }
         if ($unpackStatus === null) {
             throw new \InvalidArgumentException('push response: missing unpack status');
-        }
-        if ($refStatuses === []) {
-            throw new \InvalidArgumentException('push response: missing command status');
         }
 
         return new self($unpackStatus, $refStatuses, $progressMessages, $errorMessages);

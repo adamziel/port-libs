@@ -456,6 +456,7 @@ final class SQLiteSelectResult
     {
         return $column === '__sqlite_column_affinities'
             || $column === '__sqlite_column_collations'
+            || str_starts_with($column, '__sqlite_hidden_wildcard_columns')
             || str_ends_with($column, '.__sqlite_column_affinities')
             || str_ends_with($column, '.__sqlite_column_collations');
     }

@@ -235,6 +235,37 @@ final class SourceMap
         $this->addGeneratedMapping($offsetLine, $offsetColumn);
     }
 
+    /**
+     * @param array{
+     *     generatedLine:int,
+     *     generatedColumn:int,
+     *     sourceIndex?:int|null,
+     *     originalLine?:int|null,
+     *     originalColumn?:int|null,
+     *     nameIndex?:int|null
+     * } $mapping
+     */
+    public function addMappingRecordWithOffset(array $mapping, int $lineOffset, int $columnOffset): void
+    {
+        $mapping = self::listOfMappingArrays([$mapping])[0];
+        $offsetLine = $this->offsetNonNegative($mapping['generatedLine'], $lineOffset, 'mapping.generated_line + line_offset');
+        $offsetColumn = $this->offsetNonNegative($mapping['generatedColumn'], $columnOffset, 'mapping.generated_column + column_offset');
+
+        $name = null;
+        if ($mapping['nameIndex'] !== null) {
+            $name = $this->getName($mapping['nameIndex']);
+        }
+
+        $this->addRawMapping(
+            $offsetLine,
+            $offsetColumn,
+            $mapping['sourceIndex'],
+            $mapping['originalLine'],
+            $mapping['originalColumn'],
+            $name
+        );
+    }
+
     public function addPrinterMapping(
         int $generatedLine,
         int $generatedColumn,

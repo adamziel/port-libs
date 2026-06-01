@@ -139,6 +139,93 @@ return [
             $map->addGeneratedMappingWithOffset(0, 0, 0, -1);
         });
     },
+    'source map replays decoded mapping records with upstream offsets' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('compiled.css');
+        $map->setSourceContent($sourceIndex, ".compiled{}\n");
+        $nameIndex = $map->addName('compiledRule');
+
+        $map->addMappingRecordWithOffset(
+            [
+                'generatedLine' => 0,
+                'generatedColumn' => 2,
+                'sourceIndex' => $sourceIndex,
+                'originalLine' => 4,
+                'originalColumn' => 3,
+                'nameIndex' => $nameIndex,
+            ],
+            2,
+            5
+        );
+        $map->addMappingRecordWithOffset(
+            [
+                'generatedLine' => 1,
+                'generatedColumn' => 1,
+                'sourceIndex' => null,
+                'originalLine' => null,
+                'originalColumn' => null,
+                'nameIndex' => null,
+            ],
+            2,
+            5
+        );
+
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+
+        $t->same(';;OAIGA;M', $map->writeVlq());
+        $t->same([2, 3], array_column($decoded, 'generatedLine'));
+        $t->same([7, 6], array_column($decoded, 'generatedColumn'));
+        $t->same([0, null], array_column($decoded, 'sourceIndex'));
+        $t->same([4, null], array_column($decoded, 'originalLine'));
+        $t->same([3, null], array_column($decoded, 'originalColumn'));
+        $t->same([0, null], array_column($decoded, 'nameIndex'));
+        $t->same(['compiled.css'], $map->toArray(null, false)['sources']);
+        $t->same([".compiled{}\n"], $map->toArray(null, false)['sourcesContent']);
+        $t->same(['compiledRule'], $map->toArray(null, false)['names']);
+
+        $t->throws(InvalidArgumentException::class, static function () use ($map, $sourceIndex, $nameIndex): void {
+            $map->addMappingRecordWithOffset(
+                [
+                    'generatedLine' => 0,
+                    'generatedColumn' => 0,
+                    'sourceIndex' => $sourceIndex,
+                    'originalLine' => 0,
+                    'originalColumn' => 0,
+                    'nameIndex' => $nameIndex,
+                ],
+                -1,
+                0
+            );
+        });
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->addMappingRecordWithOffset(
+                [
+                    'generatedLine' => 0,
+                    'generatedColumn' => 0,
+                    'sourceIndex' => null,
+                    'originalLine' => null,
+                    'originalColumn' => null,
+                    'nameIndex' => null,
+                ],
+                0,
+                -1
+            );
+        });
+        $t->throws(InvalidArgumentException::class, static function () use ($map, $nameIndex): void {
+            $map->addMappingRecordWithOffset(
+                [
+                    'generatedLine' => 0,
+                    'generatedColumn' => 0,
+                    'sourceIndex' => null,
+                    'originalLine' => null,
+                    'originalColumn' => null,
+                    'nameIndex' => $nameIndex,
+                ],
+                0,
+                0
+            );
+        });
+    },
     'source map replaces overlapped source-map lines when merging nested maps' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $entry = $map->addSource('entry.css');

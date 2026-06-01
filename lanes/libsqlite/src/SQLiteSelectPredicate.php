@@ -1021,9 +1021,13 @@ final class SQLiteSelectPredicate
             if (!is_string($column) || $column === '') {
                 throw new \InvalidArgumentException('SQLite SELECT predicate rows must have named columns');
             }
-            if ($column === '__sqlite_column_affinities' || str_ends_with($column, '.__sqlite_column_affinities')) {
+            if (
+                $column === '__sqlite_column_affinities'
+                || str_starts_with($column, '__sqlite_hidden_wildcard_columns')
+                || str_ends_with($column, '.__sqlite_column_affinities')
+            ) {
                 if (!is_array($value)) {
-                    throw new \InvalidArgumentException('SQLite SELECT predicate column affinity metadata must be an array');
+                    throw new \InvalidArgumentException('SQLite SELECT predicate internal metadata must be an array');
                 }
                 continue;
             }

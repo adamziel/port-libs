@@ -91,6 +91,7 @@ final class SQLiteSelectProjection
             }
         }
 
+        $hiddenWildcardColumns = self::hiddenWildcardColumns($row);
         $values = [];
         $matched = false;
         foreach ($row as $column => $value) {
@@ -98,6 +99,9 @@ final class SQLiteSelectProjection
                 throw new \InvalidArgumentException('SQLite SELECT projection row columns must be non-empty strings');
             }
             if (self::isInternalMetadataColumn($column)) {
+                continue;
+            }
+            if (isset($hiddenWildcardColumns[$column])) {
                 continue;
             }
 
@@ -134,8 +138,33 @@ final class SQLiteSelectProjection
     {
         return $column === '__sqlite_column_affinities'
             || $column === '__sqlite_column_collations'
+            || str_starts_with($column, '__sqlite_hidden_wildcard_columns')
             || str_ends_with($column, '.__sqlite_column_affinities')
             || str_ends_with($column, '.__sqlite_column_collations');
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return array<string,true>
+     */
+    private static function hiddenWildcardColumns(array $row): array
+    {
+        $hidden = [];
+        foreach ($row as $column => $value) {
+            if (!is_string($column) || !str_starts_with($column, '__sqlite_hidden_wildcard_columns')) {
+                continue;
+            }
+            if (!is_array($value) || !array_is_list($value)) {
+                continue;
+            }
+            foreach ($value as $hiddenColumn) {
+                if (is_string($hiddenColumn) && $hiddenColumn !== '') {
+                    $hidden[$hiddenColumn] = true;
+                }
+            }
+        }
+
+        return $hidden;
     }
 
     /**

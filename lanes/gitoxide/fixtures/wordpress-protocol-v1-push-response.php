@@ -109,6 +109,12 @@ return [
     'missingExpectedResponse' => $packet("unpack ok\n")
         . $packet("ok refs/heads/ghost ignored by send-pack\n")
         . $flush,
+    'unpackOnlyExpectedRefs' => [
+        'refs/heads/main',
+        'refs/tags/wp-release',
+    ],
+    'unpackOnlyResponse' => $packet("unpack ok\n")
+        . $flush,
     'unrequestedOptionResponse' => $packet("unpack ok\n")
         . $packet("ok refs/heads/main\n")
         . $packet("ok refs/heads/ghost ignored by send-pack\n")

@@ -2084,17 +2084,22 @@ final class CssModulesTransformer
                 continue;
             }
 
-            $viewTransitionFunction = $bracketDepth === 0 && $mode === 'local'
+            $viewTransitionFunction = $bracketDepth === 0
                 ? $this->viewTransitionSelectorFunctionAt($selector, $i)
                 : null;
             if ($viewTransitionFunction !== null) {
                 $open = $i + strlen($viewTransitionFunction['prefix'] . $viewTransitionFunction['name']);
                 $close = $this->findMatchingParen($selector, $open);
                 $inner = substr($selector, $open + 1, $close - $open - 1);
+                $this->assertNoCssModulesModePseudoInViewTransitionSelectorArgs($inner);
+
+                $args = $mode === 'local'
+                    ? $this->rewriteViewTransitionSelectorFunctionArgs($viewTransitionFunction['name'], $inner)
+                    : $inner;
                 $output .= $viewTransitionFunction['prefix']
                     . $viewTransitionFunction['name']
                     . '('
-                    . $this->rewriteViewTransitionSelectorFunctionArgs($viewTransitionFunction['name'], $inner)
+                    . $args
                     . ')';
                 $i = $close;
                 continue;
@@ -3031,6 +3036,50 @@ final class CssModulesTransformer
         }
 
         return $this->rewriteViewTransitionSelectorIdentSequence($args);
+    }
+
+    private function assertNoCssModulesModePseudoInViewTransitionSelectorArgs(string $args): void
+    {
+        $quote = null;
+        $length = strlen($args);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $args[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '\\') {
+                $escapeEnd = $this->cssEscapeEnd($args, $i);
+                if ($escapeEnd !== null) {
+                    $i = $escapeEnd;
+                    continue;
+                }
+            }
+
+            if (
+                $this->cssModulesPseudoFunctionAt($args, $i, 'global') !== null
+                || $this->cssModulesPseudoFunctionAt($args, $i, 'local') !== null
+                || $this->cssModulesBarePseudoNameAt($args, $i, 'global')
+                || $this->cssModulesBarePseudoNameAt($args, $i, 'local')
+            ) {
+                throw new \InvalidArgumentException('CSS Modules :local and :global selectors are not valid inside view-transition selector functions');
+            }
+        }
     }
 
     private function rewriteViewTransitionSelectorIdentSequence(string $value): string

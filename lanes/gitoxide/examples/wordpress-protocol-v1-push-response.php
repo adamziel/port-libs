@@ -18,6 +18,15 @@ $multiReportResponse = PushResponse::fromReportStatusPacketLines($fixture['multi
     ->forExpectedRefNames([$fixture['multiReportRef']['requested']]);
 $missingExpectedResponse = PushResponse::fromReportStatusPacketLines($fixture['missingExpectedResponse'])
     ->forExpectedRefNames(['refs/heads/main']);
+$unpackOnlyExpectedResponse = PushResponse::fromReportStatusPacketLines($fixture['unpackOnlyResponse'])
+    ->forExpectedRefNames($fixture['unpackOnlyExpectedRefs']);
+$unpackOnlyExpectedRefsRejected = !$unpackOnlyExpectedResponse->isSuccessful();
+foreach ($unpackOnlyExpectedResponse->refStatuses() as $status) {
+    if (!$status->isRejected() || $status->message !== 'remote failed to report status') {
+        $unpackOnlyExpectedRefsRejected = false;
+        break;
+    }
+}
 $oversizedReportStatusRejected = false;
 try {
     PushResponse::fromReportStatusPacketLines($fixture['oversizedReportStatus']);
@@ -128,6 +137,14 @@ return [
         ],
         $missingExpectedResponse->refStatuses()
     ),
+    'unpackOnlyExpectedRefs' => array_map(
+        static fn (PushRefStatus $status): array => [
+            'requestedRef' => $status->refName,
+            'status' => $status->status,
+            'message' => $status->message,
+        ],
+        $unpackOnlyExpectedResponse->refStatuses()
+    ),
     'progressMessages' => $response->progressMessages(),
     'errorMessages' => $response->errorMessages(),
     'oversizedReportStatusRejected' => $oversizedReportStatusRejected,
@@ -152,6 +169,7 @@ return [
     ) === $fixture['multiReportRef']['actual'],
     'missingExpectedStatusRejected' => !$missingExpectedResponse->isSuccessful()
         && $missingExpectedResponse->rejectedRefs()[0]->message === 'remote failed to report status',
+    'unpackOnlyExpectedRefsRejected' => $unpackOnlyExpectedRefsRejected,
     'carriageReturnStatusRejected' => $carriageReturnStatusRejected,
     'emptyPacketLineRejected' => $emptyPacketLineRejected,
     'unrequestedOptionRejected' => $unrequestedOptionRejected,

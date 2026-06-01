@@ -203,6 +203,35 @@ $generatedOnlyOffsetMap->addGeneratedMappingWithOffset(0, 5, 2, 7);
 $generatedOnlyOffsetMap->addMappingWithOffset(0, 0, $generatedOnlyOffsetSource, 0, 0, 2, 18, 'generated-offset-rule');
 $generatedOnlyOffsetMap->addGeneratedMappingWithOffset(1, 2, 2, 0);
 
+$mappingRecordOffsetMap = new SourceMap();
+$mappingRecordOffsetSource = $mappingRecordOffsetMap->addSource('wp-content/themes/example/source-map-record-offset.css');
+$mappingRecordOffsetMap->setSourceContent($mappingRecordOffsetSource, ".wp-block-record-offset{}\n");
+$mappingRecordOffsetName = $mappingRecordOffsetMap->addName('record-offset-rule');
+$mappingRecordOffsetMap->addMappingRecordWithOffset(
+    [
+        'generatedLine' => 0,
+        'generatedColumn' => 2,
+        'sourceIndex' => $mappingRecordOffsetSource,
+        'originalLine' => 4,
+        'originalColumn' => 3,
+        'nameIndex' => $mappingRecordOffsetName,
+    ],
+    2,
+    5
+);
+$mappingRecordOffsetMap->addMappingRecordWithOffset(
+    [
+        'generatedLine' => 1,
+        'generatedColumn' => 1,
+        'sourceIndex' => null,
+        'originalLine' => null,
+        'originalColumn' => null,
+        'nameIndex' => null,
+    ],
+    2,
+    5
+);
+
 $themeJsonSource = <<<'JSON'
 {
   "version": 3,
@@ -590,6 +619,7 @@ $actual = [
     'negativeChildLineOffsetMap' => $negativeChildLineOffsetParent->toJson(null, false),
     'negativeChildLineOffsetChildConsumed' => $negativeChildLineOffsetChildConsumed,
     'generatedOnlyOffsetMap' => $generatedOnlyOffsetMap->toJson(null, false),
+    'mappingRecordOffsetMap' => $mappingRecordOffsetMap->toJson(null, false),
     'extendedInputMap' => $generatedThemeJsonMap->toJson(null, false),
     'projectRootMap' => $projectRootMap->toJson(null, false),
     'dataUrl' => $dataUrl,
@@ -656,6 +686,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'negativeChildLineOffsetMap' => '{"version":3,"mappings":";;AAEAE;AACAC","sources":["wp-content/themes/example/negative-child-parent.css","wp-content/themes/example/negative-child.css"],"sourcesContent":[],"names":["negative-child-parent-0","negative-child-parent-1","negative-child-parent-2","negative-child-parent-3","negative-child-rule"]}',
         'negativeChildLineOffsetChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'generatedOnlyOffsetMap' => '{"version":3,"mappings":";;Y,MAAAA;E","sources":["wp-content/themes/example/generated-offset.css"],"sourcesContent":[".wp-block-generated-offset{display:block}\n"],"names":["generated-offset-rule"]}',
+        'mappingRecordOffsetMap' => '{"version":3,"mappings":";;OAIGA;M","sources":["wp-content/themes/example/source-map-record-offset.css"],"sourcesContent":[".wp-block-record-offset{}\n"],"names":["record-offset-rule"]}',
         'extendedInputMap' => '{"version":3,"mappings":"ACMQE,wDAMFC","sources":["wp-content/cache/theme-json.generated.css","wp-content/themes/example/theme.json"],"sourcesContent":[".wp-block-cover{color:var(--wp--preset--color--primary)}.wp-block-spacer{margin-top:1rem}","{\n  \"version\": 3,\n  \"settings\": {\n    \"color\": {\n      \"palette\": [\n        { \"slug\": \"primary\", \"color\": \"#06c\" }\n      ]\n    }\n  },\n  \"styles\": {\n    \"blocks\": {\n      \"core/spacer\": { \"spacing\": { \"margin\": { \"top\": \"1rem\" } } }\n    }\n  }\n}"],"names":["coverRule","spacerRule","settings.color.primary","styles.blocks.core/spacer.spacing.margin.top"]}',
         'projectRootMap' => '{"version":3,"mappings":"AACAA,0BCIAC;ACLAC","sources":["wp-content/themes/example/style.css","wp-content/themes/example/blocks.css","theme://generated/editor.css"],"sourcesContent":["@import \"blocks.css\";\n.theme-footer {\n  color: green;\n}","/*! Theme package license */\n/*!\n * Block editor stylesheet generated from theme.json\n * Keep comments for distribution compliance.\n */\n.wp-block-cover {\n  color: yellow;\n}\n.wp-block-cover .wp-block-button {\n  margin: 1rem;\n}",".wp-block-cover{outline:2px solid currentColor}"],"names":["theme-footer","block-cover","virtual-editor-rule"]}',
         'dataUrl' => 'data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiLyIsIm1hcHBpbmdzIjoiO0NBQUFBIiwic291cmNlcyI6WyJ3cC1jb250ZW50L3RoZW1lcy9leGFtcGxlL2lubGluZS1jcml0aWNhbC5jc3MiXSwic291cmNlc0NvbnRlbnQiOlsiLmNyaXRpY2Fse2Rpc3BsYXk6YmxvY2t9XG4iXSwibmFtZXMiOlsiY3JpdGljYWwtcnVsZSJdfQ==',

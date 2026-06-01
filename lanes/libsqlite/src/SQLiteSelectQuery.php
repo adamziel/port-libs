@@ -1841,6 +1841,9 @@ final class SQLiteSelectQuery
                 if (!is_string($column) || $column === '') {
                     throw new \InvalidArgumentException('SQLite SELECT query row column names must be non-empty strings');
                 }
+                if (self::isInternalMetadataColumn($column)) {
+                    continue;
+                }
                 if (!in_array($column, $columns, true)) {
                     $columns[] = $column;
                 }
@@ -1848,6 +1851,15 @@ final class SQLiteSelectQuery
         }
 
         return $columns;
+    }
+
+    private static function isInternalMetadataColumn(string $column): bool
+    {
+        return $column === '__sqlite_column_affinities'
+            || $column === '__sqlite_column_collations'
+            || str_starts_with($column, '__sqlite_hidden_wildcard_columns')
+            || str_ends_with($column, '.__sqlite_column_affinities')
+            || str_ends_with($column, '.__sqlite_column_collations');
     }
 
     /**
