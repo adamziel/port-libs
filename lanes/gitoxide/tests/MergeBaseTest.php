@@ -1228,6 +1228,11 @@ BASELINE;
         $t->same([], $example['objectDatabaseShallowBeforeBases']);
         $t->same([$example['objectDatabaseReleaseBaseline']], $example['objectDatabaseShallowAfterBases']);
         $t->same(true, $example['objectDatabaseFinderReusesHydratedParent']);
+        $t->same(2, count($example['sha256ObjectDatabaseHeads']));
+        $t->same(64, strlen($example['sha256ObjectDatabaseReleaseBaseline']));
+        $t->same([$example['sha256ObjectDatabaseReleaseBaseline']], $example['sha256ObjectDatabaseBases']);
+        $t->same($example['sha256ObjectDatabaseReleaseBaseline'], $example['sha256ObjectDatabaseGraphWalkBase']);
+        $t->same(true, $example['sha256ObjectDatabaseBaseIsReleaseBaseline']);
     },
     'object database reader requires commit objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-' . bin2hex(random_bytes(4)) . '/.git';
@@ -1271,5 +1276,34 @@ BASELINE;
 
         $t->same([$releaseOid], $mergeBase->mergeBases($pluginReviewOid, $themeReviewOid));
         $t->same($releaseOid, $mergeBase->mergeBaseAgainst($pluginReviewOid, [$themeReviewOid]));
+    },
+    'object database reader honors sha256 commit object format during graph walk' => static function (TestRunner $t): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-sha256-db-' . bin2hex(random_bytes(4)) . '/.git';
+        $store = new LooseObjectStore($gitDir, false, 'sha256');
+        $tree = str_repeat('f', 64);
+        $body = static function (array $parents, int $seconds, string $message) use ($tree): string {
+            $lines = ["tree {$tree}"];
+            foreach ($parents as $parent) {
+                $lines[] = "parent {$parent}";
+            }
+            $lines[] = "author Release Bot <release@example.test> {$seconds} +0000";
+            $lines[] = "committer Deploy Bot <deploy@example.test> {$seconds} +0000";
+            $lines[] = '';
+            $lines[] = $message;
+
+            return implode("\n", $lines) . "\n";
+        };
+        $releaseOid = $store->write(new GitObject('commit', $body([], 1700000000, 'sha256 release baseline')));
+        $pluginReviewOid = $store->write(new GitObject('commit', $body([$releaseOid], 1700000100, 'sha256 plugin review')));
+        $themeReviewOid = $store->write(new GitObject('commit', $body([$releaseOid], 1700000200, 'sha256 theme review')));
+        $archiveOid = $store->write(new GitObject('commit', $body([], 1700000300, 'sha256 archived branch')));
+        $mergeBase = MergeBaseFinder::fromObjectDatabase(new ObjectDatabase($gitDir, objectHash: 'sha256'));
+
+        $t->same(64, strlen($releaseOid));
+        $t->same([$releaseOid], $mergeBase->mergeBases($pluginReviewOid, $themeReviewOid));
+        $t->same($releaseOid, $mergeBase->mergeBaseAgainst($pluginReviewOid, [$themeReviewOid, $archiveOid]));
+        $t->same([$releaseOid], $mergeBase->mergeBasesMany([$pluginReviewOid, $themeReviewOid]));
+        $t->same([], $mergeBase->mergeBasesMany([$pluginReviewOid, $themeReviewOid, $archiveOid]));
+        $t->throws(InvalidArgumentException::class, static fn () => MergeBaseFinder::fromObjectDatabase(new ObjectDatabase($gitDir))->mergeBase($pluginReviewOid, $themeReviewOid));
     },
 ];

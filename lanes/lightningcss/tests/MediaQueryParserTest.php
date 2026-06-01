@@ -234,7 +234,7 @@ return [
         $t->same('(width>=6)', $parser->minifyList('(width >= calc(2 * 3))'));
         $t->same('(width>calc(1px + 1rem))', $parser->minifyList('(width > calc(1px+1rem))'));
         $t->same('(width>20px)', $parser->minifyList('(width > max(10px, 20px))'));
-        $t->same('(width>2px)', $parser->minifyList('(width > max(1, 2))'));
+        $t->same('(width>2)', $parser->minifyList('(width > max(1, 2))'));
         $t->same('(width>10px)', $parser->minifyList('(width > min(10px, 20px))'));
         $t->same('(width>15px)', $parser->minifyList('(width > clamp(10px, 15px, 20px))'));
         $t->same('(width>20px)', $parser->minifyList('(width > clamp(10px, 25px, 20px))'));
@@ -260,7 +260,7 @@ return [
         $t->same('(min-width:6px)', $parser->lowerRangeSyntaxList('(width >= calc(2 * 3px))'));
         $t->same('(min-width:6)', $parser->lowerRangeSyntaxList('(width >= calc(2 * 3))'));
         $t->same('not (max-width:20px)', $parser->lowerRangeSyntaxList('(width > max(10px, 20px))'));
-        $t->same('not (max-width:2px)', $parser->lowerRangeSyntaxList('(width > max(1, 2))'));
+        $t->same('not (max-width:2)', $parser->lowerRangeSyntaxList('(width > max(1, 2))'));
         $t->same('(min-width:15px)', $parser->lowerRangeSyntaxList('(width >= clamp(10px, 15px, 20px))'));
         $t->same('(min-aspect-ratio:.5)', $parser->lowerRangeSyntaxList('(aspect-ratio >= max(1 / 2, 1 / 3))'));
         $t->same('(min-aspect-ratio:1) and (max-aspect-ratio:3)', $parser->lowerRangeSyntaxList('(1 <= aspect-ratio <= max(2, 3))'));

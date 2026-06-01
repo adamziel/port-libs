@@ -12,8 +12,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $encoding,
 ];
 
@@ -28,7 +28,7 @@ $next = [
     $row(4, 'PLUGIN_CACHEß', 2),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeWildcardPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyUnicodeWildcardPlan(
     $current,
     $next,
     'plugin!_cache_',
@@ -36,13 +36,13 @@ $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeWil
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-next177');
+    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-nextoneSevenSeven');
     assert($plan['currentMatchedRowids'] === [1, 2]);
     assert($plan['nextMatchedRowids'] === [1, 4, 2]);
     assert($plan['currentByteWildcardMismatchRowids'] === [2]);
     assert($plan['nextByteWildcardMismatchRowids'] === [2, 4]);
     assert(in_array('unicode-wildcard-recheck', $plan['invalidationReasons'], true));
-    echo "application-utf16-nocase-like-rtrim-current-source-next177 self-test passed\n";
+    echo "application-utf16-nocase-like-rtrim-current-source-nextoneSevenSeven self-test passed\n";
     return;
 }
 

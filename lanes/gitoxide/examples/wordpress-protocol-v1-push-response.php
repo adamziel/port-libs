@@ -24,6 +24,8 @@ $multiReportResponse = PushResponse::fromReportStatusPacketLines($fixture['multi
     ->forExpectedRefNames([$fixture['multiReportRef']['requested']]);
 $noRefnameMultiReportResponse = PushResponse::fromReportStatusPacketLines($fixture['noRefnameMultiReportResponse'])
     ->forExpectedRefNames([$fixture['noRefnameMultiReportRef']['requested']]);
+$rejectedReportResponse = PushResponse::fromReportStatusPacketLines($fixture['rejectedReportResponse'])
+    ->forExpectedRefNames([$fixture['rejectedReportRef']['requested']]);
 $missingExpectedResponse = PushResponse::fromReportStatusPacketLines($fixture['missingExpectedResponse'])
     ->forExpectedRefNames(['refs/heads/main']);
 $unpackOnlyExpectedResponse = PushResponse::fromReportStatusPacketLines($fixture['unpackOnlyResponse'])
@@ -188,6 +190,17 @@ return [
         ],
         $noRefnameMultiReportResponse->refStatuses()
     ),
+    'rejectedReportRefs' => array_map(
+        static fn (PushRefStatus $status): array => [
+            'requestedRef' => $status->refName,
+            'effectiveRef' => $status->effectiveRefName(),
+            'status' => $status->status,
+            'message' => $status->message,
+            'oldObject' => $status->oldObject,
+            'newObject' => $status->newObject,
+        ],
+        $rejectedReportResponse->refStatuses()
+    ),
     'missingExpectedRefs' => array_map(
         static fn (PushRefStatus $status): array => [
             'requestedRef' => $status->refName,
@@ -249,6 +262,12 @@ return [
         static fn (PushRefStatus $status): string => $status->effectiveRefName(),
         $noRefnameMultiReportResponse->refStatuses()
     ) === $fixture['noRefnameMultiReportRef']['actual'],
+    'rejectedReportStatusPreserved' => !$rejectedReportResponse->isSuccessful()
+        && array_map(
+            static fn (PushRefStatus $status): string => $status->effectiveRefName(),
+            $rejectedReportResponse->rejectedRefs()
+        ) === $fixture['rejectedReportRef']['actual']
+        && $rejectedReportResponse->rejectedRefs()[0]->message === $fixture['rejectedReportRef']['message'],
     'missingExpectedStatusRejected' => !$missingExpectedResponse->isSuccessful()
         && $missingExpectedResponse->rejectedRefs()[0]->message === 'remote failed to report status',
     'unpackOnlyExpectedRefsRejected' => $unpackOnlyExpectedRefsRejected,

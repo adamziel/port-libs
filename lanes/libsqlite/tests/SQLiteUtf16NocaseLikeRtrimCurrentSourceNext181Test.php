@@ -9,8 +9,8 @@ $tests = [];
 
 $enc181 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row181 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc181($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc181($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -18,8 +18,8 @@ $row181 = static fn (int $id, string $name, int|string $encoding): array => [
     },
 ];
 $bad181 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -77,7 +77,7 @@ $cases181 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneEightOne'],
     'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneSevenEight'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_cache%'],
     'escape' => ['escape', '!'],
     'current source' => ['currentSource', 'stable'],
@@ -218,7 +218,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightOne non ascii nocase 
 $tests['utf16 nocase like rtrim current source nextOneEightOne rejects row without encoding'] = static function (TestRunner $t) use ($row181, $token181): void {
     $rows = [
         $row181(1, 'plugin_cache', 'UTF-16LE'),
-        ['option_id' => 2, 'option_name_bytes' => 'plugin_cache'],
+        ['setting_id' => 2, 'key_name_bytes' => 'plugin_cache'],
     ];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
 };
@@ -226,7 +226,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightOne rejects row witho
 $tests['utf16 nocase like rtrim current source nextOneEightOne rejects row without bytes'] = static function (TestRunner $t) use ($row181, $token181): void {
     $rows = [
         $row181(1, 'plugin_cache', 'UTF-16LE'),
-        ['option_id' => 2, 'text_encoding' => 2],
+        ['setting_id' => 2, 'text_encoding' => 2],
     ];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
 };
@@ -234,7 +234,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightOne rejects row witho
 $tests['utf16 nocase like rtrim current source nextOneEightOne rejects row without integer rowid'] = static function (TestRunner $t) use ($row181, $token181): void {
     $rows = [
         $row181(1, 'plugin_cache', 'UTF-16LE'),
-        ['option_id' => '2', 'option_name_bytes' => 'plugin_cache', 'text_encoding' => 1],
+        ['setting_id' => '2', 'key_name_bytes' => 'plugin_cache', 'text_encoding' => 1],
     ];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
 };

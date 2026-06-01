@@ -1308,6 +1308,29 @@ return [
             SourceMap::fromDataUrl(str_replace('application/json', 'text/plain', $dataUrl));
         });
     },
+    'source map imports percent-encoded base64 data URL payloads before vlq import' => static function (TestRunner $t): void {
+        $json = '{"version":3,"mappings":";CAAA","sources":["x!"],"sourcesContent":[".x{}"],"names":[]}';
+        $encoded = str_replace('=', '%3D', base64_encode($json));
+        $encoded = substr($encoded, 0, 12) . '%0C' . substr($encoded, 12);
+        $map = SourceMap::fromDataUrl('data:application/json;charset=utf-8;base64,' . $encoded . '#wp-devtools');
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+
+        $t->same(';CAAA', $map->writeVlq());
+        $t->same(['x!'], $map->getSources());
+        $t->same(['.x{}'], $map->getSourcesContent());
+        $t->same([1], array_column($decoded, 'generatedLine'));
+        $t->same([1], array_column($decoded, 'generatedColumn'));
+        $t->same([0], array_column($decoded, 'sourceIndex'));
+
+        $parent = new SourceMap();
+        $parent->addGeneratedMapping(0, 0);
+        $parent->addSourceMap($map, 2);
+
+        $t->same('A;;;CAAA', $parent->writeVlq());
+        $t->same(['x!'], $parent->getSources());
+        $t->same([], $map->getSources());
+        $t->same('', $map->writeVlq());
+    },
     'source map round trips upstream buffer snapshots after offsets' => static function (TestRunner $t): void {
         $map = new SourceMap('/srv/www/site/wp-content/themes/example');
         $style = $map->addSource('/srv/www/site/wp-content/themes/example/style.css');

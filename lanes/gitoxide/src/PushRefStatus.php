@@ -68,6 +68,21 @@ final class PushRefStatus
         return $this->reportOptionSeen;
     }
 
+    public function asRejected(string $message): self
+    {
+        return new self(
+            self::REJECTED,
+            $this->refName,
+            $message,
+            $this->reportedRefName,
+            $this->oldObject,
+            $this->newObject,
+            $this->forcedUpdate,
+            $this->fallThrough,
+            $this->reportOptionSeen
+        );
+    }
+
     public function withOption(string $name, ?string $value = null): self
     {
         if (!$this->isOk()) {

@@ -210,6 +210,48 @@ $objectDatabaseShallowAfterBases = $objectDatabaseFinder->mergeBases(
     $objectDatabasePluginReview,
     $objectDatabaseThemeReview,
 );
+$sha256ObjectDatabaseGitDir = sys_get_temp_dir() . '/port-libs-wp-merge-base-sha256-db-' . bin2hex(random_bytes(4)) . '/.git';
+$sha256ObjectDatabaseStore = new LooseObjectStore($sha256ObjectDatabaseGitDir, false, 'sha256');
+$sha256ObjectDatabaseCommitBody = static function (array $parents, int $seconds, string $message): string {
+    $lines = ["tree " . str_repeat('f', 64)];
+    foreach ($parents as $parent) {
+        $lines[] = "parent {$parent}";
+    }
+    $lines[] = "author Release Bot <release@example.test> {$seconds} +0000";
+    $lines[] = "committer Deploy Bot <deploy@example.test> {$seconds} +0000";
+    $lines[] = '';
+    $lines[] = $message;
+
+    return implode("\n", $lines) . "\n";
+};
+$sha256ObjectDatabaseReleaseBaseline = $sha256ObjectDatabaseStore->write(new GitObject(
+    'commit',
+    $sha256ObjectDatabaseCommitBody([], 1700006100, 'sha256 object database release baseline'),
+));
+$sha256ObjectDatabasePluginReview = $sha256ObjectDatabaseStore->write(new GitObject(
+    'commit',
+    $sha256ObjectDatabaseCommitBody([$sha256ObjectDatabaseReleaseBaseline], 1700006200, 'sha256 object database plugin review'),
+));
+$sha256ObjectDatabaseThemeReview = $sha256ObjectDatabaseStore->write(new GitObject(
+    'commit',
+    $sha256ObjectDatabaseCommitBody([$sha256ObjectDatabaseReleaseBaseline], 1700006300, 'sha256 object database theme review'),
+));
+$sha256ObjectDatabaseArchiveReview = $sha256ObjectDatabaseStore->write(new GitObject(
+    'commit',
+    $sha256ObjectDatabaseCommitBody([], 1700006400, 'sha256 object database archived review'),
+));
+$sha256ObjectDatabaseFinder = MergeBaseFinder::fromObjectDatabase(new ObjectDatabase(
+    $sha256ObjectDatabaseGitDir,
+    objectHash: 'sha256',
+));
+$sha256ObjectDatabaseBases = $sha256ObjectDatabaseFinder->mergeBases(
+    $sha256ObjectDatabasePluginReview,
+    $sha256ObjectDatabaseThemeReview,
+);
+$sha256ObjectDatabaseGraphWalkBase = $sha256ObjectDatabaseFinder->mergeBaseAgainst(
+    $sha256ObjectDatabasePluginReview,
+    [$sha256ObjectDatabaseThemeReview, $sha256ObjectDatabaseArchiveReview],
+);
 
 return [
     'reviewHeads' => $fixture['heads'],
@@ -310,6 +352,12 @@ return [
     'objectDatabaseShallowAfterBases' => $objectDatabaseShallowAfterBases,
     'objectDatabaseFinderReusesHydratedParent' => $objectDatabaseShallowBeforeBases === []
         && $objectDatabaseShallowAfterBases === [$objectDatabaseReleaseBaseline],
+    'sha256ObjectDatabaseHeads' => [$sha256ObjectDatabasePluginReview, $sha256ObjectDatabaseThemeReview],
+    'sha256ObjectDatabaseReleaseBaseline' => $sha256ObjectDatabaseReleaseBaseline,
+    'sha256ObjectDatabaseBases' => $sha256ObjectDatabaseBases,
+    'sha256ObjectDatabaseGraphWalkBase' => $sha256ObjectDatabaseGraphWalkBase,
+    'sha256ObjectDatabaseBaseIsReleaseBaseline' => $sha256ObjectDatabaseBases === [$sha256ObjectDatabaseReleaseBaseline]
+        && $sha256ObjectDatabaseGraphWalkBase === $sha256ObjectDatabaseReleaseBaseline,
     'sha256ReviewHeads' => $fixture['sha256ReviewHeads'],
     'sha256ReviewBase' => $sha256ReviewBase,
     'sha256GraphWalkBase' => $sha256GraphWalkBase,

@@ -755,8 +755,9 @@ final class SourceMap
             throw new InvalidArgumentException('Source map data URL MIME type must be application/json.');
         }
 
+        $payload = self::decodeDataUrlPayload($payload);
         if ($isBase64) {
-            $json = base64_decode($payload, true);
+            $json = base64_decode(self::normalizeBase64Payload($payload), true);
             if ($json === false) {
                 throw new InvalidArgumentException('Source map data URL payload must be valid base64.');
             }
@@ -764,7 +765,7 @@ final class SourceMap
             return self::fromJson($json, $projectRoot);
         }
 
-        return self::fromJson(rawurldecode($payload), $projectRoot);
+        return self::fromJson($payload, $projectRoot);
     }
 
     /**
@@ -1604,6 +1605,23 @@ final class SourceMap
         }
 
         return [$mimeType, $payload, $isBase64];
+    }
+
+    private static function decodeDataUrlPayload(string $payload): string
+    {
+        $fragment = strpos($payload, '#');
+        if ($fragment !== false) {
+            $payload = substr($payload, 0, $fragment);
+        }
+
+        $payload = str_replace(["\t", "\n", "\r"], '', $payload);
+
+        return rawurldecode($payload);
+    }
+
+    private static function normalizeBase64Payload(string $payload): string
+    {
+        return str_replace([" ", "\t", "\n", "\r", "\f"], '', $payload);
     }
 
     /**

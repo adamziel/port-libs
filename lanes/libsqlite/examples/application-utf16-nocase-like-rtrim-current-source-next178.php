@@ -19,8 +19,8 @@ $code = static fn (int|string $encoding): int => match ($encoding) {
     3, 'UTF-16BE' => 3,
 };
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $code($encoding),
 ];
 
@@ -37,7 +37,7 @@ $next = [
 ];
 $tokenBytes = $enc('Plugin_Cache  ', 'UTF-16LE');
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalTokenPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalTokenPlan(
     $current,
     $next,
     'plugin!_cache%',
@@ -53,8 +53,8 @@ $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalT
 );
 
 $payload = [
-    'scenario' => 'application-utf16-nocase-like-rtrim-current-source-next178',
-    'applicationUse' => 'Copied wp_options scans can canonicalize a yielded UTF-16 option_name token through RTRIM and ASCII NOCASE before replaying a LIKE cursor across current-source changes.',
+    'scenario' => 'application-utf16-nocase-like-rtrim-current-source-nextoneSevenEight',
+    'applicationUse' => 'Application settings scans can canonicalize a yielded UTF-16 key_name token through RTRIM and ASCII NOCASE before replaying a LIKE cursor across current-source changes.',
     'status' => $plan['status'],
     'normalizedLastYielded' => $plan['normalizedLastYielded'],
     'tokenNormalizationReasons' => $plan['tokenNormalizationReasons'],
@@ -65,11 +65,11 @@ $payload = [
 ];
 
 if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'] ?? '')) {
-    assert($payload['status'] === 'utf16-nocase-like-rtrim-current-source-next178');
+    assert($payload['status'] === 'utf16-nocase-like-rtrim-current-source-nextoneSevenEight');
     assert($payload['normalizedLastYielded']['key'] === 'plugin_cache');
     assert($payload['tokenNormalizationReasons'] === ['token-key-not-canonical']);
     assert($payload['replayPlanRowids'] === [1, 2, 3, 4]);
-    echo "application-utf16-nocase-like-rtrim-current-source-next178 self-test passed\n";
+    echo "application-utf16-nocase-like-rtrim-current-source-nextoneSevenEight self-test passed\n";
 }
 
 return $payload;

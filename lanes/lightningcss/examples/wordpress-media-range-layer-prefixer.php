@@ -170,6 +170,18 @@ $actual = [
             'exclude' => ['MediaRangeSyntax'],
         ]
     ),
+    'mixedResolutionEqualityMinFallback' => $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (resolution = 2dppx) and (min-resolution: 3dppx) { .wp-block-query.is-density-exact-min { color: yellow; } } }',
+        ['safari' => 15, 'firefox' => 10]
+    ),
+    'mixedResolutionEqualityMinModernSyntax' => $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (resolution = 2dppx) and (min-resolution: 3dppx) { .wp-block-query.is-density-modern-exact-min { color: yellow; } } }',
+        [
+            'safari' => 15,
+            'firefox' => 10,
+            'exclude' => ['MediaRangeSyntax'],
+        ]
+    ),
     'xResolutionIntervalPrefixFallback' => $prefixer->prefixForTargets(
         '@layer theme.blocks { @media (0.5x <= resolution <= 1.5x) { .wp-block-query.is-low-density-window { color: yellow; } } }',
         ['safari' => 15, 'firefox' => 10]
@@ -474,18 +486,20 @@ $expected = [
     'unitlessLengthRangeFallback' => '@layer theme.blocks{@media (min-width:2px){.wp-block-query.is-unitless-width{color:#ff0}}}',
     'unitlessLengthIntervalModern' => '@layer theme.blocks{@media (2px<=width<=4px){.wp-block-query.is-unitless-width-window{color:#ff0}}}',
     'compoundResolutionRange' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2) and (-webkit-max-device-pixel-ratio:3),(min--moz-device-pixel-ratio:2) and (max--moz-device-pixel-ratio:3),(min-resolution:2dppx) and (max-resolution:3dppx){.wp-block-query.is-density-window{color:#ff0}}}',
-    'fractionalResolutionRange' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query.is-low-density-window{color:#ff0}}}',
+    'fractionalResolutionRange' => '@layer theme.blocks{@media (min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query.is-low-density-window{color:#ff0}}}',
     'modernFractionalResolutionRangeXUnit' => '@layer theme.blocks{@media (.5x<=resolution<=1.5x){.wp-block-query.is-low-density-window{color:#ff0}}}',
     'xResolutionLegacyUnit' => '@layer theme.blocks{@media (resolution:1dppx){.wp-block-query.is-density-aware{background:red}}}',
     'xResolutionPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query.is-density-aware{color:#ff0}}}',
     'resolutionEqualityPrefixFallback' => '@layer theme.blocks{@media (-webkit-device-pixel-ratio:2),(-moz-device-pixel-ratio:2),(resolution:2dppx){.wp-block-query.is-density-exact{color:#ff0}}}',
     'resolutionEqualityModernSyntax' => '@layer theme.blocks{@media (-webkit-device-pixel-ratio=2),(-moz-device-pixel-ratio=2),(resolution=2dppx){.wp-block-query.is-density-modern-exact{color:#ff0}}}',
     'resolutionRangePrefixModernSyntax' => '@layer theme.blocks{@media (-webkit-device-pixel-ratio>=2),(-moz-device-pixel-ratio>=2),(resolution>=2dppx){.wp-block-query.is-density-modern-range{color:#ff0}}}',
-    'xResolutionIntervalPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query.is-low-density-window{color:#ff0}}}',
+    'mixedResolutionEqualityMinFallback' => '@layer theme.blocks{@media (-webkit-device-pixel-ratio:2) and (-webkit-min-device-pixel-ratio:3),(-moz-device-pixel-ratio:2) and (min--moz-device-pixel-ratio:3),(resolution:2dppx) and (min-resolution:3dppx){.wp-block-query.is-density-exact-min{color:#ff0}}}',
+    'mixedResolutionEqualityMinModernSyntax' => '@layer theme.blocks{@media (-webkit-device-pixel-ratio=2) and (-webkit-device-pixel-ratio>=3),(-moz-device-pixel-ratio=2) and (-moz-device-pixel-ratio>=3),(resolution=2dppx) and (resolution>=3dppx){.wp-block-query.is-density-modern-exact-min{color:#ff0}}}',
+    'xResolutionIntervalPrefixFallback' => '@layer theme.blocks{@media (min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query.is-low-density-window{color:#ff0}}}',
     'mixedEnvResolutionPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2) and (min-resolution:env(--wp-density-floor)),(min--moz-device-pixel-ratio:2) and (min-resolution:env(--wp-density-floor)),(min-resolution:2dppx) and (min-resolution:env(--wp-density-floor)){.wp-block-query.is-density-env-window{color:#ff0}}}',
     'numericCalcRangeFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2){.wp-block-query.is-density-calc{color:#ff0}}@media (min--moz-device-pixel-ratio:1) and (max--moz-device-pixel-ratio:2){.wp-block-query.is-density-calc-window{color:#ff0}}}',
     'mathFunctionRangeFallback' => '@layer theme.blocks{@media not (max-width:20px){.wp-block-query.is-math-function-wide{color:#ff0}}@media (min-width:15px){.wp-block-query.is-math-function-clamp{color:#ff0}}}',
-    'calcMultiplicativeRangeFallback' => '@layer theme.blocks{@media (min-width:6px){.wp-block-query.is-calc-product{color:#ff0}}@media (min-width:3px){.wp-block-query.is-calc-quotient{color:#ff0}}@media not (max-width:2px){.wp-block-query.is-unitless-math{color:#ff0}}}',
+    'calcMultiplicativeRangeFallback' => '@layer theme.blocks{@media (min-width:6px){.wp-block-query.is-calc-product{color:#ff0}}@media (min-width:3px){.wp-block-query.is-calc-quotient{color:#ff0}}@media not (max-width:2){.wp-block-query.is-unitless-math{color:#ff0}}}',
     'negatedRangeGroup' => '@layer theme.blocks{@media not (((min-width:100px) and (max-width:200px)) or (hover)){.wp-block-query.is-not-compact-hover{color:#ff0}}}',
     'negatedIntervalWithHover' => '@layer theme.blocks{@media (hover) and (not ((min-width:200px) and (not (min-width:500px)))){.wp-block-query.is-not-middle-hover{color:#ff0}}}',
     'upstreamIntervalPrefixFallbacks' => '@layer theme.blocks{@media not ((min-width:100px) and (max-width:200px)){.wp-block-query.is-not-compact-range{color:#ff0}}@media (hover) and (min-width:100px) and (max-width:200px){.wp-block-query.is-hover-compact-range{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:200px)){.wp-block-query.is-open-range{color:#ff0}}@media not ((not (max-width:100px)) and (not (min-width:200px))){.wp-block-query.is-not-open-range{color:#ff0}}@media (max-width:200px) and (min-width:100px){.wp-block-query.is-descending-range{color:#ff0}}@media not (max-color:2){.wp-block-query.is-rich-color{color:#ff0}}@media not (min-color:2){.wp-block-query.is-low-color{color:#ff0}}}',

@@ -186,15 +186,20 @@ final class PushResponse
     private static function expectedRefStatuses(array $statuses): array
     {
         $last = $statuses[count($statuses) - 1];
-        if (!$last->isOk()) {
-            return [$last];
-        }
-
         $reports = [];
         foreach ($statuses as $status) {
             if ($status->isOk() && $status->hasReportOption()) {
                 $reports[] = $status;
             }
+        }
+
+        if (!$last->isOk()) {
+            return $reports !== []
+                ? array_map(
+                    static fn (PushRefStatus $status): PushRefStatus => $status->asRejected($last->message ?? 'failed'),
+                    $reports
+                )
+                : [$last];
         }
 
         return $reports !== [] ? $reports : [$last];

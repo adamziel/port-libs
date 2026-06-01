@@ -41,6 +41,7 @@ $sidebandAllResponseEndResponse = FetchResponse::fromV2PacketLines(
 );
 $trailingWhitespaceResponse = FetchResponse::fromV2PacketLines($fixture['trailingWhitespaceResponse'], true);
 $unicodeWhitespaceResponse = FetchResponse::fromV2PacketLines($fixture['unicodeWhitespaceResponse'], true);
+$binarySidebandResponse = FetchResponse::fromV2PacketLines($fixture['binarySidebandResponse'], true);
 $smartHttpUploadPackResponse = FetchResponse::fromSmartHttpUploadPackResult($fixture['smartHttpUploadPackResponse']);
 $uploadPackError = null;
 try {
@@ -53,6 +54,12 @@ try {
     FetchResponse::fromV2PacketLines($fixture['truncatedPackResponse']);
 } catch (RuntimeException $error) {
     $truncatedPackError = rtrim($error->getMessage());
+}
+$invalidUtf8ProtocolLineError = null;
+try {
+    FetchResponse::fromV2PacketLines($fixture['invalidUtf8ProtocolLineResponse'], true);
+} catch (InvalidArgumentException $error) {
+    $invalidUtf8ProtocolLineError = $error->getMessage();
 }
 $progressCancelMessages = [];
 $progressCancelError = null;
@@ -199,6 +206,12 @@ return [
         && $unicodeWhitespaceResponse->packData() === $fixture['packData']
         && $unicodeWhitespaceResponse->remoteProgress()[0]->percent === 100,
     'unicodeWhitespacePackTrailer' => bin2hex(substr($unicodeWhitespaceResponse->packData(), -20)),
+    'invalidUtf8ProtocolLineRejected' => $invalidUtf8ProtocolLineError === 'fetch response: invalid UTF-8 protocol line',
+    'invalidUtf8ProtocolLineError' => $invalidUtf8ProtocolLineError,
+    'binarySidebandPayloadsPreserved' => $binarySidebandResponse->packData() === $fixture['binaryPackData']
+        && $binarySidebandResponse->progressMessages() === ["remote: byte \xFF progress"]
+        && $binarySidebandResponse->errorMessages() === ["remote: byte \xFE warning"],
+    'binarySidebandPackSuffix' => bin2hex(substr($binarySidebandResponse->packData(), -15)),
     'smartHttpUploadPackParsed' => $smartHttpUploadPackResponse->packData() === $fixture['packData']
         && count($smartHttpUploadPackResponse->acknowledgements()) === 3
         && $smartHttpUploadPackResponse->progressMessages() === ['Counting objects: 100% (1/1)' . "\r" . 'Counting objects: 100% (1/1), done.'],

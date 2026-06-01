@@ -9,8 +9,8 @@ $tests = [];
 
 $enc178 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row178 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc178($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc178($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -18,8 +18,8 @@ $row178 = static fn (int $id, string $name, int|string $encoding): array => [
     },
 ];
 $bad178 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -83,7 +83,7 @@ $cases178 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSevenEight'],
     'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneSevenFive'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_cache%'],
     'escape' => ['escape', '!'],
     'current source' => ['currentSource', 'main.app_settings@177'],

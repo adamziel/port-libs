@@ -709,47 +709,17 @@ final class TransitionPrefixer
 
         $parser = new MediaQueryParser();
         if ($needsResolutionPrefixes) {
-            $condition = $this->prefixResolutionEqualityRangeQueries($condition, $targetOptions);
+            $condition = $this->prefixResolutionMediaQueries($condition, $targetOptions);
         }
         $condition = $parser->lowerRangeSyntaxList($condition, $lowerSimpleRanges, $lowerIntervalRanges);
         if ($usesDppxResolutionUnit) {
             $condition = $parser->useDppxResolutionUnitList($condition);
-        }
-        if ($needsResolutionPrefixes) {
-            $condition = $this->prefixResolutionMediaQueries($condition, $targetOptions);
         }
         if ($usesXResolutionUnit) {
             $condition = $parser->useXResolutionUnitList($condition);
         }
 
         return '@media ' . $condition;
-    }
-
-    /**
-     * @param array<string, bool> $targetOptions
-     */
-    private function prefixResolutionEqualityRangeQueries(string $queryList, array $targetOptions): string
-    {
-        $needsWebkit = $targetOptions['mediaResolutionNeedsWebkitPrefix'] ?? false;
-        $needsMoz = $targetOptions['mediaResolutionNeedsMozPrefix'] ?? false;
-        if (!$needsWebkit && !$needsMoz) {
-            return $queryList;
-        }
-
-        $queries = [];
-        $seen = [];
-        foreach ($this->splitTopLevel($queryList, ',') as $query) {
-            foreach ($this->resolutionEqualityRangeQueryVariants($query, $needsWebkit, $needsMoz) as $variant) {
-                if (isset($seen[$variant])) {
-                    continue;
-                }
-
-                $seen[$variant] = true;
-                $queries[] = $variant;
-            }
-        }
-
-        return implode(',', $queries);
     }
 
     /**
@@ -782,40 +752,16 @@ final class TransitionPrefixer
     /**
      * @return list<string>
      */
-    private function resolutionEqualityRangeQueryVariants(string $query, bool $needsWebkit, bool $needsMoz): array
-    {
-        $matches = $this->matchResolutionEqualityRangeConditions($query);
-        if ($matches === []) {
-            return [$query];
-        }
-
-        $variants = [];
-        if ($needsWebkit) {
-            $variant = $this->replaceResolutionMediaQueryConditions($query, $matches, 'webkit');
-            if ($variant !== null) {
-                $variants[] = $variant;
-            }
-        }
-        if ($needsMoz) {
-            $variant = $this->replaceResolutionMediaQueryConditions($query, $matches, 'moz');
-            if ($variant !== null) {
-                $variants[] = $variant;
-            }
-        }
-        $variants[] = $query;
-
-        return $variants;
-    }
-
-    /**
-     * @return list<string>
-     */
     private function resolutionMediaQueryVariants(string $query, bool $needsWebkit, bool $needsMoz): array
     {
-        $matches = $this->matchResolutionConditions($query);
+        $matches = [
+            ...$this->matchResolutionEqualityRangeConditions($query),
+            ...$this->matchResolutionConditions($query),
+        ];
         if ($matches === []) {
             return [$query];
         }
+        usort($matches, static fn (array $a, array $b): int => $a['offset'] <=> $b['offset']);
 
         $variants = [];
         if ($needsWebkit) {

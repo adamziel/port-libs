@@ -919,6 +919,109 @@ CSS;
 
         $t->same('@block hero{color:#ff0}', $preserved);
     },
+    'custom at-rules decode upstream unicode at-rule names before parser lookup' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@thème carte {
+  outline-color: yellow;
+}
+
+@th\00e8 me badge {
+  color: red;
+}
+
+.wp-block-card {
+  color: blue;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'thème' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'thème' => static function (array $rule, CustomAtRuleTransformer $transformer) use (&$seen): array {
+                        $seen[] = $rule['name'] . ':' . $rule['prelude'];
+
+                        return $transformer->styleRule('.wp-block-card.is-style-' . $rule['prelude'], $rule['body']);
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same(
+            '.wp-block-card.is-style-carte{outline-color:#ff0}.wp-block-card.is-style-badge{color:red}.wp-block-card{color:#00f}',
+            $result
+        );
+        $t->same(['thème:carte', 'thème:badge'], $seen);
+    },
+    'custom at-rules visit upstream unicode universal prelude identifiers before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@tokens café --wp-échelle @--wp\2d accent;
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => ['prelude' => '*'],
+        ], [
+            'Token' => [
+                'ident' => static function (array $token) use (&$seen): ?array {
+                    $seen[] = ['ident', $token['value']];
+                    if ($token['value'] !== 'café') {
+                        return null;
+                    }
+
+                    return ['type' => 'ident', 'value' => 'wp-café'];
+                },
+                'at-keyword' => static function (array $token) use (&$seen): ?array {
+                    $seen[] = ['at-keyword', $token['value']];
+
+                    return ['type' => 'token', 'value' => ['type' => 'at-keyword', 'value' => '--theme-accent']];
+                },
+            ],
+            'DashedIdent' => static function (string $ident) use (&$seen): string {
+                $seen[] = ['dashed-ident', $ident];
+
+                return '--theme-' . substr($ident, 5);
+            },
+            'Rule' => [
+                'custom' => [
+                    'tokens' => static function (array $rule) use (&$seen): array {
+                        $seen[] = ['rule', $rule['prelude']];
+                        $seen[] = ['ast', array_map(
+                            static fn (array $component): mixed => $component['type'] === 'token'
+                                ? [$component['value']['type'], $component['value']['value']]
+                                : [$component['type'], $component['value']],
+                            $rule['preludeAst']['value'] ?? []
+                        )];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same([
+            ['ident', 'café'],
+            ['dashed-ident', '--wp-échelle'],
+            ['at-keyword', '--wp-accent'],
+            ['rule', 'wp-café --theme-échelle @--theme-accent'],
+            ['ast', [
+                ['ident', 'wp-café'],
+                ['dashed-ident', '--theme-échelle'],
+                ['at-keyword', '--theme-accent'],
+            ]],
+            ['ident', 'red'],
+        ], $seen);
+    },
     'custom at-rules visit upstream unit component preludes before custom rule visitors' => static function (TestRunner $t): void {
         $seen = [
             'angles' => [],

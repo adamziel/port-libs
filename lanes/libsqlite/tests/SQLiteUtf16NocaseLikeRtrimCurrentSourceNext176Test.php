@@ -9,13 +9,13 @@ $tests = [];
 
 $enc176 = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row176 = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc176($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc176($name, $encoding),
     'text_encoding' => $encoding,
 ];
 $bad176 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -75,7 +75,7 @@ $valueAt176 = static function (array $value, string $path): mixed {
 $cases176 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSevenSix'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_cache%'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
@@ -199,7 +199,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenSix rejects zero page
 
 $tests['utf16 nocase like rtrim current source nextOneSevenSix rejects missing bytes'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerYieldPlan(
-        [['option_id' => 1, 'text_encoding' => 2]],
+        [['setting_id' => 1, 'text_encoding' => 2]],
         [],
         'plugin%',
     ));

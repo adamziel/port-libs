@@ -9,13 +9,13 @@ $tests = [];
 
 $enc180 = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row180 = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc180($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc180($name, $encoding),
     'text_encoding' => $encoding,
 ];
 $bad180 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -72,7 +72,7 @@ $valueAt180 = static function (array $value, string $path): mixed {
 $cases180 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneEightZero'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ?'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ?'],
     'pattern' => ['pattern', 'éclair!_%'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
@@ -211,7 +211,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightZero no fixed prefix 
 
 $tests['utf16 nocase like rtrim current source nextOneEightZero rejects missing bytes'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiPrefixPlan(
-        [['option_id' => 1, 'text_encoding' => 2]],
+        [['setting_id' => 1, 'text_encoding' => 2]],
         [],
         'éclair%',
     ));

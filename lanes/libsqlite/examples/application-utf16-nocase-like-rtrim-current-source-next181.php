@@ -8,8 +8,8 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -25,7 +25,7 @@ $rows = [
     $row(5, 'plugin_cache_alpha', 'UTF-16BE'),
 ];
 $tokenBytes = SQLiteEncodingCollationSourceCursor::encodeText('plugin_cache', 'UTF-16BE');
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerReplayPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerReplayPlan(
     $rows,
     $rows,
     'plugin!_cache%',
@@ -45,11 +45,11 @@ $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerReplay
 );
 
 if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'] ?? '')) {
-    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-next181');
+    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-nextoneEightOne');
     assert($plan['peerContinuationSafe'] === true);
     assert($plan['sameKeyReplayRowids'] === [3]);
     assert($plan['replayPlanRowids'] === [3, 4, 5]);
-    echo "application-utf16-nocase-like-rtrim-current-source-next181 self-test passed\n";
+    echo "application-utf16-nocase-like-rtrim-current-source-nextoneEightOne self-test passed\n";
 }
 
 return $plan;

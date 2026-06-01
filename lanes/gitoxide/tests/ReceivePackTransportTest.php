@@ -361,6 +361,52 @@ return [
         $t->same($siteBNew, $response->refStatuses()[1]->newObject);
         $t->same([], $response->rejectedRefs());
     },
+    'receive-pack client preserves proc-receive report refs when a later duplicate status rejects' => static function (TestRunner $t) use ($packet, $flush, $streamWith): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $siteAOld = str_repeat('6', 40);
+        $siteANew = str_repeat('7', 40);
+        $siteBOld = str_repeat('8', 40);
+        $siteBNew = str_repeat('9', 40);
+        $blob = new GitObject('blob', 'WordPress proc-receive rejected multi-report payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status-v2 side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x02remote: proc-receive rejected deployment refs\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/for/wp-deploy\n"))
+            . $packet("\x01" . $packet("option refname refs/heads/site-a\n"))
+            . $packet("\x01" . $packet("option old-oid {$siteAOld}\n"))
+            . $packet("\x01" . $packet("option new-oid {$siteANew}\n"))
+            . $packet("\x01" . $packet("ok refs/for/wp-deploy\n"))
+            . $packet("\x01" . $packet("option refname refs/heads/site-b\n"))
+            . $packet("\x01" . $packet("option old-oid {$siteBOld}\n"))
+            . $packet("\x01" . $packet("option new-oid {$siteBNew}\n"))
+            . $packet("\x01" . $packet("ng refs/for/wp-deploy post-receive hook declined\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $client = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($advertisement . $responseBytes), $streamWith('')),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/for/wp-deploy', $blob->oid());
+
+        $response = $client->send($session->buildRequest([$blob]));
+
+        $t->same(false, $response->isSuccessful());
+        $t->same(2, count($response->rejectedRefs()));
+        $t->same(['remote: proc-receive rejected deployment refs'], $response->progressMessages());
+        $t->same(['refs/heads/site-a', 'refs/heads/site-b'], array_map(
+            static fn (PushRefStatus $status): string => $status->effectiveRefName(),
+            $response->rejectedRefs()
+        ));
+        $t->same(['post-receive hook declined', 'post-receive hook declined'], array_map(
+            static fn (PushRefStatus $status): ?string => $status->message,
+            $response->rejectedRefs()
+        ));
+        $t->same($siteAOld, $response->rejectedRefs()[0]->oldObject);
+        $t->same($siteANew, $response->rejectedRefs()[0]->newObject);
+        $t->same($siteBOld, $response->rejectedRefs()[1]->oldObject);
+        $t->same($siteBNew, $response->rejectedRefs()[1]->newObject);
+    },
     'receive-pack client marks missing requested status refs as remote failures' => static function (TestRunner $t) use ($packet, $flush, $streamWith): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
         $blob = new GitObject('blob', 'WordPress missing status payload');

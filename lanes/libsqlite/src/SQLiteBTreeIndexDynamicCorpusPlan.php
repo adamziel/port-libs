@@ -16857,6 +16857,113 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,projection:list<string>,predicate_terms:list<string>,index_name:string|null,uses_index:bool,uses_covering_index:bool,unary_plus_disabled_index:bool,alias_predicate:bool,commuted_predicate:bool,expression_predicate:bool,expected_rows:list<array<int,mixed>>,result_flat:list<mixed>,count_output:list<mixed>,search_count:int,row_count:int,detail:string,integrity:string}>
+     */
+    public static function where1BasicIndexSeekCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite where.test section-1 corpus requires at least one case');
+        }
+
+        $rows = self::where1BaseRows();
+        $templates = [
+            self::where1Template('where-1.1.1', 'equality on quoted w index returns one row', 'SELECT x, y, w FROM t1 WHERE w=10', ['x', 'y', 'w'], ['w=10'], static fn (array $row): bool => $row['w'] === 10, 'i1w', false, false, false, false, 3, 'SEARCH t1 USING INDEX i1w (w=?)'),
+            self::where1Template('where-1.1.1b', 'IS comparison on quoted w index returns one row', 'SELECT x, y, w FROM t1 WHERE w IS 10', ['x', 'y', 'w'], ['w IS 10'], static fn (array $row): bool => $row['w'] === 10, 'i1w', false, false, false, false, 3, 'SEARCH t1 USING INDEX i1w (w=?)'),
+            self::where1Template('where-1.1.4', 'unary plus on w disables the index but preserves result', 'SELECT x, y, w FROM t1 WHERE +w=10', ['x', 'y', 'w'], ['+w=10'], static fn (array $row): bool => $row['w'] === 10, null, false, true, false, false, 99, 'SCAN t1 because unary plus prevents i1w constraint extraction'),
+            self::where1Template('where-1.1.7', 'SELECT alias resolves to indexed w equality', 'SELECT x, y, w AS abc FROM t1 WHERE abc=10', ['x', 'y', 'w'], ['abc=10'], static fn (array $row): bool => $row['w'] === 10, 'i1w', false, false, true, false, 3, 'SEARCH t1 USING INDEX i1w (w=?) through SELECT-list alias abc'),
+            self::where1Template('where-1.2.1', 'second equality on w index returns row 11', 'SELECT x, y, w FROM t1 WHERE w=11', ['x', 'y', 'w'], ['w=11'], static fn (array $row): bool => $row['w'] === 11, 'i1w', false, false, false, false, 3, 'SEARCH t1 USING INDEX i1w (w=?)'),
+            self::where1Template('where-1.2.2', 'alias equality on w index returns row 11', 'SELECT x, y, w AS abc FROM t1 WHERE abc=11', ['x', 'y', 'w'], ['abc=11'], static fn (array $row): bool => $row['w'] === 11, 'i1w', false, false, true, false, 3, 'SEARCH t1 USING INDEX i1w (w=?) through SELECT-list alias abc'),
+            self::where1Template('where-1.3.1', 'commuted equality keeps w index usable', 'SELECT x, y, w AS abc FROM t1 WHERE 11=w', ['x', 'y', 'w'], ['11=w'], static fn (array $row): bool => $row['w'] === 11, 'i1w', false, false, false, true, 3, 'SEARCH t1 USING INDEX i1w (w=?) after commutation'),
+            self::where1Template('where-1.3.2', 'commuted alias equality keeps w index usable', 'SELECT x, y, w AS abc FROM t1 WHERE 11=abc', ['x', 'y', 'w'], ['11=abc'], static fn (array $row): bool => $row['w'] === 11, 'i1w', false, false, true, true, 3, 'SEARCH t1 USING INDEX i1w (w=?) after alias commutation'),
+            self::where1Template('where-1.3.3', 'commuted IS alias equality keeps w index usable', 'SELECT x, y, w AS abc FROM t1 WHERE 11 IS abc', ['x', 'y', 'w'], ['11 IS abc'], static fn (array $row): bool => $row['w'] === 11, 'i1w', false, false, true, true, 3, 'SEARCH t1 USING INDEX i1w (w=?) after alias IS commutation'),
+            self::where1Template('where-1.4.1', 'w equality drives index before x residual', 'SELECT w, x, y FROM t1 WHERE 11=w AND x>2', ['w', 'x', 'y'], ['11=w', 'x>2'], static fn (array $row): bool => $row['w'] === 11 && $row['x'] > 2, 'i1w', false, false, false, true, 3, 'SEARCH t1 USING INDEX i1w (w=?) before x>2 residual'),
+            self::where1Template('where-1.4.1b', 'w IS equality drives index before x residual', 'SELECT w, x, y FROM t1 WHERE 11 IS w AND x>2', ['w', 'x', 'y'], ['11 IS w', 'x>2'], static fn (array $row): bool => $row['w'] === 11 && $row['x'] > 2, 'i1w', false, false, false, true, 3, 'SEARCH t1 USING INDEX i1w (w=?) before x>2 residual'),
+            self::where1Template('where-1.4.3', 'aliases a and b still route w equality through i1w', 'SELECT w AS a, x AS b, y FROM t1 WHERE 11=a AND b>2', ['w', 'x', 'y'], ['11=a', 'b>2'], static fn (array $row): bool => $row['w'] === 11 && $row['x'] > 2, 'i1w', false, false, true, true, 3, 'SEARCH t1 USING INDEX i1w (w=?) through aliases a and b'),
+            self::where1Template('where-1.5', 'w equality dominates residual x and y filters', 'SELECT x, y FROM t1 WHERE y<200 AND w=11 AND x>2', ['x', 'y'], ['y<200', 'w=11', 'x>2'], static fn (array $row): bool => $row['y'] < 200 && $row['w'] === 11 && $row['x'] > 2, 'i1w', false, false, false, false, 3, 'SEARCH t1 USING INDEX i1w (w=?) before residual filters'),
+            self::where1Template('where-1.6', 'term order does not change w equality index choice', 'SELECT x, y FROM t1 WHERE y<200 AND x>2 AND w=11', ['x', 'y'], ['y<200', 'x>2', 'w=11'], static fn (array $row): bool => $row['y'] < 200 && $row['x'] > 2 && $row['w'] === 11, 'i1w', false, false, false, false, 3, 'SEARCH t1 USING INDEX i1w (w=?) despite residual order'),
+            self::where1Template('where-1.7', 'leading w equality keeps same filtered result', 'SELECT x, y FROM t1 WHERE w=11 AND y<200 AND x>2', ['x', 'y'], ['w=11', 'y<200', 'x>2'], static fn (array $row): bool => $row['w'] === 11 && $row['y'] < 200 && $row['x'] > 2, 'i1w', false, false, false, false, 3, 'SEARCH t1 USING INDEX i1w (w=?) before residual filters'),
+            self::where1Template('where-1.8', 'composite x/y index is preferred over w range residual', 'SELECT x, y FROM t1 WHERE w>10 AND y=144 AND x=3', ['x', 'y'], ['w>10', 'y=144', 'x=3'], static fn (array $row): bool => $row['w'] > 10 && $row['y'] === 144 && $row['x'] === 3, 'i1xy', false, false, false, false, 3, 'SEARCH t1 USING INDEX i1xy (x=? AND y=?) with w>10 residual'),
+            self::where1Template('where-1.8.3', 'composite x/y equality can be covering', 'SELECT x, y FROM t1 WHERE y=144 AND x=3', ['x', 'y'], ['y=144', 'x=3'], static fn (array $row): bool => $row['y'] === 144 && $row['x'] === 3, 'i1xy', true, false, false, false, 3, 'SEARCH t1 USING COVERING INDEX i1xy (x=? AND y=?)'),
+            self::where1Template('where-1.9', 'composite x/y index remains preferred with reordered terms', 'SELECT x, y FROM t1 WHERE y=144 AND w>10 AND x=3', ['x', 'y'], ['y=144', 'w>10', 'x=3'], static fn (array $row): bool => $row['y'] === 144 && $row['w'] > 10 && $row['x'] === 3, 'i1xy', false, false, false, false, 3, 'SEARCH t1 USING INDEX i1xy (x=? AND y=?) with reordered residual'),
+            self::where1Template('where-1.10', 'composite x/y equality handles lower w residual', 'SELECT x, y FROM t1 WHERE x=3 AND w>=10 AND y=121', ['x', 'y'], ['x=3', 'w>=10', 'y=121'], static fn (array $row): bool => $row['x'] === 3 && $row['w'] >= 10 && $row['y'] === 121, 'i1xy', false, false, false, false, 3, 'SEARCH t1 USING INDEX i1xy (x=? AND y=?) with w>=10 residual'),
+            self::where1Template('where-1.11', 'composite x/y equality handles upper w residual', 'SELECT x, y FROM t1 WHERE x=3 AND y=100 AND w<10', ['x', 'y'], ['x=3', 'y=100', 'w<10'], static fn (array $row): bool => $row['x'] === 3 && $row['y'] === 100 && $row['w'] < 10, 'i1xy', false, false, false, false, 3, 'SEARCH t1 USING INDEX i1xy (x=? AND y=?) with w<10 residual'),
+            self::where1Template('where-1.11b', 'composite x/y IS equality handles upper w residual', 'SELECT x, y FROM t1 WHERE x IS 3 AND y IS 100 AND w<10', ['x', 'y'], ['x IS 3', 'y IS 100', 'w<10'], static fn (array $row): bool => $row['x'] === 3 && $row['y'] === 100 && $row['w'] < 10, 'i1xy', false, false, false, false, 3, 'SEARCH t1 USING INDEX i1xy (x=? AND y=?) with IS constraints'),
+            self::where1Template('where-1.12', 'x equality plus y upper range seeks composite index', 'SELECT w FROM t1 WHERE x=3 AND y<100', ['w'], ['x=3', 'y<100'], static fn (array $row): bool => $row['x'] === 3 && $row['y'] < 100, 'i1xy', false, false, false, false, 3, 'SEARCH t1 USING INDEX i1xy (x=? AND y<?)'),
+            self::where1Template('where-1.12b', 'x IS equality plus y upper range seeks composite index', 'SELECT w FROM t1 WHERE x IS 3 AND y<100', ['w'], ['x IS 3', 'y<100'], static fn (array $row): bool => $row['x'] === 3 && $row['y'] < 100, 'i1xy', false, false, false, false, 3, 'SEARCH t1 USING INDEX i1xy (x=? AND y<?)'),
+            self::where1Template('where-1.13', 'commuted y upper range keeps composite index', 'SELECT w FROM t1 WHERE x=3 AND 100>y', ['w'], ['x=3', '100>y'], static fn (array $row): bool => $row['x'] === 3 && 100 > $row['y'], 'i1xy', false, false, false, true, 3, 'SEARCH t1 USING INDEX i1xy (x=? AND y<?) after range commutation'),
+            self::where1Template('where-1.14', 'commuted x equality keeps composite index', 'SELECT w FROM t1 WHERE 3=x AND y<100', ['w'], ['3=x', 'y<100'], static fn (array $row): bool => 3 === $row['x'] && $row['y'] < 100, 'i1xy', false, false, false, true, 3, 'SEARCH t1 USING INDEX i1xy (x=? AND y<?) after equality commutation'),
+            self::where1Template('where-1.14b', 'commuted x IS equality keeps composite index', 'SELECT w FROM t1 WHERE 3 IS x AND y<100', ['w'], ['3 IS x', 'y<100'], static fn (array $row): bool => 3 === $row['x'] && $row['y'] < 100, 'i1xy', false, false, false, true, 3, 'SEARCH t1 USING INDEX i1xy (x=? AND y<?) after IS commutation'),
+            self::where1Template('where-1.15', 'both commuted equality and range keep composite index', 'SELECT w FROM t1 WHERE 3=x AND 100>y', ['w'], ['3=x', '100>y'], static fn (array $row): bool => 3 === $row['x'] && 100 > $row['y'], 'i1xy', false, false, false, true, 3, 'SEARCH t1 USING INDEX i1xy (x=? AND y<?) after commutation'),
+            self::where1Template('where-1.16', 'inclusive y upper range emits two rows', 'SELECT w FROM t1 WHERE x=3 AND y<=100', ['w'], ['x=3', 'y<=100'], static fn (array $row): bool => $row['x'] === 3 && $row['y'] <= 100, 'i1xy', false, false, false, false, 5, 'SEARCH t1 USING INDEX i1xy (x=? AND y<=?)'),
+            self::where1Template('where-1.17', 'commuted inclusive y upper range emits two rows', 'SELECT w FROM t1 WHERE x=3 AND 100>=y', ['w'], ['x=3', '100>=y'], static fn (array $row): bool => $row['x'] === 3 && 100 >= $row['y'], 'i1xy', false, false, false, true, 5, 'SEARCH t1 USING INDEX i1xy (x=? AND y<=?) after range commutation'),
+            self::where1Template('where-1.18', 'exclusive y lower range emits high row', 'SELECT w FROM t1 WHERE x=3 AND y>225', ['w'], ['x=3', 'y>225'], static fn (array $row): bool => $row['x'] === 3 && $row['y'] > 225, 'i1xy', false, false, false, false, 3, 'SEARCH t1 USING INDEX i1xy (x=? AND y>?)'),
+            self::where1Template('where-1.18b', 'x IS equality plus y lower range emits high row', 'SELECT w FROM t1 WHERE x IS 3 AND y>225', ['w'], ['x IS 3', 'y>225'], static fn (array $row): bool => $row['x'] === 3 && $row['y'] > 225, 'i1xy', false, false, false, false, 3, 'SEARCH t1 USING INDEX i1xy (x=? AND y>?)'),
+            self::where1Template('where-1.19', 'commuted exclusive y lower range emits high row', 'SELECT w FROM t1 WHERE x=3 AND 225<y', ['w'], ['x=3', '225<y'], static fn (array $row): bool => $row['x'] === 3 && 225 < $row['y'], 'i1xy', false, false, false, true, 3, 'SEARCH t1 USING INDEX i1xy (x=? AND y>?) after range commutation'),
+            self::where1Template('where-1.20', 'inclusive y lower range emits two high rows', 'SELECT w FROM t1 WHERE x=3 AND y>=225', ['w'], ['x=3', 'y>=225'], static fn (array $row): bool => $row['x'] === 3 && $row['y'] >= 225, 'i1xy', false, false, false, false, 5, 'SEARCH t1 USING INDEX i1xy (x=? AND y>=?)'),
+            self::where1Template('where-1.21', 'commuted inclusive y lower range emits two high rows', 'SELECT w FROM t1 WHERE x=3 AND 225<=y', ['w'], ['x=3', '225<=y'], static fn (array $row): bool => $row['x'] === 3 && 225 <= $row['y'], 'i1xy', false, false, false, true, 5, 'SEARCH t1 USING INDEX i1xy (x=? AND y>=?) after range commutation'),
+            self::where1Template('where-1.22', 'exclusive bounded y range emits middle rows', 'SELECT w FROM t1 WHERE x=3 AND y>121 AND y<196', ['w'], ['x=3', 'y>121', 'y<196'], static fn (array $row): bool => $row['x'] === 3 && $row['y'] > 121 && $row['y'] < 196, 'i1xy', false, false, false, false, 5, 'SEARCH t1 USING INDEX i1xy (x=? AND y>? AND y<?)'),
+            self::where1Template('where-1.22b', 'x IS equality plus exclusive bounded y range emits middle rows', 'SELECT w FROM t1 WHERE x IS 3 AND y>121 AND y<196', ['w'], ['x IS 3', 'y>121', 'y<196'], static fn (array $row): bool => $row['x'] === 3 && $row['y'] > 121 && $row['y'] < 196, 'i1xy', false, false, false, false, 5, 'SEARCH t1 USING INDEX i1xy (x=? AND y>? AND y<?)'),
+            self::where1Template('where-1.23', 'inclusive bounded y range emits four middle rows', 'SELECT w FROM t1 WHERE x=3 AND y>=121 AND y<=196', ['w'], ['x=3', 'y>=121', 'y<=196'], static fn (array $row): bool => $row['x'] === 3 && $row['y'] >= 121 && $row['y'] <= 196, 'i1xy', false, false, false, false, 9, 'SEARCH t1 USING INDEX i1xy (x=? AND y>=? AND y<=?)'),
+            self::where1Template('where-1.24', 'commuted exclusive bounded y range emits middle rows', 'SELECT w FROM t1 WHERE x=3 AND 121<y AND 196>y', ['w'], ['x=3', '121<y', '196>y'], static fn (array $row): bool => $row['x'] === 3 && 121 < $row['y'] && 196 > $row['y'], 'i1xy', false, false, false, true, 5, 'SEARCH t1 USING INDEX i1xy (x=? AND y>? AND y<?) after range commutation'),
+            self::where1Template('where-1.25', 'commuted inclusive bounded y range emits four middle rows', 'SELECT w FROM t1 WHERE x=3 AND 121<=y AND 196>=y', ['w'], ['x=3', '121<=y', '196>=y'], static fn (array $row): bool => $row['x'] === 3 && 121 <= $row['y'] && 196 >= $row['y'], 'i1xy', false, false, false, true, 9, 'SEARCH t1 USING INDEX i1xy (x=? AND y>=? AND y<=?) after range commutation'),
+            self::where1Template('where-1.27', 'expression on y prevents direct y index extraction', 'SELECT w FROM t1 WHERE x=3 AND y+1==122', ['w'], ['x=3', 'y+1==122'], static fn (array $row): bool => $row['x'] === 3 && $row['y'] + 1 === 122, 'i1xy', false, false, false, false, 10, 'SEARCH t1 USING INDEX i1xy (x=?) then evaluate y+1==122 residual'),
+            self::where1Template('where-1.28', 'expression on x disables composite index extraction', 'SELECT w FROM t1 WHERE x+1=4 AND y+1==122', ['w'], ['x+1=4', 'y+1==122'], static fn (array $row): bool => $row['x'] + 1 === 4 && $row['y'] + 1 === 122, null, false, false, false, false, 99, 'SCAN t1 because expression predicates are not indexable in section 1'),
+            self::where1Template('where-1.29', 'bare y equality has no single-column index', 'SELECT w FROM t1 WHERE y==121', ['w'], ['y==121'], static fn (array $row): bool => $row['y'] === 121, null, false, false, false, false, 99, 'SCAN t1 because i1xy cannot use y without leading x'),
+            self::where1Template('where-1.30', 'w greater-than range starts near index tail', 'SELECT w FROM t1 WHERE w>97', ['w'], ['w>97'], static fn (array $row): bool => $row['w'] > 97, 'i1w', true, false, false, false, 3, 'SEARCH t1 USING COVERING INDEX i1w (w>?)'),
+            self::where1Template('where-1.31', 'w greater-or-equal range includes boundary row', 'SELECT w FROM t1 WHERE w>=97', ['w'], ['w>=97'], static fn (array $row): bool => $row['w'] >= 97, 'i1w', true, false, false, false, 4, 'SEARCH t1 USING COVERING INDEX i1w (w>=?)'),
+            self::where1Template('where-1.33', 'w equality near tail performs point lookup', 'SELECT w FROM t1 WHERE w==97', ['w'], ['w==97'], static fn (array $row): bool => $row['w'] === 97, 'i1w', true, false, false, false, 2, 'SEARCH t1 USING COVERING INDEX i1w (w=?)'),
+            self::where1Template('where-1.33.1', 'w less-or-equal plus equality collapses to point lookup', 'SELECT w FROM t1 WHERE w<=97 AND w==97', ['w'], ['w<=97', 'w==97'], static fn (array $row): bool => $row['w'] <= 97 && $row['w'] === 97, 'i1w', true, false, false, false, 2, 'SEARCH t1 USING COVERING INDEX i1w (w=?) with redundant upper bound'),
+            self::where1Template('where-1.33.2', 'w less-than plus equality collapses to point lookup', 'SELECT w FROM t1 WHERE w<98 AND w==97', ['w'], ['w<98', 'w==97'], static fn (array $row): bool => $row['w'] < 98 && $row['w'] === 97, 'i1w', true, false, false, false, 2, 'SEARCH t1 USING COVERING INDEX i1w (w=?) with redundant upper bound'),
+            self::where1Template('where-1.33.3', 'w greater-or-equal plus equality collapses to point lookup', 'SELECT w FROM t1 WHERE w>=97 AND w==97', ['w'], ['w>=97', 'w==97'], static fn (array $row): bool => $row['w'] >= 97 && $row['w'] === 97, 'i1w', true, false, false, false, 2, 'SEARCH t1 USING COVERING INDEX i1w (w=?) with redundant lower bound'),
+            self::where1Template('where-1.33.4', 'w greater-than plus equality collapses to point lookup', 'SELECT w FROM t1 WHERE w>96 AND w==97', ['w'], ['w>96', 'w==97'], static fn (array $row): bool => $row['w'] > 96 && $row['w'] === 97, 'i1w', true, false, false, false, 2, 'SEARCH t1 USING COVERING INDEX i1w (w=?) with redundant lower bound'),
+            self::where1Template('where-1.33.5', 'repeated w equality remains a point lookup', 'SELECT w FROM t1 WHERE w==97 AND w==97', ['w'], ['w==97', 'w==97'], static fn (array $row): bool => $row['w'] === 97 && $row['w'] === 97, 'i1w', true, false, false, false, 2, 'SEARCH t1 USING COVERING INDEX i1w (w=?) with duplicate equality'),
+            self::where1Template('where-1.34', 'expression on w disables point lookup', 'SELECT w FROM t1 WHERE w+1==98', ['w'], ['w+1==98'], static fn (array $row): bool => $row['w'] + 1 === 98, null, false, false, false, false, 99, 'SCAN t1 because w+1 is not a simple index constraint'),
+            self::where1Template('where-1.35', 'w less-than range stops before boundary', 'SELECT w FROM t1 WHERE w<3', ['w'], ['w<3'], static fn (array $row): bool => $row['w'] < 3, 'i1w', true, false, false, false, 3, 'SEARCH t1 USING COVERING INDEX i1w (w<?)'),
+            self::where1Template('where-1.36', 'w less-or-equal range includes boundary', 'SELECT w FROM t1 WHERE w<=3', ['w'], ['w<=3'], static fn (array $row): bool => $row['w'] <= 3, 'i1w', true, false, false, false, 4, 'SEARCH t1 USING COVERING INDEX i1w (w<=?)'),
+            self::where1Template('where-1.37', 'expression range on w scans despite ordered output', 'SELECT w FROM t1 WHERE w+1<=4 ORDER BY w', ['w'], ['w+1<=4'], static fn (array $row): bool => $row['w'] + 1 <= 4, null, false, false, false, false, 99, 'SCAN t1 and sort/order after expression predicate'),
+            self::where1Template('where-1.38', 'parenthesized w greater-than range remains indexable', 'SELECT (w) FROM t1 WHERE (w)>(97)', ['w'], ['(w)>(97)'], static fn (array $row): bool => $row['w'] > 97, 'i1w', true, false, false, false, 3, 'SEARCH t1 USING COVERING INDEX i1w (w>?) with parentheses stripped'),
+            self::where1Template('where-1.39', 'parenthesized w greater-or-equal range remains indexable', 'SELECT (w) FROM t1 WHERE (w)>=(97)', ['w'], ['(w)>=(97)'], static fn (array $row): bool => $row['w'] >= 97, 'i1w', true, false, false, false, 4, 'SEARCH t1 USING COVERING INDEX i1w (w>=?) with parentheses stripped'),
+            self::where1Template('where-1.40', 'parenthesized w equality remains indexable', 'SELECT (w) FROM t1 WHERE (w)==(97)', ['w'], ['(w)==(97)'], static fn (array $row): bool => $row['w'] === 97, 'i1w', true, false, false, false, 2, 'SEARCH t1 USING COVERING INDEX i1w (w=?) with parentheses stripped'),
+            self::where1Template('where-1.41', 'nested arithmetic expression on w scans but returns row 97', 'SELECT (w) FROM t1 WHERE ((w)+(1))==(98)', ['w'], ['((w)+(1))==(98)'], static fn (array $row): bool => $row['w'] + 1 === 98, null, false, false, false, false, 99, 'SCAN t1 because arithmetic expression prevents i1w extraction'),
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $expectedRows = self::where1ProjectRows($rows, $template['predicate'], $template['projection']);
+            $resultFlat = self::where1FlattenRows($expectedRows);
+
+            $out[] = [
+                'source' => 'where.test sections where-1.1.1 through where-1.41',
+                'case' => $case,
+                'upstream_section' => $template['section'],
+                'batch' => $batch,
+                'scenario' => $template['scenario'] . ' dynamic batch ' . $batch,
+                'statement' => $template['statement'],
+                'projection' => $template['projection'],
+                'predicate_terms' => $template['predicate_terms'],
+                'index_name' => $template['index_name'],
+                'uses_index' => $template['index_name'] !== null,
+                'uses_covering_index' => $template['covering'],
+                'unary_plus_disabled_index' => $template['unary'],
+                'alias_predicate' => $template['alias'],
+                'commuted_predicate' => $template['commuted'],
+                'expression_predicate' => self::where1HasExpressionPredicate($template['predicate_terms']),
+                'expected_rows' => $expectedRows,
+                'result_flat' => $resultFlat,
+                'count_output' => array_merge($resultFlat, [$template['search_count']]),
+                'search_count' => $template['search_count'],
+                'row_count' => count($expectedRows),
+                'detail' => $template['detail'],
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,table_name:string,declared_type:string,affinity:string,raw_values:list<int>,stored_values:list<mixed>,select_sql:string,predicate_sql:string|null,expression_sql:string|null,projection_mode:bool,uses_rowid_btree:bool,comparison_family:string,expected_rows:list<mixed>,projected_values:list<int|null>|null,matched_row_count:int,null_result_count:int,detail:string,integrity:string}>
      */
     public static function where5NullComparisonCases(int $cases = 1200): array
@@ -16978,6 +17085,118 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
         }
 
         return $out;
+    }
+
+    /**
+     * @return list<array{w:int,x:int,y:int}>
+     */
+    private static function where1BaseRows(): array
+    {
+        $rows = [];
+        for ($w = 1; $w <= 100; $w++) {
+            $rows[] = [
+                'w' => $w,
+                'x' => (int) floor(log($w) / log(2)),
+                'y' => ($w * $w) + (2 * $w) + 1,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<string> $projection
+     * @param list<string> $predicateTerms
+     * @return array{section:string,scenario:string,statement:string,projection:list<string>,predicate_terms:list<string>,predicate:callable(array):bool,index_name:string|null,covering:bool,unary:bool,alias:bool,commuted:bool,search_count:int,detail:string}
+     */
+    private static function where1Template(
+        string $section,
+        string $scenario,
+        string $statement,
+        array $projection,
+        array $predicateTerms,
+        callable $predicate,
+        ?string $indexName,
+        bool $covering,
+        bool $unary,
+        bool $alias,
+        bool $commuted,
+        int $searchCount,
+        string $detail,
+    ): array {
+        return [
+            'section' => $section,
+            'scenario' => $scenario,
+            'statement' => $statement,
+            'projection' => $projection,
+            'predicate_terms' => $predicateTerms,
+            'predicate' => $predicate,
+            'index_name' => $indexName,
+            'covering' => $covering,
+            'unary' => $unary,
+            'alias' => $alias,
+            'commuted' => $commuted,
+            'search_count' => $searchCount,
+            'detail' => $detail,
+        ];
+    }
+
+    /**
+     * @param list<array{w:int,x:int,y:int}> $rows
+     * @param callable(array):bool $predicate
+     * @param list<string> $projection
+     * @return list<array<int,mixed>>
+     */
+    private static function where1ProjectRows(array $rows, callable $predicate, array $projection): array
+    {
+        $out = [];
+        foreach ($rows as $row) {
+            if (!$predicate($row)) {
+                continue;
+            }
+
+            $projected = [];
+            foreach ($projection as $column) {
+                if (!array_key_exists($column, $row)) {
+                    throw new \InvalidArgumentException('SQLite where.test section-1 projection references unknown column ' . $column);
+                }
+                $projected[] = $row[$column];
+            }
+
+            $out[] = $projected;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<array<int,mixed>> $rows
+     * @return list<mixed>
+     */
+    private static function where1FlattenRows(array $rows): array
+    {
+        $flat = [];
+        foreach ($rows as $row) {
+            foreach ($row as $value) {
+                $flat[] = $value;
+            }
+        }
+
+        return $flat;
+    }
+
+    /**
+     * @param list<string> $predicateTerms
+     */
+    private static function where1HasExpressionPredicate(array $predicateTerms): bool
+    {
+        foreach ($predicateTerms as $term) {
+            if (str_contains($term, '+') || str_contains($term, '(w)+(1)')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

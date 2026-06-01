@@ -67,6 +67,7 @@ final class MergeBaseFinder
     ): self
     {
         return new self(static function (string $oid) use ($database): ?Commit {
+            $algorithm = self::objectHashForObjectId($oid);
             try {
                 $object = $database->read($oid);
             } catch (\RuntimeException $exception) {
@@ -80,7 +81,7 @@ final class MergeBaseFinder
                 throw new \InvalidArgumentException("Expected a commit object for {$oid}, got {$object->type}");
             }
 
-            return Commit::parse($object->body);
+            return Commit::parse($object->body, $algorithm);
         }, $useCommitGraphGenerations, $commitGraphGeneration);
     }
 
@@ -759,5 +760,13 @@ final class MergeBaseFinder
         if (self::assertObjectId($oid) !== $hashLength) {
             throw new \InvalidArgumentException('Merge-base object ids must all use the same hash algorithm');
         }
+    }
+
+    private static function objectHashForObjectId(string $oid): string
+    {
+        return match (self::assertObjectId($oid)) {
+            40 => 'sha1',
+            64 => 'sha256',
+        };
     }
 }

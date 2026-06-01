@@ -915,6 +915,12 @@ final class MediaQueryParser
     {
         $value = trim($value);
         $wasMathFunction = preg_match('/^(?:calc|clamp|max|min)\(/i', $value) === 1;
+        if ($wasMathFunction && $type === 'length') {
+            $unitlessMathValue = $this->unitlessLengthMathValue($value);
+            if ($unitlessMathValue !== null) {
+                return $unitlessMathValue;
+            }
+        }
         $value = $this->foldSimpleCalc($value);
         $value = $this->foldSimpleMathFunction($value, $type);
         $value = $this->minifyFunctionCommas($value);
@@ -2280,16 +2286,23 @@ final class MediaQueryParser
 
     private function unitlessLengthMathMarker(string $value): ?string
     {
-        $value = trim($value);
-        $value = $this->foldSimpleCalc($value);
-        $value = $this->foldSimpleMathFunction($value, 'length');
-        $value = $this->minifyNumericValue($value);
+        $value = $this->unitlessLengthMathValue($value);
 
-        if (preg_match('/^' . $this->cssNumberPattern() . '$/', $value) !== 1) {
+        if ($value === null) {
             return null;
         }
 
         return $value . self::UNITLESS_LENGTH_MATH_MARKER;
+    }
+
+    private function unitlessLengthMathValue(string $value): ?string
+    {
+        $value = trim($value);
+        $value = $this->foldSimpleCalc($value);
+        $value = $this->foldSimpleMathFunction($value, 'number');
+        $value = $this->minifyNumericValue($value);
+
+        return preg_match('/^' . $this->cssNumberPattern() . '$/', $value) === 1 ? $value : null;
     }
 
     /**

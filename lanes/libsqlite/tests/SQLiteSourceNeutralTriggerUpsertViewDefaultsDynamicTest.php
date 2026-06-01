@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan;
 
@@ -15,6 +16,7 @@ $sourceFiles = [
     $sourceRoot . '/SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan.php',
 ];
@@ -190,6 +192,41 @@ $deferredUpsertDefaults = static fn (): array => SQLiteTriggerDeferredUpsertRetu
     ],
 );
 
+$upsertDeferredDefaults = static fn (): array => SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan::execute(
+    [
+        ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'parent_setting_id' => 10, 'revision' => 1],
+    ],
+    [
+        ['setting_id' => 11, 'key_name' => 'base_url', 'key_value' => 'https://blocked.test', 'load_policy' => 'yes', 'parent_setting_id' => 99, 'revision' => 1],
+    ],
+    [
+        ['setting_id' => 21, 'key_name' => 'module_seed', 'key_value' => 'seed', 'load_policy' => 'no', 'parent_setting_id' => 10, 'revision' => 1],
+    ],
+    ['key_name'],
+    [
+        'setting_id' => static fn (array $old, array $incoming): mixed => $incoming['setting_id'],
+        'key_value' => static fn (array $old, array $incoming): mixed => $incoming['key_value'],
+        'load_policy' => static fn (array $old, array $incoming): mixed => $incoming['load_policy'],
+        'parent_setting_id' => static fn (array $old, array $incoming): mixed => $incoming['parent_setting_id'],
+        'revision' => static fn (array $old): int => (int) $old['revision'] + 1,
+    ],
+    [],
+    [
+        ['expr' => 'new.key_name', 'as' => 'name'],
+        ['expr' => 'new.setting_id', 'as' => 'id'],
+    ],
+    [
+        ['parent_id' => 10, 'parent_title' => 'Application parent'],
+    ],
+    [
+        'child_table' => 'app_settings',
+        'parent_table' => 'app_setting_groups',
+        'child_key' => 'parent_setting_id',
+        'parent_key' => 'parent_id',
+        'deferred' => true,
+    ],
+);
+
 return [
     'source-neutral trigger view defaults contain no legacy domain strings' => static fn (TestRunner $t) => $t->same([], $legacyTriggerViewDefaultMatches()),
     'trigger upsert returning view defaults are application settings' => static function (TestRunner $t) use ($upsertDefaults): void {
@@ -236,5 +273,16 @@ return [
         $t->same('ok', $plan['commit_status']);
         $t->same(['source_marker', 'cache_policy'], array_column($plan['after_statement'], 'key_name'));
         $t->same([], $plan['deferred_violations']);
+    },
+    'trigger upsert deferred returning defaults are application settings' => static function (TestRunner $t) use ($upsertDeferredDefaults): void {
+        $plan = $upsertDeferredDefaults();
+
+        $t->same('app_import_deferred_upsert', $plan['savepoint']);
+        $t->same('current-trigger-upsert-returning', $plan['current_source']);
+        $t->same('next-trigger-upsert-returning', $plan['next_source']);
+        $t->same('app_settings', $plan['deferred_violations'][0]['child_table']);
+        $t->same('app_setting_groups', $plan['deferred_violations'][0]['parent_table']);
+        $t->same(11, $plan['deferred_violations'][0]['rowid']);
+        $t->same(['module_seed'], array_column($plan['next_returning_rows'], 'name'));
     },
 ];

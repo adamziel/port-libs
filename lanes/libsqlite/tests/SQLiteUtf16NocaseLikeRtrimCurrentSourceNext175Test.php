@@ -9,13 +9,13 @@ $tests = [];
 
 $enc175 = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row175 = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc175($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc175($name, $encoding),
     'text_encoding' => $encoding,
 ];
 $bad175 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -77,7 +77,7 @@ $cases175 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSevenFive'],
     'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneSevenOne'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_cache%'],
     'escape' => ['escape', '!'],
     'current source' => ['currentSource', 'stable'],

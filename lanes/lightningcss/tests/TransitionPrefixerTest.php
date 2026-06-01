@@ -4108,7 +4108,7 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media (width >= calc(6px / 2)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
-            '@layer blocks{@media not (max-width:2px){.wp-block-query{color:#ff0}}}',
+            '@layer blocks{@media not (max-width:2){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width > max(1, 2)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
@@ -4176,6 +4176,18 @@ CSS;
         $t->same(
             '@layer blocks{@media (-webkit-device-pixel-ratio=2),(-moz-device-pixel-ratio=2),(resolution=2dppx){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (resolution = 2e0dppx) { .wp-block-query { color: yellow; } } }', [
+                'safari' => 15,
+                'firefox' => 10,
+                'exclude' => ['MediaRangeSyntax'],
+            ])
+        );
+        $t->same(
+            '@layer blocks{@media (-webkit-device-pixel-ratio:2) and (-webkit-min-device-pixel-ratio:3),(-moz-device-pixel-ratio:2) and (min--moz-device-pixel-ratio:3),(resolution:2dppx) and (min-resolution:3dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (resolution = 2dppx) and (min-resolution: 3dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@layer blocks{@media (-webkit-device-pixel-ratio=2) and (-webkit-device-pixel-ratio>=3),(-moz-device-pixel-ratio=2) and (-moz-device-pixel-ratio>=3),(resolution=2dppx) and (resolution>=3dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (resolution = 2dppx) and (min-resolution: 3dppx) { .wp-block-query { color: yellow; } } }', [
                 'safari' => 15,
                 'firefox' => 10,
                 'exclude' => ['MediaRangeSyntax'],
@@ -4552,7 +4564,7 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media (resolution > 0.5dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15])
         );
         $t->same(
-            '@layer blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query{color:#ff0}}}',
+            '@layer blocks{@media (min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (0.5dppx <= resolution <= 1.5dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
         );
         $t->same(
@@ -4560,7 +4572,7 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media (0.5dppx <= resolution <= 1.5dppx) { .wp-block-query { color: yellow; } } }', ['firefox' => 102])
         );
         $t->same(
-            '@layer blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query{color:#ff0}}}',
+            '@layer blocks{@media (min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (5e-1dppx <= resolution <= 1.5e0dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
         );
         $t->same(
@@ -4608,7 +4620,7 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2x) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
         );
         $t->same(
-            '@layer blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query{color:#ff0}}}',
+            '@layer blocks{@media (min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (0.5x <= resolution <= 1.5x) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
         );
     },

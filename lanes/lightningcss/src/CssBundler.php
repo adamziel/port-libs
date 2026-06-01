@@ -1400,9 +1400,8 @@ final class CssBundler
         $urlOpen = $this->cssFunctionOpenOffset($rest, $offset, 'url');
         if ($urlOpen !== null) {
             $open = $urlOpen;
-            try {
-                $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
-            } catch (CssBundleException) {
+            $close = $this->findCssUrlFunctionClose($rest, $open);
+            if ($close === null) {
                 $this->throwInvalidImportSource($file, $loc);
             }
             $specifier = $this->parseImportUrlFunctionSource(
@@ -1468,6 +1467,7 @@ final class CssBundler
         if ($offset < strlen($rest)) {
             $mediaTail = substr($rest, $offset);
             $this->assertNoImportMediaTopLevelFunctions($mediaTail, $statement, $restStart + $offset, $file, $loc);
+            $this->assertNoImportMediaUnexpectedTopLevelDelimiters($mediaTail, $statement, $restStart + $offset, $file, $loc);
             $media = trim($mediaTail);
             $this->validateImportMediaQueryList($media, $file, $loc);
         }
@@ -1524,6 +1524,89 @@ final class CssBundler
         } catch (\InvalidArgumentException $exception) {
             throw new CssBundleException('parser-error', $exception->getMessage(), $file, $loc['line'], $loc['column']);
         }
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function assertNoImportMediaUnexpectedTopLevelDelimiters(
+        string $mediaTail,
+        string $statement,
+        int $tailOffsetInStatement,
+        string $file,
+        array $loc
+    ): void {
+        $unexpected = $this->firstImportMediaUnexpectedTopLevelDelimiter($mediaTail);
+        if ($unexpected === null) {
+            return;
+        }
+
+        $diagnostic = $this->sourceLocationRelativeTo($statement, $tailOffsetInStatement + $unexpected['offset'], $loc);
+        throw new CssBundleException(
+            'parser-error',
+            'Unexpected token Delim("' . addcslashes($unexpected['char'], "\\\"") . '")',
+            $file,
+            $diagnostic['line'],
+            $diagnostic['column'],
+        );
+    }
+
+    /**
+     * @return array{char:string,offset:int}|null
+     */
+    private function firstImportMediaUnexpectedTopLevelDelimiter(string $mediaTail): ?array
+    {
+        $length = strlen($mediaTail);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $mediaTail[$offset];
+            if (ctype_space($char)) {
+                continue;
+            }
+
+            if ($char === '/' && ($mediaTail[$offset + 1] ?? '') === '*') {
+                $end = strpos($mediaTail, '*/', $offset + 2);
+                if ($end === false) {
+                    return null;
+                }
+                $offset = $end + 1;
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                try {
+                    $offset = $this->readQuotedTokenEnd($mediaTail, $offset) - 1;
+                } catch (CssBundleException) {
+                    return null;
+                }
+                continue;
+            }
+
+            if ($char === '(') {
+                try {
+                    $offset = $this->findMatchingDelimiter($mediaTail, $offset, '(', ')');
+                } catch (CssBundleException) {
+                    return null;
+                }
+                continue;
+            }
+
+            if ($char === ',') {
+                continue;
+            }
+
+            $identifier = $this->readCssIdentifierToken($mediaTail, $offset);
+            if ($identifier !== null) {
+                $offset = $identifier['end'] - 1;
+                continue;
+            }
+
+            return [
+                'char' => $char,
+                'offset' => $offset,
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -3493,6 +3576,15 @@ final class CssBundler
                 continue;
             }
 
+            $urlOpen = $this->cssFunctionOpenOffset($css, $i, 'url');
+            if ($urlOpen !== null) {
+                $urlClose = $this->findCssUrlFunctionClose($css, $urlOpen);
+                if ($urlClose !== null) {
+                    $i = $urlClose;
+                    continue;
+                }
+            }
+
             if ($char === '\\') {
                 $i = $this->cssEscapeEndOffset($css, $i);
                 continue;
@@ -3510,6 +3602,45 @@ final class CssBundler
                 $bracketDepth = max(0, $bracketDepth - 1);
             } elseif ($char === $needle && $parenDepth === 0 && $bracketDepth === 0) {
                 return $i;
+            }
+        }
+
+        return null;
+    }
+
+    private function findCssUrlFunctionClose(string $value, int $open): ?int
+    {
+        if (($value[$open] ?? '') !== '(') {
+            return null;
+        }
+
+        $quote = null;
+        $length = strlen($value);
+        for ($offset = $open + 1; $offset < $length; $offset++) {
+            $char = $value[$offset];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $offset++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '\\') {
+                $offset = $this->cssEscapeEndOffset($value, $offset);
+                continue;
+            }
+
+            if ($char === ')') {
+                return $offset;
             }
         }
 

@@ -940,6 +940,10 @@ CSS,
             'Unexpected token BadUrl("blocks/card(hero")'
         );
         $assertBadUrlImport(
+            '@import url(blocks/card(hero.css); .entry { color: red }',
+            'Unexpected token BadUrl("blocks/card(hero.css")'
+        );
+        $assertBadUrlImport(
             "@import url(blocks/card\\\nhero.css); .entry { color: red }",
             'Unexpected token BadUrl("' . addcslashes("blocks/card\\\nhero.css", "\\\"\n\r\t\f") . '")'
         );
@@ -1085,6 +1089,54 @@ CSS,
             })
         );
         $t->same([['/*x*/blocks/card.css', '/entry.css']], $resolved);
+
+        $resolved = [];
+        $t->same(
+            '.card{color:green}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import url(blocks/card[hero.css); .entry { color: red }',
+                '/vendor/card.css' => '.card { color: green }',
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return '/vendor/card.css';
+            })
+        );
+        $t->same([['blocks/card[hero.css', '/entry.css']], $resolved);
+
+        $resolved = [];
+        $t->same(
+            '.card{color:green}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import url(blocks/card{hero.css); .entry { color: red }',
+                '/vendor/card.css' => '.card { color: green }',
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return '/vendor/card.css';
+            })
+        );
+        $t->same([['blocks/card{hero.css', '/entry.css']], $resolved);
+
+        $trailingUrlTokenRejected = false;
+        try {
+            (new CssBundler())->bundleWithReader('/entry.css', static function (string $file): string {
+                return $file === '/entry.css'
+                    ? '@import url(blocks/card)hero.css); .entry { color: red }'
+                    : '.bad { color: red }';
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('parser-error', $exception->kind);
+            $t->same('Unexpected token Delim(".")', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(29, $exception->sourceColumn);
+            $trailingUrlTokenRejected = true;
+        }
+
+        if (!$trailingUrlTokenRejected) {
+            throw new RuntimeException('Expected trailing token after unquoted @import url() source exception');
+        }
 
         $assertBadUrlImport = static function (string $css, string $message) use ($t): void {
             $reads = [];

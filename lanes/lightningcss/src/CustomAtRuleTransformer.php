@@ -987,7 +987,7 @@ final class CustomAtRuleTransformer
 
         $this->customAtRules = [];
         foreach ($customAtRules as $name => $definition) {
-            $this->customAtRules[strtolower($name)] = $definition;
+            $this->customAtRules[$this->normalizeAtRuleName((string) $name)] = $definition;
         }
 
         $ruleConfig = $visitor['Rule'] ?? null;
@@ -1002,13 +1002,13 @@ final class CustomAtRuleTransformer
         } elseif (is_array($customVisitors)) {
             foreach ($customVisitors as $name => $callback) {
                 if (is_callable($callback)) {
-                    $this->ruleVisitors[strtolower((string) $name)] = $callback;
+                    $this->ruleVisitors[$this->normalizeAtRuleName((string) $name)] = $callback;
                 }
             }
         }
         foreach ($visitor as $name => $callback) {
             if (is_string($name) && is_callable($callback) && !in_array($name, ['Rule', 'Function', 'Token', 'custom', 'unknown', 'media'], true)) {
-                $this->ruleVisitors[strtolower($name)] = $callback;
+                $this->ruleVisitors[$this->normalizeAtRuleName($name)] = $callback;
             }
         }
 
@@ -1024,7 +1024,7 @@ final class CustomAtRuleTransformer
         } elseif (is_array($customExitVisitors)) {
             foreach ($customExitVisitors as $name => $callback) {
                 if (is_callable($callback)) {
-                    $this->ruleExitVisitors[strtolower((string) $name)] = $callback;
+                    $this->ruleExitVisitors[$this->normalizeAtRuleName((string) $name)] = $callback;
                 }
             }
         }
@@ -1037,7 +1037,7 @@ final class CustomAtRuleTransformer
         } elseif (is_array($unknownVisitors)) {
             foreach ($unknownVisitors as $name => $callback) {
                 if (is_callable($callback)) {
-                    $this->unknownRuleVisitors[strtolower((string) $name)] = $callback;
+                    $this->unknownRuleVisitors[$this->normalizeAtRuleName((string) $name)] = $callback;
                 }
             }
         }
@@ -1050,7 +1050,7 @@ final class CustomAtRuleTransformer
         } elseif (is_array($unknownExitVisitors)) {
             foreach ($unknownExitVisitors as $name => $callback) {
                 if (is_callable($callback)) {
-                    $this->unknownRuleExitVisitors[strtolower((string) $name)] = $callback;
+                    $this->unknownRuleExitVisitors[$this->normalizeAtRuleName((string) $name)] = $callback;
                 }
             }
         }
@@ -5771,14 +5771,14 @@ final class CustomAtRuleTransformer
             return $numberToken;
         }
 
-        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(--[-_a-zA-Z0-9]+)$/', $token, $matches) === 1) {
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))((?:--)(?:\\\\[0-9a-fA-F]{1,6}\s?|\\\\[^\r\n\f]|[-_a-zA-Z0-9\x{0080}-\x{10FFFF}])+)/u', $token, $matches) === 1 && strlen($matches[0]) === strlen($token)) {
             return [
                 'type' => 'token',
                 'raw' => $token,
                 'value' => [
                     'type' => 'dimension',
                     'value' => (float) $matches[1],
-                    'unit' => $matches[2],
+                    'unit' => $this->decodeCssEscapes($matches[2]),
                 ],
             ];
         }
@@ -5815,20 +5815,21 @@ final class CustomAtRuleTransformer
             ];
         }
 
-        if (preg_match('/^@(--[-_a-zA-Z0-9]+|-?[_a-zA-Z][-_a-zA-Z0-9]*)$/', $token, $matches) === 1) {
+        if (str_starts_with($token, '@') && ($identifier = $this->readCssIdentifierRaw($token, 1)) !== null && $identifier['end'] === strlen($token)) {
             return [
                 'type' => 'token',
                 'raw' => $token,
                 'value' => [
                     'type' => 'at-keyword',
-                    'value' => $matches[1],
+                    'value' => $identifier['value'],
                 ],
             ];
         }
 
-        if (preg_match('/^([a-zA-Z_-][-_a-zA-Z0-9]*)\(/', $token, $matches) === 1) {
-            $name = $matches[1];
-            $open = strlen($name);
+        $functionIdentifier = $this->readCssIdentifierRaw($token, 0);
+        if ($functionIdentifier !== null && ($token[$functionIdentifier['end']] ?? '') === '(') {
+            $name = $functionIdentifier['value'];
+            $open = $functionIdentifier['end'];
             $close = $this->findMatchingParen($token, $open);
             if ($close === strlen($token) - 1) {
                 $argumentsCss = substr($token, $open + 1, $close - $open - 1);
@@ -5863,19 +5864,20 @@ final class CustomAtRuleTransformer
             }
         }
 
-        if (preg_match('/^--[-_a-zA-Z0-9]+$/', $token) === 1) {
+        $identifier = $this->readCssIdentifierRaw($token, 0);
+        if ($identifier !== null && $identifier['end'] === strlen($token) && str_starts_with($identifier['value'], '--')) {
             return [
                 'type' => 'dashed-ident',
-                'value' => $token,
+                'value' => $identifier['value'],
             ];
         }
 
-        if (preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $token) === 1) {
+        if ($identifier !== null && $identifier['end'] === strlen($token)) {
             return [
                 'type' => 'token',
                 'value' => [
                     'type' => 'ident',
-                    'value' => $token,
+                    'value' => $identifier['value'],
                 ],
             ];
         }
@@ -7999,23 +8001,25 @@ final class CustomAtRuleTransformer
                 continue;
             }
 
-            if (preg_match('/[a-zA-Z_-][-_a-zA-Z0-9]*(?=\()/A', substr($value, $i), $matches) === 1) {
-                $name = $matches[0];
-                $open = $i + strlen($name);
+            $functionIdentifier = $this->readCssIdentifierRaw($value, $i);
+            if ($functionIdentifier !== null && ($value[$functionIdentifier['end']] ?? '') === '(') {
+                $name = $functionIdentifier['value'];
+                $rawName = $functionIdentifier['raw'];
+                $open = $functionIdentifier['end'];
                 $close = $this->findMatchingParen($value, $open);
                 if ($close !== null) {
                     $argumentsCss = substr($value, $open + 1, $close - $open - 1);
-                    $output .= $name . '(' . $this->rewriteValueTokens($argumentsCss) . ')';
+                    $output .= $rawName . '(' . $this->rewriteValueTokens($argumentsCss) . ')';
                     $i = $close;
                     continue;
                 }
             }
 
-            if ($char === '@' && preg_match('/@(--[-_a-zA-Z0-9]+|-?[_a-zA-Z][-_a-zA-Z0-9]*)/A', substr($value, $i), $matches) === 1) {
-                $raw = $matches[0];
+            if ($char === '@' && ($identifier = $this->readCssIdentifierRaw($value, $i + 1)) !== null) {
+                $raw = '@' . $identifier['raw'];
                 $replacement = $this->callTokenVisitor('at-keyword', [
                     'type' => 'at-keyword',
-                    'value' => $matches[1],
+                    'value' => $identifier['value'],
                     'raw' => $raw,
                 ]);
                 $output .= $replacement ?? $raw;
@@ -8043,7 +8047,7 @@ final class CustomAtRuleTransformer
                 }
             }
 
-            if (preg_match('/([+-]?(?:\d+|\d*\.\d+))(--[-_a-zA-Z0-9]+)/A', substr($value, $i), $matches) === 1) {
+            if (preg_match('/([+-]?(?:\d+|\d*\.\d+))((?:--)(?:\\\\[0-9a-fA-F]{1,6}\s?|\\\\[^\r\n\f]|[-_a-zA-Z0-9\x{0080}-\x{10FFFF}])*)/Au', substr($value, $i), $matches) === 1) {
                 $raw = $matches[0];
                 $before = $i > 0 ? $value[$i - 1] : '';
                 $after = $value[$i + strlen($raw)] ?? '';
@@ -8054,7 +8058,7 @@ final class CustomAtRuleTransformer
                     $replacement = $this->callTokenVisitor('dimension', [
                         'type' => 'dimension',
                         'value' => (float) $matches[1],
-                        'unit' => $matches[2],
+                        'unit' => $this->decodeCssEscapes($matches[2]),
                         'raw' => $raw,
                     ]);
                     if ($replacement !== null) {
@@ -8103,8 +8107,8 @@ final class CustomAtRuleTransformer
                 }
             }
 
-            if (preg_match('/-?[_a-zA-Z][-_a-zA-Z0-9]*/A', substr($value, $i), $matches) === 1) {
-                $raw = $matches[0];
+            if (($identifier = $this->readCssIdentifierRaw($value, $i)) !== null) {
+                $raw = $identifier['raw'];
                 $before = $i > 0 ? $value[$i - 1] : '';
                 $after = $value[$i + strlen($raw)] ?? '';
                 if (
@@ -8113,7 +8117,7 @@ final class CustomAtRuleTransformer
                 ) {
                     $replacement = $this->callTokenVisitor('ident', [
                         'type' => 'ident',
-                        'value' => $raw,
+                        'value' => $identifier['value'],
                         'raw' => $raw,
                     ]);
                     $output .= $replacement ?? $raw;
@@ -8780,8 +8784,15 @@ final class CustomAtRuleTransformer
                 $current .= $char;
                 continue;
             }
-            if ($char === '\\' && $i + 1 < $length) {
-                $current .= $char . $value[++$i];
+            if ($char === '\\') {
+                $escapeEnd = $this->consumeCssIdentifierEscape($value, $i);
+                if ($escapeEnd !== null) {
+                    $current .= substr($value, $i, $escapeEnd - $i);
+                    $i = $escapeEnd - 1;
+                    continue;
+                }
+
+                $current .= $char;
                 continue;
             }
             if ($char === '(') {
@@ -8925,7 +8936,7 @@ final class CustomAtRuleTransformer
 
     private function isCustomAtRule(string $name): bool
     {
-        return isset($this->customAtRules[strtolower($name)]);
+        return isset($this->customAtRules[$this->normalizeAtRuleName($name)]);
     }
 
     private function isKeyframesAtRule(string $name): bool
@@ -8943,38 +8954,68 @@ final class CustomAtRuleTransformer
             throw new \InvalidArgumentException("Invalid CSS at-rule prelude: {$prelude}");
         }
 
-        $offset = 1;
-        $length = strlen($prelude);
-        $rawName = '';
+        $identifier = $this->readCssIdentifierRaw($prelude, 1);
+        if ($identifier === null) {
+            throw new \InvalidArgumentException("Invalid CSS at-rule prelude: {$prelude}");
+        }
 
-        while ($offset < $length) {
-            $char = $prelude[$offset];
+        $name = $this->normalizeAtRuleName($identifier['value']);
+
+        return [$name, trim(substr($prelude, $identifier['end']))];
+    }
+
+    private function normalizeAtRuleName(string $name): string
+    {
+        $name = trim($this->decodeCssEscapes($name));
+
+        return function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
+    }
+
+    /**
+     * @return array{raw:string,value:string,end:int}|null
+     */
+    private function readCssIdentifierRaw(string $css, int $offset): ?array
+    {
+        $cursor = $offset;
+        $length = strlen($css);
+        $raw = '';
+
+        while ($cursor < $length) {
+            $char = $css[$cursor];
             if ($char === '\\') {
-                $escapeEnd = $this->consumeCssIdentifierEscape($prelude, $offset);
+                $escapeEnd = $this->consumeCssIdentifierEscape($css, $cursor);
                 if ($escapeEnd === null) {
-                    throw new \InvalidArgumentException("Invalid CSS at-rule prelude: {$prelude}");
+                    break;
                 }
 
-                $rawName .= substr($prelude, $offset, $escapeEnd - $offset);
-                $offset = $escapeEnd;
+                $raw .= substr($css, $cursor, $escapeEnd - $cursor);
+                $cursor = $escapeEnd;
                 continue;
             }
 
-            if (preg_match('/[-_a-zA-Z0-9]/', $char) === 1) {
-                $rawName .= $char;
-                $offset++;
+            if (preg_match('/^[-_a-zA-Z0-9\x{0080}-\x{10FFFF}]/u', substr($css, $cursor), $matches) === 1) {
+                $raw .= $matches[0];
+                $cursor += strlen($matches[0]);
                 continue;
             }
 
             break;
         }
 
-        $name = strtolower($this->decodeCssEscapes($rawName));
-        if ($name === '' || preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $name) !== 1) {
-            throw new \InvalidArgumentException("Invalid CSS at-rule prelude: {$prelude}");
+        if ($raw === '') {
+            return null;
         }
 
-        return [$name, trim(substr($prelude, $offset))];
+        $value = $this->decodeCssEscapes($raw);
+        if (!$this->isCssIdentifierToken($value)) {
+            return null;
+        }
+
+        return [
+            'raw' => $raw,
+            'value' => $value,
+            'end' => $cursor,
+        ];
     }
 
     private function consumeCssIdentifierEscape(string $css, int $offset): ?int

@@ -528,6 +528,58 @@ return [
         $t->same(['Counting objects: 100% (1/1)'], $response->progressMessages());
         $t->same(100, $response->remoteProgress()[0]->percent);
     },
+    'rejects invalid utf8 protocol lines while preserving binary sideband payloads' => static function (TestRunner $t) use ($packet, $delimiter, $flush, $invalidArgumentMessage): void {
+        $main = '73a6868963993a3328e7d8fe94e5a6ac5078a944';
+        $pack = 'PACK' . pack('N', 2) . pack('N', 1) . "binary-pack-\xFF";
+
+        $t->same(
+            'fetch response: invalid UTF-8 protocol line',
+            $invalidArgumentMessage(static fn () => FetchResponse::fromV2PacketLines(
+                $packet("wanted-refs\n")
+                . $packet("{$main} refs/heads/wp-\xFF\n")
+                . $delimiter
+                . $packet("packfile\n")
+                . $packet("\x01" . $pack)
+                . $flush
+            ))
+        );
+        $t->same(
+            'fetch response: invalid UTF-8 protocol line',
+            $invalidArgumentMessage(static fn () => FetchResponse::fromV2PacketLines(
+                $packet("\x01wanted-refs\n")
+                . $packet("\x01{$main} refs/heads/wp-\xFF\n")
+                . $delimiter
+                . $packet("\x01packfile\n")
+                . $packet("\x01" . $pack)
+                . $flush,
+                true
+            ))
+        );
+
+        $ordinary = FetchResponse::fromV2PacketLines(
+            $packet("packfile\n")
+            . $packet("\x02remote: byte \xFF progress\n")
+            . $packet("\x03remote: byte \xFE warning\n")
+            . $packet("\x01" . $pack)
+            . $flush
+        );
+
+        $t->same($pack, $ordinary->packData());
+        $t->same(["remote: byte \xFF progress"], $ordinary->progressMessages());
+        $t->same(["remote: byte \xFE warning"], $ordinary->errorMessages());
+
+        $sidebandAll = FetchResponse::fromV2PacketLines(
+            $packet("\x02remote: sideband-all byte \xFF progress\n")
+            . $packet("\x01packfile\n")
+            . $packet("\x01" . $pack)
+            . $flush,
+            true
+        );
+
+        $t->same($pack, $sidebandAll->packData());
+        $t->same(["remote: sideband-all byte \xFF progress"], $sidebandAll->progressMessages());
+        $t->same([], $sidebandAll->errorMessages());
+    },
     'maps remote progress chunks like gix-protocol sideband readers' => static function (TestRunner $t): void {
         $counting = RemoteProgress::fromText("Counting objects:  25% (1/4)\rCounting objects:  50% (2/4)\r");
         $enumerating = RemoteProgress::fromText('Enumerating objects: 4, done.');
@@ -936,6 +988,10 @@ return [
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['trailingWhitespacePackTrailer']);
         $t->same(true, $summary['unicodeWhitespaceParsed']);
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['unicodeWhitespacePackTrailer']);
+        $t->same(true, $summary['invalidUtf8ProtocolLineRejected']);
+        $t->same('fetch response: invalid UTF-8 protocol line', $summary['invalidUtf8ProtocolLineError']);
+        $t->same(true, $summary['binarySidebandPayloadsPreserved']);
+        $t->same('ff7369646562616e642d6279746573', $summary['binarySidebandPackSuffix']);
         $t->same($fixture['packData'], $smartHttpUploadPackResponse->packData());
         $t->same(['Counting objects: 100% (1/1)' . "\r" . 'Counting objects: 100% (1/1), done.'], $smartHttpUploadPackResponse->progressMessages());
         $t->same(true, $summary['smartHttpUploadPackParsed']);

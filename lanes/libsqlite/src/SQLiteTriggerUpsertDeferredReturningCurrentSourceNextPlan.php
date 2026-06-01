@@ -31,7 +31,7 @@ final class SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan
         array $foreignKey,
         array $options = [],
     ): array {
-        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'wp_import_deferred_upsert'), 'savepoint');
+        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'app_import_deferred_upsert'), 'savepoint');
         $currentSource = self::source((string) ($options['current_source'] ?? 'current-trigger-upsert-returning'));
         $nextSource = self::source((string) ($options['next_source'] ?? 'next-trigger-upsert-returning'));
         $rollbackOnDeferred = (bool) ($options['rollback_on_deferred_violation'] ?? true);
@@ -152,7 +152,7 @@ final class SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan
                 'child_key' => $childKey,
                 'parent_key' => $parentKey,
                 'value' => $value,
-                'rowid' => $child['option_id'] ?? $child['rowid'] ?? $ordinal + 1,
+                'rowid' => $child['setting_id'] ?? $child['rowid'] ?? $ordinal + 1,
                 'deferred_until' => 'source-release',
             ];
         }

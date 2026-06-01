@@ -579,6 +579,20 @@ final class SQLiteAttachedSchemaCatalog
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public function executeVirtualTableSelect(string $sql): array
+    {
+        $prepared = SQLitePragmaSchemaCatalog::withTableValuedPragmaSources(
+            $sql,
+            $this->pragmaCatalog('main')->virtualPragmaTables(),
+            fn (string $pragmaSql): array => $this->executeTableValuedPragma($pragmaSql),
+        );
+
+        return SQLiteSelectSql::execute($prepared['sql'], $prepared['tables']);
+    }
+
+    /**
      * Snapshot a table-valued PRAGMA foreign_key_list cursor, replace the
      * owning schema catalog, and return the next cursor that SQLite would see
      * after schema reparse. This keeps the current cursor rows stable while

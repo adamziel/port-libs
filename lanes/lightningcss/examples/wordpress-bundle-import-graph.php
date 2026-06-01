@@ -528,6 +528,73 @@ try {
     echo 'bad-url-import: rejected-before-resolution' . PHP_EOL;
 }
 
+$rawUrlDelimiterBundle = (new CssBundler())->bundle('/raw-url-delimiters.css', [
+    '/raw-url-delimiters.css' => '@import url(blocks/card[hero.css); @import url(blocks/card{hero.css); .wp-site-blocks { color: red; }',
+    '/blocks/card[hero.css' => '.wp-block-card-bracket { color: green; }',
+    '/blocks/card{hero.css' => '.wp-block-card-brace { color: blue; }',
+]);
+
+if ($rawUrlDelimiterBundle !== '.wp-block-card-bracket{color:green}.wp-block-card-brace{color:#00f}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected raw url() import delimiters to stay in block stylesheet specifiers\n");
+    exit(1);
+}
+
+echo 'raw-url-import-delimiters: resolved' . PHP_EOL;
+
+$badRawUrlDelimiterReads = [];
+try {
+    (new CssBundler())->bundleWithReader(
+        '/bad-raw-url-delimiter.css',
+        static function (string $file) use (&$badRawUrlDelimiterReads): string {
+            $badRawUrlDelimiterReads[] = $file;
+
+            return $file === '/bad-raw-url-delimiter.css'
+                ? '@import url(blocks/card(hero.css); .wp-site-blocks { color: red; }'
+                : '.wp-block-card { color: green; }';
+        }
+    );
+
+    fwrite(STDERR, "Expected unmatched raw url() import parenthesis to be rejected before reading block CSS\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== 'Unexpected token BadUrl("blocks/card(hero.css")'
+        || $exception->sourceFile !== '/bad-raw-url-delimiter.css'
+        || $exception->sourceLine !== 1
+        || $exception->sourceColumn !== 8
+        || $badRawUrlDelimiterReads !== ['/bad-raw-url-delimiter.css']
+    ) {
+        fwrite(STDERR, 'Unexpected unmatched raw url() delimiter diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'bad-raw-url-import-delimiter: rejected-before-read' . PHP_EOL;
+}
+
+try {
+    (new CssBundler())->bundle('/bad-raw-url-tail.css', [
+        '/bad-raw-url-tail.css' => '@import url(blocks/card)hero.css); .wp-site-blocks { color: red; }',
+        '/blocks/card' => '.wp-block-card { color: green; }',
+    ]);
+
+    fwrite(STDERR, "Expected trailing raw url() import tokens to be rejected\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== 'Unexpected token Delim(".")'
+        || $exception->sourceFile !== '/bad-raw-url-tail.css'
+        || $exception->sourceLine !== 1
+        || $exception->sourceColumn !== 29
+    ) {
+        fwrite(STDERR, 'Unexpected trailing raw url() diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'bad-raw-url-import-tail: rejected-before-resolution' . PHP_EOL;
+}
+
 $badImportSourceReads = [];
 try {
     (new CssBundler())->bundleWithReader(

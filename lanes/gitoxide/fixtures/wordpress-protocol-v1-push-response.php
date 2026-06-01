@@ -186,6 +186,25 @@ return [
         . $packet("option new-oid {$changeNew}\n")
         . $packet("option forced-update\n")
         . $flush,
+    'rejectedReportRef' => [
+        'requested' => 'refs/for/wp-deploy',
+        'actual' => [
+            'refs/heads/site-a',
+            'refs/heads/site-b',
+        ],
+        'message' => 'post-receive hook declined',
+    ],
+    'rejectedReportResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/for/wp-deploy accepted by proc-receive\n")
+        . $packet("option refname refs/heads/site-a\n")
+        . $packet("option old-oid {$siteAOld}\n")
+        . $packet("option new-oid {$siteANew}\n")
+        . $packet("ok refs/for/wp-deploy accepted by proc-receive\n")
+        . $packet("option refname refs/heads/site-b\n")
+        . $packet("option old-oid {$siteBOld}\n")
+        . $packet("option new-oid {$siteBNew}\n")
+        . $packet("ng refs/for/wp-deploy post-receive hook declined\n")
+        . $flush,
     'missingExpectedResponse' => $packet("unpack ok\n")
         . $packet("ok refs/heads/ghost ignored by send-pack\n")
         . $flush,

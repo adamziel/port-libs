@@ -54,6 +54,7 @@ final class FetchResponse
                 self::throwUploadPackError($packet['payload']);
             }
 
+            self::assertUtf8ProtocolLine($packet['payload']);
             $header = self::trimProtocolLineEnd($packet['payload']);
             if ($header === 'acknowledgments') {
                 $terminator = self::parseV2Section($bytes, $offset, $acknowledgements, FetchAcknowledgement::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $progressHandler);
@@ -267,6 +268,7 @@ final class FetchResponse
             if (self::isUploadPackErrorPacket($packet['payload'])) {
                 self::throwUploadPackError($packet['payload']);
             }
+            self::assertUtf8ProtocolLine($packet['payload']);
             $out[] = $parse($packet['payload']);
         }
     }
@@ -501,6 +503,13 @@ final class FetchResponse
     private static function throwUploadPackError(string $payload): never
     {
         throw new \RuntimeException('fetch response: upload-pack error ' . substr($payload, 4));
+    }
+
+    private static function assertUtf8ProtocolLine(string $line): void
+    {
+        if (preg_match('//u', $line) !== 1) {
+            throw new \InvalidArgumentException('fetch response: invalid UTF-8 protocol line');
+        }
     }
 
     private static function trimOneTrailingNewline(string $data): string

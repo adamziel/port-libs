@@ -9,8 +9,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, int $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => $encoding,
     ];
 };
@@ -26,7 +26,7 @@ $next = [
     $row(3, 'plugin_cache_beta', 2),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameTokenFingerprintPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyTokenFingerprintPlan(
     $current,
     $next,
     'plugin!_cache%',
@@ -44,11 +44,11 @@ $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameTokenFinge
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-next175');
+    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-nextoneSevenFive');
     assert($plan['tokenFingerprintReasons'] === ['yielded-token-bytes-changed', 'current-next-token-bytes-changed']);
     assert($plan['mustReprepareBeforeReplay'] === true);
     assert($plan['safeToReplayFromToken'] === false);
-    echo "application-utf16-nocase-like-rtrim-token-current-source-next175 self-test passed\n";
+    echo "application-utf16-nocase-like-rtrim-token-current-source-nextoneSevenFive self-test passed\n";
     return;
 }
 

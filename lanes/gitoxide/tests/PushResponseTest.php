@@ -446,6 +446,63 @@ return [
             array_map(static fn (PushRefStatus $status): string => $status->effectiveRefName(), $sideband->refStatuses())
         );
     },
+    'preserves proc-receive rewrite reports when a later duplicate status rejects like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
+        $siteAOld = str_repeat('6', 40);
+        $siteANew = str_repeat('7', 40);
+        $siteBOld = str_repeat('8', 40);
+        $siteBNew = str_repeat('9', 40);
+        $direct = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/wp-deploy accepted by proc-receive\n")
+            . $packet("option refname refs/heads/site-a\n")
+            . $packet("option old-oid {$siteAOld}\n")
+            . $packet("option new-oid {$siteANew}\n")
+            . $packet("ok refs/for/wp-deploy accepted by proc-receive\n")
+            . $packet("option refname refs/heads/site-b\n")
+            . $packet("option old-oid {$siteBOld}\n")
+            . $packet("option new-oid {$siteBNew}\n")
+            . $packet("ng refs/for/wp-deploy post-receive hook declined\n")
+            . $flush
+        )->forExpectedRefNames(['refs/for/wp-deploy']);
+        $sideband = PushResponse::fromSidebandPacketLines(
+            $packet("\x02remote: proc-receive later rejected deployment refs\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/for/wp-deploy\n"))
+            . $packet("\x01" . $packet("option refname refs/heads/site-a\n"))
+            . $packet("\x01" . $packet("option old-oid {$siteAOld}\n"))
+            . $packet("\x01" . $packet("option new-oid {$siteANew}\n"))
+            . $packet("\x01" . $packet("ng refs/for/wp-deploy post-receive hook declined\n"))
+            . $packet("\x01" . $flush)
+            . $flush
+        )->forExpectedRefNames(['refs/for/wp-deploy']);
+        $first = $direct->refStatuses()[0];
+        $second = $direct->refStatuses()[1];
+
+        $t->same(false, $direct->isSuccessful());
+        $t->same(2, count($direct->refStatuses()));
+        $t->same(['refs/heads/site-a', 'refs/heads/site-b'], array_map(
+            static fn (PushRefStatus $status): string => $status->effectiveRefName(),
+            $direct->refStatuses()
+        ));
+        $t->same([PushRefStatus::REJECTED, PushRefStatus::REJECTED], array_map(
+            static fn (PushRefStatus $status): string => $status->status,
+            $direct->refStatuses()
+        ));
+        $t->same(['post-receive hook declined', 'post-receive hook declined'], array_map(
+            static fn (PushRefStatus $status): ?string => $status->message,
+            $direct->refStatuses()
+        ));
+        $t->same($siteAOld, $first->oldObject);
+        $t->same($siteANew, $first->newObject);
+        $t->same($siteBOld, $second->oldObject);
+        $t->same($siteBNew, $second->newObject);
+        $t->same(true, $first->hasReportOption());
+        $t->same(true, $second->hasReportOption());
+        $t->same(false, $sideband->isSuccessful());
+        $t->same(['remote: proc-receive later rejected deployment refs'], $sideband->progressMessages());
+        $t->same('refs/heads/site-a', $sideband->rejectedRefs()[0]->effectiveRefName());
+        $t->same('post-receive hook declined', $sideband->rejectedRefs()[0]->message);
+    },
     'marks missing requested receive-status refs as remote failures like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
         $response = PushResponse::fromReportStatusPacketLines(
             $packet("unpack ok\n")
@@ -839,6 +896,15 @@ return [
             static fn (array $status): bool => $status['forcedUpdate'],
             $summary['noRefnameMultiReportRefs']
         ));
+        $t->same($fixture['rejectedReportRef']['actual'], array_map(
+            static fn (array $status): string => $status['effectiveRef'],
+            $summary['rejectedReportRefs']
+        ));
+        $t->same($fixture['rejectedReportRef']['message'], $summary['rejectedReportRefs'][0]['message']);
+        $t->same([PushRefStatus::REJECTED, PushRefStatus::REJECTED], array_map(
+            static fn (array $status): string => $status['status'],
+            $summary['rejectedReportRefs']
+        ));
         $t->same(true, $summary['oversizedReportStatusRejected']);
         $t->same(true, $summary['fatalSidebandRejected']);
         $t->same(true, $summary['fallThroughAccepted']);
@@ -850,6 +916,7 @@ return [
         $t->same(true, $summary['expectedLastStatusWon']);
         $t->same(true, $summary['multiReportStatusPreserved']);
         $t->same(true, $summary['noRefnameMultiReportStatusPreserved']);
+        $t->same(true, $summary['rejectedReportStatusPreserved']);
         $t->same(true, $summary['carriageReturnStatusRejected']);
         $t->same(true, $summary['emptyPacketLineRejected']);
         $t->same(true, $summary['unrequestedOptionRejected']);

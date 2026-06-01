@@ -151,7 +151,67 @@ final class SQLitePragmaSchemaCatalog
      */
     public function executeVirtualTableSelect(string $sql): array
     {
-        return SQLiteSelectSql::execute($sql, $this->virtualPragmaTables());
+        $prepared = self::withTableValuedPragmaSources(
+            $sql,
+            $this->virtualPragmaTables(),
+            fn (string $pragmaSql): array => $this->executeTableValuedPragma($pragmaSql),
+        );
+
+        return SQLiteSelectSql::execute($prepared['sql'], $prepared['tables']);
+    }
+
+    /**
+     * @param array<string, list<array<string, int|string|null>>> $tables
+     * @param callable(string): array{rows: list<array<string, int|string|null>>} $resolver
+     * @return array{sql: string, tables: array<string, list<array<string, int|string|null>>>}
+     */
+    public static function withTableValuedPragmaSources(string $sql, array $tables, callable $resolver): array
+    {
+        $length = strlen($sql);
+        $rewritten = '';
+        $lastOffset = 0;
+        $sourceIndex = 0;
+        $pattern = '/\Apragma_(?:table_info|table_xinfo|index_list|index_info|index_xinfo|foreign_key_list|table_list)\s*\(/i';
+
+        for ($offset = 0; $offset < $length; $offset++) {
+            $skipOffset = self::sqlQuotedTokenEndOffset($sql, $offset);
+            if ($skipOffset !== null) {
+                $offset = $skipOffset;
+                continue;
+            }
+
+            $previous = $sql[$offset - 1] ?? '';
+            if ($previous !== '' && preg_match('/[A-Za-z0-9_]/', $previous) === 1) {
+                continue;
+            }
+
+            if (preg_match($pattern, substr($sql, $offset), $matches) !== 1) {
+                continue;
+            }
+
+            $openOffset = $offset + strlen($matches[0]) - 1;
+            $closeOffset = self::matchingParenthesisOffset($sql, $openOffset);
+            $pragmaSql = substr($sql, $offset, $closeOffset - $offset + 1);
+            $sourceTable = '__sqlite_pragma_source_' . $sourceIndex++;
+            $result = $resolver($pragmaSql);
+            if (!isset($result['rows']) || !is_array($result['rows'])) {
+                throw new InvalidArgumentException('SQLite table-valued PRAGMA source resolver must return rows');
+            }
+
+            $tables[$sourceTable] = array_values($result['rows']);
+            $rewritten .= substr($sql, $lastOffset, $offset - $lastOffset) . $sourceTable;
+            $offset = $closeOffset;
+            $lastOffset = $closeOffset + 1;
+        }
+
+        if ($sourceIndex === 0) {
+            return ['sql' => $sql, 'tables' => $tables];
+        }
+
+        return [
+            'sql' => $rewritten . substr($sql, $lastOffset),
+            'tables' => $tables,
+        ];
     }
 
     /**
@@ -741,6 +801,78 @@ final class SQLitePragmaSchemaCatalog
         }
 
         return rtrim($trimmed, ';');
+    }
+
+    private static function matchingParenthesisOffset(string $sql, int $openOffset): int
+    {
+        if (($sql[$openOffset] ?? '') !== '(') {
+            throw new InvalidArgumentException('SQLite table-valued PRAGMA source parser expected an opening parenthesis');
+        }
+
+        $depth = 0;
+        $length = strlen($sql);
+        for ($offset = $openOffset; $offset < $length; $offset++) {
+            $skipOffset = self::sqlQuotedTokenEndOffset($sql, $offset);
+            if ($skipOffset !== null) {
+                $offset = $skipOffset;
+                continue;
+            }
+
+            if ($sql[$offset] === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($sql[$offset] === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $offset;
+                }
+            }
+        }
+
+        throw new InvalidArgumentException('SQLite table-valued PRAGMA source has an unterminated argument list');
+    }
+
+    private static function sqlQuotedTokenEndOffset(string $sql, int $offset): ?int
+    {
+        $length = strlen($sql);
+        $char = $sql[$offset] ?? '';
+        if ($char === "'" || $char === '"' || $char === '`') {
+            for ($cursor = $offset + 1; $cursor < $length; $cursor++) {
+                if ($sql[$cursor] !== $char) {
+                    continue;
+                }
+                if (($sql[$cursor + 1] ?? '') === $char) {
+                    $cursor++;
+                    continue;
+                }
+
+                return $cursor;
+            }
+
+            return $length - 1;
+        }
+
+        if ($char === '[') {
+            $end = strpos($sql, ']', $offset + 1);
+
+            return $end === false ? $length - 1 : $end;
+        }
+
+        if ($char === '-' && ($sql[$offset + 1] ?? '') === '-') {
+            $newline = strcspn($sql, "\r\n", $offset + 2);
+
+            return min($length - 1, $offset + 2 + $newline);
+        }
+
+        if ($char === '/' && ($sql[$offset + 1] ?? '') === '*') {
+            $end = strpos($sql, '*/', $offset + 2);
+
+            return $end === false ? $length - 1 : $end + 1;
+        }
+
+        return null;
     }
 
     /**
