@@ -2255,6 +2255,53 @@ return [
         $t->same(null, $block->getProperty('-webkit-text-emphasis: open circle blue', 'text-emphasis'));
         $t->same(['value' => 'over left', 'important' => false], $block->getProperty('text-emphasis-position: over left', 'text-emphasis-position'));
     },
+    'declaration block canonicalizes upstream text decoration skip ink and emphasis position cssom declarations' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'text-decoration-skip-ink: ALL; -webkit-text-decoration-skip-ink: None; text-emphasis-position: OVER RIGHT; -webkit-text-emphasis-position: left UNDER; --Skip-Ink: ALL';
+
+        $t->same(
+            [
+                'text-decoration-skip-ink' => 'all',
+                '-webkit-text-decoration-skip-ink' => 'none',
+                'text-emphasis-position' => 'over',
+                '-webkit-text-emphasis-position' => 'under left',
+                '--Skip-Ink' => 'ALL',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'all', 'important' => false], $block->getProperty($declarations, 'text-decoration-skip-ink'));
+        $t->same(['value' => 'none', 'important' => false], $block->getProperty($declarations, '-webkit-text-decoration-skip-ink'));
+        $t->same(['value' => 'over', 'important' => false], $block->getProperty($declarations, 'text-emphasis-position'));
+        $t->same(['value' => 'under left', 'important' => false], $block->getProperty($declarations, '-webkit-text-emphasis-position'));
+        $t->same(['value' => 'ALL', 'important' => false], $block->getProperty($declarations, '--Skip-Ink'));
+        $t->same(['value' => 'over', 'important' => false], $block->getProperty('text-emphasis-position: RIGHT over', 'text-emphasis-position'));
+        $t->same(['value' => 'under left', 'important' => false], $block->getProperty('text-emphasis-position: LEFT under', 'text-emphasis-position'));
+        $t->same(['value' => 'auto', 'important' => true], $block->getProperty('text-decoration-skip-ink: Auto !important', 'text-decoration-skip-ink'));
+        $t->same(
+            'text-decoration-skip-ink: auto; -webkit-text-decoration-skip-ink: none; text-emphasis-position: over; -webkit-text-emphasis-position: under left; --Skip-Ink: ALL',
+            $block->setProperty($declarations, 'text-decoration-skip-ink', 'Auto')
+        );
+        $t->same(
+            'text-decoration-skip-ink: all; text-emphasis-position: over; -webkit-text-emphasis-position: under left; --Skip-Ink: ALL; -webkit-text-decoration-skip-ink: all !important',
+            $block->setProperty($declarations, '-webkit-text-decoration-skip-ink', 'ALL', true)
+        );
+        $t->same(
+            'text-decoration-skip-ink: all; -webkit-text-decoration-skip-ink: none; text-emphasis-position: over left; -webkit-text-emphasis-position: under left; --Skip-Ink: ALL',
+            $block->setProperty($declarations, 'text-emphasis-position', 'left over')
+        );
+        $t->same(
+            'text-decoration-skip-ink: all; -webkit-text-decoration-skip-ink: none; text-emphasis-position: over; --Skip-Ink: ALL; -webkit-text-emphasis-position: under !important',
+            $block->setProperty($declarations, '-webkit-text-emphasis-position', 'RIGHT UNDER', true)
+        );
+        $t->same(
+            '-webkit-text-decoration-skip-ink: none; text-emphasis-position: over; -webkit-text-emphasis-position: under left; --Skip-Ink: ALL',
+            $block->removeProperty($declarations, 'text-decoration-skip-ink')
+        );
+        $t->same(
+            'text-decoration-skip-ink: all; -webkit-text-decoration-skip-ink: none; text-emphasis-position: over; --Skip-Ink: ALL',
+            $block->removeProperty($declarations, '-webkit-text-emphasis-position')
+        );
+    },
     'declaration block reads upstream caret cssom shorthand and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

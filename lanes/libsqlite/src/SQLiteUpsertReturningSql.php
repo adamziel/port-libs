@@ -260,10 +260,9 @@ final class SQLiteUpsertReturningSql
         if (preg_match('/^VALUES\b/i', $inputSql, $valuesMatch) === 1) {
             $incomingRows = self::parseValues(trim(substr($inputSql, strlen($valuesMatch[0]))), $columns);
         } elseif (preg_match('/^SELECT\b/i', $inputSql) === 1) {
-            if ($withName === null || $withColumns === null || $withRows === null) {
-                throw new \InvalidArgumentException('SQLite UPSERT RETURNING SELECT input requires a VALUES CTE');
-            }
-            $incomingRows = self::parseSelectInput($inputSql, $columns, $withName, $withColumns, $withRows);
+            $incomingRows = $withName !== null && $withColumns !== null && $withRows !== null
+                ? self::parseSelectInput($inputSql, $columns, $withName, $withColumns, $withRows)
+                : self::parseLiteralSelectInput($inputSql, $columns);
         } else {
             throw new \InvalidArgumentException('SQLite UPSERT RETURNING requires VALUES or SELECT input');
         }
@@ -893,6 +892,44 @@ final class SQLiteUpsertReturningSql
     }
 
     /**
+     * @param list<string> $targetColumns
+     * @return list<array<string,mixed>>
+     */
+    private static function parseLiteralSelectInput(string $sql, array $targetColumns): array
+    {
+        if (preg_match('/^SELECT\s+(.+?)(?:\s+WHERE\s+(.+))?$/is', trim($sql), $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING SELECT input is unsupported');
+        }
+
+        if (self::keywordOffset($match[1], 'FROM', 0) !== null) {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING SELECT input requires a VALUES CTE for FROM sources');
+        }
+
+        $where = isset($match[2]) ? trim($match[2]) : null;
+        if ($where === null) {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING literal SELECT input requires WHERE true or false');
+        }
+        if ($where !== null && !in_array(strtolower($where), ['true', '1', 'false', '0'], true)) {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING literal SELECT input only supports constant WHERE true or false');
+        }
+        if ($where !== null && in_array(strtolower($where), ['false', '0'], true)) {
+            return [];
+        }
+
+        $values = array_map(static fn (string $value): mixed => self::literal(trim($value)), self::splitComma($match[1]));
+        if (count($values) !== count($targetColumns)) {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING SELECT column count does not match target columns');
+        }
+
+        $row = [];
+        foreach ($targetColumns as $index => $column) {
+            $row[$column] = $values[$index] ?? null;
+        }
+
+        return [$row];
+    }
+
+    /**
      * @return array<string,string>
      */
     private static function parseAssignments(string $sql): array
@@ -1063,6 +1100,22 @@ final class SQLiteUpsertReturningSql
     private static function evaluateExpression(string $expression, string $target, ?string $targetAlias, array $current, array $excluded): mixed
     {
         $expression = trim(self::stripOuterParens($expression));
+        $andTerms = self::splitTopLevelKeyword($expression, 'AND');
+        if (count($andTerms) > 1) {
+            $hasNull = false;
+            foreach ($andTerms as $term) {
+                $value = self::evaluateExpression($term, $target, $targetAlias, $current, $excluded);
+                if ($value === null) {
+                    $hasNull = true;
+                    continue;
+                }
+                if (!self::sqliteTruthy($value)) {
+                    return 0;
+                }
+            }
+
+            return $hasNull ? null : 1;
+        }
         if (str_starts_with(strtolower($expression), 'coalesce(') && str_ends_with($expression, ')')) {
             $inner = substr($expression, 9, -1);
             foreach (self::splitComma($inner) as $part) {
@@ -1073,6 +1126,28 @@ final class SQLiteUpsertReturningSql
             }
 
             return null;
+        }
+        if (preg_match('/^(max|min)\((.*)\)$/is', $expression, $functionMatch) === 1) {
+            $values = [];
+            foreach (self::splitComma($functionMatch[2]) as $part) {
+                $value = self::evaluateExpression($part, $target, $targetAlias, $current, $excluded);
+                if ($value === null) {
+                    return null;
+                }
+                $values[] = $value;
+            }
+            if ($values === []) {
+                throw new \InvalidArgumentException('SQLite UPSERT RETURNING scalar min/max needs arguments');
+            }
+
+            $selected = $values[0];
+            foreach (array_slice($values, 1) as $value) {
+                if (strcasecmp($functionMatch[1], 'max') === 0 ? $value > $selected : $value < $selected) {
+                    $selected = $value;
+                }
+            }
+
+            return $selected;
         }
         foreach (['+', '-'] as $operator) {
             $parts = self::splitBinaryOperator($expression, $operator);
@@ -1096,6 +1171,9 @@ final class SQLiteUpsertReturningSql
             $right = self::evaluateExpression($concat[1], $target, $targetAlias, $current, $excluded);
 
             return $left === null || $right === null ? null : (string) $left . (string) $right;
+        }
+        if (preg_match('/^(NULL|TRUE|FALSE)$/i', $expression) === 1) {
+            return self::literal($expression);
         }
         $dequoted = self::dequoteIdentifier($expression);
         if ($dequoted !== null) {
@@ -1123,6 +1201,21 @@ final class SQLiteUpsertReturningSql
         }
 
         return self::literal($expression);
+    }
+
+    private static function sqliteTruthy(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return $value != 0;
+        }
+        if (is_string($value)) {
+            return ((float) $value) != 0.0;
+        }
+
+        return false;
     }
 
     /**

@@ -554,9 +554,18 @@ final class DeclarationBlock
         'dashed',
         'wavy',
     ];
+    private const TEXT_DECORATION_SKIP_INK_PROPERTIES = [
+        'text-decoration-skip-ink',
+        '-webkit-text-decoration-skip-ink',
+    ];
+    private const TEXT_DECORATION_SKIP_INK_KEYWORDS = ['auto', 'none', 'all'];
     private const TEXT_EMPHASIS_LONGHANDS = [
         'text-emphasis-style',
         'text-emphasis-color',
+    ];
+    private const TEXT_EMPHASIS_POSITION_PROPERTIES = [
+        'text-emphasis-position',
+        '-webkit-text-emphasis-position',
     ];
     private const TEXT_EMPHASIS_FILLS = ['filled', 'open'];
     private const TEXT_EMPHASIS_SHAPES = ['dot', 'circle', 'double-circle', 'triangle', 'sesame'];
@@ -8712,6 +8721,46 @@ final class DeclarationBlock
         return strcasecmp($value, 'currentcolor') === 0 ? 'currentColor' : $value;
     }
 
+    private function normalizeTextEmphasisPositionValue(string $value): string
+    {
+        $trimmed = trim($value);
+        $tokens = $this->splitWhitespaceTopLevel($trimmed);
+        if ($tokens === [] || count($tokens) > 2) {
+            return $trimmed;
+        }
+
+        $vertical = null;
+        $horizontal = null;
+        foreach ($tokens as $token) {
+            $lower = strtolower(trim($token));
+            if (in_array($lower, ['over', 'under'], true)) {
+                if ($vertical !== null) {
+                    return $trimmed;
+                }
+
+                $vertical = $lower;
+                continue;
+            }
+
+            if (in_array($lower, ['left', 'right'], true)) {
+                if ($horizontal !== null) {
+                    return $trimmed;
+                }
+
+                $horizontal = $lower;
+                continue;
+            }
+
+            return $trimmed;
+        }
+
+        if ($vertical === null) {
+            return $trimmed;
+        }
+
+        return $horizontal === 'left' ? "{$vertical} left" : $vertical;
+    }
+
     private function isTextEmphasisProperty(string $property): bool
     {
         return $this->baseTextEmphasisProperty($property) !== null;
@@ -13925,6 +13974,14 @@ final class DeclarationBlock
 
         if (isset(self::TEXT_DIRECT_ENUM_KEYWORDS[$property])) {
             return $this->normalizeKeywordDeclarationValue($value, self::TEXT_DIRECT_ENUM_KEYWORDS[$property]);
+        }
+
+        if (in_array($property, self::TEXT_DECORATION_SKIP_INK_PROPERTIES, true)) {
+            return $this->normalizeKeywordDeclarationValue($value, self::TEXT_DECORATION_SKIP_INK_KEYWORDS);
+        }
+
+        if (in_array($property, self::TEXT_EMPHASIS_POSITION_PROPERTIES, true)) {
+            return $this->normalizeTextEmphasisPositionValue($value);
         }
 
         if (in_array($property, self::TAB_SIZE_PROPERTIES, true)) {
