@@ -6880,6 +6880,96 @@ CSS;
             $operatorTokens
         ));
     },
+    'custom at-rules visit upstream unknown prelude and block token lists before unknown visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-token draft 16px { 8px draft var(--wp-gap, 4px draft) }
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $visitor = [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                if (($length['unit'] ?? null) !== 'px') {
+                    return null;
+                }
+
+                $seen['events'][] = 'length:' . $length['value'] . $length['unit'];
+
+                return [
+                    'unit' => 'rem',
+                    'value' => $length['value'] / 16,
+                ];
+            },
+            'Token' => [
+                'ident' => static function (array $token) use (&$seen): ?string {
+                    if (($token['value'] ?? null) !== 'draft') {
+                        return null;
+                    }
+
+                    $seen['events'][] = 'ident:' . $token['value'];
+
+                    return 'live';
+                },
+            ],
+            'Rule' => [
+                'unknown' => [
+                    'wp-token' => static function (array $rule) use (&$seen): array {
+                        $seen['events'][] = 'rule:' . $rule['prelude'] . ':' . implode(',', array_map(
+                            static fn (array $component): string => $component['type'] ?? '',
+                            $rule['block'] ?? []
+                        ));
+                        $seen['rule'] = $rule;
+
+                        return [];
+                    },
+                ],
+            ],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+        $visitedEvents = $seen['events'];
+        $preserved = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Length' => $visitor['Length'],
+            'Token' => $visitor['Token'],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same('@wp-token live 1rem{0.5rem live var(--wp-gap,0.25rem live)}.wp-block-card{color:red}', $preserved);
+        $t->same([
+            'ident:draft',
+            'length:16px',
+            'length:8px',
+            'ident:draft',
+            'length:4px',
+            'ident:draft',
+            'rule:live 1rem:length,token,var',
+        ], $visitedEvents);
+        $t->same('live 1rem', $seen['rule']['prelude']);
+        $t->same(['token', 'length'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['preludeTokens']
+        ));
+        $t->same('live', $seen['rule']['preludeTokens'][0]['value']['value']);
+        $t->same(['unit' => 'rem', 'value' => 1.0], $seen['rule']['preludeTokens'][1]['value']);
+        $t->same(['length', 'token', 'var'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['block']
+        ));
+        $t->same(['unit' => 'rem', 'value' => 0.5], $seen['rule']['block'][0]['value']);
+        $t->same('live', $seen['rule']['block'][1]['value']['value']);
+        $t->same(['length', 'token'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['block'][2]['value']['fallback']
+        ));
+        $t->same(['unit' => 'rem', 'value' => 0.25], $seen['rule']['block'][2]['value']['fallback'][0]['value']);
+        $t->same('live', $seen['rule']['block'][2]['value']['fallback'][1]['value']['value']);
+    },
     'custom at-rules expose upstream attribute selectors to parser bodies and Selector visitors' => static function (TestRunner $t): void {
         $seen = [
             'customAttribute' => null,

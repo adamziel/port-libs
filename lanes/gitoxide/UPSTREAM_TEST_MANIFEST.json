@@ -1196,13 +1196,25 @@
     "focusedUrlRefspecNormalizationBatch20260601T1924Z": {
         "sourceCommit": "1e3c6222315d6be19800761fc800a493b5459ba6",
         "mappedSliceIncrease": 0,
-        "mappedBefore": 1817,
-        "mappedAfter": 1817,
+        "mappedBefore": 1818,
+        "mappedAfter": 1818,
         "acceptedSlices": [
             "URL/refspec generated diagnostic authority normalization parity"
         ],
         "countingNote": "This deepens the already represented URL/refspec parse-normalize cluster, so mapped coverage stays unchanged.",
         "nativeVerification": "PHP lint on changed Gitoxide PHP files; git diff --check; wordpress-url-refspec-normalize.php --self-test; focused UrlRefSpec gate 1 file / 940 assertions / 0 failures; full Gitoxide lane 40 files / 10693 assertions / 0 failures.",
         "upstreamEvidence": "Worker note cites gix-url generated diagnostic authority and parse-normalize source truth. Full upstream Cargo workspace was not executed."
+    },
+    "focusedCredentialHelperContextUrlBoundary20260601T195059Z": {
+        "baseAcceptedHead": "1d41b846adc61aa23aecab0fa6f70bcf0975562b",
+        "mappedSliceIncrease": 0,
+        "mappedBefore": 1817,
+        "mappedAfter": 1817,
+        "acceptedSlices": [
+            "credential helper context gix-url alias, empty/non-numeric SSH port, file pseudo-host, and URL-last cascade merge parity"
+        ],
+        "countingNote": "This deepens the already represented gix-credentials context/cascade cluster, so mapped coverage stays unchanged.",
+        "nativeVerification": "PHP lint on changed Gitoxide PHP files; git diff --check; wordpress-credential-context.php smoke passed; focused credential family 4 files / 530 assertions / 0 failures; full Gitoxide lane 40 files / 10758 assertions / 0 failures.",
+        "upstreamEvidence": "Worker note cites gix-credentials context/cascade and gix-url parse behavior at upstream commit 87433ed33eee9ba974111d20b854f6acb07cd4a6; focused upstream protocol::context::destructure_url_in_place runner passed 5 tests; full Cargo workspace was not executed."
     }
 }

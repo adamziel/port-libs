@@ -288,6 +288,28 @@ return [
         $t->same('2001:db8::1:2222', $sshIpv6NonDefaultPort->host);
         $t->same('repo.git', $sshIpv6NonDefaultPort->path);
 
+        $sshGitAlias = (new CredentialContext(url: 'ssh+git://Deploy@HOST.xz:22/~wp-content.git'))->destructureUrl();
+        $t->same('ssh', $sshGitAlias->protocol);
+        $t->same('Deploy', $sshGitAlias->username);
+        $t->same('host.xz', $sshGitAlias->host);
+        $t->same('~wp-content.git', $sshGitAlias->path);
+
+        $gitSshAliasNonDefaultPort = (new CredentialContext(url: 'git+ssh://Deploy@HOST.xz:2222/~wp-content.git'))->destructureUrl();
+        $t->same('ssh', $gitSshAliasNonDefaultPort->protocol);
+        $t->same('Deploy', $gitSshAliasNonDefaultPort->username);
+        $t->same('host.xz:2222', $gitSshAliasNonDefaultPort->host);
+        $t->same('~wp-content.git', $gitSshAliasNonDefaultPort->path);
+
+        $emptySshPort = (new CredentialContext(url: 'ssh://HOST.xz:/wp-content.git'))->destructureUrl();
+        $t->same('ssh', $emptySshPort->protocol);
+        $t->same('HOST.xz', $emptySshPort->host);
+        $t->same('wp-content.git', $emptySshPort->path);
+
+        $nonNumericSshPort = (new CredentialContext(url: 'ssh://HOST.xz:abc/wp-content.git'))->destructureUrl();
+        $t->same('ssh', $nonNumericSshPort->protocol);
+        $t->same('HOST.xz:abc', $nonNumericSshPort->host);
+        $t->same('wp-content.git', $nonNumericSshPort->path);
+
         $scpLike = (new CredentialContext(url: 'User@HOST.xz:repo.git'))->destructureUrl();
         $t->same('ssh', $scpLike->protocol);
         $t->same('User', $scpLike->username);
@@ -363,6 +385,13 @@ return [
         $t->same('file', $fileRelativeAuthorityRoot->protocol);
         $t->same('..', $fileRelativeAuthorityRoot->host);
         $t->same(null, $fileRelativeAuthorityRoot->path);
+
+        $filePseudoDriveHost = (new CredentialContext(
+            url: 'file://x:/path/to/wp-content.git',
+        ))->destructureUrl(true);
+        $t->same('file', $filePseudoDriveHost->protocol);
+        $t->same('x:', $filePseudoDriveHost->host);
+        $t->same('path/to/wp-content.git', $filePseudoDriveHost->path);
 
         $fileAuthority = (new CredentialContext(
             url: 'file://Deploy@[::1]/var/cache/wp-content.git',
@@ -488,6 +517,28 @@ return [
             'path' => 'wp-content.git',
         ], $fixture['sshNonDefaultPortContext']);
         $t->same([
+            'protocol' => 'ssh',
+            'username' => 'Deploy',
+            'host' => 'host.xz',
+            'path' => '~wp-content.git',
+        ], $fixture['sshGitAliasContext']);
+        $t->same([
+            'protocol' => 'ssh',
+            'username' => 'Deploy',
+            'host' => 'host.xz:2222',
+            'path' => '~wp-content.git',
+        ], $fixture['gitSshAliasNonDefaultPortContext']);
+        $t->same([
+            'protocol' => 'ssh',
+            'host' => 'HOST.xz',
+            'path' => 'wp-content.git',
+        ], $fixture['emptySshPortContext']);
+        $t->same([
+            'protocol' => 'ssh',
+            'host' => 'HOST.xz:abc',
+            'path' => 'wp-content.git',
+        ], $fixture['nonNumericSshPortContext']);
+        $t->same([
             'protocol' => 'file',
             'host' => null,
             'username' => null,
@@ -509,6 +560,11 @@ return [
             'host' => '..',
             'path' => null,
         ], $fixture['fileRelativeAuthorityRootContext']);
+        $t->same([
+            'protocol' => 'file',
+            'host' => 'x:',
+            'path' => 'path/to/wp-content.git',
+        ], $fixture['filePseudoDriveHostContext']);
         $t->same(true, $fixture['nonUtf8LocalPathPreserved']);
         $t->same(null, $fixture['clearedPassword']);
         $t->same(false, $fixture['emptyQuitFalse']);
@@ -568,10 +624,15 @@ return [
         $t->same($fixture['defaultPortContext'], $summary['defaultPortContext']);
         $t->same($fixture['nonDefaultPortContext'], $summary['nonDefaultPortContext']);
         $t->same($fixture['sshNonDefaultPortContext'], $summary['sshNonDefaultPortContext']);
+        $t->same($fixture['sshGitAliasContext'], $summary['sshGitAliasContext']);
+        $t->same($fixture['gitSshAliasNonDefaultPortContext'], $summary['gitSshAliasNonDefaultPortContext']);
+        $t->same($fixture['emptySshPortContext'], $summary['emptySshPortContext']);
+        $t->same($fixture['nonNumericSshPortContext'], $summary['nonNumericSshPortContext']);
         $t->same($fixture['localRelativeContext'], $summary['localRelativeContext']);
         $t->same($fixture['localAbsoluteWhitespaceContext'], $summary['localAbsoluteWhitespaceContext']);
         $t->same($fixture['localTildeContext'], $summary['localTildeContext']);
         $t->same($fixture['fileRelativeAuthorityRootContext'], $summary['fileRelativeAuthorityRootContext']);
+        $t->same($fixture['filePseudoDriveHostContext'], $summary['filePseudoDriveHostContext']);
         $t->same(true, $summary['nonUtf8LocalPathPreserved']);
         $t->same(true, $summary['rootHttpPathCleared']);
         $t->same($fixture['helperProgramProtocolHost'], $summary['helperProgramProtocolHost']);

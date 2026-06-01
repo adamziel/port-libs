@@ -1394,6 +1394,51 @@ final class TransitionPrefixer
                 '-moz-' => $targetOptions['transitionNeedsMoz'] ?? false,
                 '-o-' => $targetOptions['transitionNeedsO'] ?? false,
             ],
+            'animation' => [
+                '-webkit-' => $targetOptions['animationNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['animationNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['animationNeedsO'] ?? false,
+            ],
+            'animation-name' => [
+                '-webkit-' => $targetOptions['animationNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['animationNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['animationNeedsO'] ?? false,
+            ],
+            'animation-duration' => [
+                '-webkit-' => $targetOptions['animationNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['animationNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['animationNeedsO'] ?? false,
+            ],
+            'animation-delay' => [
+                '-webkit-' => $targetOptions['animationNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['animationNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['animationNeedsO'] ?? false,
+            ],
+            'animation-direction' => [
+                '-webkit-' => $targetOptions['animationNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['animationNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['animationNeedsO'] ?? false,
+            ],
+            'animation-fill-mode' => [
+                '-webkit-' => $targetOptions['animationNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['animationNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['animationNeedsO'] ?? false,
+            ],
+            'animation-iteration-count' => [
+                '-webkit-' => $targetOptions['animationNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['animationNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['animationNeedsO'] ?? false,
+            ],
+            'animation-play-state' => [
+                '-webkit-' => $targetOptions['animationNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['animationNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['animationNeedsO'] ?? false,
+            ],
+            'animation-timing-function' => [
+                '-webkit-' => $targetOptions['animationNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['animationNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['animationNeedsO'] ?? false,
+            ],
             'transform' => [
                 '-webkit-' => $targetOptions['transformNeedsWebkit'] ?? false,
                 '-moz-' => $targetOptions['transformNeedsMoz'] ?? false,

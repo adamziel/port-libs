@@ -4435,6 +4435,30 @@ CSS;
             $prefixer->prefixForTargets('.foo { animation: .2s ease-in-out bar; }', ['ios_saf' => $encoded(8, 2)])
         );
     },
+    'transition prefixer maps upstream animation supports declaration target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@supports ((-webkit-animation:spin 1s) or (animation:spin 1s)){.foo{-webkit-animation:1s spin;animation:1s spin}}',
+            $prefixer->prefixForTargets('@supports (animation: spin 1s) { .foo { animation: spin 1s; } }', ['chrome' => 42])
+        );
+        $t->same(
+            '@supports ((-webkit-animation-name:spin) or (animation-name:spin)){.foo{-webkit-animation-name:spin;animation-name:spin}}',
+            $prefixer->prefixForTargets('@supports (animation-name: spin) { .foo { animation-name: spin; } }', ['chrome' => 42])
+        );
+        $t->same(
+            '@supports ((-moz-animation-name:spin) or (animation-name:spin)){.foo{-moz-animation-name:spin;animation-name:spin}}',
+            $prefixer->prefixForTargets('@supports (animation-name: spin) { .foo { animation-name: spin; } }', ['firefox' => 15])
+        );
+        $t->same(
+            '@supports ((-o-animation-duration:1s) or (animation-duration:1s)){.foo{-o-animation-duration:1s;animation-duration:1s}}',
+            $prefixer->prefixForTargets('@supports (animation-duration: 1s) { .foo { animation-duration: 1s; } }', ['opera' => 12])
+        );
+        $t->same(
+            '@supports (animation:spin 1s){.foo{animation:1s spin}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-animation: spin 1s) or (-moz-animation: spin 1s) or (-o-animation: spin 1s) or (animation: spin 1s)) { .foo { animation: spin 1s; } }', ['chrome' => 43, 'firefox' => 16, 'opera' => 13])
+        );
+    },
     'transition prefixer maps upstream animation timeline shorthand target boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $css = '.foo { animation: .2s ease-in-out bar scroll(); }';

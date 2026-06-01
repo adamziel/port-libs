@@ -2434,7 +2434,7 @@ final class CustomAtRuleTransformer
                 } elseif ($this->isCustomAtRule($name)) {
                     $output .= $this->processCustomAtRule($prelude, $body, null, $ruleLocation);
                 } else {
-                    $rule = $this->buildUnknownRule($name, $atPrelude, $body, null, $ruleLocation);
+                    $rule = $this->visitUnknownRuleTokenLists($this->buildUnknownRule($name, $atPrelude, $body, null, $ruleLocation));
                     $genericReplacement = $this->callAnyRuleVisitor(['type' => 'unknown', 'value' => $rule]);
                     if ($genericReplacement !== null) {
                         $output .= $this->emitReplacement($genericReplacement, null);
@@ -2483,7 +2483,7 @@ final class CustomAtRuleTransformer
             return $this->processLayerStatementRule($prelude, $parentSelectors, $loc);
         }
         if (!$this->isCustomAtRule($name)) {
-            $rule = $this->buildUnknownRule($name, $prelude, null, $parentSelectors, $loc);
+            $rule = $this->visitUnknownRuleTokenLists($this->buildUnknownRule($name, $prelude, null, $parentSelectors, $loc));
             $genericReplacement = $this->callAnyRuleVisitor(['type' => 'unknown', 'value' => $rule]);
             if ($genericReplacement !== null) {
                 return $this->emitReplacement($genericReplacement, $parentSelectors);
@@ -2589,7 +2589,7 @@ final class CustomAtRuleTransformer
                     $nestedSelectors = $this->resolveNestedSelectors($selectors, substr($nestedPrelude, 6));
                     $output .= $this->processStyleBody($nestedBody, $nestedSelectors);
                 } else {
-                    $rule = $this->buildUnknownRule($name, $atPrelude, $nestedBody, $selectors, $nestedLocation);
+                    $rule = $this->visitUnknownRuleTokenLists($this->buildUnknownRule($name, $atPrelude, $nestedBody, $selectors, $nestedLocation));
                     $genericReplacement = $this->callAnyRuleVisitor(['type' => 'unknown', 'value' => $rule]);
                     if ($genericReplacement !== null) {
                         $output .= $this->emitReplacement($genericReplacement, $selectors);
@@ -3049,6 +3049,36 @@ final class CustomAtRuleTransformer
             'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
             'parentSelectors' => $parentSelectors ?? [],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     * @return array<string, mixed>
+     */
+    private function visitUnknownRuleTokenLists(array $rule): array
+    {
+        $preludeTokens = $rule['preludeTokens'] ?? null;
+        if (is_array($preludeTokens)) {
+            $visitedPrelude = $this->visitCustomPreludeTokenList($preludeTokens);
+            if ($visitedPrelude['changed']) {
+                $rule['preludeTokens'] = $visitedPrelude['value'];
+                $rule['prelude'] = $this->serializeComponentSequence(
+                    $visitedPrelude['value'],
+                    fn (mixed $component): string => $this->serializeVisitorValue($component)
+                );
+            }
+        }
+
+        $block = $rule['block'] ?? null;
+        if (is_array($block)) {
+            $visitedBlock = $this->visitCustomPreludeTokenList($block);
+            if ($visitedBlock['changed']) {
+                $rule['block'] = $visitedBlock['value'];
+                unset($rule['body']);
+            }
+        }
+
+        return $rule;
     }
 
     /**

@@ -41,6 +41,18 @@ $nonDefaultPortContext = (new CredentialContext(
 $sshNonDefaultPortContext = (new CredentialContext(
     url: 'ssh://deploy@[2001:db8::1]:2222/wp-content.git',
 ))->destructureUrl(true);
+$sshGitAliasContext = (new CredentialContext(
+    url: 'ssh+git://Deploy@HOST.xz:22/~wp-content.git',
+))->destructureUrl(true);
+$gitSshAliasNonDefaultPortContext = (new CredentialContext(
+    url: 'git+ssh://Deploy@HOST.xz:2222/~wp-content.git',
+))->destructureUrl(true);
+$emptySshPortContext = (new CredentialContext(
+    url: 'ssh://HOST.xz:/wp-content.git',
+))->destructureUrl(true);
+$nonNumericSshPortContext = (new CredentialContext(
+    url: 'ssh://HOST.xz:abc/wp-content.git',
+))->destructureUrl(true);
 $rootHttpContext = (new CredentialContext(
     url: 'https://GIT.example.test/',
     path: 'stale/wp-content.git',
@@ -96,6 +108,9 @@ $localTildeContext = (new CredentialContext(
 $fileRelativeAuthorityRootContext = (new CredentialContext(
     url: 'file://../',
     path: 'stale/wp-content.git',
+))->destructureUrl(true);
+$filePseudoDriveHostContext = (new CredentialContext(
+    url: 'file://x:/path/to/wp-content.git',
 ))->destructureUrl(true);
 $duplicateInvalidStringRejected = false;
 try {
@@ -301,6 +316,28 @@ return [
         'host' => $sshNonDefaultPortContext->host,
         'path' => $sshNonDefaultPortContext->path,
     ],
+    'sshGitAliasContext' => [
+        'protocol' => $sshGitAliasContext->protocol,
+        'username' => $sshGitAliasContext->username,
+        'host' => $sshGitAliasContext->host,
+        'path' => $sshGitAliasContext->path,
+    ],
+    'gitSshAliasNonDefaultPortContext' => [
+        'protocol' => $gitSshAliasNonDefaultPortContext->protocol,
+        'username' => $gitSshAliasNonDefaultPortContext->username,
+        'host' => $gitSshAliasNonDefaultPortContext->host,
+        'path' => $gitSshAliasNonDefaultPortContext->path,
+    ],
+    'emptySshPortContext' => [
+        'protocol' => $emptySshPortContext->protocol,
+        'host' => $emptySshPortContext->host,
+        'path' => $emptySshPortContext->path,
+    ],
+    'nonNumericSshPortContext' => [
+        'protocol' => $nonNumericSshPortContext->protocol,
+        'host' => $nonNumericSshPortContext->host,
+        'path' => $nonNumericSshPortContext->path,
+    ],
     'passwordExpiryUtc' => $helperResponse->passwordExpiryUtc,
     'emptyQuitFalse' => $emptyQuit->quit,
     'overflowExpiryIgnored' => $overflowExpiry->passwordExpiryUtc === null,
@@ -373,6 +410,11 @@ return [
         'host' => $fileRelativeAuthorityRootContext->host,
         'path' => $fileRelativeAuthorityRootContext->path,
     ],
+    'filePseudoDriveHostContext' => [
+        'protocol' => $filePseudoDriveHostContext->protocol,
+        'host' => $filePseudoDriveHostContext->host,
+        'path' => $filePseudoDriveHostContext->path,
+    ],
     'nonUtf8LocalPathPreserved' => $nonUtf8LocalPathContext->protocol === 'file'
         && $nonUtf8LocalPathContext->host === null
         && $nonUtf8LocalPathContext->username === null
@@ -413,5 +455,5 @@ return [
     'redactedBytes' => $redacted->storageBytes(),
     'clearedPassword' => $cleared->password,
     'clearedOauthRefreshToken' => $cleared->oauthRefreshToken,
-    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, destructure local mirror and extension-scheme remotes, preserve an explicit repository path when HTTP path matching is disabled, elide default helper-context ports while preserving non-default HTTPS and SSH ports, distinguish empty HTTP userinfo from password-only helper URLs, preserve byte-oriented and whitespace-bearing local mirror paths without username expansion, enforce string-field UTF-8 and helper action boundaries before callbacks, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs, including malformed helper-context diagnostics.',
+    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, destructure local mirror and extension-scheme remotes, preserve an explicit repository path when HTTP path matching is disabled, elide default helper-context ports while preserving non-default HTTPS and SSH ports, normalize ssh+git/git+ssh helper URLs, distinguish empty and non-numeric SSH port boundaries, distinguish empty HTTP userinfo from password-only helper URLs, preserve byte-oriented and whitespace-bearing local mirror paths without username expansion, enforce string-field UTF-8 and helper action boundaries before callbacks, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs, including malformed helper-context diagnostics.',
 ];

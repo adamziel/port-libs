@@ -110,6 +110,20 @@ return [
         $t->same('git', $urlUsernameNext->username);
         $t->same('host.org', $urlUsernameNext->host);
         $t->same('path', $urlUsernameNext->path);
+
+        $urlClearsDirectIdentity = new CredentialCascade([
+            static fn (): string => "username=stale-user\npassword=stale-token\nurl=https://git.example.test/wp-content.git\n",
+            static fn (): string => "username=deploy\npassword=token\n",
+        ], useHttpPath: true);
+        $urlClearsDirectIdentityResult = $urlClearsDirectIdentity->get(new CredentialContext(url: 'https://origin.example.test/origin.git'));
+        $urlClearsDirectIdentityNext = $urlClearsDirectIdentityResult->nextActionContext();
+
+        $t->same('deploy', $urlClearsDirectIdentityResult->username);
+        $t->same('token', $urlClearsDirectIdentityResult->password);
+        $t->same('git.example.test', $urlClearsDirectIdentityNext->host);
+        $t->same('wp-content.git', $urlClearsDirectIdentityNext->path);
+        $t->same('deploy', $urlClearsDirectIdentityNext->username);
+        $t->same(false, str_contains($urlClearsDirectIdentityResult->nextActionBytes(), 'stale-token'));
     },
     'credential cascade ignores overflowing password expiry fields' => static function (TestRunner $t): void {
         $cascade = new CredentialCascade([
