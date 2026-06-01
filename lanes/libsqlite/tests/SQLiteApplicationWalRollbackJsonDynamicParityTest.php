@@ -6,6 +6,7 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonImportRollbackWalPlan;
 
 ini_set('memory_limit', '1536M');
+unset($tests);
 
 $scenarios = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(24);
 $preexistingWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalScenarios(24);
@@ -3312,5 +3313,50 @@ $tests['sqlite application wal rollback json dynamic parity rollback-disabled re
     $t->same([13, 14, 15, 12], array_map(static fn (array $scenario): int => $scenario['reopened_checkpoint_plan']['last_commit_frame'], $smallBatch));
     $t->same([[1321, 2121, 1921], [1322, 2122, 1922], [1323, 2123, 1923], [1324, 2124, 1924]], array_column($smallBatch, 'expected_reopened_pages'));
 };
+
+unset(
+    $scenarios,
+    $preexistingWalScenarios,
+    $tenantCollisionScenarios,
+    $insertedSettingScenarios,
+    $duplicateInsertedSettingScenarios,
+    $malformedInsertedInitialValueScenarios,
+    $deferredScenarios,
+    $retryScenarios,
+    $preexistingRetryScenarios,
+    $missingWalTailScenarios,
+    $partialWalTailScenarios,
+    $frameHeaderMismatchScenarios,
+    $frameChecksumMismatchScenarios,
+    $headerChecksumMismatchScenarios,
+    $successfulMaterializedWalScenarios,
+    $fullRunMaterializedWalScenarios,
+    $fullRunCheckpointScenarios,
+    $committedPrefixFailureScenarios,
+    $rollbackDisabledMaterializedWalScenarios,
+    $rollbackDisabledFollowupScenarios,
+    $rollbackDisabledFollowupFailureScenarios,
+    $rollbackDisabledFollowupRecoveryScenarios,
+    $rollbackDisabledPostRecoveryFailureScenarios,
+    $rollbackDisabledPostRecoveryRecoveryScenarios,
+    $postRecoveryCheckpointScenarios,
+    $postCheckpointFollowupScenarios,
+    $rollbackDisabledReopenedPrefixSuccessScenarios,
+    $rollbackDisabledReopenedPrefixCheckpointScenarios,
+    $scenario,
+    $plan,
+    $prefix,
+    $seed,
+    $failedPlan,
+    $retryPlan,
+    $materializedRetryPlan,
+    $followupPlan,
+    $tailPlan,
+    $recoveryPlan,
+    $checkpointPlan,
+    $releasedCheckpoint,
+    $pinnedCheckpoint,
+    $successPlan
+);
 
 return $tests;

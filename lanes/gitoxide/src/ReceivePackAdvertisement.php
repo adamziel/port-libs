@@ -14,7 +14,9 @@ final class ReceivePackAdvertisement
     public function __construct(
         private readonly ProtocolCapabilities $capabilities,
         private readonly array $refs,
+        private readonly string $objectFormat = 'sha1',
     ) {
+        self::assertObjectFormat($objectFormat);
         foreach ($refs as $ref) {
             if (!$ref instanceof RemoteRef) {
                 throw new \InvalidArgumentException('Receive-pack advertisement refs must be RemoteRef instances');
@@ -22,6 +24,9 @@ final class ReceivePackAdvertisement
             ReferenceName::assertValid($ref->name);
             if ($ref->object === null) {
                 throw new \InvalidArgumentException('Receive-pack advertised refs must point to objects');
+            }
+            if (preg_match(self::objectIdPattern($objectFormat), $ref->object) !== 1) {
+                throw new \InvalidArgumentException("Receive-pack advertised refs must use {$objectFormat} object ids");
             }
         }
     }
@@ -31,6 +36,7 @@ final class ReceivePackAdvertisement
         $offset = 0;
         $refs = [];
         $capabilities = null;
+        $objectFormat = 'sha1';
 
         while (true) {
             $packet = self::readPacket($bytes, $offset);
@@ -48,6 +54,7 @@ final class ReceivePackAdvertisement
             if ($capabilities === null) {
                 $parsed = ProtocolCapabilities::fromV1Bytes($payload);
                 $capabilities = $parsed['capabilities'];
+                $objectFormat = self::objectFormatFromCapabilities($capabilities);
                 $payload = substr($payload, 0, $parsed['delimiterPosition']);
             } elseif (str_contains($payload, "\0")) {
                 throw new \InvalidArgumentException('receive-pack advertisement: capabilities appeared after the first ref');
@@ -57,19 +64,24 @@ final class ReceivePackAdvertisement
                 continue;
             }
 
-            $refs[] = self::parseRefLine($payload);
+            $refs[] = self::parseRefLine($payload, $objectFormat);
         }
 
         if ($capabilities === null) {
             throw new \InvalidArgumentException('receive-pack advertisement: capabilities were missing');
         }
 
-        return new self($capabilities, $refs);
+        return new self($capabilities, $refs, $objectFormat);
     }
 
     public function capabilities(): ProtocolCapabilities
     {
         return $this->capabilities;
+    }
+
+    public function objectFormat(): string
+    {
+        return $this->objectFormat;
     }
 
     /**
@@ -96,19 +108,51 @@ final class ReceivePackAdvertisement
         return $this->ref($name)?->object;
     }
 
-    private static function parseRefLine(string $line): RemoteRef
+    private static function parseRefLine(string $line, string $objectFormat): RemoteRef
     {
         $parts = explode(' ', $line, 2);
         if (count($parts) !== 2) {
             throw new \InvalidArgumentException('receive-pack advertisement: ref line must contain object id and ref name');
         }
         [$object, $refName] = $parts;
-        if (preg_match('/^[0-9a-fA-F]{40}$/', $object) !== 1) {
-            throw new \InvalidArgumentException('receive-pack advertisement: ref object must be a SHA-1 object id');
+        if (preg_match(self::objectIdPattern($objectFormat), $object) !== 1) {
+            throw new \InvalidArgumentException("receive-pack advertisement: ref object must be a {$objectFormat} object id");
         }
         ReferenceName::assertValid($refName);
 
         return RemoteRef::direct($refName, $object);
+    }
+
+    private static function objectFormatFromCapabilities(ProtocolCapabilities $capabilities): string
+    {
+        $capability = $capabilities->capability('object-format');
+        if ($capability === null) {
+            return 'sha1';
+        }
+        if ($capability->supports('sha1')) {
+            return 'sha1';
+        }
+        if ($capability->supports('sha256')) {
+            return 'sha256';
+        }
+
+        throw new \InvalidArgumentException('receive-pack advertisement: unsupported object-format capability');
+    }
+
+    private static function objectIdPattern(string $objectFormat): string
+    {
+        self::assertObjectFormat($objectFormat);
+
+        return $objectFormat === 'sha256'
+            ? '/^[0-9a-fA-F]{64}$/'
+            : '/^[0-9a-fA-F]{40}$/';
+    }
+
+    private static function assertObjectFormat(string $objectFormat): void
+    {
+        if (!in_array($objectFormat, ['sha1', 'sha256'], true)) {
+            throw new \InvalidArgumentException("receive-pack advertisement: unsupported object format {$objectFormat}");
+        }
     }
 
     /**

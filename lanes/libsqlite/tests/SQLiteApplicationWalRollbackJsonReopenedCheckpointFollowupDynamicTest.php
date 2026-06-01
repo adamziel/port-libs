@@ -7,6 +7,7 @@ use PortLibs\LibSqlite\SQLiteJsonImportRollbackWalPlan;
 use PortLibs\LibSqlite\SQLiteWal;
 
 ini_set('memory_limit', '1536M');
+unset($tests);
 
 $scenarioCount = 6;
 $checkpointScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledReopenedPrefixCheckpointScenarios($scenarioCount);
@@ -193,5 +194,17 @@ foreach ($followupScenarios as $scenario) {
         $t->same([], $followupPlan['import_plan']['failed']);
     };
 }
+
+unset(
+    $scenarioCount,
+    $checkpointScenarios,
+    $followupScenarios,
+    $directFollowupScenarios,
+    $scenario,
+    $seed,
+    $successPlan,
+    $followupPlan,
+    $prefix
+);
 
 return $tests;

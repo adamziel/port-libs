@@ -526,6 +526,66 @@ return [
             return false;
         }
     })(),
+    'smartHttpSha256DeleteBoundary' => (static function () use ($packet, $flush): array {
+        $old = str_repeat('a', 64);
+        $zero = str_repeat('0', 64);
+        $advertisementBytes = $packet("{$old} refs/heads/main\0report-status-v2 object-format=sha256\n") . $flush;
+        $responseBytes = $packet("unpack ok\n") . $packet("ok refs/heads/main\n") . $flush;
+        $requests = [];
+        $sessionObjectFormat = null;
+        $client = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content-sha256.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$requests, $packet, $flush, $advertisementBytes, $responseBytes): array {
+                    $requests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+            ),
+            'port-libs/wordpress-sha256'
+        );
+        $response = $client->run(static function (SendPackSession $session) use (&$sessionObjectFormat): mixed {
+            $sessionObjectFormat = $session->objectFormat();
+            $session->delete('refs/heads/main');
+
+            return $session->buildRequest([]);
+        });
+
+        $postBody = (string) ($requests[1]['body'] ?? '');
+        $packetLength = hexdec(substr($postBody, 0, 4));
+
+        return [
+            'oldObject' => $old,
+            'zeroObject' => $zero,
+            'sessionObjectFormat' => $sessionObjectFormat,
+            'requestMethods' => array_column($requests, 'method'),
+            'requestCommand' => substr($postBody, 4, $packetLength - 4),
+            'requestTerminator' => substr($postBody, $packetLength, 4),
+            'postBodyHasPack' => str_contains($postBody, 'PACK'),
+            'responseSuccessful' => $response->isSuccessful(),
+            'acceptedRefs' => array_map(
+                static fn ($status): string => $status->effectiveRefName(),
+                $response->refStatuses()
+            ),
+        ];
+    })(),
     'smartHttpHeaderBoundary' => (static function () use ($packet, $flush, $advertisementBytes, $blob): array {
         $defaultRequests = [];
         $defaultTransport = new SmartHttpReceivePackTransport(

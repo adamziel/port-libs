@@ -55,13 +55,49 @@ return [
         $t->same(strtolower($main), $advertisement->objectFor('refs/heads/main'));
         $t->same(strtolower($release), $advertisement->objectFor('refs/tags/wp-release'));
         $t->same(null, $advertisement->objectFor('refs/heads/missing'));
+        $t->same('sha1', $advertisement->objectFormat());
         $t->same(2, count($advertisement->refs()));
+    },
+    'parses sha256 receive-pack advertisements and delete-only requests' => static function (TestRunner $t) use ($packet, $flush, $readPacketSequence): void {
+        $old = str_repeat('a', 64);
+        $zero = str_repeat('0', 64);
+        $advertisement = ReceivePackAdvertisement::fromV1PacketLines(
+            $packet("{$old} refs/heads/main\0report-status-v2 object-format=sha256\n")
+            . $flush
+        );
+        $session = SendPackSession::create($advertisement, 'port-libs/sha256');
+
+        $t->same('sha256', $advertisement->objectFormat());
+        $t->same('sha256', $session->objectFormat());
+        $t->same('sha256', $session->command()->objectFormat());
+        $t->same(true, $session->delete('refs/heads/main'));
+
+        $request = $session->buildRequest([]);
+        [$commands, $remaining] = $readPacketSequence($request->requestBytes());
+
+        $t->same(false, $request->hasPack());
+        $t->same(["{$old} {$zero} refs/heads/main\0 report-status-v2 object-format=sha256 agent=port-libs/sha256"], $commands);
+        $t->same('', $remaining);
+
+        $oldStatus = str_repeat('c', 64);
+        $newStatus = str_repeat('d', 64);
+        $response = $session->parseReportStatusResponse(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/wp-deploy\n")
+            . $packet("option old-oid {$oldStatus} trailing\n")
+            . $packet("option new-oid {$newStatus}\n")
+            . $flush
+        );
+        $t->same($oldStatus, $response->refStatuses()[0]->oldObject);
+        $t->same($newStatus, $response->refStatuses()[0]->newObject);
     },
     'guards malformed receive-pack advertisements' => static function (TestRunner $t) use ($packet, $flush): void {
         $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($flush));
         $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($packet("bad refs/heads/main\0report-status\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($packet(str_repeat('a', 40) . " refs/heads/main\0report-status\n") . $packet(str_repeat('b', 40) . " refs/heads/next\0atomic\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($packet(str_repeat('a', 40) . " main\0report-status\n") . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($packet(str_repeat('a', 40) . " refs/heads/main\0report-status object-format=sha256\n") . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($packet(str_repeat('a', 64) . " refs/heads/main\0report-status object-format=sha512\n") . $flush));
     },
     'send-pack session plans create update and no-op refs from advertisement' => static function (TestRunner $t) use ($packet, $flush, $readPacketSequence): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
@@ -124,6 +160,18 @@ return [
         $t->same(true, $request->hasPack());
         $t->same(0, $pack->count());
         $t->same($request->pack()?->packChecksum(), $pack->verifyChecksum());
+    },
+    'send-pack session guards sha256 update requests before sha1 pack generation' => static function (TestRunner $t) use ($packet, $flush): void {
+        $old = str_repeat('a', 64);
+        $new = str_repeat('b', 64);
+        $advertisement = ReceivePackAdvertisement::fromV1PacketLines(
+            $packet("{$old} refs/heads/main\0report-status-v2 object-format=sha256\n")
+            . $flush
+        );
+        $session = SendPackSession::create($advertisement);
+
+        $t->same(true, $session->createOrUpdate('refs/heads/main', $new));
+        $t->throws(InvalidArgumentException::class, static fn () => $session->buildRequest([]));
     },
     'send-pack session parses receive-pack sideband status responses' => static function (TestRunner $t) use ($packet, $flush): void {
         $advertisement = ReceivePackAdvertisement::fromV1PacketLines(

@@ -22,6 +22,7 @@ final class PushCommand
      */
     private function __construct(
         private readonly ProtocolCapabilities $capabilities,
+        private readonly string $objectFormat,
         private array $features,
         private array $updates = [],
         private array $pushOptions = [],
@@ -30,13 +31,14 @@ final class PushCommand
 
     public static function create(ProtocolCapabilities $capabilities, ?string $agent = null, string $objectFormat = 'sha1'): self
     {
+        $objectFormat = self::normalizeObjectFormat($objectFormat);
         $features = self::defaultFeatures($capabilities, $objectFormat);
         if ($agent !== null) {
             self::assertFeatureValue($agent, 'agent');
             $features[] = 'agent=' . $agent;
         }
 
-        return new self($capabilities, $features);
+        return new self($capabilities, $objectFormat, $features);
     }
 
     /**
@@ -44,6 +46,7 @@ final class PushCommand
      */
     public static function defaultFeatures(ProtocolCapabilities $capabilities, string $objectFormat = 'sha1'): array
     {
+        $objectFormat = self::normalizeObjectFormat($objectFormat);
         $features = [];
         foreach (self::FEATURE_ORDER as $feature) {
             if ($feature === 'report-status' && in_array('report-status-v2', $features, true)) {
@@ -58,7 +61,11 @@ final class PushCommand
         }
 
         $objectFormatCapability = $capabilities->capability('object-format');
-        if ($objectFormatCapability !== null) {
+        if ($objectFormatCapability === null) {
+            if ($objectFormat !== 'sha1') {
+                throw new \InvalidArgumentException("push: object format {$objectFormat} is not supported");
+            }
+        } else {
             if (!$objectFormatCapability->supports($objectFormat)) {
                 throw new \InvalidArgumentException("push: object format {$objectFormat} is not supported");
             }
@@ -84,6 +91,11 @@ final class PushCommand
         return $this->updates;
     }
 
+    public function objectFormat(): string
+    {
+        return $this->objectFormat;
+    }
+
     /**
      * @return list<string>
      */
@@ -99,22 +111,26 @@ final class PushCommand
 
     public function addUpdate(PushUpdate $update): void
     {
+        if ($update->objectFormat() !== $this->objectFormat) {
+            throw new \InvalidArgumentException('push: update object format does not match command object format');
+        }
+
         $this->updates[] = $update;
     }
 
     public function createRef(string $newObject, string $refName): void
     {
-        $this->addUpdate(PushUpdate::create($newObject, $refName));
+        $this->addUpdate(PushUpdate::create($newObject, $refName, $this->objectFormat));
     }
 
     public function updateRef(string $oldObject, string $newObject, string $refName): void
     {
-        $this->addUpdate(PushUpdate::update($oldObject, $newObject, $refName));
+        $this->addUpdate(PushUpdate::update($oldObject, $newObject, $refName, $this->objectFormat));
     }
 
     public function deleteRef(string $oldObject, string $refName): void
     {
-        $this->addUpdate(PushUpdate::delete($oldObject, $refName));
+        $this->addUpdate(PushUpdate::delete($oldObject, $refName, $this->objectFormat));
     }
 
     public function useAtomic(): void
@@ -219,5 +235,14 @@ final class PushCommand
         if ($value === '' || str_contains($value, "\0") || str_contains($value, "\n") || str_contains($value, "\r")) {
             throw new \InvalidArgumentException("push: {$label} is not valid");
         }
+    }
+
+    private static function normalizeObjectFormat(string $objectFormat): string
+    {
+        if (!in_array($objectFormat, ['sha1', 'sha256'], true)) {
+            throw new \InvalidArgumentException("push: object format {$objectFormat} is not supported");
+        }
+
+        return $objectFormat;
     }
 }

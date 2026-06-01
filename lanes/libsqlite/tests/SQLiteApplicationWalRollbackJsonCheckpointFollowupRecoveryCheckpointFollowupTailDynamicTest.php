@@ -6,6 +6,7 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonImportRollbackWalPlan;
 
 ini_set('memory_limit', '1536M');
+unset($tests);
 
 $followupScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryCheckpointFollowupRecoveryCheckpointFollowupScenarios(18);
 $tailFailureScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryCheckpointFollowupRecoveryCheckpointFollowupTailFailureScenariosFromFollowupScenarios($followupScenarios);
@@ -163,5 +164,16 @@ foreach ($tailFailureScenarios as $scenario) {
         $t->same(true, in_array('sqlite-wal-current-batch-byte-truncation', $tailPlan['dependencies'], true));
     };
 }
+
+unset(
+    $followupScenarios,
+    $tailFailureScenarios,
+    $directTailFailureScenarios,
+    $scenario,
+    $seed,
+    $followupPlan,
+    $tailPlan,
+    $prefix
+);
 
 return $tests;

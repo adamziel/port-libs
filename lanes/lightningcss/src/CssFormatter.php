@@ -284,7 +284,9 @@ final class CssFormatter
         }
 
         $indent = $this->indent($indentLevel);
-        $declarations = $this->composeFontStyleDeclarations($this->parseDeclarations($body));
+        $declarations = $this->composeGridStyleDeclarations(
+            $this->composeFontStyleDeclarations($this->parseDeclarations($body))
+        );
         if ($declarations === []) {
             return $indent . $selector . ' {}';
         }
@@ -390,6 +392,181 @@ final class CssFormatter
     private function isFontLonghand(string $property): bool
     {
         return in_array($property, self::FONT_LONGHANDS, true);
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function composeGridStyleDeclarations(array $declarations): array
+    {
+        $components = [
+            'areas' => 'grid-template-areas',
+            'rows' => 'grid-template-rows',
+            'columns' => 'grid-template-columns',
+        ];
+        $componentByProperty = array_flip($components);
+        $latest = [];
+        $indexes = [];
+
+        foreach ($declarations as $index => [$property, $value]) {
+            if ($property === 'grid' || $property === 'grid-template') {
+                return $declarations;
+            }
+
+            if (!isset($componentByProperty[$property])) {
+                continue;
+            }
+
+            if (stripos($value, '!important') !== false) {
+                return $declarations;
+            }
+
+            $component = $componentByProperty[$property];
+            $latest[$component] = $index;
+            $indexes[] = $index;
+        }
+
+        foreach (array_keys($components) as $component) {
+            if (!isset($latest[$component])) {
+                return $declarations;
+            }
+        }
+
+        $shorthand = $this->composeGridTemplateLonghands(
+            $declarations[$latest['areas']][1],
+            $declarations[$latest['rows']][1],
+            $declarations[$latest['columns']][1]
+        );
+        if ($shorthand === null) {
+            return $declarations;
+        }
+
+        $replaceAt = min($indexes);
+        $gridIndexes = array_flip($indexes);
+        $output = [];
+        foreach ($declarations as $index => $declaration) {
+            if ($index === $replaceAt) {
+                $output[] = ['grid-template', $shorthand];
+                continue;
+            }
+
+            if (isset($gridIndexes[$index])) {
+                continue;
+            }
+
+            $output[] = $declaration;
+        }
+
+        return $output;
+    }
+
+    private function composeGridTemplateLonghands(string $areas, string $rows, string $columns): ?string
+    {
+        $areas = trim($areas);
+        $rows = trim($rows);
+        $columns = trim($columns);
+        if ($areas === '' || $rows === '' || $columns === '') {
+            return null;
+        }
+
+        if (strcasecmp($areas, 'none') === 0) {
+            if (strcasecmp($rows, 'none') === 0 && strcasecmp($columns, 'none') === 0) {
+                return 'none';
+            }
+
+            return $this->formatDeclarationValue($rows) . ' / ' . $this->formatDeclarationValue($columns);
+        }
+
+        if (stripos($columns, 'repeat(') !== false) {
+            return null;
+        }
+
+        $areaRows = $this->gridTemplateAreaRowsForComposition($areas);
+        if ($areaRows === null || $areaRows === []) {
+            return null;
+        }
+
+        $rowTokens = $this->splitGridTemplateTokens($rows);
+        $rowTracks = array_values(array_filter(
+            $rowTokens,
+            fn (string $token): bool => !$this->isGridLineNameToken($token),
+        ));
+        if ($rowTracks === [] || count($rowTracks) < count($areaRows)) {
+            return null;
+        }
+
+        $areaColumnCount = $this->gridTemplateAreaColumnCount($areaRows[0]);
+        $targetRows = max(count($areaRows), count($rowTracks));
+        $segments = [];
+        $tokenIndex = 0;
+
+        for ($rowIndex = 0; $rowIndex < $targetRows; $rowIndex++) {
+            while (isset($rowTokens[$tokenIndex]) && $this->isGridLineNameToken($rowTokens[$tokenIndex])) {
+                $segments[] = $rowTokens[$tokenIndex++];
+            }
+
+            $area = $areaRows[$rowIndex] ?? $this->gridTemplateEmptyAreaRow($areaColumnCount);
+            $segments[] = '"' . $area . '"';
+
+            if (!isset($rowTracks[$rowIndex])) {
+                continue;
+            }
+
+            while (isset($rowTokens[$tokenIndex]) && $this->isGridLineNameToken($rowTokens[$tokenIndex])) {
+                $segments[] = $rowTokens[$tokenIndex++];
+            }
+
+            $track = $rowTokens[$tokenIndex] ?? $rowTracks[$rowIndex];
+            if (!$this->isGridLineNameToken($track)) {
+                $tokenIndex++;
+                if (strcasecmp($track, 'auto') !== 0) {
+                    $segments[] = $this->formatDeclarationValue($track);
+                }
+            }
+        }
+
+        while (isset($rowTokens[$tokenIndex])) {
+            $segments[] = $rowTokens[$tokenIndex++];
+        }
+
+        return implode(' ', $segments) . ' / ' . $this->formatDeclarationValue($columns);
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function gridTemplateAreaRowsForComposition(string $areas): ?array
+    {
+        $tokens = $this->splitGridTemplateTokens($areas);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $rows = [];
+        foreach ($tokens as $token) {
+            if (!$this->isCssStringToken($token)) {
+                return null;
+            }
+
+            $formatted = $this->formatGridTemplateAreaString($token);
+            $rows[] = substr($formatted, 1, -1);
+        }
+
+        return $rows;
+    }
+
+    private function gridTemplateAreaColumnCount(string $row): int
+    {
+        $tokens = preg_split('/\s+/', trim($row)) ?: [];
+        $tokens = array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+
+        return max(1, count($tokens));
+    }
+
+    private function gridTemplateEmptyAreaRow(int $columns): string
+    {
+        return implode(' ', array_fill(0, max(1, $columns), '.'));
     }
 
     /**

@@ -42,6 +42,26 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => PushUpdate::create('bad', 'refs/heads/main'));
         $t->throws(InvalidArgumentException::class, static fn () => PushUpdate::create($new, 'main'));
     },
+    'push updates format sha256 create update and delete ref commands' => static function (TestRunner $t): void {
+        $old = str_repeat('A', 64);
+        $new = str_repeat('B', 64);
+        $zero = str_repeat('0', 64);
+
+        $create = PushUpdate::create($new, 'refs/heads/main', 'sha256');
+        $update = PushUpdate::update($old, $new, 'refs/heads/main', 'sha256');
+        $delete = PushUpdate::delete($old, 'refs/tags/wp-release', 'sha256');
+
+        $t->same('sha256', $create->objectFormat());
+        $t->same(true, $create->isCreate());
+        $t->same(false, $create->isDelete());
+        $t->same("{$zero} " . strtolower($new) . ' refs/heads/main', $create->commandLine());
+        $t->same(strtolower($old) . ' ' . strtolower($new) . ' refs/heads/main', $update->commandLine());
+        $t->same(true, $delete->isDelete());
+        $t->same(strtolower($old) . " {$zero} refs/tags/wp-release", $delete->commandLine());
+        $t->same($zero, PushUpdate::zeroOid('sha256'));
+        $t->throws(InvalidArgumentException::class, static fn () => PushUpdate::create(str_repeat('b', 40), 'refs/heads/main', 'sha256'));
+        $t->throws(InvalidArgumentException::class, static fn () => PushUpdate::create($new, 'refs/heads/main', 'sha512'));
+    },
     'push command builds receive-pack update request with first-line capabilities' => static function (TestRunner $t) use ($packetPayloads): void {
         $capabilities = ProtocolCapabilities::fromV1Bytes("\0report-status report-status-v2 side-band side-band-64k object-format=sha1 atomic push-options")['capabilities'];
         $command = PushCommand::create($capabilities, 'port-libs/0.1');
@@ -68,6 +88,23 @@ return [
         [$payloads, $remaining] = $packetPayloads($command->requestBytes('PACK'));
         $t->same($lines, $payloads);
         $t->same('PACK', $remaining);
+    },
+    'push command builds sha256 delete request with negotiated object format' => static function (TestRunner $t) use ($packetPayloads): void {
+        $old = str_repeat('a', 64);
+        $zero = str_repeat('0', 64);
+        $capabilities = ProtocolCapabilities::fromV1Bytes("\0report-status-v2 object-format=sha256")['capabilities'];
+        $command = PushCommand::create($capabilities, 'port-libs/sha256', 'sha256');
+        $command->deleteRef($old, 'refs/heads/main');
+
+        $lines = $command->commandLines();
+        [$payloads, $remaining] = $packetPayloads($command->requestBytes());
+
+        $t->same('sha256', $command->objectFormat());
+        $t->same(['report-status-v2', 'object-format=sha256', 'agent=port-libs/sha256'], $command->features());
+        $t->same("{$old} {$zero} refs/heads/main\0 report-status-v2 object-format=sha256 agent=port-libs/sha256", $lines[0]);
+        $t->same($lines, $payloads);
+        $t->same('', $remaining);
+        $t->throws(InvalidArgumentException::class, static fn () => $command->addUpdate(PushUpdate::delete(str_repeat('b', 40), 'refs/heads/other')));
     },
     'push command sends push options after update flush' => static function (TestRunner $t) use ($packetPayloads): void {
         $capabilities = ProtocolCapabilities::fromV1Bytes("\0report-status side-band push-options")['capabilities'];
@@ -128,6 +165,8 @@ return [
 
         $sha1Only = ProtocolCapabilities::fromV1Bytes("\0object-format=sha1")['capabilities'];
         $t->throws(InvalidArgumentException::class, static fn () => PushCommand::create($sha1Only, null, 'sha256'));
+        $implicitSha1 = ProtocolCapabilities::fromV1Bytes("\0report-status")['capabilities'];
+        $t->throws(InvalidArgumentException::class, static fn () => PushCommand::create($implicitSha1, null, 'sha256'));
     },
     'wordpress fixture builds deploy branch and release tag push request' => static function (TestRunner $t) use ($packetPayloads): void {
         $capabilities = ProtocolCapabilities::fromV1Bytes("\0report-status-v2 side-band-64k object-format=sha1")['capabilities'];

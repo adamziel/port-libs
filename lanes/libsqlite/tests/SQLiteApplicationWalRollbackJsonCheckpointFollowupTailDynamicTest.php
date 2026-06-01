@@ -7,6 +7,7 @@ use PortLibs\LibSqlite\SQLiteJsonImportRollbackWalPlan;
 use PortLibs\LibSqlite\SQLiteWal;
 
 ini_set('memory_limit', '1536M');
+unset($tests);
 
 $followupTailFailureScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryCheckpointFollowupFailureScenarios(18);
 $followupTailRecoveryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryCheckpointFollowupRecoveryScenariosFromFailureScenarios($followupTailFailureScenarios);
@@ -328,5 +329,15 @@ foreach ($followupTailRecoveryScenarios as $scenario) {
         $t->same([], $recoveryPlan['import_plan']['failed']);
     };
 }
+
+unset(
+    $followupTailFailureScenarios,
+    $followupTailRecoveryScenarios,
+    $scenario,
+    $seed,
+    $tailPlan,
+    $recoveryPlan,
+    $prefix
+);
 
 return $tests;

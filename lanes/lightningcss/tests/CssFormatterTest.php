@@ -247,6 +247,47 @@ CSS, $formatter->format('.foo{grid-template:[header-top]"a a a"[header-bottom ma
 }
 
 CSS, $formatter->format('.foo{grid-template:[header-top]"a a a"[main-top]"b b b"1fr/auto 1fr auto}'));
+
+        $t->same(<<<'CSS'
+.foo {
+  grid-template: auto 1fr / auto 1fr auto;
+}
+
+CSS, $formatter->format('.foo{grid-template-rows:auto 1fr;grid-template-columns:auto 1fr auto;grid-template-areas:none}'));
+
+        $t->same(<<<'CSS'
+.foo {
+  grid-template: [header-top] "a a a" [header-bottom]
+                 [main-top] "b b b" 1fr [main-bottom]
+                 / auto 1fr auto;
+}
+
+CSS, $formatter->format('.foo{grid-template-areas:"a a a" "b b b";grid-template-rows:[header-top] auto [header-bottom main-top] 1fr [main-bottom];grid-template-columns:auto 1fr auto}'));
+
+        $t->same(<<<'CSS'
+.foo {
+  grid-template: ". a a ."
+                 ". b b ." 1fr
+                 / 10px 1fr 1fr 10px;
+}
+
+CSS, $formatter->format('.foo{grid-template-areas:". a a ." ". b b .";grid-template-rows:auto 1fr;grid-template-columns:10px 1fr 1fr 10px}'));
+
+        $t->same(<<<'CSS'
+.foo {
+  grid-template: "one"
+                 "." 80px
+                 / 1fr 90px;
+}
+
+CSS, $formatter->format('.foo{grid-template-columns:1fr 90px;grid-template-rows:auto 80px;grid-template-areas:"one"}'));
+
+        $t->same(<<<'CSS'
+.foo {
+  grid-template: none;
+}
+
+CSS, $formatter->format('.foo{grid-template-areas:none;grid-template-columns:none;grid-template-rows:none}'));
     },
     'wordpress property registration formatting preserves design token blocks' => static function (TestRunner $t): void {
         $css = <<<'CSS'

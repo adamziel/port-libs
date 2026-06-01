@@ -294,6 +294,30 @@ return [
         $t->contains('refs/heads/main', $streamBytes($write));
         $t->contains('PACK', $streamBytes($write));
     },
+    'receive-pack client sends sha256 delete-only requests without pack data' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes, $readPacketSequence): void {
+        $old = str_repeat('a', 64);
+        $zero = str_repeat('0', 64);
+        $advertisement = $packet("{$old} refs/heads/main\0report-status-v2 object-format=sha256\n") . $flush;
+        $responseBytes = $packet("unpack ok\n") . $packet("ok refs/heads/main\n") . $flush;
+        $write = $streamWith('');
+        $client = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($advertisement . $responseBytes), $write),
+            'port-libs/sha256'
+        );
+
+        $response = $client->run(static function (SendPackSession $session): mixed {
+            $session->delete('refs/heads/main');
+
+            return $session->buildRequest([]);
+        });
+        [$commands, $remaining] = $readPacketSequence($streamBytes($write));
+
+        $t->same(true, $response->isSuccessful());
+        $t->same('refs/heads/main', $response->refStatuses()[0]->effectiveRefName());
+        $t->same(["{$old} {$zero} refs/heads/main\0 report-status-v2 object-format=sha256 agent=port-libs/sha256"], $commands);
+        $t->same('', $remaining);
+        $t->same(false, str_contains($streamBytes($write), 'PACK'));
+    },
     'receive-pack client accepts delimiter-terminated stream status responses' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
         $directBlob = new GitObject('blob', 'WordPress delimiter-terminated direct report-status payload');
@@ -5404,6 +5428,13 @@ return [
         $t->same(true, $fixture['unsafeSmartHttpRawProxyControlByteRejected']);
         $t->same(true, $fixture['smartHttpAdvertisementWithoutServiceHeaderAccepted']);
         $t->same(true, $fixture['smartHttpDuplicateContentTypeAccepted']);
+        $t->same(['GET', 'POST'], $fixture['smartHttpSha256DeleteBoundary']['requestMethods']);
+        $t->same('sha256', $fixture['smartHttpSha256DeleteBoundary']['sessionObjectFormat']);
+        $t->same("{$fixture['smartHttpSha256DeleteBoundary']['oldObject']} {$fixture['smartHttpSha256DeleteBoundary']['zeroObject']} refs/heads/main\0 report-status-v2 object-format=sha256 agent=port-libs/wordpress-sha256", $fixture['smartHttpSha256DeleteBoundary']['requestCommand']);
+        $t->same('0000', $fixture['smartHttpSha256DeleteBoundary']['requestTerminator']);
+        $t->same(false, $fixture['smartHttpSha256DeleteBoundary']['postBodyHasPack']);
+        $t->same(true, $fixture['smartHttpSha256DeleteBoundary']['responseSuccessful']);
+        $t->same(['refs/heads/main'], $fixture['smartHttpSha256DeleteBoundary']['acceptedRefs']);
         $t->same('git/oxide-port-libs', $fixture['smartHttpHeaderBoundary']['defaultGetUserAgent']);
         $t->same(null, $fixture['smartHttpHeaderBoundary']['defaultGetExpectHeader']);
         $t->same('wp-deploy/2', $fixture['smartHttpHeaderBoundary']['overrideGetUserAgent']);
