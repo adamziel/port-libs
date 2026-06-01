@@ -10,7 +10,7 @@
     "audit": "2026-06-01 supervisor batch: full Gitoxide PHP lane passed 40 files / 8874 assertions / 0 failures after receive-pack status-kind, smart-HTTP proxy/cookie, and SSH receive-pack command fallback slices; Cargo workspace not run.",
     "currentWork": "Receive-pack HTTP status classification, smart-HTTP proxy credential/cookie boundaries, and SSH receive-pack command fallback behavior integrated on current base.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "d27ec0df6cb3de46b54e9d76f3673f9481f70e85",
+    "latestCommit": "6ef20fd2bfcb96dddcb5355e6ffbae9566003ce2",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping reference transaction, tree-merge, smart-HTTP/SSH transport, object database, pack/index, partial-clone, merge-base, URL/refspec, sparse-checkout/pathspec, and protocol parity slices; integrate only full-lane-green batches.",
-    "commit": "eacf219644d81cd359ffedbf3e529bc5617ed219"
+    "commit": "6ef20fd2bfcb"
 }

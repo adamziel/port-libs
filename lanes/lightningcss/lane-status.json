@@ -10,7 +10,7 @@
     "audit": "2026-06-01 supervisor batch: full LightningCSS PHP lane passed 13 files / 7468 assertions / 0 failures after CSS Modules, custom-at-rule, property-value grid, and target-prefix image-rendering slices; Rust/Node/WASM runners not run.",
     "currentWork": "CSS Modules terminal pseudo-element handling, custom at-rule supports visitor traversal, grid value minification, and image-rendering target-prefix browser boundaries integrated on current base.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "d27ec0df6cb3de46b54e9d76f3673f9481f70e85",
+    "latestCommit": "6ef20fd2bfcb96dddcb5355e6ffbae9566003ce2",
     "nextTask": "Keep LightningCSS workers on current-base source maps, bundle/import graph, media query, property value, CSSOM, CSS Modules, custom-at-rule, and target-prefix slices; rebase stale overlapping TransitionPrefixer/CSSOM handoffs before retry.",
-    "commit": "eacf219644d81cd359ffedbf3e529bc5617ed219"
+    "commit": "6ef20fd2bfcb"
 }
