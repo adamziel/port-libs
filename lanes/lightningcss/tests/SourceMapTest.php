@@ -1080,6 +1080,45 @@ return [
         $t->same(['.compiled{}', '.origin{}'], $compiledData['sourcesContent']);
         $t->same(['compiledAfterLast'], $compiledData['names']);
     },
+    'source map closest lookup falls back to first source-backed segment before offsets' => static function (TestRunner $t): void {
+        $inputMap = SourceMap::fromJson(
+            '{"version":3,"mappings":"UAECA,UACCC","sources":["before-first.scss"],"sourcesContent":[".before{}\n.after{}\n"],"names":["first","second"]}'
+        );
+
+        $beforeFirst = $inputMap->findClosestMapping(0, 5);
+        $inputMap->offsetColumns(0, 10, 4);
+        $shiftedBeforeFirst = $inputMap->findClosestMapping(0, 13);
+        $shiftedExactFirst = $inputMap->findClosestMapping(0, 14);
+
+        $t->same(
+            ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 2, 'originalColumn' => 1, 'nameIndex' => 0],
+            $beforeFirst
+        );
+        $t->same('cAECA,UACCC', $inputMap->writeVlq());
+        $t->same(
+            ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 2, 'originalColumn' => 1, 'nameIndex' => 0],
+            $shiftedBeforeFirst
+        );
+        $t->same(
+            ['generatedLine' => 0, 'generatedColumn' => 14, 'sourceIndex' => 0, 'originalLine' => 2, 'originalColumn' => 1, 'nameIndex' => 0],
+            $shiftedExactFirst
+        );
+
+        $compiled = new SourceMap();
+        $compiledSource = $compiled->addSource('cache/before-first.css');
+        $compiled->setSourceContent($compiledSource, '.before{color:red}.after{color:blue}');
+        $compiled->addMapping(0, 0, $compiledSource, 0, 13, 'compiledBeforeFirst');
+        $compiled->extendWithSourceMap($inputMap);
+        $compiledData = $compiled->toArray(null, false);
+
+        $t->same('ACECC', $compiled->writeVlq());
+        $t->same([1], array_column(SourceMap::decodeVlq($compiled->writeVlq()), 'sourceIndex'));
+        $t->same([2], array_column(SourceMap::decodeVlq($compiled->writeVlq()), 'originalLine'));
+        $t->same([1], array_column(SourceMap::decodeVlq($compiled->writeVlq()), 'originalColumn'));
+        $t->same([1], array_column(SourceMap::decodeVlq($compiled->writeVlq()), 'nameIndex'));
+        $t->same(['cache/before-first.css', 'before-first.scss'], $compiledData['sources']);
+        $t->same(['compiledBeforeFirst', 'first', 'second'], $compiledData['names']);
+    },
     'source map rejects invalid raw vlq map indexes' => static function (TestRunner $t): void {
         $map = new SourceMap();
 

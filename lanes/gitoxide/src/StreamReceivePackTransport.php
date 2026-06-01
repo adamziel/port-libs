@@ -82,6 +82,10 @@ final class StreamReceivePackTransport implements ReceivePackTransport
                 break;
             }
             if ($length === 1) {
+                if ($label === 'response') {
+                    break;
+                }
+
                 continue;
             }
             if ($length < 4) {

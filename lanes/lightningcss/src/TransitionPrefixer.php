@@ -1914,6 +1914,24 @@ final class TransitionPrefixer
             || $this->targetInRange($normalized, 'opera', [15], [51])
             || $this->targetInRange($normalized, 'safari', [6, 1], [8])
             || $this->targetInRange($normalized, 'samsung', [5], [8, 2]);
+        $placeSelfItemsNeedExpansion = isset($normalized['ie'])
+            || (isset($normalized['android']) && !$this->targetAtLeast($normalized, 'android', [59]))
+            || (isset($normalized['chrome']) && !$this->targetAtLeast($normalized, 'chrome', [59]))
+            || (isset($normalized['edge']) && !$this->targetAtLeast($normalized, 'edge', [79]))
+            || (isset($normalized['firefox']) && !$this->targetAtLeast($normalized, 'firefox', [45]))
+            || (isset($normalized['ios_saf']) && !$this->targetAtLeast($normalized, 'ios_saf', [11]))
+            || (isset($normalized['opera']) && !$this->targetAtLeast($normalized, 'opera', [43]))
+            || (isset($normalized['safari']) && !$this->targetAtLeast($normalized, 'safari', [11]))
+            || (isset($normalized['samsung']) && !$this->targetAtLeast($normalized, 'samsung', [7]));
+        $placeContentNeedExpansion = isset($normalized['ie'])
+            || (isset($normalized['android']) && !$this->targetAtLeast($normalized, 'android', [59]))
+            || (isset($normalized['chrome']) && !$this->targetAtLeast($normalized, 'chrome', [59]))
+            || (isset($normalized['edge']) && !$this->targetAtLeast($normalized, 'edge', [79]))
+            || (isset($normalized['firefox']) && !$this->targetAtLeast($normalized, 'firefox', [45]))
+            || (isset($normalized['ios_saf']) && !$this->targetAtLeast($normalized, 'ios_saf', [9]))
+            || (isset($normalized['opera']) && !$this->targetAtLeast($normalized, 'opera', [43]))
+            || (isset($normalized['safari']) && !$this->targetAtLeast($normalized, 'safari', [9]))
+            || (isset($normalized['samsung']) && !$this->targetAtLeast($normalized, 'samsung', [7]));
 
         return [
             'boxShadowNeedsWebkit' => $needsWebkitBoxShadow,
@@ -1979,6 +1997,9 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'safari', [3, 1], [8]),
             'flexNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [21]),
             'flexNeedsMs' => $this->targetInRange($normalized, 'ie', [10], [10]),
+            'placeContentNeedsExpansion' => $placeContentNeedExpansion,
+            'placeSelfNeedsExpansion' => $placeSelfItemsNeedExpansion,
+            'placeItemsNeedsExpansion' => $placeSelfItemsNeedExpansion,
             'animationNeedsWebkit' => $animationNeedsWebkit,
             'animationNeedsMoz' => $animationNeedsMoz,
             'animationNeedsO' => $animationNeedsO,
@@ -5531,10 +5552,17 @@ final class TransitionPrefixer
             return false;
         }
 
-        return ($targetOptions['flexNeedsOldWebkit'] ?? false)
+        $needsFlexFallback = ($targetOptions['flexNeedsOldWebkit'] ?? false)
             || ($targetOptions['flexNeedsWebkit'] ?? false)
             || ($targetOptions['flexNeedsMoz'] ?? false)
             || ($targetOptions['flexNeedsMs'] ?? false);
+
+        return match ($property) {
+            'place-content' => $needsFlexFallback || ($targetOptions['placeContentNeedsExpansion'] ?? false),
+            'place-self' => $needsFlexFallback || ($targetOptions['placeSelfNeedsExpansion'] ?? false),
+            'place-items' => $needsFlexFallback || ($targetOptions['placeItemsNeedsExpansion'] ?? false),
+            default => false,
+        };
     }
 
     /**

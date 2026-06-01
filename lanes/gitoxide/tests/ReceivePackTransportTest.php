@@ -294,6 +294,54 @@ return [
         $t->contains('refs/heads/main', $streamBytes($write));
         $t->contains('PACK', $streamBytes($write));
     },
+    'receive-pack client accepts delimiter-terminated stream status responses' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $directBlob = new GitObject('blob', 'WordPress delimiter-terminated direct report-status payload');
+        $directAdvertisement = $packet("{$old} refs/heads/main\0report-status object-format=sha1\n") . $flush;
+        $directResponseBytes = $packet("unpack ok\n")
+            . $packet("ok refs/heads/main direct delimiter accepted\n")
+            . '0001';
+        $directWrite = $streamWith('');
+        $directClient = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($directAdvertisement . $directResponseBytes), $directWrite),
+            'port-libs/0.1'
+        );
+
+        $directResponse = $directClient->run(static function (SendPackSession $session) use ($directBlob): mixed {
+            $session->createOrUpdate('refs/heads/main', $directBlob->oid());
+
+            return $session->buildRequest([$directBlob]);
+        });
+
+        $sidebandBlob = new GitObject('blob', 'WordPress delimiter-terminated sideband report-status payload');
+        $sidebandAdvertisement = $packet("{$old} refs/heads/main\0report-status side-band-64k object-format=sha1\n") . $flush;
+        $sidebandResponseBytes = $packet("\x02remote: delimiter terminates receive-pack response\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main sideband delimiter accepted\n"))
+            . $packet("\x01" . '0001')
+            . '0001';
+        $sidebandWrite = $streamWith('');
+        $sidebandClient = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($sidebandAdvertisement . $sidebandResponseBytes), $sidebandWrite),
+            'port-libs/0.1'
+        );
+
+        $sidebandResponse = $sidebandClient->run(static function (SendPackSession $session) use ($sidebandBlob): mixed {
+            $session->createOrUpdate('refs/heads/main', $sidebandBlob->oid());
+
+            return $session->buildRequest([$sidebandBlob]);
+        });
+
+        $t->same(true, $directResponse->isSuccessful());
+        $t->same('refs/heads/main', $directResponse->refStatuses()[0]->effectiveRefName());
+        $t->same('direct delimiter accepted', $directResponse->refStatuses()[0]->message);
+        $t->contains('refs/heads/main', $streamBytes($directWrite));
+        $t->same(true, $sidebandResponse->isSuccessful());
+        $t->same('refs/heads/main', $sidebandResponse->refStatuses()[0]->effectiveRefName());
+        $t->same('sideband delimiter accepted', $sidebandResponse->refStatuses()[0]->message);
+        $t->same(['remote: delimiter terminates receive-pack response'], $sidebandResponse->progressMessages());
+        $t->contains('refs/heads/main', $streamBytes($sidebandWrite));
+    },
     'receive-pack client filters response statuses to requested refs like send-pack' => static function (TestRunner $t) use ($packet, $flush, $streamWith): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
         $blob = new GitObject('blob', 'WordPress expected ref status payload');
@@ -4743,6 +4791,7 @@ return [
         [$options, $packBytes] = $readPacketSequence($afterCommands);
 
         $t->same(true, $fixture['responseSuccessful']);
+        $t->same('0001', $fixture['responseTerminator']);
         $t->same(['Writing objects: 100% (3/3), done.'], $fixture['progressMessages']);
         $t->same(['refs/heads/main'], $fixture['acceptedRefs']);
         $t->contains($fixture['newCommit'], $commands[0]);

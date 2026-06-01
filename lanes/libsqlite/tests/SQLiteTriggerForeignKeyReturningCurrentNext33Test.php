@@ -75,6 +75,7 @@ $updateCascade = static fn (): array => SQLiteTriggerForeignKeyReturningPlan::up
     $fkCascade,
     $triggers,
     $returning,
+    'option_id',
 );
 
 $deleteCascade = static fn (): array => SQLiteTriggerForeignKeyReturningPlan::deleteParents(
@@ -84,6 +85,7 @@ $deleteCascade = static fn (): array => SQLiteTriggerForeignKeyReturningPlan::de
     $fkCascade,
     $triggers,
     ['option_id', 'option_name', ['expr' => 'old.option_value', 'as' => 'old_value']],
+    'option_id',
 );
 
 $deferredNoAction = static fn (): array => SQLiteTriggerForeignKeyReturningPlan::updateParents(
@@ -94,6 +96,7 @@ $deferredNoAction = static fn (): array => SQLiteTriggerForeignKeyReturningPlan:
     $fkDeferredNoAction,
     [],
     ['option_id', ['expr' => 'old.option_id', 'as' => 'old_option_id']],
+    'option_id',
 );
 
 $setNullDelete = static fn (): array => SQLiteTriggerForeignKeyReturningPlan::deleteParents(
@@ -103,6 +106,7 @@ $setNullDelete = static fn (): array => SQLiteTriggerForeignKeyReturningPlan::de
     $fkSetNull,
     [],
     ['*'],
+    'option_id',
 );
 
 $cases = [

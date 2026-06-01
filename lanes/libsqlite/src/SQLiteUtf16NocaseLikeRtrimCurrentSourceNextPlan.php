@@ -7122,11 +7122,11 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         if ($currentSource !== $nextSource || $currentSchemaCookie !== $nextSchemaCookie) {
             $sourceReasons[] = 'source-or-schema-changed';
         }
-        if (($currentPatternRow['option_id'] ?? null) !== ($nextPatternRow['option_id'] ?? null)) {
-            $sourceReasons[] = 'rhs-pattern-source-rowid-changed';
+        if (($currentPatternRow['setting_id'] ?? null) !== ($nextPatternRow['setting_id'] ?? null)) {
+            $sourceReasons[] = 'rhs-pattern-source-setting-id-changed';
         }
         if (($currentPatternRow['text_encoding'] ?? null) !== ($nextPatternRow['text_encoding'] ?? null)
-            || ($currentPatternRow['option_value_bytes'] ?? null) !== ($nextPatternRow['option_value_bytes'] ?? null)) {
+            || ($currentPatternRow['key_value_bytes'] ?? null) !== ($nextPatternRow['key_value_bytes'] ?? null)) {
             $sourceReasons[] = 'rhs-pattern-source-bytes-changed';
         }
         if ($currentPattern !== $nextPattern) {
@@ -7157,16 +7157,16 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'nextSource' => $nextSource,
             'currentSchemaCookie' => $currentSchemaCookie,
             'nextSchemaCookie' => $nextSchemaCookie,
-            'currentPatternSourceRowid' => (int) $currentPatternRow['option_id'],
-            'nextPatternSourceRowid' => (int) $nextPatternRow['option_id'],
+            'currentPatternSourceSettingId' => (int) $currentPatternRow['setting_id'],
+            'nextPatternSourceSettingId' => (int) $nextPatternRow['setting_id'],
             'currentPatternEncoding' => self::v202_encodingName((int) $currentPatternRow['text_encoding']),
             'nextPatternEncoding' => self::v202_encodingName((int) $nextPatternRow['text_encoding']),
-            'currentPatternBytesHex' => bin2hex((string) $currentPatternRow['option_value_bytes']),
-            'nextPatternBytesHex' => bin2hex((string) $nextPatternRow['option_value_bytes']),
+            'currentPatternBytesHex' => bin2hex((string) $currentPatternRow['key_value_bytes']),
+            'nextPatternBytesHex' => bin2hex((string) $nextPatternRow['key_value_bytes']),
             'currentPattern' => $currentPattern,
             'nextPattern' => $nextPattern,
             'sameDecodedPattern' => $currentPattern === $nextPattern,
-            'sameSourcePatternBytes' => ($currentPatternRow['option_value_bytes'] ?? null) === ($nextPatternRow['option_value_bytes'] ?? null),
+            'sameSourcePatternBytes' => ($currentPatternRow['key_value_bytes'] ?? null) === ($nextPatternRow['key_value_bytes'] ?? null),
             'currentPrefix' => $current['prefix'],
             'nextPrefix' => $next['prefix'],
             'currentRangeLowerInclusive' => $current['rangeLowerInclusive'],
@@ -7220,15 +7220,15 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     /** @param array<string,mixed> $row */
     private static function v202_decodePatternRow(array $row, string $label): string
     {
-        foreach (['option_id', 'option_value_bytes', 'text_encoding'] as $key) {
+        foreach (['setting_id', 'key_value_bytes', 'text_encoding'] as $key) {
             if (!array_key_exists($key, $row)) {
                 throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE RTRIM nextTwoZeroTwo {$label} pattern row missing {$key}");
             }
         }
-        if (!is_int($row['option_id'])) {
-            throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE RTRIM nextTwoZeroTwo {$label} pattern row option_id must be integer");
+        if (!is_int($row['setting_id'])) {
+            throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE RTRIM nextTwoZeroTwo {$label} pattern row setting_id must be integer");
         }
-        if (!is_string($row['option_value_bytes'])) {
+        if (!is_string($row['key_value_bytes'])) {
             throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE RTRIM nextTwoZeroTwo {$label} pattern bytes must be string");
         }
         if (!is_int($row['text_encoding'])) {
@@ -7236,7 +7236,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         }
 
         try {
-            return SQLiteEncodingCollationSourceCursor::decodeText($row['option_value_bytes'], $row['text_encoding']);
+            return SQLiteEncodingCollationSourceCursor::decodeText($row['key_value_bytes'], $row['text_encoding']);
         } catch (\InvalidArgumentException $exception) {
             throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE RTRIM nextTwoZeroTwo {$label} pattern row is malformed: " . $exception->getMessage());
         }

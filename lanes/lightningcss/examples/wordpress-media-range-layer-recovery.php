@@ -26,6 +26,12 @@ $css = <<<'CSS'
     }
   }
 
+  @media (width >= 50%) {
+    .wp-block-query.is-percentage-breakpoint {
+      color: turquoise;
+    }
+  }
+
   @media (width >= calc(1px + 2px)) {
     .wp-block-query {
       color: yellow;
@@ -48,7 +54,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '@layer theme.blocks{@media (hover:1){.wp-block-query.is-invalid-value{color:#7fff00}}@media (width>=3px){.wp-block-query{color:#ff0}}}',
+    'code' => '@layer theme.blocks{@media (hover:1){.wp-block-query.is-invalid-value{color:#7fff00}}@media (width>=50%){.wp-block-query.is-percentage-breakpoint{color:turquoise}}@media (width>=3px){.wp-block-query{color:#ff0}}}',
     'warnings' => [
         [
             'message' => 'Unexpected token Function("unknown")',
@@ -63,6 +69,11 @@ $expected = [
         [
             'message' => 'Invalid media query',
             'line' => 14,
+            'column' => 9,
+        ],
+        [
+            'message' => 'Invalid media query',
+            'line' => 20,
             'column' => 9,
         ],
     ],

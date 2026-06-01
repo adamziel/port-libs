@@ -13,6 +13,7 @@ return [
     'progressMessages' => $fixture['progressMessages'],
     'requestByteLength' => strlen($fixture['requestBytes']),
     'responseSuccessful' => $fixture['responseSuccessful'],
+    'responseTerminator' => $fixture['responseTerminator'],
     'requestPacketLineMaxPayloadLength' => $fixture['requestPacketLineMaxPayloadLength'],
     'maxRequestCommandPacketHeader' => $fixture['maxRequestCommandPacketHeader'],
     'oversizeRequestCommandRejected' => $fixture['oversizeRequestCommandRejected'],

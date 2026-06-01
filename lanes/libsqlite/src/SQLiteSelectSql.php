@@ -4960,11 +4960,13 @@ final class SQLiteSelectSql
         if (preg_match('/^[+-]?0[xX][0-9A-Fa-f]+$/', $sql) === 1) {
             return ['type' => 'literal', 'value' => self::hexIntegerLiteralValue($sql)];
         }
-        if (preg_match('/^[+-]?[0-9]+$/', $sql) === 1) {
+        if (preg_match('/^[+-]?[0-9](?:_?[0-9])*$/', $sql) === 1) {
             return ['type' => 'literal', 'value' => self::integerLiteralValue($sql)];
         }
-        if (preg_match('/^[+-]?(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)$/', $sql) === 1) {
-            return ['type' => 'literal', 'value' => (float) $sql, 'literalText' => self::realLiteralText($sql)];
+        if (preg_match('/^[+-]?(?:(?:[0-9](?:_?[0-9])*\.(?:[0-9](?:_?[0-9])*)?|\.[0-9](?:_?[0-9])*)(?:[eE][+-]?[0-9](?:_?[0-9])*)?|[0-9](?:_?[0-9])*[eE][+-]?[0-9](?:_?[0-9])*)$/', $sql) === 1) {
+            $normalized = str_replace('_', '', $sql);
+
+            return ['type' => 'literal', 'value' => (float) $normalized, 'literalText' => self::realLiteralText($normalized)];
         }
         if (preg_match('/^[+\-~]\s*(.+)$/s', $sql, $match) === 1) {
             return [
@@ -5186,6 +5188,7 @@ final class SQLiteSelectSql
 
     private static function integerLiteralValue(string $sql): int|float
     {
+        $sql = str_replace('_', '', $sql);
         $negative = str_starts_with($sql, '-');
         $digits = ltrim($sql, '+-');
         $digits = ltrim($digits, '0');

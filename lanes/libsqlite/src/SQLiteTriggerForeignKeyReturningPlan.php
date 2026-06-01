@@ -24,7 +24,7 @@ final class SQLiteTriggerForeignKeyReturningPlan
         array $foreignKey,
         array $triggers = [],
         ?array $returning = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         self::identifier($rowIdColumn, 'rowid column');
         self::validateAssignments($assignments);
@@ -94,7 +94,7 @@ final class SQLiteTriggerForeignKeyReturningPlan
         array $foreignKey,
         array $triggers = [],
         ?array $returning = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         self::identifier($rowIdColumn, 'rowid column');
         $parents = array_values($parents);

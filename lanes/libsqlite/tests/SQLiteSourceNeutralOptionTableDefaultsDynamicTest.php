@@ -11,6 +11,8 @@ use PortLibs\LibSqlite\SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan
 use PortLibs\LibSqlite\SQLiteMultiColumnRangePlan;
 use PortLibs\LibSqlite\SQLitePragmaIntegrityPartialIndexCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
+use PortLibs\LibSqlite\SQLiteTriggerForeignKeyReturningPlan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningForeignKeySavepointPlan;
 use PortLibs\LibSqlite\SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWal;
@@ -26,6 +28,10 @@ $optionTableDefaultSourceFiles = [
 $jsonPathOptionDefaultSourceFiles = [
     $sourceRoot . '/SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteJsonPathIndexedUpdatePlan.php',
+];
+$triggerForeignKeyDefaultSourceFiles = [
+    $sourceRoot . '/SQLiteTriggerForeignKeyReturningPlan.php',
+    $sourceRoot . '/SQLiteTriggerReturningForeignKeySavepointPlan.php',
 ];
 
 $legacyOptionTableDefaultMatches = static function () use ($optionTableDefaultSourceFiles, $libsqliteRoot): array {
@@ -69,6 +75,37 @@ $jsonPathLegacyDefaultMatches = static function () use ($jsonPathOptionDefaultSo
     $matches = [];
 
     foreach ($jsonPathOptionDefaultSourceFiles as $file) {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read {$file}");
+        }
+        if (preg_match_all($pattern, $contents, $fileMatches) < 1) {
+            continue;
+        }
+        $relative = str_replace($libsqliteRoot . '/', '', $file);
+        foreach ($fileMatches[0] as $match) {
+            $matches[] = "{$relative}: {$match}";
+        }
+    }
+
+    return $matches;
+};
+
+$triggerForeignKeyLegacyDefaultMatches = static function () use ($triggerForeignKeyDefaultSourceFiles, $libsqliteRoot): array {
+    $terms = [
+        'wp' . '_',
+        'wp' . '_options',
+        'wp' . '_option',
+        'option_id',
+        'option_name',
+        'option_value',
+        'autoload',
+        'blog_id',
+    ];
+    $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
+    $matches = [];
+
+    foreach ($triggerForeignKeyDefaultSourceFiles as $file) {
         $contents = file_get_contents($file);
         if ($contents === false) {
             throw new RuntimeException("Unable to read {$file}");
@@ -133,6 +170,68 @@ $triggerNewRow = [
 return [
     'source-neutral option table default source files contain no hardcoded wp table defaults' => static fn (TestRunner $t) => $t->same([], $legacyOptionTableDefaultMatches()),
     'source-neutral json path defaults use generic setting keys in source' => static fn (TestRunner $t) => $t->same([], $jsonPathLegacyDefaultMatches()),
+    'source-neutral trigger foreign key returning defaults use generic setting rowids in source' => static fn (TestRunner $t) => $t->same([], $triggerForeignKeyLegacyDefaultMatches()),
+    'trigger foreign key returning default rowid is setting id' => static function (TestRunner $t): void {
+        $parents = [
+            ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes'],
+            ['setting_id' => 2, 'key_name' => 'cache_policy', 'key_value' => 'stale', 'load_policy' => 'no'],
+        ];
+        $children = [
+            ['meta_id' => 10, 'setting_id' => 1, 'meta_key' => 'source'],
+            ['meta_id' => 11, 'setting_id' => 2, 'meta_key' => 'source'],
+        ];
+
+        $plan = SQLiteTriggerForeignKeyReturningPlan::updateParents(
+            $parents,
+            $children,
+            ['setting_id' => static fn (array $row): int => (int) $row['setting_id'] + 100],
+            static fn (array $row): bool => ($row['load_policy'] ?? null) === 'yes',
+            ['parent_key' => 'setting_id', 'child_key' => 'setting_id', 'on_update' => 'cascade'],
+            [],
+            ['setting_id', 'key_name'],
+        );
+
+        $t->same([1], array_column($plan['yielded'], 'old_key'));
+        $t->same([101], array_column($plan['yielded'], 'new_key'));
+        $t->same([101, 2], array_column($plan['parent'], 'setting_id'));
+        $t->same([101, 2], array_column($plan['child'], 'setting_id'));
+        $t->same(['setting_id' => 101, 'key_name' => 'base_url'], $plan['yielded'][0]['returning']);
+    },
+    'trigger returning foreign key savepoint default rowids are setting ids' => static function (TestRunner $t): void {
+        $parents = [
+            ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes'],
+            ['setting_id' => 2, 'key_name' => 'cache_policy', 'key_value' => 'stale', 'load_policy' => 'no'],
+        ];
+        $children = [
+            ['meta_id' => 10, 'setting_id' => 1, 'meta_key' => 'source'],
+            ['meta_id' => 11, 'setting_id' => 2, 'meta_key' => 'source'],
+        ];
+
+        $plan = SQLiteTriggerReturningForeignKeySavepointPlan::currentNextYield(
+            $parents,
+            $children,
+            ['parent_key' => 'setting_id', 'child_key' => 'setting_id', 'on_update' => 'no action', 'deferred' => true],
+            [],
+            [
+                'operation' => 'update',
+                'savepoint' => 'app_settings_import',
+                'where' => static fn (array $row): bool => ($row['key_name'] ?? null) === 'cache_policy',
+                'assignments' => ['setting_id' => 202],
+                'returning' => ['setting_id', 'key_name', ['expr' => 'old.setting_id', 'as' => 'old_setting_id']],
+                'rollback_on_deferred_violation' => true,
+                'page_images' => [2 => str_repeat('P', 128)],
+                'dirty_pages' => [2 => str_repeat('D', 128)],
+                'wal_start_frame' => 4,
+                'wal_frames' => [['frame_index' => 5, 'page_number' => 2]],
+            ],
+        );
+
+        $t->same('rolled-back', $plan['status']);
+        $t->same([1, 202], $plan['current_rowids']);
+        $t->same([1, 2], $plan['next_rowids']);
+        $t->same(['setting_id' => 202, 'key_name' => 'cache_policy', 'old_setting_id' => 2], $plan['attempted_yielded'][0]['returning']);
+        $t->same(true, $plan['yield_suppressed_by_rollback']);
+    },
     'source-neutral json path compare defaults read setting key values' => static function (TestRunner $t): void {
         $plan = SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan::compare(
             [
@@ -261,10 +360,10 @@ return [
     'utf16 source pattern diagnostic expression uses application settings names' => static function (TestRunner $t): void {
         $encode = static fn (string $value, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($value, $encoding);
         $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourcePatternPlan(
-            [['option_id' => 1, 'option_name_bytes' => $encode('module_cache', 2), 'text_encoding' => 2]],
-            [['option_id' => 1, 'option_name_bytes' => $encode('module_cache', 3), 'text_encoding' => 3]],
-            ['option_id' => 9, 'option_value_bytes' => $encode('module%', 2), 'text_encoding' => 2],
-            ['option_id' => 9, 'option_value_bytes' => $encode('module%', 3), 'text_encoding' => 3],
+            [['setting_id' => 1, 'key_name_bytes' => $encode('module_cache', 2), 'text_encoding' => 2]],
+            [['setting_id' => 1, 'key_name_bytes' => $encode('module_cache', 3), 'text_encoding' => 3]],
+            ['setting_id' => 9, 'key_value_bytes' => $encode('module%', 2), 'text_encoding' => 2],
+            ['setting_id' => 9, 'key_value_bytes' => $encode('module%', 3), 'text_encoding' => 3],
         );
 
         $t->same('rtrim(key_name) COLLATE NOCASE LIKE (SELECT key_value FROM app_settings WHERE key_name = ?)', $plan['expression']);

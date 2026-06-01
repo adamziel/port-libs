@@ -273,6 +273,33 @@ CSS,
         $t->same(1, $decoded[0]['sourceIndex']);
         $t->same(false, in_array('blocks/_tokens.scss', $data['sources'], true));
     },
+    'css bundler suppresses generated sources for malformed upstream inline input source maps' => static function (TestRunner $t): void {
+        $badDataUrl = 'data:application/json;base64,not-json';
+        $result = (new CssBundler())->bundleWithSourceMap('/theme/entry.css', [
+            '/theme/entry.css' => '@import "blocks/bad-generated.css"; @import "blocks/external-map.css"; .entry { color: red }',
+            '/theme/blocks/bad-generated.css' => ".bad { color: green }\n/*# sourceMappingURL={$badDataUrl} */",
+            '/theme/blocks/external-map.css' => ".ok { color: blue }\n/*# sourceMappingURL=external-map.css.map */",
+        ], null, '/theme');
+
+        $data = $result['sourceMap']->toArray(null, false);
+
+        $t->same('.bad{color:green}.ok{color:#00f}.entry{color:red}', $result['code']);
+        $t->same(['entry.css', 'blocks/external-map.css'], $data['sources']);
+        $t->same([
+            '@import "blocks/bad-generated.css"; @import "blocks/external-map.css"; .entry { color: red }',
+            ".ok { color: blue }\n/*# sourceMappingURL=external-map.css.map */",
+        ], $data['sourcesContent']);
+        $t->same(false, in_array('blocks/bad-generated.css', $data['sources'], true));
+
+        $entryOnly = (new CssBundler())->bundleWithSourceMap('/theme/entry-only.css', [
+            '/theme/entry-only.css' => ".entry { color: red }\n/*# sourceMappingURL={$badDataUrl} */",
+        ], null, '/theme');
+        $entryOnlyMap = $entryOnly['sourceMap']->toArray(null, false);
+
+        $t->same('.entry{color:red}', $entryOnly['code']);
+        $t->same([], $entryOnlyMap['sources']);
+        $t->same([], $entryOnlyMap['sourcesContent']);
+    },
     'css bundler maps upstream EOF import without semicolon' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '.b{color:green}',

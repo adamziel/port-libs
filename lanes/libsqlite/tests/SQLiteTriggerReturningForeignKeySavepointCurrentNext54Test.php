@@ -63,6 +63,7 @@ $cascadeUpdate = static fn (): array => SQLiteTriggerReturningForeignKeySavepoin
         'revision' => static fn (array $row): int => (int) $row['revision'] + 1,
     ],
     'returning' => ['option_id', 'option_name', 'option_value', ['expr' => 'old.option_id', 'as' => 'old_option_id']],
+    'rowid_column' => 'option_id',
 ]);
 $blockedUpdate = static fn (): array => SQLiteTriggerReturningForeignKeySavepointPlan::run($parents, $children, $deferredFk, [], $storage + [
     'operation' => 'update',
@@ -70,6 +71,7 @@ $blockedUpdate = static fn (): array => SQLiteTriggerReturningForeignKeySavepoin
     'where' => static fn (array $row): bool => $row['option_id'] === 3,
     'assignments' => ['option_id' => 303],
     'returning' => ['option_id', ['expr' => 'old.option_id', 'as' => 'old_option_id']],
+    'rowid_column' => 'option_id',
 ]);
 $rollbackUpdate = static fn (): array => SQLiteTriggerReturningForeignKeySavepointPlan::run($parents, $children, $deferredFk, [], $storage + [
     'operation' => 'update',
@@ -77,6 +79,7 @@ $rollbackUpdate = static fn (): array => SQLiteTriggerReturningForeignKeySavepoi
     'where' => static fn (array $row): bool => $row['option_id'] === 3,
     'assignments' => ['option_id' => 303],
     'returning' => ['option_id', ['expr' => 'old.option_id', 'as' => 'old_option_id']],
+    'rowid_column' => 'option_id',
     'rollback_on_deferred_violation' => true,
 ]);
 $deleteCascade = static fn (): array => SQLiteTriggerReturningForeignKeySavepointPlan::run($parents, $children, $cascadeFk, $triggers, [
@@ -84,6 +87,7 @@ $deleteCascade = static fn (): array => SQLiteTriggerReturningForeignKeySavepoin
     'savepoint' => 'delete_pass',
     'where' => static fn (array $row): bool => $row['autoload'] === 'no',
     'returning' => ['option_id', 'option_name'],
+    'rowid_column' => 'option_id',
 ]);
 
 $cases = [

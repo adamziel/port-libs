@@ -14,18 +14,18 @@ $encodingId202 = static fn (int|string $encoding): int => match ($encoding) {
     'UTF-16BE', 3 => 3,
 };
 $row202 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc202($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc202($name, $encoding),
     'text_encoding' => $encodingId202($encoding),
 ];
 $pattern202 = static fn (int $id, string $pattern, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_value_bytes' => $enc202($pattern, $encoding),
+    'setting_id' => $id,
+    'key_value_bytes' => $enc202($pattern, $encoding),
     'text_encoding' => $encodingId202($encoding),
 ];
 $bad202 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -95,8 +95,8 @@ $cases202 = [
     'next source' => ['nextSource', 'main.app_settings@202'],
     'current cookie' => ['currentSchemaCookie', 201],
     'next cookie' => ['nextSchemaCookie', 202],
-    'current pattern rowid' => ['currentPatternSourceRowid', 91],
-    'next pattern rowid' => ['nextPatternSourceRowid', 92],
+    'current pattern setting id' => ['currentPatternSourceSettingId', 91],
+    'next pattern setting id' => ['nextPatternSourceSettingId', 92],
     'current encoding' => ['currentPatternEncoding', 'UTF-16LE'],
     'next encoding' => ['nextPatternEncoding', 'UTF-16BE'],
     'current pattern' => ['currentPattern', 'plugin!_cache%'],
@@ -132,7 +132,7 @@ $cases202 = [
     'current malformed' => ['currentMalformedRowids', [8]],
     'next malformed' => ['nextMalformedRowids', [11]],
     'reason source' => ['rhsPatternInvalidationReasons.0', 'source-or-schema-changed'],
-    'reason rowid' => ['rhsPatternInvalidationReasons.1', 'rhs-pattern-source-rowid-changed'],
+    'reason setting id' => ['rhsPatternInvalidationReasons.1', 'rhs-pattern-source-setting-id-changed'],
     'reason bytes' => ['rhsPatternInvalidationReasons.2', 'rhs-pattern-source-bytes-changed'],
     'reason decoded' => ['rhsPatternInvalidationReasons.3', 'decoded-rhs-pattern-changed'],
     'reason range' => ['rhsPatternInvalidationReasons.4', 'range-bound'],
@@ -212,14 +212,14 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroTwo same decoded patte
     $t->same([1, 2], $result['nextMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source nextTwoZeroTwo source rowid replacement invalidates even with same bytes'] = static function (TestRunner $t) use ($row202, $pattern202): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroTwo source setting id replacement invalidates even with same bytes'] = static function (TestRunner $t) use ($row202, $pattern202): void {
     $rows = [
         $row202(1, 'plugin_cache', 'UTF-16LE'),
         $row202(2, 'plugin_cache_alpha', 'UTF-16BE'),
     ];
     $currentPattern = $pattern202(91, 'plugin!_cache%', 'UTF-16LE');
     $nextPattern = $currentPattern;
-    $nextPattern['option_id'] = 99;
+    $nextPattern['setting_id'] = 99;
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourcePatternPlan(
         $rows,
         $rows,
@@ -234,7 +234,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroTwo source rowid repla
 
     $t->same(true, $result['sameDecodedPattern']);
     $t->same(true, $result['sameSourcePatternBytes']);
-    $t->same(['rhs-pattern-source-rowid-changed'], $result['rhsPatternInvalidationReasons']);
+    $t->same(['rhs-pattern-source-setting-id-changed'], $result['rhsPatternInvalidationReasons']);
     $t->same(true, $result['cursorInvalidated']);
 };
 
@@ -244,7 +244,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroTwo malformed source p
         $rows,
         $rows,
         $pattern202(91, 'plugin!_cache%', 'UTF-16LE'),
-        ['option_id' => 92, 'option_value_bytes' => "\x00\xd8", 'text_encoding' => 2],
+        ['setting_id' => 92, 'key_value_bytes' => "\x00\xd8", 'text_encoding' => 2],
     ));
 };
 
@@ -254,7 +254,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroTwo rejects malformed 
         $rows,
         $rows,
         $pattern202(91, 'plugin!_cache%', 'UTF-16LE'),
-        ['option_id' => '92', 'option_value_bytes' => 'plugin%', 'text_encoding' => 1],
+        ['setting_id' => '92', 'key_value_bytes' => 'plugin%', 'text_encoding' => 1],
     ));
 };
 

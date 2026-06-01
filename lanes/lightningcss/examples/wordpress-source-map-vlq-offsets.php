@@ -878,6 +878,19 @@ $afterLastGeneratedOnlyExtendedMap->extendWithSourceMap(SourceMap::fromJson(
     '{"version":3,"mappings":"A,KAAA","sources":["wp-content/themes/example/source-map-after-last.scss"],"sourcesContent":[".wp-block-after-last{}"],"names":[]}'
 ));
 
+$beforeFirstInputMap = SourceMap::fromJson(
+    '{"version":3,"mappings":"UAECA,UACCC","sources":["wp-content/themes/example/source-map-before-first.scss"],"sourcesContent":[".wp-block-before{}\n.wp-block-after{}\n"],"names":["before-first-rule","before-second-rule"]}'
+);
+$beforeFirstClosest = $beforeFirstInputMap->findClosestMapping(0, 5);
+$beforeFirstInputMap->offsetColumns(0, 10, 4);
+$beforeFirstOffsetClosest = $beforeFirstInputMap->findClosestMapping(0, 13);
+$beforeFirstOffsetExact = $beforeFirstInputMap->findClosestMapping(0, 14);
+$beforeFirstExtendedMap = new SourceMap();
+$beforeFirstCompiled = $beforeFirstExtendedMap->addSource('wp-content/cache/source-map-before-first.css');
+$beforeFirstExtendedMap->setSourceContent($beforeFirstCompiled, '.wp-block-before{color:red}.wp-block-after{color:blue}');
+$beforeFirstExtendedMap->addMapping(0, 0, $beforeFirstCompiled, 0, 13, 'compiled-before-first');
+$beforeFirstExtendedMap->extendWithSourceMap($beforeFirstInputMap);
+
 $maxUnsignedVlqDecode = SourceMap::decodeVlq('+/////H')[0]['generatedColumn'];
 $shiftedColumnOverflowMap = new SourceMap();
 $shiftedColumnOverflowSource = $shiftedColumnOverflowMap->addSource('wp-content/themes/example/source-map-shifted-column-overflow.css');
@@ -1155,6 +1168,11 @@ $actual = [
     'afterLastGeneratedOnlyOffsetClosest' => $afterLastGeneratedOnlyOffsetClosest,
     'afterLastGeneratedOnlyOffsetExact' => $afterLastGeneratedOnlyOffsetExact,
     'afterLastGeneratedOnlyExtendedMap' => $afterLastGeneratedOnlyExtendedMap->toJson(null, false),
+    'beforeFirstSourceBackedClosest' => $beforeFirstClosest,
+    'beforeFirstSourceBackedOffsetMap' => $beforeFirstInputMap->toJson(null, false),
+    'beforeFirstSourceBackedOffsetClosest' => $beforeFirstOffsetClosest,
+    'beforeFirstSourceBackedOffsetExact' => $beforeFirstOffsetExact,
+    'beforeFirstSourceBackedExtendedMap' => $beforeFirstExtendedMap->toJson(null, false),
     'maxUnsignedVlqDecode' => $maxUnsignedVlqDecode,
     'shiftedColumnOverflowGuard' => $shiftedColumnOverflowGuard && $shiftedColumnOverflowBeforeGuard === $shiftedColumnOverflowMap->toJson(null, false),
     'unsortedColumnOverflowBeforeGuard' => $unsortedColumnOverflowBeforeGuard,
@@ -1307,6 +1325,11 @@ if (($argv[1] ?? null) === '--self-test') {
         'afterLastGeneratedOnlyOffsetClosest' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
         'afterLastGeneratedOnlyOffsetExact' => ['generatedLine' => 0, 'generatedColumn' => 8, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => null],
         'afterLastGeneratedOnlyExtendedMap' => '{"version":3,"mappings":"A","sources":["wp-content/cache/source-map-after-last.css","wp-content/themes/example/source-map-after-last.scss"],"sourcesContent":[".wp-block-after-last{color:red}",".wp-block-after-last{}"],"names":["compiled-after-last"]}',
+        'beforeFirstSourceBackedClosest' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 2, 'originalColumn' => 1, 'nameIndex' => 0],
+        'beforeFirstSourceBackedOffsetMap' => '{"version":3,"mappings":"cAECA,UACCC","sources":["wp-content/themes/example/source-map-before-first.scss"],"sourcesContent":[".wp-block-before{}\\n.wp-block-after{}\\n"],"names":["before-first-rule","before-second-rule"]}',
+        'beforeFirstSourceBackedOffsetClosest' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 2, 'originalColumn' => 1, 'nameIndex' => 0],
+        'beforeFirstSourceBackedOffsetExact' => ['generatedLine' => 0, 'generatedColumn' => 14, 'sourceIndex' => 0, 'originalLine' => 2, 'originalColumn' => 1, 'nameIndex' => 0],
+        'beforeFirstSourceBackedExtendedMap' => '{"version":3,"mappings":"ACECC","sources":["wp-content/cache/source-map-before-first.css","wp-content/themes/example/source-map-before-first.scss"],"sourcesContent":[".wp-block-before{color:red}.wp-block-after{color:blue}",".wp-block-before{}\\n.wp-block-after{}\\n"],"names":["compiled-before-first","before-first-rule","before-second-rule"]}',
         'maxUnsignedVlqDecode' => 4294967295,
         'shiftedColumnOverflowGuard' => true,
         'unsortedColumnOverflowBeforeGuard' => [10, 2],

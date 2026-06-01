@@ -9,17 +9,17 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $encode = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $encode($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $encode($name, $encoding),
     'text_encoding' => $encoding,
 ];
 $pattern = static fn (int $id, string $value, int $encoding): array => [
-    'option_id' => $id,
-    'option_value_bytes' => $encode($value, $encoding),
+    'setting_id' => $id,
+    'key_value_bytes' => $encode($value, $encoding),
     'text_encoding' => $encoding,
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSourcePatternPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourcePatternPlan(
     [
         $row(1, 'Plugin_Cache', 2),
         $row(2, 'plugin_cache_alpha', 3),

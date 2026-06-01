@@ -551,11 +551,11 @@ final class CssBundler
         if ($sourceMapUrl !== null && str_starts_with(strtolower($sourceMapUrl), 'data:')) {
             try {
                 $this->sourceMap->addSourceMap(SourceMap::fromDataUrl($sourceMapUrl, $this->sourceMapProjectRoot), 0, false);
-
-                return;
             } catch (\Throwable) {
-                // Fall back to generated CSS source collection when the inline map is malformed.
+                // Upstream suppresses generated source collection for data: maps even when parsing fails.
             }
+
+            return;
         }
 
         $sourceMapIndex = $this->sourceMap->addSource($file);

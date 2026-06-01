@@ -41,7 +41,7 @@ $responseBytes = $packet("\x02{$progress}\n")
     . $packet("\x01" . $packet("unpack ok\n"))
     . $packet("\x01" . $packet("ok refs/heads/main\n"))
     . $packet("\x01" . $flush)
-    . $flush;
+    . '0001';
 
 $serverRead = fopen('php://temp', 'r+b');
 $clientWrite = fopen('php://temp', 'r+b');
@@ -81,6 +81,7 @@ return [
     'advertisementBytes' => $advertisementBytes,
     'requestBytes' => $requestBytes,
     'responseBytes' => $responseBytes,
+    'responseTerminator' => substr($responseBytes, -4),
     'responseSuccessful' => $response->isSuccessful(),
     'requestPacketLineMaxPayloadLength' => $requestPacketLineMaxPayloadLength,
     'maxRequestCommandPacketHeader' => $maxRequestCommandHeader,

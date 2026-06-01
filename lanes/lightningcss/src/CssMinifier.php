@@ -142,6 +142,7 @@ final class CssMinifier
         $css = $this->composeGridDeclarationBlocks($css);
         $css = $this->composeBorderRadiusDeclarationBlocks($css);
         $css = $this->composeFontDeclarationBlocks($css, $preserveFontTargetFallbacks);
+        $css = $this->minifyFontStretchDeclarations($css);
         $css = $this->composeListStyleDeclarationBlocks($css);
         $css = $this->composeTextEmphasisDeclarationBlocks($css);
         $css = $this->composeTransitionDeclarationBlocks($css);
@@ -2419,6 +2420,74 @@ final class CssMinifier
         return $output;
     }
 
+    private function minifyFontStretchDeclarations(string $css): string
+    {
+        if (stripos($css, 'font-stretch') === false) {
+            return $css;
+        }
+
+        $output = '';
+        $quote = null;
+        $braceDepth = 0;
+        $length = strlen($css);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $css[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '{') {
+                $braceDepth++;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+                $output .= $char;
+                continue;
+            }
+
+            if ($char !== ':' || $braceDepth === 0) {
+                $output .= $char;
+                continue;
+            }
+
+            $property = strtolower($this->currentPropertyCandidate($output));
+            if ($property !== 'font-stretch') {
+                $output .= $char;
+                continue;
+            }
+
+            [$value, $delimiter, $offset] = $this->readDeclarationValue($css, $i + 1);
+            $output .= ':' . $this->minifyFontStretchValue($value);
+            if ($delimiter !== '') {
+                if ($delimiter === '}') {
+                    $braceDepth = max(0, $braceDepth - 1);
+                }
+                $output .= $delimiter;
+            }
+            $i = $offset;
+        }
+
+        return $output;
+    }
+
     private function canonicalizeImplicitNestedSelectors(string $css): string
     {
         return $this->canonicalizeImplicitNestedSelectorsInRuleList($css, false);
@@ -4021,7 +4090,7 @@ final class CssMinifier
             'font' => $this->minifyFontShorthandValue($value),
             'font-family' => $this->minifyFontFamilyList($value),
             'font-style' => $this->minifyFontStyleValue($value),
-            'font-stretch' => $this->minifyFontStretchValue($value),
+            'font-stretch' => $this->minifyFontStretchValue($value, preserveKeywordIdentity: true),
             'font-variant-caps' => strtolower(trim($value)),
             'font-weight' => $this->minifyFontWeightValue($value),
             'src' => $this->minifyFontFaceSrcValue($value),
@@ -4266,34 +4335,45 @@ final class CssMinifier
         return $this->quoteCssString($normalized);
     }
 
-    private function minifyFontStretchValue(string $value): string
+    private function minifyFontStretchValue(
+        string $value,
+        bool $preserveNormalKeyword = false,
+        bool $preserveKeywordIdentity = false
+    ): string
     {
         $parts = $this->splitWhitespaceTopLevel(trim($value));
         if ($parts === [] || count($parts) > 2) {
             return trim($value);
         }
 
-        $normalized = [];
+        $components = [];
         foreach ($parts as $part) {
-            $stretch = $this->minifyFontStretchToken($part);
-            if ($stretch === null) {
+            $component = $this->minifyFontStretchComponent($part, $preserveNormalKeyword, $preserveKeywordIdentity);
+            if ($component === null) {
                 return trim($value);
             }
 
-            $normalized[] = $stretch;
+            $components[] = $component;
         }
 
-        if (count($normalized) === 2 && strcasecmp($normalized[0], $normalized[1]) === 0) {
-            return $normalized[0];
+        if (count($components) === 2 && $components[0]['identity'] === $components[1]['identity']) {
+            return $components[0]['value'];
         }
 
-        return implode(' ', $normalized);
+        return implode(' ', array_column($components, 'value'));
     }
 
-    private function minifyFontStretchToken(string $value): ?string
+    /**
+     * @return array{value:string,identity:string}|null
+     */
+    private function minifyFontStretchComponent(
+        string $value,
+        bool $preserveNormalKeyword = false,
+        bool $preserveKeywordIdentity = false
+    ): ?array
     {
         $stretch = [
-            'normal' => 'normal',
+            'normal' => '100%',
             'ultra-condensed' => '50%',
             'extra-condensed' => '62.5%',
             'condensed' => '75%',
@@ -4306,11 +4386,23 @@ final class CssMinifier
 
         $lower = strtolower(trim($value));
         if (array_key_exists($lower, $stretch)) {
-            return $stretch[$lower];
+            $serialized = $preserveKeywordIdentity || ($preserveNormalKeyword && $lower === 'normal')
+                ? $lower
+                : $stretch[$lower];
+
+            return [
+                'value' => $serialized,
+                'identity' => 'keyword:' . $lower,
+            ];
         }
 
         if (preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)%)$/', $lower) === 1) {
-            return $this->minifyNumericDimensionToken($lower);
+            $percentage = $this->minifyNumericDimensionToken($lower);
+
+            return [
+                'value' => $percentage,
+                'identity' => 'percentage:' . $percentage,
+            ];
         }
 
         return null;
@@ -11153,7 +11245,7 @@ final class CssMinifier
                 'style' => $this->minifyFontStyleValue($entries[$latest['style']]['value']),
                 'variant' => $variant,
                 'weight' => $this->minifyFontWeightValue($entries[$latest['weight']]['value']),
-                'stretch' => $this->minifyFontStretchValue($entries[$latest['stretch']]['value']),
+                'stretch' => $this->minifyFontStretchValue($entries[$latest['stretch']]['value'], preserveNormalKeyword: true),
                 'size' => $this->minifyFontSizeValue($entries[$latest['size']]['value']),
                 'lineHeight' => $this->minifyFontLineHeightValue($entries[$latest['lineHeight']]['value']),
                 'family' => $this->minifyFontFamilyList($entries[$latest['family']]['value']),

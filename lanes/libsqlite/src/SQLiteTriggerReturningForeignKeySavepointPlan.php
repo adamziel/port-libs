@@ -23,7 +23,7 @@ final class SQLiteTriggerReturningForeignKeySavepointPlan
             throw new \InvalidArgumentException('SQLite trigger RETURNING/FK savepoint WHERE callback is required');
         }
         $returning = isset($statement['returning']) ? (array) $statement['returning'] : null;
-        $rowIdColumn = self::identifier((string) ($statement['rowid_column'] ?? 'option_id'), 'rowid column');
+        $rowIdColumn = self::identifier((string) ($statement['rowid_column'] ?? 'setting_id'), 'rowid column');
 
         if ($operation === 'update') {
             $attempt = SQLiteTriggerForeignKeyReturningPlan::updateParents(
@@ -116,8 +116,8 @@ final class SQLiteTriggerReturningForeignKeySavepointPlan
             'yield_suppressed_by_rollback' => $rolledBack && $currentYielded !== [] && $nextYielded === [],
             'current_next_boundary' => $rolledBack ? 'rollback-to-savepoint' : ($plan['foreign_key_violations'] === [] ? 'commit' : 'deferred-commit-blocked'),
             'next_restored_savepoint_image' => $rolledBack && $plan['parent'] === array_values($parents) && $plan['child'] === array_values($children),
-            'current_rowids' => self::rowIds($plan['attempted_parent'], (string) ($statement['rowid_column'] ?? 'option_id')),
-            'next_rowids' => self::rowIds($plan['parent'], (string) ($statement['rowid_column'] ?? 'option_id')),
+            'current_rowids' => self::rowIds($plan['attempted_parent'], (string) ($statement['rowid_column'] ?? 'setting_id')),
+            'next_rowids' => self::rowIds($plan['parent'], (string) ($statement['rowid_column'] ?? 'setting_id')),
         ];
         $out['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],

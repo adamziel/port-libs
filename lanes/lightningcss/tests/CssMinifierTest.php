@@ -1280,6 +1280,7 @@ CSS
             '.foo{font-family:Helvetica,Times New Roman,sans-serif;font-size:12px;font-stretch:125%}',
             $minifier->minify('.foo { font-family: "Helvetica", "Times New Roman", sans-serif; font-size: 12px; font-stretch: expanded; }')
         );
+        $t->same('.foo{font-stretch:100%}', $minifier->minify('.foo { font-stretch: normal; }'));
     },
     'css minifier maps upstream font shorthand composition' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -1294,6 +1295,12 @@ CSS
             '.foo{font:italic 700 125% 12px/1.2em Helvetica,Times New Roman,sans-serif;font-variant-caps:all-small-caps}',
             $minifier->minify(
                 '.foo { font-family: "Helvetica", "Times New Roman", sans-serif; font-size: 12px; font-weight: bold; font-style: italic; font-stretch: expanded; font-variant-caps: all-small-caps; line-height: 1.2em; }'
+            )
+        );
+        $t->same(
+            '.foo{font:italic 700 12px/1.2em Helvetica,Times New Roman,sans-serif}',
+            $minifier->minify(
+                '.foo { font-family: "Helvetica", "Times New Roman", sans-serif; font-size: 12px; font-weight: bold; font-style: italic; font-stretch: normal; line-height: 1.2em; }'
             )
         );
         $t->same(
@@ -1404,6 +1411,11 @@ CSS
         $t->same('@font-face{font-stretch:125%}', $minifier->minify('@font-face {font-stretch: expanded expanded}'));
         $t->same('@font-face{font-stretch:87.5% 125%}', $minifier->minify('@font-face {font-stretch: semi-condensed 125%}'));
         $t->same('@font-face{font-stretch:50% 200%}', $minifier->minify('@font-face {font-stretch: 50.0% ultra-expanded}'));
+        $t->same('@font-face{font-stretch:100%}', $minifier->minify('@font-face {font-stretch: normal}'));
+        $t->same('@font-face{font-stretch:100%}', $minifier->minify('@font-face {font-stretch: normal normal}'));
+        $t->same('@font-face{font-stretch:100% 100%}', $minifier->minify('@font-face {font-stretch: normal 100%}'));
+        $t->same('@font-face{font-stretch:100% 100%}', $minifier->minify('@font-face {font-stretch: 100% normal}'));
+        $t->same('@font-face{font-stretch:125% 125%}', $minifier->minify('@font-face {font-stretch: expanded 125%}'));
         $t->same('@font-face{unicode-range:U+26}', $minifier->minify('@font-face {unicode-range: u+26;}'));
         $t->same('@font-face{unicode-range:U+26}', $minifier->minify('@font-face {unicode-range: U+26;}'));
         $t->same('@font-face{unicode-range:U+0-7F}', $minifier->minify('@font-face {unicode-range: U+0-7F;}'));
@@ -3183,10 +3195,10 @@ CSS;
         );
 
         $invalidFeatureValues = $minifier->minifyWithErrorRecovery(
-            '@layer blocks { @media (hover: 1) { .a { color: yellow; } } @media (min-width: hi) { .b { color: chartreuse; } } }',
+            '@layer blocks { @media (hover: 1) { .a { color: yellow; } } @media (min-width: hi) { .b { color: chartreuse; } } @media (width >= 50%) { .c { color: turquoise; } } @media (width >= max(10%, 20%)) { .d { color: red; } } }',
             'invalid-media-value.css'
         );
-        $t->same('@layer blocks{@media (hover:1){.a{color:#ff0}}@media (width>=hi){.b{color:#7fff00}}}', $invalidFeatureValues['code']);
+        $t->same('@layer blocks{@media (hover:1){.a{color:#ff0}}@media (width>=hi){.b{color:#7fff00}}@media (width>=50%){.c{color:turquoise}}@media (width>=max(10%,20%)){.d{color:red}}}', $invalidFeatureValues['code']);
         $t->same(
             [
                 [
@@ -3198,6 +3210,16 @@ CSS;
                     'message' => 'Invalid media query',
                     'type' => 'InvalidMediaQuery',
                     'loc' => ['filename' => 'invalid-media-value.css', 'line' => 1, 'column' => 67],
+                ],
+                [
+                    'message' => 'Invalid media query',
+                    'type' => 'InvalidMediaQuery',
+                    'loc' => ['filename' => 'invalid-media-value.css', 'line' => 1, 'column' => 120],
+                ],
+                [
+                    'message' => 'Invalid media query',
+                    'type' => 'InvalidMediaQuery',
+                    'loc' => ['filename' => 'invalid-media-value.css', 'line' => 1, 'column' => 171],
                 ],
             ],
             $invalidFeatureValues['warnings']

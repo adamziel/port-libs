@@ -809,6 +809,10 @@ final class MediaQueryParser
             return true;
         }
 
+        if ($type === 'length' && $this->lengthValueContainsPercentage($value)) {
+            return false;
+        }
+
         if (preg_match('/^(?:calc|clamp|max|min|round|rem|mod|hypot|abs)\(/i', $value) === 1) {
             if (preg_match('/^calc\(/i', $value) === 1 && $this->isInvalidSimpleMultiplicativeCalc($value)) {
                 return false;
@@ -839,8 +843,13 @@ final class MediaQueryParser
             'ratio' => preg_match('/^' . $number . '(?:\s*\/\s*' . $number . ')?$/', $value) === 1,
             'unknown' => $this->isValidUnknownRangeValue($value),
             default => preg_match('/^' . $number . '$/', $value) === 1
-                || preg_match('/^' . $number . '(?:[a-zA-Z%]+)$/', $value) === 1,
+                || preg_match('/^' . $number . '(?:[a-zA-Z]+)$/', $value) === 1,
         };
+    }
+
+    private function lengthValueContainsPercentage(string $value): bool
+    {
+        return preg_match('/' . $this->cssNumberPattern() . '%/i', $value) === 1;
     }
 
     private function isValidUnknownRangeValue(string $value): bool
@@ -920,6 +929,12 @@ final class MediaQueryParser
             if ($unitlessMathValue !== null) {
                 return $unitlessMathValue;
             }
+        }
+        if ($type === 'length' && $this->lengthValueContainsPercentage($value)) {
+            $value = $this->minifyFunctionCommas($value);
+            $value = preg_replace('/\s*\/\s*/', '/', $value) ?? $value;
+
+            return $this->minifyNumericValue($value);
         }
         $value = $this->foldSimpleCalc($value);
         $value = $this->foldSimpleMathFunction($value, $type);
@@ -1114,6 +1129,10 @@ final class MediaQueryParser
         }
 
         if ($type === 'ratio' && $unit !== '') {
+            return null;
+        }
+
+        if ($type === 'length' && $unit === '%') {
             return null;
         }
 

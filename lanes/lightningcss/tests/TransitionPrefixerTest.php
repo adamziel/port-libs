@@ -2514,6 +2514,58 @@ CSS;
             $prefixer->prefixForTargets('.foo { place-items: flex-end center; }', $targets)
         );
     },
+    'transition prefixer expands upstream place alignment browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{align-self:center;justify-self:flex-end}',
+            $prefixer->prefixForTargets('.foo { place-self: center flex-end; }', ['chrome' => 58])
+        );
+        $t->same(
+            '.foo{place-self:center flex-end}',
+            $prefixer->prefixForTargets('.foo { place-self: center flex-end; }', ['chrome' => 59])
+        );
+        $t->same(
+            '.foo{align-items:center;justify-items:flex-end}',
+            $prefixer->prefixForTargets('.foo { place-items: center flex-end; }', ['firefox' => 44])
+        );
+        $t->same(
+            '.foo{place-items:center flex-end}',
+            $prefixer->prefixForTargets('.foo { place-items: center flex-end; }', ['firefox' => 45])
+        );
+        $t->same(
+            '.foo{align-self:center;justify-self:flex-end}',
+            $prefixer->prefixForTargets('.foo { place-self: center flex-end; }', ['safari' => 10])
+        );
+        $t->same(
+            '.foo{place-self:center flex-end}',
+            $prefixer->prefixForTargets('.foo { place-self: center flex-end; }', ['safari' => 11])
+        );
+        $t->same(
+            '.foo{-webkit-align-content:center;align-content:center;-webkit-justify-content:space-between;justify-content:space-between}',
+            $prefixer->prefixForTargets('.foo { place-content: center space-between; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{place-content:center space-between}',
+            $prefixer->prefixForTargets('.foo { place-content: center space-between; }', ['safari' => 9])
+        );
+        $t->same(
+            '.foo{align-items:center;justify-items:flex-end}',
+            $prefixer->prefixForTargets('.foo { place-items: center flex-end; }', ['edge' => 78])
+        );
+        $t->same(
+            '.foo{place-items:center flex-end}',
+            $prefixer->prefixForTargets('.foo { place-items: center flex-end; }', ['edge' => 79])
+        );
+        $t->same(
+            '.foo{align-content:center;justify-content:space-between}',
+            $prefixer->prefixForTargets('.foo { place-content: center space-between; }', ['ie' => 11])
+        );
+        $t->same(
+            '.foo{-ms-flex-line-pack:center;-ms-flex-pack:justify;align-content:center;justify-content:space-between}',
+            $prefixer->prefixForTargets('.foo { place-content: center space-between; }', ['ie' => 10])
+        );
+    },
     'transition prefixer maps upstream flex longhand stale prefix removal' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $modernTargets = ['safari' => 11];

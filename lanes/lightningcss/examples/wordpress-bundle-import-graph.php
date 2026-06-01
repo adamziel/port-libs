@@ -173,6 +173,26 @@ if (
 
 echo 'source-map-string-literal: ignored' . PHP_EOL;
 
+$malformedInlineMap = 'data:application/json;base64,not-json';
+$malformedInlineBundle = (new CssBundler())->bundleWithSourceMap('/theme.css', [
+    '/theme.css' => '@import "blocks/bad-generated.css"; @import "blocks/plain.css"; .wp-site-blocks { color: red }',
+    '/blocks/bad-generated.css' => ".wp-block-bad { color: green }\n/*# sourceMappingURL={$malformedInlineMap} */",
+    '/blocks/plain.css' => '.wp-block-plain { color: blue }',
+], null, '/');
+
+if (
+    $malformedInlineBundle['code'] !== '.wp-block-bad{color:green}.wp-block-plain{color:#00f}.wp-site-blocks{color:red}'
+    || $malformedInlineBundle['sourceMap']->toArray(null, false)['sources'] !== [
+        'theme.css',
+        'blocks/plain.css',
+    ]
+) {
+    fwrite(STDERR, "Expected malformed inline input source map to suppress generated block CSS source collection\n");
+    exit(1);
+}
+
+echo 'source-map-input-malformed: suppressed' . PHP_EOL;
+
 $resolverTrace = [];
 $resolverRejected = false;
 try {
