@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 11:51:55 UTC",
-    "sourceCommit": "2c7ce5ce3df481c96b97b69a99847427fc687aac",
-    "sourceCommitShort": "2c7ce5ce3df4",
-    "sourceBranch": "main",
-    "dashboardCommit": "2c7ce5ce3df481c96b97b69a99847427fc687aac",
-    "dashboardCommitShort": "2c7ce5ce3df4",
+    "generated": "2026-06-01 12:00:23 UTC",
+    "sourceCommit": "442a718297b4e2f2d41d02b44a9130a87421f726",
+    "sourceCommitShort": "442a718297b4",
+    "sourceBranch": "unknown",
+    "dashboardCommit": "442a718297b4e2f2d41d02b44a9130a87421f726",
+    "dashboardCommitShort": "442a718297b4",
     "averageProgressPercent": "88.7",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "5,879,927 pass / 7 fail",
+            "php": "5,887,952 pass / 7 fail",
             "phase": "focused source integration accepted; broad full-lane/release parity r...",
-            "audit": "2026-06-01 supervisor batch: focused libsqlite/domain gate passed 6 f...",
-            "currentWork": "Numeric-underscore literal corpus coverage and source-neutral option/default cleanup...",
+            "audit": "2026-06-01 supervisor batch: focused libsqlite/domain gate passed 5 f...",
+            "currentWork": "expr.test implies_nonnull_row expression-affinity coverage, selectC compound-derived...",
             "nextTarget": "Prioritize fixing the broad full-lane memory exhaustion in SQ...",
             "remainingGate": "Broad release/all still has 7 known failures",
-            "commit": "2c7ce5c"
+            "commit": "442a718"
         },
         {
             "lane": "lightningcss",
@@ -45,13 +45,13 @@
             "coverage": "2,374 / 3,532 (67.2%)",
             "mapPercent": "67.2%",
             "unmapped": "1,158",
-            "php": "7,667 pass / 0 fail",
+            "php": "7,677 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
             "audit": "2026-06-01 supervisor batch: full LightningCSS PHP lane passed 13 fil...",
-            "currentWork": "Source-map VLQ offsets, bundle/import malformed inline source-map suppression, font-s...",
+            "currentWork": "CSS Modules :lang()/:dir() local/global compose parity integrated on current base.",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, bundle...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "2c7ce5c"
+            "commit": "442a718"
         },
         {
             "lane": "gitoxide",
@@ -68,13 +68,13 @@
             "coverage": "1,789 / 2,886 (62.0%)",
             "mapPercent": "62.0%",
             "unmapped": "1,097",
-            "php": "9,111 pass / 0 fail",
+            "php": "9,149 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
             "audit": "2026-06-01 supervisor batch: full Gitoxide PHP lane passed 40 files /...",
-            "currentWork": "Stream receive-pack delimiter-terminator parity integrated on current base, alongside...",
+            "currentWork": "Receive-pack same-port scheme-upgrade redirect parity and smart-HTTP no-slash cookie-...",
             "nextTarget": "Keep Gitoxide workers on current-base non-overlapping sparse-...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "2c7ce5c"
+            "commit": "442a718"
         },
         {
             "lane": "readability",
