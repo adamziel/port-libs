@@ -33,6 +33,10 @@ $missingExpectedResponse = PushResponse::fromReportStatusPacketLines($fixture['m
     ->forExpectedRefNames(['refs/heads/main']);
 $unpackOnlyExpectedResponse = PushResponse::fromReportStatusPacketLines($fixture['unpackOnlyResponse'])
     ->forExpectedRefNames($fixture['unpackOnlyExpectedRefs']);
+$malformedUnknownStatusResponse = PushResponse::fromReportStatusPacketLinesForExpectedRefNames(
+    $fixture['malformedUnknownStatusResponse'],
+    $fixture['malformedUnknownStatusExpectedRefs']
+)->forExpectedRefNames($fixture['malformedUnknownStatusExpectedRefs']);
 $unpackOnlyExpectedRefsRejected = !$unpackOnlyExpectedResponse->isSuccessful();
 foreach ($unpackOnlyExpectedResponse->refStatuses() as $status) {
     if (!$status->isRejected() || $status->message !== 'remote failed to report status') {
@@ -73,6 +77,15 @@ try {
     PushResponse::fromReportStatusPacketLines($fixture['emptyPacketLineResponse']);
 } catch (InvalidArgumentException $error) {
     $emptyPacketLineRejected = str_contains($error->getMessage(), 'invalid empty packet line');
+}
+$malformedUnknownOptionRejected = false;
+try {
+    PushResponse::fromReportStatusPacketLinesForExpectedRefNames(
+        $fixture['malformedUnknownOptionResponse'],
+        $fixture['malformedUnknownStatusExpectedRefs']
+    );
+} catch (InvalidArgumentException $error) {
+    $malformedUnknownOptionRejected = str_contains($error->getMessage(), 'option appeared before a ref status');
 }
 $unrequestedOptionRejected = false;
 try {
@@ -243,6 +256,14 @@ return [
         ],
         $unpackOnlyExpectedResponse->refStatuses()
     ),
+    'malformedUnknownStatusRefs' => array_map(
+        static fn (PushRefStatus $status): array => [
+            'requestedRef' => $status->refName,
+            'status' => $status->status,
+            'message' => $status->message,
+        ],
+        $malformedUnknownStatusResponse->refStatuses()
+    ),
     'progressMessages' => $response->progressMessages(),
     'errorMessages' => $response->errorMessages(),
     'oversizedReportStatusRejected' => $oversizedReportStatusRejected,
@@ -307,6 +328,11 @@ return [
     'missingExpectedStatusRejected' => !$missingExpectedResponse->isSuccessful()
         && $missingExpectedResponse->rejectedRefs()[0]->message === 'remote failed to report status',
     'unpackOnlyExpectedRefsRejected' => $unpackOnlyExpectedRefsRejected,
+    'malformedUnknownStatusIgnored' => $malformedUnknownStatusResponse->isSuccessful()
+        && count($malformedUnknownStatusResponse->refStatuses()) === 1
+        && $malformedUnknownStatusResponse->refStatuses()[0]->refName === 'refs/heads/main'
+        && $malformedUnknownStatusResponse->refStatuses()[0]->message === 'deployed by hook',
+    'malformedUnknownOptionRejected' => $malformedUnknownOptionRejected,
     'carriageReturnStatusRejected' => $carriageReturnStatusRejected,
     'emptyPacketLineRejected' => $emptyPacketLineRejected,
     'unrequestedOptionRejected' => $unrequestedOptionRejected,

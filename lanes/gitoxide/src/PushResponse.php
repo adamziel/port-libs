@@ -23,10 +23,34 @@ final class PushResponse
 
     public static function fromReportStatusPacketLines(string $bytes, string $objectFormat = 'any'): self
     {
-        return self::parseReportStatus($bytes, [], [], $objectFormat);
+        return self::parseReportStatus($bytes, [], [], $objectFormat, null);
+    }
+
+    /**
+     * @param list<string> $expectedRefNames
+     */
+    public static function fromReportStatusPacketLinesForExpectedRefNames(string $bytes, array $expectedRefNames, string $objectFormat = 'any'): self
+    {
+        return self::parseReportStatus($bytes, [], [], $objectFormat, self::expectedRefLookup($expectedRefNames));
     }
 
     public static function fromSidebandPacketLines(string $bytes, string $objectFormat = 'any'): self
+    {
+        return self::parseSidebandPacketLines($bytes, $objectFormat, null);
+    }
+
+    /**
+     * @param list<string> $expectedRefNames
+     */
+    public static function fromSidebandPacketLinesForExpectedRefNames(string $bytes, array $expectedRefNames, string $objectFormat = 'any'): self
+    {
+        return self::parseSidebandPacketLines($bytes, $objectFormat, self::expectedRefLookup($expectedRefNames));
+    }
+
+    /**
+     * @param array<string, true>|null $expectedRefLookup
+     */
+    private static function parseSidebandPacketLines(string $bytes, string $objectFormat, ?array $expectedRefLookup): self
     {
         $offset = 0;
         $statusBytes = '';
@@ -77,7 +101,7 @@ final class PushResponse
             throw new \RuntimeException('push response: sideband error ' . implode("\n", $errorMessages));
         }
 
-        return self::parseReportStatus($statusBytes, $progressMessages, $errorMessages, $objectFormat);
+        return self::parseReportStatus($statusBytes, $progressMessages, $errorMessages, $objectFormat, $expectedRefLookup);
     }
 
     public function unpackStatus(): string
@@ -239,13 +263,15 @@ final class PushResponse
     /**
      * @param list<string> $progressMessages
      * @param list<string> $errorMessages
+     * @param array<string, true>|null $expectedRefLookup
      */
-    private static function parseReportStatus(string $bytes, array $progressMessages, array $errorMessages, string $objectFormat): self
+    private static function parseReportStatus(string $bytes, array $progressMessages, array $errorMessages, string $objectFormat, ?array $expectedRefLookup): self
     {
         $offset = 0;
         $unpackStatus = null;
         $refStatuses = [];
         $sawFlush = false;
+        $optionAllowed = false;
 
         while (true) {
             $packet = self::readPacket($bytes, $offset);
@@ -272,7 +298,7 @@ final class PushResponse
                 continue;
             }
 
-            self::parseStatusLine($line, $refStatuses, $objectFormat);
+            self::parseStatusLine($line, $refStatuses, $objectFormat, $expectedRefLookup, $optionAllowed);
         }
 
         if (!$sawFlush) {
@@ -287,25 +313,35 @@ final class PushResponse
 
     /**
      * @param list<PushRefStatus> $refStatuses
+     * @param array<string, true>|null $expectedRefLookup
      */
-    private static function parseStatusLine(string $line, array &$refStatuses, string $objectFormat): void
+    private static function parseStatusLine(string $line, array &$refStatuses, string $objectFormat, ?array $expectedRefLookup, bool &$optionAllowed): void
     {
         if (str_starts_with($line, 'ok ')) {
             [$refName, $message] = self::splitRefStatusPayload(substr($line, 3));
+            $optionAllowed = false;
+            if ($expectedRefLookup !== null && !isset($expectedRefLookup[$refName])) {
+                return;
+            }
             $refStatuses[] = PushRefStatus::ok($refName, $message);
+            $optionAllowed = true;
 
             return;
         }
 
         if (str_starts_with($line, 'ng ')) {
             [$refName, $message] = self::splitRefStatusPayload(substr($line, 3));
+            $optionAllowed = false;
+            if ($expectedRefLookup !== null && !isset($expectedRefLookup[$refName])) {
+                return;
+            }
             $refStatuses[] = PushRefStatus::rejected($refName, $message ?? 'failed');
 
             return;
         }
 
         if (str_starts_with($line, 'option ')) {
-            if ($refStatuses === []) {
+            if (!$optionAllowed || $refStatuses === []) {
                 throw new \InvalidArgumentException('push response: report-status-v2 option appeared before a ref status');
             }
 
@@ -322,6 +358,24 @@ final class PushResponse
         }
 
         throw new \InvalidArgumentException("push response: unknown report-status line {$line}");
+    }
+
+    /**
+     * @param list<string> $expectedRefNames
+     * @return array<string, true>
+     */
+    private static function expectedRefLookup(array $expectedRefNames): array
+    {
+        $lookup = [];
+        foreach ($expectedRefNames as $refName) {
+            if (!is_string($refName)) {
+                throw new \InvalidArgumentException('push response: expected ref names must be strings');
+            }
+            ReferenceName::assertValid($refName);
+            $lookup[$refName] = true;
+        }
+
+        return $lookup;
     }
 
     /**

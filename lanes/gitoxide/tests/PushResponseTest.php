@@ -711,6 +711,54 @@ return [
             . $flush
         ));
     },
+    'ignores malformed unrequested receive-status refs in expected-ref mode like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
+        $direct = PushResponse::fromReportStatusPacketLinesForExpectedRefNames(
+            $packet("unpack ok\n")
+            . $packet("ok refs/heads/ghost\r\n")
+            . $packet("ng \n")
+            . $packet("ok refs/heads/main deployed by hook\n")
+            . $flush,
+            ['refs/heads/main']
+        )->forExpectedRefNames(['refs/heads/main']);
+        $sideband = PushResponse::fromSidebandPacketLinesForExpectedRefNames(
+            $packet("\x02remote: ignored malformed unrequested status\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/ghost\r\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main deployed by hook\n"))
+            . $packet("\x01" . $flush)
+            . $flush,
+            ['refs/heads/main']
+        )->forExpectedRefNames(['refs/heads/main']);
+        $missing = PushResponse::fromReportStatusPacketLinesForExpectedRefNames(
+            $packet("unpack ok\n")
+            . $packet("ok \n")
+            . $flush,
+            ['refs/heads/main']
+        )->forExpectedRefNames(['refs/heads/main']);
+
+        $t->same(true, $direct->isSuccessful());
+        $t->same(1, count($direct->refStatuses()));
+        $t->same('refs/heads/main', $direct->refStatuses()[0]->refName);
+        $t->same('deployed by hook', $direct->refStatuses()[0]->message);
+        $t->same(true, $sideband->isSuccessful());
+        $t->same(['remote: ignored malformed unrequested status'], $sideband->progressMessages());
+        $t->same('refs/heads/main', $sideband->refStatuses()[0]->refName);
+        $t->same(false, $missing->isSuccessful());
+        $t->same('remote failed to report status', $missing->rejectedRefs()[0]->message);
+        $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLinesForExpectedRefNames(
+            $packet("unpack ok\n")
+            . $packet("ok refs/heads/ghost\r\n")
+            . $packet("option refname refs/heads/other\n")
+            . $flush,
+            ['refs/heads/main']
+        ));
+        $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/heads/ghost\r\n")
+            . $packet("ok refs/heads/main deployed by hook\n")
+            . $flush
+        ));
+    },
     'parses upstream-shaped sideband push response' => static function (TestRunner $t) use ($packet, $flush): void {
         $advisory = "\nGitHub found 1 vulnerability on the-lean-crate/criner's default branch (1 high). To find out more, visit:\n"
             . "     https://github.com/the-lean-crate/criner/security/dependabot/1\n\n";
@@ -1012,6 +1060,12 @@ return [
             $summary['unpackOnlyExpectedRefs']
         ));
         $t->same(true, $summary['unpackOnlyExpectedRefsRejected']);
+        $t->same($fixture['malformedUnknownStatusExpectedRefs'], array_map(
+            static fn (array $status): string => $status['requestedRef'],
+            $summary['malformedUnknownStatusRefs']
+        ));
+        $t->same(true, $summary['malformedUnknownStatusIgnored']);
+        $t->same(true, $summary['malformedUnknownOptionRejected']);
         $t->same(true, $summary['fatalAfterStatusRejected']);
         $t->same(true, $summary['emptyErrorSidebandAccepted']);
         $t->same(true, $summary['emptyProgressSidebandIgnored']);

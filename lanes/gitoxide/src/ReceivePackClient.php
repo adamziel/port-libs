@@ -37,9 +37,13 @@ final class ReceivePackClient
         $responseBytes = $this->transport->readResponse();
 
         $objectFormat = self::objectFormatFromFeatures($features);
+        $expectedRefNames = array_map(
+            static fn (PushUpdate $update): string => $update->refName,
+            $request->command()->updates()
+        );
         $response = self::hasFeature($features, 'side-band') || self::hasFeature($features, 'side-band-64k')
-            ? PushResponse::fromSidebandPacketLines($responseBytes, $objectFormat)
-            : PushResponse::fromReportStatusPacketLines($responseBytes, $objectFormat);
+            ? PushResponse::fromSidebandPacketLinesForExpectedRefNames($responseBytes, $expectedRefNames, $objectFormat)
+            : PushResponse::fromReportStatusPacketLinesForExpectedRefNames($responseBytes, $expectedRefNames, $objectFormat);
 
         return $response->forExpectedUpdates($request->command()->updates());
     }

@@ -1423,6 +1423,167 @@ final class SQLiteUpstreamTriggerFkeyDynamicPlan
     }
 
     /** @return array<string,mixed> */
+    public static function lastStatementChangesTriggerFrames(int $variantCount = 250): array
+    {
+        if ($variantCount < 1 || $variantCount > 2000) {
+            throw new \InvalidArgumentException('SQLite laststmtchanges trigger corpus variant count is out of range');
+        }
+
+        $cases = [];
+        foreach (range(1, $variantCount) as $variant) {
+            $cases[] = self::lastStatementChangesSingleCase(
+                'laststmtchanges-2.1..2.4',
+                $variant,
+                'after-insert-table',
+                'AFTER',
+                'INSERT',
+                3,
+                5,
+                1,
+                8
+            );
+            $cases[] = self::lastStatementChangesSingleCase(
+                'laststmtchanges-3.1..3.3',
+                $variant,
+                'after-update-table',
+                'AFTER',
+                'UPDATE',
+                0,
+                2,
+                1,
+                null
+            );
+            $cases[] = self::lastStatementChangesSingleCase(
+                'laststmtchanges-4.1..4.3',
+                $variant,
+                'before-delete-table',
+                'BEFORE',
+                'DELETE',
+                0,
+                1,
+                1,
+                null
+            );
+
+            $viewInput = 5 + $variant;
+            $cases[] = [
+                'case' => 'laststmtchanges-5.1..5.5',
+                'variant' => $variant,
+                'source' => 'laststmtchanges.test',
+                'kind' => 'nested-instead-of-view-changes-frame',
+                'operation' => 'nested-temp-view-trigger-changes',
+                'outer_statement' => 'INSERT INTO v1 VALUES(?)',
+                'outer_view_input' => $viewInput,
+                'post_statement_changes' => 0,
+                'outer_view_dml_changes_connection_changes' => false,
+                'r1_changes_log' => [0, 5, 1, 0],
+                'r2_changes_log' => [0, 1, 0, 3],
+                'r1_entry_changes' => 0,
+                'r1_update_t0_changes' => 5,
+                'r1_insert_t1_changes' => 1,
+                'r1_zero_update_changes' => 0,
+                'r2_entry_changes' => 0,
+                'r2_insert_t2_changes' => 1,
+                'r2_zero_update_changes' => 0,
+                'r2_delete_t0_changes' => 3,
+                'inner_trigger_changes_restored_to_outer_trigger_frame' => true,
+                'outer_trigger_changes_restored_to_connection_frame' => true,
+                'dependencies' => [
+                    'sqlite-upstream-laststmtchanges-nested-instead-of-trigger-entry-changes',
+                    'sqlite-upstream-laststmtchanges-trigger-inner-dml-updates-trigger-frame',
+                    'sqlite-upstream-laststmtchanges-view-dml-does-not-change-connection-changes',
+                    'sqlite-upstream-laststmtchanges-nested-trigger-exit-restores-caller-frame',
+                ],
+            ];
+
+            $deletedRows = 2 + ($variant % 4);
+            $totalBefore = 10000 + $variant;
+            $cases[] = [
+                'case' => 'laststmtchanges-6.2..6.6',
+                'variant' => $variant,
+                'source' => 'laststmtchanges.test',
+                'kind' => 'triggerless-delete-changes-frame',
+                'operation' => 'delete-without-trigger-reports-deleted-row-count',
+                'table_rows_before_delete' => $deletedRows,
+                'delete_all_changes' => $deletedRows,
+                'delete_where_changes' => $deletedRows,
+                'indexed_delete_changes' => $deletedRows,
+                'rollback_preserves_prior_total_changes' => true,
+                'total_changes_before_final_delete' => $totalBefore,
+                'total_changes_after_final_delete' => $totalBefore + $deletedRows,
+                'fast_delete_path_reports_rows_even_without_triggers' => true,
+                'dependencies' => [
+                    'sqlite-upstream-laststmtchanges-delete-without-trigger-reports-row-count',
+                    'sqlite-upstream-laststmtchanges-indexed-delete-reports-row-count',
+                    'sqlite-upstream-laststmtchanges-total-changes-advances-after-delete',
+                ],
+            ];
+        }
+
+        return [
+            'source' => 'laststmtchanges.test',
+            'scenarios' => [
+                'laststmtchanges-2.1..2.4',
+                'laststmtchanges-3.1..3.3',
+                'laststmtchanges-4.1..4.3',
+                'laststmtchanges-5.1..5.5',
+                'laststmtchanges-6.2..6.6',
+            ],
+            'variant_count' => $variantCount,
+            'case_count' => count($cases),
+            'cases' => $cases,
+            'dependencies' => [
+                'sqlite-upstream-laststmtchanges-trigger-entry-uses-current-frame-changes',
+                'sqlite-upstream-laststmtchanges-trigger-inner-dml-updates-trigger-frame',
+                'sqlite-upstream-laststmtchanges-trigger-exit-restores-caller-frame-changes',
+                'sqlite-upstream-laststmtchanges-view-dml-does-not-change-connection-changes',
+                'sqlite-upstream-laststmtchanges-delete-without-trigger-reports-row-count',
+            ],
+        ];
+    }
+
+    /** @return array<string,mixed> */
+    private static function lastStatementChangesSingleCase(
+        string $case,
+        int $variant,
+        string $operation,
+        string $timing,
+        string $event,
+        int $entryChanges,
+        int $innerDmlChanges,
+        int $postStatementChanges,
+        ?int $totalDelta
+    ): array {
+        return [
+            'case' => $case,
+            'variant' => $variant,
+            'source' => 'laststmtchanges.test',
+            'kind' => 'single-trigger-changes-frame',
+            'operation' => $operation,
+            'trigger_timing' => $timing,
+            'trigger_event' => $event,
+            'trigger_entry_changes' => $entryChanges,
+            'trigger_insert_row_changes' => 1,
+            'trigger_inner_dml_changes' => $innerDmlChanges,
+            'trigger_second_update_changes' => 1,
+            'trigger_table_row' => [
+                'v1' => $entryChanges,
+                'v2' => $innerDmlChanges,
+            ],
+            'post_statement_changes' => $postStatementChanges,
+            'outer_statement_changes_include_trigger_body' => false,
+            'trigger_inner_dml_visible_inside_trigger' => true,
+            'trigger_exit_restores_statement_changes' => true,
+            'total_changes_delta' => $totalDelta,
+            'dependencies' => [
+                'sqlite-upstream-laststmtchanges-trigger-entry-uses-current-frame-changes',
+                'sqlite-upstream-laststmtchanges-trigger-inner-dml-updates-trigger-frame',
+                'sqlite-upstream-laststmtchanges-trigger-exit-restores-caller-frame-changes',
+            ],
+        ];
+    }
+
+    /** @return array<string,mixed> */
     private static function lastInsertRowidSimpleCase(
         string $case,
         int $variant,

@@ -241,6 +241,18 @@ return [
     ],
     'unpackOnlyResponse' => $packet("unpack ok\n")
         . $flush,
+    'malformedUnknownStatusExpectedRefs' => [
+        'refs/heads/main',
+    ],
+    'malformedUnknownStatusResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/heads/ghost\r\n")
+        . $packet("ng \n")
+        . $packet("ok refs/heads/main deployed by hook\n")
+        . $flush,
+    'malformedUnknownOptionResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/heads/ghost\r\n")
+        . $packet("option refname refs/heads/other\n")
+        . $flush,
     'unrequestedOptionResponse' => $packet("unpack ok\n")
         . $packet("ok refs/heads/main\n")
         . $packet("ok refs/heads/ghost ignored by send-pack\n")

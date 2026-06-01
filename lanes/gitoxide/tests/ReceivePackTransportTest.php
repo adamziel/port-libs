@@ -564,6 +564,50 @@ return [
         $t->same('refs/heads/main', $response->rejectedRefs()[0]->refName);
         $t->same(['remote: accepted pack without ref report'], $response->progressMessages());
     },
+    'receive-pack client ignores malformed unrequested status refs before matched refs' => static function (TestRunner $t) use ($packet, $flush, $streamWith): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress malformed unrequested status payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status-v2 side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x02remote: skipped malformed status for an unrelated ref\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/ghost\r\n"))
+            . $packet("\x01" . $packet("ng \n"))
+            . $packet("\x01" . $packet("ok refs/heads/main deployed by hook\n"))
+            . $packet("\x01" . $packet("option forced-update\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $client = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($advertisement . $responseBytes), $streamWith('')),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+
+        $response = $client->send($session->buildRequest([$blob]));
+
+        $t->same(true, $response->isSuccessful());
+        $t->same(['remote: skipped malformed status for an unrelated ref'], $response->progressMessages());
+        $t->same(1, count($response->refStatuses()));
+        $t->same('refs/heads/main', $response->refStatuses()[0]->refName);
+        $t->same('deployed by hook', $response->refStatuses()[0]->message);
+        $t->same($old, $response->refStatuses()[0]->oldObject);
+        $t->same($blob->oid(), $response->refStatuses()[0]->newObject);
+        $t->same(true, $response->refStatuses()[0]->forcedUpdate);
+
+        $rejectedResponseBytes = $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/ghost\r\n"))
+            . $packet("\x01" . $packet("option refname refs/heads/other\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $rejectedClient = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($advertisement . $rejectedResponseBytes), $streamWith('')),
+            'port-libs/0.1'
+        );
+        $rejectedSession = $rejectedClient->handshake();
+        $rejectedSession->createOrUpdate('refs/heads/main', $blob->oid());
+
+        $t->throws(InvalidArgumentException::class, static fn () => $rejectedClient->send($rejectedSession->buildRequest([$blob])));
+    },
     'receive-pack client rejects options after unrequested status refs like send-pack' => static function (TestRunner $t) use ($packet, $flush, $streamWith): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
         $blob = new GitObject('blob', 'WordPress unexpected status option payload');
