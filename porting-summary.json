@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 21:14:53 UTC",
-    "sourceCommit": "c3bf2f17bba490ea2ed3f2ad50e91fffd3b01d67",
-    "sourceCommitShort": "c3bf2f17bba4",
+    "generated": "2026-06-01 21:22:20 UTC",
+    "sourceCommit": "bf547105ededeb13ffb9d8448c7fab3c3fa15013",
+    "sourceCommitShort": "bf547105eded",
     "sourceBranch": "unknown",
-    "dashboardCommit": "c3bf2f17bba490ea2ed3f2ad50e91fffd3b01d67",
-    "dashboardCommitShort": "c3bf2f17bba4",
+    "dashboardCommit": "bf547105ededeb13ffb9d8448c7fab3c3fa15013",
+    "dashboardCommitShort": "bf547105eded",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -45,13 +45,13 @@
             "coverage": "2,439 / 3,532 (69.1%)",
             "mapPercent": "69.1%",
             "unmapped": "1,093",
-            "php": "9,084 pass / 0 fail",
+            "php": "9,100 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 20:40 UTC supervisor integration: source commit 120fe14c5a...",
-            "currentWork": "Source-map skipped VLQ state, media range/layer stylesheet paths, legacy text support...",
-            "nextTarget": "Keep LightningCSS workers on current-base source maps, bundle...",
+            "audit": "2026-06-01 isolated worker on base 4891303774c9ca404591d2f3a4d35bc9e1...",
+            "currentWork": "Mixed all/not-all media-list range lowering inside layered @media blocks and layered...",
+            "nextTarget": "Keep LightningCSS workers on current-base bundle/import graph...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "120fe14"
+            "commit": "ccff9e0"
         },
         {
             "lane": "gitoxide",
