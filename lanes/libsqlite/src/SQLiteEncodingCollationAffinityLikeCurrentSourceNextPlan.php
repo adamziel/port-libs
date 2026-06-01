@@ -781,7 +781,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
     public static function keyValueRowValueEscapePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_%!%%',
+        string $pattern = 'module!_%!%%',
         ?string $escape = '!',
         string $collation = 'NOCASE',
         bool $caseSensitiveLike = false,
@@ -1863,7 +1863,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
     public static function applicationEmbeddedNulLikePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = "plugin\0cache!_%",
+        string $pattern = "module\0cache!_%",
         ?string $escape = '!',
         bool $caseSensitiveLike = false,
         string $currentSource = 'main.app_settings@241',
@@ -2642,7 +2642,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
     public static function applicationDanglingEscapeLikePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache!',
+        string $pattern = 'module!_cache!',
         ?string $escape = '!',
         bool $caseSensitiveLike = false,
         string $currentSource = 'main.app_settings@244',
@@ -3587,7 +3587,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
     public static function applicationNonAsciiEscapeLikePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'pluginé_cacheé%%',
+        string $pattern = 'moduleé_cacheé%%',
         ?string $escape = 'é',
         bool $caseSensitiveLike = false,
         string $currentSource = 'main.app_settings@247',
@@ -3927,7 +3927,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
     public static function applicationRtrimLikeSourcePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache',
+        string $pattern = 'module!_cache',
         ?string $escape = '!',
         string $currentSource = 'main.app_settings@248',
         string $nextSource = 'main.app_settings@249',
@@ -5126,7 +5126,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
     public static function applicationNullableEscapeLikePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_%',
+        string $pattern = 'module!_%',
         mixed $currentEscape = null,
         bool $currentEscapeIsExplicit = true,
         mixed $nextEscape = '!',
@@ -6376,7 +6376,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
     public static function applicationCaseSensitiveLikeTransitionPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'PLUGIN!_%',
+        string $pattern = 'MODULE!_%',
         ?string $escape = '!',
         bool $currentCaseSensitiveLike = false,
         bool $nextCaseSensitiveLike = true,
@@ -6386,8 +6386,9 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
         int $nextSchemaCookie = 258,
     ): array {
         $patternPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
-        $current = self::nextTwoFiveEight_scanRows($currentRows, $pattern, $escape, $currentCaseSensitiveLike);
-        $next = self::nextTwoFiveEight_scanRows($nextRows, $pattern, $escape, $nextCaseSensitiveLike);
+        $globProbe = $patternPlan['prefix'] === '' ? '*' : $patternPlan['prefix'] . '*';
+        $current = self::nextTwoFiveEight_scanRows($currentRows, $pattern, $escape, $currentCaseSensitiveLike, $globProbe);
+        $next = self::nextTwoFiveEight_scanRows($nextRows, $pattern, $escape, $nextCaseSensitiveLike, $globProbe);
         $currentMatched = self::nextTwoFiveEight_rowids($current['matched']);
         $nextMatched = self::nextTwoFiveEight_rowids($next['matched']);
         $retained = array_values(array_intersect($currentMatched, $nextMatched));
@@ -6506,7 +6507,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array{decisions:list<array<string,mixed>>,matched:list<array<string,mixed>>,globMatched:list<array<string,mixed>>,unknownRowids:list<int>}
      */
-    private static function nextTwoFiveEight_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike): array
+    private static function nextTwoFiveEight_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike, string $globProbe): array
     {
         $decisions = [];
         $matched = [];
@@ -6535,7 +6536,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
             if ($like) {
                 $matched[] = $decision;
             }
-            if (SQLiteDatabase::globMatches($value['text'], 'PLUGIN_*')) {
+            if (SQLiteDatabase::globMatches($value['text'], $globProbe)) {
                 $globMatched[] = $decision;
             }
         }
@@ -6623,7 +6624,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
     public static function applicationBinaryCollationDefaultLikePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'Plugin%',
+        string $pattern = 'Module%',
         ?string $escape = null,
         bool $caseSensitiveLike = false,
         string $currentSource = 'main.app_settings@258',
@@ -6977,7 +6978,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
     public static function applicationRtrimCollationLikeResidualPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin_cache',
+        string $pattern = 'module_cache',
         ?string $escape = null,
         string $currentSource = 'main.app_settings@259',
         string $nextSource = 'main.app_settings@260',

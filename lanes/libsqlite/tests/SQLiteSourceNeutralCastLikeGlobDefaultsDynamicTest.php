@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteCastLikeGlobAffinityCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteCastNocaseCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteCastRtrimLikeCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteMalformedLikeGlobSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteNocaseGlobAffinityCurrentSourceNextPlan;
@@ -62,6 +63,21 @@ $termMatches = static function (array $files) use ($legacyTerms, $relativePath):
     }
 
     return $matches;
+};
+
+$methodSource = static function (string $class, string $method): string {
+    $reflection = new ReflectionMethod($class, $method);
+    $file = $reflection->getFileName();
+    if (!is_string($file)) {
+        throw new RuntimeException("Unable to locate {$class}::{$method}");
+    }
+
+    $lines = file($file);
+    if ($lines === false) {
+        throw new RuntimeException("Unable to read {$file}");
+    }
+
+    return implode('', array_slice($lines, $reflection->getStartLine() - 1, $reflection->getEndLine() - $reflection->getStartLine() + 1));
 };
 
 $tests = [];
@@ -127,6 +143,34 @@ $tests['source-neutral cast like glob default source names use app settings'] = 
     $t->same('main.app_settings@139', $plans[4]['nextSource']);
     $t->same('current', $plans[5]['currentSource']);
     $t->same('next', $plans[5]['nextSource']);
+};
+
+$tests['source-neutral encoding rtrim like residual default uses module key pattern'] = static function (TestRunner $t) use ($methodSource): void {
+    $source = $methodSource(SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::class, 'applicationRtrimCollationLikeResidualPlan');
+
+    $t->same(false, str_contains($source, 'plugin' . '_'));
+
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimCollationLikeResidualPlan(
+        [
+            ['setting_id' => 1, 'key_name' => 'module_cache'],
+            ['setting_id' => 2, 'key_name' => 'moduleacache'],
+            ['setting_id' => 3, 'key_name' => 'module_cache '],
+        ],
+        [
+            ['setting_id' => 1, 'key_name' => 'module_cache'],
+            ['setting_id' => 2, 'key_name' => 'moduleacache'],
+        ],
+        currentSource: 'same',
+        nextSource: 'same',
+        currentSchemaCookie: 1,
+        nextSchemaCookie: 1,
+    );
+
+    $t->same('module_cache', $plan['pattern']);
+    $t->same('6D6F64756C65', $plan['prefixHex']);
+    $t->same([1, 3, 2], $plan['currentCandidateRowids']);
+    $t->same([1, 2], $plan['currentMatchedRowids']);
+    $t->same([3], $plan['currentResidualRejectedRowids']);
 };
 
 $tests['source-neutral cast like glob direct SQL fixtures use app settings table'] = static function (TestRunner $t) use ($ownedFixtureFiles): void {

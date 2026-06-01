@@ -8,22 +8,22 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $current = [
-    ['setting_id' => 1, 'key_name' => 'plugin_cache'],
-    ['setting_id' => 2, 'key_name' => 'PLUGIN_cache'],
-    ['setting_id' => 3, 'key_name' => 'Plugin_Cache'],
-    ['setting_id' => 4, 'key_name' => 'plugin_%literal'],
-    ['setting_id' => 5, 'key_name' => 'PLUGIN_%literal'],
+    ['setting_id' => 1, 'key_name' => 'module_cache'],
+    ['setting_id' => 2, 'key_name' => 'MODULE_cache'],
+    ['setting_id' => 3, 'key_name' => 'Module_Cache'],
+    ['setting_id' => 4, 'key_name' => 'module_%literal'],
+    ['setting_id' => 5, 'key_name' => 'MODULE_%literal'],
     ['setting_id' => 6, 'key_name' => null],
-    ['setting_id' => 7, 'key_name' => new SQLiteBlobValue('PLUGIN_blob')],
+    ['setting_id' => 7, 'key_name' => new SQLiteBlobValue('MODULE_blob')],
 ];
 
 $next = [
-    ['setting_id' => 1, 'key_name' => 'plugin_cache'],
-    ['setting_id' => 2, 'key_name' => 'PLUGIN_cache'],
-    ['setting_id' => 3, 'key_name' => 'Plugin_Cache'],
-    ['setting_id' => 4, 'key_name' => 'plugin_%literal'],
-    ['setting_id' => 5, 'key_name' => 'PLUGIN_%literal'],
-    ['setting_id' => 8, 'key_name' => 'PLUGIN_new'],
+    ['setting_id' => 1, 'key_name' => 'module_cache'],
+    ['setting_id' => 2, 'key_name' => 'MODULE_cache'],
+    ['setting_id' => 3, 'key_name' => 'Module_Cache'],
+    ['setting_id' => 4, 'key_name' => 'module_%literal'],
+    ['setting_id' => 5, 'key_name' => 'MODULE_%literal'],
+    ['setting_id' => 8, 'key_name' => 'MODULE_new'],
 ];
 
 echo json_encode(

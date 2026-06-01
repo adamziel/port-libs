@@ -118,7 +118,7 @@ $tests['compound select window recursive limit current source next219 window sha
 
 $tests['compound select window recursive limit current source next219 except and limit trace'] = static function (TestRunner $t) use ($summary219): void {
     $plan = $summary219();
-    $t->same(['plugin_old', 'plugin_legacy'], $plan['sourceWindow']['exceptFilteredLabels']);
+    $t->same(['module_old', 'module_legacy'], $plan['sourceWindow']['exceptFilteredLabels']);
     $t->same(['seed:2:3:4:5:6:7'], $plan['sourceWindow']['currentSkippedLabels']);
     $t->same(['seed:2:3', 'seed:2'], $plan['sourceWindow']['currentTruncatedLabels']);
     $t->same(8, $plan['limitTrace']['current']['preLimitCount']);

@@ -12,25 +12,23 @@ use PortLibs\LibSqlite\SQLiteRowIdColumn;
 $libsqliteRoot = dirname(__DIR__);
 $sourceRoot = $libsqliteRoot . '/src';
 
-$sourceFiles = [
-    $sourceRoot . '/SQLiteRowIdColumn.php',
-    $sourceRoot . '/SQLiteUpdateDeleteReturningSql.php',
-    $sourceRoot . '/SQLiteRowValueUpdateDeleteReturningSavepointPlan.php',
-    $sourceRoot . '/SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteRowValueConflictReturningSavepointCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteRowValueConflictSavepointReturningCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteRowValueSavepointUpsertCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteRowValueUpdateReturningConflictCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan.php',
-];
+$rowValueSourceFiles = static function () use ($sourceRoot): array {
+    $files = [
+        $sourceRoot . '/SQLiteRowIdColumn.php',
+        $sourceRoot . '/SQLiteUpdateDeleteReturningSql.php',
+    ];
+    foreach (glob($sourceRoot . '/SQLiteRowValue*.php') ?: [] as $file) {
+        $files[] = $file;
+    }
+    foreach (glob($sourceRoot . '/SQLite*RowValue*.php') ?: [] as $file) {
+        $files[] = $file;
+    }
+    sort($files, SORT_STRING);
+
+    return array_values(array_unique($files));
+};
+
+$sourceFiles = $rowValueSourceFiles();
 
 $legacyRowValueDefaultMatches = static function () use ($sourceFiles, $libsqliteRoot): array {
     $terms = [
@@ -128,6 +126,11 @@ $sharedExecutorDefault = static fn (): array => \PortLibs\LibSqlite\SQLiteUpdate
 );
 
 return [
+    'source-neutral row-value savepoint inventory is dynamic' => static function (TestRunner $t) use ($sourceFiles, $sourceRoot): void {
+        $t->true(in_array($sourceRoot . '/SQLiteRowValueNestedSavepointReturningPlan.php', $sourceFiles, true));
+        $t->true(in_array($sourceRoot . '/SQLiteRowValueUpdateDeleteReturningSavepointPlan.php', $sourceFiles, true));
+        $t->true(in_array($sourceRoot . '/SQLiteUpdateDeleteReturningSql.php', $sourceFiles, true));
+    },
     'source-neutral row-value savepoint defaults contain no legacy domain strings' => static fn (TestRunner $t) => $t->same([], $legacyRowValueDefaultMatches()),
     'row-value update delete savepoint defaults use application settings' => static function (TestRunner $t) use ($updateDeleteDefaults): void {
         $plan = $updateDeleteDefaults();

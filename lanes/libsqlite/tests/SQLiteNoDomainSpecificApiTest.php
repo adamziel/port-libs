@@ -58,10 +58,22 @@ $jsonbCurrentSourceFiles = [
     $sourceRoot . '/SQLiteJsonSchemaWalPlan.php',
     $sourceRoot . '/SQLiteJsonTablePlan.php',
 ];
-$rowValueSourceFiles = [
-    $sourceRoot . '/SQLiteRowValueUpdateDeleteReturningSavepointPlan.php',
-    $sourceRoot . '/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php',
-];
+$rowValueSourceFiles = static function () use ($sourceRoot): array {
+    $files = [
+        $sourceRoot . '/SQLiteRowIdColumn.php',
+        $sourceRoot . '/SQLiteUpdateDeleteReturningSql.php',
+        $sourceRoot . '/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php',
+    ];
+    foreach (glob($sourceRoot . '/SQLiteRowValue*.php') ?: [] as $file) {
+        $files[] = $file;
+    }
+    foreach (glob($sourceRoot . '/SQLite*RowValue*.php') ?: [] as $file) {
+        $files[] = $file;
+    }
+    sort($files, SORT_STRING);
+
+    return array_values(array_unique($files));
+};
 $keyValueFixtureFiles = [
     $libsqliteRoot . '/examples/application-current-smoke-key-value-import.php',
     $libsqliteRoot . '/examples/application-automatic-indexed-generated-setting-insert-plan.php',
@@ -191,7 +203,7 @@ $rowValueSourceTermMatches = static function () use ($rowValueSourceFiles, $rela
     $matches = [];
     $pattern = '/WordPress|wordpress|wordPress|wp_|wp\.|wp-|wp_options|wp_sitemeta|blog_id|blogId|BlogId|option_id|option_name|option name|option_value|optionmeta|OptionRow|optionRow|optionName|optionValue|optionId|Autoload|autoload/';
 
-    foreach ($rowValueSourceFiles as $file) {
+    foreach ($rowValueSourceFiles() as $file) {
         $contents = file_get_contents($file);
         if ($contents === false) {
             throw new RuntimeException("Unable to read {$file}");

@@ -26,6 +26,7 @@ $compoundWindowSourceMatches = static function () use ($sourceFiles, $libsqliteR
         'opt' . 'ion_walk',
         'auto' . 'load',
         'Auto' . 'load',
+        'plugin' . '_',
         'application-' . 'option',
         'Application ' . 'option',
     ];

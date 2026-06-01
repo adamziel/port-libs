@@ -14670,9 +14670,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         private static function exceptFilteredLabelsPercentRankCumeDistExceptLimit(array $current, array $next): array
         {
             $preLimitLabels = array_fill_keys([...self::rowLabelsPercentRankCumeDistExceptLimit($current), ...self::rowLabelsPercentRankCumeDistExceptLimit($next)], true);
-            unset($preLimitLabels['plugin_old'], $preLimitLabels['plugin_legacy']);
+            unset($preLimitLabels['module_old'], $preLimitLabels['module_legacy']);
 
-            return ['plugin_old', 'plugin_legacy'];
+            return ['module_old', 'module_legacy'];
         }
 
         /** @param list<array<string,mixed>> $rows @return list<string> */
@@ -16106,9 +16106,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         private static function exceptFilteredLabelsAggregateWindowFence(array $current, array $next): array
         {
             $preLimitLabels = array_fill_keys([...self::labelsAggregateWindowFence($current), ...self::labelsAggregateWindowFence($next)], true);
-            unset($preLimitLabels['plugin_old'], $preLimitLabels['plugin_legacy']);
+            unset($preLimitLabels['module_old'], $preLimitLabels['module_legacy']);
 
-            return ['plugin_old', 'plugin_legacy'];
+            return ['module_old', 'module_legacy'];
         }
 
         /** @param list<array<string,mixed>> $rows @return list<string> */
@@ -16953,9 +16953,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         private static function exceptFilteredLabelsUnionIntersectExceptWindowLimit(array $current, array $next): array
         {
             $preLimitLabels = array_fill_keys([...self::labelsUnionIntersectExceptWindowLimit($current), ...self::labelsUnionIntersectExceptWindowLimit($next)], true);
-            unset($preLimitLabels['plugin_old'], $preLimitLabels['plugin_legacy']);
+            unset($preLimitLabels['module_old'], $preLimitLabels['module_legacy']);
 
-            return ['plugin_old', 'plugin_legacy'];
+            return ['module_old', 'module_legacy'];
         }
 
         /** @param list<array<string,mixed>> $rows @return list<string> */
@@ -17678,9 +17678,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         private static function exceptFilteredLabelsFinalPageWindowLimit(array $current, array $next): array
         {
             $preLimitLabels = array_fill_keys([...self::labelsFinalPageWindowLimit($current), ...self::labelsFinalPageWindowLimit($next)], true);
-            unset($preLimitLabels['plugin_old'], $preLimitLabels['plugin_legacy']);
+            unset($preLimitLabels['module_old'], $preLimitLabels['module_legacy']);
 
-            return ['plugin_old', 'plugin_legacy'];
+            return ['module_old', 'module_legacy'];
         }
 
         /** @param list<array<string,mixed>> $rows @return list<string> */

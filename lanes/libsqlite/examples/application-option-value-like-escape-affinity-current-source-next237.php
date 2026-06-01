@@ -12,20 +12,20 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $current = [
-    ['setting_id' => 1, 'key_name' => 'plugin_literal', 'key_value' => 'plugin_%alpha', 'load_policy' => 'yes'],
-    ['setting_id' => 2, 'key_name' => 'plugin_upper', 'key_value' => 'Plugin_%Beta', 'load_policy' => 'yes'],
-    ['setting_id' => 3, 'key_name' => 'plugin_false_percent', 'key_value' => 'pluginX%gamma', 'load_policy' => 'yes'],
-    ['setting_id' => 4, 'key_name' => 'plugin_number', 'key_value' => 12.5, 'load_policy' => 'no'],
-    ['setting_id' => 5, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin_%blob'), 'load_policy' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'module_literal', 'key_value' => 'module_%alpha', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'module_upper', 'key_value' => 'Module_%Beta', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'module_false_percent', 'key_value' => 'moduleX%gamma', 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'module_number', 'key_value' => 12.5, 'load_policy' => 'no'],
+    ['setting_id' => 5, 'key_name' => 'module_blob', 'key_value' => new SQLiteBlobValue('module_%blob'), 'load_policy' => 'no'],
 ];
 
 $next = [
-    ['setting_id' => 1, 'key_name' => 'plugin_literal', 'key_value' => 'plugin_%alpha', 'load_policy' => 'yes'],
-    ['setting_id' => 2, 'key_name' => 'plugin_upper', 'key_value' => 'Plugin_%Beta', 'load_policy' => 'yes'],
-    ['setting_id' => 3, 'key_name' => 'plugin_false_percent', 'key_value' => 'plugin_%gamma', 'load_policy' => 'yes'],
-    ['setting_id' => 4, 'key_name' => 'plugin_number', 'key_value' => 'plugin_%12.5', 'load_policy' => 'yes'],
-    ['setting_id' => 5, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin_%blob'), 'load_policy' => 'no'],
-    ['setting_id' => 6, 'key_name' => 'plugin_added', 'key_value' => 'plugin_%added', 'load_policy' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'module_literal', 'key_value' => 'module_%alpha', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'module_upper', 'key_value' => 'Module_%Beta', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'module_false_percent', 'key_value' => 'module_%gamma', 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'module_number', 'key_value' => 'module_%12.5', 'load_policy' => 'yes'],
+    ['setting_id' => 5, 'key_name' => 'module_blob', 'key_value' => new SQLiteBlobValue('module_%blob'), 'load_policy' => 'no'],
+    ['setting_id' => 6, 'key_name' => 'module_added', 'key_value' => 'module_%added', 'load_policy' => 'yes'],
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueEscapePlan($current, $next);
@@ -47,7 +47,7 @@ $summary = [
 
 if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     if (
-        $summary['range'] !== ['plugin_', 'plugin`']
+        $summary['range'] !== ['module_', 'module`']
         || $summary['currentMatchedRowids'] !== [1, 2]
         || $summary['nextMatchedRowids'] !== [4, 6, 1, 2, 3]
         || $summary['enteredRowids'] !== [4, 6, 3]

@@ -7,15 +7,15 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $current = [
-    ['setting_id' => 1, 'key_name' => 'plugin_cache', 'text_encoding' => 'UTF-16LE'],
-    ['setting_id' => 2, 'key_name' => 'plugin_cache  ', 'text_encoding' => 'UTF-16BE'],
-    ['setting_id' => 3, 'key_name' => 'plugin_cache_more', 'text_encoding' => 'UTF-8'],
+    ['setting_id' => 1, 'key_name' => 'module_cache', 'text_encoding' => 'UTF-16LE'],
+    ['setting_id' => 2, 'key_name' => 'module_cache  ', 'text_encoding' => 'UTF-16BE'],
+    ['setting_id' => 3, 'key_name' => 'module_cache_more', 'text_encoding' => 'UTF-8'],
 ];
 
 $next = [
-    ['setting_id' => 1, 'key_name' => 'plugin_cache ', 'text_encoding' => 'UTF-16BE'],
-    ['setting_id' => 2, 'key_name' => 'plugin_cache', 'text_encoding' => 'UTF-16BE'],
-    ['setting_id' => 4, 'key_name' => 'plugin_cache', 'text_encoding' => 'UTF-8'],
+    ['setting_id' => 1, 'key_name' => 'module_cache ', 'text_encoding' => 'UTF-16BE'],
+    ['setting_id' => 2, 'key_name' => 'module_cache', 'text_encoding' => 'UTF-16BE'],
+    ['setting_id' => 4, 'key_name' => 'module_cache', 'text_encoding' => 'UTF-8'],
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeSourcePlan($current, $next);

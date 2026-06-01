@@ -20,24 +20,24 @@ $row = static fn (int $id, string $name, int|string $encoding): array => [
 ];
 
 $current = [
-    $row(1, 'plugin_cache%enabled', 'UTF-16LE'),
-    $row(2, 'Plugin_Cache%Enabled', 'UTF-16BE'),
-    $row(3, 'plugin_cache_enabled', 'UTF-8'),
-    $row(4, 'plugin_cache%beta', 'UTF-16LE'),
+    $row(1, 'module_cache%enabled', 'UTF-16LE'),
+    $row(2, 'Module_Cache%Enabled', 'UTF-16BE'),
+    $row(3, 'module_cache_enabled', 'UTF-8'),
+    $row(4, 'module_cache%beta', 'UTF-16LE'),
 ];
 
 $next = [
-    $row(1, 'plugin_cache%enabled', 'UTF-16BE'),
-    $row(2, 'Plugin_Cache%Enabled2', 'UTF-16LE'),
-    $row(4, 'plugin_cache_beta', 'UTF-16BE'),
-    $row(5, 'PLUGIN_CACHE%NEW', 'UTF-8'),
+    $row(1, 'module_cache%enabled', 'UTF-16BE'),
+    $row(2, 'Module_Cache%Enabled2', 'UTF-16LE'),
+    $row(4, 'module_cache_beta', 'UTF-16BE'),
+    $row(5, 'MODULE_CACHE%NEW', 'UTF-8'),
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNonAsciiEscapeLikePlan($current, $next);
 
 if (
     $plan['status'] !== 'encoding-collation-affinity-like-current-source-nexttwoFourEight'
-    || $plan['prefix'] !== 'plugin_cache%'
+    || $plan['prefix'] !== 'module_cache%'
     || $plan['escape'] !== 'é'
     || $plan['currentMatchedRowids'] !== [4, 1, 2]
     || $plan['nextMatchedRowids'] !== [1, 2, 5]

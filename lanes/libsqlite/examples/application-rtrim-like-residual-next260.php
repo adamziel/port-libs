@@ -13,12 +13,12 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 $encode = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 
 $current = [
-    ['setting_id' => 1, 'key_name_bytes' => $encode('plugin_cache', 1), 'text_encoding' => 1],
-    ['setting_id' => 2, 'key_name_bytes' => $encode('plugin_cache   ', 2), 'text_encoding' => 2],
+    ['setting_id' => 1, 'key_name_bytes' => $encode('module_cache', 1), 'text_encoding' => 1],
+    ['setting_id' => 2, 'key_name_bytes' => $encode('module_cache   ', 2), 'text_encoding' => 2],
 ];
 $next = [
-    ['setting_id' => 1, 'key_name_bytes' => $encode('plugin_cache ', 1), 'text_encoding' => 1],
-    ['setting_id' => 2, 'key_name_bytes' => $encode('plugin_cache', 2), 'text_encoding' => 2],
+    ['setting_id' => 1, 'key_name_bytes' => $encode('module_cache ', 1), 'text_encoding' => 1],
+    ['setting_id' => 2, 'key_name_bytes' => $encode('module_cache', 2), 'text_encoding' => 2],
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimCollationLikeResidualPlan($current, $next);

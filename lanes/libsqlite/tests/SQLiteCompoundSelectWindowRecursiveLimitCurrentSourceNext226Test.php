@@ -144,7 +144,7 @@ $tests['compound select window recursive limit current source next226 window sha
 
 $tests['compound select window recursive limit current source next226 except intersect and limit trace'] = static function (TestRunner $t) use ($summary226): void {
     $plan = $summary226();
-    $t->same(['plugin_old', 'plugin_legacy'], $plan['sourceWindow']['exceptFilteredLabels']);
+    $t->same(['module_old', 'module_legacy'], $plan['sourceWindow']['exceptFilteredLabels']);
     $t->same(['seed:2:3:4'], $plan['sourceWindow']['currentSkippedLabels']);
     $t->same(['home', 'plugin_old', 'siteurl'], $plan['sourceWindow']['currentTruncatedLabels']);
     $t->same(9, $plan['limitTrace']['current']['preLimitCount']);

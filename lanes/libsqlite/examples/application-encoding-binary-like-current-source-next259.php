@@ -13,16 +13,16 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 
 $current = [
-    ['setting_id' => 1, 'key_name_bytes' => $enc('Plugin_Cache', 1), 'text_encoding' => 1],
-    ['setting_id' => 2, 'key_name_bytes' => $enc('plugin_cache', 2), 'text_encoding' => 2],
-    ['setting_id' => 3, 'key_name_bytes' => $enc('PLUGIN_CACHE', 3), 'text_encoding' => 3],
+    ['setting_id' => 1, 'key_name_bytes' => $enc('Module_Cache', 1), 'text_encoding' => 1],
+    ['setting_id' => 2, 'key_name_bytes' => $enc('module_cache', 2), 'text_encoding' => 2],
+    ['setting_id' => 3, 'key_name_bytes' => $enc('MODULE_CACHE', 3), 'text_encoding' => 3],
     ['setting_id' => 4, 'key_name' => 'Plugout_Cache'],
 ];
 $next = [
-    ['setting_id' => 1, 'key_name_bytes' => $enc('Plugin_Cache', 1), 'text_encoding' => 1],
-    ['setting_id' => 2, 'key_name_bytes' => $enc('plugin_cache_v2', 2), 'text_encoding' => 2],
-    ['setting_id' => 3, 'key_name_bytes' => $enc('PLUGIN_CACHE', 3), 'text_encoding' => 3],
-    ['setting_id' => 5, 'key_name' => 'plugin_new'],
+    ['setting_id' => 1, 'key_name_bytes' => $enc('Module_Cache', 1), 'text_encoding' => 1],
+    ['setting_id' => 2, 'key_name_bytes' => $enc('module_cache_v2', 2), 'text_encoding' => 2],
+    ['setting_id' => 3, 'key_name_bytes' => $enc('MODULE_CACHE', 3), 'text_encoding' => 3],
+    ['setting_id' => 5, 'key_name' => 'module_new'],
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationBinaryCollationDefaultLikePlan($current, $next);

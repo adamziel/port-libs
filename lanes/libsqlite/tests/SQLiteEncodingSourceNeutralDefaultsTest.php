@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
+
 $libsqliteRoot = dirname(__DIR__);
 $sourceRoot = $libsqliteRoot . '/src';
 
@@ -89,6 +92,9 @@ $legacyEncodingDefaultSourceMatches = static function () use ($encodingSourceFil
         'opt' . 'ionRowValue',
         'auto' . 'load',
         'blog' . '_id',
+        'plug' . 'in',
+        'Plug' . 'in',
+        'PLUG' . 'IN',
     ];
     $legacyPattern = '/\b(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $legacyTerms)) . ')\b/';
 
@@ -146,4 +152,61 @@ $legacyEncodingFixtureMatches = static function () use ($encodingFixtureFiles, $
 return [
     'encoding source defaults use generic application setting sources' => static fn (TestRunner $t) => $t->same([], $legacyEncodingDefaultSourceMatches()),
     'encoding cursor direct fixtures use generic application setting keys' => static fn (TestRunner $t) => $t->same([], $legacyEncodingFixtureMatches()),
+    'encoding collation affinity LIKE default patterns are source neutral' => static function (TestRunner $t): void {
+        $encode = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
+        $code = static fn (int|string $encoding): int => match ($encoding) {
+            'UTF-8', 1 => 1,
+            'UTF-16LE', 2 => 2,
+            'UTF-16BE', 3 => 3,
+        };
+        $encodedRow = static fn (int $id, string $name, int|string $encoding): array => [
+            'setting_id' => $id,
+            'key_name_bytes' => $encode($name, $encoding),
+            'text_encoding' => $code($encoding),
+        ];
+
+        $keyValueRows = [
+            ['setting_id' => 1, 'key_name' => 'module_cache', 'key_value' => 'module_%literal', 'text_encoding' => 'UTF-8'],
+            ['setting_id' => 2, 'key_name' => 'module_literal', 'key_value' => "module\0cache_suffix", 'text_encoding' => 'UTF-8'],
+            ['setting_id' => 3, 'key_name' => 'MODULE_cache', 'key_value' => 'MODULE_cache', 'text_encoding' => 'UTF-8'],
+        ];
+        $encodedRows = [
+            $encodedRow(1, 'module_cache%enabled', 'UTF-8'),
+            $encodedRow(2, 'MODULE_CACHE%NEW', 'UTF-16BE'),
+        ];
+        $rtrimRows = [
+            $encodedRow(1, 'module_cache', 'UTF-8'),
+            $encodedRow(2, 'module_cache ', 'UTF-16LE'),
+        ];
+
+        $plans = [
+            SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowValueEscapePlan($keyValueRows, $keyValueRows),
+            SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan($keyValueRows, $keyValueRows),
+            SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationDanglingEscapeLikePlan($keyValueRows, $keyValueRows),
+            SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNonAsciiEscapeLikePlan($encodedRows, $encodedRows),
+            SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeSourcePlan($keyValueRows, $keyValueRows),
+            SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationCaseSensitiveLikeTransitionPlan($keyValueRows, $keyValueRows),
+            SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationBinaryCollationDefaultLikePlan($encodedRows, $encodedRows),
+            SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationNullableEscapeLikePlan($keyValueRows, $keyValueRows),
+            SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimCollationLikeResidualPlan($rtrimRows, $rtrimRows),
+        ];
+
+        $t->same('module!_%!%%', $plans[0]['pattern']);
+        $t->same("module\0cache!_%", $plans[1]['pattern']);
+        $t->same('module!_cache!', $plans[2]['pattern']);
+        $t->same('moduleé_cacheé%%', $plans[3]['pattern']);
+        $t->same('module!_cache', $plans[4]['pattern']);
+        $t->same('MODULE!_%', $plans[5]['pattern']);
+        $t->same('Module%', $plans[6]['pattern']);
+        $t->same('module!_%', $plans[7]['pattern']);
+        $t->same('module_cache', $plans[8]['pattern']);
+
+        foreach ($plans as $plan) {
+            $t->same(false, str_contains($plan['pattern'], 'plug' . 'in'));
+            $t->same(false, str_contains($plan['pattern'], 'Plug' . 'in'));
+            $t->same(false, str_contains($plan['pattern'], 'PLUG' . 'IN'));
+            $t->same(false, str_contains($plan['currentSource'], 'wp' . '_'));
+            $t->same(false, str_contains($plan['nextSource'], 'wp' . '_'));
+        }
+    },
 ];

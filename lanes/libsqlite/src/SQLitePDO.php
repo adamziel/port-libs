@@ -497,6 +497,9 @@ final class SQLitePDO extends \PDO
         if (preg_match('/^SQLite SELECT (?:expression|predicate) row is missing column (.+)$/', $message, $match) === 1) {
             return 'no such column: ' . $match[1];
         }
+        if (preg_match('/^SQLite GROUP BY row is missing column (.+)$/', $message, $match) === 1) {
+            return 'no such column: ' . $match[1];
+        }
         if (preg_match('/^SQLitePDO table ([A-Za-z_][A-Za-z0-9_]*) does not exist$/', $message, $match) === 1) {
             return 'no such table: ' . $match[1];
         }

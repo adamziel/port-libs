@@ -14,7 +14,9 @@ $sourceRoot = $libsqliteRoot . '/src';
 
 $sourceFiles = [
     $sourceRoot . '/SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteInsertDefaultValuesSql.php',
     $sourceRoot . '/SQLiteRecursiveTriggerReturningSavepointPlan.php',
+    $sourceRoot . '/SQLiteSchemaAlterGeneratedTriggerViewPlan.php',
     $sourceRoot . '/SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan.php',
@@ -29,6 +31,7 @@ $sourceFiles = [
     $sourceRoot . '/SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteUpsertTriggerForeignKeyYieldPlan.php',
+    $sourceRoot . '/SQLiteViewTriggerDdlCorpus.php',
     $sourceRoot . '/SQLiteViewUpsertReturningSavepointPlan.php',
 ];
 $fixtureFiles = [
@@ -39,7 +42,9 @@ $fixtureFiles = [
     $libsqliteRoot . '/tests/SQLiteTriggerReturningUpsertViewCurrentNext52Test.php',
     $libsqliteRoot . '/tests/SQLiteTriggerUpsertReturningViewUniqueCurrentSourceNext140Test.php',
     $libsqliteRoot . '/tests/SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNext123Test.php',
+    $libsqliteRoot . '/tests/SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceTest.php',
     $libsqliteRoot . '/tests/SQLiteViewUpsertReturningSavepointCurrentNext49Test.php',
+    $libsqliteRoot . '/tests/SQLiteViewTriggerDdlCorpusTest.php',
 ];
 
 $legacyTriggerViewDefaultMatches = static function () use ($sourceFiles, $libsqliteRoot): array {

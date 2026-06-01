@@ -8,17 +8,17 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $current = [
-    ['setting_id' => 1, 'key_name' => 'plugin_cache'],
-    ['setting_id' => 2, 'key_name' => 'Plugin_Cache'],
-    ['setting_id' => 3, 'key_name' => 'plugin_cache!'],
-    ['setting_id' => 4, 'key_name' => new SQLiteBlobValue('plugin_cache')],
+    ['setting_id' => 1, 'key_name' => 'module_cache'],
+    ['setting_id' => 2, 'key_name' => 'Module_Cache'],
+    ['setting_id' => 3, 'key_name' => 'module_cache!'],
+    ['setting_id' => 4, 'key_name' => new SQLiteBlobValue('module_cache')],
 ];
 
 $next = [
-    ['setting_id' => 1, 'key_name' => 'plugin_cache2'],
-    ['setting_id' => 2, 'key_name' => 'Plugin_Cache'],
-    ['setting_id' => 3, 'key_name' => 'plugin_cache!'],
-    ['setting_id' => 5, 'key_name' => 'PLUGIN_CACHE'],
+    ['setting_id' => 1, 'key_name' => 'module_cache2'],
+    ['setting_id' => 2, 'key_name' => 'Module_Cache'],
+    ['setting_id' => 3, 'key_name' => 'module_cache!'],
+    ['setting_id' => 5, 'key_name' => 'MODULE_CACHE'],
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationDanglingEscapeLikePlan($current, $next);
