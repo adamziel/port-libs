@@ -3608,6 +3608,79 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function pendingHotJournalRollbackRaceProfile(
+        int $pageCount = 20,
+        int $cacheSize = 5,
+        int $rowCount = 10,
+        int $payloadBytes = 100,
+        int $peerUnlockFailAt = 1
+    ): array {
+        if ($pageCount < 2) {
+            throw new \InvalidArgumentException('SQLite pending hot-journal race requires at least two database pages');
+        }
+        if ($cacheSize < 1 || $rowCount < 1 || $payloadBytes < 1 || $peerUnlockFailAt < 1) {
+            throw new \InvalidArgumentException('SQLite pending hot-journal race requires positive cache, row, payload, and fault values');
+        }
+
+        $journalBytes = self::align(max(1, intdiv($rowCount * ($payloadBytes + 64), $pageCount)) + 28, 512);
+        $lockTimeline = [
+            ['connection' => 'db', 'vfs' => 'tvfs', 'op' => 'open', 'lock' => 'shared', 'reason' => 'primary_connection_keeps_shared_handle_open'],
+            ['connection' => 'db2', 'vfs' => 'default', 'op' => 'begin-update', 'lock' => 'reserved', 'reason' => 'peer_creates_hot_journal_before_crash'],
+            ['connection' => 'db2', 'vfs' => 'tvfs2', 'op' => 'hot-journal-read', 'lock' => 'shared', 'reason' => 'peer_attempts_recovery_during_primary_xaccess'],
+            ['connection' => 'db2', 'vfs' => 'tvfs2', 'op' => 'xLock-exclusive', 'lock' => 'pending', 'reason' => 'exclusive_upgrade_for_hot_journal_rollback_fails'],
+            ['connection' => 'db2', 'vfs' => 'tvfs2', 'op' => 'xUnlock', 'lock' => 'pending', 'reason' => 'injected_unlock_ioerr_leaves_pending_lock_until_close'],
+            ['connection' => 'db', 'vfs' => 'tvfs', 'op' => 'integrity_check', 'lock' => 'shared', 'reason' => 'primary_hot_journal_probe_sees_peer_pending_lock'],
+        ];
+
+        return [
+            'status' => 'ok',
+            'script' => 'pendingrace.test',
+            'scenario' => 'pendingrace-1.3',
+            'upstream' => [
+                'pendingrace.test 1.0 creates indexed table with cache_size=5 and about twenty pages',
+                'pendingrace.test 1.1 copies a hot rollback journal from a crashed peer update',
+                'pendingrace.test 1.2 confirms test.db-journal exists before recovery',
+                'pendingrace.test 1.3 primary integrity_check returns database is locked when peer xUnlock leaves PENDING lock',
+            ],
+            'page_count' => $pageCount,
+            'cache_size' => $cacheSize,
+            'row_count' => $rowCount,
+            'payload_bytes' => $payloadBytes,
+            'primary_vfs' => 'tvfs',
+            'peer_vfs' => 'tvfs2',
+            'hot_journal_exists_before_integrity_check' => true,
+            'database_without_hot_journal_corrupt' => true,
+            'saved_database_image_restored' => true,
+            'saved_journal_image_restored' => true,
+            'journal_bytes' => $journalBytes,
+            'peer_read_trigger' => 'xAccess',
+            'peer_unlock_fail_at' => $peerUnlockFailAt,
+            'peer_unlock_failed' => true,
+            'peer_subsequent_vfs_calls_fail' => true,
+            'peer_pending_lock_retained' => true,
+            'exclusive_upgrade_for_hot_journal_rollback' => 'failed',
+            'hot_journal_rollback_attempted' => true,
+            'hot_journal_rollback_deferred' => true,
+            'primary_integrity_check' => [1, 'database is locked'],
+            'primary_error_message' => 'database is locked',
+            'primary_result_code' => 'SQLITE_BUSY',
+            'peer_result_code' => 'SQLITE_IOERR_UNLOCK',
+            'pending_lock_leak_window' => 'until_peer_close',
+            'lock_timeline' => $lockTimeline,
+            'open_file_count_after_close' => 0,
+            'reason' => 'failed_peer_unlock_after_hot_journal_exclusive_upgrade_keeps_pending_lock_and_blocks_primary_rollback',
+            'dependencies' => [
+                'upstream-pendingrace-hot-journal-lock',
+                'sqlite-vfs-pending-lock-after-unlock-ioerr',
+                'sqlite-hot-journal-rollback-race',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function subjournalMemoryBackupProfile(
         int $tableRows,
         int $cachePages,
