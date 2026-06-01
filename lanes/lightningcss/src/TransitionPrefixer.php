@@ -1121,8 +1121,8 @@ final class TransitionPrefixer
             || isset($normalized['ie']);
         $fullscreenNeedsWebkit = $this->targetInRange($normalized, 'chrome', [15], [70])
             || $this->targetInRange($normalized, 'opera', [15], [63])
-            || $this->targetInRange($normalized, 'safari', [5, 1], [16])
-            || $this->targetInRange($normalized, 'samsung', [4], [9]);
+            || $this->targetInRange($normalized, 'safari', [5, 1], [16, 3])
+            || $this->targetInRange($normalized, 'samsung', [4], [9, 2]);
         $fileSelectorButtonNeedsWebkit = $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
             || $this->targetInRange($normalized, 'chrome', [4], [88])
             || $this->targetInRange($normalized, 'edge', [79], [88])

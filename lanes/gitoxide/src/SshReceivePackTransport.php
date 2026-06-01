@@ -6,6 +6,8 @@ namespace PortLibs\Gitoxide;
 
 final class SshReceivePackTransport implements ReceivePackTransport
 {
+    private const REMOTE_SERVICE = 'git-receive-pack';
+
     private const ENVIRONMENT_VARIABLES_TO_REMOVE = [
         'GIT_ALTERNATE_OBJECT_DIRECTORIES',
         'GIT_CONFIG',
@@ -88,6 +90,9 @@ final class SshReceivePackTransport implements ReceivePackTransport
      *     port: ?int,
      *     path: string,
      *     command: string,
+     *     remoteService: string,
+     *     remotePathArgument: string,
+     *     sshInvocationArguments: list<string>,
      *     protocolVersion: int,
      *     programKind: string,
      *     sshCommand: string,
@@ -130,7 +135,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
     {
         self::validateRepositoryPath($repositoryPath);
 
-        return 'git-receive-pack ' . self::shellQuote($repositoryPath);
+        return self::REMOTE_SERVICE . ' ' . self::shellQuote($repositoryPath);
     }
 
     /**
@@ -526,6 +531,9 @@ final class SshReceivePackTransport implements ReceivePackTransport
      *     port: ?int,
      *     path: string,
      *     command: string,
+     *     remoteService: string,
+     *     remotePathArgument: string,
+     *     sshInvocationArguments: list<string>,
      *     protocolVersion: int,
      *     programKind: string,
      *     sshCommand: string,
@@ -554,6 +562,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
             'LC_ALL' => 'C',
         ];
         $sshArguments = self::sshArgumentsForTarget($target, $options);
+        $remotePathArgument = self::shellQuote($target['path']);
         if ($options['programKind'] === 'ssh' && $options['protocolVersion'] === 2) {
             $environment = ['GIT_PROTOCOL' => 'version=2'] + $environment;
         }
@@ -563,7 +572,10 @@ final class SshReceivePackTransport implements ReceivePackTransport
             'user' => $target['user'],
             'port' => $target['port'],
             'path' => $target['path'],
-            'command' => self::receivePackCommand($target['path']),
+            'command' => self::REMOTE_SERVICE . ' ' . $remotePathArgument,
+            'remoteService' => self::REMOTE_SERVICE,
+            'remotePathArgument' => $remotePathArgument,
+            'sshInvocationArguments' => array_merge($sshArguments, [self::REMOTE_SERVICE, $remotePathArgument]),
             'protocolVersion' => $options['protocolVersion'],
             'programKind' => $options['programKind'],
             'sshCommand' => $options['sshCommand'],
@@ -722,7 +734,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
 
     private static function shellQuote(string $value): string
     {
-        return "'" . str_replace("'", "'\\''", $value) . "'";
+        return "'" . str_replace(["'", '!'], ["'\\''", "'\\!'"], $value) . "'";
     }
 
     /**

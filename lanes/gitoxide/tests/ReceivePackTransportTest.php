@@ -2214,6 +2214,65 @@ return [
         $t->same('wp_session=trailing-dot', $trailingDotBypassRequests[1]['headers']['Cookie']);
         $t->same($trailingDotBypassRequest->requestBytes(), $trailingDotBypassRequests[1]['body']);
 
+        $trailingDotDomainCookieRequests = [];
+        $trailingDotDomainCookieHelperCalls = 0;
+        $trailingDotDomainCookieBlob = new GitObject('blob', 'WordPress trailing-dot domain cookie no-proxy payload');
+        $trailingDotDomainCookieClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test./wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$trailingDotDomainCookieRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $trailingDotDomainCookieRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_domain=trail; Domain=example.test; Path=/; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'proxy' => 'http://proxy.example.test:8080',
+                    'noProxy' => 'example.test',
+                    'proxyCredentialHelper' => static function () use (&$trailingDotDomainCookieHelperCalls): array {
+                        $trailingDotDomainCookieHelperCalls++;
+
+                        return ['username' => 'trailing-dot-domain-user', 'password' => 'trailing-dot-domain-pass'];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $trailingDotDomainCookieSession = $trailingDotDomainCookieClient->handshake();
+        $trailingDotDomainCookieSession->createOrUpdate('refs/heads/main', $trailingDotDomainCookieBlob->oid());
+        $trailingDotDomainCookieRequest = $trailingDotDomainCookieSession->buildRequest([$trailingDotDomainCookieBlob]);
+
+        $trailingDotDomainCookieResponse = $trailingDotDomainCookieClient->send($trailingDotDomainCookieRequest);
+
+        $t->same(true, $trailingDotDomainCookieResponse->isSuccessful());
+        $t->same(0, $trailingDotDomainCookieHelperCalls);
+        $t->same([[], []], array_column($trailingDotDomainCookieRequests, 'httpOptions'));
+        $t->same('wp_domain=trail', $trailingDotDomainCookieRequests[1]['headers']['Cookie']);
+        $t->same($trailingDotDomainCookieRequest->requestBytes(), $trailingDotDomainCookieRequests[1]['body']);
+
         $trailingDotPatternRequests = [];
         $trailingDotPatternHelperCalls = 0;
         $trailingDotPatternTransport = new SmartHttpReceivePackTransport(
@@ -3236,12 +3295,18 @@ return [
         $t->same('deploy', $connection['user']);
         $t->same(2222, $connection['port']);
         $t->same("git-receive-pack '/var/www/wp-content.git'", $connection['command']);
+        $t->same('git-receive-pack', $connection['context']['remoteService']);
+        $t->same("'/var/www/wp-content.git'", $connection['context']['remotePathArgument']);
         $t->same(2, $connection['context']['protocolVersion']);
         $t->same(['GIT_PROTOCOL' => 'version=2', 'LANG' => 'C', 'LC_ALL' => 'C'], $connection['context']['environment']);
         $t->same($expectedEnvironmentRemovals, $connection['context']['environmentRemovals']);
         $t->same(false, in_array('GIT_PROTOCOL', $connection['context']['environmentRemovals'], true));
         $t->same(16, count($connection['context']['environmentRemovals']));
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@git.example.test'], $connection['context']['sshArguments']);
+        $t->same(
+            ['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@git.example.test', 'git-receive-pack', "'/var/www/wp-content.git'"],
+            $connection['context']['sshInvocationArguments']
+        );
         $t->same('caller-provided-ssh-connector', $connection['context']['authenticationBoundary']);
         $t->same(
             "path=var/www/wp-content.git\nprotocol=ssh\nhost=git.example.test:2222\nusername=deploy\n",
@@ -3286,6 +3351,7 @@ return [
         $t->same('plink', $plinkContext['sshCommand']);
         $t->same(['LANG' => 'C', 'LC_ALL' => 'C'], $plinkContext['environment']);
         $t->same(['-P', '2222', 'deploy@git.example.test'], $plinkContext['sshArguments']);
+        $t->same(['-P', '2222', 'deploy@git.example.test', 'git-receive-pack', "'/var/www/wp-content.git'"], $plinkContext['sshInvocationArguments']);
         $t->same("git-receive-pack '/var/www/wp-content.git'", $plinkContext['command']);
 
         $puttyContext = SshReceivePackTransport::connectorContext(
@@ -3487,6 +3553,7 @@ return [
         $t->same('~/wp-content.git', SshReceivePackTransport::parseRepositoryUrl('ssh://git.example.test/~/wp-content.git')['path']);
         $t->same("git-receive-pack '~/wp-content.git'", SshReceivePackTransport::receivePackCommand('~/wp-content.git'));
         $t->same("git-receive-pack 'wp content/repo'\\''s.git'", SshReceivePackTransport::receivePackCommand("wp content/repo's.git"));
+        $t->same("git-receive-pack 'wp content/important'\\!'repo'\\''s.git'", SshReceivePackTransport::receivePackCommand("wp content/important!repo's.git"));
 
         $badConnector = static fn (): array => ['read' => 'not a stream', 'write' => 'not a stream'];
 
@@ -3636,6 +3703,8 @@ return [
         $t->same('2001:db8::42', $fixture['sshScpIpv6Target']['host']);
         $t->same(null, $fixture['sshScpIpv6Target']['user']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@git.example.test'], $fixture['sshProtocolV2Context']['sshArguments']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@git.example.test', 'git-receive-pack', "'/var/www/wp-content.git'"], $fixture['sshProtocolV2Context']['sshInvocationArguments']);
+        $t->same("git-receive-pack 'wp content/important'\\!'repo'\\''s.git'", $fixture['sshBangPathCommand']);
         $t->same('caller-provided-ssh-connector', $fixture['sshProtocolV2Context']['authenticationBoundary']);
         $t->same(false, str_contains($fixture['sshProtocolV2Context']['redactedCredentialContext'], 'password='));
         $t->same('permission_denied', $fixture['sshErrorClassifications']['permissionDenied']['kind']);
@@ -3685,6 +3754,12 @@ return [
         $t->same(true, $summary['trailingDotNoProxyBypassedProxy']);
         $t->same(0, $summary['trailingDotNoProxyHelperCalls']);
         $t->same($fixture['trailingDotNoProxyPostCookieHeader'], $summary['trailingDotNoProxyPostCookieHeader']);
+        $t->same(true, $fixture['trailingDotDomainCookieBypassedProxy']);
+        $t->same(0, $fixture['trailingDotDomainCookieHelperCalls']);
+        $t->same('wp_domain=trail', $fixture['trailingDotDomainCookiePostCookieHeader']);
+        $t->same(true, $summary['trailingDotDomainCookieBypassedProxy']);
+        $t->same(0, $summary['trailingDotDomainCookieHelperCalls']);
+        $t->same($fixture['trailingDotDomainCookiePostCookieHeader'], $summary['trailingDotDomainCookiePostCookieHeader']);
         $t->same(true, $fixture['portQualifiedNoProxyUsedProxy']);
         $t->same(2, $fixture['portQualifiedNoProxyHelperCalls']);
         $t->same('Basic ' . base64_encode('port-literal-proxy-user:port-literal-proxy-pass'), $fixture['portQualifiedNoProxyAuthorizationSent']);

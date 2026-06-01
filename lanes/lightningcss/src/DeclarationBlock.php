@@ -13496,6 +13496,10 @@ final class DeclarationBlock
             }
         }
 
+        if ($this->isBoxSpacingDeclarationProperty($property)) {
+            return $this->normalizeBoxSpacingDeclarationValue($value);
+        }
+
         if (in_array($property, self::ALPHA_VALUE_PROPERTIES, true)) {
             return $this->normalizeAlphaValue($value);
         }
@@ -13604,6 +13608,55 @@ final class DeclarationBlock
         $keyword = strtolower($trimmed);
 
         return in_array($keyword, $keywords, true) ? $keyword : $trimmed;
+    }
+
+    private function isBoxSpacingDeclarationProperty(string $property): bool
+    {
+        return $this->isBoxShorthand($property)
+            || $this->isBoxLonghand($property)
+            || $this->isLogicalBoxProperty($property);
+    }
+
+    private function normalizeBoxSpacingDeclarationValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        return implode(
+            ' ',
+            array_map(fn (string $token): string => $this->normalizeLengthPercentageOrAutoToken($token), $tokens)
+        );
+    }
+
+    private function normalizeLengthPercentageOrAutoToken(string $token): string
+    {
+        $token = trim($token);
+        if (strcasecmp($token, 'auto') === 0) {
+            return 'auto';
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-z]+)$/i', $token, $matches) === 1) {
+            $number = $this->normalizeCssNumberLiteral($matches[1]);
+            if ($number === '0') {
+                return '0';
+            }
+
+            return $number . strtolower($matches[2]);
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
+            return $this->normalizeCssNumberLiteral($matches[1]) . '%';
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) === 1) {
+            $number = $this->normalizeCssNumberLiteral($token);
+
+            return $number === '0' ? '0' : $number . 'px';
+        }
+
+        return $token;
     }
 
     private function isTransformDeclarationProperty(string $property): bool

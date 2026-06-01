@@ -1335,7 +1335,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private static function cookieScope(string $attributes, string $url, bool $useDefaultPath): ?array
     {
         $request = self::httpUrlParts($url, 'smart HTTP receive-pack cookie URL');
-        $domain = strtolower($request['host']);
+        $domain = self::normalizeCookieHost($request['host']);
         $path = $useDefaultPath ? self::defaultCookiePath($request['path'] ?? '/') : '/';
         $secure = false;
         $hostOnly = true;
@@ -1384,6 +1384,11 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private static function domainMatches(string $host, string $domain): bool
     {
         return $host === $domain || str_ends_with($host, '.' . $domain);
+    }
+
+    private static function normalizeCookieHost(string $host): string
+    {
+        return rtrim(strtolower(trim($host, '[]')), '.');
     }
 
     private static function defaultCookiePath(string $requestPath): string
@@ -1476,7 +1481,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             $parts[] = $base;
         }
         $request = self::httpUrlParts($url, 'smart HTTP receive-pack cookie request URL');
-        $requestHost = strtolower($request['host']);
+        $requestHost = self::normalizeCookieHost($request['host']);
         $requestPath = $request['path'] ?? '/';
         $matchingCookies = [];
         $position = 0;

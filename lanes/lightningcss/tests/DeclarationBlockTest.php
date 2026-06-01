@@ -1812,6 +1812,39 @@ return [
         );
         $t->same(null, $block->getProperty('margin-inline: 1rem 2rem', 'margin-left'));
     },
+    'declaration block canonicalizes upstream box spacing length values in cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            ['value' => '0 .5rem', 'important' => false],
+            $block->getProperty('margin: 0px 0.500rem', 'margin')
+        );
+        $t->same(
+            ['value' => '0', 'important' => false],
+            $block->getProperty('padding-inline: +0em -0px', 'padding-inline')
+        );
+        $t->same(
+            ['value' => '.25%', 'important' => false],
+            $block->getProperty('scroll-margin-top: 0.250%', 'scroll-margin-top')
+        );
+        $t->same(
+            ['value' => '5px 0', 'important' => false],
+            $block->getProperty('inset: 5 0px', 'inset')
+        );
+        $t->same('margin: 0 5px 5px', $block->setProperty('margin: 5px', 'margin-top', '0px'));
+        $t->same(
+            'scroll-padding-inline: .5rem 2rem',
+            $block->setProperty('scroll-padding-inline: 0px 2rem', 'scroll-padding-inline-start', '0.500rem')
+        );
+        $t->same(
+            'inset-block: 0 1.25rem',
+            $block->setProperty('inset-block: 0px 1.250rem', 'inset-block-start', '-0px')
+        );
+        $t->same(
+            'padding-inline-end: 2rem',
+            $block->removeProperty('padding-inline: 0px 2rem', 'padding-inline-start')
+        );
+    },
     'declaration block sets upstream logical axis cssom longhands in existing shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

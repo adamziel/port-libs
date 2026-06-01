@@ -121,6 +121,7 @@ return [
     'sshScpLikeAtUserTarget' => SshReceivePackTransport::parseRepositoryUrl('user@name@host.xz:wp-content.git'),
     'sshCommand' => SshReceivePackTransport::receivePackCommand('wp-content.git'),
     'sshHomeCommand' => SshReceivePackTransport::receivePackCommand('~/wp-content.git'),
+    'sshBangPathCommand' => SshReceivePackTransport::receivePackCommand("wp content/important!repo's.git"),
     'sshProtocolV2Context' => SshReceivePackTransport::connectorContext(
         'ssh://deploy@git.example.test:2222/var/www/wp-content.git',
         ['protocolVersion' => 2],

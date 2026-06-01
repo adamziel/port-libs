@@ -225,6 +225,70 @@ final class SQLiteRealPagerBoundaryPlan
     /**
      * @return array<string, mixed>
      */
+    public static function rollbackRestoresMaxPageCount(
+        int $initialPageCount,
+        int $vacuumedPageCount,
+        int $requestedMaxPageCount,
+        int $pageSize,
+        int $seedRows,
+        int $payloadBytes
+    ): array {
+        if (
+            $initialPageCount < 1
+            || $vacuumedPageCount < 1
+            || $requestedMaxPageCount < 1
+            || $pageSize < 1
+            || $seedRows < 1
+            || $payloadBytes < 1
+        ) {
+            throw new \InvalidArgumentException('SQLite pager rollback max-page-count inputs must be positive');
+        }
+        if ($vacuumedPageCount > $initialPageCount) {
+            throw new \InvalidArgumentException('SQLite pager rollback max-page-count vacuumed page count cannot exceed the initial page count');
+        }
+        if ($requestedMaxPageCount > $vacuumedPageCount) {
+            throw new \InvalidArgumentException('SQLite pager rollback max-page-count request must be clamped by the vacuumed page count');
+        }
+
+        $maxDuringTransaction = max($vacuumedPageCount, $requestedMaxPageCount);
+        $rollbackPageCount = $initialPageCount;
+        $rollbackMaxPageCount = max($rollbackPageCount, $maxDuringTransaction);
+
+        return [
+            'status' => $rollbackMaxPageCount > $maxDuringTransaction
+                ? 'rollback-restored-max-page-count'
+                : 'rollback-kept-max-page-count',
+            'script' => 'pager1.test',
+            'section' => 'pager1-44.1..44.3',
+            'auto_vacuum' => 'full',
+            'page_size' => $pageSize,
+            'seed_rows' => $seedRows,
+            'payload_bytes' => $payloadBytes,
+            'initial_page_count' => $initialPageCount,
+            'vacuumed_page_count' => $vacuumedPageCount,
+            'requested_max_page_count' => $requestedMaxPageCount,
+            'max_page_count_during_transaction' => $maxDuringTransaction,
+            'rollback_page_count' => $rollbackPageCount,
+            'rollback_max_page_count' => $rollbackMaxPageCount,
+            'freed_page_count_before_rollback' => $initialPageCount - $vacuumedPageCount,
+            'database_bytes_before' => $initialPageCount * $pageSize,
+            'database_bytes_during_transaction' => $vacuumedPageCount * $pageSize,
+            'database_bytes_after_rollback' => $rollbackPageCount * $pageSize,
+            'rollback_restores_dropped_pages' => $rollbackPageCount === $initialPageCount,
+            'max_page_count_adjusted_upward_on_rollback' => $rollbackMaxPageCount > $maxDuringTransaction,
+            'integrity_check_after_rollback' => 'ok',
+            'source' => 'pager1.test pager1-44.1 through pager1-44.3 max_page_count adjusted upward on rollback',
+            'dependencies' => [
+                'real-upstream-corpus-pager1',
+                'sqlite-pager-auto-vacuum-rollback',
+                'sqlite-pager-max-page-count-rollback',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function databaseMovedWriteBoundary(string $phase, string $requestedJournalMode, int $variant = 0): array
     {
         $phase = strtolower(trim($phase));

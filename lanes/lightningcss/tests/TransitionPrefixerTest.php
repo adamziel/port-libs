@@ -234,6 +234,10 @@ return [
         $t->same('section:-moz-full-screen{color:red}section:fullscreen{color:red}', $prefixer->prefixForTargets('section:fullscreen { color: red; }', ['firefox' => 63]));
         $t->same('section:fullscreen{color:red}', $prefixer->prefixForTargets('section:fullscreen { color: red; }', ['firefox' => 64]));
         $t->same('section:-ms-fullscreen{color:red}section:fullscreen{color:red}', $prefixer->prefixForTargets('section:fullscreen { color: red; }', ['ie' => 11]));
+        $t->same('section:-webkit-full-screen{color:red}section:fullscreen{color:red}', $prefixer->prefixForTargets('section:fullscreen { color: red; }', ['safari' => '16.3']));
+        $t->same('section:fullscreen{color:red}', $prefixer->prefixForTargets('section:fullscreen { color: red; }', ['safari' => '16.4']));
+        $t->same('section:-webkit-full-screen{color:red}section:fullscreen{color:red}', $prefixer->prefixForTargets('section:fullscreen { color: red; }', ['samsung' => '9.2']));
+        $t->same('section:fullscreen{color:red}', $prefixer->prefixForTargets('section:fullscreen { color: red; }', ['samsung' => '9.3']));
         $t->same('dialog::-webkit-backdrop{background:#000}dialog::backdrop{background:#000}', $prefixer->prefixForTargets('dialog::backdrop { background: black; }', ['chrome' => 36]));
         $t->same('dialog::backdrop{background:#000}', $prefixer->prefixForTargets('dialog::backdrop { background: black; }', ['chrome' => 37]));
         $t->same('dialog::-ms-backdrop{background:#000}dialog::backdrop{background:#000}', $prefixer->prefixForTargets('dialog::backdrop { background: black; }', ['edge' => 18]));
