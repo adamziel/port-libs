@@ -55,6 +55,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (AO cleanup + Git/CSS/SQLite followup
+  00:45 UTC): audited the active-session concern from live tmux/process/disk
+  evidence. There is still one attached tmux session (`main`), not a pile of
+  independent live sessions. The visible worker pool was refilled repeatedly as
+  completed panes exited, returning to the requested `10-11` active isolated
+  Codex workers with no long sleepers. AO cleanup removed stale `/tmp`
+  source-map/libsqlite probe directories older than 2026-06-01, reducing `/tmp`
+  use from about `11G` to `3.5G`; active worktrees and dirty lane changes were
+  preserved. Source commit `cd0fe4669579960aabac1e0e6f36e39f411c9a3a`
+  (`ports: extend git css sqlite parity followups`) landed eight screened
+  handoffs. Verification passed `git diff --check`, PHP lint on `23`
+  changed/new PHP files, full Gitoxide `40 files / 6513 assertions / 0
+  failures`, full LightningCSS `13 files / 5148 assertions / 0 failures`,
+  focused libsqlite `3 files / 9799 assertions / 0 failures`, and accepted
+  Gitoxide/LightningCSS examples. A broad libsqlite full-lane probe was also
+  attempted with a 4G PHP limit; sampled failures reproduce on clean base
+  `5b8711146` (`2 files / 382 assertions / 7 failures`), so they are
+  pre-existing and this batch does not claim libsqlite full-lane/release
+  parity. Dashboard evidence should now report Gitoxide `1683 / 2886` mapped
+  and `6513 pass / 0 fail`, LightningCSS `2241 / 3532` mapped and `5148 pass /
+  0 fail`, and libsqlite `1589 / 1589` mapped with an explicit sampled
+  broad-suite failure blocker.
+
 - 2026-06-01 supervisor continuation (AO cleanup audit + tree/pack/CSS
   parity batch 00:30 UTC): audited the active-session concern from live tmux,
   process, worktree, disk, and team-check state. There is still one attached
