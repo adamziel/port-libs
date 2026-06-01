@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 23:48:15 UTC",
-    "sourceCommit": "cc71d7aca118fd98bb392ab284c15fbc8dd1e374",
-    "sourceCommitShort": "cc71d7aca118",
+    "generated": "2026-06-01 23:50:45 UTC",
+    "sourceCommit": "c99b35f0f2448d45fc6a2ba783dd0b6b0918ff7f",
+    "sourceCommitShort": "c99b35f0f244",
     "sourceBranch": "unknown",
-    "dashboardCommit": "cc71d7aca118fd98bb392ab284c15fbc8dd1e374",
-    "dashboardCommitShort": "cc71d7aca118",
+    "dashboardCommit": "c99b35f0f2448d45fc6a2ba783dd0b6b0918ff7f",
+    "dashboardCommitShort": "c99b35f0f244",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -45,13 +45,13 @@
             "coverage": "2,439 / 3,532 (69.1%)",
             "mapPercent": "69.1%",
             "unmapped": "1,093",
-            "php": "9,186 pass / 0 fail",
+            "php": "9,200 pass / 0 fail",
             "phase": "wrap-up source parity plus runner-evidence consolidation; full Rust/N...",
             "audit": "2026-06-01 isolated worker on base 4891303774c9ca404591d2f3a4d35bc9e1...",
-            "currentWork": "CSSOM logical border-radius read/write, CSS Modules :has() pseudo-element branch pari...",
+            "currentWork": "Layered import media-range CSSOM normalization and native @keyframes visitor parity a...",
             "nextTarget": "Install or vendor the missing upstream runner dependencies in...",
             "remainingGate": "Full upstream runner closure is partial: bounded Rust media test and...",
-            "commit": "f912484"
+            "commit": "c99b35f"
         },
         {
             "lane": "gitoxide",
