@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 17:35:08 UTC",
-    "sourceCommit": "a25bbddc9233ed27761d6d1c0152bb434c9c08f2",
-    "sourceCommitShort": "a25bbddc9233",
+    "generated": "2026-06-01 17:41:51 UTC",
+    "sourceCommit": "414faf83c81072f2c370784eb2953f27716e9102",
+    "sourceCommitShort": "414faf83c810",
     "sourceBranch": "main",
-    "dashboardCommit": "a25bbddc9233ed27761d6d1c0152bb434c9c08f2",
-    "dashboardCommitShort": "a25bbddc9233",
+    "dashboardCommit": "414faf83c81072f2c370784eb2953f27716e9102",
+    "dashboardCommitShort": "414faf83c810",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,155,549 pass / 16 fail",
+            "php": "6,156,557 pass / 16 fail",
             "phase": "current-base source integration accepted; broad full-lane/release par...",
-            "audit": "2026-06-01 17:34 UTC supervisor integration: source commit a25bbddc92...",
-            "currentWork": "SQLitePDO native invalid-column/error-persistence/file-persistence parity, VFS file-c...",
+            "audit": "2026-06-01 17:41 UTC supervisor integration: source commit 414faf83c8...",
+            "currentWork": "Real upstream select9 WHERE-filtered compound SELECT reverse-collation coverage, sour...",
             "nextTarget": "Prioritize broad full-lane memory exhaustion and the 16 obser...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "a25bbdd"
+            "commit": "414faf8"
         },
         {
             "lane": "lightningcss",
