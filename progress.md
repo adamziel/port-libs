@@ -1,7 +1,7 @@
 | Project | Focus | State | Progress | PHP Tests | Mapped Upstream | Unmapped | Next Gate | Commit |
 | --- | --- | --- | ---: | ---: | --- | ---: | --- | --- |
-| [libsqlite](lanes/libsqlite/lane-status.json) | Primary | 16 open failures | 99.6% | 5,975,230 pass / 16 fail | [1,589 / 1,589 (100.0%)](lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json) | 0 | Broad libsqlite full-lane/release parity is not green: latest selecte... | 18f15e8 |
-| [LightningCSS](lanes/lightningcss/lane-status.json) | Active | PHP green, upstream gap | 99.8% | 8,327 pass / 0 fail | [2,393 / 3,532 (67.8%)](lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json) | 1,139 | Rust/Node/WASM upstream runners not run | 18f15e8 |
+| [libsqlite](lanes/libsqlite/lane-status.json) | Primary | 16 open failures | 99.6% | 5,976,232 pass / 16 fail | [1,589 / 1,589 (100.0%)](lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json) | 0 | Broad libsqlite full-lane/release parity is not green: latest selecte... | 22468ff |
+| [LightningCSS](lanes/lightningcss/lane-status.json) | Active | PHP green, upstream gap | 99.8% | 8,399 pass / 0 fail | [2,393 / 3,532 (67.8%)](lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json) | 1,139 | Rust/Node/WASM upstream runners not run | 22468ff |
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.1% | 9,913 pass / 0 fail | [1,799 / 2,886 (62.3%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,087 | Cargo workspace not run | 18f15e8 |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
 | [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 95.0% | 239 pass / 0 fail | [660 / 2,276 (29.0%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 1,616 | No local blocker | cd2e8a0 |
