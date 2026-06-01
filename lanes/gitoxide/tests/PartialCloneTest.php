@@ -517,6 +517,78 @@ return [
         $t->same("duplicate filtered pack marker\n", file_get_contents($packDir . '/' . $write['promisorName']));
         $t->same(count($beforePacks) + 1, count($database->promisorPackNames()));
     },
+    'object database writes promisor thin pack bundles using alternate bases' => static function (TestRunner $t) use ($writePromisorPackFixture, $buildThinPromisorBlobs): void {
+        [$gitDir] = $writePromisorPackFixture();
+        [$baseBlob, $targetBlob] = $buildThinPromisorBlobs('alternate-base');
+        $baseOid = $baseBlob->oid();
+        $targetOid = $targetBlob->oid();
+        $alternateObjects = sys_get_temp_dir() . '/port-libs-git-promisor-alternate-' . bin2hex(random_bytes(4)) . '/objects';
+        $primaryInfo = $gitDir . '/objects/info';
+
+        if (!mkdir($alternateObjects . '/info', 0777, true) && !is_dir($alternateObjects . '/info')) {
+            throw new RuntimeException("Unable to create alternate objects directory: {$alternateObjects}");
+        }
+        if (!is_dir($primaryInfo) && !mkdir($primaryInfo, 0777, true) && !is_dir($primaryInfo)) {
+            throw new RuntimeException("Unable to create objects info directory: {$primaryInfo}");
+        }
+        file_put_contents($primaryInfo . '/alternates', $alternateObjects . "\n");
+
+        $writtenBaseOid = LooseObjectStore::fromObjectsDirectory($alternateObjects)->write($baseBlob);
+        $thinPack = PackBuilder::buildWithRefDeltas([$targetBlob], [$baseBlob]);
+        $database = new ObjectDatabase($gitDir);
+
+        $t->same($baseOid, $writtenBaseOid);
+        $t->same(true, $thinPack->isThin());
+
+        $write = $database->writePromisorPackBundle($thinPack, "thin promisor pack with alternate base\n");
+        $alternateRealPath = realpath($alternateObjects);
+
+        $t->same(true, $alternateRealPath !== false);
+        $t->same(true, in_array($alternateRealPath, $database->alternateObjectDirectories(), true));
+        $t->same([$targetOid], $write['objectIds']);
+        $t->same(1, $write['objectCount']);
+        $t->same(true, str_ends_with($write['keepName'] ?? '', '.keep'));
+        $t->same('present', $database->objectState($baseOid)['status']);
+        $t->same('promisor-present', $database->objectState($targetOid)['status']);
+        $t->same([
+            'type' => 'blob',
+            'size' => strlen($baseBlob->body),
+            'source' => 'loose',
+        ], $database->readHeader($baseOid));
+        $t->same([
+            'type' => 'blob',
+            'size' => strlen($targetBlob->body),
+            'source' => 'pack',
+        ], $database->readHeader($targetOid));
+        $t->same($baseBlob->body, $database->read($baseOid)->body);
+        $t->same($targetBlob->body, $database->read($targetOid)->body);
+        $t->same(true, in_array($write['promisorName'], $database->promisorPackNames(), true));
+    },
+    'object database rejects promisor thin pack bundles with unresolved external bases' => static function (TestRunner $t) use ($writePromisorPackFixture, $buildThinPromisorBlobs): void {
+        [$gitDir] = $writePromisorPackFixture();
+        [$missingBaseBlob, $targetBlob] = $buildThinPromisorBlobs('unresolved-external-base');
+        $thinPack = PackBuilder::buildWithRefDeltas([$targetBlob], [$missingBaseBlob]);
+        $database = new ObjectDatabase($gitDir);
+        $packDir = $gitDir . '/objects/pack';
+        $basename = 'pack-' . $thinPack->packChecksum();
+        $exceptionMessage = null;
+
+        $t->same(true, $thinPack->isThin());
+
+        try {
+            $database->writePromisorPackBundle($thinPack, "thin promisor pack with missing external base\n");
+        } catch (RuntimeException $exception) {
+            $exceptionMessage = $exception->getMessage();
+        }
+
+        $t->true($exceptionMessage !== null, 'Promisor thin pack bundle should reject missing external REF_DELTA bases');
+        $t->contains('external REF_DELTA base not found', (string) $exceptionMessage);
+        $t->same(false, is_file($packDir . '/' . $basename . '.keep'));
+        $t->same(false, is_file($packDir . '/' . $basename . '.pack'));
+        $t->same(false, is_file($packDir . '/' . $basename . '.idx'));
+        $t->same(false, is_file($packDir . '/' . $basename . '.promisor'));
+        $t->same('promised-missing', $database->objectState($targetBlob->oid())['status']);
+    },
     'refresh-disabled handle writes promisor pack bundle without refreshing its cached inventory' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
         [$gitDir] = $writePromisorPackFixture();
         $staleDatabase = (new ObjectDatabase($gitDir))->withObjectStorageRefreshDisabled();
@@ -865,6 +937,17 @@ return [
         $t->same(true, $summary['crossPackTargetBodyMatches']);
         $t->same('promisor-present', $summary['crossPackBaseAfterRead']['status']);
         $t->same('promisor-present', $summary['crossPackTargetAfterRead']['status']);
+        $t->same($summary['alternateBaseObject'], $summary['alternateBaseWriteOid']);
+        $t->same(true, count($summary['alternateObjectDirectories']) >= 1);
+        $t->same(true, $summary['alternateThinPromisorPackIsThin']);
+        $t->same(true, in_array($summary['alternateThinPromisorPack'], $summary['promisorPacksAfterAlternateHydration'], true));
+        $t->same(true, str_ends_with($summary['alternateThinPromisorKeep'], '.keep'));
+        $t->same('present', $summary['alternateThinBaseState']['status']);
+        $t->same('promisor-present', $summary['alternateThinTargetState']['status']);
+        $t->same('blob', $summary['alternateThinTargetHeader']['type']);
+        $t->same('pack', $summary['alternateThinTargetHeader']['source']);
+        $t->same($summary['alternateThinTargetHeader']['size'], $summary['alternateThinTargetSize']);
+        $t->same(true, $summary['alternateThinTargetBodyMatches']);
         $t->same(true, in_array($summary['directInventoryPack'], $summary['directInventoryPackNames'], true));
         $t->same(true, in_array($summary['directInventoryObject'], $summary['directInventoryObjectIds'], true));
         $t->same(true, $summary['directInventoryIsPromisor']);

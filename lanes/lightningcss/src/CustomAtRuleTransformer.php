@@ -1405,7 +1405,7 @@ final class CustomAtRuleTransformer
     }
 
     /**
-     * @return list<array<string, string>>
+     * @return list<array<string, mixed>>
      */
     private function selectorComponentsFromString(string $selector): array
     {
@@ -1429,9 +1429,32 @@ final class CustomAtRuleTransformer
                 continue;
             }
 
+            if ($char === '#' && preg_match('/\#((?:\\\\.|[-_a-zA-Z0-9])+)/A', substr($selector, $cursor), $matches) === 1) {
+                $components[] = ['type' => 'id', 'name' => str_replace('\\\\', '\\', $matches[1])];
+                $cursor += strlen($matches[0]);
+                continue;
+            }
+
             if (in_array($char, ['>', '+', '~'], true)) {
                 $components[] = ['type' => 'combinator', 'value' => $char];
                 $cursor++;
+                continue;
+            }
+
+            if ($char === ':' && ($selector[$cursor + 1] ?? '') === ':' && preg_match('/\:\:([-_a-zA-Z0-9]+)/A', substr($selector, $cursor), $matches) === 1) {
+                $kind = $matches[1];
+                $cursor += strlen($matches[0]);
+                if (($selector[$cursor] ?? '') === '(') {
+                    $close = $this->findMatchingParen($selector, $cursor);
+                    if ($close !== null) {
+                        $arguments = substr($selector, $cursor + 1, $close - $cursor - 1);
+                        $components[] = $this->selectorFunctionalPseudoElementComponent($kind, $arguments);
+                        $cursor = $close + 1;
+                        continue;
+                    }
+                }
+
+                $components[] = ['type' => 'pseudo-element', 'kind' => $kind];
                 continue;
             }
 
@@ -1498,6 +1521,49 @@ final class CustomAtRuleTransformer
         }
 
         return $component;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function selectorFunctionalPseudoElementComponent(string $kind, string $arguments): array
+    {
+        $arguments = trim($arguments);
+        $lower = strtolower($kind);
+
+        if ($lower === 'part') {
+            return [
+                'type' => 'pseudo-element',
+                'kind' => 'part',
+                'names' => array_values(array_filter(
+                    preg_split('/\s+/', $arguments) ?: [],
+                    static fn (string $name): bool => $name !== ''
+                )),
+            ];
+        }
+
+        if ($lower === 'slotted') {
+            return [
+                'type' => 'pseudo-element',
+                'kind' => 'slotted',
+                'selector' => $this->selectorComponentsFromString($arguments),
+            ];
+        }
+
+        if ($lower === 'cue' || $lower === 'cue-region') {
+            return [
+                'type' => 'pseudo-element',
+                'kind' => $lower . '-function',
+                'selector' => $this->selectorComponentsFromString($arguments),
+            ];
+        }
+
+        return [
+            'type' => 'pseudo-element',
+            'kind' => 'custom-function',
+            'name' => $kind,
+            'arguments' => $arguments,
+        ];
     }
 
     /**
@@ -1766,15 +1832,22 @@ final class CustomAtRuleTransformer
             $type = $component['type'] ?? null;
             if ($type === 'class') {
                 $selector .= '.' . $this->escapeClassSelector((string) ($component['name'] ?? ''));
+            } elseif ($type === 'id') {
+                $selector .= '#' . $this->escapeSelectorIdentifier((string) ($component['name'] ?? ''));
             } elseif ($type === 'type') {
                 $selector .= (string) ($component['name'] ?? '');
             } elseif ($type === 'pseudo-class') {
                 $selector .= $this->serializePseudoClassComponent($component);
+            } elseif ($type === 'pseudo-element') {
+                $selector .= $this->serializePseudoElementComponent($component);
             } elseif ($type === 'combinator') {
-                $value = (string) ($component['value'] ?? '');
-                $selector = rtrim($selector) . ($value === 'descendant' ? ' ' : $value);
+                $selector = rtrim($selector) . $this->serializeSelectorCombinator((string) ($component['value'] ?? ''));
             } elseif ($type === 'attribute') {
                 $selector .= $this->serializeAttributeSelectorComponent($component);
+            } elseif ($type === 'universal') {
+                $selector .= '*';
+            } elseif ($type === 'nesting') {
+                $selector .= '&';
             } else {
                 $selector .= (string) ($component['value'] ?? '');
             }
@@ -1823,6 +1896,78 @@ final class CustomAtRuleTransformer
         }
 
         return ':' . $kind;
+    }
+
+    /**
+     * @param array<string, mixed> $component
+     */
+    private function serializePseudoElementComponent(array $component): string
+    {
+        $kind = (string) ($component['kind'] ?? '');
+        if ($kind === '') {
+            return '';
+        }
+
+        if ($kind === 'part') {
+            $names = $component['names'] ?? [];
+            if (!is_array($names)) {
+                $names = [(string) $names];
+            }
+
+            return '::part(' . implode(' ', array_map('strval', $names)) . ')';
+        }
+
+        if ($kind === 'slotted') {
+            $selector = $component['selector'] ?? [];
+
+            return '::slotted(' . (is_array($selector) ? $this->serializeSelectorComponents($selector) : (string) $selector) . ')';
+        }
+
+        if ($kind === 'cue-function' || $kind === 'cue-region-function') {
+            $selector = $component['selector'] ?? [];
+            $name = $kind === 'cue-function' ? 'cue' : 'cue-region';
+
+            return '::' . $name . '(' . (is_array($selector) ? $this->serializeSelectorComponents($selector) : (string) $selector) . ')';
+        }
+
+        if ($kind === 'custom') {
+            $name = (string) ($component['name'] ?? '');
+
+            return $name === '' ? '' : '::' . $name;
+        }
+
+        if ($kind === 'custom-function') {
+            $name = (string) ($component['name'] ?? '');
+            if ($name === '') {
+                return '';
+            }
+
+            $arguments = $component['arguments'] ?? '';
+            if (is_array($arguments)) {
+                $arguments = implode(' ', array_map(fn (mixed $value): string => $this->serializeVisitorValue($value), $arguments));
+            }
+
+            return '::' . $name . '(' . (string) $arguments . ')';
+        }
+
+        if ($kind === 'webkit-scrollbar' && isset($component['value'])) {
+            $value = (string) $component['value'];
+
+            return $value === 'scrollbar' ? '::-webkit-scrollbar' : '::-webkit-scrollbar-' . $value;
+        }
+
+        return '::' . $kind;
+    }
+
+    private function serializeSelectorCombinator(string $value): string
+    {
+        return match ($value) {
+            'descendant' => ' ',
+            'child' => '>',
+            'next-sibling' => '+',
+            'later-sibling' => '~',
+            default => $value,
+        };
     }
 
     private function escapeClassSelector(string $name): string
@@ -4209,12 +4354,15 @@ final class CustomAtRuleTransformer
                 $css .= (string) ($component['name'] ?? '');
             } elseif ($type === 'pseudo-class') {
                 $css .= $this->serializePseudoClassComponent($component);
+            } elseif ($type === 'pseudo-element') {
+                $css .= $this->serializePseudoElementComponent($component);
             } elseif ($type === 'combinator') {
-                $value = (string) ($component['value'] ?? 'descendant');
                 $css = rtrim($css);
-                $css .= $value === 'descendant' ? ' ' : $value;
+                $css .= $this->serializeSelectorCombinator((string) ($component['value'] ?? 'descendant'));
             } elseif ($type === 'attribute') {
                 $css .= $this->serializeAttributeSelectorComponent($component);
+            } elseif ($type === 'nesting') {
+                $css .= '&';
             }
         }
 
@@ -8272,6 +8420,24 @@ final class CustomAtRuleTransformer
                 $name = $this->readSelectorIdentifier($selector, $offset + 1);
                 $components[] = ['type' => 'id', 'name' => $this->unescapeSelectorIdentifier($name)];
                 $offset += strlen($name) + 1;
+                continue;
+            }
+            if ($char === ':' && ($selector[$offset + 1] ?? '') === ':') {
+                $name = $this->readSelectorIdentifier($selector, $offset + 2);
+                if ($name === '') {
+                    $offset += 2;
+                    continue;
+                }
+                $offset += strlen($name) + 2;
+                if (($selector[$offset] ?? '') === '(') {
+                    $close = $this->findMatchingParen($selector, $offset);
+                    if ($close !== null) {
+                        $components[] = $this->selectorFunctionalPseudoElementComponent($this->unescapeSelectorIdentifier($name), substr($selector, $offset + 1, $close - $offset - 1));
+                        $offset = $close + 1;
+                        continue;
+                    }
+                }
+                $components[] = ['type' => 'pseudo-element', 'kind' => $this->unescapeSelectorIdentifier($name)];
                 continue;
             }
             if ($char === ':') {

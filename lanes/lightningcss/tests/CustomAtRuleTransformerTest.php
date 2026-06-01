@@ -4203,6 +4203,70 @@ CSS;
         $t->same('type', $seenNth['of'][0][0]['type'] ?? null);
         $t->same('a', $seenNth['of'][0][0]['name'] ?? null);
     },
+    'custom at-rules expose upstream pseudo-elements to Selector visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Selector' => static function (array $selector) use (&$seen): array {
+                $seen[] = array_map(static fn (array $component): array => [
+                    $component['type'] ?? null,
+                    $component['kind'] ?? $component['name'] ?? $component['value'] ?? null,
+                    $component['names'] ?? null,
+                ], $selector);
+
+                foreach ($selector as &$component) {
+                    if (($component['type'] ?? null) === 'pseudo-element' && ($component['kind'] ?? null) === 'before') {
+                        $component['kind'] = 'marker';
+                    }
+                }
+                unset($component);
+
+                return $selector;
+            },
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('.wp-block-list li::before, #toc::part(icon) { color: red; }', [], $visitor);
+
+        $t->same('.wp-block-list li::marker,#toc::part(icon){color:red}', $result);
+        $t->same('pseudo-element', $seen[0][3][0] ?? null);
+        $t->same('before', $seen[0][3][1] ?? null);
+        $t->same(['icon'], $seen[1][1][2] ?? null);
+    },
+    'custom at-rules serialize upstream returned pseudo-element selectors' => static function (TestRunner $t): void {
+        $result = (new CustomAtRuleTransformer())->transform('@wordpress markers;', [
+            'wordpress' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'wordpress' => static fn (): array => [
+                        'type' => 'style',
+                        'value' => [
+                            'selectors' => [
+                                [
+                                    ['type' => 'class', 'name' => 'wp-block-list'],
+                                    ['type' => 'combinator', 'value' => 'child'],
+                                    ['type' => 'type', 'name' => 'li'],
+                                    ['type' => 'pseudo-element', 'kind' => 'marker'],
+                                ],
+                                [
+                                    ['type' => 'id', 'name' => 'toc'],
+                                    ['type' => 'pseudo-element', 'kind' => 'part', 'names' => ['marker']],
+                                ],
+                            ],
+                            'declarations' => [
+                                'declarations' => [
+                                    ['property' => 'color', 'raw' => 'yellow'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-list>li::marker,#toc::part(marker){color:#ff0}', $result);
+    },
     'custom at-rules compose upstream Url visitors in declaration values' => static function (TestRunner $t): void {
         $seenUrls = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([

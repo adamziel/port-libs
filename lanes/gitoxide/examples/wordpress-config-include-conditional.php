@@ -55,5 +55,8 @@ return [
     'environmentBranchPolicy' => $fixture['environmentBranchPolicy'],
     'environmentBranchBoundaryPolicy' => $fixture['environmentBranchBoundaryPolicy'],
     'environmentRemotePolicy' => $fixture['environmentRemotePolicy'],
+    'environmentNamedUserPolicy' => $fixture['environmentNamedUserPolicy'],
+    'namedUserPathPolicy' => $fixture['namedUserPathPolicy'],
+    'namedUserGitdirPolicy' => $fixture['namedUserGitdirPolicy'],
     'sectionsLoaded' => $fixture['sectionsLoaded'],
 ];

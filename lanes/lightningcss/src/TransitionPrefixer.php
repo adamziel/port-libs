@@ -407,6 +407,7 @@ final class TransitionPrefixer
         $logicalBorderFallback = $this->rewriteLogicalBorderFallbackRule(
             $selectors,
             $entries,
+            $targetOptions,
             $targetOptions['logicalBorderNeedsFallback'] ?? false,
             $targetOptions['logicalBorderShorthandNeedsFallback'] ?? false
         );
@@ -416,6 +417,7 @@ final class TransitionPrefixer
         $logicalSpacingFallback = $this->rewriteLogicalSpacingFallbackRule(
             $selectors,
             $entries,
+            $targetOptions,
             $targetOptions['logicalSpacingInlineNeedsFallback'] ?? false,
             $targetOptions['logicalSpacingBlockNeedsFallback'] ?? false,
             $targetOptions['logicalSpacingShorthandNeedsFallback'] ?? false
@@ -424,13 +426,13 @@ final class TransitionPrefixer
             return $logicalSpacingFallback . implode('', $supportRules);
         }
         $logicalInsetFallback = ($targetOptions['logicalInsetNeedsFallback'] ?? false)
-            ? $this->rewriteLogicalInsetFallbackRule($selectors, $entries)
+            ? $this->rewriteLogicalInsetFallbackRule($selectors, $entries, $targetOptions)
             : null;
         if ($logicalInsetFallback !== null) {
             return $logicalInsetFallback . implode('', $supportRules);
         }
         $logicalTextAlignFallback = ($targetOptions['logicalTextAlignNeedsFallback'] ?? false)
-            ? $this->rewriteLogicalTextAlignFallbackRule($selectors, $entries)
+            ? $this->rewriteLogicalTextAlignFallbackRule($selectors, $entries, $targetOptions)
             : null;
         if ($logicalTextAlignFallback !== null) {
             return $logicalTextAlignFallback . implode('', $supportRules);
@@ -1764,9 +1766,9 @@ final class TransitionPrefixer
                 'chrome' => [86],
                 'edge' => [86],
                 'firefox' => [85],
-                'ios_saf' => [15, 1],
+                'ios_saf' => [15, 4],
                 'opera' => [72],
-                'safari' => [15, 1],
+                'safari' => [15, 4],
                 'samsung' => [14],
             ]),
             'placeholderNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
@@ -2722,6 +2724,15 @@ final class TransitionPrefixer
 
     /**
      * @param array<string, bool> $targetOptions
+     * @return list<string>
+     */
+    private function selectorsWithTargetPrefixVariants(string $selectors, array $targetOptions): array
+    {
+        return $this->selectorPrefixVariants($selectors, $targetOptions) ?? [$selectors];
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
      * @return list<string>|null
      */
     private function selectorPrefixVariants(string $selectors, array $targetOptions): ?array
@@ -3449,8 +3460,9 @@ final class TransitionPrefixer
 
     /**
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
      */
-    private function rewriteLogicalBorderFallbackRule(string $selectors, array $entries, bool $needsFullFallback, bool $needsShorthandFallback): ?string
+    private function rewriteLogicalBorderFallbackRule(string $selectors, array $entries, array $targetOptions, bool $needsFullFallback, bool $needsShorthandFallback): ?string
     {
         if (!$needsFullFallback && !$needsShorthandFallback) {
             return null;
@@ -3480,13 +3492,18 @@ final class TransitionPrefixer
         }
 
         if (!$needsDirectionSplit) {
-            return $selectors . '{' . $this->serializeDeclarations($ltrEntries) . '}';
+            return $this->serializeRulesForSelectors($this->selectorsWithTargetPrefixVariants($selectors, $targetOptions), $ltrEntries);
         }
 
-        return $this->selectorVariant($selectors, 'ltr-webkit') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
-            . $this->selectorVariant($selectors, 'ltr-modern') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
-            . $this->selectorVariant($selectors, 'rtl-webkit') . '{' . $this->serializeDeclarations($rtlEntries) . '}'
-            . $this->selectorVariant($selectors, 'rtl-modern') . '{' . $this->serializeDeclarations($rtlEntries) . '}';
+        $rules = '';
+        foreach ($this->selectorsWithTargetPrefixVariants($selectors, $targetOptions) as $selector) {
+            $rules .= $this->selectorVariant($selector, 'ltr-webkit') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
+                . $this->selectorVariant($selector, 'ltr-modern') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
+                . $this->selectorVariant($selector, 'rtl-webkit') . '{' . $this->serializeDeclarations($rtlEntries) . '}'
+                . $this->selectorVariant($selector, 'rtl-modern') . '{' . $this->serializeDeclarations($rtlEntries) . '}';
+        }
+
+        return $rules;
     }
 
     /**
@@ -3662,8 +3679,9 @@ final class TransitionPrefixer
 
     /**
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
      */
-    private function rewriteLogicalSpacingFallbackRule(string $selectors, array $entries, bool $needsInlineFallback, bool $needsBlockFallback, bool $needsShorthandFallback): ?string
+    private function rewriteLogicalSpacingFallbackRule(string $selectors, array $entries, array $targetOptions, bool $needsInlineFallback, bool $needsBlockFallback, bool $needsShorthandFallback): ?string
     {
         if (!$needsInlineFallback && !$needsBlockFallback && !$needsShorthandFallback) {
             return null;
@@ -3705,13 +3723,18 @@ final class TransitionPrefixer
         }
 
         if (!$needsDirectionSplit) {
-            return $selectors . '{' . $this->serializeDeclarations($ltrEntries) . '}';
+            return $this->serializeRulesForSelectors($this->selectorsWithTargetPrefixVariants($selectors, $targetOptions), $ltrEntries);
         }
 
-        return $this->selectorVariant($selectors, 'ltr-webkit') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
-            . $this->selectorVariant($selectors, 'ltr-modern') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
-            . $this->selectorVariant($selectors, 'rtl-webkit') . '{' . $this->serializeDeclarations($rtlEntries) . '}'
-            . $this->selectorVariant($selectors, 'rtl-modern') . '{' . $this->serializeDeclarations($rtlEntries) . '}';
+        $rules = '';
+        foreach ($this->selectorsWithTargetPrefixVariants($selectors, $targetOptions) as $selector) {
+            $rules .= $this->selectorVariant($selector, 'ltr-webkit') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
+                . $this->selectorVariant($selector, 'ltr-modern') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
+                . $this->selectorVariant($selector, 'rtl-webkit') . '{' . $this->serializeDeclarations($rtlEntries) . '}'
+                . $this->selectorVariant($selector, 'rtl-modern') . '{' . $this->serializeDeclarations($rtlEntries) . '}';
+        }
+
+        return $rules;
     }
 
     /**
@@ -3847,8 +3870,9 @@ final class TransitionPrefixer
 
     /**
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
      */
-    private function rewriteLogicalInsetFallbackRule(string $selectors, array $entries): ?string
+    private function rewriteLogicalInsetFallbackRule(string $selectors, array $entries, array $targetOptions): ?string
     {
         $ltrEntries = [];
         $rtlEntries = [];
@@ -3874,19 +3898,25 @@ final class TransitionPrefixer
         }
 
         if (!$needsDirectionSplit) {
-            return $selectors . '{' . $this->serializeDeclarations($ltrEntries) . '}';
+            return $this->serializeRulesForSelectors($this->selectorsWithTargetPrefixVariants($selectors, $targetOptions), $ltrEntries);
         }
 
-        return $this->selectorVariant($selectors, 'ltr-webkit') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
-            . $this->selectorVariant($selectors, 'ltr-modern') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
-            . $this->selectorVariant($selectors, 'rtl-webkit') . '{' . $this->serializeDeclarations($rtlEntries) . '}'
-            . $this->selectorVariant($selectors, 'rtl-modern') . '{' . $this->serializeDeclarations($rtlEntries) . '}';
+        $rules = '';
+        foreach ($this->selectorsWithTargetPrefixVariants($selectors, $targetOptions) as $selector) {
+            $rules .= $this->selectorVariant($selector, 'ltr-webkit') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
+                . $this->selectorVariant($selector, 'ltr-modern') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
+                . $this->selectorVariant($selector, 'rtl-webkit') . '{' . $this->serializeDeclarations($rtlEntries) . '}'
+                . $this->selectorVariant($selector, 'rtl-modern') . '{' . $this->serializeDeclarations($rtlEntries) . '}';
+        }
+
+        return $rules;
     }
 
     /**
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
      */
-    private function rewriteLogicalTextAlignFallbackRule(string $selectors, array $entries): ?string
+    private function rewriteLogicalTextAlignFallbackRule(string $selectors, array $entries, array $targetOptions): ?string
     {
         $baseEntries = [];
         $ltrEntries = [];
@@ -3921,11 +3951,14 @@ final class TransitionPrefixer
             return null;
         }
 
-        $output = $baseEntries === [] ? '' : $selectors . '{' . $this->serializeDeclarations($baseEntries) . '}';
+        $selectorVariants = $this->selectorsWithTargetPrefixVariants($selectors, $targetOptions);
+        $output = $baseEntries === [] ? '' : $this->serializeRulesForSelectors($selectorVariants, $baseEntries);
+        foreach ($selectorVariants as $selector) {
+            $output .= $this->directionSelectorVariant($selector, 'ltr') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
+                . $this->directionSelectorVariant($selector, 'rtl') . '{' . $this->serializeDeclarations($rtlEntries) . '}';
+        }
 
-        return $output
-            . $this->directionSelectorVariant($selectors, 'ltr') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
-            . $this->directionSelectorVariant($selectors, 'rtl') . '{' . $this->serializeDeclarations($rtlEntries) . '}';
+        return $output;
     }
 
     /**

@@ -960,6 +960,63 @@ return [
         ]));
     },
 
+    'conditional include named user interpolation uses caller supplied home dirs like gix-config' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $root = $tmpDir();
+        $deployHome = $root . '/deploy-user-home';
+        $repo = $deployHome . '/sites/wp-content.git';
+        $gitDir = $repo . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($deployHome . '/path-policy.config', "[section]\nnamedPath = matched\n");
+        $write($repo . '/gitdir-policy.config', "[section]\nnamedGitdir = matched\n");
+        $write($deployHome . '/optional-policy.config', "[section]\nnamedOptional = matched\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [include]
+        path = ~deploy/path-policy.config
+        [include]
+        path = :(optional)~deploy/optional-policy.config
+        [includeIf "gitdir:~deploy/sites/wp-content.git/"]
+        path = ../gitdir-policy.config
+        [includeIf "gitdir:~missing/sites/wp-content.git/"]
+        path = ../missing-policy.config
+        CFG);
+
+        $config = GitConfig::fromFile($gitDir . '/config', [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+            'userHomeDirs' => ['deploy' => $deployHome],
+        ]);
+        $t->same('base', $config->value('section', null, 'value'));
+        $t->same('matched', $config->value('section', null, 'namedPath'));
+        $t->same('matched', $config->value('section', null, 'namedGitdir'));
+        $t->same('matched', $config->value('section', null, 'namedOptional'));
+        $t->same(null, $config->value('section', null, 'missingPolicy'));
+
+        $write($root . '/env-policy.config', "[env]\nnamedUser = matched\n");
+        $envConfig = GitConfig::fromEnvironmentPairs([
+            ['key' => 'includeIf.onbranch:deploy/*.path', 'value' => '~deploy/env-policy.config'],
+        ], [
+            'branchName' => 'refs/heads/deploy/site-a',
+            'userHomeDirs' => ['deploy' => $root],
+        ]);
+        $t->same('matched', $envConfig->value('env', null, 'namedUser'));
+
+        $missingConfig = GitConfig::fromFile($gitDir . '/config', [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+            'errOnInterpolationFailure' => false,
+        ]);
+        $t->same(null, $missingConfig->value('section', null, 'namedPath'));
+        $t->same(null, $missingConfig->value('section', null, 'namedGitdir'));
+
+        $t->throws(\RuntimeException::class, static fn () => GitConfig::fromFile($gitDir . '/config', [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+            'errOnInterpolationFailure' => true,
+        ]));
+    },
+
     'gitdir includeIf conditions match symlinked git directories like gix-config' => static function (TestRunner $t) use ($tmpDir, $write): void {
         if (DIRECTORY_SEPARATOR === '\\' || !function_exists('symlink')) {
             $t->same(true, true);
@@ -1264,6 +1321,9 @@ return [
         $t->same('matched', $fixture['environmentBranchPolicy']);
         $t->same(null, $fixture['environmentBranchBoundaryPolicy']);
         $t->same('matched', $fixture['environmentRemotePolicy']);
+        $t->same('matched', $fixture['environmentNamedUserPolicy']);
+        $t->same('matched', $fixture['namedUserPathPolicy']);
+        $t->same('matched', $fixture['namedUserGitdirPolicy']);
         $t->same($fixture['preview'], $summary['preview']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
         $t->same($fixture['escapedGitdirPolicy'], $summary['escapedGitdirPolicy']);
@@ -1308,6 +1368,9 @@ return [
         $t->same($fixture['environmentBranchPolicy'], $summary['environmentBranchPolicy']);
         $t->same($fixture['environmentBranchBoundaryPolicy'], $summary['environmentBranchBoundaryPolicy']);
         $t->same($fixture['environmentRemotePolicy'], $summary['environmentRemotePolicy']);
+        $t->same($fixture['environmentNamedUserPolicy'], $summary['environmentNamedUserPolicy']);
+        $t->same($fixture['namedUserPathPolicy'], $summary['namedUserPathPolicy']);
+        $t->same($fixture['namedUserGitdirPolicy'], $summary['namedUserGitdirPolicy']);
         $t->same($fixture['sectionsLoaded'], $summary['sectionsLoaded']);
     },
 ];

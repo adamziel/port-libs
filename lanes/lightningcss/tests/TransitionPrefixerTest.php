@@ -233,8 +233,12 @@ return [
             $prefixer->prefixForTargets(':hover, :focus-visible { color: red; }', ['safari' => 14])
         );
         $t->same(
+            ':is(:hover,:focus-visible){color:red}',
+            $prefixer->prefixForTargets(':hover, :focus-visible { color: red; }', ['safari' => '15.3'])
+        );
+        $t->same(
             ':hover,:focus-visible{color:red}',
-            $prefixer->prefixForTargets(':hover, :focus-visible { color: red; }', ['safari' => '15.1'])
+            $prefixer->prefixForTargets(':hover, :focus-visible { color: red; }', ['safari' => '15.4'])
         );
         $t->same(
             ':focus-within{color:red}:focus-visible{color:red}',
@@ -255,6 +259,38 @@ return [
         $t->same(
             'a:after:hover{color:red}a:after:focus-visible{color:red}',
             $prefixer->prefixForTargets('a::after:hover, a::after:focus-visible { color: red; }', ['safari' => 14])
+        );
+    },
+    'transition prefixer composes upstream unsupported selector-list isolation with logical fallbacks' => static function (TestRunner $t) use ($variants): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            ':hover{padding-inline-start:2px;padding-inline-end:2px}:focus-visible{padding-inline-start:2px;padding-inline-end:2px}',
+            $prefixer->prefixForTargets(':hover, :focus-visible { padding-inline: 2px; }', ['safari' => 13])
+        );
+        $t->same(
+            ':is(:hover,:focus-visible){padding-inline-start:2px;padding-inline-end:2px}',
+            $prefixer->prefixForTargets(':hover, :focus-visible { padding-inline: 2px; }', ['safari' => 14])
+        );
+        $t->same(
+            ':is(:hover,:focus-visible){padding-inline:2px}',
+            $prefixer->prefixForTargets(':hover, :focus-visible { padding-inline: 2px; }', ['safari' => 15])
+        );
+
+        $hover = $variants(':hover');
+        $focus = $variants(':focus-visible');
+        $directionalExpected = $hover['ltr-webkit'] . '{margin-left:2px}'
+            . $hover['ltr-modern'] . '{margin-left:2px}'
+            . $hover['rtl-webkit'] . '{margin-right:2px}'
+            . $hover['rtl-modern'] . '{margin-right:2px}'
+            . $focus['ltr-webkit'] . '{margin-left:2px}'
+            . $focus['ltr-modern'] . '{margin-left:2px}'
+            . $focus['rtl-webkit'] . '{margin-right:2px}'
+            . $focus['rtl-modern'] . '{margin-right:2px}';
+
+        $t->same(
+            $directionalExpected,
+            $prefixer->prefixForTargets(':hover, :focus-visible { margin-inline-start: 2px; }', ['safari' => 8])
         );
     },
     'transition prefixer maps upstream selector pseudo browser boundaries' => static function (TestRunner $t): void {

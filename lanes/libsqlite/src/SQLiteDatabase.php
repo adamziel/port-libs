@@ -2228,7 +2228,7 @@ final class SQLiteDatabase
         $automaticIndexColumns = null;
         $automaticIndexOrdinal = 0;
         foreach ($this->indexRecordsForTable('app_settings') as $record) {
-            $columns = $this->wordPressWriteIndexColumns(
+            $columns = $this->applicationWriteIndexColumns(
                 $record,
                 $automaticIndexColumns,
                 $automaticIndexOrdinal,
@@ -2272,7 +2272,7 @@ final class SQLiteDatabase
         $automaticIndexColumns = null;
         $automaticIndexOrdinal = 0;
         foreach ($this->indexRecordsForTable('app_settings') as $record) {
-            $columns = $this->wordPressWriteIndexColumns(
+            $columns = $this->applicationWriteIndexColumns(
                 $record,
                 $automaticIndexColumns,
                 $automaticIndexOrdinal,
@@ -2307,7 +2307,7 @@ final class SQLiteDatabase
      * @param null|list<non-empty-list<SQLiteIndexColumn>> $automaticIndexColumns
      * @return non-empty-list<SQLiteIndexColumn>
      */
-    private function wordPressWriteIndexColumns(
+    private function applicationWriteIndexColumns(
         SQLiteSchemaRecord $record,
         ?array &$automaticIndexColumns,
         int &$automaticIndexOrdinal,

@@ -495,6 +495,8 @@ final class ObjectDatabase
             throw new \RuntimeException('Promisor pack bundle writing currently supports SHA-1 pack build results');
         }
 
+        $this->assertPromisorPackExternalBasesResolvable($pack);
+
         $packDirectory = $this->primaryPackDirectory();
         $basename = 'pack-' . $pack->packChecksum();
         $packName = $basename . '.pack';
@@ -537,6 +539,29 @@ final class ObjectDatabase
             'objectCount' => count($pack->entries()),
             'alreadyPresent' => $packAlreadyExists && $indexAlreadyExists,
         ];
+    }
+
+    private function assertPromisorPackExternalBasesResolvable(PackBuildResult $pack): void
+    {
+        $contained = [];
+        foreach ($pack->entries() as $entry) {
+            $contained[$entry['oid']] = true;
+        }
+
+        foreach ($pack->entries() as $entry) {
+            if (($entry['storage'] ?? 'whole') !== 'ref-delta' || !isset($entry['baseOid'])) {
+                continue;
+            }
+
+            $baseOid = strtolower($entry['baseOid']);
+            if (isset($contained[$baseOid])) {
+                continue;
+            }
+
+            if (!$this->contains($baseOid)) {
+                throw new \RuntimeException("Promisor pack external REF_DELTA base not found in object database or alternates: {$baseOid}");
+            }
+        }
     }
 
     /**

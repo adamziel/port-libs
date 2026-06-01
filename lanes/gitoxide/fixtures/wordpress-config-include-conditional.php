@@ -15,6 +15,7 @@ $trailingBackslashUrl = 'https://git.example.test/wp-content/trailing\\';
 $escapedTrailingBackslashUrl = str_replace('\\', '\\\\', $trailingBackslashUrl);
 $escapedRepoCondition = str_replace('\\', '\\\\', $repo);
 $escapedGitDirCondition = str_replace('\\', '\\\\', $gitDir);
+$namedDeployUser = 'wpdeploy';
 mkdir($gitDir, 0777, true);
 
 $write = static function (string $path, string $contents): void {
@@ -224,6 +225,21 @@ $write($repo . '/environment-remote.config', <<<CFG
 environmentRemote = matched
 CFG);
 
+$write($root . '/named-user-path.config', <<<CFG
+[wordpress]
+namedUserPath = matched
+CFG);
+
+$write($repo . '/named-user-gitdir.config', <<<CFG
+[wordpress]
+namedUserGitdir = matched
+CFG);
+
+$write($root . '/environment-named-user.config', <<<CFG
+[wordpress]
+environmentNamedUser = matched
+CFG);
+
 $backslashRepo = $root . '/legacy\\checkout';
 $backslashGitDir = $backslashRepo . '/.git';
 mkdir($backslashGitDir, 0777, true);
@@ -342,11 +358,16 @@ path = ../absolute-worktree.config
 path = ../absolute-gitdir.config
 [includeIf "gitdir:{$escapedRepoCondition}/**"]
 path = ../absolute-worktree-glob.config
+[include]
+path = ~{$namedDeployUser}/named-user-path.config
+[includeIf "gitdir:~{$namedDeployUser}/sites/wp-content.git/"]
+path = ../named-user-gitdir.config
 CFG);
 
 $config = GitConfig::fromFile($gitDir . '/config', [
     'gitDir' => $gitDir,
     'homeDir' => $root,
+    'userHomeDirs' => [$namedDeployUser => $root],
     'installPrefix' => $installPrefix,
     'branchName' => 'refs/heads/deploy/site-a',
 ]);
@@ -376,9 +397,11 @@ $environmentConfig = GitConfig::fromEnvironmentPairs([
         'key' => 'includeIf.hasconfig:remote.*.url:https://git.example.test/**.path',
         'value' => $repo . '/environment-remote.config',
     ],
+    ['key' => 'includeIf.onbranch:deploy/*.path', 'value' => '~' . $namedDeployUser . '/environment-named-user.config'],
 ], [
     'gitDir' => $gitDir,
     'homeDir' => $root,
+    'userHomeDirs' => [$namedDeployUser => $root],
     'branchName' => 'refs/heads/deploy/site-a',
 ]);
 
@@ -474,6 +497,9 @@ return [
     'environmentBranchPolicy' => $environmentConfig->value('wordpress', null, 'environmentBranch'),
     'environmentBranchBoundaryPolicy' => $environmentConfig->value('wordpress', null, 'environmentBranchBoundary'),
     'environmentRemotePolicy' => $environmentConfig->value('wordpress', null, 'environmentRemote'),
+    'environmentNamedUserPolicy' => $environmentConfig->value('wordpress', null, 'environmentNamedUser'),
+    'namedUserPathPolicy' => $config->value('wordpress', null, 'namedUserPath'),
+    'namedUserGitdirPolicy' => $config->value('wordpress', null, 'namedUserGitdir'),
     'sectionsLoaded' => array_map(
         static fn (array $section): string => $section['subsection'] === null
             ? $section['name']

@@ -59,7 +59,7 @@ $keyValueFixtureFiles = [
     $libsqliteRoot . '/tests/SQLiteUtf16CollationAffinityCurrentSourceNext85Test.php',
     $libsqliteRoot . '/tests/SQLiteUtf16CollationAffinitySourceSwitchCurrentSourceNext100Test.php',
 ];
-$forbiddenNamePattern = 'WordPress|wordpress|WP|Wp|wp_|wpError|wp_error|OptionRow|optionRow|optionImport|optionsWalRows|upsertRecursiveViewSourceOption|Multisite|Network|Autoload|autoload|BlogId|blogId|OptionsTable|optionsTable|(?<!Compile)OptionName|(?<!compile)optionName|(?<!Compile)OptionValue|(?<!compile)optionValue|(?<!Compile)OptionId|(?<!compile)optionId';
+$forbiddenNamePattern = 'WordPress|wordpress|wordPress|WP|Wp|wp_|wpError|wp_error|OptionRow|optionRow|optionImport|optionsWalRows|upsertRecursiveViewSourceOption|Multisite|Network|Autoload|autoload|BlogId|blogId|OptionsTable|optionsTable|(?<!Compile)OptionName|(?<!compile)optionName|(?<!Compile)OptionValue|(?<!compile)optionValue|(?<!Compile)OptionId|(?<!compile)optionId';
 
 $sourceTextMatches = static function () use ($sourceFiles, $relativePath): array {
     $matches = [];
@@ -70,7 +70,7 @@ $sourceTextMatches = static function () use ($sourceFiles, $relativePath): array
             throw new RuntimeException("Unable to read {$file}");
         }
 
-        if (preg_match('/WordPress|wordpress/', $contents) === 1) {
+        if (preg_match('/WordPress|wordpress|wordPress/', $contents) === 1) {
             $matches[] = $relativePath($file);
         }
     }
@@ -113,7 +113,7 @@ $domainSpecificDeclarationMatches = static function () use ($libsqlitePhpFiles, 
 
 $keyValueSourceTermMatches = static function () use ($keyValueSourceFiles, $relativePath): array {
     $matches = [];
-    $pattern = '/wp_|wp_options|wp_sitemeta|blog_id|blogId|BlogId|option_id|option_name|option_value|OptionRow|optionRow|optionName|optionValue|optionId|Autoload|autoload|continue_on_site_error|\$option\b|\$sites\b|\$site\b|sitePlans|sitePlan/';
+    $pattern = '/WordPress|wordpress|wordPress|wp_|wp_options|wp_sitemeta|blog_id|blogId|BlogId|option_id|option_name|option_value|OptionRow|optionRow|optionName|optionValue|optionId|Autoload|autoload|continue_on_site_error|\$option\b|\$sites\b|\$site\b|sitePlans|sitePlan/';
 
     foreach ($keyValueSourceFiles as $file) {
         $contents = file_get_contents($file);

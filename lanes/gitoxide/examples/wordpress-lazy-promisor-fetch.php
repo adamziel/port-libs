@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\LooseObjectStore;
 use PortLibs\Gitoxide\ObjectDatabase;
 use PortLibs\Gitoxide\PackBuilder;
 use PortLibs\Gitoxide\PromisorObjectResolver;
@@ -40,6 +41,12 @@ for ($i = 0; $i < 72; $i++) {
 }
 $crossPackBaseBlob = new GitObject('blob', "WordPress cross-pack template base\n{$crossPackStable}status=draft\nchecksum=old\n");
 $crossPackTargetBlob = new GitObject('blob', "WordPress cross-pack template base\n{$crossPackStable}status=publish\nchecksum=new\n");
+$alternateStable = '';
+for ($i = 0; $i < 72; $i++) {
+    $alternateStable .= hash('sha1', 'wordpress-alternate-promisor-base-' . $i) . "\n";
+}
+$alternateBaseBlob = new GitObject('blob', "WordPress alternate template base\n{$alternateStable}status=draft\nchecksum=old\n");
+$alternateTargetBlob = new GitObject('blob', "WordPress alternate template base\n{$alternateStable}status=publish\nchecksum=new\n");
 $resolver = new class([$mediaBlob, $thinBaseBlob]) implements PromisorObjectResolver {
     public array $requests = [];
     public ?string $hydrationPack = null;
@@ -166,6 +173,28 @@ $crossPackTarget = $database->read($crossPackTargetBlob->oid());
 $crossPackBaseAfterRead = $database->objectState($crossPackBaseBlob->oid());
 $crossPackTargetAfterRead = $database->objectState($crossPackTargetBlob->oid());
 
+$alternateObjects = sys_get_temp_dir() . '/port-libs-git-lazy-promisor-alternate-' . bin2hex(random_bytes(4)) . '/objects';
+$primaryInfo = $gitDir . '/objects/info';
+if (!mkdir($alternateObjects . '/info', 0777, true) && !is_dir($alternateObjects . '/info')) {
+    throw new RuntimeException("Unable to create alternate objects directory: {$alternateObjects}");
+}
+if (!is_dir($primaryInfo) && !mkdir($primaryInfo, 0777, true) && !is_dir($primaryInfo)) {
+    throw new RuntimeException("Unable to create objects info directory: {$primaryInfo}");
+}
+file_put_contents($primaryInfo . '/alternates', $alternateObjects . "\n");
+$alternateBaseOid = LooseObjectStore::fromObjectsDirectory($alternateObjects)->write($alternateBaseBlob);
+$alternateThinPack = PackBuilder::buildWithRefDeltas([$alternateTargetBlob], [$alternateBaseBlob]);
+$alternateThinWrite = $database->writePromisorPackBundle(
+    $alternateThinPack,
+    "WordPress alternate-base promisor thin delta target\n"
+);
+$alternateObjectDirectories = $database->alternateObjectDirectories();
+$alternateThinBaseState = $database->objectState($alternateBaseBlob->oid());
+$alternateThinTargetState = $database->objectState($alternateTargetBlob->oid());
+$alternateThinTargetHeader = $database->readHeader($alternateTargetBlob->oid());
+$alternateThinTarget = $database->read($alternateTargetBlob->oid());
+$promisorPacksAfterAlternateHydration = $database->promisorPackNames();
+
 $inventoryBlob = new GitObject('blob', 'WordPress direct promisor inventory refresh bytes');
 $inventoryPack = PackBuilder::build([$inventoryBlob]);
 $inventoryWrite = $database->writePromisorPackBundle($inventoryPack, "WordPress direct promisor inventory hydration\n");
@@ -272,6 +301,19 @@ return [
     'crossPackBaseAfterRead' => $crossPackBaseAfterRead,
     'crossPackTargetAfterRead' => $crossPackTargetAfterRead,
     'promisorPacksAfterCrossPackHydration' => $database->promisorPackNames(),
+    'alternateBaseObject' => $alternateBaseBlob->oid(),
+    'alternateBaseWriteOid' => $alternateBaseOid,
+    'alternateThinTargetObject' => $alternateTargetBlob->oid(),
+    'alternateObjectDirectories' => $alternateObjectDirectories,
+    'alternateThinPromisorPack' => $alternateThinWrite['promisorName'],
+    'alternateThinPromisorKeep' => $alternateThinWrite['keepName'],
+    'alternateThinPromisorPackIsThin' => $alternateThinPack->isThin(),
+    'alternateThinBaseState' => $alternateThinBaseState,
+    'alternateThinTargetState' => $alternateThinTargetState,
+    'alternateThinTargetHeader' => $alternateThinTargetHeader,
+    'alternateThinTargetSize' => strlen($alternateThinTarget->body),
+    'alternateThinTargetBodyMatches' => $alternateThinTarget->body === $alternateTargetBlob->body,
+    'promisorPacksAfterAlternateHydration' => $promisorPacksAfterAlternateHydration,
     'directInventoryObject' => $inventoryBlob->oid(),
     'directInventoryPack' => $inventoryWrite['promisorName'],
     'directInventoryKeep' => $inventoryWrite['keepName'],

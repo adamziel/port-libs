@@ -18,6 +18,7 @@ final class GitConfig
      *     gitDir?: ?string,
      *     branchName?: ?string,
      *     homeDir?: ?string,
+     *     userHomeDirs?: array<string,string>,
      *     installPrefix?: ?string,
      *     maxDepth?: int,
      *     errOnMaxDepthExceeded?: bool,
@@ -39,6 +40,7 @@ final class GitConfig
      *     gitDir?: ?string,
      *     branchName?: ?string,
      *     homeDir?: ?string,
+     *     userHomeDirs?: array<string,string>,
      *     installPrefix?: ?string,
      *     maxDepth?: int,
      *     errOnMaxDepthExceeded?: bool,
@@ -65,6 +67,7 @@ final class GitConfig
      *     gitDir?: ?string,
      *     branchName?: ?string,
      *     homeDir?: ?string,
+     *     userHomeDirs?: array<string,string>,
      *     installPrefix?: ?string,
      *     maxDepth?: int,
      *     errOnMaxDepthExceeded?: bool,
@@ -126,6 +129,7 @@ final class GitConfig
      *     gitDir: ?string,
      *     branchName: ?string,
      *     homeDir: ?string,
+     *     userHomeDirs: array<string,string>,
      *     installPrefix: ?string,
      *     maxDepth: int,
      *     errOnMaxDepthExceeded: bool,
@@ -144,12 +148,35 @@ final class GitConfig
             'gitDir' => isset($options['gitDir']) ? (string) $options['gitDir'] : null,
             'branchName' => isset($options['branchName']) ? (string) $options['branchName'] : null,
             'homeDir' => isset($options['homeDir']) ? (string) $options['homeDir'] : null,
+            'userHomeDirs' => self::normalizeUserHomeDirs($options['userHomeDirs'] ?? []),
             'installPrefix' => isset($options['installPrefix']) ? (string) $options['installPrefix'] : null,
             'maxDepth' => $maxDepth,
             'errOnMaxDepthExceeded' => (bool) ($options['errOnMaxDepthExceeded'] ?? true),
             'errOnMissingConfigPath' => (bool) ($options['errOnMissingConfigPath'] ?? true),
             'errOnInterpolationFailure' => (bool) ($options['errOnInterpolationFailure'] ?? false),
         ];
+    }
+
+    /**
+     * @param mixed $homeDirs
+     * @return array<string,string>
+     */
+    private static function normalizeUserHomeDirs(mixed $homeDirs): array
+    {
+        if (!is_array($homeDirs)) {
+            throw new \InvalidArgumentException('Git config named user home directories must be an array');
+        }
+
+        $normalized = [];
+        foreach ($homeDirs as $user => $homeDir) {
+            if (!is_string($user) || $user === '' || !is_string($homeDir) || $homeDir === '') {
+                throw new \InvalidArgumentException('Git config named user home directory mappings require non-empty string keys and values');
+            }
+
+            $normalized[$user] = $homeDir;
+        }
+
+        return $normalized;
     }
 
     /**
@@ -454,6 +481,7 @@ final class GitConfig
      *     gitDir: ?string,
      *     branchName: ?string,
      *     homeDir: ?string,
+     *     userHomeDirs: array<string,string>,
      *     installPrefix: ?string,
      *     maxDepth: int,
      *     errOnMaxDepthExceeded: bool,
@@ -726,8 +754,17 @@ final class GitConfig
         }
 
         if ($path !== '~' && str_starts_with($path, '~') && str_contains($path, '/')) {
+            $slash = strpos($path, '/');
+            if ($slash !== false && $slash > 1) {
+                $user = substr($path, 1, $slash - 1);
+                $homeDirs = $options['userHomeDirs'];
+                if (array_key_exists($user, $homeDirs)) {
+                    return rtrim($homeDirs[$user], "\\/") . substr($path, $slash);
+                }
+            }
+
             if ($options['errOnInterpolationFailure']) {
-                throw new \RuntimeException('Named-user home interpolation is unsupported by this bounded config reader');
+                throw new \RuntimeException('Named-user home interpolation requires a caller-supplied home directory');
             }
             return null;
         }
