@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 09:56:29 UTC",
-    "sourceCommit": "f0e7129dcfdc7dfc76f55fc16e99478283df0b0d",
-    "sourceCommitShort": "f0e7129dcfdc",
+    "generated": "2026-06-01 10:03:49 UTC",
+    "sourceCommit": "2ac4851ffe852b01b050732d59182d78dc1b85c6",
+    "sourceCommitShort": "2ac4851ffe85",
     "sourceBranch": "unknown",
-    "dashboardCommit": "f0e7129dcfdc7dfc76f55fc16e99478283df0b0d",
-    "dashboardCommitShort": "f0e7129dcfdc",
+    "dashboardCommit": "2ac4851ffe852b01b050732d59182d78dc1b85c6",
+    "dashboardCommitShort": "2ac4851ffe85",
     "averageProgressPercent": "88.7",
     "lanes": [
         {
@@ -19,12 +19,12 @@
             "mapped": "1589",
             "coverage": "1,589 / 1,589",
             "php": "5,792,118 pass / 7 fail",
-            "phase": "application WAL rollback JSON, row-value update/delete LIMIT JSON mut...",
-            "audit": "2026-06-01 supervisor batch: accepted source f0e7129dcfdc with applic...",
-            "currentWork": "Application WAL rollback JSON parity, row-value update/delete...",
+            "phase": "source-neutral option table defaults cleanup and date-affinity real-c...",
+            "audit": "2026-06-01 supervisor batch: accepted source 2ac4851ffe852 with sourc...",
+            "currentWork": "Source-neutral option table defaults cleanup and real upstream date affinity atof1 decimal REAL suffix 5000-5999...",
             "nextTarget": "Continue broad release/all parity blockers, source-neutral cl...",
             "remainingGate": "Broad release/all still has 7 known failures",
-            "commit": "f0e7129"
+            "commit": "2ac4851"
         },
         {
             "lane": "lightningcss",
@@ -37,32 +37,32 @@
             "denominator": "3532",
             "mapped": "2365",
             "coverage": "2,365 / 3,532",
-            "php": "7,293 pass / 0 fail",
+            "php": "7,308 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor batch: accepted source f0e7129dcfdc with bundle...",
-            "currentWork": "Bundle import graph, transform-origin CSSOM, and source-map t...",
+            "audit": "2026-06-01 supervisor batch: accepted source 2ac4851ffe852 with CSS M...",
+            "currentWork": "CSS Modules part-picker pseudo local/global compose parity and custom at-rule Unicode ident parser/visitor parity...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, CSS Mo...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "f0e7129"
+            "commit": "2ac4851"
         },
         {
             "lane": "gitoxide",
             "library": "gitoxide",
             "queue": "Active",
             "state": "High coverage",
-            "progressPercent": "96.7",
+            "progressPercent": "96.8",
             "suite": "current-base Gitoxide protocol-v2 fetch exchange followup batch",
             "benchmark": "current-base Gitoxide protocol-v2 fetch exchange followup batch",
             "denominator": "2886",
             "mapped": "1778",
             "coverage": "1,778 / 2,886",
-            "php": "8,648 pass / 0 fail",
+            "php": "8,676 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor batch: accepted source f0e7129dcfdc with creden...",
-            "currentWork": "Credential helper HTTP path disabled parity integrated on cur...",
+            "audit": "2026-06-01 supervisor batch: accepted source 2ac4851ffe852 with attri...",
+            "currentWork": "Attributes/pathspec LF-byte wildmatch parity and config include directive-case parity integrated on current base.",
             "nextTarget": "Keep Gitoxide workers on current-base non-overlapping sparse-...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "f0e7129"
+            "commit": "2ac4851"
         },
         {
             "lane": "readability",
@@ -78,7 +78,7 @@
             "php": "154 pass / 0 fail",
             "phase": "cloned static inventory plus upstream npm runner evidence and Mozilla...",
             "audit": "verified 2026-05-26 isolated micro-slice: syntax checks pass for chan...",
-            "currentWork": "The copied Mozilla base URL fixture family now has focused Wo...",
+            "currentWork": "The copied Mozilla base URL fixture family now has focused WordPress block evidence proving migration output pres...",
             "nextTarget": "Map `lifehacker-working` or another remaining Kinja/comment-h...",
             "remainingGate": "No local blocker",
             "commit": "cd2e8a0"
@@ -97,7 +97,7 @@
             "php": "239 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader and Markdown/LaTeX/...",
             "audit": "updated 2026-05-26: continuous-dev-20260526T002956Z extended Markdown...",
-            "currentWork": "Native MarkdownWriter keeps the accepted inline line-break, t...",
+            "currentWork": "Native MarkdownWriter keeps the accepted inline line-break, table, definition-list, underline, caption, raw Markd...",
             "nextTarget": "Map another bounded Markdown writer branch after block-start...",
             "remainingGate": "No local blocker",
             "commit": "cd2e8a0"
@@ -116,7 +116,7 @@
             "php": "137 pass / 0 fail",
             "phase": "upstream runner pass plus native BLAKE2s/key/sparse-tree/proof/range/...",
             "audit": "updated 2026-05-25T17:38Z isolated closure-refill micro-slice on acce...",
-            "currentWork": "Pure-PHP Quadrable data structures and proof transport plus n...",
+            "currentWork": "Pure-PHP Quadrable data structures and proof transport plus native file-backed `QuadbStore`; latest work preserve...",
             "nextTarget": "If accepted, continue reducing any remaining command-surface...",
             "remainingGate": "No local blocker",
             "commit": "cd2e8a0"
@@ -135,7 +135,7 @@
             "php": "350 pass / 0 fail",
             "phase": "verified cloned static upstream test inventory plus bounded focused u...",
             "audit": "audited 2026-05-26: targeted WordPress route-registry scan-status ack...",
-            "currentWork": "Native `FolderScanRouteRegistry::forScanApi()` now exposes `G...",
+            "currentWork": "Native `FolderScanRouteRegistry::forScanApi()` now exposes `GET /syncthing/db/scan/status` with folder/state filt...",
             "nextTarget": "Map the next Syncthing closure edge: audit remaining route/st...",
             "remainingGate": "No local blocker",
             "commit": "cd2e8a0"
@@ -154,7 +154,7 @@
             "php": "279 pass / 0 fail",
             "phase": "cloned static inventory plus native tokenizer/differ, Ruby block-keyw...",
             "audit": "2026-05-25 isolated micro-slice support-refill-20260525T173455Z: synt...",
-            "currentWork": "C# syntax highlighting now maps upstream-style keyword/operat...",
+            "currentWork": "C# syntax highlighting now maps upstream-style keyword/operator/type captures to keyword/type display spans for J...",
             "nextTarget": "Expand the next upstream-query-backed syntax highlight bounda...",
             "remainingGate": "Upstream runner parity unavailable",
             "commit": "cd2e8a0"
@@ -173,7 +173,7 @@
             "php": "512 pass / 0 fail",
             "phase": "cloned static inventory plus bounded upstream Go runner evidence and...",
             "audit": "verified 2026-05-26 isolated continuous-dev rework refresh: targeted...",
-            "currentWork": "Native PHP maps OneDrive CleanUp/no-versions command and RC w...",
+            "currentWork": "Native PHP maps OneDrive CleanUp/no-versions command and RC wiring locally on top of accepted lifecycle evidence:...",
             "nextTarget": "Map another bounded credential-free OneDrive/provider lifecyc...",
             "remainingGate": "No local blocker",
             "commit": "cd2e8a0"
@@ -192,7 +192,7 @@
             "php": "293 pass / 0 fail",
             "phase": "cloned inventory + inspected CI benchmark archive + locked tabled hel...",
             "audit": "isolated lane worker 2026-05-25: reduced markerPDF simple-font WinAns...",
-            "currentWork": "Reduced simple-font WinAnsiEncoding handoff. PdfTextExtractor...",
+            "currentWork": "Reduced simple-font WinAnsiEncoding handoff. PdfTextExtractor now maps high-bit WinAnsiEncoding punctuation such...",
             "nextTarget": "Choose the next bounded markerPDF text extraction gap, likely...",
             "remainingGate": "Upstream runner parity unavailable",
             "commit": "cd2e8a0"
@@ -211,7 +211,7 @@
             "php": "259 pass / 0 fail",
             "phase": "cloned static inventory plus upstream make-test runner evidence; redu...",
             "audit": "verified 2026-05-25 isolated micro-slice continuous-dev-20260525T2248...",
-            "currentWork": "Added a bounded output-format preview slice for named ESM re-...",
+            "currentWork": "Added a bounded output-format preview slice for named ESM re-export clauses. The graph now follows runtime re-exp...",
             "nextTarget": "After integrator/root acceptance, the next best lane task is...",
             "remainingGate": "Release-extra upstream `make test-all` coverage remains static-only.",
             "commit": "cd2e8a0"
@@ -230,7 +230,7 @@
             "php": "249 pass / 0 fail",
             "phase": "cloned static upstream inventory + bounded diff/schema/table/dtablefu...",
             "audit": "updated 2026-05-25 continuous-dev-20260525T230900Z isolated micro-sli...",
-            "currentWork": "Native table diff classification, Dolt-style DOLT_DIFF_* rows...",
+            "currentWork": "Native table diff classification, Dolt-style DOLT_DIFF_* rows, schema/tag/index/foreign-key/check/collation/targe...",
             "nextTarget": "Implementation worker: map the next bounded SQL merge visibil...",
             "remainingGate": "Parked",
             "commit": "cd2e8a0"

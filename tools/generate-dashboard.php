@@ -226,7 +226,7 @@ foreach ($laneDirs as $dir) {
         'php' => $formatCount($phpPass) . ' pass / ' . $formatCount($phpFail) . ' fail',
         'phase' => $shorten($stringValue($status['phase'] ?? null, 'planning'), 72),
         'audit' => $shorten($stringValue($status['audit'] ?? null, 'not started'), 72),
-        'currentWork' => $shorten($currentWork, 64),
+        'currentWork' => $shorten($currentWork, 116),
         'nextTarget' => $shorten($nextTask, 64),
         'remainingGate' => $lane === 'dolt' ? 'Parked' : $shorten($blockerSummary($blocker), 72),
         'commit' => $shortCommit($stringValue($status['latestCommit'] ?? null, 'none')),
@@ -264,6 +264,7 @@ foreach ($rows as $row) {
         . '<td class="num">' . $escape($row['progressPercent']) . '%</td>'
         . '<td class="num">' . $escape($row['php']) . '</td>'
         . '<td class="num"><a href="' . $escape($row['manifestPath']) . '">' . $escape($row['coverage']) . '</a></td>'
+        . '<td>' . $escape($row['currentWork']) . '</td>'
         . '<td>' . $escape($row['remainingGate']) . '</td>'
         . '<td class="commit">' . $escape($row['commit']) . '</td>'
         . '</tr>' . "\n";
@@ -281,7 +282,7 @@ $html = <<<HTML
     body { margin: 0; padding: 16px; background: Canvas; color: CanvasText; }
     a { color: LinkText; }
     .table-wrap { overflow-x: auto; }
-    table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 13px; line-height: 1.32; }
+    table { width: 100%; min-width: 1080px; border-collapse: collapse; font-size: 13px; line-height: 1.32; }
     th, td { border: 1px solid color-mix(in srgb, CanvasText 16%, Canvas); padding: 7px 8px; text-align: left; vertical-align: top; }
     thead th { background: color-mix(in srgb, CanvasText 8%, Canvas); position: sticky; top: 0; }
     tbody th { background: color-mix(in srgb, CanvasText 3%, Canvas); white-space: nowrap; }
@@ -301,6 +302,7 @@ $html = <<<HTML
           <th>Progress</th>
           <th>PHP Tests</th>
           <th>Mapped</th>
+          <th>Current Focus</th>
           <th>Remaining Gate</th>
           <th>Commit</th>
         </tr>
@@ -329,13 +331,14 @@ foreach ($rows as $row) {
         . $markdownCell($row['progressPercent'] . '%') . ' | '
         . $markdownCell($row['php']) . ' | '
         . '[' . $markdownCell($row['coverage']) . '](' . $row['manifestPath'] . ') | '
+        . $markdownCell($row['currentWork']) . ' | '
         . $markdownCell($row['remainingGate']) . ' | '
         . $markdownCell($row['commit']) . " |\n";
 }
 
 $progressMd = <<<MD
-| Project | Queue | State | Progress | PHP Tests | Mapped | Remaining Gate | Commit |
-| --- | --- | --- | ---: | ---: | ---: | --- | --- |
+| Project | Queue | State | Progress | PHP Tests | Mapped | Current Focus | Remaining Gate | Commit |
+| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- |
 {$progressRows}
 MD;
 

@@ -2,15 +2,15 @@
     "schemaVersion": 1,
     "library": "LightningCSS",
     "estimatedProgress": 99.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS bundle import graph, transform-origin CSSOM, and source-map trailing empty offset parity. Verification passed changed PHP lint, git diff --cached --check, changed example smoke, and full LightningCSS lane 13 files / 7293 assertions / 0 failures.",
-    "phpPass": 7293,
+    "suiteProgress": "Supervisor-integrated LightningCSS CSS Modules part-picker pseudo local/global compose parity and custom at-rule Unicode ident parser/visitor parity. Verification passed changed PHP lint, git diff --cached --check, changed example smoke, and full LightningCSS lane 13 files / 7308 assertions / 0 failures.",
+    "phpPass": 7308,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics including malformed supports import rejection, source-map pruning and rejected child merge behavior, CSS Modules exports with escaped custom idents and terminal pseudo-element selector boundaries, custom at-rule parser/selector/function visitors, media range/layer fallbacks, SVG paint advanced-color fallbacks for fill/stroke, stale selector prefix pruning for :read-only/:fullscreen boundaries, direct and legacy flex CSSOM declaration canonicalization, grid property-value minification, nesting, unicode-bidi target prefix browser boundaries, and selector/logical target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 supervisor batch: accepted source f0e7129dcfdc with bundle import graph, transform-origin CSSOM, and source-map trailing empty offset parity. Full LightningCSS lane passed 13 files / 7293 assertions / 0 failures; full upstream Rust/Node/WASM runners were not executed.",
-    "currentWork": "Bundle import graph, transform-origin CSSOM, and source-map trailing empty offset parity integrated on current base.",
+    "audit": "2026-06-01 supervisor batch: accepted source 2ac4851ffe852 with CSS Modules part-picker pseudo local/global compose parity and custom at-rule Unicode ident parser/visitor parity. Full LightningCSS lane passed 13 files / 7308 assertions / 0 failures; full upstream Rust/Node/WASM runners were not executed.",
+    "currentWork": "CSS Modules part-picker pseudo local/global compose parity and custom at-rule Unicode ident parser/visitor parity integrated on current base.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "f0e7129dcfdc7dfc76f55fc16e99478283df0b0d",
+    "latestCommit": "2ac4851ffe852b01b050732d59182d78dc1b85c6",
     "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom-at-rule, and target-prefix slices; rebase stale overlapping handoffs before retry.",
-    "commit": "f0e7129dcfdc7dfc76f55fc16e99478283df0b0d"
+    "commit": "2ac4851ffe852b01b050732d59182d78dc1b85c6"
 }
