@@ -17,6 +17,15 @@ $pathspec = SparseCheckoutSpec::fromPathspecs([
     ':!wp-content/cache/**',
     ':(top,glob,icase)WP-CONTENT/Plugins/*/block.json',
 ]);
+$nonConePatternFilePathspec = SparseCheckoutSpec::fromNonConePatternFile(
+    "\xEF\xBB\xBFwp-content/mu-plugins/**   \n"
+    . "wp-content/plugins/**   \n"
+    . "!wp-content/plugins/cache/**   \n"
+    . "\\#literal-plugin.php   \n"
+    . "\\!literal-plugin.php   \n"
+    . "wp-content/uploads/hero\\  \n"
+    . "  \t  \n"
+);
 $wildmatchPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)wp-content/plugins/[ag]*/block.[jt]son',
     ':(exclude,glob)wp-content/cache/**',
@@ -201,6 +210,13 @@ return [
     'pathspecPluginBlockIncluded' => $pathspec->includesPath('WP-CONTENT/Plugins/Gutenberg/block.json', false),
     'pathspecCacheSkipped' => $pathspec->skipWorktree('wp-content/cache/page.html', false),
     'pathspecAdminSkipped' => $pathspec->skipWorktree('wp-admin/admin.php', false),
+    'nonConePatternFileBomMuPluginIncluded' => $nonConePatternFilePathspec->includesPath('wp-content/mu-plugins/loader.php', false),
+    'nonConePatternFileTrailingSpacePluginIncluded' => $nonConePatternFilePathspec->includesPath('wp-content/plugins/gutenberg/block.json', false),
+    'nonConePatternFileTrailingSpaceCacheSkipped' => $nonConePatternFilePathspec->skipWorktree('wp-content/plugins/cache/page.html', false),
+    'nonConePatternFileEscapedHashLiteralIncluded' => $nonConePatternFilePathspec->includesPath('#literal-plugin.php', false),
+    'nonConePatternFileEscapedBangLiteralIncluded' => $nonConePatternFilePathspec->includesPath('!literal-plugin.php', false),
+    'nonConePatternFileEscapedTrailingSpaceIncluded' => $nonConePatternFilePathspec->includesPath('wp-content/uploads/hero ', false),
+    'nonConePatternFileUnescapedTrailingSpaceSkipped' => $nonConePatternFilePathspec->skipWorktree('wp-content/uploads/hero', false),
     'pathspecBracketPluginBlockIncluded' => $wildmatchPathspec->includesPath('wp-content/plugins/akismet/block.json', false),
     'pathspecCacheExcludeAuthoritative' => $wildmatchPathspec->skipWorktree('wp-content/cache/page.html', false),
     'pathspecRecursiveEscapedThemeIncluded' => $wildmatchPathspec->includesPath('wp-content/themes/site/theme.?son', false),

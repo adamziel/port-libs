@@ -2171,10 +2171,21 @@ final class CssModulesTransformer
                     $forgivingSelectorFunction['open'] + 1,
                     $forgivingSelectorFunction['close'] - $forgivingSelectorFunction['open'] - 1
                 );
+                $rewrittenSelectors = $this->rewriteForgivingSelectorListParts($inner, $mode, $locals);
+                if (
+                    $forgivingSelectorFunction['decodedName'] === 'is'
+                    && count($rewrittenSelectors) === 1
+                    && $this->shouldUnwrapIsSelector($rewrittenSelectors[0])
+                ) {
+                    $output .= $rewrittenSelectors[0];
+                    $i = $forgivingSelectorFunction['close'];
+                    continue;
+                }
+
                 $output .= ':'
                     . $forgivingSelectorFunction['rawName']
                     . '('
-                    . $this->rewriteForgivingSelectorList($inner, $mode, $locals)
+                    . implode(',', $rewrittenSelectors)
                     . ')';
                 $i = $forgivingSelectorFunction['close'];
                 continue;
@@ -2328,6 +2339,15 @@ final class CssModulesTransformer
      */
     private function rewriteForgivingSelectorList(string $selectorList, string $mode, array &$locals): string
     {
+        return implode(',', $this->rewriteForgivingSelectorListParts($selectorList, $mode, $locals));
+    }
+
+    /**
+     * @param array<string, true> $locals
+     * @return list<string>
+     */
+    private function rewriteForgivingSelectorListParts(string $selectorList, string $mode, array &$locals): array
+    {
         $rewritten = [];
 
         foreach ($this->splitTopLevel($selectorList, ',') as $selector) {
@@ -2351,11 +2371,108 @@ final class CssModulesTransformer
             $rewritten[] = $rewrittenSelector;
         }
 
-        return implode(',', $rewritten);
+        return $rewritten;
+    }
+
+    private function shouldUnwrapIsSelector(string $selector): bool
+    {
+        $selector = trim($selector);
+        if ($selector === '') {
+            return false;
+        }
+
+        return !$this->selectorHasTopLevelCombinator($selector)
+            && !$this->selectorStartsWithTypeSelector($selector);
+    }
+
+    private function selectorHasTopLevelCombinator(string $selector): bool
+    {
+        $quote = null;
+        $bracketDepth = 0;
+        $parenDepth = 0;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '\\') {
+                $escapeEnd = $this->cssEscapeEnd($selector, $i);
+                if ($escapeEnd !== null) {
+                    $i = $escapeEnd;
+                    continue;
+                }
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+
+            if ($bracketDepth !== 0 || $parenDepth !== 0) {
+                continue;
+            }
+
+            if (ctype_space($char) || $char === '>' || $char === '+' || $char === '~') {
+                return true;
+            }
+
+            if ($char === '|' && ($selector[$i + 1] ?? '') === '|') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function selectorStartsWithTypeSelector(string $selector): bool
+    {
+        $selector = ltrim($selector);
+        $first = $selector[0] ?? '';
+        if ($first === '' || $first === '.' || $first === '#' || $first === '[' || $first === ':' || $first === '&') {
+            return false;
+        }
+
+        if ($first === '*' || $first === '|') {
+            return true;
+        }
+
+        return $this->readCssIdentifierToken($selector, 0) !== null;
     }
 
     /**
-     * @return array{rawName:string,open:int,close:int}|null
+     * @return array{rawName:string,decodedName:string,open:int,close:int}|null
      */
     private function forgivingSelectorFunctionAt(string $selector, int $offset): ?array
     {
@@ -2374,6 +2491,7 @@ final class CssModulesTransformer
 
         return [
             'rawName' => $token['raw'],
+            'decodedName' => strtolower($token['decoded']),
             'open' => $token['end'],
             'close' => $this->findMatchingParen($selector, $token['end']),
         ];

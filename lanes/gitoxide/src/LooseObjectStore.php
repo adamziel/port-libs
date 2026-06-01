@@ -56,16 +56,67 @@ final class LooseObjectStore
     {
         $oid = $object->oid($this->algorithm);
         $path = $this->pathFor($oid);
-        $directory = dirname($path);
-        if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
-            throw new \RuntimeException("Unable to create object directory: {$directory}");
+        if (file_exists($path) || is_link($path)) {
+            if (is_file($path) && !is_link($path)) {
+                return $oid;
+            }
+
+            throw new \RuntimeException("Loose object path already exists and is not a regular file: {$oid}");
+        }
+
+        if (!is_dir($this->objectsDirectory) && !mkdir($this->objectsDirectory, 0777, true) && !is_dir($this->objectsDirectory)) {
+            throw new \RuntimeException("Unable to create objects directory: {$this->objectsDirectory}");
         }
 
         $compressed = gzcompress($object->storageBytes());
         if ($compressed === false) {
             throw new \RuntimeException('Unable to zlib-compress Git object');
         }
-        file_put_contents($path, $compressed);
+
+        $temporary = tempnam($this->objectsDirectory, 'loose-');
+        if ($temporary === false) {
+            throw new \RuntimeException("Unable to create temporary loose object file in: {$this->objectsDirectory}");
+        }
+
+        try {
+            if (file_put_contents($temporary, $compressed) === false) {
+                throw new \RuntimeException("Unable to write temporary loose object file: {$temporary}");
+            }
+            if (!chmod($temporary, 0444)) {
+                throw new \RuntimeException("Unable to mark temporary loose object read-only: {$temporary}");
+            }
+
+            $directory = dirname($path);
+            if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+                throw new \RuntimeException("Unable to create object directory: {$directory}");
+            }
+            if (file_exists($path) || is_link($path)) {
+                if (is_file($path) && !is_link($path)) {
+                    return $oid;
+                }
+
+                throw new \RuntimeException("Loose object path already exists and is not a regular file: {$oid}");
+            }
+            if (!@link($temporary, $path)) {
+                if (file_exists($path) || is_link($path)) {
+                    if (is_file($path) && !is_link($path)) {
+                        return $oid;
+                    }
+
+                    throw new \RuntimeException("Loose object path already exists and is not a regular file: {$oid}");
+                }
+
+                throw new \RuntimeException("Unable to persist loose object file: {$path}");
+            }
+            if (!@unlink($temporary)) {
+                throw new \RuntimeException("Unable to remove temporary loose object file: {$temporary}");
+            }
+            $temporary = null;
+        } finally {
+            if ($temporary !== null && file_exists($temporary)) {
+                @unlink($temporary);
+            }
+        }
 
         return $oid;
     }

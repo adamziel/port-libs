@@ -420,6 +420,52 @@ CSS);
             $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
         }
     },
+    'css modules unwraps upstream single is selector after local global rewriting while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:is(:local(.featured)) {
+  color: red;
+}
+
+.card:is(:global(.wp-block-card)) {
+  color: yellow;
+}
+
+.card:is([data-state="wide/layout"]) {
+  border-color: blue;
+}
+
+.button {
+  composes: card;
+  color: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_card.EgL3uq_featured{color:red}.EgL3uq_card.wp-block-card{color:#ff0}.EgL3uq_card[data-state=wide\/layout]{border-color:#00f}.EgL3uq_button{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'featured' => $export('EgL3uq_featured'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+
+        $guarded = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:is(article) {
+  color: red;
+}
+
+.card:is(.wrapper .child) {
+  color: yellow;
+}
+CSS);
+
+        $t->same('.EgL3uq_card:is(article){color:red}.EgL3uq_card:is(.EgL3uq_wrapper .EgL3uq_child){color:#ff0}', $guarded['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'wrapper' => $export('EgL3uq_wrapper'),
+            'child' => $export('EgL3uq_child'),
+        ], $guarded['exports']);
+    },
     'css modules leaves upstream host-context arguments public while preserving local composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 :host-context(.public-theme) .card {

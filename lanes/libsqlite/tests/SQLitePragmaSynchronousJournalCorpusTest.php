@@ -130,8 +130,8 @@ $cases = [
         return 'accepted';
     },
     'state exposes normalized attached schema' => static function (): mixed {
-        $state = new SQLitePragmaJournalState(['wp' => ['synchronous' => 'off', 'journal_mode' => 'persist']]);
-        return $state->schemas()['wp'];
+        $state = new SQLitePragmaJournalState(['app' => ['synchronous' => 'off', 'journal_mode' => 'persist']]);
+        return $state->schemas()['app'];
     },
     'dependencies report synchronous state' => static fn (): mixed => (new SQLitePragmaJournalState())->execute('PRAGMA synchronous=NORMAL')['dependencies'],
     'dependencies report journal mode state' => static fn (): mixed => (new SQLitePragmaJournalState())->execute('PRAGMA journal_mode=WAL')['dependencies'],
@@ -193,7 +193,7 @@ $expected = [
     'parse journal mode query' => ['schema' => 'main', 'pragma' => 'journal_mode', 'value' => null],
     'parse rejects unknown pragma' => 'rejected',
     'parse rejects quoted schema for bounded corpus' => 'rejected',
-    'state exposes normalized attached schema' => ['synchronous' => 0, 'journal_mode' => 'persist', 'temporary' => false, 'memory' => false, 'wal_capable' => true],
+    'state exposes normalized attached schema' => ['synchronous' => 0, 'journal_mode' => 'persist', 'journal_size_limit' => -1, 'temporary' => false, 'memory' => false, 'wal_capable' => true],
     'dependencies report synchronous state' => ['sqlite-pragma-synchronous-state'],
     'dependencies report journal mode state' => ['sqlite-pragma-journal-mode-state'],
     'uppercase schema normalizes' => 0,

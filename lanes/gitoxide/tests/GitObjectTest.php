@@ -113,6 +113,58 @@ return [
         $t->same('blob', $roundTrip->type);
         $t->same('WordPress export', $roundTrip->body);
     },
+    'loose object store finalizes read-only files without clobbering existing objects like gix odb' => static function (TestRunner $t) use ($looseObjectPath): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-loose-finalize-' . bin2hex(random_bytes(4)) . '/objects';
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+        $object = new GitObject('blob', 'WordPress immutable deployment object');
+        $oid = $store->write($object);
+        $path = $looseObjectPath($objectsDirectory, $oid);
+        $firstBytes = (string) file_get_contents($path);
+
+        $t->same(true, is_file($path));
+        $t->same(0444, fileperms($path) & 0777);
+        $t->same($oid, $store->write($object));
+        $t->same($firstBytes, (string) file_get_contents($path));
+        $t->same('WordPress immutable deployment object', $store->read($oid)->body);
+        $t->same([
+            'numObjects' => 1,
+            'verifiedObjectIds' => [$oid],
+        ], $store->verifyIntegrity());
+    },
+    'loose object store refuses occupied non-regular object paths before finalization' => static function (TestRunner $t) use ($looseObjectPath): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-loose-finalize-blocked-' . bin2hex(random_bytes(4)) . '/objects';
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+        $blockedObject = new GitObject('blob', 'WordPress blocked loose object');
+        $blockedOid = $blockedObject->oid();
+        $blockedPath = $looseObjectPath($objectsDirectory, $blockedOid);
+        if (!mkdir($blockedPath, 0777, true) && !is_dir($blockedPath)) {
+            throw new RuntimeException('Unable to create occupied loose object path fixture');
+        }
+
+        try {
+            $store->write($blockedObject);
+            throw new RuntimeException('Expected occupied loose object path to block finalization');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object path already exists and is not a regular file: {$blockedOid}", $exception->getMessage());
+        }
+
+        $symlinkObject = new GitObject('blob', 'WordPress symlink loose object');
+        $symlinkOid = $symlinkObject->oid();
+        $symlinkPath = $looseObjectPath($objectsDirectory, $symlinkOid);
+        if (!is_dir(dirname($symlinkPath)) && !mkdir(dirname($symlinkPath), 0777, true) && !is_dir(dirname($symlinkPath))) {
+            throw new RuntimeException('Unable to create loose object symlink directory fixture');
+        }
+        if (!symlink($objectsDirectory . '/missing-target', $symlinkPath)) {
+            throw new RuntimeException('Unable to create loose object symlink fixture');
+        }
+
+        try {
+            $store->write($symlinkObject);
+            throw new RuntimeException('Expected loose object symlink path to block finalization');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object path already exists and is not a regular file: {$symlinkOid}", $exception->getMessage());
+        }
+    },
     'loose object store honors sha256 object hash kind for paths headers and integrity' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-sha256-' . bin2hex(random_bytes(4)) . '/.git';
         $store = new LooseObjectStore($gitDir, false, 'sha256');
@@ -623,6 +675,8 @@ return [
         $t->same($fixture['allocationLimitMessage'], $summary['allocationLimitMessage']);
         $t->same(true, $summary['trailingStreamIgnored']);
         $t->same(true, $summary['trailingStreamIntegrityVerified']);
+        $t->same(true, $summary['finalizedReadOnly']);
+        $t->same(true, $summary['finalizedExistingObjectPreserved']);
         $t->same(true, $summary['integrityInterruptHandled']);
         $t->same(1, $summary['integrityInterruptChecks']);
         $t->contains('Loose object integrity verification interrupted after ', $summary['integrityInterruptMessage']);

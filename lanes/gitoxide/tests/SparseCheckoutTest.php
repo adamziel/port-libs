@@ -57,6 +57,30 @@ return [
         $t->same(false, $spec->includesPath('wp-content/cache/page.html', false));
         $t->same(true, $spec->includesPath('!literal', false));
     },
+    'non cone sparse checkout follows gix ignore pattern file trimming boundaries' => static function (TestRunner $t): void {
+        $spec = SparseCheckoutSpec::fromNonConePatternFile(
+            "\xEF\xBB\xBFwp-content/mu-plugins/**   \n"
+            . "wp-content/plugins/**   \n"
+            . "!wp-content/plugins/cache/**   \n"
+            . "\\#literal-plugin.php   \n"
+            . "\\!literal-plugin.php   \n"
+            . "wp-content/uploads/hero\\  \n"
+            . "  \t  \n"
+        );
+
+        $t->same(true, $spec->includesPath('wp-content/mu-plugins/loader.php', false));
+        $t->same(true, $spec->includesPath('wp-content/plugins/gutenberg/block.json', false));
+        $t->same(false, $spec->includesPath('wp-content/plugins/cache/page.html', false));
+        $t->same(true, $spec->skipWorktree('wp-content/plugins/cache/page.html', false));
+        $t->same(true, $spec->includesPath('#literal-plugin.php', false));
+        $t->same(false, $spec->includesPath('\\#literal-plugin.php', false));
+        $t->same(true, $spec->includesPath('!literal-plugin.php', false));
+        $t->same(false, $spec->includesPath('literal-plugin.php', false));
+        $t->same(true, $spec->includesPath('wp-content/uploads/hero ', false));
+        $t->same(false, $spec->includesPath('wp-content/uploads/hero', false));
+        $t->same(false, $spec->includesPath("  \t", false));
+        $t->same(false, $spec->includesPath('wp-admin/admin.php', false));
+    },
     'sparse checkout filters wordpress tree entries for traversal' => static function (TestRunner $t) use ($entryNames): void {
         $spec = SparseCheckoutSpec::cone(['wp-content/plugins/gutenberg']);
         $blob = str_repeat('1', 40);

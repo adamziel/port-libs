@@ -91,8 +91,13 @@ final class SparseCheckoutSpec
     public static function fromNonConePatternFile(string $contents, bool $ignoreCase = false): self
     {
         $patterns = [];
-        foreach (self::lines($contents) as $line) {
+        foreach (self::lines(self::stripUtf8Bom($contents)) as $line) {
             if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+
+            $line = self::truncateNonEscapedTrailingSpaces($line);
+            if ($line === '' || self::isAsciiWhitespace($line)) {
                 continue;
             }
 
@@ -1281,6 +1286,47 @@ final class SparseCheckoutSpec
         }
 
         return implode('/', $parts);
+    }
+
+    private static function stripUtf8Bom(string $contents): string
+    {
+        return str_starts_with($contents, "\xEF\xBB\xBF") ? substr($contents, 3) : $contents;
+    }
+
+    private static function truncateNonEscapedTrailingSpaces(string $line): string
+    {
+        $lastSpacePosition = null;
+        $length = strlen($line);
+        for ($i = 0; $i < $length; $i++) {
+            $byte = $line[$i];
+            if ($byte === ' ') {
+                $lastSpacePosition ??= $i;
+                continue;
+            }
+            if ($byte === '\\') {
+                if ($i + 1 >= $length) {
+                    return $line;
+                }
+                $i++;
+            }
+
+            $lastSpacePosition = null;
+        }
+
+        return $lastSpacePosition === null ? $line : substr($line, 0, $lastSpacePosition);
+    }
+
+    private static function isAsciiWhitespace(string $line): bool
+    {
+        $length = strlen($line);
+        for ($i = 0; $i < $length; $i++) {
+            $ord = ord($line[$i]);
+            if ($ord !== 32 && ($ord < 9 || $ord > 13)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static function dirname(string $path): string

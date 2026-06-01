@@ -21,6 +21,8 @@ $allocationLimitRejected = false;
 $allocationLimitMessage = null;
 $trailingStreamIgnored = false;
 $trailingStreamIntegrityVerified = false;
+$finalizedReadOnly = false;
+$finalizedExistingObjectPreserved = false;
 $integrityInterruptHandled = false;
 $integrityInterruptChecks = 0;
 $integrityInterruptMessage = null;
@@ -47,6 +49,16 @@ $trailingStreamIgnored = $trailingStore->read($object->oid())->body === $fixture
 $trailingIntegrity = $trailingStore->verifyIntegrity();
 $trailingStreamIntegrityVerified = $trailingIntegrity['numObjects'] === 1
     && $trailingIntegrity['verifiedObjectIds'] === [$object->oid()];
+
+$finalizedObjectsDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-finalized-' . bin2hex(random_bytes(4)) . '/objects';
+$finalizedStore = LooseObjectStore::fromObjectsDirectory($finalizedObjectsDirectory);
+$finalizedObject = new GitObject('blob', "Read-only WordPress export object\n");
+$finalizedOid = $finalizedStore->write($finalizedObject);
+$finalizedPath = $finalizedObjectsDirectory . '/' . substr($finalizedOid, 0, 2) . '/' . substr($finalizedOid, 2);
+$finalizedBytes = (string) file_get_contents($finalizedPath);
+$finalizedReadOnly = (fileperms($finalizedPath) & 0777) === 0444;
+$finalizedExistingObjectPreserved = $finalizedStore->write($finalizedObject) === $finalizedOid
+    && (string) file_get_contents($finalizedPath) === $finalizedBytes;
 
 $interruptObjectsDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-interrupt-' . bin2hex(random_bytes(4)) . '/objects';
 $interruptStore = LooseObjectStore::fromObjectsDirectory($interruptObjectsDirectory);
@@ -104,6 +116,8 @@ return [
     'allocationLimitMessage' => $allocationLimitMessage,
     'trailingStreamIgnored' => $trailingStreamIgnored,
     'trailingStreamIntegrityVerified' => $trailingStreamIntegrityVerified,
+    'finalizedReadOnly' => $finalizedReadOnly,
+    'finalizedExistingObjectPreserved' => $finalizedExistingObjectPreserved,
     'integrityInterruptHandled' => $integrityInterruptHandled,
     'integrityInterruptChecks' => $integrityInterruptChecks,
     'integrityInterruptMessage' => $integrityInterruptMessage,

@@ -405,6 +405,25 @@ $skippedSameLineRawVlqMap->addVlqMap(
     3
 );
 
+$skippedGeneratedOnlyRawVlqMap = new SourceMap();
+$skippedGeneratedOnlyRawVlqMap->addVlqMap(
+    'AAAAA,E;ACECC',
+    [
+        'wp-content/themes/example/source-map-generated-state-prelude.css',
+        'wp-content/themes/example/blocks/generated-state-cover.css',
+    ],
+    [
+        '.wp-block-generated-state-prelude{}',
+        '.wp-block-generated-state-cover{}',
+    ],
+    [
+        'generated-state-prelude-rule',
+        'generated-state-cover-rule',
+    ],
+    -1,
+    5
+);
+
 $fullySkippedRawVlqMap = new SourceMap();
 $fullySkippedRawVlqMap->addVlqMap(
     'AAAAA;AACA',
@@ -883,6 +902,7 @@ $actual = [
     'dataUrlRoundTrip' => $dataUrlRoundTrip->toJson('/'),
     'negativeOffsetRawMap' => $negativeOffsetRawMap->toJson(null, false),
     'skippedSameLineRawVlqMap' => $skippedSameLineRawVlqMap->toJson(null, false),
+    'skippedGeneratedOnlyRawVlqMap' => $skippedGeneratedOnlyRawVlqMap->toJson(null, false),
     'fullySkippedRawVlqMap' => $fullySkippedRawVlqMap->toJson(null, false),
     'separatorOnlyRawVlqParent' => $separatorOnlyRawVlqParent->toJson(null, false),
     'separatorOnlyRawVlqChildConsumed' => $separatorOnlyRawVlqChildConsumed,
@@ -991,6 +1011,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'dataUrlRoundTrip' => '{"version":3,"sourceRoot":"/","mappings":";CAAAA","sources":["wp-content/themes/example/inline-critical.css"],"sourcesContent":[".critical{display:block}\n"],"names":["critical-rule"]}',
         'negativeOffsetRawMap' => '{"version":3,"mappings":"ICKMC","sources":["wp-content/themes/example/source-map-prelude.css","wp-content/themes/example/blocks/cover.css"],"sourcesContent":[".prelude{}",".wp-block-cover{}"],"names":["prelude-rule","cover-rule"]}',
         'skippedSameLineRawVlqMap' => '{"version":3,"mappings":"GCCGC","sources":["wp-content/themes/example/source-map-same-line-prelude.css","wp-content/themes/example/blocks/same-line-cover.css"],"sourcesContent":[".wp-block-same-line-prelude{}",".wp-block-same-line-cover{}"],"names":["same-line-prelude-rule","same-line-cover-rule"]}',
+        'skippedGeneratedOnlyRawVlqMap' => '{"version":3,"mappings":"KCECC","sources":["wp-content/themes/example/source-map-generated-state-prelude.css","wp-content/themes/example/blocks/generated-state-cover.css"],"sourcesContent":[".wp-block-generated-state-prelude{}",".wp-block-generated-state-cover{}"],"names":["generated-state-prelude-rule","generated-state-cover-rule"]}',
         'fullySkippedRawVlqMap' => '{"version":3,"mappings":"","sources":["wp-content/themes/example/source-map-skipped.scss","wp-content/themes/example/source-map-unused.scss"],"sourcesContent":[".wp-block-skipped{color:red}",".wp-block-unused{color:blue}"],"names":["skipped-rule","unused-rule"]}',
         'separatorOnlyRawVlqParent' => '{"version":3,"mappings":"AAAAA","sources":["wp-content/themes/example/source-map-entry.css","wp-content/themes/example/source-map-empty-separators.css"],"sourcesContent":[".wp-block-source-map-entry{}\n",".wp-block-empty-separators{}"],"names":["source-map-entry-rule","empty-separators-rule"]}',
         'separatorOnlyRawVlqChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',

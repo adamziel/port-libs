@@ -424,6 +424,31 @@ return [
         $t->same(['.prelude{}', '.wp-block-cover{}'], $data['sourcesContent']);
         $t->same(['prelude-rule', 'block-rule'], $data['names']);
     },
+    'source map preserves skipped generated-only vlq state before kept offsets' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $map->addVlqMap(
+            'AAAAA,E;ACECC',
+            ['prelude.css', 'block.css'],
+            ['.prelude{}', '.wp-block-cover{}'],
+            ['prelude-rule', 'block-rule'],
+            -1,
+            5
+        );
+
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $data = $map->toArray(null, false);
+
+        $t->same('KCECC', $map->writeVlq());
+        $t->same([0], array_column($decoded, 'generatedLine'));
+        $t->same([5], array_column($decoded, 'generatedColumn'));
+        $t->same([1], array_column($decoded, 'sourceIndex'));
+        $t->same([2], array_column($decoded, 'originalLine'));
+        $t->same([1], array_column($decoded, 'originalColumn'));
+        $t->same([1], array_column($decoded, 'nameIndex'));
+        $t->same(['prelude.css', 'block.css'], $data['sources']);
+        $t->same(['.prelude{}', '.wp-block-cover{}'], $data['sourcesContent']);
+        $t->same(['prelude-rule', 'block-rule'], $data['names']);
+    },
     'source map preserves imported tables when raw vlq offsets skip every mapping' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $map->addVlqMap(
