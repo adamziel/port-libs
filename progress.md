@@ -55,6 +55,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor followup (HTTP/ref/CSS/skipscan replay intake):
+  accepted source commit `8252b5d265c0f9d9ce59f0db6b0154cc76569bc9`
+  (`Integrate http refs css sqlite followup handoffs`). Gitoxide added smart
+  HTTP receive-pack discovery redirect limit parity, smart HTTP default-port
+  proxy/cookie behavior, and reference transaction packed-shadow reflog
+  parity; full Gitoxide verification passed `40 files / 7942 assertions / 0
+  failures` and conservative mapped coverage moves to `1758 / 2886`.
+  LightningCSS added bundle import graph resolution, custom at-rule
+  escaped-name visitor parity, property-value color/font/grid examples, and
+  keyframes target-prefix browser-boundary parity; full LightningCSS
+  verification passed `13 files / 6655 assertions / 0 failures`, mapped
+  coverage remains `2360 / 3532`. libsqlite added real upstream
+  `skipscan3.test` intermediate-term B-tree/index dynamic corpus coverage plus
+  source-neutral trigger/upsert defaults cleanup; focused verification passed
+  `5 files / 29725 assertions / 0 failures`, selected evidence moves to
+  `5624917 pass / 7 fail`, and mapped coverage remains `1589 / 1589`. Full
+  upstream Cargo/Rust/Node/WASM/release-all runners remain honestly
+  unclaimed. The source-map and encoding handoffs from the same queue remain
+  parked because their hunks overlapped current source and need a bounded
+  reconcile pass.
+
 - 2026-06-01 supervisor followup (protocol/CSS/PRAGMA replay intake):
   accepted source commit `ae63ccbb7ec6b0d7bdde3b48d54a16b4fb980617`
   (`Integrate protocol css sqlite followup handoffs`). Gitoxide added
