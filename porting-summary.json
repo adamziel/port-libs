@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 18:41:35 UTC",
-    "sourceCommit": "77840ac9f7fbca46d3cc01eef0979871aeec36b9",
-    "sourceCommitShort": "77840ac9f7fb",
+    "generated": "2026-06-01 18:43:17 UTC",
+    "sourceCommit": "5b606528ca8102f62e6c82f6506bc2504c583161",
+    "sourceCommitShort": "5b606528ca81",
     "sourceBranch": "unknown",
-    "dashboardCommit": "77840ac9f7fbca46d3cc01eef0979871aeec36b9",
-    "dashboardCommitShort": "77840ac9f7fb",
+    "dashboardCommit": "5b606528ca8102f62e6c82f6506bc2504c583161",
+    "dashboardCommitShort": "5b606528ca81",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -15,20 +15,20 @@
             "state": "16 open failures",
             "progressPercent": "99.6",
             "completion": "99.6%",
-            "suite": "current-base libsqlite source-neutral JSONB CHECK cleanup after json1...",
-            "benchmark": "current-base libsqlite source-neutral JSONB CHECK cleanup after json1...",
+            "suite": "current-base libsqlite indexed DELETE RETURNING expression-index cove...",
+            "benchmark": "current-base libsqlite indexed DELETE RETURNING expression-index cove...",
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,186,144 pass / 16 fail",
+            "php": "6,187,148 pass / 16 fail",
             "phase": "current-base source integration accepted; broad full-lane/release par...",
-            "audit": "2026-06-01 18:58 UTC supervisor integration: source commit f5019909c9...",
-            "currentWork": "Source-neutral JSONB CHECK fixture cleanup, real upstream json101 duplicate-path JSON...",
+            "audit": "2026-06-01 18:54 UTC supervisor integration: source commit 5b606528ca...",
+            "currentWork": "Real upstream indexexpr1 indexed DELETE RETURNING expression-index coverage, source-n...",
             "nextTarget": "Keep SQLitePDO native exception/silent/persistence regression...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "f501990"
+            "commit": "5b60652"
         },
         {
             "lane": "lightningcss",
