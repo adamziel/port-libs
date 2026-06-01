@@ -55,6 +55,20 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (sixth replay intake 03:18 UTC):
+  accepted 4 source-only handoffs as source commit
+  `2c6f6944dfb97e3e856bf480c1667d5e8c0211a3` (`ports: integrate merge-base
+  url color sourcemap slices`). The batch adds Gitoxide merge-base generation
+  hydration after a missing parent plus Git URL credential mutation/access
+  helper parity, and LightningCSS relative HSL/HWB invalid channel-position
+  guards plus separator-only raw VLQ source-map table import coverage.
+  Verification passed PHP lint, `git diff --check`, full Gitoxide
+  `40 files / 7134 assertions / 0 failures`, full LightningCSS
+  `13 files / 5733 assertions / 0 failures`, and touched examples. Dashboard
+  status should report Gitoxide `1716 / 2886` mapped and `7134 pass / 0 fail`,
+  LightningCSS `2320 / 3532` mapped and `5733 pass / 0 fail`, and libsqlite
+  unchanged at `1589 / 1589` mapped with `5429406 pass / 7 fail`.
+
 - 2026-06-01 supervisor continuation (fifth replay intake 03:06 UTC):
   accepted 5 source-only handoffs as source commit
   `d7e69cc2b6957550680f64bf150f695681d4610f` (`ports: integrate pathspec

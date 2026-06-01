@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 97.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS CSSOM, target-prefix, and media-query replay. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 5714 assertions / 0 failures, and touched examples.",
-    "phpPass": 5714,
+    "estimatedProgress": 97.9,
+    "suiteProgress": "Supervisor-integrated LightningCSS property-value and source-map replay. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 5733 assertions / 0 failures, and touched examples.",
+    "phpPass": 5733,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 supervisor replay: full LightningCSS lane passed 13 files / 5714 assertions / 0 failures after accepting CSSOM direct enum declaration parity, target-prefix print-color-adjust boundary cleanup, and media-query range layer target fallback parity. Conservative mapped coverage remains 2315 / 3532 because these deepen represented CSSOM/target/media clusters. Full upstream Rust/Node/WASM runners were not executed.",
-    "currentWork": "CSSOM direct enum declaration parity, target-prefix print-color-adjust boundary cleanup, and media-query range layer target fallback parity integrated on current base.",
-    "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 5714 assertions; continue source-map, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices.",
-    "latestCommit": "d7e69cc2b6957550680f64bf150f695681d4610f",
+    "audit": "2026-06-01 supervisor replay: full LightningCSS lane passed 13 files / 5733 assertions / 0 failures after accepting relative HSL/HWB invalid channel-position parity and separator-only raw VLQ source-map table import coverage. Conservative mapped coverage moves to 2320 / 3532; full upstream Rust/Node/WASM runners were not executed.",
+    "currentWork": "Relative HSL/HWB channel typing and separator-only raw VLQ source-map table import parity integrated on current base.",
+    "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 5733 assertions; continue source-map, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices.",
+    "latestCommit": "2c6f6944dfb97e3e856bf480c1667d5e8c0211a3",
     "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media queries, property values, target prefixing, CSSOM, and custom at-rules with full-lane PHP gates.",
-    "commit": "d7e69cc2b6957550680f64bf150f695681d4610f"
+    "commit": "2c6f6944dfb97e3e856bf480c1667d5e8c0211a3"
 }
