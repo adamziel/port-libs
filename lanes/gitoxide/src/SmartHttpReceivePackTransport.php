@@ -523,6 +523,9 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
         $current = self::httpUrlParts($currentUrl, 'smart HTTP receive-pack current URL');
         $authority = self::authority($current['host'], $current['port']);
+        if (str_starts_with($location, '//')) {
+            return self::normalizeRedirectUrl($current['scheme'] . ':' . $location);
+        }
         if (str_starts_with($location, '/')) {
             return self::normalizeRedirectUrl($current['scheme'] . '://' . $authority . $location);
         }

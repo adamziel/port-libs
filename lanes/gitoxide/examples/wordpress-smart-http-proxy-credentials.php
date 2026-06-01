@@ -91,6 +91,21 @@ return [
     'upgradeRedirectRequestUrls' => $fixture['upgradeRedirectRequestUrls'],
     'upgradeRedirectPostCookieHeader' => $fixture['upgradeRedirectPostCookieHeader'],
     'upgradeRedirectResponseSuccessful' => $fixture['upgradeRedirectResponseSuccessful'],
+    'protocolRelativeRedirectResponseSuccessful' => $fixture['protocolRelativeRedirectResponseSuccessful'],
+    'protocolRelativeRedirectRequestUrls' => $fixture['protocolRelativeRedirectRequestUrls'],
+    'protocolRelativeRedirectMethods' => $fixture['protocolRelativeRedirectMethods'],
+    'protocolRelativeRedirectUsedProxy' => $fixture['protocolRelativeRedirectUsedProxy'],
+    'protocolRelativeRedirectHelperCalls' => $fixture['protocolRelativeRedirectHelperCalls'],
+    'protocolRelativeRedirectPostCookieHeader' => $fixture['protocolRelativeRedirectPostCookieHeader'],
+    'protocolRelativeRedirectOriginProxyHeaderLeaked' => $fixture['protocolRelativeRedirectOriginProxyHeaderLeaked'],
+    'protocolRelativeRedirectCredentialsStored' => array_map(
+        static fn (array $entry): array => [
+            'proxyUrl' => $entry[0],
+            'requestHost' => $entry[1],
+            'username' => $entry[2]['username'],
+        ],
+        $fixture['protocolRelativeRedirectStores']
+    ),
     'urlCredentialProxyHelperCalls' => $fixture['urlCredentialProxyHelperCalls'],
     'urlCredentialProxyUrl' => $fixture['urlCredentialProxyUrl'],
     'urlCredentialProxyAuthorizationSent' => $fixture['urlCredentialProxyAuthorizationSent'],

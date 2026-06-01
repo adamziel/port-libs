@@ -1951,6 +1951,39 @@ return [
         $t->same([], $child->getNames());
         $t->same('', $child->writeVlq());
     },
+    'source map merges positive-offset empty child spans past parent eof' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $parentSource = $parent->addSource('parent.css');
+        $parent->setSourceContent($parentSource, ".parent{}\n");
+        $parent->addMapping(0, 0, $parentSource, 0, 0, 'parentRule');
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('empty-child.css');
+        $child->setSourceContent($childSource, ".empty-child{}\n");
+        $child->addMapping(2, 0, $childSource, 2, 0, 'emptyChildRule');
+        $child->offsetColumns(2, 1, -1);
+
+        $t->same(';;', $child->writeVlq());
+
+        $parent->addSourceMap($child, 5);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $data = $parent->toArray(null, false);
+        $roundTrip = SourceMap::fromBuffer('/', $parent->toBuffer());
+
+        $t->same('AAAAA;;;;;;;', $parent->writeVlq());
+        $t->same([0], array_column($decoded, 'generatedLine'));
+        $t->same([0], array_column($decoded, 'generatedColumn'));
+        $t->same([0], array_column($decoded, 'sourceIndex'));
+        $t->same([0], array_column($decoded, 'nameIndex'));
+        $t->same(['parent.css', 'empty-child.css'], $data['sources']);
+        $t->same([".parent{}\n", ".empty-child{}\n"], $data['sourcesContent']);
+        $t->same(['parentRule', 'emptyChildRule'], $data['names']);
+        $t->same(null, $parent->findClosestMapping(5, 0));
+        $t->same('AAAAA;;;;;;;', $roundTrip->writeVlq());
+        $t->same([], $child->getSources());
+        $t->same([], $child->getNames());
+        $t->same('', $child->writeVlq());
+    },
     'source map merges buffered column-drained child spans with negative offsets' => static function (TestRunner $t): void {
         $child = new SourceMap();
         $childSource = $child->addSource('buffered-column-drained-child.css');

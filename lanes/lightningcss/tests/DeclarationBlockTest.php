@@ -1956,7 +1956,7 @@ return [
     },
     'declaration block canonicalizes upstream legacy flex cssom declarations' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
-        $legacy = '-webkit-box-orient: Vertical; -moz-box-direction: Reverse; -webkit-box-align: Stretch; -moz-box-pack: Justify; -webkit-box-lines: Multiple; -webkit-box-flex: .500; -moz-box-flex: +1.00; -webkit-box-ordinal-group: +003; -ms-flex-pack: Distribute; -ms-flex-align: Baseline; -ms-flex-item-align: Auto; -ms-flex-line-pack: Stretch; -ms-flex-positive: +2.00; -ms-flex-negative: .2500; -ms-flex-preferred-size: 0PX; -ms-flex-order: -0002; --Legacy-Flex: Vertical';
+        $legacy = '-webkit-box-orient: Vertical; -moz-box-direction: Reverse; -webkit-box-align: Stretch; -moz-box-pack: Justify; -webkit-box-lines: Multiple; -webkit-box-flex: .500; -moz-box-flex: +1.00; -webkit-box-ordinal-group: +003; -webkit-box-flex-group: +004; -ms-flex-pack: Distribute; -ms-flex-align: Baseline; -ms-flex-item-align: Auto; -ms-flex-line-pack: Stretch; -ms-flex-positive: +2.00; -ms-flex-negative: .2500; -ms-flex-preferred-size: 0PX; -ms-flex-order: -0002; --Legacy-Flex: Vertical';
 
         $t->same(
             [
@@ -1968,6 +1968,7 @@ return [
                 '-webkit-box-flex' => '.5',
                 '-moz-box-flex' => '1',
                 '-webkit-box-ordinal-group' => '3',
+                '-webkit-box-flex-group' => '4',
                 '-ms-flex-pack' => 'distribute',
                 '-ms-flex-align' => 'baseline',
                 '-ms-flex-item-align' => 'auto',
@@ -1984,6 +1985,7 @@ return [
         $t->same(['value' => 'stretch', 'important' => false], $block->getProperty($legacy, '-webkit-box-align'));
         $t->same(['value' => '.5', 'important' => false], $block->getProperty($legacy, '-webkit-box-flex'));
         $t->same(['value' => '3', 'important' => false], $block->getProperty($legacy, '-webkit-box-ordinal-group'));
+        $t->same(['value' => '4', 'important' => false], $block->getProperty($legacy, '-webkit-box-flex-group'));
         $t->same(['value' => 'distribute', 'important' => false], $block->getProperty($legacy, '-ms-flex-pack'));
         $t->same(['value' => '0', 'important' => false], $block->getProperty($legacy, '-ms-flex-preferred-size'));
         $t->same(['value' => 'Vertical', 'important' => false], $block->getProperty($legacy, '--Legacy-Flex'));
@@ -1996,11 +1998,19 @@ return [
             $block->setProperty('-ms-flex-preferred-size: 0PX; color: red', '-ms-flex-preferred-size', '12PX')
         );
         $t->same(
+            '-webkit-box-flex-group: 6; color: red',
+            $block->setProperty('-webkit-box-flex-group: +004; color: red', '-webkit-box-flex-group', '+006')
+        );
+        $t->same(
             'color: red; -ms-flex-order: 4 !important',
             $block->setProperty('-ms-flex-order: -0002; color: red', '-ms-flex-order', '+004', true)
         );
         $t->same(
-            '-webkit-box-orient: vertical; -moz-box-direction: reverse; -webkit-box-align: stretch; -webkit-box-lines: multiple; -webkit-box-flex: .5; -moz-box-flex: 1; -webkit-box-ordinal-group: 3; -ms-flex-pack: distribute; -ms-flex-align: baseline; -ms-flex-item-align: auto; -ms-flex-line-pack: stretch; -ms-flex-positive: 2; -ms-flex-negative: .25; -ms-flex-preferred-size: 0; -ms-flex-order: -2; --Legacy-Flex: Vertical',
+            '-webkit-box-flex: .5; color: red',
+            $block->removeProperty('-webkit-box-flex: .500; -webkit-box-flex-group: +004; color: red', '-webkit-box-flex-group')
+        );
+        $t->same(
+            '-webkit-box-orient: vertical; -moz-box-direction: reverse; -webkit-box-align: stretch; -webkit-box-lines: multiple; -webkit-box-flex: .5; -moz-box-flex: 1; -webkit-box-ordinal-group: 3; -webkit-box-flex-group: 4; -ms-flex-pack: distribute; -ms-flex-align: baseline; -ms-flex-item-align: auto; -ms-flex-line-pack: stretch; -ms-flex-positive: 2; -ms-flex-negative: .25; -ms-flex-preferred-size: 0; -ms-flex-order: -2; --Legacy-Flex: Vertical',
             $block->removeProperty($legacy, '-moz-box-pack')
         );
     },

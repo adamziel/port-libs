@@ -859,6 +859,76 @@ $upgradeRedirectSession = $upgradeRedirectClient->handshake();
 $upgradeRedirectSession->createOrUpdate('refs/heads/main', $upgradeRedirectBlob->oid());
 $upgradeRedirectResponse = $upgradeRedirectClient->send($upgradeRedirectSession->buildRequest([$upgradeRedirectBlob]));
 
+$protocolRelativeRedirectRequests = [];
+$protocolRelativeRedirectHelperCalls = 0;
+$protocolRelativeRedirectStores = [];
+$protocolRelativeRedirectBlob = new GitObject('blob', 'WordPress protocol-relative proxy redirect payload');
+$protocolRelativeRedirectResponseBytes = $packet("\x01" . $packet("unpack ok\n"))
+    . $packet("\x01" . $packet("ok refs/heads/main\n"))
+    . $packet("\x01" . $flush)
+    . $flush;
+$protocolRelativeRedirectClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://git.example.test/wp-content.git',
+        static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$protocolRelativeRedirectRequests, $packet, $flush, $advertisementBytes, $protocolRelativeRedirectResponseBytes): array {
+            $protocolRelativeRedirectRequests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'timeout' => $timeout,
+                'httpOptions' => $httpOptions,
+            ];
+
+            if (count($protocolRelativeRedirectRequests) === 1) {
+                return [
+                    'status' => 302,
+                    'headers' => [
+                        'Location' => '//git.example.test/redirected.git/info/refs?service=git-receive-pack',
+                        'Set-Cookie' => 'protocol_gate=opened; Path=/; Secure',
+                    ],
+                    'body' => '',
+                ];
+            }
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'headers' => [
+                        'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                        'Set-Cookie' => 'protocol_repo=ready; Path=/redirected.git; Secure',
+                    ],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                'body' => $protocolRelativeRedirectResponseBytes,
+            ];
+        },
+        [],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+        [
+            'proxy' => 'http://wp-protocol-proxy.example.test:8080',
+            'proxyCredentialHelper' => static function () use (&$protocolRelativeRedirectHelperCalls): array {
+                $protocolRelativeRedirectHelperCalls++;
+
+                return ['username' => 'protocol-proxy-user', 'password' => 'protocol-proxy-pass'];
+            },
+            'proxyCredentialStore' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$protocolRelativeRedirectStores): void {
+                $protocolRelativeRedirectStores[] = [$proxyUrl, $requestHost, $credentials];
+            },
+        ],
+    ),
+    'port-libs/wordpress',
+);
+$protocolRelativeRedirectSession = $protocolRelativeRedirectClient->handshake();
+$protocolRelativeRedirectSession->createOrUpdate('refs/heads/main', $protocolRelativeRedirectBlob->oid());
+$protocolRelativeRedirectResponse = $protocolRelativeRedirectClient->send($protocolRelativeRedirectSession->buildRequest([$protocolRelativeRedirectBlob]));
+
 $urlCredentialProxyRequests = [];
 $urlCredentialProxyHelperCalls = [];
 $urlCredentialProxyStores = [];
@@ -1131,6 +1201,18 @@ return [
     'upgradeRedirectRequestUrls' => array_map(static fn (array $request): string => $request['url'], $upgradeRedirectRequests),
     'upgradeRedirectPostCookieHeader' => $upgradeRedirectRequests[2]['headers']['Cookie'] ?? null,
     'upgradeRedirectResponseSuccessful' => $upgradeRedirectResponse->isSuccessful(),
+    'protocolRelativeRedirectResponseSuccessful' => $protocolRelativeRedirectResponse->isSuccessful(),
+    'protocolRelativeRedirectHelperCalls' => $protocolRelativeRedirectHelperCalls,
+    'protocolRelativeRedirectStores' => $protocolRelativeRedirectStores,
+    'protocolRelativeRedirectRequestUrls' => array_map(static fn (array $request): string => $request['url'], $protocolRelativeRedirectRequests),
+    'protocolRelativeRedirectMethods' => array_map(static fn (array $request): string => $request['method'], $protocolRelativeRedirectRequests),
+    'protocolRelativeRedirectUsedProxy' => isset($protocolRelativeRedirectRequests[0]['httpOptions']['proxy'])
+        && isset($protocolRelativeRedirectRequests[1]['httpOptions']['proxy'])
+        && isset($protocolRelativeRedirectRequests[2]['httpOptions']['proxy']),
+    'protocolRelativeRedirectPostCookieHeader' => $protocolRelativeRedirectRequests[2]['headers']['Cookie'] ?? null,
+    'protocolRelativeRedirectOriginProxyHeaderLeaked' => isset($protocolRelativeRedirectRequests[0]['headers']['Proxy-Authorization'])
+        || isset($protocolRelativeRedirectRequests[1]['headers']['Proxy-Authorization'])
+        || isset($protocolRelativeRedirectRequests[2]['headers']['Proxy-Authorization']),
     'urlCredentialProxyAdvertisementBytes' => $urlCredentialProxyAdvertisement,
     'urlCredentialProxyHelperCalls' => $urlCredentialProxyHelperCalls,
     'urlCredentialProxyStores' => $urlCredentialProxyStores,
@@ -1154,5 +1236,5 @@ return [
     'notModifiedProxyPostCookieHeader' => $notModifiedProxyRequests[1]['headers']['Cookie'] ?? null,
     'proxyAuthorizationSent' => $requests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'originProxyHeaderLeaked' => isset($requests[0]['headers']['Proxy-Authorization']),
-    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, canonicalize default proxy ports out of credential-helper context while preserving concrete proxy streams, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass bracketed IPv6 literal repository hosts without consulting proxy helpers, preserve proxy use for curl-style port-qualified noProxy literal tokens, carry curl-compatible root-scoped non-slash Path cookies through authenticated receive-pack proxies, use HTTPS-specific and all-proxy fallbacks with receive-pack cookies intact, treat an explicitly empty HTTPS proxy as disabling lower all-proxy fallback, keep an HTTP-origin request direct when a safe redirect upgrades it to HTTPS, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies and curl-accepted trailing-dot Domain attributes from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
+    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, canonicalize default proxy ports out of credential-helper context while preserving concrete proxy streams, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass bracketed IPv6 literal repository hosts without consulting proxy helpers, preserve proxy use for curl-style port-qualified noProxy literal tokens, carry curl-compatible root-scoped non-slash Path cookies through authenticated receive-pack proxies, use HTTPS-specific and all-proxy fallbacks with receive-pack cookies intact, treat an explicitly empty HTTPS proxy as disabling lower all-proxy fallback, keep an HTTP-origin request direct when a safe redirect upgrades it to HTTPS, resolve protocol-relative redirects through the same smart HTTP proxy while preserving scoped cookies, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies and curl-accepted trailing-dot Domain attributes from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
 ];

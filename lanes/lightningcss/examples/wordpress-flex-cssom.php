@@ -9,7 +9,7 @@ require_once __DIR__ . '/../src/DeclarationBlock.php';
 $block = new DeclarationBlock();
 $button = 'flex: 1 0 auto; gap: var(--wp--style--block-gap)';
 $legacyButton = '-ms-flex-flow: row wrap; gap: var(--wp--style--block-gap)';
-$directButton = 'flex: +1.00 .500 0PX; order: +001; -webkit-box-orient: Vertical; -ms-flex-preferred-size: 0PX; gap: var(--wp--style--block-gap)';
+$directButton = 'flex: +1.00 .500 0PX; order: +001; -webkit-box-orient: Vertical; -webkit-box-flex-group: +004; -ms-flex-preferred-size: 0PX; gap: var(--wp--style--block-gap)';
 
 $actual = [
     'basis' => $block->getProperty($button, 'flex-basis'),
@@ -23,6 +23,8 @@ $actual = [
     'directCanonical' => $block->parse($directButton),
     'directFlexWrite' => $block->setProperty('flex: +1.00 .500 0PX; color: var(--wp--preset--color--contrast)', 'flex', '+2.00 1.00 10PX'),
     'legacyPreferredSize' => $block->setProperty($directButton, '-ms-flex-preferred-size', '12PX'),
+    'legacyFlexGroup' => $block->setProperty($directButton, '-webkit-box-flex-group', '+006'),
+    'dropLegacyFlexGroup' => $block->removeProperty($directButton, '-webkit-box-flex-group'),
 ];
 
 $expected = [
@@ -44,11 +46,14 @@ $expected = [
         'flex' => '1 .5 0',
         'order' => '1',
         '-webkit-box-orient' => 'vertical',
+        '-webkit-box-flex-group' => '4',
         '-ms-flex-preferred-size' => '0',
         'gap' => 'var(--wp--style--block-gap)',
     ],
     'directFlexWrite' => 'flex: 2 10px; color: var(--wp--preset--color--contrast)',
-    'legacyPreferredSize' => 'flex: 1 .5 0; order: 1; -webkit-box-orient: vertical; -ms-flex-preferred-size: 12px; gap: var(--wp--style--block-gap)',
+    'legacyPreferredSize' => 'flex: 1 .5 0; order: 1; -webkit-box-orient: vertical; -webkit-box-flex-group: 4; -ms-flex-preferred-size: 12px; gap: var(--wp--style--block-gap)',
+    'legacyFlexGroup' => 'flex: 1 .5 0; order: 1; -webkit-box-orient: vertical; -webkit-box-flex-group: 6; -ms-flex-preferred-size: 0; gap: var(--wp--style--block-gap)',
+    'dropLegacyFlexGroup' => 'flex: 1 .5 0; order: 1; -webkit-box-orient: vertical; -ms-flex-preferred-size: 0; gap: var(--wp--style--block-gap)',
 ];
 
 if (in_array('--self-test', $argv, true)) {

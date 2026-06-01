@@ -452,6 +452,7 @@ final class DeclarationBlock
         'order',
         '-webkit-order',
         '-webkit-box-ordinal-group',
+        '-webkit-box-flex-group',
         '-moz-box-ordinal-group',
         '-ms-flex-order',
     ];

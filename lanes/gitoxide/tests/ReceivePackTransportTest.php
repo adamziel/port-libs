@@ -1960,6 +1960,89 @@ return [
         $t->same('POST', $relativePermanentRedirectRequests[2]['method']);
         $t->same($relativePermanentRedirectRequest->requestBytes(), $relativePermanentRedirectRequests[2]['body']);
 
+        $protocolRelativeRequests = [];
+        $protocolRelativeClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$protocolRelativeRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $protocolRelativeRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                    ];
+
+                    if (count($protocolRelativeRequests) === 1) {
+                        return [
+                            'status' => 302,
+                            'headers' => [
+                                'Location' => '//git.example.test/redirected.git/info/refs?service=git-receive-pack',
+                                'Set-Cookie' => 'protocol_gate=opened; Path=/; Secure',
+                            ],
+                            'body' => '',
+                        ];
+                    }
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'protocol_repo=ready; Path=/redirected.git; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                7.0,
+                [],
+            ),
+            'port-libs/0.1'
+        );
+        $protocolRelativeSession = $protocolRelativeClient->handshake();
+        $protocolRelativeSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $protocolRelativeRequest = $protocolRelativeSession->buildRequest([$blob]);
+
+        $protocolRelativeResponse = $protocolRelativeClient->send($protocolRelativeRequest);
+
+        $t->same(true, $protocolRelativeResponse->isSuccessful());
+        $t->same([
+            'https://git.example.test/wp-content.git/info/refs?service=git-receive-pack',
+            'https://git.example.test/redirected.git/info/refs?service=git-receive-pack',
+            'https://git.example.test/redirected.git/git-receive-pack',
+        ], array_column($protocolRelativeRequests, 'url'));
+        $t->same('protocol_gate=opened', $protocolRelativeRequests[1]['headers']['Cookie']);
+        $t->same('protocol_repo=ready; protocol_gate=opened', $protocolRelativeRequests[2]['headers']['Cookie']);
+        $t->same($protocolRelativeRequest->requestBytes(), $protocolRelativeRequests[2]['body']);
+
+        $protocolRelativeCrossHostRequests = [];
+        $protocolRelativeCrossHost = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body) use (&$protocolRelativeCrossHostRequests): array {
+                $protocolRelativeCrossHostRequests[] = [
+                    'method' => $method,
+                    'url' => $url,
+                    'headers' => $headers,
+                    'body' => $body,
+                ];
+
+                return [
+                    'status' => 302,
+                    'headers' => ['Location' => '//attacker.example.test/wp-content.git/info/refs?service=git-receive-pack'],
+                    'body' => '',
+                ];
+            },
+        );
+        $t->throws(RuntimeException::class, static fn () => $protocolRelativeCrossHost->readAdvertisement());
+        $t->same(1, count($protocolRelativeCrossHostRequests));
+
         $rewritingPostRedirectRequests = [];
         $rewritingPostRedirectClient = new ReceivePackClient(
             new SmartHttpReceivePackTransport(
@@ -3552,6 +3635,86 @@ return [
         $t->same('upgrade_gate=opened', $upgradeRedirectRequests[1]['headers']['Cookie']);
         $t->same('upgrade_gate=opened', $upgradeRedirectRequests[2]['headers']['Cookie']);
         $t->same($upgradeRedirectRequest->requestBytes(), $upgradeRedirectRequests[2]['body']);
+
+        $protocolRelativeProxyRequests = [];
+        $protocolRelativeProxyHelperCalls = 0;
+        $protocolRelativeProxyBlob = new GitObject('blob', 'WordPress protocol-relative proxy redirect payload');
+        $protocolRelativeProxyClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$protocolRelativeProxyRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $protocolRelativeProxyRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if (count($protocolRelativeProxyRequests) === 1) {
+                        return [
+                            'status' => 302,
+                            'headers' => [
+                                'Location' => '//git.example.test/redirected.git/info/refs?service=git-receive-pack',
+                                'Set-Cookie' => 'proto_proxy_gate=opened; Path=/; Secure',
+                            ],
+                            'body' => '',
+                        ];
+                    }
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'proto_proxy_repo=ready; Path=/redirected.git; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'proxy' => 'http://protocol-proxy.example.test:8080',
+                    'proxyCredentialHelper' => static function () use (&$protocolRelativeProxyHelperCalls): array {
+                        $protocolRelativeProxyHelperCalls++;
+
+                        return ['username' => 'protocol-proxy-user', 'password' => 'protocol-proxy-pass'];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $protocolRelativeProxySession = $protocolRelativeProxyClient->handshake();
+        $protocolRelativeProxySession->createOrUpdate('refs/heads/main', $protocolRelativeProxyBlob->oid());
+        $protocolRelativeProxyRequest = $protocolRelativeProxySession->buildRequest([$protocolRelativeProxyBlob]);
+
+        $protocolRelativeProxyResponse = $protocolRelativeProxyClient->send($protocolRelativeProxyRequest);
+
+        $t->same(true, $protocolRelativeProxyResponse->isSuccessful());
+        $t->same(2, $protocolRelativeProxyHelperCalls);
+        $t->same([
+            'https://git.example.test/wp-content.git/info/refs?service=git-receive-pack',
+            'https://git.example.test/redirected.git/info/refs?service=git-receive-pack',
+            'https://git.example.test/redirected.git/git-receive-pack',
+        ], array_column($protocolRelativeProxyRequests, 'url'));
+        $t->same(['GET', 'GET', 'POST'], array_column($protocolRelativeProxyRequests, 'method'));
+        $t->same('tcp://protocol-proxy.example.test:8080', $protocolRelativeProxyRequests[0]['httpOptions']['proxy']);
+        $t->same('tcp://protocol-proxy.example.test:8080', $protocolRelativeProxyRequests[1]['httpOptions']['proxy']);
+        $t->same('tcp://protocol-proxy.example.test:8080', $protocolRelativeProxyRequests[2]['httpOptions']['proxy']);
+        $t->same('Basic ' . base64_encode('protocol-proxy-user:protocol-proxy-pass'), $protocolRelativeProxyRequests[1]['httpOptions']['proxyAuthorization']);
+        $t->same(null, $protocolRelativeProxyRequests[0]['headers']['Cookie'] ?? null);
+        $t->same('proto_proxy_gate=opened', $protocolRelativeProxyRequests[1]['headers']['Cookie']);
+        $t->same('proto_proxy_repo=ready; proto_proxy_gate=opened', $protocolRelativeProxyRequests[2]['headers']['Cookie']);
+        $t->same($protocolRelativeProxyRequest->requestBytes(), $protocolRelativeProxyRequests[2]['body']);
 
         $primaryProxyRequests = [];
         $primaryProxyTransport = new SmartHttpReceivePackTransport(
@@ -5339,6 +5502,40 @@ return [
         $t->same($fixture['upgradeRedirectRequestUrls'], $summary['upgradeRedirectRequestUrls']);
         $t->same($fixture['upgradeRedirectPostCookieHeader'], $summary['upgradeRedirectPostCookieHeader']);
         $t->same(true, $summary['upgradeRedirectResponseSuccessful']);
+        $t->same(true, $fixture['protocolRelativeRedirectResponseSuccessful']);
+        $t->same(['GET', 'GET', 'POST'], $fixture['protocolRelativeRedirectMethods']);
+        $t->same([
+            'https://git.example.test/wp-content.git/info/refs?service=git-receive-pack',
+            'https://git.example.test/redirected.git/info/refs?service=git-receive-pack',
+            'https://git.example.test/redirected.git/git-receive-pack',
+        ], $fixture['protocolRelativeRedirectRequestUrls']);
+        $t->same(true, $fixture['protocolRelativeRedirectUsedProxy']);
+        $t->same(2, $fixture['protocolRelativeRedirectHelperCalls']);
+        $t->same([
+            ['http://wp-protocol-proxy.example.test:8080', 'git.example.test', ['username' => 'protocol-proxy-user', 'password' => 'protocol-proxy-pass']],
+            ['http://wp-protocol-proxy.example.test:8080', 'git.example.test', ['username' => 'protocol-proxy-user', 'password' => 'protocol-proxy-pass']],
+        ], $fixture['protocolRelativeRedirectStores']);
+        $t->same('protocol_repo=ready; protocol_gate=opened', $fixture['protocolRelativeRedirectPostCookieHeader']);
+        $t->same(false, $fixture['protocolRelativeRedirectOriginProxyHeaderLeaked']);
+        $t->same(true, $summary['protocolRelativeRedirectResponseSuccessful']);
+        $t->same($fixture['protocolRelativeRedirectRequestUrls'], $summary['protocolRelativeRedirectRequestUrls']);
+        $t->same($fixture['protocolRelativeRedirectMethods'], $summary['protocolRelativeRedirectMethods']);
+        $t->same(true, $summary['protocolRelativeRedirectUsedProxy']);
+        $t->same(2, $summary['protocolRelativeRedirectHelperCalls']);
+        $t->same([
+            [
+                'proxyUrl' => 'http://wp-protocol-proxy.example.test:8080',
+                'requestHost' => 'git.example.test',
+                'username' => 'protocol-proxy-user',
+            ],
+            [
+                'proxyUrl' => 'http://wp-protocol-proxy.example.test:8080',
+                'requestHost' => 'git.example.test',
+                'username' => 'protocol-proxy-user',
+            ],
+        ], $summary['protocolRelativeRedirectCredentialsStored']);
+        $t->same($fixture['protocolRelativeRedirectPostCookieHeader'], $summary['protocolRelativeRedirectPostCookieHeader']);
+        $t->same(false, $summary['protocolRelativeRedirectOriginProxyHeaderLeaked']);
         $t->same([['http://stale-user:stale-pass@wp-proxy.example.test:8080', 'git.example.test']], $fixture['urlCredentialProxyHelperCalls']);
         $t->same('http://wp-proxy.example.test:8080', $fixture['urlCredentialProxyUrl']);
         $t->same('Basic ' . base64_encode('helper-proxy-user:helper-proxy-pass'), $fixture['urlCredentialProxyAuthorizationSent']);
