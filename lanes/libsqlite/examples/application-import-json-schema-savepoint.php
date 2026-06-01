@@ -9,18 +9,18 @@ use PortLibs\LibSqlite\SQLiteImportJsonSchemaSavepointPlan;
 $currentRows = [
     ['setting_id' => 1, 'key_name' => 'app_url', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
     ['setting_id' => 2, 'key_name' => 'enabled_modules', 'key_value' => '[]', 'load_policy' => 'yes'],
-    ['setting_id' => 70, 'key_name' => 'ui_theme_old', 'key_value' => '{"color":"blue"}', 'load_policy' => 'no'],
+    ['setting_id' => 70, 'key_name' => 'module_profile_old', 'key_value' => '{"color":"blue"}', 'load_policy' => 'no'],
 ];
 
 $plan = SQLiteImportJsonSchemaSavepointPlan::plan($currentRows, [
     [
         'name' => 'schema_defaults',
-        'json' => '{"rows":[{"name":"plugin_import_settings","value":"{\"enabled\":true}"}]}',
+        'json' => '{"rows":[{"name":"module_import_settings","value":"{\"enabled\":true}"}]}',
         'path' => '$.rows',
     ],
     [
         'name' => 'schema_reject',
-        'json' => '{"rows":[{"key_name":"widget_recent","key_value":"not-json"}]}',
+        'json' => '{"rows":[{"key_name":"component_recent","key_value":"not-json"}]}',
         'path' => '$.rows',
     ],
 ], [

@@ -311,8 +311,8 @@ final class SQLiteTenantJsonWalImportPlan
 
     private static function requiresJsonValidation(string $name): bool
     {
-        return str_starts_with($name, 'theme_mods_')
-            || str_starts_with($name, 'widget_')
+        return str_starts_with($name, 'module_')
+            || str_starts_with($name, 'component_')
             || str_ends_with($name, '_settings')
             || str_ends_with($name, '_config')
             || str_ends_with($name, '_json');

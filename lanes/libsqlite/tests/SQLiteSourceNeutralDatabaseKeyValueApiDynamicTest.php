@@ -44,6 +44,11 @@ $keyValueSourceFiles = static function () use ($sourceRoot): array {
     return array_values(array_unique($files));
 };
 
+$keyValueExampleFiles = [
+    $libsqliteRoot . '/examples/application-json-setting-value-list.php',
+    $libsqliteRoot . '/examples/application-setting-value-integer-list.php',
+];
+
 $keyValueDatabaseMethodNames = static function (): array {
     $reflection = new ReflectionClass(SQLiteDatabase::class);
     $names = [];
@@ -115,6 +120,26 @@ $helperFileLegacyMatches = static function () use ($keyValueSourceFiles, $legacy
     return $matches;
 };
 
+$exampleLegacyMatches = static function () use ($keyValueExampleFiles, $legacyDomainPattern, $relativePath): array {
+    $matches = [];
+    $pattern = $legacyDomainPattern();
+    foreach ($keyValueExampleFiles as $file) {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read {$file}");
+        }
+        $relative = $relativePath($file);
+        if (preg_match_all($pattern, $relative . "\n" . $contents, $fileMatches) < 1) {
+            continue;
+        }
+        foreach ($fileMatches[0] as $match) {
+            $matches[] = $relative . ': ' . $match;
+        }
+    }
+
+    return $matches;
+};
+
 return [
     'source-neutral database key-value API has dynamic method coverage' => static function (TestRunner $t) use ($keyValueDatabaseMethodNames): void {
         $methods = $keyValueDatabaseMethodNames();
@@ -125,6 +150,7 @@ return [
     },
     'source-neutral database key-value API methods contain no legacy domain terms' => static fn (TestRunner $t) => $t->same([], $databaseMethodLegacyMatches()),
     'source-neutral key-value row helper files contain no legacy domain terms' => static fn (TestRunner $t) => $t->same([], $helperFileLegacyMatches()),
+    'source-neutral key-value indexed lookup examples contain no legacy domain terms' => static fn (TestRunner $t) => $t->same([], $exampleLegacyMatches()),
     'source-neutral key-value identifiers are centralized on generic row metadata' => static fn (TestRunner $t) => $t->same([
         'table' => 'app_settings',
         'id' => 'setting_id',

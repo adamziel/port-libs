@@ -141,7 +141,7 @@ final class SQLiteImportJsonSchemaSavepointPlan
             'allowed' => self::stringList($schema['allowed'] ?? ['setting_id', 'key_name', 'name', 'key_value', 'value', 'load_policy']),
             'load_policy' => self::stringList($schema['load_policy'] ?? ['yes', 'no', 'auto', 'on', 'off']),
             'defaults' => is_array($schema['defaults'] ?? null) ? $schema['defaults'] : ['load_policy' => 'no'],
-            'json_key_patterns' => self::stringList($schema['json_key_patterns'] ?? ['/^ui_theme_/', '/_settings$/', '/^widget_/']),
+            'json_key_patterns' => self::stringList($schema['json_key_patterns'] ?? ['/^module_/', '/_settings$/', '/^component_/']),
             'reject_unknown' => (bool) ($schema['reject_unknown'] ?? true),
             'generate_setting_id' => (bool) ($schema['generate_setting_id'] ?? true),
         ];

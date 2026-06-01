@@ -2085,7 +2085,7 @@ checks for numeric-looking options such as `db_version`, plugin counters, or
 legacy values like `58796abc` that SQLite casts by their leading integer text
 without requiring the PHP SQLite extension.
 
-`examples/application-option-value-integer-list.php` reads a Application-oriented
+`examples/application-setting-value-integer-list.php` reads a Application-oriented
 SQLite database file, resolves a first-term
 `wp_options(CAST(option_value AS INTEGER))` expression index, and returns
 options whose cast values are in a caller supplied integer list such as
@@ -2132,7 +2132,7 @@ array position matches the requested value. This maps plugin channel lists,
 latest migration stages, and last-rule checks without scanning every serialized
 option row.
 
-`examples/application-json-option-value-list.php` reads a Application-oriented
+`examples/application-json-setting-value-list.php` reads a Application-oriented
 SQLite database file, resolves a first-term
 `wp_options(json_extract(option_value,'$.key'))` expression index, and returns
 options whose strict JSON scalar value is in a caller supplied list. This maps

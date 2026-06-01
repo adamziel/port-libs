@@ -16,37 +16,37 @@ require_once __DIR__ . '/../src/SQLiteTenantJsonWalImportPlan.php';
 use PortLibs\LibSqlite\SQLiteTenantJsonWalImportPlan;
 
 $currentRows = [
-    ['site_id' => 1, 'blog_id' => 1, 'option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
-    ['site_id' => 1, 'blog_id' => 2, 'option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://site2.example.test', 'autoload' => 'yes'],
-    ['scope' => 'network', 'site_id' => 1, 'meta_id' => 1, 'meta_key' => 'site_name', 'meta_value' => 'Network'],
+    ['group_id' => 1, 'tenant_id' => 1, 'setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
+    ['group_id' => 1, 'tenant_id' => 2, 'setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://site2.example.test', 'load_policy' => 'yes'],
+    ['scope' => 'global', 'group_id' => 1, 'setting_id' => 1, 'key_name' => 'app_name', 'key_value' => 'Global'],
 ];
 
 $rows = static fn (array $rows): string => json_encode(['rows' => $rows], JSON_THROW_ON_ERROR);
 
 $plan = SQLiteTenantJsonWalImportPlan::plan($currentRows, [
     [
-        'name' => 'current_blog_import',
-        'blog_id' => 1,
+        'name' => 'current_tenant_import',
+        'tenant_id' => 1,
         'json' => $rows([
-            ['option_name' => 'plugin_settings', 'option_value' => '{"enabled":true}', 'autoload' => 'yes'],
+            ['key_name' => 'module_settings', 'key_value' => '{"enabled":true}', 'load_policy' => 'yes'],
         ]),
     ],
     [
-        'name' => 'next_blog_preview',
-        'blog_id' => 2,
+        'name' => 'next_tenant_preview',
+        'tenant_id' => 2,
         'release' => false,
         'json' => $rows([
-            ['option_name' => 'theme_mods_preview', 'option_value' => '{"palette":["blue"]}', 'autoload' => 'no'],
+            ['key_name' => 'module_profile_preview', 'key_value' => '{"palette":["blue"]}', 'load_policy' => 'no'],
         ]),
     ],
     [
-        'name' => 'network_meta_import',
-        'scope' => 'network',
+        'name' => 'global_settings_import',
+        'scope' => 'global',
         'json' => $rows([
-            ['meta_key' => 'site_settings', 'meta_value' => '{"lang":"en"}'],
+            ['key_name' => 'system_settings', 'key_value' => '{"lang":"en"}'],
         ]),
     ],
-], ['database_path' => '/tmp/wp-multisite-json-wal-current-next54.sqlite']);
+], ['database_path' => '/tmp/app-tenant-json-wal-current-next54.sqlite']);
 
 echo json_encode([
     'status' => $plan['status'],

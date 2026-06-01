@@ -10,7 +10,7 @@ use PortLibs\LibSqlite\SQLiteImportJsonSchemaSavepointPlan;
 $currentRows = static fn (): array => [
     ['setting_id' => 1, 'key_name' => 'app_url', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
     ['setting_id' => 2, 'key_name' => 'enabled_modules', 'key_value' => '[]', 'load_policy' => 'yes'],
-    ['setting_id' => 70, 'key_name' => 'ui_theme_old', 'key_value' => '{"color":"blue"}', 'load_policy' => 'no'],
+    ['setting_id' => 70, 'key_name' => 'module_profile_old', 'key_value' => '{"color":"blue"}', 'load_policy' => 'no'],
 ];
 
 $jsonRows = static fn (array $rows): string => json_encode(['rows' => $rows], JSON_THROW_ON_ERROR);
@@ -24,14 +24,14 @@ $tests = [
     'applies schema defaults and generated ids before WAL savepoint import' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             ['name' => 'defaults', 'json' => $jsonRows([
-                ['name' => 'plugin_default_settings', 'value' => '{"enabled":true}'],
+                ['name' => 'module_default_settings', 'value' => '{"enabled":true}'],
             ]), 'path' => '$.rows'],
         ]);
 
         $t->same('planned', $result['status']);
         $t->same(true, $result['schema_savepoint_import']);
         $t->same(['defaults'], $result['released_batches']);
-        $t->same(['plugin_default_settings'], $result['batches'][0]['json']['key_names']);
+        $t->same(['module_default_settings'], $result['batches'][0]['json']['key_names']);
         $t->same(71, $result['batches'][0]['schema_generated_ids'][0]['setting_id']);
     },
     'records current and next savepoint snapshots around generated import rows' => static function (TestRunner $t) use ($plan, $jsonRows): void {
@@ -55,13 +55,13 @@ $tests = [
         ]);
 
         $t->same('open', $result['batches'][0]['status']);
-        $t->same(['app_url', 'enabled_modules', 'ui_theme_old', 'open_schema_settings'], $result['final_key_names']);
-        $t->same(['app_url', 'enabled_modules', 'ui_theme_old'], $result['released_key_names']);
+        $t->same(['app_url', 'enabled_modules', 'module_profile_old', 'open_schema_settings'], $result['final_key_names']);
+        $t->same(['app_url', 'enabled_modules', 'module_profile_old'], $result['released_key_names']);
     },
     'rolls schema failures back without advancing current or next WAL frames' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             ['name' => 'bad_schema', 'json' => $jsonRows([
-                ['key_name' => 'widget_recent', 'key_value' => 'not-json'],
+                ['key_name' => 'component_recent', 'key_value' => 'not-json'],
             ]), 'path' => '$.rows'],
         ]);
 
@@ -73,16 +73,16 @@ $tests = [
     'preserves released batches when the next schema import rolls back' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             ['name' => 'release_first', 'json' => $jsonRows([
-                ['key_name' => 'plugin_one_settings', 'key_value' => '{"ok":true}'],
+                ['key_name' => 'module_one_settings', 'key_value' => '{"ok":true}'],
             ]), 'path' => '$.rows'],
             ['name' => 'reject_next', 'json' => $jsonRows([
-                ['key_name' => 'ui_theme_bad', 'key_value' => '{bad'],
+                ['key_name' => 'module_bad', 'key_value' => '{bad'],
             ]), 'path' => '$.rows'],
         ]);
 
         $t->same(['release_first'], $result['released_batches']);
         $t->same(['reject_next'], $result['rolled_back_batches']);
-        $t->same(['app_url', 'enabled_modules', 'ui_theme_old', 'plugin_one_settings'], $result['released_key_names']);
+        $t->same(['app_url', 'enabled_modules', 'module_profile_old', 'module_one_settings'], $result['released_key_names']);
         $t->same(1, $result['wal']['current_frame']);
     },
     'reports replace-conflict schema imports separately from defaults' => static function (TestRunner $t) use ($plan, $jsonRows): void {
@@ -106,7 +106,7 @@ $tests = [
 
         $t->same(['conflict_no_replace'], $result['rolled_back_batches']);
         $t->same(0, $result['wal']['frame_count']);
-        $t->same(['app_url', 'enabled_modules', 'ui_theme_old'], $result['final_key_names']);
+        $t->same(['app_url', 'enabled_modules', 'module_profile_old'], $result['final_key_names']);
     },
     'accepts JSONB schema import sources' => static function (TestRunner $t) use ($currentRows): void {
         $blob = new SQLiteBlobValue(SQLiteJsonB::encode(['rows' => [
@@ -168,8 +168,8 @@ foreach ([
     'empty setting name' => [['key_name' => '', 'key_value' => '{"ok":true}']],
     'unknown field' => [['key_name' => 'unknown_settings', 'key_value' => '{"ok":true}', 'extra' => true]],
     'bad load_policy' => [['key_name' => 'bad_load_policy_settings', 'key_value' => '{"ok":true}', 'load_policy' => 'maybe']],
-    'bad widget json text' => [['key_name' => 'widget_text', 'key_value' => 'plain']],
-    'bad theme mods json text' => [['key_name' => 'ui_theme_current', 'key_value' => '{bad']],
+    'bad component json text' => [['key_name' => 'component_text', 'key_value' => 'plain']],
+    'bad module json text' => [['key_name' => 'module_current', 'key_value' => '{bad']],
 ] as $label => $rows) {
     $tests["schema savepoint rollback for {$label}"] = static function (TestRunner $t) use ($plan, $jsonRows, $label, $rows): void {
         $result = $plan([
@@ -184,12 +184,12 @@ foreach ([
 
 foreach ([
     'allows migration metadata when configured' => [
-        ['key_name' => 'migration_meta_settings', 'key_value' => '{"ok":true}', 'migration_source' => 'wxr'],
+        ['key_name' => 'migration_meta_settings', 'key_value' => '{"ok":true}', 'migration_source' => 'archive'],
         ['allowed' => ['setting_id', 'key_name', 'key_value', 'load_policy', 'migration_source']],
     ],
-    'allows scalar plugin values when JSON patterns are narrowed' => [
-        ['key_name' => 'plugin_plain_settings', 'key_value' => 'plain'],
-        ['json_key_patterns' => ['/^ui_theme_/']],
+    'allows scalar component values when JSON patterns are narrowed' => [
+        ['key_name' => 'component_plain_settings', 'key_value' => 'plain'],
+        ['json_key_patterns' => ['/^module_/']],
     ],
     'uses configured load_policy default' => [
         ['key_name' => 'default_auto_settings', 'key_value' => '{"ok":true}'],

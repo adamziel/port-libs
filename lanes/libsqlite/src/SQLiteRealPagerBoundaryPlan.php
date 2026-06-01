@@ -849,6 +849,67 @@ final class SQLiteRealPagerBoundaryPlan
         return $rows;
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function exclusiveEmptyDatabaseJournalCleanupRows(int $count = 1000): array
+    {
+        if ($count < 1) {
+            throw new \InvalidArgumentException('SQLite pager empty-database journal cleanup corpus row count must be positive');
+        }
+
+        $pageSizes = [512, 1024, 2048, 4096, 8192];
+        $sectorSizes = [512, 1024, 2048, 4096];
+        $journalRecordCounts = [1, 2, 3, 4];
+        $rows = [];
+
+        for ($case = 1; $case <= $count; $case++) {
+            $pageSize = $pageSizes[($case - 1) % count($pageSizes)];
+            $sectorSize = $sectorSizes[intdiv($case - 1, count($pageSizes)) % count($sectorSizes)];
+            $journalRecordCount = $journalRecordCounts[intdiv($case - 1, count($pageSizes) * count($sectorSizes)) % count($journalRecordCounts)];
+            $journalRecordBytes = $pageSize + 8;
+            $staleJournalSize = $sectorSize + ($journalRecordBytes * $journalRecordCount) + 1;
+
+            $rows[] = [
+                'case' => $case,
+                'script' => 'pager1.test',
+                'section' => 'pager1-30.1',
+                'upstream' => sprintf('pager1.test pager1-30.1 empty database exclusive journal cleanup dynamic case %04d', $case),
+                'database_bytes_before_open' => 0,
+                'database_file_exists_before_open' => false,
+                'stale_journal_exists_before_open' => true,
+                'stale_journal_size' => $staleJournalSize,
+                'stale_journal_payload_bytes' => $staleJournalSize - $sectorSize,
+                'journal_record_count' => $journalRecordCount,
+                'journal_record_bytes' => $journalRecordBytes,
+                'page_size' => $pageSize,
+                'sector_size' => $sectorSize,
+                'locking_mode_request' => 'exclusive',
+                'locking_mode_result' => 'exclusive',
+                'sqlite_master_count' => 0,
+                'lock_status' => [
+                    'main' => 'reserved',
+                    'temp' => 'closed',
+                ],
+                'rollback_attempted' => false,
+                'journal_deleted_without_rollback' => true,
+                'reserved_lock_retained_after_cleanup' => true,
+                'journal_exists_after_open' => false,
+                'schema_rows_after_open' => [],
+                'expected_execsql_result' => ['exclusive', 0, 'main', 'reserved', 'temp', 'closed'],
+                'source' => 'pager1.test pager1-30.1 opens an empty database in exclusive-locking mode, deletes a stale journal without rollback, and keeps the main database RESERVED lock',
+                'dependencies' => [
+                    'real-upstream-corpus-pager1',
+                    'sqlite-pager-empty-database-stale-journal-cleanup',
+                    'sqlite-pager-exclusive-reserved-lock-retention',
+                    'sqlite-pager-no-rollback-for-empty-database',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
     private static function align(int $value, int $boundary): int
     {
         return intdiv($value + $boundary - 1, $boundary) * $boundary;

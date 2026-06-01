@@ -8,11 +8,11 @@ use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteTenantJsonWalImportPlan;
 
 $currentRows = static fn (): array => [
-    ['group_id' => 1, 'tenant_id' => 1, 'setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
-    ['group_id' => 1, 'tenant_id' => 1, 'setting_id' => 2, 'key_name' => 'theme_mods_twentyfive', 'key_value' => '{"accent":"blue"}', 'load_policy' => 'yes'],
-    ['group_id' => 1, 'tenant_id' => 2, 'setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://site2.example.test', 'load_policy' => 'yes'],
-    ['group_id' => 1, 'tenant_id' => 2, 'setting_id' => 2, 'key_name' => 'plugin_settings', 'key_value' => '{"enabled":false}', 'load_policy' => 'no'],
-    ['scope' => 'global', 'group_id' => 1, 'setting_id' => 1, 'key_name' => 'site_name', 'key_value' => 'Global'],
+    ['group_id' => 1, 'tenant_id' => 1, 'setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
+    ['group_id' => 1, 'tenant_id' => 1, 'setting_id' => 2, 'key_name' => 'module_visual_profile', 'key_value' => '{"accent":"blue"}', 'load_policy' => 'yes'],
+    ['group_id' => 1, 'tenant_id' => 2, 'setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://site2.example.test', 'load_policy' => 'yes'],
+    ['group_id' => 1, 'tenant_id' => 2, 'setting_id' => 2, 'key_name' => 'module_settings', 'key_value' => '{"enabled":false}', 'load_policy' => 'no'],
+    ['scope' => 'global', 'group_id' => 1, 'setting_id' => 1, 'key_name' => 'app_name', 'key_value' => 'Global'],
 ];
 
 $jsonRows = static fn (array $rows): string => json_encode(['rows' => $rows], JSON_THROW_ON_ERROR);
@@ -38,17 +38,17 @@ $rowByKey = static function (array $result, string $key): array {
 $cases = [
     'released tenant import is visible in final keys' => static fn (): mixed => $plan([
         ['name' => 'tenant_one', 'tenant_id' => 1, 'json' => $jsonRows([
-            ['key_name' => 'plugin_settings', 'key_value' => '{"enabled":true}', 'load_policy' => 'yes'],
+            ['key_name' => 'module_settings', 'key_value' => '{"enabled":true}', 'load_policy' => 'yes'],
         ])],
     ])['final_keys'],
     'released tenant import records one WAL frame' => static fn (): mixed => $plan([
         ['name' => 'tenant_one', 'tenant_id' => 1, 'json' => $jsonRows([
-            ['key_name' => 'plugin_settings', 'key_value' => '{"enabled":true}', 'load_policy' => 'yes'],
+            ['key_name' => 'module_settings', 'key_value' => '{"enabled":true}', 'load_policy' => 'yes'],
         ])],
     ])['wal']['frame_count'],
     'tenant two writes use the tenant two settings table' => static fn (): mixed => $plan([
         ['name' => 'tenant_two', 'tenant_id' => 2, 'json' => $jsonRows([
-            ['key_name' => 'widget_recent', 'key_value' => '{"count":3}', 'load_policy' => 'no'],
+            ['key_name' => 'component_recent', 'key_value' => '{"count":3}', 'load_policy' => 'no'],
         ])],
     ])['batches'][0]['writes'][0]['table'],
     'global import targets global settings table' => static fn (): mixed => $plan([
@@ -58,7 +58,7 @@ $cases = [
     ])['batches'][0]['writes'][0]['table'],
     'global import key is isolated from tenant key' => static fn (): mixed => $plan([
         ['name' => 'global_settings', 'scope' => 'global', 'json' => $jsonRows([
-            ['key_name' => 'plugin_settings', 'key_value' => '{"global":true}'],
+            ['key_name' => 'module_settings', 'key_value' => '{"global":true}'],
         ])],
     ])['final_keys'],
     'current batch release list retains savepoint name' => static fn (): mixed => $plan([
@@ -94,7 +94,7 @@ $cases = [
     ],
     'malformed settings JSON rolls back only its batch' => static fn (): mixed => $plan([
         ['name' => 'bad_value', 'tenant_id' => 1, 'json' => $jsonRows([
-            ['key_name' => 'theme_mods_bad', 'key_value' => '{bad}', 'load_policy' => 'yes'],
+            ['key_name' => 'module_bad', 'key_value' => '{bad}', 'load_policy' => 'yes'],
         ])],
     ])['batches'][0]['status'],
     'JSONB source rows are accepted' => static function () use ($currentRows): mixed {
@@ -121,22 +121,22 @@ $cases = [
     ])['rolled_back_batches'],
     'abort conflict rolls back duplicate settings batch' => static fn (): mixed => $plan([
         ['name' => 'abort_conflict', 'tenant_id' => 2, 'on_conflict' => 'abort', 'json' => $jsonRows([
-            ['key_name' => 'plugin_settings', 'key_value' => '{"enabled":true}'],
+            ['key_name' => 'module_settings', 'key_value' => '{"enabled":true}'],
         ])],
     ])['batches'][0]['status'],
     'replace conflict records conflict key' => static fn (): mixed => $plan([
         ['name' => 'replace_conflict', 'tenant_id' => 2, 'json' => $jsonRows([
-            ['key_name' => 'plugin_settings', 'key_value' => '{"enabled":true}'],
+            ['key_name' => 'module_settings', 'key_value' => '{"enabled":true}'],
         ])],
     ])['batches'][0]['conflicts'],
     'replacement row updates tenant two value' => static function () use ($plan, $jsonRows, $rowByKey): mixed {
         $result = $plan([
             ['name' => 'replace_conflict', 'tenant_id' => 2, 'json' => $jsonRows([
-                ['key_name' => 'plugin_settings', 'key_value' => '{"enabled":true}', 'load_policy' => 'yes'],
+                ['key_name' => 'module_settings', 'key_value' => '{"enabled":true}', 'load_policy' => 'yes'],
             ])],
         ]);
 
-        return $rowByKey($result, 'tenant:1:2:plugin_settings')['load_policy'];
+        return $rowByKey($result, 'tenant:1:2:module_settings')['load_policy'];
     },
     'WAL frames preserve savepoint names in order' => static fn (): mixed => array_column($plan([
         ['name' => 'first_tenant', 'tenant_id' => 1, 'json' => $jsonRows([
@@ -182,40 +182,40 @@ $cases = [
 
 $expected = [
     'released tenant import is visible in final keys' => [
-        'global:1:site_name',
-        'tenant:1:1:plugin_settings',
-        'tenant:1:1:siteurl',
-        'tenant:1:1:theme_mods_twentyfive',
-        'tenant:1:2:plugin_settings',
-        'tenant:1:2:siteurl',
+        'global:1:app_name',
+        'tenant:1:1:base_url',
+        'tenant:1:1:module_settings',
+        'tenant:1:1:module_visual_profile',
+        'tenant:1:2:base_url',
+        'tenant:1:2:module_settings',
     ],
     'released tenant import records one WAL frame' => 1,
     'tenant two writes use the tenant two settings table' => 'app_tenant_2_settings',
     'global import targets global settings table' => 'app_tenant_settings',
     'global import key is isolated from tenant key' => [
-        'global:1:plugin_settings',
-        'global:1:site_name',
-        'tenant:1:1:siteurl',
-        'tenant:1:1:theme_mods_twentyfive',
-        'tenant:1:2:plugin_settings',
-        'tenant:1:2:siteurl',
+        'global:1:app_name',
+        'global:1:module_settings',
+        'tenant:1:1:base_url',
+        'tenant:1:1:module_visual_profile',
+        'tenant:1:2:base_url',
+        'tenant:1:2:module_settings',
     ],
     'current batch release list retains savepoint name' => ['current_site'],
     'open next batch is final-visible but unreleased' => [
         [
-            'global:1:site_name',
-            'tenant:1:1:siteurl',
-            'tenant:1:1:theme_mods_twentyfive',
+            'global:1:app_name',
+            'tenant:1:1:base_url',
+            'tenant:1:1:module_visual_profile',
+            'tenant:1:2:base_url',
+            'tenant:1:2:module_settings',
             'tenant:1:2:next_settings',
-            'tenant:1:2:plugin_settings',
-            'tenant:1:2:siteurl',
         ],
         [
-            'global:1:site_name',
-            'tenant:1:1:siteurl',
-            'tenant:1:1:theme_mods_twentyfive',
-            'tenant:1:2:plugin_settings',
-            'tenant:1:2:siteurl',
+            'global:1:app_name',
+            'tenant:1:1:base_url',
+            'tenant:1:1:module_visual_profile',
+            'tenant:1:2:base_url',
+            'tenant:1:2:module_settings',
         ],
     ],
     'malformed next batch rolls back without removing released current batch' => [['current_ok'], ['next_bad']],
@@ -225,7 +225,7 @@ $expected = [
     'path extraction can target nested rows' => ['nested_settings'],
     'missing path rolls batch back' => ['missing_path'],
     'abort conflict rolls back duplicate settings batch' => 'rolled_back',
-    'replace conflict records conflict key' => ['tenant:1:2:plugin_settings'],
+    'replace conflict records conflict key' => ['tenant:1:2:module_settings'],
     'replacement row updates tenant two value' => 'yes',
     'WAL frames preserve savepoint names in order' => ['first_tenant', 'second_tenant'],
     'page numbers isolate tenant tables' => [3, 19],
@@ -234,12 +234,12 @@ $expected = [
     'bad source type rolls back batch as JSON admission failure' => 'rolled_back',
     'bad tenant id rolls back row normalization failure' => 'rolled_back',
     'later global release does not release open next tenant preview' => [
+        'global:1:app_name',
         'global:1:global_config',
-        'global:1:site_name',
-        'tenant:1:1:siteurl',
-        'tenant:1:1:theme_mods_twentyfive',
-        'tenant:1:2:plugin_settings',
-        'tenant:1:2:siteurl',
+        'tenant:1:1:base_url',
+        'tenant:1:1:module_visual_profile',
+        'tenant:1:2:base_url',
+        'tenant:1:2:module_settings',
     ],
 ];
 

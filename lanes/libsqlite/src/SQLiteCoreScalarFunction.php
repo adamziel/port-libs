@@ -710,12 +710,29 @@ final class SQLiteCoreScalarFunction
             return 1;
         }
 
+        $haystackIsUtf8 = self::isUtf8Text($haystack);
+        $needleIsUtf8 = self::isUtf8Text($needle);
+        if ($haystackIsUtf8) {
+            if (!$needleIsUtf8) {
+                return 0;
+            }
+
+            $haystackUnits = self::splitTextUnits($haystack);
+            $needleUnits = self::splitTextUnits($needle);
+            $needleCount = count($needleUnits);
+            $lastOffset = count($haystackUnits) - $needleCount;
+            for ($offset = 0; $offset <= $lastOffset; $offset++) {
+                if (array_slice($haystackUnits, $offset, $needleCount) === $needleUnits) {
+                    return $offset + 1;
+                }
+            }
+
+            return 0;
+        }
+
         $position = strpos($haystack, $needle);
         if ($position === false) {
             return 0;
-        }
-        if (self::isUtf8Text($haystack) && self::isUtf8Text($needle)) {
-            return count(self::splitTextUnits(substr($haystack, 0, $position))) + 1;
         }
 
         return $position + 1;

@@ -8,9 +8,9 @@ use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteSchemaJsonSavepointWalPlan;
 
 $currentRows = static fn (): array => [
-    ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
-    ['setting_id' => 2, 'key_name' => 'active_plugins', 'key_value' => '[]', 'load_policy' => 'yes'],
-    ['setting_id' => 70, 'key_name' => 'theme_mods_old', 'key_value' => '{"color":"blue"}', 'load_policy' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'enabled_modules', 'key_value' => '[]', 'load_policy' => 'yes'],
+    ['setting_id' => 70, 'key_name' => 'module_profile_old', 'key_value' => '{"color":"blue"}', 'load_policy' => 'no'],
 ];
 
 $jsonRows = static fn (array $rows): string => json_encode(['rows' => $rows], JSON_THROW_ON_ERROR);
@@ -23,21 +23,21 @@ $plan = static fn (array $imports, array $options = []) => SQLiteSchemaJsonSavep
 $tests = [
     'releases schema-valid Application JSON rows into the current WAL frame' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
-            ['name' => 'theme_schema', 'json' => $jsonRows([
-                ['key_name' => 'theme_mods_modern', 'key_value' => '{"palette":["blue"]}', 'load_policy' => 'no'],
+            ['name' => 'module_schema', 'json' => $jsonRows([
+                ['key_name' => 'module_profile_modern', 'key_value' => '{"palette":["blue"]}', 'load_policy' => 'no'],
             ]), 'path' => '$.rows'],
         ]);
 
         $t->same('planned', $result['status']);
         $t->same(true, $result['schema_json_savepoint_wal']);
-        $t->same(['theme_schema'], $result['released_batches']);
-        $t->same(['siteurl', 'active_plugins', 'theme_mods_old', 'theme_mods_modern'], $result['final_key_names']);
+        $t->same(['module_schema'], $result['released_batches']);
+        $t->same(['base_url', 'enabled_modules', 'module_profile_old', 'module_profile_modern'], $result['final_key_names']);
         $t->same(1, $result['wal']['current_frame']);
     },
     'rolls schema-invalid JSON rows back without advancing WAL frames' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             ['name' => 'bad_schema', 'json' => $jsonRows([
-                ['key_name' => 'theme_mods_bad', 'key_value' => 'not json', 'load_policy' => 'no'],
+                ['key_name' => 'module_bad', 'key_value' => 'not json', 'load_policy' => 'no'],
             ]), 'path' => '$.rows'],
         ]);
 
@@ -49,28 +49,28 @@ $tests = [
     'preserves released rows when a later schema batch rolls back' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             ['name' => 'release_first', 'json' => $jsonRows([
-                ['key_name' => 'plugin_settings', 'key_value' => '{"enabled":true}', 'load_policy' => 'yes'],
+                ['key_name' => 'module_settings', 'key_value' => '{"enabled":true}', 'load_policy' => 'yes'],
             ]), 'path' => '$.rows'],
             ['name' => 'reject_second', 'json' => $jsonRows([
-                ['key_name' => 'widget_recent', 'key_value' => 'broken', 'load_policy' => 'yes'],
+                ['key_name' => 'component_recent', 'key_value' => 'broken', 'load_policy' => 'yes'],
             ]), 'path' => '$.rows'],
         ]);
 
         $t->same(['release_first'], $result['released_batches']);
         $t->same(['reject_second'], $result['rolled_back_batches']);
-        $t->same(['siteurl', 'active_plugins', 'theme_mods_old', 'plugin_settings'], $result['released_key_names']);
+        $t->same(['base_url', 'enabled_modules', 'module_profile_old', 'module_settings'], $result['released_key_names']);
         $t->same(1, $result['wal']['current_frame']);
     },
     'keeps open schema-valid rows visible but unreleased' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             ['name' => 'open_schema', 'json' => $jsonRows([
-                ['key_name' => 'widget_sidebar', 'key_value' => '{"blocks":[]}', 'load_policy' => 'yes'],
+                ['key_name' => 'component_sidebar', 'key_value' => '{"blocks":[]}', 'load_policy' => 'yes'],
             ]), 'path' => '$.rows', 'release' => false],
         ]);
 
         $t->same('open', $result['batches'][0]['status']);
-        $t->same(['siteurl', 'active_plugins', 'theme_mods_old', 'widget_sidebar'], $result['final_key_names']);
-        $t->same(['siteurl', 'active_plugins', 'theme_mods_old'], $result['released_key_names']);
+        $t->same(['base_url', 'enabled_modules', 'module_profile_old', 'component_sidebar'], $result['final_key_names']);
+        $t->same(['base_url', 'enabled_modules', 'module_profile_old'], $result['released_key_names']);
     },
     'accepts JSONB schema import payloads' => static function (TestRunner $t) use ($currentRows): void {
         $blob = new SQLiteBlobValue(SQLiteJsonB::encode(['rows' => [
@@ -117,7 +117,7 @@ foreach (range(1, 20) as $batch) {
     $tests["schema-valid generated settings batch {$batch} advances WAL once"] = static function (TestRunner $t) use ($plan, $jsonRows, $batch): void {
         $result = $plan([
             ['name' => 'settings_' . $batch, 'json' => $jsonRows([
-                ['key_name' => 'plugin_' . $batch . '_settings', 'key_value' => '{"rank":' . $batch . '}', 'load_policy' => $batch % 2 === 0 ? 'yes' : 'no'],
+                ['key_name' => 'module_' . $batch . '_settings', 'key_value' => '{"rank":' . $batch . '}', 'load_policy' => $batch % 2 === 0 ? 'yes' : 'no'],
             ]), 'path' => '$.rows'],
         ]);
 
@@ -128,13 +128,13 @@ foreach (range(1, 20) as $batch) {
 }
 
 foreach ([
-    'missing option value' => [['key_name' => 'plugin_missing_settings']],
-    'missing option name' => [['key_value' => '{"ok":true}']],
-    'empty option name' => [['key_name' => '', 'key_value' => '{"ok":true}']],
-    'unknown field' => [['key_name' => 'plugin_extra_settings', 'key_value' => '{"ok":true}', 'extra' => 1]],
-    'bad load_policy' => [['key_name' => 'plugin_load_policy_settings', 'key_value' => '{"ok":true}', 'load_policy' => 'maybe']],
-    'bad JSON option text' => [['key_name' => 'widget_text', 'key_value' => 'not-json', 'load_policy' => 'yes']],
-    'bad theme mods JSON text' => [['key_name' => 'theme_mods_modern', 'key_value' => '{bad', 'load_policy' => 'no']],
+    'missing setting value' => [['key_name' => 'module_missing_settings']],
+    'missing setting name' => [['key_value' => '{"ok":true}']],
+    'empty setting name' => [['key_name' => '', 'key_value' => '{"ok":true}']],
+    'unknown field' => [['key_name' => 'module_extra_settings', 'key_value' => '{"ok":true}', 'extra' => 1]],
+    'bad load_policy' => [['key_name' => 'module_load_policy_settings', 'key_value' => '{"ok":true}', 'load_policy' => 'maybe']],
+    'bad JSON component text' => [['key_name' => 'component_text', 'key_value' => 'not-json', 'load_policy' => 'yes']],
+    'bad module JSON text' => [['key_name' => 'module_profile_modern', 'key_value' => '{bad', 'load_policy' => 'no']],
 ] as $label => $rows) {
     $tests["schema rejection rolls back {$label} at current WAL frame"] = static function (TestRunner $t) use ($plan, $jsonRows, $label, $rows): void {
         $result = $plan([
@@ -149,15 +149,15 @@ foreach ([
 
 foreach ([
     'allows migration metadata when configured' => [
-        ['key_name' => 'plugin_meta_settings', 'key_value' => '{"ok":true}', 'migration_source' => 'wxr'],
+        ['key_name' => 'module_meta_settings', 'key_value' => '{"ok":true}', 'migration_source' => 'archive'],
         ['allowed' => ['key_name', 'key_value', 'load_policy', 'migration_source']],
     ],
     'allows scalar values when JSON pattern is narrowed' => [
-        ['key_name' => 'plugin_scalar_settings', 'key_value' => 'plain'],
-        ['json_key_patterns' => ['/^theme_mods_/']],
+        ['key_name' => 'component_scalar_settings', 'key_value' => 'plain'],
+        ['json_key_patterns' => ['/^module_/']],
     ],
     'allows narrowed load_policy enum' => [
-        ['key_name' => 'plugin_auto_settings', 'key_value' => '{"ok":true}', 'load_policy' => 'auto'],
+        ['key_name' => 'module_auto_settings', 'key_value' => '{"ok":true}', 'load_policy' => 'auto'],
         ['load_policy' => ['yes', 'no', 'auto']],
     ],
 ] as $label => [$row, $schema]) {
@@ -172,13 +172,13 @@ foreach ([
     };
 }
 
-foreach ([64 => 2, 65 => 3, 128 => 3, 129 => 4, 192 => 4, 193 => 5, 256 => 5] as $optionId => $pageNumber) {
-    $tests["schema update for option {$optionId} maps to WAL page {$pageNumber}"] = static function (TestRunner $t) use ($currentRows, $jsonRows, $optionId, $pageNumber): void {
+foreach ([64 => 2, 65 => 3, 128 => 3, 129 => 4, 192 => 4, 193 => 5, 256 => 5] as $settingId => $pageNumber) {
+    $tests["schema update for setting {$settingId} maps to WAL page {$pageNumber}"] = static function (TestRunner $t) use ($currentRows, $jsonRows, $settingId, $pageNumber): void {
         $rows = $currentRows();
-        $rows[] = ['setting_id' => $optionId, 'key_name' => 'plugin_' . $optionId . '_settings', 'key_value' => '{"old":true}', 'load_policy' => 'no'];
+        $rows[] = ['setting_id' => $settingId, 'key_name' => 'module_' . $settingId . '_settings', 'key_value' => '{"old":true}', 'load_policy' => 'no'];
         $result = SQLiteSchemaJsonSavepointWalPlan::plan($rows, [
-            ['name' => 'update_' . $optionId, 'json' => $jsonRows([
-                ['setting_id' => $optionId, 'key_name' => 'plugin_' . $optionId . '_settings', 'key_value' => '{"new":true}', 'load_policy' => 'no'],
+            ['name' => 'update_' . $settingId, 'json' => $jsonRows([
+                ['setting_id' => $settingId, 'key_name' => 'module_' . $settingId . '_settings', 'key_value' => '{"new":true}', 'load_policy' => 'no'],
             ]), 'path' => '$.rows'],
         ], ['database_path' => '/tmp/app-schema-update.sqlite']);
 

@@ -5,13 +5,16 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteAttachTempWalSchemaTriggerPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
+use PortLibs\LibSqlite\SQLiteImportJsonSchemaSavepointPlan;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
 use PortLibs\LibSqlite\SQLiteJsonSchemaWalSavepointPlan;
 use PortLibs\LibSqlite\SQLiteJsonPathIndexedUpdatePlan;
 use PortLibs\LibSqlite\SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteMultiColumnRangePlan;
 use PortLibs\LibSqlite\SQLitePragmaIntegrityPartialIndexCurrentSourceNext;
+use PortLibs\LibSqlite\SQLiteSchemaJsonSavepointWalPlan;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
+use PortLibs\LibSqlite\SQLiteTenantJsonWalImportPlan;
 use PortLibs\LibSqlite\SQLiteTriggerForeignKeyReturningPlan;
 use PortLibs\LibSqlite\SQLiteTriggerReturningForeignKeySavepointPlan;
 use PortLibs\LibSqlite\SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan;
@@ -54,6 +57,11 @@ $vfsDefaultSourceFiles = [
     $sourceRoot . '/SQLiteVfsShmLockFileControlCurrentSource.php',
     $sourceRoot . '/SQLiteVfsShmOpenFileControlCurrentSourcePlan.php',
     $sourceRoot . '/SQLiteVfsWalShmLockBytePlan.php',
+];
+$jsonSchemaImportDefaultSourceFiles = [
+    $sourceRoot . '/SQLiteImportJsonSchemaSavepointPlan.php',
+    $sourceRoot . '/SQLiteSchemaJsonSavepointWalPlan.php',
+    $sourceRoot . '/SQLiteTenantJsonWalImportPlan.php',
 ];
 
 $utf16KeyValuePlanLegacyDefaultMatches = static function () use ($libsqliteRoot): array {
@@ -296,6 +304,45 @@ $vfsLegacyDefaultMatches = static function () use ($vfsDefaultSourceFiles, $libs
     return $matches;
 };
 
+$jsonSchemaImportLegacyDefaultMatches = static function () use ($jsonSchemaImportDefaultSourceFiles, $libsqliteRoot): array {
+    $terms = [
+        'wp' . '_',
+        'wp' . '-',
+        '/tmp/wp',
+        'opt' . 'ion_id',
+        'opt' . 'ion_name',
+        'opt' . 'ion_value',
+        'auto' . 'load',
+        'blog' . '_id',
+        'site' . 'url',
+        'active' . '_plugins',
+        'plug' . 'in_',
+        'Plugin' . '_',
+        'PLUGIN' . '_',
+        'theme' . '_mods',
+        'ui' . '_theme',
+        'widget' . '_',
+    ];
+    $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
+    $matches = [];
+
+    foreach ($jsonSchemaImportDefaultSourceFiles as $file) {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read {$file}");
+        }
+        if (preg_match_all($pattern, $contents, $fileMatches) < 1) {
+            continue;
+        }
+        $relative = str_replace($libsqliteRoot . '/', '', $file);
+        foreach ($fileMatches[0] as $match) {
+            $matches[] = "{$relative}: {$match}";
+        }
+    }
+
+    return $matches;
+};
+
 $settingsRows = [
     ['setting_id' => 1, 'key_name' => 'base_url', 'load_policy' => 'yes'],
     ['setting_id' => 2, 'key_name' => 'site_title', 'load_policy' => 'yes'],
@@ -349,6 +396,7 @@ return [
     'source-neutral json path defaults use generic setting keys in source' => static fn (TestRunner $t) => $t->same([], $jsonPathLegacyDefaultMatches()),
     'source-neutral trigger foreign key returning defaults use generic setting rowids in source' => static fn (TestRunner $t) => $t->same([], $triggerForeignKeyLegacyDefaultMatches()),
     'source-neutral vfs defaults use generic application paths in source' => static fn (TestRunner $t) => $t->same([], $vfsLegacyDefaultMatches()),
+    'source-neutral json schema import defaults contain no legacy module source terms' => static fn (TestRunner $t) => $t->same([], $jsonSchemaImportLegacyDefaultMatches()),
     'source-neutral vfs file-control sequence default path is generic' => static function (TestRunner $t): void {
         $plan = SQLiteVfsFileControlPersistencePlan::persistentFileControlSequence(['file_control(persist_wal, on)']);
 
@@ -413,6 +461,42 @@ return [
         $plan = SQLiteVfsWalShmLockBytePlan::plan([], ['lock reserved app-import 1']);
 
         $t->same('/srv/app/data/application.sqlite', $plan['events'][0]['path']);
+    },
+    'source-neutral import JSON schema default patterns use module and component keys' => static function (TestRunner $t): void {
+        $plan = SQLiteImportJsonSchemaSavepointPlan::plan([], [[
+            'name' => 'component_reject',
+            'json' => '{"rows":[{"key_name":"component_recent","key_value":"not-json"}]}',
+            'path' => '$.rows',
+        ]]);
+
+        $t->same(['component_reject'], $plan['schema_rejected_batches']);
+        $t->same('json_text', $plan['batches'][0]['json']['schema']['violations'][0]['rule']);
+    },
+    'source-neutral schema JSON WAL default patterns use module and component keys' => static function (TestRunner $t): void {
+        $plan = SQLiteSchemaJsonSavepointWalPlan::plan(
+            [['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://example.test', 'load_policy' => 'yes']],
+            [[
+                'name' => 'module_reject',
+                'json' => '{"rows":[{"key_name":"module_profile","key_value":"not-json","load_policy":"no"}]}',
+                'path' => '$.rows',
+            ]]
+        );
+
+        $t->same(['module_reject'], $plan['schema_rejected_batches']);
+        $t->same('json_text', $plan['batches'][0]['json']['schema']['violations'][0]['rule']);
+    },
+    'source-neutral tenant JSON WAL default validation uses generic module keys' => static function (TestRunner $t): void {
+        $plan = SQLiteTenantJsonWalImportPlan::plan(
+            [['group_id' => 1, 'tenant_id' => 1, 'setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://example.test', 'load_policy' => 'yes']],
+            [[
+                'name' => 'tenant_module_reject',
+                'tenant_id' => 1,
+                'json' => '{"rows":[{"key_name":"module_bad","key_value":"{bad}","load_policy":"yes"}]}',
+            ]]
+        );
+
+        $t->same(['tenant_module_reject'], $plan['rolled_back_batches']);
+        $t->same('rolled_back', $plan['batches'][0]['status']);
     },
     'trigger foreign key returning default rowid is setting id' => static function (TestRunner $t): void {
         $parents = [

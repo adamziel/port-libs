@@ -134,7 +134,7 @@ final class SQLiteSchemaJsonSavepointWalPlan
         $required = self::stringList($schema['required'] ?? ['key_name', 'key_value']);
         $allowed = self::stringList($schema['allowed'] ?? ['setting_id', 'key_name', 'key_value', 'load_policy']);
         $load_policy = self::stringList($schema['load_policy'] ?? ['yes', 'no', 'auto', 'on', 'off']);
-        $patterns = self::stringList($schema['json_key_patterns'] ?? ['/^theme_mods_/', '/_settings$/', '/^widget_/']);
+        $patterns = self::stringList($schema['json_key_patterns'] ?? ['/^module_/', '/_settings$/', '/^component_/']);
 
         return [
             'required' => $required,

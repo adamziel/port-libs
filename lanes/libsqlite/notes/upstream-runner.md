@@ -4722,7 +4722,7 @@ and ascending expression indexes, handle open and inclusive upper bounds, keep
 SQLite-style casts such as `123.9` and non-numeric text, reject unbounded range
 calls, and skip an intentionally invalid out-of-range index branch.
 The new `examples/application-option-value-integer.php` and
-`examples/application-option-value-integer-list.php` scripts map recovery or
+`examples/application-setting-value-integer-list.php` scripts map recovery or
 audit tools that need one or more numeric option values without a full table
 scan or the PHP SQLite extension. The new
 `examples/application-option-value-integer-range.php` script maps numeric option
@@ -4797,7 +4797,7 @@ upper bounds, suppress JSON null/missing expression keys for bounded
 comparisons, honor `COLLATE NOCASE` for text ranges, and skip an intentionally
 invalid out-of-range index branch. The new
 `examples/application-json-option-value.php`,
-`examples/application-json-option-value-list.php`, and
+`examples/application-json-setting-value-list.php`, and
 `examples/application-json-option-value-range.php` scripts map recovery or audit
 tools that need one or more indexed plugin/theme JSON settings such as enabled
 flags, mode lists, or priority bands on hosts where the PHP SQLite extension is
