@@ -55,6 +55,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (Gitoxide/libsqlite source integration
+  02:06 UTC): harvested completed handoffs after the pool dipped, refilled
+  visible capacity back to 11 isolated workers (`0` long sleepers), and
+  accepted two source-only handoffs on the clean integration worktree. Source
+  commit `6de4ba23b085e8645eb64cdbe7c383c4e7255326` (`ports: extend git
+  merge-base and sqlite upsert parity`) integrates Gitoxide merge-base graph
+  reuse after shallow/promisor ancestor hydration and libsqlite real upstream
+  `nulls1` UPSERT conflict-target `NULLS FIRST/LAST` diagnostics. Verification
+  passed PHP lint for changed/new PHP, `git diff --check`, full Gitoxide `40
+  files / 6799 assertions / 0 failures`, the touched Gitoxide merge-base
+  example, and focused libsqlite/no-domain guard `2 files / 3007 assertions /
+  0 failures`. Dashboard/status now reports Gitoxide `1700 / 2886` mapped and
+  `6799 pass / 0 fail`, and libsqlite `1589 / 1589` mapped with `5329602 pass
+  / 7 fail`. The LightningCSS cursor-prefix handoff based on `d422a4f` was not
+  accepted because current `TransitionPrefixer.php` has overlapping changes;
+  it stays in the queue for rebase/park decision.
+
 - 2026-06-01 supervisor continuation (AO cleanup audit + Git/CSS/SQLite
   followup 01:52 UTC): audited the active-session concern from live tmux,
   process, worktree, disk, and team-check evidence. There is one attached
