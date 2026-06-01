@@ -55,6 +55,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor followup (published Gitoxide/CSS/libsqlite batch):
+  source commit `30cc4700ec7a575690a1285590985639b7c012db` accepted the next
+  current-base handoff batch. Gitoxide added URL/refspec from-parts
+  normalization, tree/pathspec empty-pattern prefix bypass, and merge-base
+  commitgraph generation-bound parity; full Gitoxide verification passed `40
+  files / 7853 assertions / 0 failures`. LightningCSS added source-map VLQ
+  offsets, filter/backdrop-filter CSSOM, CSS Modules double-colon
+  local/global, custom at-rule exit-array function traversal, and
+  `:placeholder-shown` target-prefix parity; full LightningCSS verification
+  passed `13 files / 6500 assertions / 0 failures`. libsqlite added real
+  upstream `select7.test` arity-error dynamic corpus coverage and source-neutral
+  option-class cleanup; focused verification passed `7 files / 18346 assertions
+  / 0 failures` and selected evidence moves to `5622663 pass / 7 fail`. Mapped
+  coverage is now Gitoxide `1753 / 2886`, LightningCSS `2360 / 3532`, and
+  libsqlite `1589 / 1589`. Full upstream Cargo/Rust/Node/WASM/release-all
+  runners remain honestly unclaimed.
+
 - 2026-06-01 supervisor continuation (merge/CSS/json replay intake): kept the
   pool at 11 visible active workers, then apply-checked the six ready handoffs
   on current `origin/main`. The libsqlite compound/window handoff was parked

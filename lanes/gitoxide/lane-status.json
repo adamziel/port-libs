@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "library": "gitoxide",
-  "estimatedProgress": 95.1,
-  "suiteProgress": "Supervisor-integrated Gitoxide attributes/pathspec all-ASCII-whitespace skip parity, loose-object late same-stream overrun integrity parity, and sparse-checkout non-cone extra-slash pattern parsing parity. Verification passed PHP lint, git diff --check, full Gitoxide lane 40 files / 7798 assertions / 0 failures, and touched example smoke runs.",
-  "phpPass": 7798,
+  "estimatedProgress": 95.2,
+  "suiteProgress": "Supervisor-integrated Gitoxide URL/refspec from-parts normalization, tree/pathspec empty-pattern prefix bypass, and merge-base commitgraph generation bound parity. Verification passed PHP lint, git diff --check, full Gitoxide lane 40 files / 7853 assertions / 0 failures, and touched example smoke runs.",
+  "phpPass": 7853,
   "phpFail": 0,
   "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
   "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full Cargo runner not executed for isolated batch",
-  "audit": "2026-06-01 supervisor batch: full Gitoxide lane passed 40 files / 7798 assertions / 0 failures after accepting attributes/pathspec whitespace, loose-object overrun, and sparse-checkout extra-slash parity. Full upstream Cargo workspace was not executed.",
-  "currentWork": "Attributes/pathspec all-ASCII-whitespace skip parity, loose-object late same-stream overrun integrity parity, and sparse-checkout non-cone extra-slash pattern parsing parity integrated on current base.",
-  "blocker": "Full upstream Cargo workspace remains unexecuted. Native PHP full-lane evidence is green at 7798 assertions; keep bounded Gitoxide workers on fetch sideband, send-pack, receive-pack, merge-base, URL/refspec, tree/pathspec, sparse-checkout, loose-object, config/include, object database, reference transaction, transport, protocol, and pack-index slices.",
-  "latestCommit": "6cf82f49d692b5a7dd41d4896809438275157cdc",
-  "nextTask": "Keep three Gitoxide workers on current-base non-overlapping fetch sideband, send-pack, receive-pack, merge-base, URL/refspec, tree/pathspec, sparse-checkout, loose-object, config/include, object database, reference transaction, transport, protocol, and pack-index slices with full-lane PHP gates after each accepted batch.",
-  "commit": "6cf82f4"
+  "audit": "2026-06-01 supervisor followup: full Gitoxide lane passed 40 files / 7853 assertions / 0 failures after accepting URL/refspec from-parts normalization, tree/pathspec empty-pattern prefix bypass, and merge-base commitgraph generation bound parity. Full upstream Cargo workspace was not executed.",
+  "currentWork": "URL/refspec from-parts normalization, tree/pathspec empty-pattern prefix bypass, and merge-base commitgraph generation bound parity integrated on current base.",
+  "blocker": "Full upstream Cargo workspace remains unexecuted. Native PHP full-lane evidence is green at 7853 assertions; keep bounded Gitoxide workers on fetch sideband, send-pack, receive-pack, merge-base, URL/refspec, tree/pathspec, sparse-checkout, loose-object, config/include, object database, reference transaction, transport, protocol, and pack-index slices.",
+  "latestCommit": "30cc4700ec7a575690a1285590985639b7c012db",
+  "nextTask": "Keep three Gitoxide workers on current-base non-overlapping transport, protocol, merge-base, URL/refspec, tree/pathspec, sparse-checkout, loose-object, config/include, object database, reference transaction, and pack-index slices with full-lane PHP gates after each accepted batch.",
+  "commit": "30cc470"
 }
