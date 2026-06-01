@@ -213,29 +213,32 @@ final class SQLiteSelectSql
         if ($orderBySql !== null) {
             array_push($aggregateExpressions, ...self::orderByExpressions($orderBySql, $tables));
         }
+        $specificAggregates = self::needsSpecificAggregateSummaries($select, $aggregateExpressions);
 
         $implicitAggregate = false;
         if ($groupBySql !== null) {
-            $groupBy = self::groupBy($groupBySql, $select, $aggregateExpressions);
+            $groupBy = self::groupBy($groupBySql, $select, $aggregateExpressions, $specificAggregates);
             if ($having !== null) {
                 $groupBy['having'] = self::rewriteAggregatePredicate(
                     $having,
                     $groupBy['valueColumn'],
+                    $specificAggregates,
                 );
             }
             $plan['groupBy'] = $groupBy;
-            $plan['select'] = self::rewriteAggregateSelect($select, $groupBy['valueColumn']);
+            $plan['select'] = self::rewriteAggregateSelect($select, $groupBy['valueColumn'], $specificAggregates);
         } elseif (self::selectHasAggregate($select) || $having !== null) {
             $implicitAggregate = true;
-            $groupBy = self::implicitAggregateGroup($select, $aggregateExpressions);
+            $groupBy = self::implicitAggregateGroup($select, $aggregateExpressions, $specificAggregates);
             if ($having !== null) {
                 $groupBy['having'] = self::rewriteAggregatePredicate(
                     $having,
                     $groupBy['valueColumn'],
+                    $specificAggregates,
                 );
             }
             $plan['groupBy'] = $groupBy;
-            $plan['select'] = self::rewriteAggregateSelect($select, $groupBy['valueColumn']);
+            $plan['select'] = self::rewriteAggregateSelect($select, $groupBy['valueColumn'], $specificAggregates);
         }
         if ($orderBySql !== null && !$implicitAggregate) {
             $plan['orderBy'] = self::orderBy(
@@ -244,6 +247,7 @@ final class SQLiteSelectSql
                 isset($plan['groupBy']) ? $plan['groupBy']['valueColumn'] : null,
                 isset($plan['groupBy']),
                 $tables,
+                $specificAggregates,
             );
         }
         if (isset($clauseOffsets['LIMIT'])) {
@@ -5897,7 +5901,7 @@ final class SQLiteSelectSql
      * @param list<array<string,mixed>> $select
      * @return array<string,mixed>
      */
-    private static function groupBy(string $sql, array $select, array $aggregateExpressions = []): array
+    private static function groupBy(string $sql, array $select, array $aggregateExpressions = [], bool $specificAggregates = false): array
     {
         $columns = [];
         $expressions = [];
@@ -5964,9 +5968,9 @@ final class SQLiteSelectSql
 
         $groupBy = [
             'columns' => $columns,
-            'valueColumn' => self::aggregateValueColumn($select, $aggregateExpressions),
+            'valueColumn' => $specificAggregates ? null : self::aggregateValueColumn($select, $aggregateExpressions),
             'jsonAggregates' => self::jsonAggregateSpecs($select, $aggregateExpressions),
-            'filteredAggregates' => self::filteredAggregateSpecs($select, $aggregateExpressions),
+            'filteredAggregates' => self::aggregateSpecs($select, $aggregateExpressions, $specificAggregates),
         ];
         $sampleAggregates = self::minMaxAggregateExpressions($select, $aggregateExpressions);
         if ($sampleAggregates !== []) {
@@ -6019,14 +6023,14 @@ final class SQLiteSelectSql
      * @param list<array<string,mixed>> $select
      * @return array<string,mixed>
      */
-    private static function implicitAggregateGroup(array $select, array $aggregateExpressions = []): array
+    private static function implicitAggregateGroup(array $select, array $aggregateExpressions = [], bool $specificAggregates = false): array
     {
         $group = [
             'columns' => [],
             'implicitAggregate' => true,
-            'valueColumn' => self::aggregateValueColumn($select, $aggregateExpressions),
+            'valueColumn' => $specificAggregates ? null : self::aggregateValueColumn($select, $aggregateExpressions),
             'jsonAggregates' => self::jsonAggregateSpecs($select, $aggregateExpressions),
-            'filteredAggregates' => self::filteredAggregateSpecs($select, $aggregateExpressions),
+            'filteredAggregates' => self::aggregateSpecs($select, $aggregateExpressions, $specificAggregates),
         ];
         $sampleAggregates = self::minMaxAggregateExpressions($select, $aggregateExpressions);
         if ($sampleAggregates !== []) {
@@ -6056,6 +6060,64 @@ final class SQLiteSelectSql
             }
         }
         return $hasAggregate ? $valueColumn : null;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     */
+    private static function needsSpecificAggregateSummaries(array $select, array $aggregateExpressions = []): bool
+    {
+        $valueColumns = [];
+        foreach (array_merge($select, $aggregateExpressions) as $term) {
+            if (is_array($term)) {
+                self::collectAggregateValueColumns($term, $valueColumns);
+            }
+        }
+
+        return count($valueColumns) > 1;
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     * @param array<string,true> $valueColumns
+     */
+    private static function collectAggregateValueColumns(array $expression, array &$valueColumns): void
+    {
+        $aggregate = self::aggregateSummaryColumn($expression, null);
+        if ($aggregate !== null) {
+            $valueColumn = $aggregate['valueColumn'] ?? null;
+            if (($aggregate['filtered'] ?? false) !== true && is_string($valueColumn) && $valueColumn !== '') {
+                $valueColumns[$valueColumn] = true;
+            }
+
+            return;
+        }
+
+        foreach (['left', 'right', 'operand', 'predicate', 'expression'] as $side) {
+            if (isset($expression[$side]) && is_array($expression[$side])) {
+                self::collectAggregateValueColumns($expression[$side], $valueColumns);
+            }
+        }
+        if (isset($expression['term']) && is_array($expression['term'])) {
+            self::collectAggregateValueColumns($expression['term'], $valueColumns);
+        }
+        if (isset($expression['terms']) && is_array($expression['terms']) && array_is_list($expression['terms'])) {
+            foreach ($expression['terms'] as $term) {
+                if (is_array($term)) {
+                    self::collectAggregateValueColumns($term, $valueColumns);
+                }
+            }
+        }
+        foreach (['arguments', 'values'] as $side) {
+            if (!isset($expression[$side]) || !is_array($expression[$side]) || !array_is_list($expression[$side])) {
+                continue;
+            }
+            foreach ($expression[$side] as $child) {
+                if (is_array($child)) {
+                    self::collectAggregateValueColumns($child, $valueColumns);
+                }
+            }
+        }
     }
 
     /**
@@ -6133,9 +6195,38 @@ final class SQLiteSelectSql
     private static function selectHasAggregate(array $select): bool
     {
         foreach ($select as $term) {
-            [$hasAggregate] = self::mergeAggregateValueColumn($term, false, null);
-            if ($hasAggregate) {
+            if (self::expressionHasAggregate($term)) {
                 return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     */
+    private static function expressionHasAggregate(array $expression): bool
+    {
+        if (self::aggregateSummaryColumn($expression, null) !== null) {
+            return true;
+        }
+        foreach (['left', 'right', 'operand', 'predicate', 'expression'] as $side) {
+            if (isset($expression[$side]) && is_array($expression[$side]) && self::expressionHasAggregate($expression[$side])) {
+                return true;
+            }
+        }
+        if (isset($expression['term']) && is_array($expression['term']) && self::expressionHasAggregate($expression['term'])) {
+            return true;
+        }
+        foreach (['terms', 'arguments', 'values'] as $side) {
+            if (!isset($expression[$side]) || !is_array($expression[$side]) || !array_is_list($expression[$side])) {
+                continue;
+            }
+            foreach ($expression[$side] as $child) {
+                if (is_array($child) && self::expressionHasAggregate($child)) {
+                    return true;
+                }
             }
         }
 
@@ -6146,14 +6237,14 @@ final class SQLiteSelectSql
      * @param list<array<string,mixed>> $select
      * @return list<array<string,mixed>>
      */
-    private static function rewriteAggregateSelect(array $select, ?string $valueColumn): array
+    private static function rewriteAggregateSelect(array $select, ?string $valueColumn, bool $specificAggregates = false): array
     {
         $rewritten = [];
         foreach ($select as $term) {
             $alias = $term['alias'] ?? null;
             $sourceExpression = $term;
             unset($sourceExpression['alias'], $sourceExpression['hiddenOrderColumn']);
-            $term = self::rewriteAggregateExpression($term, $valueColumn);
+            $term = self::rewriteAggregateExpression($term, $valueColumn, $specificAggregates);
             if ($alias !== null && !isset($term['alias'])) {
                 $term['alias'] = $alias;
             }
@@ -6449,6 +6540,29 @@ final class SQLiteSelectSql
     }
 
     /**
+     * @param list<array<string,mixed>> $select
+     * @return list<array<string,mixed>>
+     */
+    private static function aggregateSpecs(array $select, array $aggregateExpressions = [], bool $specificAggregates = false): array
+    {
+        $specs = [];
+        foreach (self::filteredAggregateSpecs($select, $aggregateExpressions) as $spec) {
+            if (isset($spec['summaryColumn']) && is_string($spec['summaryColumn'])) {
+                $specs[$spec['summaryColumn']] = $spec;
+            }
+        }
+        if ($specificAggregates) {
+            foreach (self::specificAggregateSpecs($select, $aggregateExpressions) as $spec) {
+                if (isset($spec['summaryColumn']) && is_string($spec['summaryColumn'])) {
+                    $specs[$spec['summaryColumn']] = $spec;
+                }
+            }
+        }
+
+        return array_values($specs);
+    }
+
+    /**
      * @param array<string,mixed> $expression
      * @param array<string,array<string,mixed>> $specs
      */
@@ -6486,6 +6600,99 @@ final class SQLiteSelectSql
                 }
             }
         }
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     * @return list<array<string,mixed>>
+     */
+    private static function specificAggregateSpecs(array $select, array $aggregateExpressions = []): array
+    {
+        $specs = [];
+        foreach (array_merge($select, $aggregateExpressions) as $term) {
+            if (is_array($term)) {
+                self::collectSpecificAggregateSpecs($term, $specs);
+            }
+        }
+
+        return array_values($specs);
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     * @param array<string,array<string,mixed>> $specs
+     */
+    private static function collectSpecificAggregateSpecs(array $expression, array &$specs): void
+    {
+        $spec = self::specificAggregateSpec($expression);
+        if ($spec !== null) {
+            $specs[$spec['summaryColumn']] = $spec;
+
+            return;
+        }
+
+        foreach (['left', 'right', 'operand', 'predicate'] as $side) {
+            if (isset($expression[$side]) && is_array($expression[$side])) {
+                self::collectSpecificAggregateSpecs($expression[$side], $specs);
+            }
+        }
+        if (isset($expression['term']) && is_array($expression['term'])) {
+            self::collectSpecificAggregateSpecs($expression['term'], $specs);
+        }
+        if (isset($expression['terms']) && is_array($expression['terms']) && array_is_list($expression['terms'])) {
+            foreach ($expression['terms'] as $term) {
+                if (is_array($term)) {
+                    self::collectSpecificAggregateSpecs($term, $specs);
+                }
+            }
+        }
+        foreach (['arguments', 'values'] as $side) {
+            if (!isset($expression[$side]) || !is_array($expression[$side]) || !array_is_list($expression[$side])) {
+                continue;
+            }
+            foreach ($expression[$side] as $child) {
+                if (is_array($child)) {
+                    self::collectSpecificAggregateSpecs($child, $specs);
+                }
+            }
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $term
+     * @return array<string,mixed>|null
+     */
+    private static function specificAggregateSpec(array $term): ?array
+    {
+        if (($term['type'] ?? null) !== 'function' || !isset($term['name']) || !is_string($term['name']) || isset($term['filter'])) {
+            return null;
+        }
+        $name = strtolower($term['name']);
+        if (!self::isFilteredAggregateFunction($name)) {
+            return null;
+        }
+        $arguments = $term['arguments'] ?? [];
+        if (!is_array($arguments) || !array_is_list($arguments)) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL aggregate arguments must be a list');
+        }
+        if (($name === 'min' || $name === 'max') && count($arguments) !== 1) {
+            return null;
+        }
+        self::assertFilteredAggregateArguments($name, $arguments, $term);
+        $argument = $arguments[0] ?? ['type' => 'wildcard'];
+        if ($name === 'count' && (($argument['type'] ?? null) === 'wildcard')) {
+            return null;
+        }
+        if ($name === 'count' && (($argument['type'] ?? null) === 'literal')) {
+            return null;
+        }
+
+        return [
+            'summaryColumn' => self::specificAggregateSummaryColumn($term),
+            'function' => $name,
+            'argument' => $argument,
+            ...($term['distinct'] ?? false) === true ? ['distinct' => true] : [],
+        ];
     }
 
     /**
@@ -6557,6 +6764,20 @@ final class SQLiteSelectSql
             'arguments' => $term['arguments'] ?? [],
             'distinct' => ($term['distinct'] ?? false) === true,
             'filter' => $term['filter'] ?? null,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)), 0, 16);
+    }
+
+    /**
+     * @param array<string,mixed> $term
+     */
+    private static function specificAggregateSummaryColumn(array $term): string
+    {
+        $name = strtolower((string) ($term['name'] ?? 'aggregate'));
+
+        return $name . 'Aggregate_' . substr(sha1(json_encode([
+            'name' => $name,
+            'arguments' => $term['arguments'] ?? [],
+            'distinct' => ($term['distinct'] ?? false) === true,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)), 0, 16);
     }
 
@@ -6714,24 +6935,24 @@ final class SQLiteSelectSql
      * @param array<string,mixed> $predicate
      * @return array<string,mixed>
      */
-    private static function rewriteAggregatePredicate(array $predicate, ?string $valueColumn): array
+    private static function rewriteAggregatePredicate(array $predicate, ?string $valueColumn, bool $specificAggregates = false): array
     {
         if (isset($predicate['terms']) && is_array($predicate['terms']) && array_is_list($predicate['terms'])) {
             $predicate['terms'] = array_map(
-                static fn (array $term): array => self::rewriteAggregatePredicate($term, $valueColumn),
+                static fn (array $term): array => self::rewriteAggregatePredicate($term, $valueColumn, $specificAggregates),
                 $predicate['terms'],
             );
 
             return $predicate;
         }
         if (isset($predicate['term']) && is_array($predicate['term'])) {
-            $predicate['term'] = self::rewriteAggregatePredicate($predicate['term'], $valueColumn);
+            $predicate['term'] = self::rewriteAggregatePredicate($predicate['term'], $valueColumn, $specificAggregates);
 
             return $predicate;
         }
         foreach (['left', 'right'] as $side) {
             if (isset($predicate[$side]) && is_array($predicate[$side])) {
-                $predicate[$side] = self::rewriteAggregateExpression($predicate[$side], $valueColumn);
+                $predicate[$side] = self::rewriteAggregateExpression($predicate[$side], $valueColumn, $specificAggregates);
             }
         }
 
@@ -6742,7 +6963,7 @@ final class SQLiteSelectSql
      * @param array<string,mixed> $expression
      * @return array<string,mixed>
      */
-    private static function rewriteAggregateExpression(array $expression, ?string $valueColumn): array
+    private static function rewriteAggregateExpression(array $expression, ?string $valueColumn, bool $specificAggregates = false): array
     {
         if (($expression['type'] ?? null) === 'wildcard') {
             $expression['aggregateWildcard'] = true;
@@ -6750,15 +6971,21 @@ final class SQLiteSelectSql
             return $expression;
         }
 
+        if ($specificAggregates) {
+            $specificAggregate = self::specificAggregateSpec($expression);
+            if ($specificAggregate !== null) {
+                return ['type' => 'column', 'name' => $specificAggregate['summaryColumn']];
+            }
+        }
         $aggregate = self::aggregateSummaryColumn($expression, $valueColumn);
         if ($aggregate === null) {
             foreach (['left', 'right', 'operand'] as $side) {
                 if (isset($expression[$side]) && is_array($expression[$side])) {
-                    $expression[$side] = self::rewriteAggregateExpression($expression[$side], $valueColumn);
+                    $expression[$side] = self::rewriteAggregateExpression($expression[$side], $valueColumn, $specificAggregates);
                 }
             }
             if (isset($expression['predicate']) && is_array($expression['predicate'])) {
-                $expression['predicate'] = self::rewriteAggregatePredicate($expression['predicate'], $valueColumn);
+                $expression['predicate'] = self::rewriteAggregatePredicate($expression['predicate'], $valueColumn, $specificAggregates);
             }
             foreach (['arguments', 'values'] as $side) {
                 if (!isset($expression[$side]) || !is_array($expression[$side]) || !array_is_list($expression[$side])) {
@@ -6766,7 +6993,7 @@ final class SQLiteSelectSql
                 }
                 foreach ($expression[$side] as $index => $child) {
                     if (is_array($child)) {
-                        $expression[$side][$index] = self::rewriteAggregateExpression($child, $valueColumn);
+                        $expression[$side][$index] = self::rewriteAggregateExpression($child, $valueColumn, $specificAggregates);
                     }
                 }
             }
@@ -6781,7 +7008,7 @@ final class SQLiteSelectSql
      * @param list<array<string,mixed>> $select
      * @return list<array{column:string,direction?:string}>
      */
-    private static function orderBy(string $sql, array &$select, ?string $aggregateValueColumn, bool $rewriteAggregates = false, array $tables = []): array
+    private static function orderBy(string $sql, array &$select, ?string $aggregateValueColumn, bool $rewriteAggregates = false, array $tables = [], bool $specificAggregates = false): array
     {
         $terms = [];
         foreach (self::splitTopLevel($sql, ',') as $index => $term) {
@@ -6813,7 +7040,7 @@ final class SQLiteSelectSql
                 $expression = self::valueExpression($expressionSql, $tables);
                 if ($rewriteAggregates) {
                     $expression = self::rewriteSelectAliasColumns($expression, $select);
-                    $expression = self::rewriteAggregateExpression($expression, $aggregateValueColumn);
+                    $expression = self::rewriteAggregateExpression($expression, $aggregateValueColumn, $specificAggregates);
                 }
                 $alias = '__sqlite_order_expr_' . $index;
                 $expression['alias'] = $alias;

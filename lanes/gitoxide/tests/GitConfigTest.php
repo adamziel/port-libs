@@ -619,6 +619,38 @@ return [
         $t->same('matched', $config->value('user', null, 'legacyByte'));
     },
 
+    'conditional include trailing backslash globs abort like gix wildmatch' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
+        $t->same('base-value', $loadConditionalValue('onbranch:release\\\\', [
+            'branchName' => 'refs/heads/release\\',
+        ]));
+
+        $root = $tmpDir();
+        $gitDir = $root . '/deploy\\';
+        mkdir($gitDir, 0777, true);
+        $write($root . '/include.config', "[section]\nvalue = should-not-load\n");
+        $write($root . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:deploy\\\\"]
+        path = include.config
+        CFG);
+        $config = GitConfig::fromFile($root . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('base', $config->value('section', null, 'value'));
+
+        $root = $tmpDir();
+        $url = 'https://git.example.test/wp-content/trailing\\';
+        $escapedUrl = str_replace('\\', '\\\\', $url);
+        $write($root . '/trailing-url', "[user]\ntrailing = should-not-load\n");
+        $write($root . '/config', <<<CFG
+        [remote "trailing"]
+        url = "{$escapedUrl}"
+        [includeIf "hasconfig:remote.*.url:{$escapedUrl}"]
+        path = "trailing-url"
+        CFG);
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same(null, $config->value('user', null, 'trailing'));
+    },
+
     'conditional include path interpolation follows gix prefix and tilde sentinels' => static function (TestRunner $t) use ($tmpDir, $write): void {
         $root = $tmpDir();
         $worktree = $root . '/literal-tilde';
@@ -921,6 +953,7 @@ return [
         $t->same(null, $fixture['unboundedDoubleStarRejectedPolicy']);
         $t->same(null, $fixture['invalidPosixPolicy']);
         $t->same(null, $fixture['unclosedBracketPolicy']);
+        $t->same(null, $fixture['trailingBackslashUrlPolicy']);
         $t->same('matched', $fixture['optionalPrefixPolicy']);
         $t->same(null, $fixture['backslashGitdirSlashPolicy']);
         $t->same('matched', $fixture['backslashGitdirWildcardPolicy']);
@@ -947,6 +980,7 @@ return [
         $t->same($fixture['unboundedDoubleStarRejectedPolicy'], $summary['unboundedDoubleStarRejectedPolicy']);
         $t->same($fixture['invalidPosixPolicy'], $summary['invalidPosixPolicy']);
         $t->same($fixture['unclosedBracketPolicy'], $summary['unclosedBracketPolicy']);
+        $t->same($fixture['trailingBackslashUrlPolicy'], $summary['trailingBackslashUrlPolicy']);
         $t->same($fixture['optionalPrefixPolicy'], $summary['optionalPrefixPolicy']);
         $t->same($fixture['backslashGitdirSlashPolicy'], $summary['backslashGitdirSlashPolicy']);
         $t->same($fixture['backslashGitdirWildcardPolicy'], $summary['backslashGitdirWildcardPolicy']);

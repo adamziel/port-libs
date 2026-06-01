@@ -34,6 +34,12 @@ for ($i = 0; $i < 72; $i++) {
 }
 $thinBaseBlob = new GitObject('blob', "WordPress template base\n{$thinStable}status=draft\nchecksum=old\n");
 $thinTargetBlob = new GitObject('blob', "WordPress template base\n{$thinStable}status=publish\nchecksum=new\n");
+$crossPackStable = '';
+for ($i = 0; $i < 72; $i++) {
+    $crossPackStable .= hash('sha1', 'wordpress-cross-pack-promisor-base-' . $i) . "\n";
+}
+$crossPackBaseBlob = new GitObject('blob', "WordPress cross-pack template base\n{$crossPackStable}status=draft\nchecksum=old\n");
+$crossPackTargetBlob = new GitObject('blob', "WordPress cross-pack template base\n{$crossPackStable}status=publish\nchecksum=new\n");
 $resolver = new class([$mediaBlob, $thinBaseBlob], $gitDir) implements PromisorObjectResolver {
     public array $requests = [];
     public ?string $hydrationPack = null;
@@ -109,6 +115,23 @@ $thinTarget = $database->read($thinTargetBlob->oid());
 $thinBaseAfterHydration = $database->objectState($thinBaseBlob->oid());
 $thinTargetAfterHydration = $database->objectState($thinTargetBlob->oid());
 
+$crossPackBasePack = PackBuilder::build([$crossPackBaseBlob]);
+$crossPackBasePackBase = 'pack-' . $crossPackBasePack->packChecksum();
+file_put_contents($packDir . '/' . $crossPackBasePackBase . '.pack', $crossPackBasePack->packBytes());
+file_put_contents($packDir . '/' . $crossPackBasePackBase . '.idx', $crossPackBasePack->indexBytes());
+file_put_contents($packDir . '/' . $crossPackBasePackBase . '.promisor', "WordPress cross-pack promisor delta base\n");
+$crossPackThinPack = PackBuilder::buildWithRefDeltas([$crossPackTargetBlob], [$crossPackBaseBlob]);
+$crossPackThinPackBase = 'pack-' . $crossPackThinPack->packChecksum();
+file_put_contents($packDir . '/' . $crossPackThinPackBase . '.pack', $crossPackThinPack->packBytes());
+file_put_contents($packDir . '/' . $crossPackThinPackBase . '.idx', $crossPackThinPack->indexBytes());
+file_put_contents($packDir . '/' . $crossPackThinPackBase . '.promisor', "WordPress cross-pack promisor thin delta target\n");
+$crossPackBaseBeforeRead = $database->objectState($crossPackBaseBlob->oid());
+$crossPackTargetBeforeRead = $database->objectState($crossPackTargetBlob->oid());
+$crossPackTargetHeader = $database->readHeader($crossPackTargetBlob->oid());
+$crossPackTarget = $database->read($crossPackTargetBlob->oid());
+$crossPackBaseAfterRead = $database->objectState($crossPackBaseBlob->oid());
+$crossPackTargetAfterRead = $database->objectState($crossPackTargetBlob->oid());
+
 return [
     'promisorRemotes' => $database->promisorRemotes(),
     'promisorPacks' => $database->promisorPackNames(),
@@ -146,4 +169,15 @@ return [
     'thinTargetSize' => strlen($thinTarget->body),
     'thinBaseAfterHydration' => $thinBaseAfterHydration,
     'thinTargetAfterHydration' => $thinTargetAfterHydration,
+    'crossPackBasePromisorPack' => $crossPackBasePackBase . '.promisor',
+    'crossPackTargetPromisorPack' => $crossPackThinPackBase . '.promisor',
+    'crossPackThinPromisorPackIsThin' => $crossPackThinPack->isThin(),
+    'crossPackBaseBeforeRead' => $crossPackBaseBeforeRead,
+    'crossPackTargetBeforeRead' => $crossPackTargetBeforeRead,
+    'crossPackTargetHeader' => $crossPackTargetHeader,
+    'crossPackTargetSize' => strlen($crossPackTarget->body),
+    'crossPackTargetBodyMatches' => $crossPackTarget->body === $crossPackTargetBlob->body,
+    'crossPackBaseAfterRead' => $crossPackBaseAfterRead,
+    'crossPackTargetAfterRead' => $crossPackTargetAfterRead,
+    'promisorPacksAfterCrossPackHydration' => $database->promisorPackNames(),
 ];

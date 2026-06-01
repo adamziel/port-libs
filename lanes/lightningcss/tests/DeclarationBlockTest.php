@@ -248,6 +248,45 @@ return [
             $block->removeProperty('border-spacing: 0px 0px; color: red', 'border-spacing')
         );
     },
+    'declaration block canonicalizes upstream shadow cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            [
+                'box-shadow' => '12px 12px #0006',
+                'text-shadow' => '1px 1px #ff0',
+            ],
+            $block->parse('box-shadow: 12px 12px 0px 0px rgba(0,0,0,0.4); text-shadow: 1px 1px 0 yellow')
+        );
+        $t->same(
+            ['value' => 'inset 0 0 12px 4px #0006', 'important' => true],
+            $block->getProperty('box-shadow: 0px 0px 12px 4px rgba(0,0,0,0.4) inset !important', 'box-shadow')
+        );
+        $t->same(
+            ['value' => '1px 1px #ff0, 2px 3px red', 'important' => false],
+            $block->getProperty('text-shadow: 1px 1px yellow, 2px 3px red', 'text-shadow')
+        );
+        $t->same(
+            ['value' => '12px 12px', 'important' => false],
+            $block->getProperty('box-shadow: 12px 12px currentColor', 'box-shadow')
+        );
+        $t->same(
+            'color: red; box-shadow: inset 0 0 12px 4px #0006',
+            $block->setProperty('color: red', 'box-shadow', '0px 0px 12px 4px rgba(0,0,0,0.4) inset')
+        );
+        $t->same(
+            'box-shadow: 12px 12px #0006; text-shadow: 1px 1px #ff0 !important',
+            $block->setProperty('box-shadow: 12px 12px rgba(0,0,0,0.4); text-shadow: 2px 2px blue', 'text-shadow', '1px 1px 0 yellow', true)
+        );
+        $t->same(
+            '-webkit-box-shadow: 12px 12px #0006',
+            $block->setProperty('-webkit-box-shadow: 12px 12px rgba(0,0,0,0.4)', '-webkit-box-shadow', '12px 12px 0px rgba(0,0,0,0.4)')
+        );
+        $t->same(
+            'text-shadow: 1px 1px #ff0',
+            $block->removeProperty('box-shadow: 12px 12px rgba(0,0,0,0.4); text-shadow: 1px 1px yellow', 'box-shadow')
+        );
+    },
     'declaration block enumerates upstream cssom length and item order' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'color: red !important; background: white; --Block-Accent: blue; margin: 1rem !important; color: green';

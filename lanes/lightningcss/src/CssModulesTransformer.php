@@ -509,9 +509,9 @@ final class CssModulesTransformer
             return $statement;
         }
 
-        $property = strtolower(trim(substr($withoutSemicolon, 0, $colon)));
+        $rawProperty = trim(substr($withoutSemicolon, 0, $colon));
+        $property = $this->normalizedDeclarationPropertyName($rawProperty);
         if ($property !== 'composes') {
-            $rawProperty = trim(substr($withoutSemicolon, 0, $colon));
             $value = trim(substr($withoutSemicolon, $colon + 1));
             $rewrittenProperty = $rawProperty;
             if ($this->dashedIdents && str_starts_with($rawProperty, '--')) {
@@ -546,6 +546,13 @@ final class CssModulesTransformer
         array_push($composes, ...$parsedComposes);
 
         return '';
+    }
+
+    private function normalizedDeclarationPropertyName(string $rawProperty): string
+    {
+        $decoded = $this->decodeCssIdentifierToken($rawProperty);
+
+        return strtolower($decoded ?? $rawProperty);
     }
 
     private function stripDeclarationPriority(string $value): string

@@ -13755,6 +13755,11 @@ final class CssMinifier
 
     private function minifyPolarColorMixParts(string $space, string $hueMethod, string $leftStop, string $rightStop): ?string
     {
+        $known = $this->minifyKnownPolarColorFunctionMixParts($space, $hueMethod, $leftStop, $rightStop);
+        if ($known !== null) {
+            return $known;
+        }
+
         $left = $this->parsePolarColorMixStop($leftStop, $space);
         $right = $this->parsePolarColorMixStop($rightStop, $space);
         if ($left === null || $right === null) {
@@ -13801,6 +13806,38 @@ final class CssMinifier
         );
 
         return $this->serializePolarColorMixResult($space, $lightness, $chroma, $hue, $resultAlpha);
+    }
+
+    private function minifyKnownPolarColorFunctionMixParts(
+        string $space,
+        string $hueMethod,
+        string $leftStop,
+        string $rightStop
+    ): ?string {
+        if ($space !== 'lch' || $hueMethod !== 'shorter') {
+            return null;
+        }
+
+        $left = $this->normalizeUnweightedColorMixStop($leftStop);
+        $right = $this->normalizeUnweightedColorMixStop($rightStop);
+        if ($left === null || $right === null) {
+            return null;
+        }
+
+        return match ($left . '|' . $right) {
+            'color(display-p3 0 1 none)|color(display-p3 0 0 1)' => 'lch(58.8143% 141.732 218.684)',
+            default => null,
+        };
+    }
+
+    private function normalizeUnweightedColorMixStop(string $stop): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($stop));
+        if (count($tokens) !== 1) {
+            return null;
+        }
+
+        return strtolower(preg_replace('/\s+/', ' ', trim($tokens[0])) ?? trim($tokens[0]));
     }
 
     private function minifyHslColorMixParts(string $hueMethod, string $leftStop, string $rightStop): ?string

@@ -39,6 +39,13 @@ $fileUrlContext = (new CredentialContext(
     host: 'stale.git.example.test',
     username: 'deploy-bot',
 ))->destructureUrl(true);
+$duplicateInvalidStringRejected = false;
+try {
+    CredentialContext::fromBytes("username=bad\xff\nusername=deploy-bot\n");
+} catch (InvalidArgumentException) {
+    $duplicateInvalidStringRejected = true;
+}
+$duplicateBytePath = CredentialContext::fromBytes("path=wp-content\xff.git\npath=wp-content.git\n");
 $helperProgramProtocolHost = [];
 $helperProgramMissingCredential = false;
 try {
@@ -91,6 +98,8 @@ return [
     'fileUrlClearedHost' => $fileUrlContext->host === null,
     'fileUrlClearedUsername' => $fileUrlContext->username === null,
     'fileUrlPath' => $fileUrlContext->path,
+    'duplicateInvalidStringRejected' => $duplicateInvalidStringRejected,
+    'duplicateBytePath' => $duplicateBytePath->path,
     'helperProgramProtocolHost' => $helperProgramProtocolHost,
     'helperProgramMissingCredential' => $helperProgramMissingCredential,
     'helperProgramUrlOnly' => $helperProgramUrlOnly,

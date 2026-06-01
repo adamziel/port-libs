@@ -9,6 +9,8 @@ $repo = $root . '/sites/wp-content.git';
 $gitDir = $repo . '/.git';
 $installPrefix = $root . '/git-install';
 $legacyByte = "\xFF";
+$trailingBackslashUrl = 'https://git.example.test/wp-content/trailing\\';
+$escapedTrailingBackslashUrl = str_replace('\\', '\\\\', $trailingBackslashUrl);
 mkdir($gitDir, 0777, true);
 
 $write = static function (string $path, string $contents): void {
@@ -118,6 +120,11 @@ $write($repo . '/unclosed-bracket.config', <<<CFG
 unclosedBracket = should-not-load
 CFG);
 
+$write($repo . '/trailing-backslash-url.config', <<<CFG
+[wordpress]
+trailingBackslashUrl = should-not-load
+CFG);
+
 $write($repo . '/optional-prefix.config', <<<CFG
 [wordpress]
 optionalPrefix = matched
@@ -186,6 +193,8 @@ url = https://git.example.test/wp/site/content.git
 url = https://git.example.test/wp-content/site-[[:word:]].git
 [remote "unclosed-bracket"]
 url = https://git.example.test/wp-content/site-[.git
+[remote "trailing-backslash"]
+url = "{$escapedTrailingBackslashUrl}"
 [includeIf "onbranch:deploy/"]
 path = ../deploy-branch.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/**"]
@@ -224,6 +233,8 @@ path = ../unbounded-double-star.config
 path = ../invalid-posix.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[.git"]
 path = ../unclosed-bracket.config
+[includeIf "hasconfig:remote.*.url:{$escapedTrailingBackslashUrl}"]
+path = ../trailing-backslash-url.config
 [includeIf "gitdir::(optional)wp-content.git/"]
 path = :(optional)../optional-prefix.config
 CFG);
@@ -283,6 +294,7 @@ return [
     'unboundedDoubleStarRejectedPolicy' => $config->value('wordpress', null, 'unboundedDoubleStar'),
     'invalidPosixPolicy' => $config->value('wordpress', null, 'invalidPosix'),
     'unclosedBracketPolicy' => $config->value('wordpress', null, 'unclosedBracket'),
+    'trailingBackslashUrlPolicy' => $config->value('wordpress', null, 'trailingBackslashUrl'),
     'optionalPrefixPolicy' => $config->value('wordpress', null, 'optionalPrefix'),
     'backslashGitdirSlashPolicy' => $backslashConfig->value('wordpress', null, 'backslashGitdirSlash'),
     'backslashGitdirWildcardPolicy' => $backslashConfig->value('wordpress', null, 'backslashGitdirWildcard'),

@@ -873,6 +873,38 @@ CSS);
         ], $escapedResult['exports']);
         $t->same([], $escapedResult['references']);
     },
+    'css modules decodes escaped composes property names before local global dependency exports' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  c\6f mposes: base;
+  c\6f mposes: wp-block-card from g\6c obal;
+  C\6f MPOSES: token from "./tokens.css";
+  color: red;
+}
+
+.base {
+  color: blue;
+}
+CSS);
+
+        $t->same('.EgL3uq_card{color:red}.EgL3uq_base{color:#00f}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [
+                $local('EgL3uq_base'),
+                $global('wp-block-card'),
+                $dependency('token', './tokens.css'),
+            ]),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_card EgL3uq_base wp-block-card Theme_token', CssModulesTransformer::exportClassList(
+            $result['exports'],
+            'card',
+            static fn (string $name, string $specifier): ?string => $name === 'token' && $specifier === './tokens.css'
+                ? 'Theme_token'
+                : null
+        ));
+    },
     'css modules treats comments as upstream token separators inside composes values' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
         $localResult = (new CssModulesTransformer())->transform(<<<'CSS'
 .test {

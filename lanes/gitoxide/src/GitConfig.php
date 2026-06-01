@@ -615,7 +615,10 @@ final class GitConfig
 
         for ($index = 0; $index < $length; $index++) {
             $byte = $pattern[$index];
-            if ($byte === '\\' && $index + 1 < $length) {
+            if ($byte === '\\') {
+                if ($index + 1 >= $length) {
+                    return false;
+                }
                 $index++;
                 $regex .= preg_quote($pattern[$index], '~');
                 continue;

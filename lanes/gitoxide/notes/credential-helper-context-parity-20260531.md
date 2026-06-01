@@ -364,3 +364,67 @@ SSH credential context transport metadata, protocol, pack/index, object
 database, reference, sparse-checkout, pathspec, merge-base, or tree-merge
 behavior. The old May 25 smart HTTP receive-pack rework notes are stale for
 this slice.
+
+---
+
+Slice: `gitoxide-credential-helper-context-parity-20260601T001512Z`
+Base accepted HEAD: `971daa0084ecd1928b1d3f4a05b94528a5194f66`
+
+## Source Truth
+
+- Upstream `gix-credentials/src/protocol/context/serde.rs`
+  `Context::from_bytes()` validates each known Rust `String` field as soon as
+  the line is decoded. An invalid UTF-8 `username`, `password`, `host`,
+  `protocol`, or `oauth_refresh_token` value fails immediately even if a later
+  duplicate key would overwrite it.
+- The same upstream decoder keeps `url` and `path` as byte strings, so those
+  fields may contain non-UTF-8 bytes and duplicate keys still follow the usual
+  last-value-wins context behavior.
+
+## PHP Delta
+
+- `CredentialContext::fromBytes()` now performs parse-time UTF-8 validation
+  for known String-valued fields instead of only validating the final stored
+  value.
+- Focused tests cover a duplicate invalid `username` followed by a valid
+  replacement, plus a duplicate byte-string `path` that remains accepted.
+- The WordPress credential-context fixture/example records the same guard for
+  deployment helper diagnostics without invoking `git credential` or reading a
+  credential store.
+
+## Verification
+
+- Red-first probe before the patch:
+  `php -r 'require "tools/bootstrap.php"; try { $c=PortLibs\\Gitoxide\\CredentialContext::fromBytes("username=bad\\xff\\nusername=ok\\n"); var_export($c->username); } catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(), "\\n"; }'`
+  returned `'ok'`.
+- `php -l lanes/gitoxide/src/CredentialContext.php`,
+  `php -l lanes/gitoxide/tests/CredentialContextTest.php`,
+  `php -l lanes/gitoxide/fixtures/wordpress-credential-context.php`, and
+  `php -l lanes/gitoxide/examples/wordpress-credential-context.php`:
+  no syntax errors.
+- `php tools/run-tests.php lanes/gitoxide/tests/CredentialContextTest.php`:
+  `1 test files, 130 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests/CredentialContextTest.php lanes/gitoxide/tests/CredentialHelperExchangeTest.php lanes/gitoxide/tests/CredentialCascadeTest.php lanes/gitoxide/tests/CredentialProgramTest.php`:
+  `4 test files, 249 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests`:
+  `40 test files, 6457 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-credential-context.php`: exited `0`.
+- JSON validation passed for `lanes/gitoxide/lane-status.json` and
+  `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`.
+- `git diff --check -- lanes/gitoxide`: exited `0`.
+
+## Dependency Closure
+
+No new support component is needed. This slice reuses the existing native PHP
+credential context parser and string validation; it does not read credential
+stores, invoke provider helpers, shell out to Git, run live-service tests, or
+require a shared support-library activation gate.
+
+## Non-Overlap
+
+This does not repeat accepted credential URL destructuring, HTTP path
+clearing, signed i64/boolean parsing, helper exchange action mapping, cascade
+quit ordering, credential program definition parsing, smart HTTP proxy
+credential lifecycle, SSH credential context metadata, protocol, object,
+reference, sparse-checkout, pathspec, merge-base, or tree-merge behavior. The
+old May 25 smart HTTP receive-pack rework notes remain stale for this slice.

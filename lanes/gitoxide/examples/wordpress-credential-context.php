@@ -17,6 +17,8 @@ return [
     'rootHttpPathCleared' => $fixture['rootHttpPathCleared'],
     'fileUrlClearedHost' => $fixture['fileUrlClearedHost'],
     'fileUrlPath' => $fixture['fileUrlPath'],
+    'duplicateInvalidStringRejected' => $fixture['duplicateInvalidStringRejected'],
+    'duplicateBytePath' => $fixture['duplicateBytePath'],
     'helperProgramProtocolHost' => $fixture['helperProgramProtocolHost'],
     'helperProgramMissingCredential' => $fixture['helperProgramMissingCredential'],
     'helperProgramUrlOnly' => $fixture['helperProgramUrlOnly'],

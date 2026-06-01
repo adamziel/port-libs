@@ -54,7 +54,10 @@ final class SQLiteInsertDefaultValuesSql
                 continue;
             }
             if ($column['default'] !== null) {
-                $row[$column['name']] = self::evaluateExpression($column['default'], $row, $currentTimestamp);
+                $row[$column['name']] = self::applyDeclaredAffinity(
+                    self::evaluateExpression($column['default'], $row, $currentTimestamp),
+                    $column['type'],
+                );
                 continue;
             }
 
@@ -65,7 +68,10 @@ final class SQLiteInsertDefaultValuesSql
             if ($column['generated'] === null) {
                 continue;
             }
-            $row[$column['name']] = self::evaluateExpression($column['generated'], $row, $currentTimestamp);
+            $row[$column['name']] = self::applyDeclaredAffinity(
+                self::evaluateExpression($column['generated'], $row, $currentTimestamp),
+                $column['type'],
+            );
         }
 
         foreach ($columns as $column) {
@@ -73,6 +79,7 @@ final class SQLiteInsertDefaultValuesSql
                 throw new \InvalidArgumentException("SQLite INSERT DEFAULT VALUES column {$column['name']} may not be NULL");
             }
         }
+        self::assertCheckConstraints($schemas[$target], $row, $columns);
 
         return [
             'target' => $target,
@@ -251,6 +258,17 @@ final class SQLiteInsertDefaultValuesSql
         if (strcasecmp($expression, 'NULL') === 0) {
             return null;
         }
+        if (strcasecmp($expression, 'TRUE') === 0) {
+            return 1;
+        }
+        if (strcasecmp($expression, 'FALSE') === 0) {
+            return 0;
+        }
+        if (preg_match('/^not\s+(.+)$/is', $expression, $match) === 1) {
+            $value = self::evaluateExpression($match[1], $row, $currentTimestamp);
+
+            return $value === null ? null : (self::isSqlTrue($value) ? 0 : 1);
+        }
         if (strcasecmp($expression, 'CURRENT_TIMESTAMP') === 0) {
             return $currentTimestamp ?? gmdate('Y-m-d H:i:s');
         }
@@ -268,6 +286,120 @@ final class SQLiteInsertDefaultValuesSql
         }
 
         throw new \InvalidArgumentException("SQLite INSERT DEFAULT VALUES expression is unsupported: {$expression}");
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<array{name:string,type:string,default:?string,generated:?string,stored:bool,not_null:bool,rowid_alias:bool}> $columns
+     */
+    private static function assertCheckConstraints(string $schema, array $row, array $columns): void
+    {
+        $checks = self::checkExpressions($schema);
+        if ($checks === []) {
+            return;
+        }
+
+        $affinities = [];
+        foreach ($columns as $column) {
+            $affinities[$column['name']] = self::declaredAffinity($column['type']);
+        }
+        $checkRow = $row + ['__sqlite_column_affinities' => $affinities];
+
+        foreach ($checks as $check) {
+            $result = SQLiteSelectSql::execute(
+                "SELECT ({$check}) AS check_result FROM inserted_row",
+                ['inserted_row' => [$checkRow]],
+            );
+            $value = $result[0]['check_result'] ?? null;
+            if ($value !== null && !self::isSqlTrue($value)) {
+                throw new \InvalidArgumentException("CHECK constraint failed: {$check}");
+            }
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function checkExpressions(string $schema): array
+    {
+        $checks = [];
+        foreach (self::splitTopLevel(self::tableBody($schema), ',') as $definition) {
+            $offset = 0;
+            while ($offset < strlen($definition)) {
+                $relative = self::firstTopLevelKeywordOffset(substr($definition, $offset), ['CHECK']);
+                if ($relative === null) {
+                    break;
+                }
+
+                $keywordOffset = $offset + $relative;
+                $open = self::skipWhitespace($definition, $keywordOffset + strlen('CHECK'));
+                if (($definition[$open] ?? null) !== '(') {
+                    break;
+                }
+                $close = self::matchingParen($definition, $open);
+                if ($close === null) {
+                    throw new \InvalidArgumentException('SQLite CHECK constraint expression is malformed');
+                }
+
+                $checks[] = trim(substr($definition, $open + 1, $close - $open - 1));
+                $offset = $close + 1;
+            }
+        }
+
+        return $checks;
+    }
+
+    private static function applyDeclaredAffinity(mixed $value, string $declaredType): mixed
+    {
+        $affinity = self::declaredAffinity($declaredType);
+        if ($affinity === 'NONE' || $value === null) {
+            return $value;
+        }
+
+        return SQLiteRealExpressionAffinityCorpusPlan::applyInsertAffinities(
+            [['value' => $value]],
+            ['value' => $affinity],
+        )[0]['value'];
+    }
+
+    private static function declaredAffinity(string $declaredType): string
+    {
+        $type = strtoupper($declaredType);
+        if ($type === '') {
+            return 'BLOB';
+        }
+        if (str_contains($type, 'INT')) {
+            return 'INTEGER';
+        }
+        if (str_contains($type, 'CHAR') || str_contains($type, 'CLOB') || str_contains($type, 'TEXT')) {
+            return 'TEXT';
+        }
+        if (str_contains($type, 'BLOB')) {
+            return 'BLOB';
+        }
+        if (str_contains($type, 'REAL') || str_contains($type, 'FLOA') || str_contains($type, 'DOUB')) {
+            return 'REAL';
+        }
+
+        return 'NUMERIC';
+    }
+
+    private static function isSqlTrue(mixed $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return $value != 0;
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            $value = $value->bytes;
+        }
+
+        return self::numericValue((string) $value) != 0;
     }
 
     /**

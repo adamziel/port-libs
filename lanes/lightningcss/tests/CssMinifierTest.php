@@ -825,6 +825,11 @@ CSS
                 );
             }
         }
+
+        $t->same(
+            '.foo{color:lch(58.8143% 141.732 218.684)}',
+            $minifier->minify('.foo { color: color-mix(in lch, color(display-p3 0 1 none), color(display-p3 0 0 1)); }')
+        );
     },
     'css minifier maps upstream lch and oklch color-mix hue interpolation modes' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

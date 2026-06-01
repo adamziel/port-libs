@@ -30,6 +30,7 @@ return [
     'unboundedDoubleStarRejectedPolicy' => $fixture['unboundedDoubleStarRejectedPolicy'],
     'invalidPosixPolicy' => $fixture['invalidPosixPolicy'],
     'unclosedBracketPolicy' => $fixture['unclosedBracketPolicy'],
+    'trailingBackslashUrlPolicy' => $fixture['trailingBackslashUrlPolicy'],
     'optionalPrefixPolicy' => $fixture['optionalPrefixPolicy'],
     'backslashGitdirSlashPolicy' => $fixture['backslashGitdirSlashPolicy'],
     'backslashGitdirWildcardPolicy' => $fixture['backslashGitdirWildcardPolicy'],

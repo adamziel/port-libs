@@ -73,6 +73,13 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => CredentialContext::fromBytes("username=\xff\n"));
         $t->throws(InvalidArgumentException::class, static fn () => CredentialContext::fromBytes("bad\xff=value\n"));
         $t->throws(InvalidArgumentException::class, static fn () => (new CredentialContext(username: "bad\xff"))->storageBytes());
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => CredentialContext::fromBytes("username=bad\xff\nusername=deploy\n"),
+        );
+
+        $duplicateBytePath = CredentialContext::fromBytes("path=wp-content\xff.git\npath=wp-content.git\n");
+        $t->same('wp-content.git', $duplicateBytePath->path);
     },
     'credential context preserves byte string path and url fields' => static function (TestRunner $t): void {
         $context = CredentialContext::fromBytes(
@@ -220,6 +227,8 @@ return [
         $t->same(true, $fixture['overflowQuitIgnored']);
         $t->contains('password=<redacted>', $fixture['redactedBytes']);
         $t->same(true, $fixture['rootHttpPathCleared']);
+        $t->same(true, $fixture['duplicateInvalidStringRejected']);
+        $t->same('wp-content.git', $fixture['duplicateBytePath']);
         $t->same([
             'action' => 'get',
             'protocol' => 'https',

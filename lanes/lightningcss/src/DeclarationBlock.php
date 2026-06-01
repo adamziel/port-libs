@@ -12997,7 +12997,218 @@ final class DeclarationBlock
             return $this->normalizeBorderSpacingValue($value);
         }
 
+        if ($this->isShadowDeclarationProperty($property)) {
+            return $this->normalizeShadowListValue($value);
+        }
+
         return $value;
+    }
+
+    private function isShadowDeclarationProperty(string $property): bool
+    {
+        return in_array($property, ['box-shadow', '-webkit-box-shadow', '-moz-box-shadow', 'text-shadow'], true);
+    }
+
+    private function normalizeShadowListValue(string $value): string
+    {
+        $layers = [];
+        foreach ($this->splitTopLevel($value, ',') as $layer) {
+            $layers[] = $this->normalizeShadowLayer($layer);
+        }
+
+        return implode(', ', $layers);
+    }
+
+    private function normalizeShadowLayer(string $layer): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($layer);
+        if ($tokens === []) {
+            return trim($layer);
+        }
+        if (count($tokens) === 1 && strcasecmp($tokens[0], 'none') === 0) {
+            return 'none';
+        }
+
+        $inset = false;
+        $lengths = [];
+        $colors = [];
+        foreach ($tokens as $token) {
+            if (strcasecmp($token, 'inset') === 0) {
+                $inset = true;
+                continue;
+            }
+
+            if ($this->isShadowLengthToken($token)) {
+                $lengths[] = $this->normalizeShadowLengthToken($token);
+                continue;
+            }
+
+            if ($this->isShadowColorToken($token)) {
+                $color = $this->normalizeShadowColorToken($token);
+                if (strcasecmp($color, 'currentColor') !== 0) {
+                    $colors[] = $color;
+                }
+                continue;
+            }
+
+            return implode(' ', array_map(fn (string $part): string => $this->normalizeShadowTokenInPlace($part), $tokens));
+        }
+
+        if (count($lengths) === 4 && $lengths[3] === '0') {
+            array_pop($lengths);
+        }
+        if (count($lengths) === 3 && $lengths[2] === '0') {
+            array_pop($lengths);
+        }
+
+        $parts = [];
+        if ($inset) {
+            $parts[] = 'inset';
+        }
+        array_push($parts, ...$lengths, ...$colors);
+
+        return implode(' ', $parts);
+    }
+
+    private function normalizeShadowTokenInPlace(string $token): string
+    {
+        if (strcasecmp($token, 'inset') === 0) {
+            return 'inset';
+        }
+        if ($this->isShadowLengthToken($token)) {
+            return $this->normalizeShadowLengthToken($token);
+        }
+        if ($this->isShadowColorToken($token)) {
+            return $this->normalizeShadowColorToken($token);
+        }
+
+        return trim($token);
+    }
+
+    private function isShadowLengthToken(string $token): bool
+    {
+        $token = trim($token);
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:[a-zA-Z%]+)?$/', $token) === 1) {
+            return true;
+        }
+
+        return preg_match('/^(?:calc|min|max|clamp)\(/i', $token) === 1;
+    }
+
+    private function normalizeShadowLengthToken(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z%]+)?$/', $token, $matches) !== 1) {
+            return $token;
+        }
+
+        $number = $this->normalizeCssNumberLiteral($matches[1]);
+        if ($number === '0') {
+            return '0';
+        }
+
+        return $number . strtolower($matches[2] ?? '');
+    }
+
+    private function isShadowColorToken(string $token): bool
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return false;
+        }
+        if ($token[0] === '#') {
+            return true;
+        }
+        if (preg_match('/^(?:rgb|rgba|hsl|hsla|lab|lch|oklab|oklch|color)\(/i', $token) === 1) {
+            return true;
+        }
+        if (strcasecmp($token, 'currentcolor') === 0) {
+            return true;
+        }
+
+        return preg_match('/^-?[_a-zA-Z][_a-zA-Z0-9-]*$/', $token) === 1;
+    }
+
+    private function normalizeShadowColorToken(string $token): string
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return $token;
+        }
+
+        $keyword = strtolower($token);
+        if ($keyword === 'currentcolor') {
+            return 'currentColor';
+        }
+
+        $keywords = [
+            'aqua' => '#0ff',
+            'black' => '#000',
+            'blue' => '#00f',
+            'chartreuse' => '#7fff00',
+            'cornflowerblue' => '#6495ed',
+            'cyan' => '#0ff',
+            'fuchsia' => '#f0f',
+            'lime' => '#0f0',
+            'magenta' => '#f0f',
+            'transparent' => '#0000',
+            'white' => '#fff',
+            'yellow' => '#ff0',
+        ];
+        if (isset($keywords[$keyword])) {
+            return $keywords[$keyword];
+        }
+
+        if ($token[0] === '#') {
+            return $this->compressShadowHexColor($token);
+        }
+
+        if (preg_match(
+            '/^rgba?\(\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)(?:\s*,\s*([+-]?(?:\d+|\d*\.\d+)))?\s*\)$/i',
+            $token,
+            $matches
+        ) === 1) {
+            $red = (int) $matches[1];
+            $green = (int) $matches[2];
+            $blue = (int) $matches[3];
+            $alpha = isset($matches[4]) && $matches[4] !== '' ? (float) $matches[4] : 1.0;
+            if ($red >= 0 && $red <= 255 && $green >= 0 && $green <= 255 && $blue >= 0 && $blue <= 255 && $alpha >= 0 && $alpha <= 1) {
+                if (abs($alpha - 1.0) < 0.0000001) {
+                    return $this->compressShadowHexColor(sprintf('#%02x%02x%02x', $red, $green, $blue));
+                }
+
+                return $this->compressShadowHexColor(sprintf('#%02x%02x%02x%02x', $red, $green, $blue, (int) round($alpha * 255)));
+            }
+        }
+
+        if (preg_match('/^-?[_a-zA-Z][_a-zA-Z0-9-]*$/', $token) === 1) {
+            return $keyword;
+        }
+
+        return $token;
+    }
+
+    private function compressShadowHexColor(string $color): string
+    {
+        $lower = strtolower($color);
+        if (preg_match('/^#([0-9a-f]{6})ff$/', $lower, $matches) === 1) {
+            return $this->compressShadowHexColor('#' . $matches[1]);
+        }
+        if ($lower === '#ff0000' || $lower === '#f00') {
+            return 'red';
+        }
+        if ($lower === '#808080') {
+            return 'gray';
+        }
+
+        if (preg_match('/^#([0-9a-f])\1([0-9a-f])\2([0-9a-f])\3$/i', $color, $matches) === 1) {
+            return '#' . strtolower($matches[1] . $matches[2] . $matches[3]);
+        }
+        if (preg_match('/^#([0-9a-f])\1([0-9a-f])\2([0-9a-f])\3([0-9a-f])\4$/i', $color, $matches) === 1) {
+            return '#' . strtolower($matches[1] . $matches[2] . $matches[3] . $matches[4]);
+        }
+
+        return $lower;
     }
 
     private function normalizeBorderSpacingValue(string $value): string

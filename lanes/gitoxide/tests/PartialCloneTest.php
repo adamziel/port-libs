@@ -482,6 +482,36 @@ return [
         ], $database->readHeader($targetBlob->oid()));
         $t->same(true, in_array($packName, $database->promisorPackNames(), true));
     },
+    'object database resolves promisor thin pack deltas from another promisor pack' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackForObject, $writePromisorPackResult, $buildThinPromisorBlobs): void {
+        [$gitDir] = $writePromisorPackFixture();
+        [$baseBlob, $targetBlob] = $buildThinPromisorBlobs('cross-pack-base');
+        $baseOid = $baseBlob->oid();
+        $targetOid = $targetBlob->oid();
+        $basePackName = $writePromisorPackForObject($gitDir, $baseBlob, "cross-pack promisor delta base\n");
+        $thinPack = PackBuilder::buildWithRefDeltas([$targetBlob], [$baseBlob]);
+
+        $t->same(true, $thinPack->isThin());
+        $targetPackName = $writePromisorPackResult($gitDir, $thinPack, "cross-pack promisor thin delta target\n");
+        $database = new ObjectDatabase($gitDir);
+
+        $t->same('promisor-present', $database->objectState($baseOid)['status']);
+        $t->same('promisor-present', $database->objectState($targetOid)['status']);
+        $t->same([
+            'type' => 'blob',
+            'size' => strlen($targetBlob->body),
+            'source' => 'pack',
+        ], $database->readHeader($targetOid));
+        $t->same($targetBlob->body, $database->read($targetOid)->body);
+        $t->same([
+            'type' => 'blob',
+            'size' => strlen($baseBlob->body),
+            'source' => 'pack',
+        ], $database->readHeader($baseOid));
+        $t->same($baseBlob->body, $database->read($baseOid)->body);
+        $promisorPacks = $database->promisorPackNames();
+        $t->same(true, in_array($basePackName, $promisorPacks, true));
+        $t->same(true, in_array($targetPackName, $promisorPacks, true));
+    },
     'object database hydrates promisor thin pack delta bases through resolver' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackResult, $buildThinPromisorBlobs): void {
         [$gitDir] = $writePromisorPackFixture();
         [$baseBlob, $targetBlob] = $buildThinPromisorBlobs('resolver-base');
@@ -586,5 +616,15 @@ return [
         $t->same($summary['thinTargetHeader']['size'], $summary['thinTargetSize']);
         $t->same('promisor-present', $summary['thinBaseAfterHydration']['status']);
         $t->same('promisor-present', $summary['thinTargetAfterHydration']['status']);
+        $t->same(true, in_array($summary['crossPackBasePromisorPack'], $summary['promisorPacksAfterCrossPackHydration'], true));
+        $t->same(true, in_array($summary['crossPackTargetPromisorPack'], $summary['promisorPacksAfterCrossPackHydration'], true));
+        $t->same(true, $summary['crossPackThinPromisorPackIsThin']);
+        $t->same('promisor-present', $summary['crossPackBaseBeforeRead']['status']);
+        $t->same('promisor-present', $summary['crossPackTargetBeforeRead']['status']);
+        $t->same('blob', $summary['crossPackTargetHeader']['type']);
+        $t->same($summary['crossPackTargetHeader']['size'], $summary['crossPackTargetSize']);
+        $t->same(true, $summary['crossPackTargetBodyMatches']);
+        $t->same('promisor-present', $summary['crossPackBaseAfterRead']['status']);
+        $t->same('promisor-present', $summary['crossPackTargetAfterRead']['status']);
     },
 ];

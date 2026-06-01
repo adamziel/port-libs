@@ -36,6 +36,9 @@ final class CredentialContext
             $key = substr($line, 0, $equals);
             $value = substr($line, $equals + 1);
             self::validateField($key, $value);
+            if (self::isUtf8ValueField($key) && preg_match('//u', $value) !== 1) {
+                throw new \InvalidArgumentException("Credential context field {$key} must be valid UTF-8");
+            }
             $fields[$key] = $value;
         }
 
@@ -274,6 +277,11 @@ final class CredentialContext
         if ($valueMustBeUtf8 && preg_match('//u', $value) !== 1) {
             throw new \InvalidArgumentException("Credential context field {$key} must be valid UTF-8");
         }
+    }
+
+    private static function isUtf8ValueField(string $key): bool
+    {
+        return in_array($key, ['protocol', 'host', 'username', 'password', 'oauth_refresh_token'], true);
     }
 
     private static function defaultPort(string $scheme): ?int
