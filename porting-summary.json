@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 21:22:20 UTC",
-    "sourceCommit": "bf547105ededeb13ffb9d8448c7fab3c3fa15013",
-    "sourceCommitShort": "bf547105eded",
+    "generated": "2026-06-01 21:25:48 UTC",
+    "sourceCommit": "7cb2eea89ab8a0a4f6e533553ca798c1fd81c661",
+    "sourceCommitShort": "7cb2eea89ab8",
     "sourceBranch": "unknown",
-    "dashboardCommit": "bf547105ededeb13ffb9d8448c7fab3c3fa15013",
-    "dashboardCommitShort": "bf547105eded",
+    "dashboardCommit": "7cb2eea89ab8a0a4f6e533553ca798c1fd81c661",
+    "dashboardCommitShort": "7cb2eea89ab8",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,272,894 pass / 16 fail",
+            "php": "6,274,097 pass / 16 fail",
             "phase": "current-base source integration accepted by supervisor with focused i...",
             "audit": "2026-06-01 21:15 UTC supervisor integration: source commit c3bf2f17bb...",
-            "currentWork": "Real upstream UPsert omitted target-column-list RETURNING is integrated on top of JSO...",
+            "currentWork": "Real upstream atof1.test random REAL text-to-REAL and quote round-trip ordinals 4801....",
             "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "c3bf2f1"
+            "commit": "d3a74ab"
         },
         {
             "lane": "lightningcss",
