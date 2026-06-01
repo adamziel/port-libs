@@ -9,8 +9,8 @@ $tests = [];
 
 $enc184 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row184 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc184($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc184($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -73,7 +73,7 @@ $valueAt184 = static function (array $value, string $path): mixed {
 $cases184 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneEightFour'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_!%cache%'],
     'escape' => ['escape', '!'],
     'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneEightOne'],

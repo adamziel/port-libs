@@ -9,8 +9,8 @@ $tests = [];
 
 $enc185 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row185 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc185($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc185($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -18,8 +18,8 @@ $row185 = static fn (int $id, string $name, int|string $encoding): array => [
     },
 ];
 $bad185 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -84,7 +84,7 @@ $valueAt185 = static function (array $value, string $path): mixed {
 $cases185 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneEightFive'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_cache%'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
@@ -208,19 +208,19 @@ $tests['utf16 nocase like rtrim current source nextOneEightFive null token repar
 
 $tests['utf16 nocase like rtrim current source nextOneEightFive rejects missing bytes'] = static function (TestRunner $t) use ($current185, $nextOneEightFive, $token185): void {
     $bad = $current185;
-    $bad[] = ['option_id' => 20, 'text_encoding' => 2];
+    $bad[] = ['setting_id' => 20, 'text_encoding' => 2];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDeletedTokenResumePlan($bad, $nextOneEightFive, 'plugin%', null, $token185));
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightFive rejects missing encoding'] = static function (TestRunner $t) use ($current185, $nextOneEightFive, $token185): void {
     $bad = $current185;
-    $bad[] = ['option_id' => 20, 'option_name_bytes' => 'plugin_cache'];
+    $bad[] = ['setting_id' => 20, 'key_name_bytes' => 'plugin_cache'];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDeletedTokenResumePlan($bad, $nextOneEightFive, 'plugin%', null, $token185));
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightFive rejects non integer rowid'] = static function (TestRunner $t) use ($current185, $nextOneEightFive, $token185): void {
     $bad = $current185;
-    $bad[] = ['option_id' => '20', 'option_name_bytes' => 'plugin_cache', 'text_encoding' => 1];
+    $bad[] = ['setting_id' => '20', 'key_name_bytes' => 'plugin_cache', 'text_encoding' => 1];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDeletedTokenResumePlan($bad, $nextOneEightFive, 'plugin%', null, $token185));
 };
 

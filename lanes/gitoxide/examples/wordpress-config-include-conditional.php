@@ -58,6 +58,10 @@ return [
     'environmentNamedUserPolicy' => $fixture['environmentNamedUserPolicy'],
     'namedUserPathPolicy' => $fixture['namedUserPathPolicy'],
     'namedUserGitdirPolicy' => $fixture['namedUserGitdirPolicy'],
+    'depthFullNestedPolicy' => $fixture['depthFullNestedPolicy'],
+    'depthLimitedPolicy' => $fixture['depthLimitedPolicy'],
+    'depthLimitedNestedPolicy' => $fixture['depthLimitedNestedPolicy'],
+    'depthZeroError' => $fixture['depthZeroError'],
     'mixedCaseIncludeIfPolicy' => $fixture['mixedCaseIncludeIfPolicy'],
     'sectionsLoaded' => $fixture['sectionsLoaded'],
 ];

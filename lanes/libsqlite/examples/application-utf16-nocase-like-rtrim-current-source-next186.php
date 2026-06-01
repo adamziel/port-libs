@@ -14,8 +14,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $encoding,
 ];
 
@@ -30,13 +30,13 @@ $next = [
     $row(4, 'plugin_cache_beta', 2),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameResumeBoundaryPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyResumeBoundaryPlan(
     $current,
     $next,
     'plugin!_cache%',
     '!',
-    'main.wp_options@185',
-    'main.wp_options@186',
+    'main.app_settings@185',
+    'main.app_settings@186',
     185,
     186,
     ['key' => 'plugin_cache', 'rowid' => 1],

@@ -57,6 +57,11 @@ $malformedBracketAttributes = GitAttributes::fromString(
     . "wp-content/uploads/foo[!]] not-close\n",
     withBuiltInMacros: false,
 );
+$validBracketFallbackAttributes = GitAttributes::fromString(
+    "wp-content/uploads/foo[abc] bracket-class\n"
+    . "wp-content/uploads/foo[[]abc] literal-bracket\n",
+    withBuiltInMacros: false,
+);
 $backslashPath = 'wp-content/plugins/f\\oo/block.json';
 $slashPath = 'wp-content/plugins/f/oo/block.json';
 $backslashPathspec = ':(glob,attr:backslash-plugin)wp-content/plugins/f\\\\oo/block.json';
@@ -67,6 +72,19 @@ $danglingBackslashMatch = PathspecSearch::fromSpecs([$danglingBackslashPathspec]
 $escapedBackslashPathspec = ':(glob,attr:escaped-backslash)wp-content/plugins/trailing\\\\';
 $malformedBracketMatch = PathspecSearch::fromSpecs(['wp-content/uploads/foo['])
     ->match('wp-content/uploads/foo[', false);
+$validBracketLiteralPath = 'wp-content/uploads/foo[abc]';
+$validBracketWildcardPath = 'wp-content/uploads/fooa';
+$validBracketWildcardSearch = PathspecSearch::fromSpecs([
+    ':(glob,attr:bracket-class)wp-content/uploads/foo[abc]',
+]);
+$validBracketLiteralSearch = PathspecSearch::fromSpecs([
+    ':(glob,attr:literal-bracket)wp-content/uploads/foo[abc]',
+]);
+$validBracketLiteralMatch = $validBracketLiteralSearch->match(
+    $validBracketLiteralPath,
+    false,
+    $validBracketFallbackAttributes,
+);
 $tabAttributes = GitAttributes::fromString(
     "wp-content/plugins/gutenberg/** deploy review=yes\n",
     withBuiltInMacros: false,
@@ -410,6 +428,30 @@ return [
     'validNegatedCloseBracketPathspecMatches' => PathspecSearch::fromSpecs([
         'wp-content/uploads/foo[!]]',
     ])->isIncluded('wp-content/uploads/fooX', false),
+    'validBracketClassAttributeSkipsLiteral' => $validBracketFallbackAttributes->attributesForPath(
+        $validBracketLiteralPath,
+        ['bracket-class'],
+    ),
+    'validBracketLiteralAttributeMatches' => $validBracketFallbackAttributes->attributesForPath(
+        $validBracketLiteralPath,
+        ['literal-bracket'],
+    ),
+    'validBracketWildcardPathspecMatchesClass' => $validBracketWildcardSearch->isIncluded(
+        $validBracketWildcardPath,
+        false,
+        $validBracketFallbackAttributes,
+    ),
+    'validBracketAttrPathspecFallsBackVerbatim' => $validBracketLiteralMatch?->kind,
+    'validBracketFallbackRequiresLiteralAttribute' => $validBracketLiteralSearch->isIncluded(
+        $validBracketLiteralPath,
+        false,
+        $validBracketFallbackAttributes,
+    ),
+    'validBracketClassAttributeBlocksLiteralFallback' => !$validBracketWildcardSearch->isIncluded(
+        $validBracketLiteralPath,
+        false,
+        $validBracketFallbackAttributes,
+    ),
     'reversedRangePathspecMatchesStart' => $reversedRangeSearch->isIncluded(
         'wp-content/uploads/z/photo.jpg',
         false,

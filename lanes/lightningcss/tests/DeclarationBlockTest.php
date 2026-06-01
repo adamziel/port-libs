@@ -2456,6 +2456,34 @@ return [
             )
         );
     },
+    'declaration block canonicalizes upstream font palette cssom dashed idents' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'font-palette: --\\43 ooler; --Font-Palette: --\\43 ooler; color: red';
+
+        $t->same(
+            [
+                'font-palette' => '--Cooler',
+                '--Font-Palette' => '--\\43 ooler',
+                'color' => 'red',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => '--Cooler', 'important' => false], $block->getProperty($declarations, 'font-palette'));
+        $t->same(['value' => '--Cooler', 'important' => true], $block->getProperty('font-palette: --\\43 ooler !important', 'font-palette'));
+        $t->same(['value' => '--wp\\ Palette', 'important' => false], $block->getProperty('font-palette: --wp\\ Palette', 'font-palette'));
+        $t->same(
+            'font-palette: --Editor; --Font-Palette: --\\43 ooler; color: red',
+            $block->setProperty($declarations, 'font-palette', '--Editor')
+        );
+        $t->same(
+            '--Font-Palette: --\\43 ooler; color: red; font-palette: --Cooler !important',
+            $block->setProperty($declarations, 'font-palette', '--\\43 ooler', true)
+        );
+        $t->same(
+            '--Font-Palette: --\\43 ooler; color: red',
+            $block->removeProperty($declarations, 'font-palette')
+        );
+    },
     'declaration block reads upstream container cssom shorthand and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

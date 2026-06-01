@@ -189,6 +189,24 @@ return [
         $t->same('example.com', $decodedHttp->host);
         $t->same('path/with spaces/file?token=abc#frag', $decodedHttp->path);
 
+        $passwordOnlyHttp = (new CredentialContext(
+            url: 'http://:password@example.com/~byron/hello',
+        ))->destructureUrl(true);
+        $t->same('', $passwordOnlyHttp->username);
+        $t->same('password', $passwordOnlyHttp->password);
+        $t->same('example.com', $passwordOnlyHttp->host);
+        $t->same('~byron/hello', $passwordOnlyHttp->path);
+        $t->same('http://@example.com/~byron/hello', $passwordOnlyHttp->toUrl());
+
+        $emptyUserHttp = (new CredentialContext(
+            url: 'http://@example.com/~byron/hello',
+        ))->destructureUrl(true);
+        $t->same(null, $emptyUserHttp->username);
+        $t->same(null, $emptyUserHttp->password);
+        $t->same('example.com', $emptyUserHttp->host);
+        $t->same('~byron/hello', $emptyUserHttp->path);
+        $t->same('http://example.com/~byron/hello', $emptyUserHttp->toUrl());
+
         $defaultGitPort = (new CredentialContext(url: 'git://HOST.xz:9418/~repo'))->destructureUrl();
         $t->same('git', $defaultGitPort->protocol);
         $t->same('host.xz', $defaultGitPort->host);
@@ -233,6 +251,17 @@ return [
         $t->same(null, $localPathClearsNetworkContext->username);
         $t->same(null, $localPathClearsNetworkContext->password);
         $t->same('srv/wp-content.git', $localPathClearsNetworkContext->path);
+
+        $nonUtf8LocalPathContext = (new CredentialContext(
+            url: "/srv/wp-content\xff.git",
+            host: 'stale.example.test',
+            username: 'stale-user',
+        ))->destructureUrl(true);
+        $t->same('file', $nonUtf8LocalPathContext->protocol);
+        $t->same(null, $nonUtf8LocalPathContext->host);
+        $t->same(null, $nonUtf8LocalPathContext->username);
+        $t->same("srv/wp-content\xff.git", $nonUtf8LocalPathContext->path);
+        $t->contains("path=srv/wp-content\xff.git\n", $nonUtf8LocalPathContext->storageBytes());
 
         $fileAuthority = (new CredentialContext(
             url: 'file://Deploy@[::1]/var/cache/wp-content.git',
@@ -325,6 +354,23 @@ return [
             'host' => 'git.example.test',
             'path' => 'cached/wp-content.git',
         ], $fixture['httpPathDisabledContext']);
+        $t->same([
+            'protocol' => 'http',
+            'username' => '',
+            'password' => 'password',
+            'host' => 'example.com',
+            'path' => '~byron/hello',
+            'promptUrl' => 'http://@example.com/~byron/hello',
+        ], $fixture['passwordOnlyHttpContext']);
+        $t->same([
+            'protocol' => 'http',
+            'username' => null,
+            'password' => null,
+            'host' => 'example.com',
+            'path' => '~byron/hello',
+            'promptUrl' => 'http://example.com/~byron/hello',
+        ], $fixture['emptyUserHttpContext']);
+        $t->same(true, $fixture['nonUtf8LocalPathPreserved']);
         $t->same(null, $fixture['clearedPassword']);
         $t->same(false, $fixture['emptyQuitFalse']);
         $t->same(1711398853, $fixture['passwordExpiryUtc']);
@@ -368,6 +414,9 @@ return [
         $t->same($fixture['pathlessExtensionContext'], $summary['pathlessExtensionContext']);
         $t->same($fixture['hostlessExtensionContext'], $summary['hostlessExtensionContext']);
         $t->same($fixture['httpPathDisabledContext'], $summary['httpPathDisabledContext']);
+        $t->same($fixture['passwordOnlyHttpContext'], $summary['passwordOnlyHttpContext']);
+        $t->same($fixture['emptyUserHttpContext'], $summary['emptyUserHttpContext']);
+        $t->same(true, $summary['nonUtf8LocalPathPreserved']);
         $t->same(true, $summary['rootHttpPathCleared']);
         $t->same($fixture['helperProgramProtocolHost'], $summary['helperProgramProtocolHost']);
         $t->same($fixture['helperProgramUrlOnly'], $summary['helperProgramUrlOnly']);

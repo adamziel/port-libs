@@ -245,6 +245,18 @@ $write($root . '/environment-named-user.config', <<<CFG
 environmentNamedUser = matched
 CFG);
 
+$write($repo . '/depth-limited.config', <<<CFG
+[wordpress]
+depthLimited = matched
+[include]
+path = depth-grandchild.config
+CFG);
+
+$write($repo . '/depth-grandchild.config', <<<CFG
+[wordpress]
+depthNested = matched
+CFG);
+
 $backslashRepo = $root . '/legacy\\checkout';
 $backslashGitDir = $backslashRepo . '/.git';
 mkdir($backslashGitDir, 0777, true);
@@ -303,6 +315,8 @@ url = https://git.example.test/wp-content/site-[.git
 url = "{$escapedTrailingBackslashUrl}"
 [includeIf "onbranch:deploy/"]
 path = ../deploy-branch.config
+[includeIf "onbranch:deploy/"]
+path = ../depth-limited.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/**"]
 path = ../remote-policy.config
 [includeIf "gitdir:wp\\-content.git/"]
@@ -378,6 +392,30 @@ $config = GitConfig::fromFile($gitDir . '/config', [
     'installPrefix' => $installPrefix,
     'branchName' => 'refs/heads/deploy/site-a',
 ]);
+
+$depthLimitedConfig = GitConfig::fromFile($gitDir . '/config', [
+    'gitDir' => $gitDir,
+    'homeDir' => $root,
+    'userHomeDirs' => [$namedDeployUser => $root],
+    'installPrefix' => $installPrefix,
+    'branchName' => 'refs/heads/deploy/site-a',
+    'maxDepth' => 1,
+    'errOnMaxDepthExceeded' => false,
+]);
+
+$depthZeroError = false;
+try {
+    GitConfig::fromFile($gitDir . '/config', [
+        'gitDir' => $gitDir,
+        'homeDir' => $root,
+        'userHomeDirs' => [$namedDeployUser => $root],
+        'installPrefix' => $installPrefix,
+        'branchName' => 'refs/heads/deploy/site-a',
+        'maxDepth' => 0,
+    ]);
+} catch (RuntimeException) {
+    $depthZeroError = true;
+}
 
 $backslashConfig = GitConfig::fromFile($backslashGitDir . '/config', [
     'gitDir' => $backslashGitDir,
@@ -507,6 +545,10 @@ return [
     'environmentNamedUserPolicy' => $environmentConfig->value('wordpress', null, 'environmentNamedUser'),
     'namedUserPathPolicy' => $config->value('wordpress', null, 'namedUserPath'),
     'namedUserGitdirPolicy' => $config->value('wordpress', null, 'namedUserGitdir'),
+    'depthFullNestedPolicy' => $config->value('wordpress', null, 'depthNested'),
+    'depthLimitedPolicy' => $depthLimitedConfig->value('wordpress', null, 'depthLimited'),
+    'depthLimitedNestedPolicy' => $depthLimitedConfig->value('wordpress', null, 'depthNested'),
+    'depthZeroError' => $depthZeroError,
     'mixedCaseIncludeIfPolicy' => $config->value('wordpress', null, 'mixedCaseIncludeIf'),
     'sectionsLoaded' => array_map(
         static fn (array $section): string => $section['subsection'] === null

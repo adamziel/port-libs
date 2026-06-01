@@ -12,8 +12,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $encoding,
 ];
 
@@ -38,7 +38,7 @@ $token = [
     'encoding' => 'UTF-16BE',
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDeletedTokenResumePlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDeletedTokenResumePlan(
     $current,
     $next,
     'plugin!_cache%',
@@ -58,7 +58,7 @@ $summary = [
     'replayMode' => $plan['replayPlanMode'],
     'replayRowids' => $plan['replayPlanRowids'],
     'dependencyClosure' => $plan['dependency_closure'],
-    'applicationUse' => 'Copied wp_options import scans can resume a UTF-16 RTRIM/NOCASE LIKE cursor after the last yielded option_name row was deleted, as long as the decoded peer boundary before the token is unchanged.',
+    'applicationUse' => 'Copied app_settings import scans can resume a UTF-16 RTRIM/NOCASE LIKE cursor after the last yielded key_name row was deleted, as long as the decoded peer boundary before the token is unchanged.',
 ];
 
 echo json_encode($summary, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . "\n";

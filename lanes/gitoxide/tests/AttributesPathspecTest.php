@@ -353,6 +353,43 @@ return [
         $t->same(true, PathspecSearch::fromSpecs([':(attr:literal-open)wp-content/uploads/foo[[]'])
             ->isIncluded('wp-content/uploads/foo[', false, $attributes));
     },
+    'valid bracket pathspecs fall back verbatim after wildcard mismatch while attributes do not' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString(
+            "wp-content/uploads/foo[abc] bracket-class\n"
+            . "wp-content/uploads/foo[[]abc] literal-bracket\n",
+            withBuiltInMacros: false,
+        );
+        $literalPath = 'wp-content/uploads/foo[abc]';
+        $wildcardPath = 'wp-content/uploads/fooa';
+
+        $t->same(['bracket-class' => true], $attributes->attributesForPath($wildcardPath, ['bracket-class']));
+        $t->same(['bracket-class' => null], $attributes->attributesForPath($literalPath, ['bracket-class']));
+        $t->same(['literal-bracket' => true], $attributes->attributesForPath($literalPath, ['literal-bracket']));
+
+        $wildcardSearch = PathspecSearch::fromSpecs([':(glob,attr:bracket-class)wp-content/uploads/foo[abc]']);
+        $wildcardMatch = $wildcardSearch->match($wildcardPath, false, $attributes);
+        $t->same(PathspecMatch::KIND_WILDCARD, $wildcardMatch?->kind);
+        $t->same(true, $wildcardSearch->isIncluded($wildcardPath, false, $attributes));
+        $t->same(false, $wildcardSearch->isIncluded($literalPath, false, $attributes));
+
+        $literalSearch = PathspecSearch::fromSpecs([':(glob,attr:literal-bracket)wp-content/uploads/foo[abc]']);
+        $literalMatch = $literalSearch->match($literalPath, false, $attributes);
+        $t->same(PathspecMatch::KIND_VERBATIM, $literalMatch?->kind);
+        $t->same(true, $literalSearch->isIncluded($literalPath, false, $attributes));
+        $t->same(false, $literalSearch->isIncluded($wildcardPath, false, $attributes));
+        $t->same(true, PathspecMatcher::matchesOne(
+            ':(glob,attr:literal-bracket)wp-content/uploads/foo[abc]',
+            $literalPath,
+            false,
+            $attributes,
+        ));
+        $t->same(false, PathspecMatcher::matchesOne(
+            ':(glob,attr:bracket-class)wp-content/uploads/foo[abc]',
+            $literalPath,
+            false,
+            $attributes,
+        ));
+    },
     'pathspec parser accepts upstream attribute magic and escaped values' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/plugins/** deploy=plugin kind=one,two\n"
             . "wp-content/themes/** deploy=theme kind=one-two\n"
@@ -807,6 +844,12 @@ return [
         $t->same(PathspecMatch::KIND_VERBATIM, $example['malformedBracketPathspecFallsBackVerbatim']);
         $t->same(true, $example['malformedBracketAttrPathspecSkipped']);
         $t->same(true, $example['validNegatedCloseBracketPathspecMatches']);
+        $t->same(['bracket-class' => null], $example['validBracketClassAttributeSkipsLiteral']);
+        $t->same(['literal-bracket' => true], $example['validBracketLiteralAttributeMatches']);
+        $t->same(true, $example['validBracketWildcardPathspecMatchesClass']);
+        $t->same(PathspecMatch::KIND_VERBATIM, $example['validBracketAttrPathspecFallsBackVerbatim']);
+        $t->same(true, $example['validBracketFallbackRequiresLiteralAttribute']);
+        $t->same(true, $example['validBracketClassAttributeBlocksLiteralFallback']);
         $t->same(true, $example['reversedRangePathspecMatchesStart']);
         $t->same(true, $example['reversedRangePathspecSkipsMiddle']);
         $t->same(['not-reversed-range' => true], $example['reversedRangeNegationMatchesMiddle']);

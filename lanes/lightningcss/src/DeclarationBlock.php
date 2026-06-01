@@ -14030,6 +14030,10 @@ final class DeclarationBlock
             return $this->normalizeTextSizeAdjustDeclarationValue($value);
         }
 
+        if ($property === 'font-palette') {
+            return $this->normalizeFontPaletteDeclarationValue($value);
+        }
+
         if (in_array($property, self::FILTER_DECLARATION_PROPERTIES, true)) {
             return $this->normalizeMinifiedDeclarationValue($property, $value);
         }
@@ -14943,6 +14947,17 @@ final class DeclarationBlock
         return implode(' ', $parts);
     }
 
+    private function normalizeFontPaletteDeclarationValue(string $value): string
+    {
+        $trimmed = trim($value);
+        $identifier = $this->readCssIdentifierToken($trimmed, 0);
+        if ($identifier === null || $identifier['end'] !== strlen($trimmed) || !str_starts_with($identifier['name'], '--')) {
+            return $trimmed;
+        }
+
+        return $this->serializeCssIdentifier($identifier['name']);
+    }
+
     private function normalizeSvgPaintValue(string $value): string
     {
         $tokens = $this->splitWhitespaceTopLevel($value);
@@ -15625,6 +15640,81 @@ final class DeclarationBlock
         }
 
         return $output;
+    }
+
+    /**
+     * @return array{name:string, end:int}|null
+     */
+    private function readCssIdentifierToken(string $value, int $offset): ?array
+    {
+        $length = strlen($value);
+        if ($offset < 0 || $offset >= $length) {
+            return null;
+        }
+
+        $name = '';
+        $cursor = $offset;
+        while ($cursor < $length) {
+            $char = $value[$cursor];
+            if ($char === '\\') {
+                $escape = $this->readCssEscape($value, $cursor, $length);
+                if ($escape === null) {
+                    break;
+                }
+
+                $name .= $escape['decoded'];
+                $cursor = $escape['end'];
+                continue;
+            }
+
+            if (!$this->isCssIdentifierChar($char)) {
+                break;
+            }
+
+            $name .= $char;
+            $cursor++;
+        }
+
+        return $name === '' ? null : [
+            'name' => $name,
+            'end' => $cursor,
+        ];
+    }
+
+    private function serializeCssIdentifier(string $identifier): string
+    {
+        $output = '';
+        $length = strlen($identifier);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $identifier[$i];
+            $byte = ord($char);
+            if ($i === 0 && ctype_digit($char)) {
+                $output .= '\\' . dechex($byte) . ' ';
+                continue;
+            }
+            if ($i === 1 && ($identifier[0] ?? '') === '-' && ctype_digit($char)) {
+                $output .= '\\' . dechex($byte) . ' ';
+                continue;
+            }
+            if ($this->isCssIdentifierChar($char) || $byte >= 0x80) {
+                $output .= $char;
+                continue;
+            }
+            if ($byte === 0 || ($byte >= 1 && $byte <= 31) || $byte === 127) {
+                $output .= '\\' . dechex($byte) . ' ';
+                continue;
+            }
+
+            $output .= '\\' . $char;
+        }
+
+        return $output;
+    }
+
+    private function isCssIdentifierChar(string $char): bool
+    {
+        return preg_match('/[-a-zA-Z0-9_]/', $char) === 1;
     }
 
     /**

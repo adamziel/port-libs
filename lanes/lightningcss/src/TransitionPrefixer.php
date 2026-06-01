@@ -101,7 +101,13 @@ final class TransitionPrefixer
                 $prelude = $this->rewriteMediaRangePrelude($prelude, $targetOptions);
                 $prelude = $this->rewriteSupportsDeclarationPrefixPrelude($prelude, $targetOptions);
                 if ($this->isKeyframesPrelude($prelude)) {
-                    $output .= $this->rewriteKeyframesRule($prelude, $body, $targetOptions, $emittedKeyframes);
+                    $output .= $this->rewriteKeyframesRule(
+                        $prelude,
+                        $body,
+                        $targetOptions,
+                        $emittedKeyframes,
+                        $insideAdvancedColorSupports
+                    );
                     $cursor = $close + 1;
                     continue;
                 }
@@ -391,7 +397,13 @@ final class TransitionPrefixer
      * @param array<string, bool> $targetOptions
      * @param array<string, true> $emittedKeyframes
      */
-    private function rewriteKeyframesRule(string $prelude, string $body, array $targetOptions, array &$emittedKeyframes): string
+    private function rewriteKeyframesRule(
+        string $prelude,
+        string $body,
+        array $targetOptions,
+        array &$emittedKeyframes,
+        bool $insideAdvancedColorSupports
+    ): string
     {
         if (preg_match('/^@(?:(-(?:webkit|moz|o)-))?keyframes\s+(.+)$/i', $prelude, $matches) !== 1) {
             return $prelude . '{' . $body . '}';
@@ -399,27 +411,48 @@ final class TransitionPrefixer
 
         $prefix = strtolower($matches[1] ?? '');
         $name = $matches[2];
+        $bodies = $this->rewriteKeyframesAdvancedColorBodies($body, $targetOptions, $insideAdvancedColorSupports);
         $rules = [];
+        $emittedKeywords = [];
         if ($targetOptions['keyframesNeedsWebkit']) {
-            $this->appendKeyframesRule($rules, $emittedKeyframes, '@-webkit-keyframes', $name, $body);
+            if ($this->appendKeyframesRule($rules, $emittedKeyframes, '@-webkit-keyframes', $name, $bodies['base'])) {
+                $emittedKeywords[] = '@-webkit-keyframes';
+            }
         } elseif ($prefix === '-webkit-') {
             return '';
         }
 
         if ($targetOptions['keyframesNeedsMoz']) {
-            $this->appendKeyframesRule($rules, $emittedKeyframes, '@-moz-keyframes', $name, $body);
+            if ($this->appendKeyframesRule($rules, $emittedKeyframes, '@-moz-keyframes', $name, $bodies['base'])) {
+                $emittedKeywords[] = '@-moz-keyframes';
+            }
         } elseif ($prefix === '-moz-') {
             return '';
         }
 
         if ($targetOptions['keyframesNeedsO']) {
-            $this->appendKeyframesRule($rules, $emittedKeyframes, '@-o-keyframes', $name, $body);
+            if ($this->appendKeyframesRule($rules, $emittedKeyframes, '@-o-keyframes', $name, $bodies['base'])) {
+                $emittedKeywords[] = '@-o-keyframes';
+            }
         } elseif ($prefix === '-o-') {
             return '';
         }
 
         if ($prefix === '') {
-            $this->appendKeyframesRule($rules, $emittedKeyframes, '@keyframes', $name, $body);
+            if ($this->appendKeyframesRule($rules, $emittedKeyframes, '@keyframes', $name, $bodies['base'])) {
+                $emittedKeywords[] = '@keyframes';
+            }
+        }
+
+        if ($emittedKeywords !== [] && $bodies['p3'] !== null) {
+            $rules[] = '@supports (color:color(display-p3 0 0 0)){'
+                . $this->serializeKeyframesRules($emittedKeywords, $name, $bodies['p3'])
+                . '}';
+        }
+        if ($emittedKeywords !== [] && $bodies['lab'] !== null) {
+            $rules[] = '@supports (color:lab(0% 0 0)){'
+                . $this->serializeKeyframesRules($emittedKeywords, $name, $bodies['lab'])
+                . '}';
         }
 
         return implode('', $rules);
@@ -429,15 +462,187 @@ final class TransitionPrefixer
      * @param list<string> $rules
      * @param array<string, true> $emittedKeyframes
      */
-    private function appendKeyframesRule(array &$rules, array &$emittedKeyframes, string $keyword, string $name, string $body): void
+    private function appendKeyframesRule(array &$rules, array &$emittedKeyframes, string $keyword, string $name, string $body): bool
     {
         $key = strtolower($keyword . ' ' . $name);
         if (isset($emittedKeyframes[$key])) {
-            return;
+            return false;
         }
 
         $emittedKeyframes[$key] = true;
         $rules[] = $keyword . ' ' . $name . '{' . $body . '}';
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $keywords
+     */
+    private function serializeKeyframesRules(array $keywords, string $name, string $body): string
+    {
+        return implode('', array_map(
+            static fn (string $keyword): string => $keyword . ' ' . $name . '{' . $body . '}',
+            $keywords
+        ));
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return array{base:string,p3:?string,lab:?string}
+     */
+    private function rewriteKeyframesAdvancedColorBodies(string $body, array $targetOptions, bool $insideAdvancedColorSupports): array
+    {
+        $unchanged = ['base' => $body, 'p3' => null, 'lab' => null];
+        if ($insideAdvancedColorSupports) {
+            return $unchanged;
+        }
+
+        $needsSrgbFallback = $targetOptions['advancedColorNeedsSrgbFallback'] ?? false;
+        $usesP3Fallback = $targetOptions['advancedColorUsesP3Fallback'] ?? false;
+        $supportsNative = $targetOptions['advancedColorSupportsNative'] ?? false;
+        $needsLabFallback = $targetOptions['advancedColorNeedsLabFallback'] ?? false;
+        if (!$needsSrgbFallback && !$usesP3Fallback && !$supportsNative && !$needsLabFallback) {
+            return $unchanged;
+        }
+
+        $baseBody = '';
+        $p3Body = '';
+        $labBody = '';
+        $needsP3Body = false;
+        $needsLabBody = false;
+        $changed = false;
+        $cursor = 0;
+        $length = strlen($body);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($body, '{', $cursor);
+            if ($open === null) {
+                if (trim(substr($body, $cursor)) !== '') {
+                    return $unchanged;
+                }
+                break;
+            }
+
+            $selector = trim(substr($body, $cursor, $open - $cursor));
+            if ($selector === '') {
+                return $unchanged;
+            }
+
+            $close = $this->findMatchingBrace($body, $open);
+            if ($close <= $open) {
+                return $unchanged;
+            }
+
+            $entries = $this->parseDeclarations(substr($body, $open + 1, $close - $open - 1));
+            if ($entries === null) {
+                return $unchanged;
+            }
+
+            $rewritten = $this->rewriteKeyframesAdvancedColorEntries($entries, $targetOptions);
+            $baseBody .= $selector . '{' . $this->serializeDeclarations($rewritten['base']) . '}';
+            $p3Entries = $rewritten['p3'] ?? $entries;
+            $labEntries = $rewritten['lab'] ?? $entries;
+            $p3Body .= $selector . '{' . $this->serializeDeclarations($p3Entries) . '}';
+            $labBody .= $selector . '{' . $this->serializeDeclarations($labEntries) . '}';
+            $needsP3Body = $needsP3Body || $rewritten['p3'] !== null;
+            $needsLabBody = $needsLabBody || $rewritten['lab'] !== null;
+            $changed = $changed || $rewritten['changed'];
+            $cursor = $close + 1;
+        }
+
+        if (!$changed) {
+            return $unchanged;
+        }
+
+        return [
+            'base' => $baseBody,
+            'p3' => $needsP3Body ? $p3Body : null,
+            'lab' => $needsLabBody ? $labBody : null,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     * @return array{
+     *   base:list<array{property:string,name:string,value:string,important:bool}>,
+     *   p3:?list<array{property:string,name:string,value:string,important:bool}>,
+     *   lab:?list<array{property:string,name:string,value:string,important:bool}>,
+     *   changed:bool
+     * }
+     */
+    private function rewriteKeyframesAdvancedColorEntries(array $entries, array $targetOptions): array
+    {
+        $needsSrgbFallback = $targetOptions['advancedColorNeedsSrgbFallback'] ?? false;
+        $usesP3Fallback = $targetOptions['advancedColorUsesP3Fallback'] ?? false;
+        $supportsNative = $targetOptions['advancedColorSupportsNative'] ?? false;
+        $needsLabFallback = $targetOptions['advancedColorNeedsLabFallback'] ?? false;
+        $baseEntries = $entries;
+        $p3Entries = $entries;
+        $labEntries = $entries;
+        $needsP3Entries = false;
+        $needsLabEntries = false;
+        $changed = false;
+
+        foreach ($entries as $index => $entry) {
+            $isCustomProperty = str_starts_with($entry['property'], '--');
+            $isTextDecorationCustomProperty = $entry['property'] === 'text-decoration'
+                && $this->containsCustomPropertyReference($entry['value']);
+            if (!$isCustomProperty && !$isTextDecorationCustomProperty) {
+                continue;
+            }
+
+            $normalized = $entry['value'];
+            $srgbFallback = $this->advancedColorFallbackValue($normalized);
+            if ($srgbFallback === null) {
+                continue;
+            }
+
+            if ($supportsNative && !$needsSrgbFallback && !$usesP3Fallback && !$needsLabFallback) {
+                continue;
+            }
+
+            $p3Fallback = $usesP3Fallback ? $this->advancedColorP3FallbackValue($normalized, true) : null;
+            $labFallback = $this->advancedColorLabFallbackValue($normalized, true);
+            $labTargetFallback = $needsLabFallback ? $this->advancedColorLabTargetValue($normalized) : null;
+
+            if (!$needsSrgbFallback) {
+                if ($p3Fallback !== null && $p3Fallback !== $normalized) {
+                    $baseEntries[$index] = $this->entryWithValue($entry, $p3Fallback);
+                    $changed = true;
+                    if ($labFallback !== null && $labFallback !== $p3Fallback) {
+                        $labEntries[$index] = $this->entryWithValue($entry, $labFallback);
+                        $needsLabEntries = true;
+                    }
+                    continue;
+                }
+
+                if ($labTargetFallback !== null && $labTargetFallback !== $normalized) {
+                    $baseEntries[$index] = $this->entryWithValue($entry, $labTargetFallback);
+                    $changed = true;
+                }
+                continue;
+            }
+
+            $baseEntries[$index] = $this->entryWithValue($entry, $srgbFallback);
+            $changed = true;
+
+            if ($p3Fallback !== null && $p3Fallback !== $srgbFallback) {
+                $p3Entries[$index] = $this->entryWithValue($entry, $p3Fallback);
+                $needsP3Entries = true;
+            }
+            if ($labFallback !== null && $labFallback !== $srgbFallback) {
+                $labEntries[$index] = $this->entryWithValue($entry, $labFallback);
+                $needsLabEntries = true;
+            }
+        }
+
+        return [
+            'base' => $baseEntries,
+            'p3' => $needsP3Entries ? $p3Entries : null,
+            'lab' => $needsLabEntries ? $labEntries : null,
+            'changed' => $changed,
+        ];
     }
 
     /**
@@ -10332,6 +10537,7 @@ final class TransitionPrefixer
     {
         return match ($color) {
             'lab(40% 56.6 39)' => '#b32323',
+            'lab(29.2345% 39.3825 20.0664)' => '#7d2329',
             'lab(51.5117% 43.3777 -29.0443)' => '#af5cae',
             'lab(52.2319% 40.1449 59.9171)',
             'oklab(59.686% .1009 .1192)',
@@ -10392,6 +10598,7 @@ final class TransitionPrefixer
     {
         return match ($color) {
             'lab(40% 56.6 39)' => 'lab(40% 56.6 39)',
+            'lab(29.2345% 39.3825 20.0664)' => 'lab(29.2345% 39.3825 20.0664)',
             'lab(51.5117% 43.3777 -29.0443)' => 'lab(51.5117% 43.3777 -29.0443)',
             'lab(52.2319% 40.1449 59.9171)',
             'oklab(59.686% .1009 .1192)',

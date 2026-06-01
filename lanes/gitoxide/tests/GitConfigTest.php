@@ -92,6 +92,60 @@ return [
         $t->same(11, count($config->sections()));
     },
 
+    'conditional include max depth follows gix-config zero and truncation boundaries' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $root = $tmpDir();
+        $rootConfig = $root . '/config';
+        $childConfig = $root . '/child.config';
+        $grandchildConfig = $root . '/grandchild.config';
+
+        $write($childConfig, <<<CFG
+        [section]
+        value = child
+        [include]
+        path = {$grandchildConfig}
+        CFG);
+        $write($grandchildConfig, <<<CFG
+        [section]
+        value = grandchild
+        CFG);
+        $write($rootConfig, <<<CFG
+        [section]
+        value = base
+        [includeIf "onbranch:deploy/"]
+        path = {$childConfig}
+        CFG);
+
+        $options = ['branchName' => 'refs/heads/deploy/site'];
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => GitConfig::fromFile($rootConfig, array_replace($options, ['maxDepth' => 0])),
+        );
+
+        $config = GitConfig::fromFile($rootConfig, array_replace($options, [
+            'maxDepth' => 0,
+            'errOnMaxDepthExceeded' => false,
+        ]));
+        $t->same(['base'], $config->values('section', null, 'value'));
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => GitConfig::fromFile($rootConfig, array_replace($options, ['maxDepth' => 1])),
+        );
+
+        $config = GitConfig::fromFile($rootConfig, array_replace($options, [
+            'maxDepth' => 1,
+            'errOnMaxDepthExceeded' => false,
+        ]));
+        $t->same(['base', 'child'], $config->values('section', null, 'value'));
+
+        $config = GitConfig::fromFile($rootConfig, array_replace($options, [
+            'maxDepth' => 2,
+            'errOnMaxDepthExceeded' => false,
+        ]));
+        $t->same(['base', 'child', 'grandchild'], $config->values('section', null, 'value'));
+    },
+
     'onbranch includeIf conditions match short local branch names and upstream glob boundaries' => static function (TestRunner $t) use ($loadConditionalValue): void {
         $t->same('override-value', $loadConditionalValue('onbranch:main', ['branchName' => 'refs/heads/main']));
         $t->same('base-value', $loadConditionalValue('onbranch:refs/heads/main', ['branchName' => 'refs/heads/main']));
@@ -1388,6 +1442,10 @@ return [
         $t->same('matched', $fixture['environmentNamedUserPolicy']);
         $t->same('matched', $fixture['namedUserPathPolicy']);
         $t->same('matched', $fixture['namedUserGitdirPolicy']);
+        $t->same('matched', $fixture['depthFullNestedPolicy']);
+        $t->same('matched', $fixture['depthLimitedPolicy']);
+        $t->same(null, $fixture['depthLimitedNestedPolicy']);
+        $t->same(true, $fixture['depthZeroError']);
         $t->same(null, $fixture['mixedCaseIncludeIfPolicy']);
         $t->same($fixture['preview'], $summary['preview']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
@@ -1436,6 +1494,10 @@ return [
         $t->same($fixture['environmentNamedUserPolicy'], $summary['environmentNamedUserPolicy']);
         $t->same($fixture['namedUserPathPolicy'], $summary['namedUserPathPolicy']);
         $t->same($fixture['namedUserGitdirPolicy'], $summary['namedUserGitdirPolicy']);
+        $t->same($fixture['depthFullNestedPolicy'], $summary['depthFullNestedPolicy']);
+        $t->same($fixture['depthLimitedPolicy'], $summary['depthLimitedPolicy']);
+        $t->same($fixture['depthLimitedNestedPolicy'], $summary['depthLimitedNestedPolicy']);
+        $t->same($fixture['depthZeroError'], $summary['depthZeroError']);
         $t->same($fixture['mixedCaseIncludeIfPolicy'], $summary['mixedCaseIncludeIfPolicy']);
         $t->same($fixture['sectionsLoaded'], $summary['sectionsLoaded']);
     },

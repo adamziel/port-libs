@@ -62,6 +62,17 @@ $httpPathDisabledContext = (new CredentialContext(
     url: 'https://git.example.test/ignored/wp-content.git',
     path: 'cached/wp-content.git',
 ))->destructureUrl(false);
+$passwordOnlyHttpContext = (new CredentialContext(
+    url: 'http://:password@example.com/~byron/hello',
+))->destructureUrl(true);
+$emptyUserHttpContext = (new CredentialContext(
+    url: 'http://@example.com/~byron/hello',
+))->destructureUrl(true);
+$nonUtf8LocalPathContext = (new CredentialContext(
+    url: "/srv/wp-content\xff.git",
+    host: 'stale.git.example.test',
+    username: 'deploy-bot',
+))->destructureUrl(true);
 $duplicateInvalidStringRejected = false;
 try {
     CredentialContext::fromBytes("username=bad\xff\nusername=deploy-bot\n");
@@ -222,6 +233,27 @@ return [
         'host' => $httpPathDisabledContext->host,
         'path' => $httpPathDisabledContext->path,
     ],
+    'passwordOnlyHttpContext' => [
+        'protocol' => $passwordOnlyHttpContext->protocol,
+        'username' => $passwordOnlyHttpContext->username,
+        'password' => $passwordOnlyHttpContext->password,
+        'host' => $passwordOnlyHttpContext->host,
+        'path' => $passwordOnlyHttpContext->path,
+        'promptUrl' => $passwordOnlyHttpContext->toUrl(),
+    ],
+    'emptyUserHttpContext' => [
+        'protocol' => $emptyUserHttpContext->protocol,
+        'username' => $emptyUserHttpContext->username,
+        'password' => $emptyUserHttpContext->password,
+        'host' => $emptyUserHttpContext->host,
+        'path' => $emptyUserHttpContext->path,
+        'promptUrl' => $emptyUserHttpContext->toUrl(),
+    ],
+    'nonUtf8LocalPathPreserved' => $nonUtf8LocalPathContext->protocol === 'file'
+        && $nonUtf8LocalPathContext->host === null
+        && $nonUtf8LocalPathContext->username === null
+        && $nonUtf8LocalPathContext->path === "srv/wp-content\xff.git"
+        && str_contains($nonUtf8LocalPathContext->storageBytes(), "path=srv/wp-content\xff.git\n"),
     'duplicateInvalidStringRejected' => $duplicateInvalidStringRejected,
     'constructorInvalidStringRejected' => $constructorInvalidStringRejected,
     'constructorByteFieldsPreserved' => $constructorByteContext->path === "srv/wp-content\xff.git"
@@ -249,5 +281,5 @@ return [
     'redactedBytes' => $redacted->storageBytes(),
     'clearedPassword' => $cleared->password,
     'clearedOauthRefreshToken' => $cleared->oauthRefreshToken,
-    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, destructure local mirror and extension-scheme remotes, preserve an explicit repository path when HTTP path matching is disabled, enforce string-field UTF-8 boundaries, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs.',
+    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, destructure local mirror and extension-scheme remotes, preserve an explicit repository path when HTTP path matching is disabled, distinguish empty HTTP userinfo from password-only helper URLs, preserve byte-oriented local mirror paths, enforce string-field UTF-8 boundaries, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs.',
 ];

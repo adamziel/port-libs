@@ -502,9 +502,6 @@ final class GitConfig
      */
     private static function resolveIncludes(array &$target, ?array $searchSections, int $depth, array $options): void
     {
-        if ($options['maxDepth'] === 0) {
-            return;
-        }
         if ($depth >= $options['maxDepth']) {
             if ($options['errOnMaxDepthExceeded']) {
                 throw new \RuntimeException("Git config include depth {$options['maxDepth']} exceeded");

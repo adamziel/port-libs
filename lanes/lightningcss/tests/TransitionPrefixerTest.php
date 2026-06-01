@@ -3027,6 +3027,45 @@ CSS;
             $prefixer->prefixForTargets('.foo { --custom: oklab(59.686% 0.1009 0.1192); }', ['chrome' => 111, 'safari' => 15])
         );
     },
+    'transition prefixer maps upstream keyframes custom property advanced color fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@keyframes foo{0%{--custom:#b32323}to{--custom:#ee00be}}@supports (color:lab(0% 0 0)){@keyframes foo{0%{--custom:lab(40% 56.6 39)}to{--custom:lab(50.998% 125.506 -50.7078)}}}',
+            $prefixer->prefixForTargets(
+                '@keyframes foo { from { --custom: lab(40% 56.6 39); } to { --custom: lch(50.998% 135.363 338); } }',
+                ['chrome' => 90]
+            )
+        );
+        $t->same(
+            '@keyframes foo{0%{--custom:#b32323}to{--custom:#ee00be}}@supports (color:color(display-p3 0 0 0)){@keyframes foo{0%{--custom:color(display-p3 .643308 .192455 .167712)}to{--custom:color(display-p3 .972962 -.362078 .804206)}}}@supports (color:lab(0% 0 0)){@keyframes foo{0%{--custom:lab(40% 56.6 39)}to{--custom:lab(50.998% 125.506 -50.7078)}}}',
+            $prefixer->prefixForTargets(
+                '@keyframes foo { from { --custom: lab(40% 56.6 39); } to { --custom: lch(50.998% 135.363 338); } }',
+                ['chrome' => 90, 'safari' => 14]
+            )
+        );
+        $t->same(
+            '@supports (color:color(display-p3 0 0 0)){@keyframes foo{0%{--custom:color(display-p3 .643308 .192455 .167712)}to{--custom:color(display-p3 .972962 -.362078 .804206)}}}@supports (color:lab(0% 0 0)){@keyframes foo{0%{--custom:lab(40% 56.6 39)}to{--custom:lab(50.998% 125.506 -50.7078)}}}',
+            $prefixer->prefixForTargets(
+                '@supports (color: color(display-p3 0 0 0)) { @keyframes foo { from { --custom: color(display-p3 .643308 .192455 .167712); } to { --custom: color(display-p3 .972962 -.362078 .804206); } } } @supports (color: lab(0% 0 0)) { @keyframes foo { from { --custom: lab(40% 56.6 39); } to { --custom: lab(50.998% 125.506 -50.7078); } } }',
+                ['chrome' => 90, 'safari' => 14]
+            )
+        );
+        $t->same(
+            '@keyframes foo{0%{--custom:#ff0;opacity:0}to{--custom:#ee00be;opacity:1}}@supports (color:lab(0% 0 0)){@keyframes foo{0%{--custom:#ff0;opacity:0}to{--custom:lab(50.998% 125.506 -50.7078);opacity:1}}}',
+            $prefixer->prefixForTargets(
+                '@keyframes foo { from { --custom: #ff0; opacity: 0; } to { --custom: lch(50.998% 135.363 338); opacity: 1; } }',
+                ['chrome' => 90]
+            )
+        );
+        $t->same(
+            '@keyframes foo{0%{text-decoration:var(--foo) #7d2329}}@supports (color:lab(0% 0 0)){@keyframes foo{0%{text-decoration:var(--foo) lab(29.2345% 39.3825 20.0664)}}}',
+            $prefixer->prefixForTargets(
+                '@keyframes foo { from { text-decoration: var(--foo) lab(29.2345% 39.3825 20.0664); } }',
+                ['chrome' => 90]
+            )
+        );
+    },
     'transition prefixer maps upstream font palette values advanced color fallbacks' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

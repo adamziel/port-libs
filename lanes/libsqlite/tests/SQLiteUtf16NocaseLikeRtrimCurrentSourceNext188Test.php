@@ -9,8 +9,8 @@ $tests = [];
 
 $enc188 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row188 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc188($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc188($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -18,8 +18,8 @@ $row188 = static fn (int $id, string $name, int|string $encoding): array => [
     },
 ];
 $bad188 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -84,7 +84,7 @@ $cases188 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneEightEight'],
     'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneEightFive'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_cache%'],
     'escape' => ['escape', '!'],
     'prefix' => ['prefix', 'plugin_cache'],
@@ -186,7 +186,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightEight source change r
 
 $tests['utf16 nocase like rtrim current source nextOneEightEight rejects bad row shape'] = static function (TestRunner $t) use ($current188, $nextOneEightEight, $token188): void {
     $bad = $nextOneEightEight;
-    $bad[] = ['option_id' => '20', 'option_name_bytes' => 'plugin_cache', 'text_encoding' => 1];
+    $bad[] = ['setting_id' => '20', 'key_name_bytes' => 'plugin_cache', 'text_encoding' => 1];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyReusedRowidResumePlan($current188, $bad, 'plugin%', null, $token188));
 };
 
