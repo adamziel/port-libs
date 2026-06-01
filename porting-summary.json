@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 16:41:25 UTC",
-    "sourceCommit": "8317749d4fda691b6f5e8274ab622327a8df0b38",
-    "sourceCommitShort": "8317749d4fda",
+    "generated": "2026-06-01 16:45:44 UTC",
+    "sourceCommit": "e5e2abea9236f7c6757df81551e929992d7ea370",
+    "sourceCommitShort": "e5e2abea9236",
     "sourceBranch": "main",
-    "dashboardCommit": "8317749d4fda691b6f5e8274ab622327a8df0b38",
-    "dashboardCommitShort": "8317749d4fda",
+    "dashboardCommit": "e5e2abea9236f7c6757df81551e929992d7ea370",
+    "dashboardCommitShort": "e5e2abea9236",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,102,011 pass / 16 fail",
+            "php": "6,150,052 pass / 16 fail",
             "phase": "current-base source integration accepted; broad full-lane/release par...",
-            "audit": "2026-06-01 16:58 UTC supervisor integration: source commit 8317749d4f...",
-            "currentWork": "SQLitePDO bad-column, missing-table, file-backed persistence parity, dynamic trigger/...",
+            "audit": "2026-06-01 17:08 UTC supervisor integration: source commit e5e2abea92...",
+            "currentWork": "SQLitePDO parity, trigger/FK, pager/WAL, JSON101 constructor/edit SELECT SQL, and UPS...",
             "nextTarget": "Prioritize broad full-lane memory exhaustion and the 16 obser...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "8317749"
+            "commit": "e5e2abe"
         },
         {
             "lane": "lightningcss",
@@ -45,13 +45,13 @@
             "coverage": "2,398 / 3,532 (67.9%)",
             "mapPercent": "67.9%",
             "unmapped": "1,134",
-            "php": "8,776 pass / 0 fail",
+            "php": "8,792 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 16:58 UTC supervisor integration: source commit 8317749d4f...",
-            "currentWork": "CSS Modules container-name scoping, CSSOM object-fit/object-position read-write canon...",
+            "audit": "2026-06-01 17:08 UTC supervisor integration: source commit e5e2abea92...",
+            "currentWork": "Cascade-layer custom-rule visitors, media-range fallback after layer statements, and...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, bundle...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "8317749"
+            "commit": "e5e2abe"
         },
         {
             "lane": "gitoxide",
