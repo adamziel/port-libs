@@ -79,7 +79,7 @@ final class TransitionPrefixer
             if (str_starts_with($prelude, '@')) {
                 $lastMergeableStyleRule = null;
                 $prelude = $this->rewriteMediaRangePrelude($prelude, $targetOptions);
-                $prelude = $this->rewriteSupportsBackdropFilterPrelude($prelude, $targetOptions);
+                $prelude = $this->rewriteSupportsDeclarationPrefixPrelude($prelude, $targetOptions);
                 if ($this->isKeyframesPrelude($prelude)) {
                     $output .= $this->rewriteKeyframesRule($prelude, $body, $targetOptions, $emittedKeyframes);
                     $cursor = $close + 1;
@@ -698,55 +698,134 @@ final class TransitionPrefixer
     /**
      * @param array<string, bool> $targetOptions
      */
-    private function rewriteSupportsBackdropFilterPrelude(string $prelude, array $targetOptions): string
+    private function rewriteSupportsDeclarationPrefixPrelude(string $prelude, array $targetOptions): string
     {
         if (preg_match('/^@supports\b/i', $prelude) !== 1) {
             return $prelude;
         }
 
         $condition = trim(substr($prelude, strlen('@supports')));
-        if ($condition === '' || stripos($condition, 'backdrop-filter') === false) {
+        if ($condition === '') {
             return $prelude;
         }
 
-        $rewritten = ($targetOptions['backdropFilterNeedsWebkit'] ?? false)
-            ? $this->addWebkitBackdropFilterSupports($condition, $condition)
-            : $this->dropWebkitBackdropFilterSupports($condition, $condition);
+        $prefixGroups = $this->supportsDeclarationPrefixGroups($targetOptions);
+        if ($prefixGroups === []) {
+            return $prelude;
+        }
+
+        $rewritten = $this->rewriteSupportsDeclarationPrefixes($condition, $condition, $prefixGroups);
 
         return '@supports ' . $rewritten;
     }
 
-    private function addWebkitBackdropFilterSupports(string $condition, string $rootCondition): string
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return array<string, array<string, bool>>
+     */
+    private function supportsDeclarationPrefixGroups(array $targetOptions): array
     {
-        $logical = $this->splitSupportsConditionByLogicalOperator($condition);
-        if ($logical !== null) {
-            $parts = [];
-            foreach ($logical as $item) {
-                $parts[] = $item['type'] === 'operator'
-                    ? $item['value']
-                    : $this->addWebkitBackdropFilterSupports($item['value'], $rootCondition);
-            }
-
-            return implode(' ', $parts);
-        }
-
-        $declaration = $this->parseSupportsDeclarationCondition($condition);
-        if ($declaration === null || $declaration['property'] !== 'backdrop-filter') {
-            return $condition;
-        }
-
-        if ($this->supportsConditionHasDeclaration($rootCondition, '-webkit-backdrop-filter', $declaration['value'])) {
-            return $this->supportsDeclarationCondition($declaration['property'], $declaration['value']);
-        }
-
-        return '('
-            . $this->supportsDeclarationCondition('-webkit-backdrop-filter', $declaration['value'])
-            . ' or '
-            . $this->supportsDeclarationCondition('backdrop-filter', $declaration['value'])
-            . ')';
+        return [
+            'backdrop-filter' => [
+                '-webkit-' => $targetOptions['backdropFilterNeedsWebkit'] ?? false,
+            ],
+            'transform' => [
+                '-webkit-' => $targetOptions['transformNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['transformNeedsMoz'] ?? false,
+                '-ms-' => $targetOptions['transformNeedsMs'] ?? false,
+                '-o-' => $targetOptions['transformNeedsO'] ?? false,
+            ],
+            'transform-origin' => [
+                '-webkit-' => $targetOptions['transformNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['transformNeedsMoz'] ?? false,
+                '-ms-' => $targetOptions['transformNeedsMs'] ?? false,
+                '-o-' => $targetOptions['transformNeedsO'] ?? false,
+            ],
+            'perspective' => [
+                '-webkit-' => $targetOptions['perspectiveNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['perspectiveNeedsMoz'] ?? false,
+            ],
+            'perspective-origin' => [
+                '-webkit-' => $targetOptions['perspectiveNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['perspectiveNeedsMoz'] ?? false,
+            ],
+            'transform-style' => [
+                '-webkit-' => $targetOptions['transformNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['transformNeedsMoz'] ?? false,
+            ],
+            'backface-visibility' => [
+                '-webkit-' => $targetOptions['backfaceVisibilityNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['backfaceVisibilityNeedsMoz'] ?? false,
+            ],
+            'box-sizing' => [
+                '-webkit-' => $targetOptions['boxSizingNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['boxSizingNeedsMoz'] ?? false,
+            ],
+            'print-color-adjust' => [
+                '-webkit-' => $targetOptions['printColorAdjustNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['printColorAdjustNeedsMoz'] ?? false,
+            ],
+            'user-select' => [
+                '-webkit-' => $targetOptions['userSelectNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['userSelectNeedsMoz'] ?? false,
+                '-ms-' => $targetOptions['userSelectNeedsMs'] ?? false,
+            ],
+            'appearance' => [
+                '-webkit-' => $targetOptions['appearanceNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['appearanceNeedsMoz'] ?? false,
+                '-ms-' => $targetOptions['appearanceNeedsMs'] ?? false,
+            ],
+            'clip-path' => [
+                '-webkit-' => $targetOptions['clipPathNeedsWebkit'] ?? false,
+            ],
+            'text-size-adjust' => [
+                '-webkit-' => $targetOptions['textSizeAdjustNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['textSizeAdjustNeedsMoz'] ?? false,
+                '-ms-' => $targetOptions['textSizeAdjustNeedsMs'] ?? false,
+            ],
+            'hyphens' => [
+                '-webkit-' => $targetOptions['hyphensNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['hyphensNeedsMoz'] ?? false,
+                '-ms-' => $targetOptions['hyphensNeedsMs'] ?? false,
+            ],
+            'tab-size' => [
+                '-moz-' => $targetOptions['tabSizeNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['tabSizeNeedsO'] ?? false,
+            ],
+            'text-align-last' => [
+                '-moz-' => $targetOptions['textAlignLastNeedsMoz'] ?? false,
+            ],
+            'text-overflow' => [
+                '-o-' => $targetOptions['textOverflowNeedsO'] ?? false,
+            ],
+            'text-decoration' => [
+                '-webkit-' => $targetOptions['textDecorationNeedsWebkit'] ?? false,
+            ],
+            'text-decoration-line' => [
+                '-webkit-' => $targetOptions['textDecorationLonghandNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['textDecorationNeedsMoz'] ?? false,
+            ],
+            'text-decoration-style' => [
+                '-webkit-' => $targetOptions['textDecorationLonghandNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['textDecorationNeedsMoz'] ?? false,
+            ],
+            'text-decoration-color' => [
+                '-webkit-' => $targetOptions['textDecorationLonghandNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['textDecorationNeedsMoz'] ?? false,
+            ],
+            'text-decoration-skip-ink' => [
+                '-webkit-' => $targetOptions['textDecorationSkipInkNeedsWebkit'] ?? false,
+            ],
+            'box-decoration-break' => [
+                '-webkit-' => $targetOptions['boxDecorationBreakNeedsWebkit'] ?? false,
+            ],
+        ];
     }
 
-    private function dropWebkitBackdropFilterSupports(string $condition, string $rootCondition): string
+    /**
+     * @param array<string, array<string, bool>> $prefixGroups
+     */
+    private function rewriteSupportsDeclarationPrefixes(string $condition, string $rootCondition, array $prefixGroups): string
     {
         $logical = $this->splitSupportsConditionByLogicalOperator($condition);
         if ($logical !== null) {
@@ -756,19 +835,18 @@ final class TransitionPrefixer
             )));
             $operators = array_values(array_filter($operators, static fn (string $operator): bool => $operator !== ''));
 
-            if ($operators === ['or'] && $this->supportsConditionHasProperty($rootCondition, 'backdrop-filter')) {
+            if ($operators === ['or']) {
                 $conditions = [];
                 foreach ($logical as $item) {
                     if ($item['type'] === 'operator') {
                         continue;
                     }
 
-                    $declaration = $this->parseSupportsDeclarationCondition($item['value']);
-                    if ($declaration !== null && $declaration['property'] === '-webkit-backdrop-filter') {
+                    if ($this->shouldDropSupportsDeclarationCondition($item['value'], $rootCondition, $prefixGroups)) {
                         continue;
                     }
 
-                    $conditions[] = $this->dropWebkitBackdropFilterSupports($item['value'], $rootCondition);
+                    $conditions[] = $this->rewriteSupportsDeclarationPrefixes($item['value'], $rootCondition, $prefixGroups);
                 }
 
                 return $conditions === [] ? $condition : implode(' or ', $conditions);
@@ -778,13 +856,83 @@ final class TransitionPrefixer
             foreach ($logical as $item) {
                 $parts[] = $item['type'] === 'operator'
                     ? $item['value']
-                    : $this->dropWebkitBackdropFilterSupports($item['value'], $rootCondition);
+                    : $this->rewriteSupportsDeclarationPrefixes($item['value'], $rootCondition, $prefixGroups);
             }
 
             return implode(' ', $parts);
         }
 
-        return $condition;
+        $declaration = $this->parseSupportsDeclarationCondition($condition);
+        if ($declaration === null) {
+            return $condition;
+        }
+
+        $prefixInfo = $this->supportsDeclarationPrefixInfo($declaration['property'], $prefixGroups);
+        if ($prefixInfo === null || $prefixInfo['prefix'] !== '') {
+            return $condition;
+        }
+
+        $alternatives = [];
+        foreach ($prefixGroups[$prefixInfo['base']] as $prefix => $needed) {
+            if (!$needed) {
+                continue;
+            }
+
+            $prefixedProperty = $prefix . $prefixInfo['base'];
+            if ($this->supportsConditionHasDeclaration($rootCondition, $prefixedProperty, $declaration['value'])) {
+                continue;
+            }
+
+            $alternatives[] = $this->supportsDeclarationCondition($prefixedProperty, $declaration['value']);
+        }
+
+        if ($alternatives === []) {
+            return $this->supportsDeclarationCondition($declaration['property'], $declaration['value']);
+        }
+
+        $alternatives[] = $this->supportsDeclarationCondition($declaration['property'], $declaration['value']);
+
+        return '(' . implode(' or ', $alternatives) . ')';
+    }
+
+    /**
+     * @param array<string, array<string, bool>> $prefixGroups
+     */
+    private function shouldDropSupportsDeclarationCondition(string $condition, string $rootCondition, array $prefixGroups): bool
+    {
+        $declaration = $this->parseSupportsDeclarationCondition($condition);
+        if ($declaration === null) {
+            return false;
+        }
+
+        $prefixInfo = $this->supportsDeclarationPrefixInfo($declaration['property'], $prefixGroups);
+        if ($prefixInfo === null || $prefixInfo['prefix'] === '') {
+            return false;
+        }
+
+        return !($prefixGroups[$prefixInfo['base']][$prefixInfo['prefix']] ?? false)
+            && $this->supportsConditionHasDeclaration($rootCondition, $prefixInfo['base'], $declaration['value']);
+    }
+
+    /**
+     * @param array<string, array<string, bool>> $prefixGroups
+     * @return array{base:string,prefix:string}|null
+     */
+    private function supportsDeclarationPrefixInfo(string $property, array $prefixGroups): ?array
+    {
+        foreach ($prefixGroups as $baseProperty => $prefixes) {
+            if ($property === $baseProperty) {
+                return ['base' => $baseProperty, 'prefix' => ''];
+            }
+
+            foreach ($prefixes as $prefix => $_needed) {
+                if ($property === $prefix . $baseProperty) {
+                    return ['base' => $baseProperty, 'prefix' => $prefix];
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -823,17 +971,6 @@ final class TransitionPrefixer
     {
         foreach ($this->collectSupportsDeclarationConditions($condition) as $declaration) {
             if ($declaration['property'] === $property && $declaration['value'] === $value) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function supportsConditionHasProperty(string $condition, string $property): bool
-    {
-        foreach ($this->collectSupportsDeclarationConditions($condition) as $declaration) {
-            if ($declaration['property'] === $property) {
                 return true;
             }
         }

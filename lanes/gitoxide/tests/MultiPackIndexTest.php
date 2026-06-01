@@ -302,6 +302,21 @@ return [
         $t->same(null, $index->disambiguatePrefix($missingCandidate, 40));
         $t->same('missing', $index->lookupPrefix($missingCandidate)['status']);
     },
+    'returns unique multi-pack-index prefix for absent full candidate like gix-odb' => static function (TestRunner $t) use ($buildMultiIndex, $indexNames): void {
+        $existing = '9bbb' . str_repeat('1', 36);
+        $missingCandidate = '9bbb' . str_repeat('9', 36);
+        $index = MultiPackIndex::fromBytes($buildMultiIndex([
+            ['oid' => $existing, 'packIndex' => 0, 'offset' => 12],
+        ], $indexNames));
+
+        $prefix = $index->lookupPrefix('9BBB');
+        $t->same('found', $prefix['status']);
+        $t->same($existing, $prefix['entry']->oid);
+        $t->same(['start' => 0, 'end' => 1], $prefix['candidateRange']);
+        $t->same('9bbb', $index->disambiguatePrefix(strtoupper($missingCandidate), 4));
+        $t->same(null, $index->disambiguatePrefix($missingCandidate, 40));
+        $t->same('missing', $index->lookupPrefix($missingCandidate)['status']);
+    },
     'supports raw high-bit offsets when no large-offset chunk is present' => static function (TestRunner $t) use ($buildMultiIndex, $indexNames): void {
         $index = MultiPackIndex::fromBytes($buildMultiIndex([
             ['oid' => '0034111111111111111111111111111111111111', 'packIndex' => 0, 'offset' => 0x80000005],

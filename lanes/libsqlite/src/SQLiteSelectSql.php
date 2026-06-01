@@ -183,6 +183,7 @@ final class SQLiteSelectSql
         );
         $select = self::selectList($selectSql, $tables);
         $select = self::annotateWildcardColumns($select, self::wildcardAnnotationRows($source));
+        $select = self::liftOuterAggregateScalarSubqueries($select, $source['from']);
         $plan = [
             'from' => $source['from'],
             'select' => $select,
@@ -4039,6 +4040,98 @@ final class SQLiteSelectSql
     }
 
     /**
+     * @param list<array<string,mixed>> $select
+     * @param list<array<string,mixed>> $sourceRows
+     * @return list<array<string,mixed>>
+     */
+    private static function liftOuterAggregateScalarSubqueries(array $select, array $sourceRows): array
+    {
+        $sourceColumns = self::sourceRowColumnSet($sourceRows);
+        if ($sourceColumns === []) {
+            return $select;
+        }
+
+        foreach ($select as $index => $expression) {
+            $lifted = self::liftOuterAggregateScalarSubquery($expression, $sourceColumns);
+            if ($lifted === null) {
+                continue;
+            }
+            if (isset($expression['alias']) && is_string($expression['alias'])) {
+                $lifted['alias'] = $expression['alias'];
+            }
+            $select[$index] = $lifted;
+        }
+
+        return $select;
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     * @param array<string,true> $sourceColumns
+     * @return array<string,mixed>|null
+     */
+    private static function liftOuterAggregateScalarSubquery(array $expression, array $sourceColumns): ?array
+    {
+        if (($expression['type'] ?? null) !== 'subquery' || !isset($expression['subquerySql']) || !is_string($expression['subquerySql'])) {
+            return null;
+        }
+
+        $subquerySql = trim($expression['subquerySql']);
+        if (preg_match('/^select\s+/i', $subquerySql) !== 1) {
+            return null;
+        }
+        foreach (['FROM', 'UNION', 'INTERSECT', 'EXCEPT'] as $keyword) {
+            if (self::keywordOffset($subquerySql, $keyword) !== null) {
+                return null;
+            }
+        }
+
+        $selectSql = trim(substr($subquerySql, 6));
+        if ($selectSql === '' || self::tailClauseOffsets($selectSql) !== []) {
+            return null;
+        }
+        [$selectSql, $distinct] = self::selectModifier($selectSql);
+        if ($distinct || $selectSql === '') {
+            return null;
+        }
+
+        $items = self::selectList($selectSql);
+        if (count($items) !== 1) {
+            return null;
+        }
+
+        $aggregate = self::aggregateSummaryColumn($items[0], null);
+        if ($aggregate === null) {
+            return null;
+        }
+        $valueColumn = $aggregate['valueColumn'] ?? null;
+        if (!is_string($valueColumn) || !isset($sourceColumns[$valueColumn])) {
+            return null;
+        }
+
+        return $items[0];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array<string,true>
+     */
+    private static function sourceRowColumnSet(array $rows): array
+    {
+        $columns = [];
+        foreach ($rows as $row) {
+            foreach ($row as $column => $unused) {
+                if (!is_string($column) || self::isInternalMetadataColumn($column)) {
+                    continue;
+                }
+                $columns[$column] = true;
+            }
+        }
+
+        return $columns;
+    }
+
+    /**
      * @return array{0:string,1:?string}
      */
     private static function expressionAlias(string $item): array
@@ -4575,6 +4668,7 @@ final class SQLiteSelectSql
             ) {
                 return [
                     'type' => 'subquery',
+                    'subquerySql' => $subquerySql,
                     'subquery' => static fn (array $row): array => self::correlatedSubqueryRows($subquerySql, $tables, $row),
                 ];
             }

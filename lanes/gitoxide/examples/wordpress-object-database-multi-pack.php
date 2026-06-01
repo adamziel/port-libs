@@ -42,6 +42,7 @@ foreach ([$syntheticSharedPrefix . '1', $syntheticSharedPrefix . '2'] as $synthe
     file_put_contents($path, 'prefix-index-only-candidate');
 }
 $syntheticMissingCandidate = $syntheticSharedPrefix . '3';
+$absentMediaCandidate = substr($fixture['objectsByRole']['media']['oid'], 0, 8) . str_repeat('f', 32);
 
 return [
     'packedObjects' => $database->packedObjectCount(),
@@ -64,5 +65,7 @@ return [
     'contentFullPrefixCandidates' => $contentFullPrefix['candidates'],
     'missingAmbiguousFullPrefix' => $database->disambiguatePrefix($syntheticMissingCandidate, 4),
     'missingAmbiguousFullPrefixExists' => $database->contains($syntheticMissingCandidate),
+    'absentMediaCandidateShortestPrefix' => $database->disambiguatePrefix($absentMediaCandidate, 8),
+    'absentMediaCandidateFullPrefixExists' => $database->contains($absentMediaCandidate),
     'packOffsetOrder' => $database->objectIds(ObjectDatabase::ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL),
 ];

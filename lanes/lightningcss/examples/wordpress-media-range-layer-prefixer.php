@@ -275,6 +275,10 @@ CSS,
         '@layer theme.blocks { @media (width >= 240px), { .wp-block-query.is-trailing-comma { color: yellow; } } }',
         ['firefox' => 60]
     ),
+    'explicitNotCondition' => $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media screen and not (color) { .wp-block-query.is-explicit-not-condition { color: yellow; } } }',
+        ['firefox' => 60]
+    ),
 ];
 
 try {
@@ -349,7 +353,17 @@ try {
 
 try {
     $prefixer->prefixForTargets(
-        '@layer theme.blocks { @media (width >= 240px),, (hover) { .wp-block-query { color: chartreuse; } } }',
+        '@layer theme.blocks { @media all and all { .wp-block-query { color: chartreuse; } } }',
+        ['firefox' => 60]
+    );
+    $actual['invalidExplicitConditionGuard'] = 'missing';
+} catch (InvalidArgumentException) {
+    $actual['invalidExplicitConditionGuard'] = 'invalid-media-query';
+}
+
+try {
+    $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media , { .wp-block-query { color: chartreuse; } } }',
         ['firefox' => 60]
     );
     $actual['emptyMediaListGuard'] = 'missing';
@@ -391,6 +405,7 @@ $expected = [
     'caseSensitiveCustomRangeFallback' => '@layer theme.blocks{@media (min-Theme-Breakpoint:2) and (min---WP-Breakpoint:3){.wp-block-query.is-custom-case{color:#ff0}}}',
     'caseSensitiveCustomRangeModern' => '@layer theme.blocks{@media Speech and (--WP-Breakpoint>=2){.wp-block-query.is-custom-speech{color:#ff0}}}',
     'trailingCommaRangeList' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query.is-trailing-comma{color:#ff0}}}',
+    'explicitNotCondition' => '@layer theme.blocks{@media screen and not (color){.wp-block-query.is-explicit-not-condition{color:#ff0}}}',
     'invalidRangeGuard' => 'invalid-media-query',
     'invalidIntervalGuard' => 'invalid-media-query',
     'invalidFunctionGuard' => 'invalid-media-query',
@@ -398,6 +413,7 @@ $expected = [
     'invalidIntegerCalcGuard' => 'invalid-media-query',
     'invalidResolutionCalcGuard' => 'invalid-media-query',
     'missingAndGuard' => 'invalid-media-query',
+    'invalidExplicitConditionGuard' => 'invalid-media-query',
     'emptyMediaListGuard' => 'invalid-media-query',
 ];
 

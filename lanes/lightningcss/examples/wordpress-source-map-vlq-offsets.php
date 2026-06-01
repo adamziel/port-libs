@@ -470,6 +470,36 @@ try {
     $skippedInvalidNameIndexGuard = true;
 }
 
+$partialInvalidSourceIndexMap = new SourceMap();
+$partialInvalidSourceIndexGuard = false;
+try {
+    $partialInvalidSourceIndexMap->addVlqMap(
+        'KAAA,ECAA',
+        ['wp-content/themes/example/source-map-partial-invalid-source.css'],
+        ['.wp-block-partial-invalid-source{}'],
+        [],
+        2,
+        3
+    );
+} catch (OutOfBoundsException) {
+    $partialInvalidSourceIndexGuard = true;
+}
+
+$partialInvalidNameIndexMap = new SourceMap();
+$partialInvalidNameIndexGuard = false;
+try {
+    $partialInvalidNameIndexMap->addVlqMap(
+        'KAAAA,EAAAC',
+        ['wp-content/themes/example/source-map-partial-invalid-name.css'],
+        ['.wp-block-partial-invalid-name{}'],
+        ['partial-invalid-name-rule'],
+        1,
+        0
+    );
+} catch (OutOfBoundsException) {
+    $partialInvalidNameIndexGuard = true;
+}
+
 $negativeColumnGeneratedOnlyMap = new SourceMap();
 $negativeColumnGeneratedOnlyMap->addVlqMap(
     'K,I;O',
@@ -860,6 +890,10 @@ $actual = [
     'skippedInvalidSourceIndexMap' => $skippedInvalidSourceIndexMap->toJson(null, false),
     'skippedInvalidNameIndexGuard' => $skippedInvalidNameIndexGuard,
     'skippedInvalidNameIndexMap' => $skippedInvalidNameIndexMap->toJson(null, false),
+    'partialInvalidSourceIndexGuard' => $partialInvalidSourceIndexGuard,
+    'partialInvalidSourceIndexMap' => $partialInvalidSourceIndexMap->toJson(null, false),
+    'partialInvalidNameIndexGuard' => $partialInvalidNameIndexGuard,
+    'partialInvalidNameIndexMap' => $partialInvalidNameIndexMap->toJson(null, false),
     'negativeColumnGeneratedOnlyMap' => $negativeColumnGeneratedOnlyMap->toJson(null, false),
     'negativeColumnSourceBackedMap' => $negativeColumnSourceBackedMap->toJson(null, false),
     'negativeColumnSkippedLineMap' => $negativeColumnSkippedLineMap->toJson(null, false),
@@ -964,6 +998,10 @@ if (($argv[1] ?? null) === '--self-test') {
         'skippedInvalidSourceIndexMap' => '{"version":3,"mappings":"","sources":["wp-content/themes/example/source-map-skipped-invalid-source.css"],"sourcesContent":[".wp-block-skipped-invalid-source{}"],"names":["skipped-invalid-source-rule"]}',
         'skippedInvalidNameIndexGuard' => true,
         'skippedInvalidNameIndexMap' => '{"version":3,"mappings":"","sources":["wp-content/themes/example/source-map-skipped-invalid-name.css"],"sourcesContent":[".wp-block-skipped-invalid-name{}"],"names":["skipped-invalid-known-name"]}',
+        'partialInvalidSourceIndexGuard' => true,
+        'partialInvalidSourceIndexMap' => '{"version":3,"mappings":";;QAAA","sources":["wp-content/themes/example/source-map-partial-invalid-source.css"],"sourcesContent":[".wp-block-partial-invalid-source{}"],"names":[]}',
+        'partialInvalidNameIndexGuard' => true,
+        'partialInvalidNameIndexMap' => '{"version":3,"mappings":";KAAAA","sources":["wp-content/themes/example/source-map-partial-invalid-name.css"],"sourcesContent":[".wp-block-partial-invalid-name{}"],"names":["partial-invalid-name-rule"]}',
         'negativeColumnGeneratedOnlyMap' => '{"version":3,"mappings":"E,I;I","sources":["wp-content/themes/example/source-map-negative-column.css"],"sourcesContent":[".wp-block-negative-column{}"],"names":[]}',
         'negativeColumnSourceBackedMap' => '{"version":3,"mappings":"EAAA,IACA;IACA","sources":["wp-content/themes/example/source-map-negative-column.css"],"sourcesContent":[".wp-block-negative-column{}"],"names":[]}',
         'negativeColumnSkippedLineMap' => '{"version":3,"mappings":"IACA","sources":["wp-content/themes/example/source-map-negative-column.css"],"sourcesContent":[".wp-block-negative-column{}"],"names":[]}',

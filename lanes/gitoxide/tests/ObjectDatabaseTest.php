@@ -894,6 +894,21 @@ return [
         $t->same(null, $database->disambiguatePrefix($missingCandidate, 40));
         $t->same(['status' => 'missing', 'candidates' => []], $database->lookupPrefix($missingCandidate, true));
     },
+    'object database returns unique MIDX prefix for absent full candidate like gix-odb' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
+        [$gitDir, $fixture] = $writeWordPressMultiPackFixture();
+        $database = new ObjectDatabase($gitDir);
+        $mediaOid = $fixture['objectsByRole']['media']['oid'];
+        $uniquePrefix = substr($mediaOid, 0, 8);
+        $missingCandidate = $uniquePrefix . str_repeat('f', 32);
+
+        $prefix = $database->lookupPrefix(strtoupper($uniquePrefix), true);
+        $t->same('found', $prefix['status']);
+        $t->same($mediaOid, $prefix['oid']);
+        $t->same([$mediaOid], $prefix['candidates']);
+        $t->same($uniquePrefix, $database->disambiguatePrefix(strtoupper($missingCandidate), 8));
+        $t->same(null, $database->disambiguatePrefix($missingCandidate, 40));
+        $t->same(['status' => 'missing', 'candidates' => []], $database->lookupPrefix($missingCandidate, true));
+    },
     'object database rejects multi-pack-index entries that reference missing packs' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
         [$gitDir] = $writeWordPressMultiPackFixture(true);
         $database = new ObjectDatabase($gitDir);
@@ -971,6 +986,8 @@ return [
         );
         $t->same(str_repeat('c', 39) . '3', $summary['missingAmbiguousFullPrefix']);
         $t->same(false, $summary['missingAmbiguousFullPrefixExists']);
+        $t->same(substr($summary['mediaOid'], 0, 8), $summary['absentMediaCandidateShortestPrefix']);
+        $t->same(false, $summary['absentMediaCandidateFullPrefixExists']);
         $t->same(3, $summary['packedObjects']);
         $t->same(4, $summary['rawPackIndexObjects']);
     },

@@ -906,6 +906,50 @@ return [
         $t->same([], $nameOutOfRange->getMappings());
         $t->same('', $nameOutOfRange->writeVlq());
     },
+    'source map preserves prior offset mappings when raw vlq import later rejects indexes' => static function (TestRunner $t): void {
+        $sourceOutOfRange = new SourceMap();
+        $t->throws(OutOfBoundsException::class, static function () use ($sourceOutOfRange): void {
+            $sourceOutOfRange->addVlqMap(
+                'KAAA,ECAA',
+                ['valid.css'],
+                ['.valid{}'],
+                [],
+                2,
+                3
+            );
+        });
+        $sourceDecoded = SourceMap::decodeVlq($sourceOutOfRange->writeVlq());
+
+        $t->same(';;QAAA', $sourceOutOfRange->writeVlq());
+        $t->same([2], array_column($sourceDecoded, 'generatedLine'));
+        $t->same([8], array_column($sourceDecoded, 'generatedColumn'));
+        $t->same([0], array_column($sourceDecoded, 'sourceIndex'));
+        $t->same([0], array_column($sourceDecoded, 'originalLine'));
+        $t->same(['valid.css'], $sourceOutOfRange->getSources());
+        $t->same(['.valid{}'], $sourceOutOfRange->getSourcesContent());
+
+        $nameOutOfRange = new SourceMap();
+        $t->throws(OutOfBoundsException::class, static function () use ($nameOutOfRange): void {
+            $nameOutOfRange->addVlqMap(
+                'KAAAA,EAAAC',
+                ['named.css'],
+                ['.named{}'],
+                ['keptRule'],
+                1,
+                0
+            );
+        });
+        $nameDecoded = SourceMap::decodeVlq($nameOutOfRange->writeVlq());
+
+        $t->same(';KAAAA', $nameOutOfRange->writeVlq());
+        $t->same([1], array_column($nameDecoded, 'generatedLine'));
+        $t->same([5], array_column($nameDecoded, 'generatedColumn'));
+        $t->same([0], array_column($nameDecoded, 'sourceIndex'));
+        $t->same([0], array_column($nameDecoded, 'nameIndex'));
+        $t->same(['named.css'], $nameOutOfRange->getSources());
+        $t->same(['.named{}'], $nameOutOfRange->getSourcesContent());
+        $t->same(['keptRule'], $nameOutOfRange->getNames());
+    },
     'source map rejects non-list vlq import vectors like upstream' => static function (TestRunner $t): void {
         foreach ([
             '{"version":3,"mappings":"AAAA","sources":{"0":"file.css"},"names":[]}',

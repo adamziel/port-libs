@@ -2703,6 +2703,75 @@ CSS;
             $prefixer->prefixForTargets('@supports ((-webkit-backdrop-filter: blur(10px)) or (backdrop-filter: blur(10px))) { div { backdrop-filter: blur(10px); } }', ['chrome' => 80])
         );
     },
+    'transition prefixer maps upstream supports declaration target-prefix boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $encoded = static fn (int $major, int $minor = 0): int => ($major << 16) | ($minor << 8);
+
+        $t->same(
+            '@supports ((-webkit-appearance:none) or (appearance:none)){.foo{-webkit-appearance:none;appearance:none}}',
+            $prefixer->prefixForTargets('@supports (appearance: none) { .foo { appearance: none; } }', ['safari' => $encoded(15, 2)])
+        );
+        $t->same(
+            '@supports (appearance:none){.foo{appearance:none}}',
+            $prefixer->prefixForTargets('@supports (appearance: none) { .foo { appearance: none; } }', ['safari' => $encoded(15, 3)])
+        );
+        $t->same(
+            '@supports (appearance:none){.foo{appearance:none}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-appearance: none) or (appearance: none)) { .foo { -webkit-appearance: none; appearance: none; } }', ['safari' => $encoded(15, 3)])
+        );
+        $t->same(
+            '@supports ((-webkit-appearance:none) or (appearance:none)) and (color:red){.foo{-webkit-appearance:none;appearance:none;color:red}}',
+            $prefixer->prefixForTargets('@supports (appearance: none) and (color: red) { .foo { appearance: none; color: red; } }', ['safari' => $encoded(15, 2)])
+        );
+        $t->same(
+            '@supports ((-moz-user-select:none) or (user-select:none)){.foo{-moz-user-select:none;user-select:none}}',
+            $prefixer->prefixForTargets('@supports (user-select: none) { .foo { user-select: none; } }', ['firefox' => 68])
+        );
+        $t->same(
+            '@supports (user-select:none){.foo{user-select:none}}',
+            $prefixer->prefixForTargets('@supports (user-select: none) { .foo { user-select: none; } }', ['firefox' => 69])
+        );
+        $t->same(
+            '@supports ((-webkit-print-color-adjust:exact) or (-moz-print-color-adjust:exact) or (print-color-adjust:exact)){.foo{-webkit-print-color-adjust:exact;-moz-print-color-adjust:exact;print-color-adjust:exact}}',
+            $prefixer->prefixForTargets('@supports (print-color-adjust: exact) { .foo { print-color-adjust: exact; } }', ['chrome' => 135, 'firefox' => 96])
+        );
+        $t->same(
+            '@supports ((-webkit-clip-path:circle(50%)) or (clip-path:circle(50%))){.foo{-webkit-clip-path:circle(50%);clip-path:circle(50%)}}',
+            $prefixer->prefixForTargets('@supports (clip-path: circle(50%)) { .foo { clip-path: circle(50%); } }', ['chrome' => 54])
+        );
+        $t->same(
+            '@supports (clip-path:circle(50%)){.foo{clip-path:circle(50%)}}',
+            $prefixer->prefixForTargets('@supports (clip-path: circle(50%)) { .foo { clip-path: circle(50%); } }', ['chrome' => 55])
+        );
+        $t->same(
+            '@supports ((-ms-text-size-adjust:none) or (text-size-adjust:none)){.foo{-ms-text-size-adjust:none;text-size-adjust:none}}',
+            $prefixer->prefixForTargets('@supports (text-size-adjust: none) { .foo { text-size-adjust: none; } }', ['ie' => 11])
+        );
+        $t->same(
+            '@supports ((-webkit-hyphens:manual) or (hyphens:manual)){.foo{-webkit-hyphens:manual;hyphens:manual}}',
+            $prefixer->prefixForTargets('@supports (hyphens: manual) { .foo { hyphens: manual; } }', ['safari' => $encoded(16, 5)])
+        );
+        $t->same(
+            '@supports (hyphens:manual){.foo{hyphens:manual}}',
+            $prefixer->prefixForTargets('@supports (hyphens: manual) { .foo { hyphens: manual; } }', ['safari' => 17])
+        );
+        $t->same(
+            '@supports ((-webkit-backface-visibility:hidden) or (backface-visibility:hidden)){.foo{-webkit-backface-visibility:hidden;backface-visibility:hidden}}',
+            $prefixer->prefixForTargets('@supports (backface-visibility: hidden) { .foo { backface-visibility: hidden; } }', ['safari' => $encoded(15, 2)])
+        );
+        $t->same(
+            '@supports (backface-visibility:hidden){.foo{backface-visibility:hidden}}',
+            $prefixer->prefixForTargets('@supports (backface-visibility: hidden) { .foo { backface-visibility: hidden; } }', ['safari' => $encoded(15, 3)])
+        );
+        $t->same(
+            '@supports ((-webkit-text-decoration-style:dotted) or (text-decoration-style:dotted)){.foo{-webkit-text-decoration-style:dotted;text-decoration-style:dotted}}',
+            $prefixer->prefixForTargets('@supports (text-decoration-style: dotted) { .foo { text-decoration-style: dotted; } }', ['safari' => 12])
+        );
+        $t->same(
+            '@supports ((-webkit-text-decoration:underline) or (text-decoration:underline)){.foo{text-decoration:underline}}',
+            $prefixer->prefixForTargets('@supports (text-decoration: underline) { .foo { text-decoration: underline; } }', ['safari' => 26])
+        );
+    },
     'transition prefixer maps upstream filter advanced color fallbacks' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

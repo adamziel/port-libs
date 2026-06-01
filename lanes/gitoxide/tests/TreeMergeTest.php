@@ -3008,6 +3008,7 @@ return [
 
         $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
         $mergedFoo = $read($result->tree->entryNamed('foo')?->oid ?? '');
+        $expanded = MergeIndexFile::entriesForResult($result, $read);
 
         $t->same(false, $result->isClean());
         $t->same(['foo'], $names($result->tree));
@@ -3036,6 +3037,50 @@ return [
             ],
             $result->indexEntries(),
         ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'bar', 'body' => "1\n2\n3\n4\n5\nsix\n"],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'baz', 'body' => "1\n2\n3\n4\n5\n6\n"],
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'foo', 'body' => "1\n2\n3\n4\n5\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
+            $expanded,
+        ));
+        $t->same([], $result->worktreeConflictFiles($read));
+
+        $ancestorResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+        $oursResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS);
+        $theirsResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_THEIRS, TreeMergeResult::RESOLVE_THEIRS);
+
+        $t->true($ancestorResolved->isClean());
+        $t->same(['foo'], $names($ancestorResolved->tree));
+        $t->same("1\n2\n3\n4\n5\n", $read($ancestorResolved->tree->entryNamed('foo')?->oid ?? '')->body);
+        $t->same([], $ancestorResolved->indexEntries());
+        $t->true($oursResolved->isClean());
+        $t->same(['bar'], $names($oursResolved->tree));
+        $t->same("1\n2\n3\n4\n5\nsix\n", $read($oursResolved->tree->entryNamed('bar')?->oid ?? '')->body);
+        $t->same([], $oursResolved->indexEntries());
+        $t->true($theirsResolved->isClean());
+        $t->same(['baz'], $names($theirsResolved->tree));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($theirsResolved->tree->entryNamed('baz')?->oid ?? '')->body);
+        $t->same([], $theirsResolved->indexEntries());
+
+        $reverse = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write);
+        $reverseAncestorResolved = $reverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+        $reverseOursResolved = $reverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS);
+
+        $t->true($reverseAncestorResolved->isClean());
+        $t->same(['foo'], $names($reverseAncestorResolved->tree));
+        $t->same("1\n2\n3\n4\n5\n", $read($reverseAncestorResolved->tree->entryNamed('foo')?->oid ?? '')->body);
+        $t->same([], $reverseAncestorResolved->indexEntries());
+        $t->true($reverseOursResolved->isClean());
+        $t->same(['baz'], $names($reverseOursResolved->tree));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($reverseOursResolved->tree->entryNamed('baz')?->oid ?? '')->body);
+        $t->same([], $reverseOursResolved->indexEntries());
     },
     'maps upstream gix-merge tree-baseline rename-add-delete fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();

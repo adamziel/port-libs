@@ -214,6 +214,31 @@ final class MediaQueryParser
         if ($this->splitTopLevelLogical($mediaPrefix['condition'], 'or') !== null) {
             throw new \InvalidArgumentException('Media query conditions after an explicit media type cannot contain top-level or');
         }
+
+        $andParts = $this->splitTopLevelLogical($mediaPrefix['condition'], 'and');
+        if ($andParts !== null) {
+            foreach ($andParts as $part) {
+                if (!$this->isSingleParenthesizedCondition($part)) {
+                    throw new \InvalidArgumentException("Invalid media query condition operand: {$part}");
+                }
+            }
+
+            return;
+        }
+
+        $condition = trim($mediaPrefix['condition']);
+        if ($this->isSingleParenthesizedCondition($condition)) {
+            return;
+        }
+
+        if ($this->startsKeywordAt($condition, 0, 'not')) {
+            $tail = trim(substr($condition, 3));
+            if ($this->isSingleParenthesizedCondition($tail)) {
+                return;
+            }
+        }
+
+        throw new \InvalidArgumentException("Invalid media query condition operand: {$condition}");
     }
 
     private function validateExplicitMediaTypeConditionSeparator(string $query): void

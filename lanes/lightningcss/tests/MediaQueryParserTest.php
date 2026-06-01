@@ -149,6 +149,8 @@ return [
         $t->same('(color) or (hover)', $parser->minifyList('all and ((color) or (hover))'));
         $t->same('not all and (color)', $parser->minifyList('not all and (color)'));
         $t->same('only all and (color)', $parser->minifyList('only all and (color)'));
+        $t->same('screen and not (color)', $parser->minifyList('screen and not (color)'));
+        $t->same('screen and (not (color)) and (hover)', $parser->minifyList('screen and (not (color)) and (hover)'));
         $t->same('all,all', $parser->minifyList('all, all'));
         $t->same('not all,not all', $parser->minifyList('not all, not all'));
         $t->true($parser->alwaysMatchesList('all, all'));
@@ -224,6 +226,9 @@ return [
         $parser = new MediaQueryParser();
         $invalid = [
             '(example, all,), speech',
+            ',',
+            ',,',
+            ', ,',
             ',screen',
             'screen,,print',
             'screen, ,print',
@@ -256,6 +261,14 @@ return [
             'env(--theme-breakpoint)',
             'var(--theme-breakpoint)',
             'screen and var(--theme-breakpoint)',
+            'all and all',
+            'not all and all',
+            'all and not all',
+            'screen and print',
+            'screen and not all',
+            'screen and only all',
+            'screen and (color) and not (hover)',
+            'screen and not (color) and (hover)',
             '(not unknown(foo))',
             '(not calc(foo))',
             '((color) or unknown(foo))',
@@ -482,6 +495,7 @@ return [
         $t->same('@layer blocks{@media (theme-state=expanded){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (theme\\2d state = exp\\61 nded) { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media (Theme-Breakpoint>=2) and (--WP-Breakpoint>=3){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (Theme-Breakpoint >= 2) and (--WP-Breakpoint >= 3) { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media (width>=240px){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (width >= 240px), { .foo { color: yellow } } }'));
+        $t->same('@layer blocks{@media screen and not (color){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media screen and not (color) { .foo { color: yellow } } }'));
     },
     'css minifier treats comments as media query token separators inside layers' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -528,6 +542,10 @@ return [
             '@layer blocks { @media print (100px <= width <= 200px) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (width >= 240px),, (hover) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media ,screen { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media , { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media all and all { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media screen and not all { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media screen and (color) and not (hover) { .wp-block-query { color: chartreuse; } } }',
         ] as $css) {
             $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify($css));
         }

@@ -267,6 +267,21 @@ return [
         $t->same(null, $index->disambiguatePrefix($missingCandidate, 40));
         $t->same('missing', $index->lookupPrefix($missingCandidate)['status']);
     },
+    'returns unique pack index prefix for absent full candidate like gix-odb' => static function (TestRunner $t) use ($buildIndex, $packChecksum): void {
+        $existing = '8aaa' . str_repeat('1', 36);
+        $missingCandidate = '8aaa' . str_repeat('9', 36);
+        $index = PackIndex::fromBytes($buildIndex([
+            ['oid' => $existing, 'offset' => 12, 'crc32' => 1],
+        ], $packChecksum));
+
+        $prefix = $index->lookupPrefix('8AAA');
+        $t->same('found', $prefix['status']);
+        $t->same($existing, $prefix['entry']->oid);
+        $t->same(['start' => 0, 'end' => 1], $prefix['candidateRange']);
+        $t->same('8aaa', $index->disambiguatePrefix(strtoupper($missingCandidate), 4));
+        $t->same(null, $index->disambiguatePrefix($missingCandidate, 40));
+        $t->same('missing', $index->lookupPrefix($missingCandidate)['status']);
+    },
     'rejects corrupt pack index headers fanout sizes and checksums' => static function (TestRunner $t) use ($buildIndex, $entries, $packChecksum): void {
         $valid = $buildIndex($entries, $packChecksum);
         $t->throws(InvalidArgumentException::class, static fn () => PackIndex::fromBytes('not an index'));
