@@ -1847,9 +1847,13 @@ try {
 
     fwrite(STDERR, "Expected conditional CSS Modules composes import to be rejected\n");
     exit(1);
-} catch (InvalidArgumentException $exception) {
+} catch (CssBundleException $exception) {
     if (
-        $exception->getMessage() !== 'The `composes` property cannot be used within nested rules'
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== 'The `composes` property cannot be used within nested rules'
+        || $exception->sourceFile !== '/modules/blocks/card.css'
+        || $exception->sourceLine !== 1
+        || $exception->sourceColumn !== 27
         || $conditionalComposesReads !== [
             '/modules/conditional-card.css',
             '/modules/blocks/card.css',
@@ -1861,4 +1865,4 @@ try {
     }
 }
 
-echo 'css-modules-conditional-composes: rejected' . PHP_EOL;
+echo 'css-modules-conditional-composes-location: rejected' . PHP_EOL;

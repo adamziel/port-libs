@@ -2596,11 +2596,15 @@ CSS,
         ], $result['exports']);
     },
     'css bundler rejects css module composes in conditional imports like upstream' => static function (TestRunner $t) use ($bundleModules): void {
-        $assertNestedComposesError = static function (callable $callback) use ($t): void {
+        $assertNestedComposesError = static function (callable $callback, string $file, int $line, int $column) use ($t): void {
             try {
                 $callback();
-            } catch (InvalidArgumentException $exception) {
+            } catch (CssBundleException $exception) {
+                $t->same('parser-error', $exception->kind);
                 $t->same('The `composes` property cannot be used within nested rules', $exception->getMessage());
+                $t->same($file, $exception->sourceFile);
+                $t->same($line, $exception->sourceLine);
+                $t->same($column, $exception->sourceColumn);
 
                 return;
             }
@@ -2616,7 +2620,7 @@ CSS,
                 '/entry.css' => 'entry',
                 '/component.css' => 'comp',
             ],
-        ]));
+        ]), '/component.css', 1, 18);
 
         $files = [
             '/entry.css' => '@import "component.css" layer(theme.blocks); .entry { color: red }',
@@ -2644,8 +2648,23 @@ CSS,
                     ],
                 ]
             );
-        });
+        }, '/component.css', 1, 18);
         $t->same(['/entry.css', '/component.css', '/tokens.css'], $reads);
+
+        $assertNestedComposesError(static fn (): array => $bundleModules([
+            '/entry.css' => '@import "component.css" supports(display: grid); .entry { color: red }',
+            '/component.css' => <<<'CSS'
+.card {
+  composes: token;
+  color: green;
+}
+CSS,
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/component.css' => 'comp',
+            ],
+        ]), '/component.css', 2, 12);
 
         $t->same(
             '@supports (display:grid){.comp_card{color:green}}.entry_entry{color:red}',

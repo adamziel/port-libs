@@ -173,6 +173,45 @@ $directInventoryPackNames = $database->promisorPackNames();
 $directInventoryObjectIds = $database->promisorObjectIds();
 $directInventoryIsPromisor = $database->isPromisorObject($inventoryBlob->oid());
 
+$deepChainStable = '';
+for ($i = 0; $i < 96; $i++) {
+    $deepChainStable .= hash('sha1', 'wordpress-deep-promisor-chain-' . $i) . "\n";
+}
+$deepChainObjects = [new GitObject('blob', "WordPress deep promisor base\n{$deepChainStable}step=00\n")];
+$deepChainWrites = [
+    $database->writePromisorPackBundle(
+        PackBuilder::build([$deepChainObjects[0]]),
+        "WordPress deep promisor delta chain base\n"
+    ),
+];
+for ($i = 1; $i <= 40; $i++) {
+    $object = new GitObject('blob', "WordPress deep promisor base\n{$deepChainStable}step=" . sprintf('%02d', $i) . "\n");
+    $pack = PackBuilder::buildWithRefDeltas([$object], [$deepChainObjects[$i - 1]]);
+    if (!$pack->isThin()) {
+        throw new RuntimeException("Expected deep promisor chain pack {$i} to be thin");
+    }
+    $deepChainWrites[] = $database->writePromisorPackBundle(
+        $pack,
+        "WordPress deep promisor delta chain {$i}\n"
+    );
+    $deepChainObjects[] = $object;
+}
+$deepChainTarget = $deepChainObjects[40];
+$deepChainTargetOid = $deepChainTarget->oid();
+$deepChainTargetBeforeGuard = $database->objectState($deepChainTargetOid);
+$deepChainHeaderGuardMessage = null;
+try {
+    $database->readHeader($deepChainTargetOid);
+} catch (RuntimeException $exception) {
+    $deepChainHeaderGuardMessage = $exception->getMessage();
+}
+$deepChainReadGuardMessage = null;
+try {
+    $database->read($deepChainTargetOid);
+} catch (RuntimeException $exception) {
+    $deepChainReadGuardMessage = $exception->getMessage();
+}
+
 return [
     'promisorRemotes' => $database->promisorRemotes(),
     'promisorPacks' => $database->promisorPackNames(),
@@ -239,4 +278,11 @@ return [
     'directInventoryPackNames' => $directInventoryPackNames,
     'directInventoryObjectIds' => $directInventoryObjectIds,
     'directInventoryIsPromisor' => $directInventoryIsPromisor,
+    'deepChainObjectCount' => count($deepChainObjects),
+    'deepChainTargetObject' => $deepChainTargetOid,
+    'deepChainTargetPack' => $deepChainWrites[40]['promisorName'],
+    'deepChainTargetBeforeGuard' => $deepChainTargetBeforeGuard,
+    'deepChainHeaderGuardMessage' => $deepChainHeaderGuardMessage,
+    'deepChainReadGuardMessage' => $deepChainReadGuardMessage,
+    'promisorPacksAfterDeepChainGuard' => $database->promisorPackNames(),
 ];

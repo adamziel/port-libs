@@ -671,6 +671,18 @@ $trailingNegativeWindowBeforeNoop = $trailingNegativeWindowMap->toJson(null, fal
 $trailingNegativeWindowMap->offsetColumns(0, 100, 7);
 $trailingNegativeWindowNoop = $trailingNegativeWindowBeforeNoop === $trailingNegativeWindowMap->toJson(null, false);
 
+$unsortedTrailingNegativeWindowMap = new SourceMap();
+$unsortedTrailingNegativeWindowMap->addVlqMap(
+    'UAAAA,RACAC',
+    ['wp-content/themes/example/source-map-unsorted-trailing-window.css'],
+    ['.wp-block-unsorted-trailing-window{}'],
+    ['later-trailing-window-rule', 'earlier-trailing-window-rule']
+);
+$unsortedTrailingNegativeWindowReadOrder = array_column($unsortedTrailingNegativeWindowMap->getMappings(), 'generatedColumn');
+$unsortedTrailingNegativeWindowMap->offsetColumns(0, 20, -15);
+$unsortedTrailingNegativeWindowColumns = array_column(SourceMap::decodeVlq($unsortedTrailingNegativeWindowMap->writeVlq()), 'generatedColumn');
+$unsortedTrailingNegativeWindowClosest = $unsortedTrailingNegativeWindowMap->findClosestMapping(0, 20);
+
 $unsortedRawVlqMap = new SourceMap();
 $unsortedRawVlqMap->addVlqMap(
     'UAAAA,RACAC',
@@ -1049,6 +1061,10 @@ $actual = [
     'trailingNegativeWindowColumns' => $trailingNegativeWindowColumns,
     'trailingNegativeWindowNames' => $trailingNegativeWindowNames,
     'trailingNegativeWindowNoop' => $trailingNegativeWindowNoop,
+    'unsortedTrailingNegativeWindowReadOrder' => $unsortedTrailingNegativeWindowReadOrder,
+    'unsortedTrailingNegativeWindowMap' => $unsortedTrailingNegativeWindowMap->toJson(null, false),
+    'unsortedTrailingNegativeWindowColumns' => $unsortedTrailingNegativeWindowColumns,
+    'unsortedTrailingNegativeWindowClosest' => $unsortedTrailingNegativeWindowClosest,
     'unsortedRawVlqMap' => $unsortedRawVlqMap->toJson(null, false),
     'unsortedRawVlqPositiveOffsetMap' => $unsortedRawVlqPositiveOffsetMap->toJson(null, false),
     'unsortedRawVlqNegativeOffsetMap' => $unsortedRawVlqNegativeOffsetMap->toJson(null, false),
@@ -1183,6 +1199,10 @@ if (($argv[1] ?? null) === '--self-test') {
         'trailingNegativeWindowColumns' => [0, 10],
         'trailingNegativeWindowNames' => ['trailing-window-first', 'trailing-window-middle', 'trailing-window-drained'],
         'trailingNegativeWindowNoop' => true,
+        'unsortedTrailingNegativeWindowReadOrder' => [10, 2],
+        'unsortedTrailingNegativeWindowMap' => '{"version":3,"mappings":"EACAC","sources":["wp-content/themes/example/source-map-unsorted-trailing-window.css"],"sourcesContent":[".wp-block-unsorted-trailing-window{}"],"names":["later-trailing-window-rule","earlier-trailing-window-rule"]}',
+        'unsortedTrailingNegativeWindowColumns' => [2],
+        'unsortedTrailingNegativeWindowClosest' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 1, 'originalColumn' => 0, 'nameIndex' => 1],
         'unsortedRawVlqMap' => '{"version":3,"mappings":"EACAC,QADAD","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',
         'unsortedRawVlqPositiveOffsetMap' => '{"version":3,"mappings":"EACAC,WADAD","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',
         'unsortedRawVlqNegativeOffsetMap' => '{"version":3,"mappings":"EAAAA","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',

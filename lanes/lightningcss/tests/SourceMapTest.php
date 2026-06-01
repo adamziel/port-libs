@@ -754,6 +754,32 @@ return [
         $map->offsetColumns(0, 100, 7);
         $t->same($beforeNoop, $map->writeVlq());
     },
+    'source map sorts unsorted vlq columns before trailing negative window drains' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $map->addVlqMap(
+            'UAAAA,RACAC',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['later', 'earlier']
+        );
+
+        $t->same([10, 2], array_column($map->getMappings(), 'generatedColumn'));
+
+        $map->offsetColumns(0, 20, -15);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $closestAfterLast = $map->findClosestMapping(0, 20);
+        $data = $map->toArray(null, false);
+
+        $t->same('EACAC', $map->writeVlq());
+        $t->same([2], array_column($decoded, 'generatedColumn'));
+        $t->same([1], array_column($decoded, 'originalLine'));
+        $t->same([1], array_column($decoded, 'nameIndex'));
+        $t->same(0, $closestAfterLast['generatedColumn'] ?? null);
+        $t->same(1, $closestAfterLast['originalLine'] ?? null);
+        $t->same(1, $closestAfterLast['nameIndex'] ?? null);
+        $t->same(['later', 'earlier'], $data['names']);
+        $t->same(['.compiled{}'], $data['sourcesContent']);
+    },
     'source map sorts out-of-order raw vlq generated columns before offsets' => static function (TestRunner $t): void {
         $raw = new SourceMap();
         $raw->addVlqMap(

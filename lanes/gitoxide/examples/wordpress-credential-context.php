@@ -31,10 +31,13 @@ return [
     'helperProgramUrlOnly' => $fixture['helperProgramUrlOnly'],
     'helperProgramOutput' => $fixture['helperProgramOutput'],
     'helperInvocationIdentity' => $fixture['helperInvocationIdentity'],
+    'helperRequiredIdentity' => $fixture['helperRequiredIdentity'],
     'helperInvocationQuit' => $fixture['helperInvocationQuit'],
     'helperInvocationNextQuit' => $fixture['helperInvocationNextQuit'],
     'helperInvocationStorePayloadBytes' => strlen($fixture['helperInvocationStorePayload']),
     'helperInvocationErasePayloadBytes' => strlen($fixture['helperInvocationErasePayload']),
+    'helperMissingIdentityRedacted' => $fixture['helperMissingIdentityRedacted'],
+    'helperQuitMessage' => $fixture['helperQuitMessage'],
     'redactedBytes' => $fixture['redactedBytes'],
     'secretsInCleartextLog' => str_contains($fixture['redactedBytes'], 'wp-deploy-token')
         || str_contains($fixture['redactedBytes'], 'wp-refresh-token'),

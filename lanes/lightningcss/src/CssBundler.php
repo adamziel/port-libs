@@ -41,6 +41,7 @@ final class CssBundler
      *     cssModuleDependencySources:array<string,int>,
      *     cssModuleExports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>,
      *     cssModuleReferences:array<string, array{type:string, name:string, specifier:string}>,
+     *     cssModuleFirstComposesLoc:?array{line:int,column:int},
      *     layer:?string,
      *     supports:?string,
      *     media:string,
@@ -296,6 +297,7 @@ final class CssBundler
             'cssModuleExports' => [],
             'cssModuleReferences' => [],
             'cssModuleHasComposes' => false,
+            'cssModuleFirstComposesLoc' => null,
             'layer' => $rule['layer'],
             'supports' => $rule['supports'],
             'media' => $rule['media'],
@@ -312,11 +314,13 @@ final class CssBundler
         $cssModuleResult = null;
         $cssModuleDependencyLocations = [];
         $cssModuleHasComposes = false;
+        $cssModuleFirstComposesLoc = null;
         $originalImportLocations = [];
         if ($this->cssModules) {
             $originalImportLocations = $this->importLocationsForItems($this->topLevelItems($source, $file));
             $cssModuleDependencyLocations = $this->cssModuleDependencyLocations($source);
-            $cssModuleHasComposes = $this->hasCssModuleComposesDeclaration($source);
+            $cssModuleFirstComposesLoc = $this->firstCssModuleComposesLocation($source);
+            $cssModuleHasComposes = $cssModuleFirstComposesLoc !== null;
             try {
                 $cssModuleResult = (new CssModulesTransformer())->transform($source, $this->cssModuleTransformOptions($file));
             } catch (\InvalidArgumentException $exception) {
@@ -419,6 +423,7 @@ final class CssBundler
         $this->stylesheets[$sourceIndex]['cssModuleExports'] = $cssModuleExports;
         $this->stylesheets[$sourceIndex]['cssModuleReferences'] = $cssModuleReferences;
         $this->stylesheets[$sourceIndex]['cssModuleHasComposes'] = $cssModuleHasComposes;
+        $this->stylesheets[$sourceIndex]['cssModuleFirstComposesLoc'] = $cssModuleFirstComposesLoc;
 
         return $sourceIndex;
     }
@@ -435,7 +440,14 @@ final class CssBundler
             }
 
             if ($this->isConditionalCssModuleImportContext($stylesheet)) {
-                throw new \InvalidArgumentException('The `composes` property cannot be used within nested rules');
+                $loc = $stylesheet['cssModuleFirstComposesLoc'] ?? $stylesheet['loc'] ?? ['line' => 1, 'column' => 1];
+                throw new CssBundleException(
+                    'parser-error',
+                    'The `composes` property cannot be used within nested rules',
+                    (string) $stylesheet['file'],
+                    (int) $loc['line'],
+                    (int) $loc['column'],
+                );
             }
         }
     }
@@ -2774,7 +2786,10 @@ final class CssBundler
         return $locations;
     }
 
-    private function hasCssModuleComposesDeclaration(string $source): bool
+    /**
+     * @return array{line:int,column:int}|null
+     */
+    private function firstCssModuleComposesLocation(string $source): ?array
     {
         $offset = 0;
         while (($property = $this->findNextCssIdentifierInSet($source, ['composes'], $offset)) !== null) {
@@ -2788,10 +2803,10 @@ final class CssBundler
                 continue;
             }
 
-            return true;
+            return $this->sourceLocation($source, $colon + 1);
         }
 
-        return false;
+        return null;
     }
 
     private function isCssModuleDeclarationBoundaryBefore(string $source, int $offset): bool

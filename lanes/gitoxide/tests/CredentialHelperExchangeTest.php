@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Gitoxide\CredentialContext;
 use PortLibs\Gitoxide\CredentialHelperExchange;
 use PortLibs\Gitoxide\CredentialHelperInvocation;
+use PortLibs\Gitoxide\CredentialHelperOutcome;
 
 return [
     'credential helper invocation keeps raw next action context for store and erase' => static function (TestRunner $t): void {
@@ -58,6 +59,75 @@ return [
         $t->same(null, $outcome->password);
         $t->same(null, $outcome->identity());
         $t->same("username=user\n", $outcome->nextActionBytes());
+    },
+    'credential helper outcome maps get results to upstream identity errors' => static function (TestRunner $t): void {
+        $requestContext = new CredentialContext(
+            protocol: 'https',
+            host: 'git.example.test',
+            path: 'wp-content.git',
+            username: 'deploy-bot',
+            password: 'secret-token',
+            oauthRefreshToken: 'refresh-secret',
+        );
+
+        $complete = new CredentialHelperOutcome(
+            username: 'deploy-bot',
+            password: 'helper-token',
+            oauthRefreshToken: 'helper-refresh',
+            quit: true,
+            nextActionBytes: "username=deploy-bot\npassword=helper-token\noauth_refresh_token=helper-refresh\nquit=1\n",
+        );
+        $t->same([
+            'username' => 'deploy-bot',
+            'password' => 'helper-token',
+            'oauthRefreshToken' => 'helper-refresh',
+        ], CredentialHelperOutcome::requireIdentity($complete, $requestContext));
+
+        $missingMessage = null;
+        try {
+            CredentialHelperOutcome::requireIdentity(
+                new CredentialHelperOutcome(
+                    username: 'deploy-bot',
+                    password: null,
+                    oauthRefreshToken: null,
+                    quit: false,
+                    nextActionBytes: "username=deploy-bot\n",
+                ),
+                $requestContext,
+            );
+        } catch (RuntimeException $error) {
+            $missingMessage = $error->getMessage();
+        }
+        $t->contains('Could not obtain identity for context:', $missingMessage ?? '');
+        $t->contains("password=<redacted>\n", $missingMessage ?? '');
+        $t->contains("oauth_refresh_token=<redacted>\n", $missingMessage ?? '');
+        $t->same(false, str_contains($missingMessage ?? '', 'secret-token'));
+        $t->same(false, str_contains($missingMessage ?? '', 'refresh-secret'));
+
+        $nullOutcomeMessage = null;
+        try {
+            CredentialHelperOutcome::requireIdentity(null, $requestContext);
+        } catch (RuntimeException $error) {
+            $nullOutcomeMessage = $error->getMessage();
+        }
+        $t->contains('Could not obtain identity for context:', $nullOutcomeMessage ?? '');
+
+        $quitMessage = null;
+        try {
+            CredentialHelperOutcome::requireIdentity(
+                new CredentialHelperOutcome(
+                    username: null,
+                    password: null,
+                    oauthRefreshToken: null,
+                    quit: true,
+                    nextActionBytes: "quit=1\n",
+                ),
+                $requestContext,
+            );
+        } catch (RuntimeException $error) {
+            $quitMessage = $error->getMessage();
+        }
+        $t->same('Credential helper asked to stop trying to obtain credentials', $quitMessage);
     },
     'credential helper exchange accepts protocol and host without auto populating url' => static function (TestRunner $t): void {
         $called = false;

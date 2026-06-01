@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Gitoxide\CredentialContext;
 use PortLibs\Gitoxide\CredentialHelperExchange;
 use PortLibs\Gitoxide\CredentialHelperInvocation;
+use PortLibs\Gitoxide\CredentialHelperOutcome;
 
 $request = new CredentialContext(
     protocol: 'https',
@@ -126,6 +127,44 @@ CredentialHelperInvocation::erase(
         return '';
     },
 );
+$helperRequiredIdentity = CredentialHelperOutcome::requireIdentity($helperInvocationOutcome, $request);
+$helperMissingIdentityMessage = '';
+try {
+    CredentialHelperOutcome::requireIdentity(
+        new CredentialHelperOutcome(
+            username: 'deploy-bot',
+            password: null,
+            oauthRefreshToken: null,
+            quit: false,
+            nextActionBytes: "username=deploy-bot\n",
+        ),
+        new CredentialContext(
+            protocol: 'https',
+            host: 'git.example.test',
+            path: 'wp-content.git',
+            username: 'deploy-bot',
+            password: 'wp-deploy-token',
+            oauthRefreshToken: 'wp-refresh-token',
+        ),
+    );
+} catch (RuntimeException $error) {
+    $helperMissingIdentityMessage = $error->getMessage();
+}
+$helperQuitMessage = '';
+try {
+    CredentialHelperOutcome::requireIdentity(
+        new CredentialHelperOutcome(
+            username: null,
+            password: null,
+            oauthRefreshToken: null,
+            quit: true,
+            nextActionBytes: "quit=1\n",
+        ),
+        $request,
+    );
+} catch (RuntimeException $error) {
+    $helperQuitMessage = $error->getMessage();
+}
 
 return [
     'requestBytes' => $request->storageBytes(),
@@ -173,10 +212,16 @@ return [
     'helperProgramUrlOnly' => $helperProgramUrlOnly,
     'helperProgramOutput' => $helperProgramOutput,
     'helperInvocationIdentity' => $helperInvocationOutcome->identity(),
+    'helperRequiredIdentity' => $helperRequiredIdentity,
     'helperInvocationQuit' => $helperInvocationOutcome->quit,
     'helperInvocationNextQuit' => $helperInvocationOutcome->nextActionContext()->quit,
     'helperInvocationStorePayload' => $helperInvocationCalls[1][1],
     'helperInvocationErasePayload' => $helperInvocationCalls[2][1],
+    'helperMissingIdentityRedacted' => str_contains($helperMissingIdentityMessage, "password=<redacted>\n")
+        && str_contains($helperMissingIdentityMessage, "oauth_refresh_token=<redacted>\n")
+        && !str_contains($helperMissingIdentityMessage, 'wp-deploy-token')
+        && !str_contains($helperMissingIdentityMessage, 'wp-refresh-token'),
+    'helperQuitMessage' => $helperQuitMessage,
     'redactedBytes' => $redacted->storageBytes(),
     'clearedPassword' => $cleared->password,
     'clearedOauthRefreshToken' => $cleared->oauthRefreshToken,

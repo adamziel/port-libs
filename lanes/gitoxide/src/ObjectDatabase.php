@@ -8,6 +8,7 @@ final class ObjectDatabase
 {
     public const ORDER_PACK_LEXICOGRAPHICAL_THEN_LOOSE_LEXICOGRAPHICAL = 'pack-lexicographical-then-loose-lexicographical';
     public const ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL = 'pack-offset-then-loose-lexicographical';
+    private const MAX_EXTERNAL_DELTA_BASE_DEPTH = 32;
 
     /**
      * @var null|list<array{index:PackIndex,data:PackData,indexPath:string,packPath:string,indexName:string,packDirectory:string}>
@@ -877,6 +878,7 @@ final class ObjectDatabase
         if (in_array($baseOid, $externalBaseStack, true)) {
             throw new \RuntimeException("REF_DELTA external base cycle while resolving: {$baseOid}");
         }
+        $this->assertExternalDeltaBaseDepth($baseOid, $externalBaseStack, 'object');
 
         $stack = array_merge($externalBaseStack, [$baseOid]);
         $object = $this->tryReadLocalObject($baseOid, $stack);
@@ -913,6 +915,7 @@ final class ObjectDatabase
         if (in_array($baseOid, $externalBaseStack, true)) {
             throw new \RuntimeException("REF_DELTA external base cycle while resolving header: {$baseOid}");
         }
+        $this->assertExternalDeltaBaseDepth($baseOid, $externalBaseStack, 'header');
 
         $stack = array_merge($externalBaseStack, [$baseOid]);
         $header = $this->tryReadLocalHeader($baseOid, $stack);
@@ -1328,6 +1331,21 @@ final class ObjectDatabase
             'size' => $header['size'],
             'source' => 'pack',
         ];
+    }
+
+    /**
+     * @param list<string> $externalBaseStack
+     */
+    private function assertExternalDeltaBaseDepth(string $baseOid, array $externalBaseStack, string $context): void
+    {
+        $depth = count(array_unique($externalBaseStack));
+        if ($depth > self::MAX_EXTERNAL_DELTA_BASE_DEPTH) {
+            throw new \RuntimeException(
+                'REF_DELTA external base recursion limit of '
+                . self::MAX_EXTERNAL_DELTA_BASE_DEPTH
+                . " exceeded while resolving {$context}: {$baseOid}"
+            );
+        }
     }
 
     private function assertObjectId(string $oid): void

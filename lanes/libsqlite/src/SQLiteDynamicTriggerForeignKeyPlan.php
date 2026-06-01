@@ -7534,6 +7534,120 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * Model triggerC.test triggerC-12.1..12.2. The upstream case drops a
+     * trigger from the same connection while a SELECT cursor over the target
+     * table is active; the scan completes and the schema catalog loses only
+     * the trigger row.
+     *
+     * @param list<array{a:int,b:int}> $rows
+     * @return array<string,mixed>
+     */
+    public static function triggerCDropTriggerDuringActiveScanPlan(
+        array $rows,
+        int $dropAtA,
+        string $tableName = 't1',
+        string $triggerName = 'tr1'
+    ): array {
+        if ($rows === []) {
+            throw new \InvalidArgumentException('SQLite triggerC active scan drop requires rows');
+        }
+
+        $tableName = self::identifier($tableName, 'table name');
+        $triggerName = self::identifier($triggerName, 'trigger name');
+        $tableRows = [];
+        foreach (array_values($rows) as $ordinal => $row) {
+            if (!array_key_exists('a', $row) || !array_key_exists('b', $row)) {
+                throw new \InvalidArgumentException('SQLite triggerC active scan row must contain a and b');
+            }
+            if (!is_int($row['a']) || !is_int($row['b'])) {
+                throw new \InvalidArgumentException('SQLite triggerC active scan row values must be integers');
+            }
+
+            $tableRows[] = [
+                'ordinal' => $ordinal,
+                'a' => $row['a'],
+                'b' => $row['b'],
+            ];
+        }
+
+        $triggerPresent = true;
+        $scanRows = [];
+        $dropEvent = null;
+        foreach ($tableRows as $row) {
+            $dropExecuted = $triggerPresent && $row['a'] === $dropAtA;
+            $scanRow = [
+                'ordinal' => $row['ordinal'],
+                'a' => $row['a'],
+                'b' => $row['b'],
+                'trigger_present_before_row' => $triggerPresent,
+                'drop_trigger_executed' => $dropExecuted,
+            ];
+
+            if ($dropExecuted) {
+                $dropEvent = [
+                    'scan_ordinal' => $row['ordinal'],
+                    'row' => ['a' => $row['a'], 'b' => $row['b']],
+                    'drop_statement' => 'DROP TRIGGER ' . $triggerName,
+                    'sqlite_master_count_before_drop' => 2,
+                    'sqlite_master_count_after_drop' => 1,
+                    'active_scan_continues' => true,
+                ];
+                $triggerPresent = false;
+            }
+
+            $scanRow['trigger_present_after_row'] = $triggerPresent;
+            $scanRows[] = $scanRow;
+        }
+
+        if ($dropEvent === null) {
+            throw new \InvalidArgumentException('SQLite triggerC active scan drop target row was not scanned');
+        }
+
+        $plainRows = array_map(static fn (array $row): array => ['a' => $row['a'], 'b' => $row['b']], $tableRows);
+
+        return [
+            'source' => 'triggerC.test triggerC-12.1..12.2',
+            'scenarios' => ['triggerC-12.1', 'triggerC-12.2'],
+            'operation' => 'drop-trigger-during-active-table-scan',
+            'status' => 'commit-ok',
+            'table_name' => $tableName,
+            'trigger_name' => $triggerName,
+            'select_sql' => 'SELECT * FROM ' . $tableName,
+            'drop_statement' => 'DROP TRIGGER ' . $triggerName,
+            'initial_sqlite_master_count' => 2,
+            'final_sqlite_master_count' => 1,
+            'catalog_before' => [
+                ['type' => 'table', 'name' => $tableName],
+                ['type' => 'trigger', 'name' => $triggerName, 'tbl_name' => $tableName],
+            ],
+            'catalog_after' => [
+                ['type' => 'table', 'name' => $tableName],
+            ],
+            'drop_at_a' => $dropAtA,
+            'drop_scan_ordinal' => $dropEvent['scan_ordinal'],
+            'drop_event' => $dropEvent,
+            'initial_table_rows' => $plainRows,
+            'initial_table_row_count' => count($plainRows),
+            'scan_rows' => $scanRows,
+            'scanned_row_count' => count($scanRows),
+            'scanned_a_values' => array_values(array_column($plainRows, 'a')),
+            'scanned_b_values' => array_values(array_column($plainRows, 'b')),
+            'active_scan_completed' => true,
+            'active_scan_row_order_preserved' => true,
+            'trigger_catalog_removed' => true,
+            'table_catalog_preserved' => true,
+            'schema_cookie_before' => 1,
+            'schema_cookie_after' => 2,
+            'schema_cookie_incremented_by_drop' => true,
+            'dependencies' => [
+                'sqlite-triggerC-drop-trigger-during-active-table-scan',
+                'sqlite-triggerC-active-table-cursor-survives-trigger-catalog-delete',
+                'sqlite-triggerC-drop-trigger-removes-only-trigger-catalog-entry',
+            ],
+        ];
+    }
+
+    /**
      * @return array<string,mixed>
      */
     public static function largeTriggerBodyExecution(int $statementCount, int $outerInsertValue = 5, int $outerRowCount = 1): array

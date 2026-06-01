@@ -314,6 +314,9 @@ return [
         $t->same(true, $fixture['helperInvocationNextQuit']);
         $t->same("username=deploy-bot\npassword=wp-deploy-token\nquit=1\n\n", $fixture['helperInvocationStorePayload']);
         $t->same($fixture['helperInvocationStorePayload'], $fixture['helperInvocationErasePayload']);
+        $t->same($fixture['helperInvocationIdentity'], $fixture['helperRequiredIdentity']);
+        $t->same(true, $fixture['helperMissingIdentityRedacted']);
+        $t->same('Credential helper asked to stop trying to obtain credentials', $fixture['helperQuitMessage']);
         $t->same($fixture['credentialUrl'], $summary['credentialUrl']);
         $t->same($fixture['encodedContext']['path'], $summary['encodedPath']);
         $t->same(true, $summary['fileUrlClearedHost']);
@@ -325,8 +328,11 @@ return [
         $t->same($fixture['helperProgramProtocolHost'], $summary['helperProgramProtocolHost']);
         $t->same($fixture['helperProgramUrlOnly'], $summary['helperProgramUrlOnly']);
         $t->same($fixture['helperInvocationIdentity'], $summary['helperInvocationIdentity']);
+        $t->same($fixture['helperRequiredIdentity'], $summary['helperRequiredIdentity']);
         $t->same(true, $summary['helperInvocationQuit']);
         $t->same(true, $summary['helperInvocationNextQuit']);
+        $t->same(true, $summary['helperMissingIdentityRedacted']);
+        $t->same($fixture['helperQuitMessage'], $summary['helperQuitMessage']);
         $t->same(true, $summary['bareCarriageReturnPathPreserved']);
         $t->same(true, $summary['crlfPathTerminatorStripped']);
         $t->same(false, $summary['emptyQuitFalse']);

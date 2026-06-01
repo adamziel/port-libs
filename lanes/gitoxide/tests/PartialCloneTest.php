@@ -65,6 +65,35 @@ $buildThinPromisorBlobs = static function (string $label): array {
     ];
 };
 
+$writePromisorDeltaChain = static function (string $gitDir, int $deltaCount, string $label) use ($writePromisorPackForObject, $writePromisorPackResult): array {
+    if ($deltaCount < 1) {
+        throw new InvalidArgumentException('Promisor delta chain requires at least one delta');
+    }
+
+    $stable = '';
+    for ($i = 0; $i < 96; $i++) {
+        $stable .= hash('sha1', "gitoxide-promisor-deep-chain-{$label}-{$i}") . "\n";
+    }
+
+    $objects = [new GitObject('blob', "WordPress deep promisor base\n{$stable}step=00\n")];
+    $packNames = [$writePromisorPackForObject($gitDir, $objects[0], "deep promisor delta chain base\n")];
+    for ($i = 1; $i <= $deltaCount; $i++) {
+        $object = new GitObject('blob', "WordPress deep promisor base\n{$stable}step=" . sprintf('%02d', $i) . "\n");
+        $pack = PackBuilder::buildWithRefDeltas([$object], [$objects[$i - 1]]);
+        if (!$pack->isThin()) {
+            throw new RuntimeException("Expected deep promisor chain pack {$i} to be thin");
+        }
+        $packNames[] = $writePromisorPackResult($gitDir, $pack, "deep promisor delta chain {$i}\n");
+        $objects[] = $object;
+    }
+
+    return [
+        'objects' => $objects,
+        'packNames' => $packNames,
+        'target' => $objects[$deltaCount],
+    ];
+};
+
 $writePromisorConfigFixture = static function (bool|string $promisor = true): string {
     $gitDir = sys_get_temp_dir() . '/port-libs-git-promisor-config-' . bin2hex(random_bytes(4)) . '/.git';
     $packDir = $gitDir . '/objects/pack';
@@ -720,6 +749,44 @@ return [
         $t->same('present', $database->objectState($baseOid)['status']);
         $t->same('promisor-present', $database->objectState($targetOid)['status']);
     },
+    'object database rejects promisor external delta chains past the gix recursion bound' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorDeltaChain): void {
+        [$withinBoundGitDir] = $writePromisorPackFixture();
+        $withinBoundChain = $writePromisorDeltaChain($withinBoundGitDir, 32, 'within-recursion-bound');
+        $withinBoundDatabase = new ObjectDatabase($withinBoundGitDir);
+        $withinBoundTargetOid = $withinBoundChain['target']->oid();
+
+        $t->same($withinBoundChain['target']->body, $withinBoundDatabase->read($withinBoundTargetOid)->body);
+        $t->same([
+            'type' => 'blob',
+            'size' => strlen($withinBoundChain['target']->body),
+            'source' => 'pack',
+        ], $withinBoundDatabase->readHeader($withinBoundTargetOid));
+
+        [$tooDeepGitDir] = $writePromisorPackFixture();
+        $chain = $writePromisorDeltaChain($tooDeepGitDir, 40, 'recursion-bound');
+        $database = new ObjectDatabase($tooDeepGitDir);
+        $targetOid = $chain['target']->oid();
+
+        $t->same('promisor-present', $database->objectState($targetOid)['status']);
+
+        $headerGuard = null;
+        try {
+            $database->readHeader($targetOid);
+        } catch (RuntimeException $exception) {
+            $headerGuard = $exception->getMessage();
+        }
+        $t->true($headerGuard !== null, 'Deep promisor delta header lookup should hit the recursion guard');
+        $t->contains('REF_DELTA external base recursion limit', $headerGuard);
+
+        $readGuard = null;
+        try {
+            $database->read($targetOid);
+        } catch (RuntimeException $exception) {
+            $readGuard = $exception->getMessage();
+        }
+        $t->true($readGuard !== null, 'Deep promisor delta object lookup should hit the recursion guard');
+        $t->contains('REF_DELTA external base recursion limit', $readGuard);
+    },
     'object database rejects promisor resolver object id mismatches' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
         [$gitDir] = $writePromisorPackFixture();
         $requestedOid = str_repeat('f', 40);
@@ -809,5 +876,10 @@ return [
         $t->same(false, in_array($summary['refreshNeverReturnedPack'], $summary['refreshNeverReturnedPromisorPacksAfter'], true));
         $t->same('promisor-present', $summary['refreshNeverReturnedFreshState']['status']);
         $t->same('pack', $summary['refreshNeverReturnedFreshHeader']['source']);
+        $t->same(41, $summary['deepChainObjectCount']);
+        $t->same('promisor-present', $summary['deepChainTargetBeforeGuard']['status']);
+        $t->contains('REF_DELTA external base recursion limit', (string) $summary['deepChainHeaderGuardMessage']);
+        $t->contains('REF_DELTA external base recursion limit', (string) $summary['deepChainReadGuardMessage']);
+        $t->same(true, in_array($summary['deepChainTargetPack'], $summary['promisorPacksAfterDeepChainGuard'], true));
     },
 ];
