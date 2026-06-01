@@ -10,7 +10,7 @@
     "audit": "2026-06-01 supervisor batch: full LightningCSS PHP lane passed 13 files / 7433 assertions / 0 failures; changed examples passed after refreshing the media-range example expectation; Rust/Node/WASM runners not run.",
     "currentWork": "Bundle import graph, custom at-rule parser/visitor traversal, media-query range/layer fallback, and source-map percent/base64 data URL handling integrated on current base.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "97e4c970b0749882e579e8e09d58a88eb9c7e89d",
+    "latestCommit": "d27ec0df6cb3de46b54e9d76f3673f9481f70e85",
     "nextTask": "Keep LightningCSS workers on current-base CSS Modules, source maps, bundle/import graph, media query, property value, CSSOM, custom-at-rule, and target-prefix slices; rebase stale overlapping handoffs before retry.",
     "commit": "eacf219644d81cd359ffedbf3e529bc5617ed219"
 }

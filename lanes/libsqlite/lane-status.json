@@ -12,6 +12,6 @@
     "blocker": "Broad libsqlite full-lane/release parity is not green: seven known failures remain in prior broad gates, and current full-lane attempts exhausted the enforced 1.5G PHP memory limit in SQLiteJsonImportSavepointPlan before producing a new broad summary.",
     "nextTask": "Prioritize fixing the broad full-lane memory exhaustion in SQLiteJsonImportSavepointPlan/rollback-WAL dynamic tests, then continue source-neutral cleanup of remaining CurrentSourceNext/CurrentNext production defaults and non-overlapping real-corpus JSON, VFS, WAL, pager, PRAGMA, B-tree/index, STAT4, expression, trigger/FK, row-value, date/time, cast/like, and upsert coverage.",
     "wordpressScenarioLatest": "Latest libsqlite batch adds real upstream select6 right-join empty-table dynamic coverage while keeping the no-domain guard green.",
-    "latestCommit": "97e4c970b0749882e579e8e09d58a88eb9c7e89d",
+    "latestCommit": "d27ec0df6cb3de46b54e9d76f3673f9481f70e85",
     "commit": "eacf219644d81cd359ffedbf3e529bc5617ed219"
 }
