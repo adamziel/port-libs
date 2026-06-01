@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 99.7,
-    "suiteProgress": "Supervisor-integrated LightningCSS media query math-function range/layer parity and grid auto-flow row shorthand property-value parity. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 6808 assertions / 0 failures, and changed example smokes.",
-    "phpPass": 6808,
+    "estimatedProgress": 99.8,
+    "suiteProgress": "Supervisor-integrated LightningCSS bundle/import diagnostics, CSS Modules pseudo canonicalization, source-map VLQ offsets, and target-prefix writing/filter support boundaries. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 6875 assertions / 0 failures, and changed example smokes.",
+    "phpPass": 6875,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata including host/slotted compose boundaries, custom at-rule visitors and percentage preludes, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation including text-spacing reads/writes, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 supervisor followup: accepted source 6574fff7314e with media query math-function range/layer and grid auto-flow row shorthand followups. Full LightningCSS lane passed 13 files / 6808 assertions / 0 failures; full upstream Rust/Node/WASM runners were not executed.",
-    "currentWork": "Media query math-function range/layer parsing and target fallback parity plus grid auto-flow row shorthand minification parity integrated on current base.",
+    "audit": "2026-06-01 supervisor batch: accepted source dfde8639e with bundle/import, CSS Modules, source-map, and target-prefix followups. Full LightningCSS lane passed 13 files / 6875 assertions / 0 failures; full upstream Rust/Node/WASM runners were not executed.",
+    "currentWork": "Bundle/import graph diagnostics, CSS Modules pseudo canonicalization, raw VLQ source-map offsets, and writing/filter target-prefix boundaries integrated on current base.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "6574fff7314e7ed4da269837dc9bbad2089f2511",
+    "latestCommit": "dfde8639ec184531438b4b64831a0eeb040763c6",
     "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices; rebase deferred custom-at/media conflicts before retry.",
-    "commit": "6574fff7314e7ed4da269837dc9bbad2089f2511"
+    "commit": "dfde8639ec184531438b4b64831a0eeb040763c6"
 }

@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 95.8,
-    "suiteProgress": "Supervisor-integrated Gitoxide loose-object truncated zlib header, sparse-checkout LF-byte pathspec, tree/pathspec dangling-backslash, and URL/refspec HTTP userinfo/path parity. Verification passed PHP lint, git diff --check, full Gitoxide lane 40 files / 8111 assertions / 0 failures, and changed example smokes.",
-    "phpPass": 8111,
+    "estimatedProgress": 95.9,
+    "suiteProgress": "Supervisor-integrated Gitoxide protocol v2 sideband Unicode trimming, merge-base shallow object database hydration, and send-pack empty progress sideband parity. Verification passed PHP lint, git diff --check, full Gitoxide lane 40 files / 8139 assertions / 0 failures, and changed example smokes.",
+    "phpPass": 8139,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions including caller-supplied environment-style key/value pairs, attributes/pathspec filtering including NUL-field boundaries, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full Cargo runner not executed for isolated batch",
-    "audit": "2026-06-01 supervisor followup: accepted source 5b98c3c4c150 with four Gitoxide current-base followups. Full Gitoxide lane passed 40 files / 8111 assertions / 0 failures; full upstream Cargo workspace was not executed.",
-    "currentWork": "Loose-object truncated zlib header rejection, sparse-checkout LF-byte wildmatch, tree/pathspec dangling-backslash fallback, and URL/refspec HTTP userinfo/path delimiter parity integrated on current base.",
+    "audit": "2026-06-01 supervisor batch: accepted source dfde8639e with Gitoxide fetch-sideband, merge-base, and send-pack followups. Full Gitoxide lane passed 40 files / 8139 assertions / 0 failures; full upstream Cargo workspace was not executed.",
+    "currentWork": "Protocol v2 sideband-all Unicode trimming, merge-base shallow parent hydration, and send-pack empty progress sideband parsing integrated on current base.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "5b98c3c4c1507b10669f49c8b9385b0604dbf13f",
+    "latestCommit": "dfde8639ec184531438b4b64831a0eeb040763c6",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping transport, protocol, merge-base, send-pack, receive-pack, reference transaction, object database, sparse-checkout, tree/pathspec, and URL/refspec slices.",
-    "commit": "5b98c3c4c1507b10669f49c8b9385b0604dbf13f"
+    "commit": "dfde8639ec184531438b4b64831a0eeb040763c6"
 }
