@@ -5240,6 +5240,26 @@ CSS;
             ])
         );
     },
+    'transition prefixer preserves mixed not-all media lists while lowering ranges inside layers' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@layer blocks{@media not all,(min-width:240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media not all, (width >= 240px) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media not all,(min-width:100px) and (max-width:200px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media not all, (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media all,(min-width:240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media all, (width >= 240px) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media all,(min-width:100px) and (max-width:200px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media all, (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+    },
     'transition prefixer maps upstream import media range tails after layer modifiers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -5300,6 +5320,26 @@ CSS;
         $t->throws(
             InvalidArgumentException::class,
             static fn () => $prefixer->prefixForTargets('@import "blocks/query.css" supports(display: grid) layer(theme.blocks) (width >= 240px); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['firefox' => 60])
+        );
+    },
+    'transition prefixer preserves mixed not-all media lists in import layer tails' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@import "blocks/query.css" layer(theme.blocks) not all,(min-width:240px);@layer theme.blocks{.wp-block-query{color:#ff0}}',
+            $prefixer->prefixForTargets('@import "blocks/query.css" layer(theme.blocks) not all, (width >= 240px); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@import "blocks/query.css" layer(theme.blocks) not all,(min-width:100px) and (max-width:200px);@layer theme.blocks{.wp-block-query{color:#ff0}}',
+            $prefixer->prefixForTargets('@import "blocks/query.css" layer(theme.blocks) not all, (100px <= width <= 200px); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@import "blocks/query.css" layer(theme.blocks) all,(min-width:240px);@layer theme.blocks{.wp-block-query{color:#ff0}}',
+            $prefixer->prefixForTargets('@import "blocks/query.css" layer(theme.blocks) all, (width >= 240px); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@import "blocks/query.css" layer(theme.blocks) all,(min-width:100px) and (max-width:200px);@layer theme.blocks{.wp-block-query{color:#ff0}}',
+            $prefixer->prefixForTargets('@import "blocks/query.css" layer(theme.blocks) all, (100px <= width <= 200px); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['firefox' => 85])
         );
     },
     'transition prefixer maps upstream negated grouped media ranges inside layers' => static function (TestRunner $t): void {

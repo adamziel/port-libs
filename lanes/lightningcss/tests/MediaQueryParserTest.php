@@ -807,6 +807,18 @@ return [
         $t->same('screen and not (max-width:max(10px,1rem))', $parser->lowerRangeSyntaxList('screen and (width > max(10px, 1rem))'));
         $t->same('screen and (not (min-width:240px)) and (hover)', $parser->lowerRangeSyntaxList('screen and (width < 240px) and (hover)'));
     },
+    'media query parser preserves mixed all/not-all lists while lowering ranges' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+
+        $t->same('not all,(width>=240px)', $parser->minifyList('not all, (width >= 240px)'));
+        $t->same('not all,(100px<=width<=200px)', $parser->minifyList('not all, (100px <= width <= 200px)'));
+        $t->same('all,(width>=240px)', $parser->minifyList('all, (width >= 240px)'));
+        $t->same('all,(100px<=width<=200px)', $parser->minifyList('all, (100px <= width <= 200px)'));
+        $t->same('not all,(min-width:240px)', $parser->lowerRangeSyntaxList('not all, (width >= 240px)'));
+        $t->same('not all,(min-width:100px) and (max-width:200px)', $parser->lowerRangeSyntaxList('not all, (100px <= width <= 200px)'));
+        $t->same('all,(min-width:240px)', $parser->lowerRangeSyntaxList('all, (width >= 240px)'));
+        $t->same('all,(min-width:100px) and (max-width:200px)', $parser->lowerRangeSyntaxList('all, (100px <= width <= 200px)'));
+    },
     'media query parser rejects upstream invalid typed range features' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 
