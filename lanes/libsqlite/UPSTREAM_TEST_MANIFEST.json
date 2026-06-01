@@ -169,7 +169,7 @@
         }
     },
     "benchmarkDenominator": {
-        "status": "current-base libsqlite window trigger STAT4 row-value parity batch",
+        "status": "current-base libsqlite pager1 zero-page-size rollback-journal fallback follow-up",
         "total": 1589,
         "mapped": 1589,
         "latestMappedAddition": "Accepted source commit 3ec6eca adds row-value UPDATE/DELETE LIMIT cast-affinity dynamic and application WAL rollback JSON final recovery-checkpoint follow-up evidence; mapped coverage remains complete 1589 / 1589. Focused PHP evidence is 2 files / 960 assertions / 0 failures; broad release/all still has 7 known failures.",
@@ -2452,8 +2452,8 @@
         "latestFocusedCorpusBatch20260601T0253Z": "Focused libsqlite replay accepted source-neutral key-value WAL import cleanup plus real upstream trustschema1.test PRAGMA trusted_schema schema-function safety coverage. Focused gate passed 4 files / 21664 assertions / 0 failures; denominator remains 1589 / 1589.",
         "latestFocusedCorpusBatch20260601T0258Z": "Accepted source commit 87e4caa03f6b adds real upstream skipscan2.test sections 1.3 through 3.3eqp as dynamic B-tree/index corpus evidence and source-neutral trigger/upsert/view defaults cleanup. Focused gate passed 5 files / 27237 assertions / 0 failures; mapped denominator remains 1589 / 1589.",
         "latestFocusedCorpusBatch20260601T0306Z": "Accepted source commit d7e69cc2b695 neutralizes encoding LIKE/GLOB default source names without changing mapped denominator or phpPass counters. Focused gate passed 3 files / 126 assertions / 0 failures.",
-        "latestFocusedSlice": "2026-06-01 supervisor followup: triggerC recursive insert depth-cutoff corpus and source-neutral row-value savepoint cleanup. Focused libsqlite gate passed 8 files / 47501 assertions / 0 failures; mapped denominator remains 1589 / 1589.",
-        "currentSliceSource": "2026-06-01 supervisor parity batch adds current-base libsqlite window3 value/navigation dynamic coverage, e_fkey deferrable-clause matrix coverage, source-neutral STAT4 payload handoff keys, and row-value peer defaults. Focused libsqlite PHP evidence is 140 files / 103702 assertions / 0 failures; broad release/all still has 7 known failures and the full-lane memory blocker remains."
+        "latestFocusedSlice": "2026-06-01 pager1 zero-page-size rollback-journal fallback: +1003 PASS cases; focused gate 49 files / 1333534 assertions / 0 failures; full release/all still blocked by known memory/failure issues.",
+        "currentSliceSource": "2026-06-01 supervisor follow-up adds pager1.test pager1-31.1 zero-page-size rollback-journal fallback coverage. Focused libsqlite gate passed 49 files / 1333534 assertions / 0 failures; SQLitePDO invalid-column reproduction throws and leaves the table empty; mapped coverage remains 1589 / 1589."
     },
     "nativeImplementation": {
         "language": "PHP",
