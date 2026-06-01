@@ -52,6 +52,22 @@ $interiorChild->addMapping(2, 4, $interiorChildSource, 2, 1, 'interior-kept-chil
 $interiorChildBeforeMerge = $interiorChild->toJson(null, false);
 $interiorParent->addSourceMap($interiorChild, -1);
 
+$sandwichParent = new SourceMap();
+$sandwichParentSource = $sandwichParent->addSource('wp-content/themes/example/source-map-sandwich-parent.css');
+for ($line = 0; $line < 6; $line++) {
+    $sandwichParent->addMapping($line, 0, $sandwichParentSource, $line, 0, 'sandwich-parent-' . $line);
+}
+
+$sandwichChild = new SourceMap();
+$sandwichChildSource = $sandwichChild->addSource('wp-content/themes/example/blocks/generated-only-sandwich.css');
+$sandwichChild->setSourceContent($sandwichChildSource, ".wp-block-before-sandwich{}\n.wp-block-generated-only{}\n.wp-block-after-sandwich{}\n");
+$sandwichChild->addMapping(0, 0, $sandwichChildSource, 10, 0, 'sandwich-before-block');
+$sandwichChild->addGeneratedMapping(1, 6);
+$sandwichChild->addMapping(2, 3, $sandwichChildSource, 12, 2, 'sandwich-after-block');
+
+$sandwichChildBeforeMerge = $sandwichChild->toJson(null, false);
+$sandwichParent->addSourceMap($sandwichChild, 1);
+
 $actual = [
     'childBeforeMerge' => $childBeforeMerge,
     'parentMap' => $parent->toJson(null, false),
@@ -69,6 +85,12 @@ $actual = [
     'interiorClearedGapLine' => $interiorParent->findClosestMapping(0, 0),
     'interiorKeptChildMapping' => $interiorParent->findClosestMapping(1, 4),
     'interiorChildConsumed' => $interiorChild->toJson(null, false),
+    'sandwichChildBeforeMerge' => $sandwichChildBeforeMerge,
+    'sandwichParentMap' => $sandwichParent->toJson(null, false),
+    'sandwichParentMappings' => $sandwichParent->getMappings(),
+    'sandwichGeneratedOnlyLine' => $sandwichParent->findClosestMapping(2, 6),
+    'sandwichAfterChildMapping' => $sandwichParent->findClosestMapping(3, 3),
+    'sandwichChildConsumed' => $sandwichChild->toJson(null, false),
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -102,6 +124,19 @@ if (($argv[1] ?? null) === '--self-test') {
         'interiorClearedGapLine' => null,
         'interiorKeptChildMapping' => ['generatedLine' => 1, 'generatedColumn' => 4, 'sourceIndex' => 1, 'originalLine' => 2, 'originalColumn' => 1, 'nameIndex' => 6],
         'interiorChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'sandwichChildBeforeMerge' => '{"version":3,"mappings":"AAUAA;M;GAEEC","sources":["wp-content/themes/example/blocks/generated-only-sandwich.css"],"sourcesContent":[".wp-block-before-sandwich{}\n.wp-block-generated-only{}\n.wp-block-after-sandwich{}\n"],"names":["sandwich-before-block","sandwich-after-block"]}',
+        'sandwichParentMap' => '{"version":3,"mappings":"AAAAA;ACUAM;M;GAEEC;ADRFH;AACAC","sources":["wp-content/themes/example/source-map-sandwich-parent.css","wp-content/themes/example/blocks/generated-only-sandwich.css"],"sourcesContent":["",".wp-block-before-sandwich{}\n.wp-block-generated-only{}\n.wp-block-after-sandwich{}\n"],"names":["sandwich-parent-0","sandwich-parent-1","sandwich-parent-2","sandwich-parent-3","sandwich-parent-4","sandwich-parent-5","sandwich-before-block","sandwich-after-block"]}',
+        'sandwichParentMappings' => [
+            ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0],
+            ['generatedLine' => 1, 'generatedColumn' => 0, 'sourceIndex' => 1, 'originalLine' => 10, 'originalColumn' => 0, 'nameIndex' => 6],
+            ['generatedLine' => 2, 'generatedColumn' => 6, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
+            ['generatedLine' => 3, 'generatedColumn' => 3, 'sourceIndex' => 1, 'originalLine' => 12, 'originalColumn' => 2, 'nameIndex' => 7],
+            ['generatedLine' => 4, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 4, 'originalColumn' => 0, 'nameIndex' => 4],
+            ['generatedLine' => 5, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 5, 'originalColumn' => 0, 'nameIndex' => 5],
+        ],
+        'sandwichGeneratedOnlyLine' => ['generatedLine' => 2, 'generatedColumn' => 6, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
+        'sandwichAfterChildMapping' => ['generatedLine' => 3, 'generatedColumn' => 3, 'sourceIndex' => 1, 'originalLine' => 12, 'originalColumn' => 2, 'nameIndex' => 7],
+        'sandwichChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
     ];
 
     if ($actual !== $expected) {

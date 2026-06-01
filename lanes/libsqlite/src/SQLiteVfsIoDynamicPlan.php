@@ -2090,7 +2090,8 @@ final class SQLiteVfsIoDynamicPlan
         bool $walFirstTransaction = false,
         bool $walCheckpoint = false,
         int $rowCount = 1,
-        bool $directorySync = true
+        bool $directorySync = true,
+        bool $walRestartAfterCheckpoint = false
     ): array {
         $scenario = trim($scenario);
         if ($scenario === '') {
@@ -2115,6 +2116,9 @@ final class SQLiteVfsIoDynamicPlan
         }
         if ($walCheckpoint && $journalMode !== 'wal') {
             throw new \InvalidArgumentException('SQLite sync pragma WAL checkpoint requires WAL journal mode');
+        }
+        if ($walRestartAfterCheckpoint && ($journalMode !== 'wal' || $synchronous !== 'normal' || $walFirstTransaction || $walCheckpoint)) {
+            throw new \InvalidArgumentException('SQLite sync pragma WAL restart-after-checkpoint requires a normal WAL transaction');
         }
         if ($schemaSetup && (!$attachedDatabase || $journalMode !== 'delete')) {
             throw new \InvalidArgumentException('SQLite sync pragma attached schema setup requires delete journal mode and an attached database');
@@ -2149,6 +2153,9 @@ final class SQLiteVfsIoDynamicPlan
             } elseif ($walFirstTransaction) {
                 $targets = ['directory', 'wal_header'];
                 $reason = 'wal_normal_first_transaction_syncs_directory_and_header';
+            } elseif ($walRestartAfterCheckpoint) {
+                $targets = ['wal_frames'];
+                $reason = 'wal_normal_first_transaction_after_checkpoint_syncs_frames';
             } else {
                 $targets = [];
                 $reason = 'wal_normal_subsequent_transaction_defers_sync_until_checkpoint';
@@ -2213,10 +2220,12 @@ final class SQLiteVfsIoDynamicPlan
             'schema_setup' => $schemaSetup,
             'wal_first_transaction' => $walFirstTransaction,
             'wal_checkpoint' => $walCheckpoint,
+            'wal_restart_after_checkpoint' => $walRestartAfterCheckpoint,
             'row_count' => $rowCount,
             'directory_sync' => $directorySync,
             'sync_count' => count($targets),
             'sync_targets' => $targets,
+            'wal_checkpoint_result' => $walCheckpoint ? [0, $rowCount, $rowCount] : null,
             'sync_disabled' => count($targets) === 0,
             'durability_barrier' => count($targets) > 0,
             'reason' => $reason,
@@ -7467,6 +7476,39 @@ final class SQLiteVfsIoDynamicPlan
         }
         if (str_starts_with($scenario, 'sync2-1.11.2-default-wal-subsequent-normal')) {
             return 'sync2.test 1.11.2 default WAL synchronous=NORMAL subsequent transaction';
+        }
+        if (str_starts_with($scenario, 'sync2-1.12-default-wal-checkpoint-normal')) {
+            return 'sync2.test 1.12 default WAL checkpoint syncs WAL and database';
+        }
+        if (str_starts_with($scenario, 'sync2-1.13.1-default-wal-after-checkpoint')) {
+            return 'sync2.test 1.13.1 first WAL transaction after checkpoint syncs WAL frames';
+        }
+        if (str_starts_with($scenario, 'sync2-1.13.2-default-wal-subsequent-after-checkpoint')) {
+            return 'sync2.test 1.13.2 subsequent WAL transaction after checkpoint defers sync';
+        }
+        if (str_starts_with($scenario, 'sync2-1.15.1-default-delete-full-first')) {
+            return 'sync2.test 1.15.1 delete journal default FULL first transaction';
+        }
+        if (str_starts_with($scenario, 'sync2-1.15.2-default-delete-full-subsequent')) {
+            return 'sync2.test 1.15.2 delete journal default FULL subsequent transaction';
+        }
+        if (str_starts_with($scenario, 'sync2-1.17.1-default-wal-after-delete-first-normal')) {
+            return 'sync2.test 1.17.1 WAL default NORMAL first transaction after delete mode';
+        }
+        if (str_starts_with($scenario, 'sync2-1.17.2-default-wal-after-delete-subsequent-normal')) {
+            return 'sync2.test 1.17.2 WAL default NORMAL subsequent transaction after delete mode';
+        }
+        if (str_starts_with($scenario, 'sync2-1.19.1-delete-off-after-wal')) {
+            return 'sync2.test 1.19.1 delete journal synchronous=OFF first transaction after WAL mode';
+        }
+        if (str_starts_with($scenario, 'sync2-1.19.2-delete-off-after-wal')) {
+            return 'sync2.test 1.19.2 delete journal synchronous=OFF subsequent transaction after WAL mode';
+        }
+        if (str_starts_with($scenario, 'sync2-1.20.1-reopen-delete-default-full')) {
+            return 'sync2.test 1.20.1 reopen restores default FULL delete transaction';
+        }
+        if (str_starts_with($scenario, 'sync2-1.20.2-reopen-delete-default-full')) {
+            return 'sync2.test 1.20.2 reopened default FULL delete transaction repeats syncs';
         }
         if (str_starts_with($scenario, 'sync-1.1-attach-schema-setup')) {
             return 'sync.test sync-1.1 main plus attached schema setup';

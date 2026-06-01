@@ -2637,6 +2637,20 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicPostCheckpointTailRecoveryCheckpointFollowupRecoveryCheckpointScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL post-checkpoint tail recovery checkpoint followup recovery checkpoint dynamic parity requires at least one scenario');
+        }
+
+        return self::dynamicPostCheckpointTailRecoveryCheckpointFollowupRecoveryCheckpointScenariosFromRecoveryScenarios(
+            self::dynamicPostCheckpointTailRecoveryCheckpointFollowupRecoveryScenarios($scenarioCount)
+        );
+    }
+
+    /**
      * @param list<array<string,mixed>> $baseScenarios
      * @return list<array<string,mixed>>
      */
@@ -3800,6 +3814,102 @@ final class SQLiteJsonImportRollbackWalPlan
                 'tail_recovery_checkpoint_followup_tail_inserted_key_retained_after_recovery' => in_array($base['expected_followup_tail_inserted_key'], $finalKeys, true),
                 'tail_recovery_checkpoint_followup_prior_inserted_key_retained_after_recovery' => in_array($base['expected_tail_recovery_checkpoint_followup_inserted_key'], $finalKeys, true),
             ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $baseScenarios
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicPostCheckpointTailRecoveryCheckpointFollowupRecoveryCheckpointScenariosFromRecoveryScenarios(array $baseScenarios): array
+    {
+        if ($baseScenarios === []) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL post-checkpoint tail recovery checkpoint followup recovery checkpoint dynamic parity requires at least one recovery scenario');
+        }
+
+        $scenarios = [];
+        foreach ($baseScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $pageSize = (int) $base['page_size'];
+            $mode = $seed % 2 === 0 ? 'truncate' : 'restart';
+            $recoveryPlan = $base['tail_recovery_checkpoint_followup_recovery_plan'];
+            $wal = SQLiteWal::parse((string) $recoveryPlan['wal_bytes_after'], $pageSize, false);
+            $checkpointInput = (string) $recoveryPlan['database_bytes_before'];
+            $checkpointPlan = $wal->checkpointPlan($checkpointInput);
+            $releasedCheckpoint = $wal->durableCheckpointResult($checkpointInput, $mode);
+            $readerEndFrame = max(0, (int) ($checkpointPlan['last_commit_frame'] ?? 0) - 1);
+            $pinnedCheckpoint = $wal->durableCheckpointResult($checkpointInput, $mode, $readerEndFrame);
+
+            $latestCommittedPageImages = [];
+            $lastCommitFrame = (int) ($checkpointPlan['last_commit_frame'] ?? 0);
+            foreach ($wal->frames as $frame) {
+                if ($frame->index > $lastCommitFrame) {
+                    break;
+                }
+                $latestCommittedPageImages[$frame->pageNumber] = $frame->pageImage;
+            }
+
+            $appliedFrameIndexes = [];
+            $appliedPageNumbers = [];
+            $supersededFrameIndexes = [];
+            $supersededPageNumbers = [];
+            foreach ($checkpointPlan['frames'] as $frame) {
+                if ($frame['applied']) {
+                    $appliedFrameIndexes[] = $frame['frame_index'];
+                    $appliedPageNumbers[] = $frame['page_number'];
+                }
+                if ($frame['reason'] === 'superseded_by_later_committed_frame') {
+                    $supersededFrameIndexes[] = $frame['frame_index'];
+                    $supersededPageNumbers[] = $frame['page_number'];
+                }
+            }
+
+            $expectedCheckpointPages = $base['expected_followup_recovery_pages'];
+            $releasedMatchesExpectedPages = true;
+            foreach ($expectedCheckpointPages as $pageNumber) {
+                $pageNumber = (int) $pageNumber;
+                $releasedImage = self::databasePageSlice((string) $releasedCheckpoint['database_bytes'], $pageSize, $pageNumber);
+                if ($releasedImage === null || $releasedImage !== ($latestCommittedPageImages[$pageNumber] ?? null)) {
+                    $releasedMatchesExpectedPages = false;
+                    break;
+                }
+            }
+
+            $catalogPage = (int) $expectedCheckpointPages[0];
+            $recoveryInsertPage = (int) $expectedCheckpointPages[1];
+            $priorFollowupPage = (int) $expectedCheckpointPages[2];
+            $pinnedCatalogPageImage = self::databasePageSlice((string) $pinnedCheckpoint['database_bytes'], $pageSize, $catalogPage);
+            $pinnedRecoveryInsertPageImage = self::databasePageSlice((string) $pinnedCheckpoint['database_bytes'], $pageSize, $recoveryInsertPage);
+            $pinnedPriorFollowupPageImage = self::databasePageSlice((string) $pinnedCheckpoint['database_bytes'], $pageSize, $priorFollowupPage);
+            $finalKeys = array_column($recoveryPlan['import_plan']['final_rows'], 'key_name');
+
+            $scenarios[] = array_merge($base, [
+                'followup_recovery_checkpoint_mode' => $mode,
+                'followup_recovery_checkpoint_reader_end_frame' => $readerEndFrame,
+                'followup_recovery_checkpoint_database_bytes_before_hash' => hash('sha256', $checkpointInput),
+                'tail_recovery_checkpoint_followup_recovery_checkpoint_plan' => $checkpointPlan,
+                'tail_recovery_checkpoint_followup_recovery_released_checkpoint' => $releasedCheckpoint,
+                'tail_recovery_checkpoint_followup_recovery_pinned_checkpoint' => $pinnedCheckpoint,
+                'expected_followup_recovery_checkpoint_action' => $mode === 'truncate' ? 'truncate_wal' : 'restart_wal',
+                'expected_followup_recovery_released_wal_bytes_length' => $mode === 'truncate' ? 0 : 32,
+                'expected_followup_recovery_checkpoint_pages' => $expectedCheckpointPages,
+                'followup_recovery_checkpointed_pages_match' => $releasedMatchesExpectedPages,
+                'followup_recovery_pinned_catalog_matches_final_recovery' => $pinnedCatalogPageImage !== null
+                    && $pinnedCatalogPageImage === ($latestCommittedPageImages[$catalogPage] ?? null),
+                'followup_recovery_pinned_recovery_insert_matches_final_recovery' => $pinnedRecoveryInsertPageImage !== null
+                    && $pinnedRecoveryInsertPageImage === ($latestCommittedPageImages[$recoveryInsertPage] ?? null),
+                'followup_recovery_pinned_prior_followup_page_matches_final_recovery' => $pinnedPriorFollowupPageImage !== null
+                    && $pinnedPriorFollowupPageImage === ($latestCommittedPageImages[$priorFollowupPage] ?? null),
+                'followup_recovery_checkpoint_applied_frame_indexes' => $appliedFrameIndexes,
+                'followup_recovery_checkpoint_applied_page_numbers' => $appliedPageNumbers,
+                'followup_recovery_checkpoint_superseded_frame_indexes' => $supersededFrameIndexes,
+                'followup_recovery_checkpoint_superseded_page_numbers' => array_values(array_unique($supersededPageNumbers)),
+                'followup_recovery_inserted_key_retained_after_checkpoint' => in_array($base['expected_followup_recovery_inserted_key'], $finalKeys, true),
+                'followup_recovery_prior_followup_key_retained_after_checkpoint' => in_array($base['expected_tail_recovery_checkpoint_followup_inserted_key'], $finalKeys, true),
+                'followup_recovery_failed_tail_key_retained_after_checkpoint' => in_array($base['expected_followup_tail_inserted_key'], $finalKeys, true),
+            ]);
         }
 
         return $scenarios;

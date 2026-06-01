@@ -58,6 +58,10 @@ $hostlessExtensionContext = (new CredentialContext(
     url: 'abc:///wp-content/site.git',
     host: 'stale.git.example.test',
 ))->destructureUrl(true);
+$httpPathDisabledContext = (new CredentialContext(
+    url: 'https://git.example.test/ignored/wp-content.git',
+    path: 'cached/wp-content.git',
+))->destructureUrl(false);
 $duplicateInvalidStringRejected = false;
 try {
     CredentialContext::fromBytes("username=bad\xff\nusername=deploy-bot\n");
@@ -213,6 +217,11 @@ return [
         'host' => $hostlessExtensionContext->host,
         'path' => $hostlessExtensionContext->path,
     ],
+    'httpPathDisabledContext' => [
+        'protocol' => $httpPathDisabledContext->protocol,
+        'host' => $httpPathDisabledContext->host,
+        'path' => $httpPathDisabledContext->path,
+    ],
     'duplicateInvalidStringRejected' => $duplicateInvalidStringRejected,
     'constructorInvalidStringRejected' => $constructorInvalidStringRejected,
     'constructorByteFieldsPreserved' => $constructorByteContext->path === "srv/wp-content\xff.git"
@@ -240,5 +249,5 @@ return [
     'redactedBytes' => $redacted->storageBytes(),
     'clearedPassword' => $cleared->password,
     'clearedOauthRefreshToken' => $cleared->oauthRefreshToken,
-    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, destructure local mirror and extension-scheme remotes, enforce string-field UTF-8 boundaries, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs.',
+    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, destructure local mirror and extension-scheme remotes, preserve an explicit repository path when HTTP path matching is disabled, enforce string-field UTF-8 boundaries, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs.',
 ];

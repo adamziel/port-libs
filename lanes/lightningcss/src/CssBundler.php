@@ -1408,7 +1408,8 @@ final class CssBundler
     private function parseImportStatement(string $statement, array $loc, string $file): array
     {
         $statement = rtrim(trim($statement), ';');
-        $restStart = $this->atKeywordEndOffset($statement, 0, '@import') ?? strlen('@import');
+        $keywordEnd = $this->atKeywordEndOffset($statement, 0, '@import') ?? strlen('@import');
+        $restStart = $keywordEnd;
         $restEnd = strlen($statement);
         while ($restStart < $restEnd && ctype_space($statement[$restStart])) {
             $restStart++;
@@ -1428,7 +1429,14 @@ final class CssBundler
             } catch (CssBundleException) {
                 $this->throwInvalidImportSource($file, $loc);
             }
-            $specifier = $this->parseImportUrlFunctionSource(substr($rest, $open + 1, $close - $open - 1), $file, $loc);
+            $specifier = $this->parseImportUrlFunctionSource(
+                substr($rest, $open + 1, $close - $open - 1),
+                $file,
+                $loc,
+                $statement,
+                $keywordEnd,
+                $restStart + $open + 1
+            );
             $offset = $close + 1;
         } elseif (($rest[$offset] ?? '') === '"' || ($rest[$offset] ?? '') === "'") {
             $end = $this->readImportSourceStringEnd($rest, $offset, $file, $loc);
@@ -1500,24 +1508,28 @@ final class CssBundler
     /**
      * @param array{line:int,column:int} $loc
      */
-    private function parseImportUrlFunctionSource(string $source, string $file, array $loc): string
+    private function parseImportUrlFunctionSource(
+        string $source,
+        string $file,
+        array $loc,
+        string $statement,
+        int $badUrlOffsetInStatement,
+        int $sourceOffsetInStatement
+    ): string
     {
-        $offset = $this->skipWhitespaceAndComments($source, 0);
+        $offset = $this->skipWhitespaceOnly($source, 0);
         if (($source[$offset] ?? '') === '"' || ($source[$offset] ?? '') === "'") {
             $end = $this->readImportSourceStringEnd($source, $offset, $file, $loc);
-            $after = $this->skipWhitespaceAndComments($source, $end);
+            $after = $this->skipWhitespaceOnly($source, $end);
             if ($after < strlen($source)) {
-                $this->throwInvalidImportSource($file, $loc);
+                $this->throwUnexpectedImportUrlToken($source, $after, $file, $loc, $statement, $sourceOffsetInStatement + $end);
             }
 
             return $this->cssStringTokenValue(substr($source, $offset, $end - $offset));
         }
 
-        $specifier = $this->trimWhitespaceAndComments($source);
-        if ($this->containsUnescapedCommentStart($specifier)) {
-            $this->throwInvalidImportSource($file, $loc);
-        }
-        $this->validateUnquotedImportUrlSource($specifier, $file, $loc);
+        $specifier = trim($source);
+        $this->validateUnquotedImportUrlSource($specifier, $file, $loc, $statement, $badUrlOffsetInStatement);
 
         return $this->decodeCssEscapes($specifier);
     }
@@ -3606,6 +3618,16 @@ final class CssBundler
         return $offset;
     }
 
+    private function skipWhitespaceOnly(string $value, int $offset): int
+    {
+        $length = strlen($value);
+        while ($offset < $length && ctype_space($value[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
+    }
+
     private function trimWhitespaceAndComments(string $value): string
     {
         $start = $this->skipWhitespaceAndComments($value, 0);
@@ -3640,27 +3662,6 @@ final class CssBundler
         }
 
         return substr($value, $start, $lastNonTriviaEnd - $start);
-    }
-
-    private function containsUnescapedCommentStart(string $value): bool
-    {
-        $cursor = 0;
-        $length = strlen($value);
-
-        while ($cursor < $length) {
-            if ($value[$cursor] === '\\') {
-                $cursor = $this->cssEscapeEndOffset($value, $cursor) + 1;
-                continue;
-            }
-
-            if ($value[$cursor] === '/' && ($value[$cursor + 1] ?? '') === '*') {
-                return true;
-            }
-
-            $cursor++;
-        }
-
-        return false;
     }
 
     private function startsAtKeyword(string $css, int $offset, string $keyword): bool
@@ -3792,7 +3793,13 @@ final class CssBundler
     /**
      * @param array{line:int,column:int} $loc
      */
-    private function validateUnquotedImportUrlSource(string $source, string $file, array $loc): void
+    private function validateUnquotedImportUrlSource(
+        string $source,
+        string $file,
+        array $loc,
+        string $statement,
+        int $badUrlOffsetInStatement
+    ): void
     {
         $length = strlen($source);
         for ($i = 0; $i < $length; $i++) {
@@ -3801,12 +3808,12 @@ final class CssBundler
 
             if ($char === '\\') {
                 if ($i + 1 >= $length) {
-                    $this->throwInvalidImportSource($file, $loc);
+                    $this->throwBadUrlImportSource($source, $file, $loc, $statement, $badUrlOffsetInStatement);
                 }
 
                 $next = $source[$i + 1];
                 if ($next === "\n" || $next === "\f" || $next === "\r") {
-                    $this->throwInvalidImportSource($file, $loc);
+                    $this->throwBadUrlImportSource($source, $file, $loc, $statement, $badUrlOffsetInStatement);
                 }
 
                 $i = $this->cssEscapeEndOffset($source, $i);
@@ -3823,9 +3830,27 @@ final class CssBundler
                 || ($byte >= 14 && $byte <= 31)
                 || $byte === 127
             ) {
-                $this->throwInvalidImportSource($file, $loc);
+                $this->throwBadUrlImportSource(
+                    $this->badUrlTokenValueFromInvalidSource($source, $i),
+                    $file,
+                    $loc,
+                    $statement,
+                    $badUrlOffsetInStatement
+                );
             }
         }
+    }
+
+    private function badUrlTokenValueFromInvalidSource(string $source, int $invalidOffset): string
+    {
+        $length = strlen($source);
+        for ($cursor = $invalidOffset; $cursor < $length; $cursor++) {
+            if ($source[$cursor] === ')') {
+                return substr($source, 0, $cursor);
+            }
+        }
+
+        return $source;
     }
 
     /**
@@ -3834,6 +3859,70 @@ final class CssBundler
     private function throwInvalidImportSource(string $file, array $loc): void
     {
         throw new CssBundleException('parser-error', 'Invalid @import source', $file, $loc['line'], $loc['column']);
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function throwBadUrlImportSource(
+        string $source,
+        string $file,
+        array $loc,
+        string $statement,
+        int $urlOffsetInStatement
+    ): void {
+        $diagnostic = $this->sourceLocationRelativeTo($statement, $urlOffsetInStatement, $loc);
+
+        throw new CssBundleException(
+            'parser-error',
+            'Unexpected token BadUrl("' . addcslashes($source, "\\\"\n\r\t\f") . '")',
+            $file,
+            $diagnostic['line'],
+            $diagnostic['column'],
+        );
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function throwUnexpectedImportUrlToken(
+        string $source,
+        int $offset,
+        string $file,
+        array $loc,
+        string $statement,
+        int $offsetInStatement
+    ): void {
+        $diagnostic = $this->sourceLocationRelativeTo($statement, $offsetInStatement, $loc);
+
+        throw new CssBundleException(
+            'parser-error',
+            'Unexpected token ' . $this->describeImportUrlToken($source, $offset),
+            $file,
+            $diagnostic['line'],
+            $diagnostic['column'],
+        );
+    }
+
+    private function describeImportUrlToken(string $source, int $offset): string
+    {
+        $char = $source[$offset] ?? '';
+        if ($char === ',') {
+            return 'Comma';
+        }
+
+        if ($char === '"' || $char === "'") {
+            $end = $this->readQuotedTokenEnd($source, $offset);
+
+            return 'String("' . addcslashes($this->cssStringTokenValue(substr($source, $offset, $end - $offset)), "\\\"") . '")';
+        }
+
+        $identifier = $this->readCssIdentifierToken($source, $offset);
+        if ($identifier !== null) {
+            return 'Ident("' . addcslashes($identifier['name'], "\\\"") . '")';
+        }
+
+        return 'Delim("' . addcslashes($char, "\\\"") . '")';
     }
 
     /**

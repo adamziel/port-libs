@@ -157,6 +157,20 @@ return [
         $t->same('host', $http->host);
         $t->same(null, $http->path);
 
+        $httpPathDisabledPreservesExistingPath = (new CredentialContext(
+            url: 'https://github.com/byron/gitoxide',
+            path: 'cached/wp-content.git',
+        ))->destructureUrl(false);
+        $t->same('https', $httpPathDisabledPreservesExistingPath->protocol);
+        $t->same('github.com', $httpPathDisabledPreservesExistingPath->host);
+        $t->same('cached/wp-content.git', $httpPathDisabledPreservesExistingPath->path);
+
+        $rootHttpPathDisabledPreservesExistingPath = (new CredentialContext(
+            url: 'https://github.com/',
+            path: 'cached/wp-content.git',
+        ))->destructureUrl(false);
+        $t->same('cached/wp-content.git', $rootHttpPathDisabledPreservesExistingPath->path);
+
         $withHttpPath = (new CredentialContext(url: 'https://github.com/byron/gitoxide/'))->destructureUrl(true);
         $t->same('github.com', $withHttpPath->host);
         $t->same('byron/gitoxide', $withHttpPath->path);
@@ -306,6 +320,11 @@ return [
             'host' => null,
             'path' => 'wp-content/site.git',
         ], $fixture['hostlessExtensionContext']);
+        $t->same([
+            'protocol' => 'https',
+            'host' => 'git.example.test',
+            'path' => 'cached/wp-content.git',
+        ], $fixture['httpPathDisabledContext']);
         $t->same(null, $fixture['clearedPassword']);
         $t->same(false, $fixture['emptyQuitFalse']);
         $t->same(1711398853, $fixture['passwordExpiryUtc']);
@@ -348,6 +367,7 @@ return [
         $t->same($fixture['fileAuthorityContext'], $summary['fileAuthorityContext']);
         $t->same($fixture['pathlessExtensionContext'], $summary['pathlessExtensionContext']);
         $t->same($fixture['hostlessExtensionContext'], $summary['hostlessExtensionContext']);
+        $t->same($fixture['httpPathDisabledContext'], $summary['httpPathDisabledContext']);
         $t->same(true, $summary['rootHttpPathCleared']);
         $t->same($fixture['helperProgramProtocolHost'], $summary['helperProgramProtocolHost']);
         $t->same($fixture['helperProgramUrlOnly'], $summary['helperProgramUrlOnly']);

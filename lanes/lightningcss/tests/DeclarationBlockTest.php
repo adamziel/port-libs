@@ -881,6 +881,39 @@ return [
             $block->removeProperty('transform: translate(10px); translate: 12px 0; rotate: 0; scale: 105%; color: red', 'transform')
         );
     },
+    'declaration block canonicalizes upstream transform origin cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'transform-origin: LEFT top; -webkit-transform-origin: right bottom !important; -moz-transform-origin: center 0px; --Transform-Origin: LEFT top';
+
+        $t->same(
+            [
+                'transform-origin' => '0 0',
+                '-webkit-transform-origin' => '100% 100% !important',
+                '-moz-transform-origin' => '50% 0',
+                '--Transform-Origin' => 'LEFT top',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => '0 0', 'important' => false], $block->getProperty($declarations, 'transform-origin'));
+        $t->same(
+            ['value' => '100% 100%', 'important' => true],
+            $block->getProperty($declarations, '-webkit-transform-origin')
+        );
+        $t->same(['value' => '50% 0', 'important' => false], $block->getProperty($declarations, '-moz-transform-origin'));
+        $t->same(['value' => 'LEFT top', 'important' => false], $block->getProperty($declarations, '--Transform-Origin'));
+        $t->same(
+            'transform-origin: 50% 100%; -moz-transform-origin: 50% 0; --Transform-Origin: LEFT top; -webkit-transform-origin: 100% 100% !important',
+            $block->setProperty($declarations, 'transform-origin', 'bottom')
+        );
+        $t->same(
+            'transform-origin: 0 0; -moz-transform-origin: 50% 0; --Transform-Origin: LEFT top; -webkit-transform-origin: 0 50% !important',
+            $block->setProperty($declarations, '-webkit-transform-origin', 'left', true)
+        );
+        $t->same(
+            'transform-origin: 0 0; --Transform-Origin: LEFT top; -webkit-transform-origin: 100% 100% !important',
+            $block->removeProperty($declarations, '-moz-transform-origin')
+        );
+    },
     'declaration block enumerates upstream cssom length and item order' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'color: red !important; background: white; --Block-Accent: blue; margin: 1rem !important; color: green';

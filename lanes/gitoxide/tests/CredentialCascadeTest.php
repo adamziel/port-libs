@@ -135,6 +135,22 @@ return [
         $t->same(null, $result->context->path);
         $t->same(false, str_contains($result->nextActionBytes(), "path=stale/repository/path\n"));
     },
+    'credential cascade helper http urls preserve direct paths when http paths are disabled' => static function (TestRunner $t): void {
+        $cascade = new CredentialCascade([
+            static fn (): string => "protocol=ftp\nhost=stale.example.test\npath=/tenant/wp-content.git/\nurl=https://git.example.test/ignored/path.git\n",
+            static fn (): string => "username=deploy\npassword=token\n",
+        ], useHttpPath: false);
+
+        $result = $cascade->get(new CredentialContext(url: 'https://origin.example.test/origin.git'));
+
+        $t->same('https', $result->context->protocol);
+        $t->same('git.example.test', $result->context->host);
+        $t->same('/tenant/wp-content.git/', $result->context->path);
+        $t->same('deploy', $result->username);
+        $t->same('token', $result->password);
+        $t->contains("path=/tenant/wp-content.git/\n", $result->nextActionBytes());
+        $t->same(false, str_contains($result->nextActionBytes(), 'ignored/path.git'));
+    },
     'credential cascade helper file urls clear stale network host context' => static function (TestRunner $t): void {
         $cascade = new CredentialCascade([
             static fn (): string => "host=stale.example.test\nusername=stale-user\nurl=file:///srv/wp-content.git\n",

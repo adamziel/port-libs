@@ -22,6 +22,7 @@ return [
     'fileAuthorityContext' => $fixture['fileAuthorityContext'],
     'pathlessExtensionContext' => $fixture['pathlessExtensionContext'],
     'hostlessExtensionContext' => $fixture['hostlessExtensionContext'],
+    'httpPathDisabledContext' => $fixture['httpPathDisabledContext'],
     'duplicateInvalidStringRejected' => $fixture['duplicateInvalidStringRejected'],
     'constructorInvalidStringRejected' => $fixture['constructorInvalidStringRejected'],
     'constructorByteFieldsPreserved' => $fixture['constructorByteFieldsPreserved'],

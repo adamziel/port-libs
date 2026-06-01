@@ -2211,6 +2211,51 @@ return [
         $t->same([], $child->getNames());
         $t->same('', $child->writeVlq());
     },
+    'source map preserves generated-only child gaps between source-backed offset merges' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $entry = $parent->addSource('entry.css');
+        foreach ([0, 1, 2, 3, 4, 5] as $line) {
+            $parent->addMapping($line, 0, $entry, $line, 0, 'parent' . $line);
+        }
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('sandwich-child.css');
+        $child->setSourceContent($childSource, ".before{}\n.generated{}\n.after{}\n");
+        $child->addMapping(0, 0, $childSource, 10, 0, 'beforeChild');
+        $child->addGeneratedMapping(1, 6);
+        $child->addMapping(2, 3, $childSource, 12, 2, 'afterChild');
+
+        $t->same(
+            '{"version":3,"mappings":"AAUAA;M;GAEEC","sources":["sandwich-child.css"],"sourcesContent":[".before{}\n.generated{}\n.after{}\n"],"names":["beforeChild","afterChild"]}',
+            $child->toJson(null, false)
+        );
+
+        $parent->addSourceMap($child, 1);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $roundTrip = SourceMap::fromBuffer('/', $parent->toBuffer());
+        $data = $parent->toArray(null, false);
+
+        $t->same('AAAAA;ACUAM;M;GAEEC;ADRFH;AACAC', $parent->writeVlq());
+        $t->same([0, 1, 2, 3, 4, 5], array_column($decoded, 'generatedLine'));
+        $t->same([0, 0, 6, 3, 0, 0], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 1, null, 1, 0, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 10, null, 12, 4, 5], array_column($decoded, 'originalLine'));
+        $t->same([0, 0, null, 2, 0, 0], array_column($decoded, 'originalColumn'));
+        $t->same([0, 6, null, 7, 4, 5], array_column($decoded, 'nameIndex'));
+        $t->same(['entry.css', 'sandwich-child.css'], $data['sources']);
+        $t->same(['', ".before{}\n.generated{}\n.after{}\n"], $data['sourcesContent']);
+        $t->same(['parent0', 'parent1', 'parent2', 'parent3', 'parent4', 'parent5', 'beforeChild', 'afterChild'], $data['names']);
+        $t->same(
+            ['generatedLine' => 2, 'generatedColumn' => 6, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
+            $parent->findClosestMapping(2, 6)
+        );
+        $t->same(12, $parent->findClosestMapping(3, 3)['originalLine'] ?? null);
+        $t->same(7, $parent->findClosestMapping(3, 3)['nameIndex'] ?? null);
+        $t->same('AAAAA;ACUAM;M;GAEEC;ADRFH;AACAC', $roundTrip->writeVlq());
+        $t->same([], $child->getSources());
+        $t->same([], $child->getNames());
+        $t->same('', $child->writeVlq());
+    },
     'source map drains child tables when upstream offset merge rejects remapped indexes' => static function (TestRunner $t): void {
         $parent = new SourceMap();
         $parentSource = $parent->addSource('parent.css');

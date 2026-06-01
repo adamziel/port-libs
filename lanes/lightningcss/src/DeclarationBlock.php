@@ -14020,6 +14020,10 @@ final class DeclarationBlock
             return $this->normalizeTransformDeclarationValue($property, $value);
         }
 
+        if ($this->normalizeTransformDeclarations && $this->isTransformOriginDeclarationProperty($property)) {
+            return $this->normalizeTransformOriginDeclarationValue($value);
+        }
+
         $flexValue = $this->normalizeFlexDeclarationValue($property, $value);
         if ($flexValue !== null) {
             return $flexValue;
@@ -15098,6 +15102,90 @@ final class DeclarationBlock
     private function normalizeTransformDeclarationValue(string $property, string $value): string
     {
         return $this->normalizeMinifiedDeclarationValue($property, $value);
+    }
+
+    private function isTransformOriginDeclarationProperty(string $property): bool
+    {
+        return in_array(
+            $property,
+            [
+                'transform-origin',
+                '-webkit-transform-origin',
+                '-moz-transform-origin',
+                '-ms-transform-origin',
+                '-o-transform-origin',
+            ],
+            true
+        );
+    }
+
+    private function normalizeTransformOriginDeclarationValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        if (count($tokens) > 2) {
+            return implode(' ', $tokens);
+        }
+
+        if (count($tokens) === 1) {
+            $axis = $this->transformOriginSpecificAxis($tokens[0]);
+            if ($axis === 'y') {
+                return '50% ' . $this->normalizeTransformOriginComponentToken($tokens[0], 'y');
+            }
+
+            return $this->normalizeTransformOriginComponentToken($tokens[0], 'x') . ' 50%';
+        }
+
+        [$first, $second] = $tokens;
+        $firstAxis = $this->transformOriginSpecificAxis($first);
+        $secondAxis = $this->transformOriginSpecificAxis($second);
+
+        if ($firstAxis === 'y' && $secondAxis !== 'y') {
+            return $this->normalizeTransformOriginComponentToken($second, 'x')
+                . ' '
+                . $this->normalizeTransformOriginComponentToken($first, 'y');
+        }
+
+        if ($secondAxis === 'x' && $firstAxis !== 'x') {
+            return $this->normalizeTransformOriginComponentToken($second, 'x')
+                . ' '
+                . $this->normalizeTransformOriginComponentToken($first, 'y');
+        }
+
+        return $this->normalizeTransformOriginComponentToken($first, 'x')
+            . ' '
+            . $this->normalizeTransformOriginComponentToken($second, 'y');
+    }
+
+    private function transformOriginSpecificAxis(string $token): ?string
+    {
+        $keyword = strtolower(trim($token));
+        if ($keyword === 'left' || $keyword === 'right') {
+            return 'x';
+        }
+        if ($keyword === 'top' || $keyword === 'bottom') {
+            return 'y';
+        }
+
+        return null;
+    }
+
+    private function normalizeTransformOriginComponentToken(string $token, ?string $axis): string
+    {
+        $keyword = strtolower(trim($token));
+        $keywordValue = match ($keyword) {
+            'left' => $axis === null || $axis === 'x' ? '0' : null,
+            'right' => $axis === null || $axis === 'x' ? '100%' : null,
+            'top' => $axis === null || $axis === 'y' ? '0' : null,
+            'bottom' => $axis === null || $axis === 'y' ? '100%' : null,
+            'center' => '50%',
+            default => null,
+        };
+
+        return $keywordValue ?? $this->normalizeLengthPercentageOrAutoToken($token);
     }
 
     private function normalizeMinifiedDeclarationValue(string $property, string $value): string
