@@ -2,15 +2,15 @@
     "schemaVersion": 1,
     "library": "LightningCSS",
     "estimatedProgress": 97.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS custom at-rule and CSS Modules replay. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 5683 assertions / 0 failures, and touched examples.",
-    "phpPass": 5683,
+    "suiteProgress": "Supervisor-integrated LightningCSS CSSOM, target-prefix, and media-query replay. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 5714 assertions / 0 failures, and touched examples.",
+    "phpPass": 5714,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 supervisor replay: full LightningCSS lane passed 13 files / 5683 assertions / 0 failures after accepting custom at-rule length/percentage visitor parity and CSS Modules composes nesting parity. Conservative mapped coverage moves to 2315 / 3532; CSS Modules deepens an existing cluster. Full upstream Rust/Node/WASM runners were not executed.",
-    "currentWork": "Custom at-rule length/percentage prelude visitor parity and CSS Modules composes nesting parity integrated on current base.",
-    "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 5683 assertions; continue source-map, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices.",
-    "latestCommit": "87e4caa03f6bc9f6e43e940b861dab24648f35c0",
+    "audit": "2026-06-01 supervisor replay: full LightningCSS lane passed 13 files / 5714 assertions / 0 failures after accepting CSSOM direct enum declaration parity, target-prefix print-color-adjust boundary cleanup, and media-query range layer target fallback parity. Conservative mapped coverage remains 2315 / 3532 because these deepen represented CSSOM/target/media clusters. Full upstream Rust/Node/WASM runners were not executed.",
+    "currentWork": "CSSOM direct enum declaration parity, target-prefix print-color-adjust boundary cleanup, and media-query range layer target fallback parity integrated on current base.",
+    "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 5714 assertions; continue source-map, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices.",
+    "latestCommit": "d7e69cc2b6957550680f64bf150f695681d4610f",
     "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media queries, property values, target prefixing, CSSOM, and custom at-rules with full-lane PHP gates.",
-    "commit": "87e4caa03f6bc9f6e43e940b861dab24648f35c0"
+    "commit": "d7e69cc2b6957550680f64bf150f695681d4610f"
 }

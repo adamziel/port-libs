@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "library": "libsqlite",
     "estimatedProgress": 99.4,
-    "suiteProgress": "Supervisor-integrated libsqlite replay: real upstream skipscan2 B-tree/index dynamic corpus plus source-neutral trigger/upsert/view defaults cleanup. Focused gate passed 5 files / 27237 assertions / 0 failures and touched examples.",
+    "suiteProgress": "Supervisor-integrated libsqlite source-neutral encoding default-source cleanup. Focused encoding gate passed 3 files / 126 assertions / 0 failures and the touched example; no phpPass or mapped-coverage counter change claimed.",
     "phpPass": 5429406,
     "phpFail": 7,
     "wordpressScenarios": "Generic application/self-test coverage now includes skipscan2 optoverview people/height skip-scan thresholds, PRAGMA trusted_schema schema-function safety, e_select2 derived-source SELECT joins, expression-affinity comparison and IN-list semantics, WAL rollback JSON tails and checkpoint-followup tail recovery, key-value WAL import cleanup, FK parent-index diagnostics, row-value UPDATE/DELETE LIMIT execution including random() expressions, master-journal WAL pager behavior, PRAGMA lock_proxy_file and data_store_directory handling, SELECT/window planner behavior, trigger/fkey limits, date/time modifier behavior, B-tree left-join/index/delete guards, JSON/JSONB update/subtype/char-built validity behavior, VFS fallocate/shared-lock/batch-atomic lifecycle and win32lock retry behavior, pager WAL reused-log prefix recovery, pager crash recovery, and app-WAL post-checkpoint tail recovery. No domain-specific libsqlite API is accepted.",
     "phase": "focused source-neutral cleanup and real-upstream dynamic corpus accepted; broad full-lane and release/all parity remain open",
-    "audit": "2026-06-01 supervisor replay: focused libsqlite gate passed 5 files / 27237 assertions / 0 failures, covering upstream skipscan2.test sections 1.3 through 3.3eqp and source-neutral trigger/upsert/view defaults cleanup. Mapped denominator remains 1589 / 1589; cumulative selected libsqlite evidence increases to 5429406 pass with 7 known broad-lane failures.",
-    "currentWork": "Real upstream skipscan2 optoverview B-tree/index dynamic corpus and source-neutral trigger/upsert/view defaults cleanup integrated on current base.",
+    "audit": "2026-06-01 supervisor replay: focused libsqlite encoding cleanup gate passed 3 files / 126 assertions / 0 failures after accepting source-neutral default-source cleanup for LIKE/GLOB affinity helpers. Mapped denominator remains 1589 / 1589; cumulative selected libsqlite evidence remains 5429406 pass with 7 known broad-lane failures because this is source-neutral cleanup only.",
+    "currentWork": "Source-neutral encoding default-source cleanup integrated for LIKE/GLOB affinity helpers.",
     "blocker": "Broad libsqlite full-lane/release parity is not green: sampled failures reproduce on clean base. Stricter source cleanup remains required for pre-existing wp_ fixture text and CurrentSourceNext/CurrentNext/numbered-plan source names before declaring libsqlite complete.",
-    "nextTask": "Continue broad release/all parity blockers, source-neutral cleanup of pre-existing wp_ fixture text and CurrentSourceNext/CurrentNext/numbered-plan names, and non-overlapping real-corpus B-tree/index coverage such as skipscan3/skipscan5/stat4/mixed-type range cases if not already admitted.",
+    "nextTask": "Continue broad release/all parity blockers, source-neutral cleanup of pre-existing wp_ fixture text and CurrentSourceNext/CurrentNext/numbered-plan names, and non-overlapping real-corpus B-tree/index/window/stat4 coverage.",
     "wordpressScenarioLatest": "Latest accepted batch kept source-neutral production source/API guardrails while adding generic skipscan2 optoverview B-tree/index planner coverage. Pre-existing wp_ fixture strings and CurrentSourceNext/CurrentNext class names remain cleanup debt.",
-    "latestCommit": "87e4caa03f6bc9f6e43e940b861dab24648f35c0",
-    "commit": "87e4caa03f6bc9f6e43e940b861dab24648f35c0"
+    "latestCommit": "d7e69cc2b6957550680f64bf150f695681d4610f",
+    "commit": "d7e69cc2b6957550680f64bf150f695681d4610f"
 }
