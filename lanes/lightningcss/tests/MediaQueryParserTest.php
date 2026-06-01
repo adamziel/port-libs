@@ -279,6 +279,42 @@ return [
             $t->throws(InvalidArgumentException::class, static fn () => (new CssMinifier())->minify($css));
         }
     },
+    'media query parser rejects upstream bare not operands in boolean conditions' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+
+        $t->same('not (color)', $parser->minifyList('not (color)'));
+        $t->same('(not (color)) and (hover)', $parser->minifyList('(not (color)) and (hover)'));
+        $t->same('screen and not (color)', $parser->minifyList('screen and not (color)'));
+        $t->same('screen and (not (color)) and (hover)', $parser->minifyList('screen and ((not (color)) and (hover))'));
+        $t->same(
+            '@layer blocks{@media (not (color)) and (hover){.wp-block-query{color:#ff0}}}',
+            (new CssMinifier())->minify('@layer blocks { @media (not (color)) and (hover) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media screen and (not (color)) and (hover){.wp-block-query{color:#ff0}}}',
+            (new CssMinifier())->minify('@layer blocks { @media screen and ((not (color)) and (hover)) { .wp-block-query { color: yellow; } } }')
+        );
+
+        foreach ([
+            'not (color) and (hover)',
+            'not (color) or (hover)',
+            'not (width < 240px) and (hover)',
+            '(hover) and not (color)',
+            '(hover) or not (color)',
+            'screen and not (color) and (hover)',
+            'screen and (hover) and not (color)',
+        ] as $query) {
+            $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList($query));
+        }
+
+        foreach ([
+            '@layer blocks { @media not (width < 240px) and (hover) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (hover) and not (color) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media screen and not (color) and (hover) { .wp-block-query { color: chartreuse; } } }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new CssMinifier())->minify($css));
+        }
+    },
     'media query parser lowers range syntax for legacy target fallbacks' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 

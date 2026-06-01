@@ -58,6 +58,18 @@ $css = <<<'CSS'
     }
   }
 
+  @media (not (color)) and (hover) {
+    .wp-block-query__not-color-hover {
+      color: yellow;
+    }
+  }
+
+  @media screen AND ((not (color)) AND (hover)) {
+    .wp-block-query__screen-not-color-hover {
+      color: yellow;
+    }
+  }
+
   @media screen/* migration breakpoint */and (width >= 782px) {
     .wp-block-query__commented-media {
       color: yellow;
@@ -98,7 +110,7 @@ CSS;
 
 $minifier = new CssMinifier();
 $actual = $minifier->minify($css);
-$expected = '@layer theme;@layer blocks{.wp-block-query{color:red;background:#fff}.wp-block-query__empty{color:#7fff00}.wp-block-query__always-list{color:#7fff00}@media (width>=600px) and (hover) and (color){.wp-block-query{color:#ff0}}@media screen and ((color) or (hover)){.wp-block-query__screen-feature{color:#ff0}}@media screen and (width>=782px){.wp-block-query__commented-media{color:#ff0}}@media only screen and (width>=960px){.wp-block-query__legacy-commented-media{color:#7fff00}}@media ((width>480px) and (hover)) or (pointer:coarse){.wp-block-query.is-adaptive{color:#ff0}}@media (width>=960px){.wp-block-query.is-wide{color:#7fff00}}@media (width<720px){.wp-block-query.is-narrow{color:#ff0}}@media (grid:1){.wp-block-query.is-masonry-capable{color:#7fff00}}}@layer utilities;';
+$expected = '@layer theme;@layer blocks{.wp-block-query{color:red;background:#fff}.wp-block-query__empty{color:#7fff00}.wp-block-query__always-list{color:#7fff00}@media (width>=600px) and (hover) and (color){.wp-block-query{color:#ff0}}@media screen and ((color) or (hover)){.wp-block-query__screen-feature{color:#ff0}}@media (not (color)) and (hover){.wp-block-query__not-color-hover{color:#ff0}}@media screen and (not (color)) and (hover){.wp-block-query__screen-not-color-hover{color:#ff0}}@media screen and (width>=782px){.wp-block-query__commented-media{color:#ff0}}@media only screen and (width>=960px){.wp-block-query__legacy-commented-media{color:#7fff00}}@media ((width>480px) and (hover)) or (pointer:coarse){.wp-block-query.is-adaptive{color:#ff0}}@media (width>=960px){.wp-block-query.is-wide{color:#7fff00}}@media (width<720px){.wp-block-query.is-narrow{color:#ff0}}@media (grid:1){.wp-block-query.is-masonry-capable{color:#7fff00}}}@layer utilities;';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($actual !== $expected) {
@@ -121,6 +133,8 @@ if (($argv[1] ?? null) === '--self-test') {
         '@layer blocks { @media ((color) or unknown(foo)) { .wp-block-query { color: chartreuse; } } }',
         '@layer blocks { @media (not unknown(foo)) { .wp-block-query { color: chartreuse; } } }',
         '@layer blocks { @media (hover) and { .wp-block-query { color: chartreuse; } } }',
+        '@layer blocks { @media not (color) and (hover) { .wp-block-query { color: chartreuse; } } }',
+        '@layer blocks { @media screen and (hover) and not (color) { .wp-block-query { color: chartreuse; } } }',
     ] as $invalidLayerCss) {
         try {
             $minifier->minify($invalidLayerCss);

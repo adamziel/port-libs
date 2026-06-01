@@ -1242,6 +1242,15 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'opera', [0], [74, 255, 255])
                 || $this->targetInRange($normalized, 'safari', [0], [8, 255, 255])
                 || $this->targetInRange($normalized, 'samsung', [0], [14, 255, 255]),
+            'placeholderNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [4], [56])
+                || $this->targetInRange($normalized, 'ios_saf', [4, 3], [10])
+                || $this->targetInRange($normalized, 'opera', [15], [43])
+                || $this->targetInRange($normalized, 'safari', [5], [10])
+                || $this->targetInRange($normalized, 'samsung', [4], [6, 2]),
+            'placeholderNeedsMoz' => $this->targetInRange($normalized, 'firefox', [18], [50]),
+            'placeholderNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [18])
+                || $this->targetAtLeast($normalized, 'ie', [10]),
             'selectorLangListNeedsFallback' => $selectorLangListNeedsFallback,
             'selectorDirNeedsLangFallback' => $selectorDirNeedsLangFallback,
             'selectorDirFallbackNeedsIsWrapper' => $selectorLangListNeedsFallback,
@@ -2122,6 +2131,7 @@ final class TransitionPrefixer
         $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewriteLangSelectorVariants($selector, $targetOptions));
         $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewriteDirSelectorVariants($selector, $targetOptions));
         $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewriteNotSelectorVariants($selector, $targetOptions));
+        $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewritePlaceholderSelectorVariants($selector, $targetOptions));
         $variants = array_values(array_unique($variants));
 
         return $variants === [$selectors] ? null : $variants;
@@ -2191,6 +2201,41 @@ final class TransitionPrefixer
         $variants[] = $this->replaceSimpleListFunction($selector, 'not', 'not:is', true);
 
         return array_values(array_unique($variants));
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<string>
+     */
+    private function rewritePlaceholderSelectorVariants(string $selector, array $targetOptions): array
+    {
+        if (!$this->selectorHasUnprefixedPlaceholderPseudo($selector)) {
+            return [$selector];
+        }
+
+        $variants = [];
+        if ($targetOptions['placeholderNeedsWebkit'] ?? false) {
+            $variants[] = $this->replacePlaceholderPseudo($selector, '::-webkit-input-placeholder');
+        }
+        if ($targetOptions['placeholderNeedsMoz'] ?? false) {
+            $variants[] = $this->replacePlaceholderPseudo($selector, '::-moz-placeholder');
+        }
+        if ($targetOptions['placeholderNeedsMs'] ?? false) {
+            $variants[] = $this->replacePlaceholderPseudo($selector, '::-ms-input-placeholder');
+        }
+        $variants[] = $selector;
+
+        return array_values(array_unique($variants));
+    }
+
+    private function selectorHasUnprefixedPlaceholderPseudo(string $selector): bool
+    {
+        return preg_match('/::placeholder(?![-_a-z0-9])/i', $selector) === 1;
+    }
+
+    private function replacePlaceholderPseudo(string $selector, string $replacement): string
+    {
+        return preg_replace('/::placeholder(?![-_a-z0-9])/i', $replacement, $selector) ?? $selector;
     }
 
     private function selectorContainsSimpleListFunction(string $selector, string $name, bool $requiresList): bool

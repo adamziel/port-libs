@@ -3129,6 +3129,10 @@ return [
         $t->contains($fixture['newCommit'], $commands[0]);
         $t->same(['ci.skip'], $options);
         $t->contains('PACK', $packBytes);
+        $t->same(65516, $fixture['requestPacketLineMaxPayloadLength']);
+        $t->same('fff0', $fixture['maxRequestCommandPacketHeader']);
+        $t->same(true, $fixture['oversizeRequestCommandRejected']);
+        $t->same(true, $fixture['oversizePushOptionRejected']);
         $t->same("git-receive-pack /wp-content.git\0host=git-mirror.example.test\0\0version=2\0", substr($fixture['gitDaemonEncodedUrlServiceRequest'], 4));
         $t->same("git-receive-pack /wp-content.git\0host=git.example.test\0\0version=2\0session-id\0object-format=sha1\0", substr($fixture['gitDaemonValueOnlyExtraServiceRequest'], 4));
         $t->same("git-receive-pack ~/wp-content.git\0host=git.example.test\0\0version=2\0session-id\0object-format=sha1\0", substr($fixture['gitDaemonProtocolV2HomeServiceRequest'], 4));

@@ -117,6 +117,7 @@ final class MediaQueryParser
         $query = $this->normalizeWhitespace($query);
         $this->validateTopLevelLogicalOperators($query);
         $this->validateTopLevelConditionFunctions($query);
+        $this->validateTopLevelConditionOperationOperands($query);
         $query = $this->normalizeBooleanConditionGroups($query);
         $this->validateExplicitMediaTypeConditionSeparator($query);
         $this->validateExplicitMediaTypeCondition($query);
@@ -256,6 +257,17 @@ final class MediaQueryParser
 
             throw new \InvalidArgumentException("Invalid media query condition operand: {$part}");
         }
+    }
+
+    private function validateTopLevelConditionOperationOperands(string $query): void
+    {
+        $mediaPrefix = $this->extractExplicitMediaTypePrefix($query);
+        if ($mediaPrefix !== null) {
+            $this->validateConditionOperationOperands($mediaPrefix['condition']);
+            return;
+        }
+
+        $this->validateConditionOperationOperands($query);
     }
 
     private function isSingleParenthesizedCondition(string $condition): bool

@@ -6,6 +6,8 @@ namespace PortLibs\Gitoxide;
 
 final class PushCommand
 {
+    private const MAX_PACKET_LINE_LENGTH = 65520;
+
     private const FEATURE_ORDER = [
         'report-status-v2',
         'report-status',
@@ -205,8 +207,8 @@ final class PushCommand
     private static function packetLine(string $payload): string
     {
         $length = strlen($payload) + 4;
-        if ($length > 0xffff) {
-            throw new \InvalidArgumentException('push: packet line is too large');
+        if ($length > self::MAX_PACKET_LINE_LENGTH) {
+            throw new \InvalidArgumentException('push: packet line exceeds maximum length');
         }
 
         return sprintf('%04x', $length) . $payload;

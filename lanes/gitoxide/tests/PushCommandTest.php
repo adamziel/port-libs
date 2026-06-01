@@ -84,6 +84,39 @@ return [
         $t->same(['ci.skip', 'deploy=staging'], $options);
         $t->same('', $remaining);
     },
+    'push command caps request packet lines at upstream gix-packetline maximum' => static function (TestRunner $t) use ($packetPayloads): void {
+        $maxPayloadLength = 65516;
+        $capabilities = ProtocolCapabilities::fromV1Bytes("\0report-status push-options")['capabilities'];
+        $commandPrefix = str_repeat('0', 40)
+            . ' '
+            . str_repeat('a', 40)
+            . ' refs/heads/main'
+            . "\0 report-status agent=";
+        $agentLength = $maxPayloadLength - strlen($commandPrefix);
+        $command = PushCommand::create($capabilities, str_repeat('a', $agentLength));
+        $command->createRef(str_repeat('a', 40), 'refs/heads/main');
+
+        $requestBytes = $command->requestBytes();
+        [$commands] = $packetPayloads($requestBytes);
+        $t->same('fff0', substr($requestBytes, 0, 4));
+        $t->same($maxPayloadLength, strlen($commands[0]));
+
+        $tooLongCommand = PushCommand::create($capabilities, str_repeat('a', $agentLength + 1));
+        $tooLongCommand->createRef(str_repeat('a', 40), 'refs/heads/main');
+        $t->throws(InvalidArgumentException::class, static fn () => $tooLongCommand->requestBytes());
+
+        $maxOptionCommand = PushCommand::create($capabilities);
+        $maxOptionCommand->createRef(str_repeat('b', 40), 'refs/heads/main');
+        $maxOptionCommand->addPushOption(str_repeat('p', $maxPayloadLength));
+        [, $afterCommands] = $packetPayloads($maxOptionCommand->requestBytes());
+        [$options] = $packetPayloads($afterCommands);
+        $t->same($maxPayloadLength, strlen($options[0]));
+
+        $tooLongOptionCommand = PushCommand::create($capabilities);
+        $tooLongOptionCommand->createRef(str_repeat('c', 40), 'refs/heads/main');
+        $tooLongOptionCommand->addPushOption(str_repeat('p', $maxPayloadLength + 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $tooLongOptionCommand->requestBytes());
+    },
     'push command guards unsupported capabilities and empty updates' => static function (TestRunner $t): void {
         $capabilities = ProtocolCapabilities::fromV1Bytes("\0report-status")['capabilities'];
         $command = PushCommand::create($capabilities);

@@ -7,6 +7,8 @@ use PortLibs\Gitoxide\ReceivePackClient;
 use PortLibs\Gitoxide\ReceivePackAdvertisement;
 use PortLibs\Gitoxide\SendPackSession;
 use PortLibs\Gitoxide\GitDaemonReceivePackTransport;
+use PortLibs\Gitoxide\ProtocolCapabilities;
+use PortLibs\Gitoxide\PushCommand;
 use PortLibs\Gitoxide\SshReceivePackTransport;
 use PortLibs\Gitoxide\StreamReceivePackTransport;
 use PortLibs\Gitoxide\Tree;
@@ -59,6 +61,18 @@ $response = $client->run(static function (SendPackSession $session) use ($commit
 rewind($clientWrite);
 $requestBytes = (string) stream_get_contents($clientWrite);
 
+$requestPacketLineMaxPayloadLength = 65516;
+$requestLimitCapabilities = ProtocolCapabilities::fromV1Bytes("\0report-status push-options")['capabilities'];
+$requestCommandPrefix = str_repeat('0', 40)
+    . ' '
+    . str_repeat('a', 40)
+    . ' refs/heads/main'
+    . "\0 report-status agent=";
+$requestCommandMaxAgentLength = $requestPacketLineMaxPayloadLength - strlen($requestCommandPrefix);
+$maxRequestCommand = PushCommand::create($requestLimitCapabilities, str_repeat('a', $requestCommandMaxAgentLength));
+$maxRequestCommand->createRef(str_repeat('a', 40), 'refs/heads/main');
+$maxRequestCommandHeader = substr($maxRequestCommand->requestBytes(), 0, 4);
+
 return [
     'oldCommit' => $oldCommit,
     'newCommit' => $commit->oid(),
@@ -66,6 +80,31 @@ return [
     'requestBytes' => $requestBytes,
     'responseBytes' => $responseBytes,
     'responseSuccessful' => $response->isSuccessful(),
+    'requestPacketLineMaxPayloadLength' => $requestPacketLineMaxPayloadLength,
+    'maxRequestCommandPacketHeader' => $maxRequestCommandHeader,
+    'oversizeRequestCommandRejected' => (static function () use ($requestLimitCapabilities, $requestCommandMaxAgentLength): bool {
+        $command = PushCommand::create($requestLimitCapabilities, str_repeat('a', $requestCommandMaxAgentLength + 1));
+        $command->createRef(str_repeat('a', 40), 'refs/heads/main');
+        try {
+            $command->requestBytes();
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+
+        return false;
+    })(),
+    'oversizePushOptionRejected' => (static function () use ($requestLimitCapabilities, $requestPacketLineMaxPayloadLength): bool {
+        $command = PushCommand::create($requestLimitCapabilities);
+        $command->createRef(str_repeat('b', 40), 'refs/heads/main');
+        $command->addPushOption(str_repeat('p', $requestPacketLineMaxPayloadLength + 1));
+        try {
+            $command->requestBytes();
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+
+        return false;
+    })(),
     'progressMessages' => $response->progressMessages(),
     'acceptedRefs' => array_map(
         static fn ($status): string => $status->effectiveRefName(),

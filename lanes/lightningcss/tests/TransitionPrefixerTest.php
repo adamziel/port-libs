@@ -211,6 +211,36 @@ return [
             $prefixer->prefixForTargets('a:dir(rtl) div { color: red; }', ['safari' => 14])
         );
     },
+    'transition prefixer maps upstream placeholder pseudo-element target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo::-webkit-input-placeholder{color:red}.foo::-moz-placeholder{color:red}.foo::-ms-input-placeholder{color:red}.foo::placeholder{color:red}',
+            $prefixer->prefixForTargets('.foo::placeholder { color: red; }', ['chrome' => 45, 'firefox' => 45, 'ie' => 11])
+        );
+        $t->same(
+            '.wp-block-search__input::-webkit-input-placeholder{color:var(--wp--preset--color--contrast)}.wp-block-search__input::placeholder{color:var(--wp--preset--color--contrast)}',
+            $prefixer->prefixForTargets('.wp-block-search__input::placeholder { color: var(--wp--preset--color--contrast); }', ['chrome' => 56])
+        );
+        $t->same(
+            '.wp-block-search__input::placeholder{color:var(--wp--preset--color--contrast)}',
+            $prefixer->prefixForTargets('.wp-block-search__input::placeholder { color: var(--wp--preset--color--contrast); }', ['chrome' => 57])
+        );
+        $t->same('.foo::-moz-placeholder{color:red}.foo::placeholder{color:red}', $prefixer->prefixForTargets('.foo::placeholder { color: red; }', ['firefox' => 50]));
+        $t->same('.foo::placeholder{color:red}', $prefixer->prefixForTargets('.foo::placeholder { color: red; }', ['firefox' => 51]));
+        $t->same('.foo::-ms-input-placeholder{color:red}.foo::placeholder{color:red}', $prefixer->prefixForTargets('.foo::placeholder { color: red; }', ['edge' => 18]));
+        $t->same('.foo::placeholder{color:red}', $prefixer->prefixForTargets('.foo::placeholder { color: red; }', ['edge' => 19]));
+        $t->same('.foo::-webkit-input-placeholder{color:red}.foo::placeholder{color:red}', $prefixer->prefixForTargets('.foo::placeholder { color: red; }', ['safari' => 10]));
+        $t->same('.foo::placeholder{color:red}', $prefixer->prefixForTargets('.foo::placeholder { color: red; }', ['safari' => 11]));
+        $t->same('.foo::-webkit-input-placeholder{color:red}.foo::placeholder{color:red}', $prefixer->prefixForTargets('.foo::placeholder { color: red; }', ['android' => '4.4.3']));
+        $t->same('.foo::placeholder{color:red}', $prefixer->prefixForTargets('.foo::placeholder { color: red; }', ['android' => '4.4.4']));
+        $t->same('.foo::-webkit-input-placeholder{color:red}.foo::placeholder{color:red}', $prefixer->prefixForTargets('.foo::placeholder { color: red; }', ['ios_saf' => 10]));
+        $t->same('.foo::placeholder{color:red}', $prefixer->prefixForTargets('.foo::placeholder { color: red; }', ['ios_saf' => 11]));
+        $t->same('.foo::-webkit-input-placeholder{color:red}.foo::placeholder{color:red}', $prefixer->prefixForTargets('.foo::placeholder { color: red; }', ['opera' => 43]));
+        $t->same('.foo::placeholder{color:red}', $prefixer->prefixForTargets('.foo::placeholder { color: red; }', ['opera' => 44]));
+        $t->same('.foo::-webkit-input-placeholder{color:red}.foo::placeholder{color:red}', $prefixer->prefixForTargets('.foo::placeholder { color: red; }', ['samsung' => '6.2']));
+        $t->same('.foo::placeholder{color:red}', $prefixer->prefixForTargets('.foo::placeholder { color: red; }', ['samsung' => '6.3']));
+    },
     'transition prefixer maps upstream intrinsic sizing keyword target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
