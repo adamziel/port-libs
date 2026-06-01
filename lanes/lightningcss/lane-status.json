@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "library": "LightningCSS",
-  "estimatedProgress": 96.9,
-  "suiteProgress": "Supervisor-integrated LightningCSS XYZ color-mix fallback, bundle import graph custom-at-rule preludes, source-map VLQ offsets, and transition prefix slices. Verification passed git diff --check, PHP lint, full LightningCSS lane 13 files / 5402 assertions / 0 failures, and touched examples.",
-  "phpPass": 5402,
+  "estimatedProgress": 97.0,
+  "suiteProgress": "Supervisor-integrated LightningCSS bundle nested-import rejection, custom at-rule ratio visitor support, HSL/yellow color-mix parity, and cursor target-prefix boundaries. Verification passed git diff --check, PHP lint, full LightningCSS lane 13 files / 5451 assertions / 0 failures, and touched examples.",
+  "phpPass": 5451,
   "phpFail": 0,
   "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
   "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-  "audit": "2026-06-01 supervisor batch: full LightningCSS lane passed 13 files / 5402 assertions / 0 failures after accepting XYZ color-mix fallback, bundle import graph custom-at-rule preludes, source-map VLQ offset sorting, and transition prefix updates. Conservative mapped coverage moves to 2290 / 3532. Full upstream Rust/Node/WASM runners were not executed.",
-  "currentWork": "XYZ relative color-mix fallback, import graph custom-at-rule prelude handling, source-map VLQ offset behavior, and transition prefix updates integrated on current base.",
-  "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 5402 assertions; continue current-base parity slices with examples and manifest-backed mapping.",
-  "latestCommit": "ca55a1e2ff59c7c5b05352d99d3ceb8062ec11d2",
+  "audit": "2026-06-01 supervisor followup: full LightningCSS lane passed 13 files / 5451 assertions / 0 failures after accepting bundle nested-import rejection, custom at-rule ratio visitor traversal, HSL/yellow color-mix parity, and cursor target-prefix boundary behavior. Conservative mapped coverage moves to 2297 / 3532. Full upstream Rust/Node/WASM runners were not executed.",
+  "currentWork": "Bundle nested-import rejection, custom at-rule ratio visitor traversal, HSL/yellow color-mix parity, and cursor target-prefix boundaries integrated on current base.",
+  "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 5451 assertions; continue current-base parity slices with examples and manifest-backed mapping.",
+  "latestCommit": "38285e38105b8ecdc28b88acdb61ff6bb614af9b",
   "nextTask": "Keep four to six LightningCSS workers on source maps, CSS Modules, bundle/import graph, media queries, property values, target prefixing, CSSOM, and custom at-rules, with full-lane PHP gates after each accepted batch.",
-  "commit": "ca55a1e2ff59c7c5b05352d99d3ceb8062ec11d2"
+  "commit": "38285e38105b8ecdc28b88acdb61ff6bb614af9b"
 }

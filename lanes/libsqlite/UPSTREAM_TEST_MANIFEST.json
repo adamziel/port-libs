@@ -169,7 +169,7 @@
     }
   },
   "benchmarkDenominator": {
-    "status": "full-upstream-sqlite-script-denominator-admitted-and-focused-current-base-pragma-cache-btree-skipscan",
+    "status": "full-upstream-sqlite-script-denominator-admitted-and-focused-current-base-trigger-window",
     "total": 1589,
     "mapped": 1589,
     "latestMappedAddition": "The 2026-05-30 isolated bulk-upstream-runner-map-gap-closure-dynamic slice maps the final 117 real hydrated upstream SQLite test/*.test scripts from valuesfault.test through windowA.test through guarded current-source next1045-1161 evidence, moving mapped denominator coverage from 1472 / 1589 to 1589 / 1589. It preserves the accepted next981-1044 anchor, skips stale next965-980 overlap, claims focused PASS-line admission only through the lane-local runner evidence helper, and does not claim release/all parity.",
@@ -3433,10 +3433,10 @@
       "focusedUpstreamVeryquickShardCurrentSourceNext431": "The 2026-05-28 isolated current-source next431 suite veryquick-shard runner slice maps one additional runner-countability blocker row for launcher Base accepted HEAD fca16e3d, current integration source 8a447f44, lane-local zero-error guarded runner artifact rows, duplicate-runner gates, exact 96 focused PASS-line admission, focused current-source veryquick shard scope, and no release/all parity claim."
     }
   },
-  "latestFocusedSlice": "2026-06-01 supervisor batch: real upstream pragma schema cache reload and btree skipscan dynamic corpora. Focused libsqlite gate passed 3 files / 41204 assertions / 0 failures with memory_limit=2G; mapped denominator remains 1589 / 1589.",
-  "latestNativePhpVerification": "2026-06-01: git diff --check and PHP lint on changed/new PHP files passed; focused libsqlite gate passed 3 files / 41204 assertions / 0 failures with memory_limit=2G; changed production source guard found no new WordPress-specific or numbered source names.",
+  "latestFocusedSlice": "2026-06-01 supervisor followup: real upstream trigger/fkey action-satisfaction and window4 dynamic corpus tests integrated. Focused gate passed 3 files / 15873 assertions / 0 failures; mapped denominator remains 1589 / 1589.",
+  "latestNativePhpVerification": "2026-06-01: git diff --check and PHP lint on changed/new PHP files passed; focused libsqlite gate passed 3 files / 15873 assertions / 0 failures, including the no-WordPress-specific source/API guard. Full broad libsqlite lane still has 7 known failures.",
   "runnerStatus": "2026-06-01 supervisor batch: focused libsqlite gate passed 3 files / 41204 assertions / 0 failures with memory_limit=2G. Mapped denominator remains 1589 / 1589; cumulative selected libsqlite evidence increases to 5310725 pass with 7 known broad-lane failures. Changed production source guard found no WordPress/wordpress/wp_/CurrentSourceNext/CurrentNext/Next[0-9]+Plan text.",
-  "latestCommit": "ca55a1e2ff59c7c5b05352d99d3ceb8062ec11d2",
+  "latestCommit": "38285e38105b8ecdc28b88acdb61ff6bb614af9b",
   "latestFocusedCorpusBatch20260531T2250Z": {
     "sourceCommit": "48a678f72e367c869dc62452fbad34f36daa273b",
     "selectedPassIncrease": 2411,
@@ -3497,5 +3497,16 @@
     "phpPassDelta": 30454,
     "mapped": "1589 / 1589 unchanged",
     "scope": "real upstream expression-affinity RAISE-function dynamic corpus plus select4 aggregate compound-pushdown dynamic corpus"
+  },
+  "latestFocusedCorpusBatch20260601T0152Z": {
+    "sourceCommit": "38285e38105b8ecdc28b88acdb61ff6bb614af9b",
+    "mappedBefore": 1589,
+    "mappedAfter": 1589,
+    "nativeVerification": "git diff --check; PHP lint on changed/new PHP files; focused libsqlite gate 3 files / 15873 assertions / 0 failures; no-WordPress-specific source/API guard green",
+    "acceptedSlices": [
+      "real upstream trigger/fkey action-satisfaction dynamic corpus",
+      "real upstream window4 rows/range tail dynamic corpus"
+    ],
+    "upstreamEvidence": "worker evidence cites hydrated upstream trigger/fkey and window4 corpus rows; broad full-lane/release runner still has 7 known failures"
   }
 }
