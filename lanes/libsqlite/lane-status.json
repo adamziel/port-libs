@@ -1,17 +1,17 @@
 {
     "schemaVersion": 1,
     "library": "libsqlite",
-    "estimatedProgress": 99.52,
-    "suiteProgress": "Supervisor-integrated libsqlite real upstream pager WAL exit-header reversion dynamic corpus coverage plus source-neutral row-value savepoint defaults. Verification passed PHP lint, git diff --check, focused libsqlite gate 4 files / 34115 assertions / 0 failures, and no-domain guard coverage.",
-    "phpPass": 5672951,
+    "estimatedProgress": 99.5,
+    "suiteProgress": "Supervisor-integrated libsqlite real upstream json101 value-subtype, trigger/FK child lookup, and window1 sorter-output corpus coverage plus source-neutral cast/LIKE/GLOB and compound/window default cleanup. Verification passed PHP lint, git diff --check, focused changed/source-neutral gate 10 files / 1165 assertions / 0 failures, real-corpus gate 4 files / 65063 assertions / 0 failures, no-domain guard, and changed example smokes.",
+    "phpPass": 5698994,
     "phpFail": 7,
     "wordpressScenarios": "Generic application/self-test coverage now includes source-neutral application option/view defaults, source-neutral row-value savepoint defaults, skipscan2 optoverview people/height skip-scan thresholds, PRAGMA trusted_schema schema-function safety, e_select2 derived-source SELECT joins, expression-affinity comparison, IN-list semantics, bound NaN/Inf truth coercion, WAL rollback JSON tails and checkpoint-followup tail recovery, key-value WAL import cleanup, FK parent-index diagnostics, row-value UPDATE/DELETE LIMIT execution including random() expressions, master-journal WAL pager behavior, pager WAL exit-header reversion, PRAGMA lock_proxy_file and data_store_directory handling, SELECT/window planner behavior, trigger/fkey limits, date/time modifier behavior including timediff1 leap/common month overflow, B-tree left-join/index/delete guards, JSON/JSONB update/subtype/char-built validity behavior, VFS fallocate/shared-lock/batch-atomic lifecycle and win32lock retry behavior, pager WAL reused-log prefix recovery, pager crash recovery, and app-WAL post-checkpoint tail recovery. No domain-specific libsqlite API is accepted.",
     "phase": "focused real-corpus and source-neutral coverage accepted; broad full-lane and release/all parity remain open",
-    "audit": "2026-06-01 supervisor followup: accepted source a94a5fcfa10a3b65829751b77ea46da37f7ff5bc with real upstream pager WAL exit-header reversion dynamic corpus coverage and source-neutral row-value savepoint defaults. Focused libsqlite gate passed 4 files / 34115 assertions / 0 failures. Mapped denominator remains 1589 / 1589; cumulative selected pass count increases by 34021 new accepted assertions from this batch.",
-    "currentWork": "Real upstream pager WAL exit-header reversion dynamic corpus coverage and source-neutral row-value savepoint defaults integrated on current base.",
+    "audit": "2026-06-01 supervisor followup: accepted source 5b98c3c4c150 with +26043 libsqlite PASS cases from real upstream JSON, trigger/FK child lookup, and window sorter corpus files while source-neutral cleanup counters remained unchanged. Focused gates passed 10 files / 1165 assertions / 0 failures and 4 files / 65063 assertions / 0 failures; broad release/all still has 7 known failures.",
+    "currentWork": "Real upstream json101 value-subtype, trigger/FK child lookup, window1 sorter-output corpus coverage, and source-neutral cast/LIKE/GLOB plus compound/window defaults integrated on current base.",
     "blocker": "Broad libsqlite full-lane/release parity is not green: seven known failures remain in sampled broad gates, and release/all parity still needs a current clean run before libsqlite can be declared complete.",
-    "nextTask": "Continue broad release/all parity blockers, source-neutral cleanup of remaining CurrentSourceNext/CurrentNext/numbered-plan names, PDO trust-underlying-lib cleanup, and non-overlapping real-corpus JSON, upsert, cast/LIKE, trigger, B-tree/index, STAT4, expression, VFS, WAL, pager, PRAGMA, and date/time coverage.",
-    "wordpressScenarioLatest": "Latest accepted batch adds generic real upstream pager WAL exit-header reversion dynamic coverage and source-neutral row-value savepoint defaults without adding domain-specific libsqlite APIs. No-domain guard coverage remains required before each libsqlite batch.",
-    "latestCommit": "a94a5fcfa10a3b65829751b77ea46da37f7ff5bc",
-    "commit": "a94a5fc"
+    "nextTask": "Continue broad release/all parity blockers, source-neutral cleanup of remaining CurrentSourceNext/CurrentNext production defaults and numbered-plan names, PDO trust-underlying-lib cleanup, and non-overlapping real-corpus upsert, VFS, WAL, pager, PRAGMA, B-tree/index, STAT4, expression, and date/time coverage.",
+    "wordpressScenarioLatest": "Latest batch adds generic real upstream JSON, trigger/FK, and window sorter coverage plus source-neutral cleanup without adding domain-specific libsqlite APIs. No-domain guard coverage remains required before each libsqlite batch.",
+    "latestCommit": "5b98c3c4c1507b10669f49c8b9385b0604dbf13f",
+    "commit": "5b98c3c4c1507b10669f49c8b9385b0604dbf13f"
 }
