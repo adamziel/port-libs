@@ -5667,6 +5667,72 @@ CSS;
         $t->same('1rem', $seen['tokens']['bodyRules'][0]['value']['declarations']['declarations'][0]['raw']);
         $t->same('wp-accent', $seen['alias']['prelude']);
     },
+    'custom at-rules visit returned declaration-list custom rule bodies before exits' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'custom' => [
+                        'tokens' => static function (array $rule): array {
+                            $rule['body'] = <<<'CSS'
+gap: 16px;
+color: theme-token('accent');
+CSS;
+
+                            return [
+                                'type' => 'custom',
+                                'value' => $rule,
+                            ];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Length' => static function (array $length): ?array {
+                    if (($length['unit'] ?? null) !== 'px') {
+                        return null;
+                    }
+
+                    return [
+                        'unit' => 'rem',
+                        'value' => ((float) $length['value']) / 16,
+                    ];
+                },
+                'Function' => [
+                    'theme-token' => static fn (array $arguments): ?array => ($arguments[0] ?? null) === 'accent'
+                        ? ['raw' => 'var(--wp-card-accent)']
+                        : null,
+                ],
+                'DeclarationExit' => [
+                    'gap' => static function (array $declaration) use (&$seen): ?array {
+                        $seen['declarationExit'] = $declaration['property'] ?? null;
+
+                        return null;
+                    },
+                ],
+                'RuleExit' => [
+                    'custom' => [
+                        'tokens' => static function (array $rule) use (&$seen): ?array {
+                            $seen['ruleExitBody'] = $rule['body'];
+
+                            return null;
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@tokens theme { gap: 8px; }', [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+        ], $visitor);
+
+        $t->same('@tokens theme{gap:1rem;color:var(--wp-card-accent)}', $result);
+        $t->same('gap', $seen['declarationExit']);
+        $t->same('gap:1rem;color:var(--wp-card-accent)', $seen['ruleExitBody']);
+    },
     'custom at-rules compose upstream returned parser rules through later Rule visitors' => static function (TestRunner $t): void {
         $seen = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([

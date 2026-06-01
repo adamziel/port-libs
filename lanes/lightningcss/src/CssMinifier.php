@@ -4703,6 +4703,10 @@ final class CssMinifier
             return null;
         }
 
+        if ($matches[2] === 'rad') {
+            return $this->minifyNumber($this->fontStyleObliqueAngleDegrees($token) ?? (float) $matches[1]) . 'deg';
+        }
+
         return $this->minifyNumber((float) $matches[1]) . $matches[2];
     }
 

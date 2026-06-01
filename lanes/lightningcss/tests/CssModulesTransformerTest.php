@@ -755,6 +755,59 @@ CSS);
             $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
         }
     },
+    'css modules drops relative local global mode pseudo branches in forgiving selectors while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:is(:local(> .child), .kept) {
+  color: red;
+}
+
+.card:where(:global(~ .legacy), .soft) {
+  color: yellow;
+}
+
+.card:has(:global(> .legacy), .media) {
+  color: blue;
+}
+
+.item:nth-child(odd of :local(+ .row), .itemOk) {
+  color: green;
+}
+
+.button {
+  composes: card;
+  color: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_card.EgL3uq_kept{color:red}.EgL3uq_card:where(.EgL3uq_soft){color:#ff0}.EgL3uq_card:has(.EgL3uq_media){color:#00f}.EgL3uq_item:nth-child(odd of .EgL3uq_itemOk){color:green}.EgL3uq_button{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'kept' => $export('EgL3uq_kept'),
+            'soft' => $export('EgL3uq_soft'),
+            'media' => $export('EgL3uq_media'),
+            'item' => $export('EgL3uq_item'),
+            'itemOk' => $export('EgL3uq_itemOk'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+        $t->same([], array_intersect_key($result['exports'], array_flip(['child', 'legacy', 'row'])));
+
+        foreach ([
+            ':local(> .child) { color: red }',
+            ':global(~ .legacy) { color: red }',
+            '.card:not(:local(+ .child)) { color: red }',
+        ] as $css) {
+            try {
+                (new CssModulesTransformer())->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same('Invalid empty selector', $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream relative local/global selector exception');
+        }
+    },
     'css modules unwraps upstream single is selector after local global rewriting while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card:is(:local(.featured)) {

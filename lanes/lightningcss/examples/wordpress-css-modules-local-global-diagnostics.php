@@ -16,6 +16,10 @@ $css = <<<'CSS'
   color: yellow;
 }
 
+.button:is(:local(> .dropped), .fallback) {
+  border-color: blue;
+}
+
 .reset {
   color: white;
 }
@@ -33,6 +37,7 @@ foreach ([
     ':global(.wp-block-button, .wp-block-file) .button { color: red }',
     ':local() { color: red }',
     ':global\(.wp-block-button) .button { color: red }',
+    ':local(> .button) { color: red }',
 ] as $invalidCss) {
     try {
         $transformer->transform($invalidCss, [
@@ -52,7 +57,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '.BlockA_button{color:red}.wp-block-button .BlockA_button{color:#ff0}.BlockA_reset{color:#fff}',
+    'code' => '.BlockA_button{color:red}.wp-block-button .BlockA_button{color:#ff0}.BlockA_button.BlockA_fallback{border-color:#00f}.BlockA_reset{color:#fff}',
     'exports' => [
         'button' => [
             'name' => 'BlockA_button',
@@ -62,6 +67,11 @@ $expected = [
                     'name' => 'BlockA_reset',
                 ],
             ],
+            'isReferenced' => false,
+        ],
+        'fallback' => [
+            'name' => 'BlockA_fallback',
+            'composes' => [],
             'isReferenced' => false,
         ],
         'reset' => [
@@ -77,6 +87,7 @@ $expected = [
         ':global(.wp-block-button, .wp-block-file) .button { color: red }' => 'Unexpected token Comma',
         ':local() { color: red }' => 'Invalid empty selector',
         ':global\(.wp-block-button) .button { color: red }' => 'Unexpected token CloseParenthesis',
+        ':local(> .button) { color: red }' => 'Invalid empty selector',
     ],
 ];
 

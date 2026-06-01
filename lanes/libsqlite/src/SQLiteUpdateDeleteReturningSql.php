@@ -925,6 +925,10 @@ final class SQLiteUpdateDeleteReturningSql
         if ($predicate['matched']) {
             return $predicate['value'] === null ? null : ($predicate['value'] ? 1 : 0);
         }
+        $collated = self::limitCollatedExpression($expression);
+        if ($collated['collation'] !== null) {
+            return self::limitExpressionValue($collated['expression']);
+        }
         $concatParts = self::splitOperator($expression, '||');
         if (count($concatParts) > 1) {
             $pieces = [];
@@ -1159,14 +1163,18 @@ final class SQLiteUpdateDeleteReturningSql
 
         $between = self::splitLimitBetween($expression);
         if ($between !== null) {
-            $value = self::limitExpressionValue($between['value']);
-            $lower = self::limitExpressionValue($between['lower']);
-            $upper = self::limitExpressionValue($between['upper']);
+            $valueExpression = self::limitCollatedExpression($between['value']);
+            $lowerExpression = self::limitCollatedExpression($between['lower']);
+            $upperExpression = self::limitCollatedExpression($between['upper']);
+            $collation = $valueExpression['collation'] ?? $lowerExpression['collation'] ?? $upperExpression['collation'];
+            $value = self::limitExpressionValue($valueExpression['expression']);
+            $lower = self::limitExpressionValue($lowerExpression['expression']);
+            $upper = self::limitExpressionValue($upperExpression['expression']);
             if ($value === null || $lower === null || $upper === null) {
                 $result = null;
             } else {
-                $result = self::compareLimitScalarValues($value, $lower) >= 0
-                    && self::compareLimitScalarValues($value, $upper) <= 0;
+                $result = self::compareLimitScalarValues($value, $lower, $collation) >= 0
+                    && self::compareLimitScalarValues($value, $upper, $collation) <= 0;
             }
 
             return ['matched' => true, 'value' => $between['not'] ? self::negateNullable($result) : $result];
@@ -1174,14 +1182,25 @@ final class SQLiteUpdateDeleteReturningSql
 
         $in = self::splitLimitInPredicate($expression);
         if ($in !== null) {
-            $left = self::limitExpressionValue($in['value']);
-            $values = array_map(static fn (string $part): int|float|string|SQLiteBlobValue|null => self::limitExpressionValue($part), self::splitComma($in['list']));
+            $leftExpression = self::limitCollatedExpression($in['value']);
+            $left = self::limitExpressionValue($leftExpression['expression']);
+            $valueExpressions = array_map(
+                static fn (string $part): array => self::limitCollatedExpression($part),
+                self::splitComma($in['list'])
+            );
+            $collation = $leftExpression['collation'];
+            foreach ($valueExpressions as $valueExpression) {
+                if ($collation === null && $valueExpression['collation'] !== null) {
+                    $collation = $valueExpression['collation'];
+                }
+            }
+            $values = array_map(static fn (array $part): int|float|string|SQLiteBlobValue|null => self::limitExpressionValue($part['expression']), $valueExpressions);
             if ($left === null || in_array(null, $values, true)) {
                 $result = null;
             } else {
                 $result = false;
                 foreach ($values as $value) {
-                    if (self::limitScalarEquals($left, $value)) {
+                    if (self::limitScalarEquals($left, $value, $collation)) {
                         $result = true;
                         break;
                     }
@@ -1215,17 +1234,20 @@ final class SQLiteUpdateDeleteReturningSql
             if ($parts === null) {
                 continue;
             }
-            $left = self::limitExpressionValue($parts[0]);
-            $right = self::limitExpressionValue($parts[1]);
+            $leftExpression = self::limitCollatedExpression($parts[0]);
+            $rightExpression = self::limitCollatedExpression($parts[1]);
+            $collation = $leftExpression['collation'] ?? $rightExpression['collation'];
+            $left = self::limitExpressionValue($leftExpression['expression']);
+            $right = self::limitExpressionValue($rightExpression['expression']);
             if ($operator === 'IS' || $operator === 'IS NOT') {
-                $result = $left === null ? $right === null : ($right !== null && self::limitScalarEquals($left, $right));
+                $result = $left === null ? $right === null : ($right !== null && self::limitScalarEquals($left, $right, $collation));
                 return ['matched' => true, 'value' => $operator === 'IS NOT' ? !$result : $result];
             }
             if ($left === null || $right === null) {
                 return ['matched' => true, 'value' => null];
             }
-            $comparison = self::compareLimitScalarValues($left, $right);
-            $equals = self::limitScalarEquals($left, $right);
+            $comparison = self::compareLimitScalarValues($left, $right, $collation);
+            $equals = self::limitScalarEquals($left, $right, $collation);
             $result = match ($operator) {
                 '=' => $equals,
                 '<>', '!=' => !$equals,
@@ -2226,8 +2248,62 @@ final class SQLiteUpdateDeleteReturningSql
         return $byte0;
     }
 
-    private static function compareLimitScalarValues(int|float|string $left, int|float|string $right): int
+    /**
+     * @return array{expression:string,collation:?string}
+     */
+    private static function limitCollatedExpression(string $expression): array
     {
+        $value = trim($expression);
+        $collation = null;
+        $changed = true;
+        while ($changed) {
+            $changed = false;
+            while (($stripped = self::stripEnclosingParentheses($value)) !== null) {
+                $value = $stripped;
+                $changed = true;
+            }
+
+            $collated = self::splitLimitCollatePostfix($value);
+            if ($collated !== null) {
+                $value = $collated['expression'];
+                $collation ??= $collated['collation'];
+                $changed = true;
+            }
+        }
+
+        return ['expression' => $value, 'collation' => $collation];
+    }
+
+    /**
+     * @return array{expression:string,collation:string}|null
+     */
+    private static function splitLimitCollatePostfix(string $expression): ?array
+    {
+        $position = self::topLevelKeywordPosition($expression, 'COLLATE');
+        if ($position === null) {
+            return null;
+        }
+
+        $value = trim(substr($expression, 0, $position));
+        $collation = trim(substr($expression, $position + strlen('COLLATE')));
+        if ($value === '' || $collation === '') {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT COLLATE needs an expression and collation name');
+        }
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $collation) !== 1) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT COLLATE collation name is not supported');
+        }
+
+        return ['expression' => $value, 'collation' => strtolower($collation)];
+    }
+
+    private static function compareLimitScalarValues(int|float|string|SQLiteBlobValue $left, int|float|string|SQLiteBlobValue $right, ?string $collation = null): int
+    {
+        if ($left instanceof SQLiteBlobValue) {
+            $left = $left->bytes;
+        }
+        if ($right instanceof SQLiteBlobValue) {
+            $right = $right->bytes;
+        }
         if ((is_int($left) || is_float($left)) && (is_int($right) || is_float($right))) {
             return $left <=> $right;
         }
@@ -2237,18 +2313,52 @@ final class SQLiteUpdateDeleteReturningSql
         if ((is_int($left) || is_float($left)) && is_string($right) && is_numeric($right)) {
             return $left <=> (float) $right;
         }
+        if ($collation !== null) {
+            return self::compareLimitTextValues((string) $left, (string) $right, $collation);
+        }
 
         return strcmp((string) $left, (string) $right);
     }
 
-    private static function limitScalarEquals(int|float|string $left, int|float|string $right): bool
+    private static function limitScalarEquals(int|float|string|SQLiteBlobValue $left, int|float|string|SQLiteBlobValue $right, ?string $collation = null): bool
     {
+        if ($left instanceof SQLiteBlobValue) {
+            $left = $left->bytes;
+        }
+        if ($right instanceof SQLiteBlobValue) {
+            $right = $right->bytes;
+        }
+        if ($collation !== null && is_string($left) && is_string($right)) {
+            return self::compareLimitTextValues($left, $right, $collation) === 0;
+        }
         if ((is_int($left) || is_float($left) || is_numeric((string) $left))
             && (is_int($right) || is_float($right) || is_numeric((string) $right))) {
             return (float) $left == (float) $right;
         }
+        if ($collation !== null) {
+            return self::compareLimitTextValues((string) $left, (string) $right, $collation) === 0;
+        }
 
         return (string) $left === (string) $right;
+    }
+
+    private static function compareLimitTextValues(string $left, string $right, string $collation): int
+    {
+        return match (self::normalizeLimitCollation($collation)) {
+            'binary' => strcmp($left, $right),
+            'nocase' => strcasecmp($left, $right),
+            'rtrim' => strcmp(rtrim($left, ' '), rtrim($right, ' ')),
+        };
+    }
+
+    private static function normalizeLimitCollation(string $collation): string
+    {
+        $normalized = strtolower($collation);
+        if (!in_array($normalized, ['binary', 'nocase', 'rtrim'], true)) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT collation {$collation} is not supported");
+        }
+
+        return $normalized;
     }
 
     /**

@@ -468,6 +468,16 @@ try {
 
 try {
     $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (theme-breakpoint >= 50%) { .wp-block-query { color: chartreuse; } } }',
+        ['firefox' => 60]
+    );
+    $actual['invalidCustomPercentageRangeGuard'] = 'missing';
+} catch (InvalidArgumentException) {
+    $actual['invalidCustomPercentageRangeGuard'] = 'invalid-media-query';
+}
+
+try {
+    $prefixer->prefixForTargets(
         '@layer theme.blocks { @media (color >= calc(1 + 1)) { .wp-block-query { color: chartreuse; } } }',
         ['firefox' => 60]
     );
@@ -581,6 +591,7 @@ $expected = [
     'invalidIntervalGuard' => 'invalid-media-query',
     'invalidFunctionGuard' => 'invalid-media-query',
     'invalidRangeValueGuard' => 'invalid-media-query',
+    'invalidCustomPercentageRangeGuard' => 'invalid-media-query',
     'invalidIntegerCalcGuard' => 'invalid-media-query',
     'invalidResolutionCalcGuard' => 'invalid-media-query',
     'invalidSignFunctionGuard' => 'invalid-media-query',

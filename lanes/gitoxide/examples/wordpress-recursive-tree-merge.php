@@ -362,8 +362,14 @@ $directoryFileTheirs = new Tree([
 ]);
 $directoryFileResult = TreeMerge::mergeRecursive($directoryFileBase, $directoryFileOurs, $directoryFileTheirs, $read, $write);
 $directoryFileOursResolved = $directoryFileResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+$directoryFileAncestorResolved = $directoryFileResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+$directoryFileReverseResult = TreeMerge::mergeRecursive($directoryFileBase, $directoryFileTheirs, $directoryFileOurs, $read, $write);
+$directoryFileReverseOursResolved = $directoryFileReverseResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
 $directoryFileResolvedContent = $treeAtPath($directoryFileOursResolved->tree, 'wp-content');
 $directoryFileResolvedEntry = $directoryFileResolvedContent->entryNamed('cache');
+$directoryFileAncestorContent = $treeAtPath($directoryFileAncestorResolved->tree, 'wp-content');
+$directoryFileAncestorEntry = $directoryFileAncestorContent->entryNamed('cache');
+$directoryFileReverseResolvedCache = $treeAtPath($directoryFileReverseOursResolved->tree, 'wp-content/cache');
 $directoryRenameConflictBase = new Tree([
     $tree('wp-content', new Tree([
         $tree('plugins', new Tree([
@@ -698,10 +704,15 @@ echo json_encode([
             static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
             $directoryFileResult->conflicts,
         ),
+        'ancestorResolvedClean' => $directoryFileAncestorResolved->isClean(),
+        'ancestorCacheKind' => $directoryFileAncestorEntry?->kind(),
+        'ancestorCacheBody' => $directoryFileAncestorEntry === null ? null : $read($directoryFileAncestorEntry->oid)->body,
         'oursResolvedClean' => $directoryFileOursResolved->isClean(),
         'contentEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $directoryFileResolvedContent->entries),
         'resolvedCacheKind' => $directoryFileResolvedEntry?->kind(),
         'resolvedCacheBody' => $directoryFileResolvedEntry === null ? null : $read($directoryFileResolvedEntry->oid)->body,
+        'reverseOursResolvedClean' => $directoryFileReverseOursResolved->isClean(),
+        'reverseOursCacheEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $directoryFileReverseResolvedCache->entries),
         'indexStagesAfterResolution' => count($directoryFileOursResolved->indexEntries()),
     ],
     'directoryRenameConflictResolution' => [

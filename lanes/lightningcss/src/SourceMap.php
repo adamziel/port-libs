@@ -371,6 +371,77 @@ final class SourceMap
         }
     }
 
+    public function appendSourceMapWithGeneratedOffset(
+        SourceMap $sourceMap,
+        int $lineOffset = 0,
+        int $columnOffset = 0,
+        bool $preserveUnusedTables = true
+    ): void {
+        if ($columnOffset < 0) {
+            throw new InvalidArgumentException('generated column offset must be non-negative.');
+        }
+
+        try {
+            $sourceIndexes = [];
+            $nameIndexes = [];
+
+            if ($preserveUnusedTables) {
+                foreach ($sourceMap->sources as $index => $source) {
+                    $mappedIndex = $this->addSource($source);
+                    $sourceIndexes[$index] = $mappedIndex;
+                    if (array_key_exists($index, $sourceMap->sourcesContent)) {
+                        $this->setSourceContent($mappedIndex, $sourceMap->sourcesContent[$index]);
+                    }
+                }
+
+                foreach ($sourceMap->names as $index => $name) {
+                    $nameIndexes[$index] = $this->addName($name);
+                }
+            }
+
+            foreach ($sourceMap->mappings as $mapping) {
+                $generatedLine = $mapping['generatedLine'] + $lineOffset;
+                if ($generatedLine < 0) {
+                    continue;
+                }
+
+                $sourceIndex = null;
+                if ($mapping['sourceIndex'] !== null) {
+                    if (!array_key_exists($mapping['sourceIndex'], $sourceMap->sources)) {
+                        throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $mapping['sourceIndex']);
+                    }
+
+                    $sourceIndex = $sourceIndexes[$mapping['sourceIndex']] ??= $this->addSource($sourceMap->sources[$mapping['sourceIndex']]);
+
+                    if (!$preserveUnusedTables && array_key_exists($mapping['sourceIndex'], $sourceMap->sourcesContent)) {
+                        $this->setSourceContent($sourceIndex, $sourceMap->sourcesContent[$mapping['sourceIndex']]);
+                    }
+                }
+
+                $name = null;
+                if ($mapping['nameIndex'] !== null) {
+                    if (!array_key_exists($mapping['nameIndex'], $sourceMap->names)) {
+                        throw new InvalidArgumentException('Source map mapping references unknown name index: ' . $mapping['nameIndex']);
+                    }
+
+                    $name = $sourceMap->names[$mapping['nameIndex']];
+                    $nameIndexes[$mapping['nameIndex']] ??= $this->addName($name);
+                }
+
+                $this->addRawMapping(
+                    $generatedLine,
+                    $mapping['generatedColumn'] + ($mapping['generatedLine'] === 0 ? $columnOffset : 0),
+                    $sourceIndex,
+                    $mapping['originalLine'],
+                    $mapping['originalColumn'],
+                    $name
+                );
+            }
+        } finally {
+            $this->drainSourceMap($sourceMap);
+        }
+    }
+
     private function drainSourceMap(SourceMap $sourceMap): void
     {
         $sourceMap->sources = [];

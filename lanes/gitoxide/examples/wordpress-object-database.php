@@ -66,6 +66,50 @@ $looseIntegrityObjects = array_sum(array_map(
     $looseIntegrity
 ));
 
+$duplicateIndexObject = $fixture['objects'][1];
+$duplicateIndexEntries = [$duplicateIndexObject, $duplicateIndexObject];
+$duplicateIndexFanout = array_fill(0, 256, 0);
+foreach ($duplicateIndexEntries as $entry) {
+    $duplicateIndexFanout[hexdec(substr($entry['oid'], 0, 2))]++;
+}
+$duplicateIndexRunning = 0;
+foreach ($duplicateIndexFanout as $index => $count) {
+    $duplicateIndexRunning += $count;
+    $duplicateIndexFanout[$index] = $duplicateIndexRunning;
+}
+$duplicateIndexBytes = "\xfftOc" . pack('N', 2);
+foreach ($duplicateIndexFanout as $count) {
+    $duplicateIndexBytes .= pack('N', $count);
+}
+foreach ($duplicateIndexEntries as $entry) {
+    $oidBytes = hex2bin($entry['oid']);
+    if ($oidBytes === false) {
+        throw new RuntimeException('Unable to decode duplicate-index object id');
+    }
+    $duplicateIndexBytes .= $oidBytes;
+}
+foreach ($duplicateIndexEntries as $entry) {
+    $duplicateIndexBytes .= pack('N', $entry['crc32']);
+}
+foreach ($duplicateIndexEntries as $entry) {
+    $duplicateIndexBytes .= pack('N', $entry['offset']);
+}
+$duplicateIndexBytes .= hex2bin($fixture['packChecksum']);
+$duplicateIndexBytes .= hex2bin(hash('sha1', $duplicateIndexBytes));
+
+$duplicateIndexGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-duplicate-index-' . bin2hex(random_bytes(4)) . '/.git';
+$duplicateIndexPackDir = $duplicateIndexGitDir . '/objects/pack';
+if (!mkdir($duplicateIndexPackDir, 0777, true) && !is_dir($duplicateIndexPackDir)) {
+    throw new RuntimeException("Unable to create duplicate-index pack example directory: {$duplicateIndexPackDir}");
+}
+$duplicateIndexBase = 'pack-duplicate-prefix-' . $fixture['packChecksum'];
+file_put_contents($duplicateIndexPackDir . '/' . $duplicateIndexBase . '.pack', $fixture['packBytes']);
+file_put_contents($duplicateIndexPackDir . '/' . $duplicateIndexBase . '.idx', $duplicateIndexBytes);
+$duplicateIndexDatabase = new ObjectDatabase($duplicateIndexGitDir);
+$duplicateIndexPrefix = strtoupper(substr($duplicateIndexObject['oid'], 0, 8));
+$duplicateIndexPrefixWithoutCandidates = $duplicateIndexDatabase->lookupPrefix($duplicateIndexPrefix);
+$duplicateIndexPrefixWithCandidates = $duplicateIndexDatabase->lookupPrefix($duplicateIndexPrefix, true);
+
 $sha256GitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-sha256-' . bin2hex(random_bytes(4)) . '/.git';
 $sha256Database = new ObjectDatabase($sha256GitDir, objectHash: 'sha256');
 $sha256Object = new GitObject('blob', 'SHA-256-addressed WordPress deployment snapshot.');
@@ -260,6 +304,11 @@ return [
     'sharedPackageOid' => $sharedPackage->oid(),
     'sharedPackageSource' => 'alternate object database',
     'deltaPrefixStatus' => $prefix['status'],
+    'duplicateIndexOid' => $duplicateIndexObject['oid'],
+    'duplicateIndexPrefixStatusWithoutCandidates' => $duplicateIndexPrefixWithoutCandidates['status'],
+    'duplicateIndexPrefixMatchesWithoutCandidates' => $duplicateIndexPrefixWithoutCandidates['matches'],
+    'duplicateIndexPrefixStatusWithCandidates' => $duplicateIndexPrefixWithCandidates['status'],
+    'duplicateIndexPrefixCandidates' => $duplicateIndexPrefixWithCandidates['candidates'],
     'firstPackOffsetOid' => $database->objectIds(ObjectDatabase::ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL)[0],
     'packedCommitWriteSkippedLoose' => $packedCommitWriteOid === $fixture['objects'][0]['oid']
         && !is_file($gitDir . '/objects/' . substr($packedCommitWriteOid, 0, 2) . '/' . substr($packedCommitWriteOid, 2)),

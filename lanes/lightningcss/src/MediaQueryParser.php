@@ -809,6 +809,10 @@ final class MediaQueryParser
             return true;
         }
 
+        if ($type === 'unknown' && $this->lengthValueContainsPercentage($value)) {
+            return false;
+        }
+
         if ($type === 'length' && $this->lengthValueContainsPercentage($value)) {
             return false;
         }
@@ -855,13 +859,14 @@ final class MediaQueryParser
         return preg_match('/' . $this->cssNumberPattern() . '%/i', $value) === 1;
     }
 
-    private function isValidUnknownRangeValue(string $value): bool
+    private function isValidUnknownRangeValue(string $value, bool $allowPercentage = false): bool
     {
         $number = $this->cssNumberPattern();
+        $unit = $allowPercentage ? '[a-zA-Z%]+' : '[a-zA-Z]+';
 
         return preg_match('/^' . $number . '$/', $value) === 1
             || preg_match('/^' . $number . '(?:\s*\/\s*' . $number . ')$/', $value) === 1
-            || preg_match('/^' . $number . '(?:[a-zA-Z%]+)$/', $value) === 1
+            || preg_match('/^' . $number . '(?:' . $unit . ')$/', $value) === 1
             || preg_match('/^' . $number . '(?:dpcm|dpi|dppx|x)$/i', $value) === 1
             || preg_match('/^' . $this->cssIdentifierPattern() . '$/', $value) === 1
             || preg_match('/^[-_a-zA-Z][-_a-zA-Z0-9]*$/', $value) === 1;
@@ -878,7 +883,7 @@ final class MediaQueryParser
             return true;
         }
 
-        return $this->isValidUnknownRangeValue($value);
+        return $this->isValidUnknownRangeValue($value, allowPercentage: true);
     }
 
     private function isValidIntervalComparisonPair(string $startOperator, string $endOperator): bool

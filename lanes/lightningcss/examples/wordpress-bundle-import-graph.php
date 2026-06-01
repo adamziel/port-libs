@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LightningCSS\CssBundleException;
 use PortLibs\LightningCSS\CssBundler;
+use PortLibs\LightningCSS\SourceMap;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -146,6 +147,37 @@ if (
 
 echo 'source-map-input: remapped' . PHP_EOL;
 echo 'source-map-input-unused: pruned' . PHP_EOL;
+
+$offsetBlockMap = 'data:application/json;base64,' . base64_encode(json_encode([
+    'version' => 3,
+    'mappings' => 'AAAA',
+    'sources' => ['blocks/generated-offset-card.scss'],
+    'sourcesContent' => ['.wp-block-card { color: $theme-green }'],
+    'names' => [],
+], JSON_THROW_ON_ERROR));
+
+$offsetSourceBundle = (new CssBundler())->bundleWithSourceMap('/theme.css', [
+    '/theme.css' => '@import "blocks/base.css"; @import "blocks/generated-offset-card.css"; .wp-site-blocks { color: red }',
+    '/blocks/base.css' => '.wp-block-base { color: blue }',
+    '/blocks/generated-offset-card.css' => ".wp-block-card { color: green }\n/*# sourceMappingURL={$offsetBlockMap} */",
+], null, '/');
+$offsetSourceDecoded = SourceMap::decodeVlq($offsetSourceBundle['sourceMap']->toArray(null, false)['mappings']);
+
+if (
+    $offsetSourceBundle['code'] !== '.wp-block-base{color:#00f}.wp-block-card{color:green}.wp-site-blocks{color:red}'
+    || $offsetSourceBundle['sourceMap']->toArray(null, false)['sources'] !== [
+        'theme.css',
+        'blocks/base.css',
+        'blocks/generated-offset-card.scss',
+    ]
+    || ($offsetSourceDecoded[0]['generatedColumn'] ?? null) !== strlen('.wp-block-base{color:#00f}')
+    || ($offsetSourceDecoded[0]['sourceIndex'] ?? null) !== 2
+) {
+    fwrite(STDERR, "Expected inline input source map to offset after earlier bundled block CSS\n");
+    exit(1);
+}
+
+echo 'source-map-input-offset: remapped' . PHP_EOL;
 
 $literalSourceMap = 'data:application/json;base64,' . base64_encode(json_encode([
     'version' => 3,

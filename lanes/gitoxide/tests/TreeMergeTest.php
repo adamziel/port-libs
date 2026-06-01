@@ -587,6 +587,150 @@ return [
         $t->same("bar\n", $read($reverseTheirsResolved->tree->entryNamed('whatever')?->oid ?? '')->body);
         $t->same(['greeting'], array_map(static fn ($conflict): string => $conflict->path, $reverseTheirsResolved->conflicts));
     },
+    'maps upstream gix-merge tree-baseline file tree replacement resolve-tree fixture shape' => static function (TestRunner $t) use ($objectStore): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $baseFile = "original\n1\n2\n3\n4\n5\n";
+        $oursFile = "1\n2\n3\n4\n5\n";
+        $theirsFile = "original\n1\n2\n3\n4\n5\n6\n";
+        $flattenAt = null;
+        $flattenAt = static function (Tree $tree, string $prefix = '') use (&$flattenAt, $read): array {
+            $entries = [];
+            foreach ($tree->entries as $entry) {
+                $path = $prefix . $entry->filename;
+                if ($entry->isTree()) {
+                    foreach ($flattenAt(Tree::fromObject($read($entry->oid)), $path . '/') as $nestedPath => $nestedEntry) {
+                        $entries[$nestedPath] = $nestedEntry;
+                    }
+                    continue;
+                }
+
+                $entries[$path] = [
+                    'kind' => $entry->kind(),
+                    'body' => $read($entry->oid)->body,
+                ];
+            }
+            ksort($entries, SORT_STRING);
+
+            return $entries;
+        };
+        $conflicts = static fn (TreeMergeResult $result): array => array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+                'resolvedPath' => $conflict->context['resolvedPath'] ?? null,
+            ],
+            $result->conflicts,
+        );
+        $assertCleanTree = static function (TreeMergeResult $result, array $expected) use ($t, $flattenAt): void {
+            $t->true($result->isClean());
+            $t->same([], $result->conflicts);
+            $t->same($expected, $flattenAt($result->tree));
+            $t->same([], $result->indexEntries());
+        };
+
+        $replacementDirectory = new Tree([
+            $blobEntry('d', ''),
+            $blobEntry('e', ''),
+            $treeEntry('sub', new Tree([
+                $blobEntry('b', $theirsFile),
+                $blobEntry('c', ''),
+            ])),
+        ]);
+        $nonTreeBase = new Tree([$blobEntry('a', $baseFile)]);
+        $nonTreeOurs = new Tree([$blobEntry('a', $oursFile)]);
+        $nonTreeTheirs = new Tree([$treeEntry('a', $replacementDirectory)]);
+        $nonTreeResult = TreeMerge::mergeRecursive($nonTreeBase, $nonTreeOurs, $nonTreeTheirs, $read, $write);
+        $nonTreeReverse = TreeMerge::mergeRecursive($nonTreeBase, $nonTreeTheirs, $nonTreeOurs, $read, $write);
+
+        $t->same([
+            'a/d' => ['kind' => 'blob', 'body' => ''],
+            'a/e' => ['kind' => 'blob', 'body' => ''],
+            'a/sub/b' => ['kind' => 'blob', 'body' => $theirsFile],
+            'a/sub/c' => ['kind' => 'blob', 'body' => ''],
+            'a~A' => ['kind' => 'blob', 'body' => $oursFile],
+        ], $flattenAt($nonTreeResult->tree));
+        $t->same([
+            ['path' => 'a~A', 'reason' => 'delete-modify', 'base' => 'a~A', 'ours' => 'a~A', 'theirs' => null, 'resolvedPath' => 'a'],
+        ], $conflicts($nonTreeResult));
+        $assertCleanTree(
+            $nonTreeResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR, TreeMergeResult::RESOLVE_ANCESTOR),
+            ['a' => ['kind' => 'blob', 'body' => $baseFile]],
+        );
+        $assertCleanTree(
+            $nonTreeResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS),
+            ['a' => ['kind' => 'blob', 'body' => $oursFile]],
+        );
+        $assertCleanTree(
+            $nonTreeReverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR, TreeMergeResult::RESOLVE_ANCESTOR),
+            ['a' => ['kind' => 'blob', 'body' => $baseFile]],
+        );
+        $assertCleanTree(
+            $nonTreeReverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS),
+            [
+                'a/d' => ['kind' => 'blob', 'body' => ''],
+                'a/e' => ['kind' => 'blob', 'body' => ''],
+                'a/sub/b' => ['kind' => 'blob', 'body' => $theirsFile],
+                'a/sub/c' => ['kind' => 'blob', 'body' => ''],
+            ],
+        );
+
+        $subtreeBase = new Tree([$blobEntry('b', $baseFile)]);
+        $subtreeOurs = new Tree([$blobEntry('b', $oursFile)]);
+        $treeBase = new Tree([$treeEntry('a', $subtreeBase)]);
+        $treeOurs = new Tree([$treeEntry('a', $subtreeOurs)]);
+        $treeTheirs = new Tree([$blobEntry('a', "new file\n")]);
+        $treeResult = TreeMerge::mergeRecursive($treeBase, $treeOurs, $treeTheirs, $read, $write);
+        $treeReverse = TreeMerge::mergeRecursive($treeBase, $treeTheirs, $treeOurs, $read, $write);
+
+        $t->same([
+            'a/b' => ['kind' => 'blob', 'body' => $oursFile],
+            'a~B' => ['kind' => 'blob', 'body' => "new file\n"],
+        ], $flattenAt($treeResult->tree));
+        $t->same([
+            ['path' => 'a/b', 'reason' => 'delete-modify', 'base' => 'b', 'ours' => 'b', 'theirs' => null, 'resolvedPath' => null],
+            ['path' => 'a~B', 'reason' => 'directory-file', 'base' => null, 'ours' => null, 'theirs' => 'a~B', 'resolvedPath' => 'a'],
+        ], $conflicts($treeResult));
+        $assertCleanTree(
+            $treeResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR, TreeMergeResult::RESOLVE_ANCESTOR),
+            ['a/b' => ['kind' => 'blob', 'body' => $baseFile]],
+        );
+        $assertCleanTree(
+            $treeResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS),
+            ['a/b' => ['kind' => 'blob', 'body' => $oursFile]],
+        );
+        $assertCleanTree(
+            $treeReverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR, TreeMergeResult::RESOLVE_ANCESTOR),
+            ['a/b' => ['kind' => 'blob', 'body' => $baseFile]],
+        );
+        $assertCleanTree(
+            $treeReverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS),
+            ['a' => ['kind' => 'blob', 'body' => "new file\n"]],
+        );
+
+        $treeRenameTheirs = new Tree([$blobEntry('a', '')]);
+        $treeRenameResult = TreeMerge::mergeRecursive($treeBase, $treeOurs, $treeRenameTheirs, $read, $write);
+        $treeRenameReverse = TreeMerge::mergeRecursive($treeBase, $treeRenameTheirs, $treeOurs, $read, $write);
+
+        $assertCleanTree(
+            $treeRenameResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR, TreeMergeResult::RESOLVE_ANCESTOR),
+            ['a/b' => ['kind' => 'blob', 'body' => $baseFile]],
+        );
+        $assertCleanTree(
+            $treeRenameResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS),
+            ['a/b' => ['kind' => 'blob', 'body' => $oursFile]],
+        );
+        $assertCleanTree(
+            $treeRenameReverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR, TreeMergeResult::RESOLVE_ANCESTOR),
+            ['a/b' => ['kind' => 'blob', 'body' => $baseFile]],
+        );
+        $assertCleanTree(
+            $treeRenameReverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS),
+            ['a' => ['kind' => 'blob', 'body' => '']],
+        );
+    },
     'maps upstream gix-merge tree-baseline simple tweak1-side2 fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $renamedNumbers = 'Αυτά μου φαίνονται κινέζικα';

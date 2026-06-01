@@ -4574,7 +4574,13 @@ final class CssModulesTransformer
 
     private function assertCssModulesFunctionalSelector(string $selector): void
     {
-        if (trim($selector) === '') {
+        $trimmed = trim($selector);
+        if ($trimmed === '') {
+            throw new \InvalidArgumentException('Invalid empty selector');
+        }
+
+        // CSS Modules mode pseudos take a selector, not a relative selector.
+        if (str_contains('>+~', $trimmed[0])) {
             throw new \InvalidArgumentException('Invalid empty selector');
         }
 

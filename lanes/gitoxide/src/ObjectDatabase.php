@@ -220,34 +220,14 @@ final class ObjectDatabase
                 $this->refreshObjectStorage();
             }
             $oids = $this->prefixMatches($prefix);
-        } else {
-            $oids = $this->prefixMatches($prefix);
-            if ($this->refreshObjectStorageOnMiss && count($oids) <= 1) {
-                $this->refreshObjectStorage();
-                $oids = $this->prefixMatches($prefix);
-            }
+
+            return $this->prefixResultFromCandidates($oids, true);
         }
 
-        if ($oids === []) {
-            $result = ['status' => 'missing'];
-            if ($includeCandidates) {
-                $result['candidates'] = [];
-            }
-
-            return $result;
-        }
-        if (count($oids) > 1) {
-            $result = ['status' => 'ambiguous', 'matches' => $oids];
-            if ($includeCandidates) {
-                $result['candidates'] = $oids;
-            }
-
-            return $result;
-        }
-
-        $result = ['status' => 'found', 'oid' => $oids[0]];
-        if ($includeCandidates) {
-            $result['candidates'] = $oids;
+        $result = $this->lookupPrefixWithoutCandidates($prefix);
+        if ($this->refreshObjectStorageOnMiss && $result['status'] !== 'ambiguous') {
+            $this->refreshObjectStorage();
+            $result = $this->lookupPrefixWithoutCandidates($prefix);
         }
 
         return $result;
@@ -278,6 +258,132 @@ final class ObjectDatabase
         }
 
         return $oid;
+    }
+
+    /**
+     * @param list<string> $oids
+     * @return array{status:'missing',candidates?:list<string>}|array{status:'found',oid:string,candidates?:list<string>}|array{status:'ambiguous',matches:list<string>,candidates?:list<string>}
+     */
+    private function prefixResultFromCandidates(array $oids, bool $includeCandidates): array
+    {
+        if ($oids === []) {
+            $result = ['status' => 'missing'];
+            if ($includeCandidates) {
+                $result['candidates'] = [];
+            }
+
+            return $result;
+        }
+        if (count($oids) > 1) {
+            $result = ['status' => 'ambiguous', 'matches' => $oids];
+            if ($includeCandidates) {
+                $result['candidates'] = $oids;
+            }
+
+            return $result;
+        }
+
+        $result = ['status' => 'found', 'oid' => $oids[0]];
+        if ($includeCandidates) {
+            $result['candidates'] = $oids;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array{status:'missing'}|array{status:'found',oid:string}|array{status:'ambiguous',matches:list<string>}
+     */
+    private function lookupPrefixWithoutCandidates(string $prefix): array
+    {
+        $candidate = null;
+        foreach ($this->multiPackIndexes() as $multiPack) {
+            $result = $multiPack['index']->lookupPrefix($prefix);
+            $sourceOids = self::prefixOidsFromIndexResult(
+                $result,
+                static fn (int $entryIndex): string => $multiPack['index']->entryAt($entryIndex)->oid
+            );
+            $merged = self::mergeNoCandidatePrefixSource($candidate, $sourceOids);
+            if ($merged !== null) {
+                return $merged;
+            }
+        }
+
+        foreach ($this->standalonePackBundles() as $bundle) {
+            $result = $bundle['index']->lookupPrefix($prefix);
+            $sourceOids = self::prefixOidsFromIndexResult(
+                $result,
+                static fn (int $entryIndex): string => $bundle['index']->entryAt($entryIndex)->oid
+            );
+            $merged = self::mergeNoCandidatePrefixSource($candidate, $sourceOids);
+            if ($merged !== null) {
+                return $merged;
+            }
+        }
+
+        foreach ($this->looseStores() as $store) {
+            $merged = self::mergeNoCandidatePrefixSource($candidate, $store->prefixObjectIds($prefix));
+            if ($merged !== null) {
+                return $merged;
+            }
+        }
+
+        return $candidate === null
+            ? ['status' => 'missing']
+            : ['status' => 'found', 'oid' => $candidate];
+    }
+
+    /**
+     * @param array{status:string,entry?:PackIndexEntry|MultiPackIndexEntry,matches?:list<int>} $result
+     * @param callable(int):string $oidAtIndex
+     * @return list<string>
+     */
+    private static function prefixOidsFromIndexResult(array $result, callable $oidAtIndex): array
+    {
+        if ($result['status'] === 'missing') {
+            return [];
+        }
+        if ($result['status'] === 'found') {
+            return [$result['entry']->oid];
+        }
+
+        $oids = [];
+        foreach ($result['matches'] as $entryIndex) {
+            $oids[] = $oidAtIndex($entryIndex);
+        }
+
+        return $oids;
+    }
+
+    /**
+     * @param null|string $candidate
+     * @param list<string> $sourceOids
+     * @return null|array{status:'ambiguous',matches:list<string>}
+     */
+    private static function mergeNoCandidatePrefixSource(?string &$candidate, array $sourceOids): ?array
+    {
+        if ($sourceOids === []) {
+            return null;
+        }
+
+        if (count($sourceOids) > 1) {
+            $matches = $candidate === null ? $sourceOids : array_merge([$candidate], $sourceOids);
+            sort($matches, SORT_STRING);
+
+            return ['status' => 'ambiguous', 'matches' => $matches];
+        }
+
+        $oid = $sourceOids[0];
+        if ($candidate === null || $candidate === $oid) {
+            $candidate = $oid;
+
+            return null;
+        }
+
+        $matches = [$candidate, $oid];
+        sort($matches, SORT_STRING);
+
+        return ['status' => 'ambiguous', 'matches' => $matches];
     }
 
     /**

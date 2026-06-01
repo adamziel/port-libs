@@ -256,6 +256,37 @@ CSS,
         $t->same(0, $decoded[0]['originalLine']);
         $t->same(0, $decoded[0]['originalColumn']);
     },
+    'css bundler offsets upstream inline source maps after earlier bundled imports' => static function (TestRunner $t): void {
+        $inputMap = 'data:application/json;base64,' . base64_encode(json_encode([
+            'version' => 3,
+            'mappings' => 'AAAA',
+            'sources' => ['blocks/generated-card.scss'],
+            'sourcesContent' => ['.card { color: $theme-green }'],
+            'names' => [],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = (new CssBundler())->bundleWithSourceMap('/theme/entry.css', [
+            '/theme/entry.css' => '@import "blocks/base.css"; @import "blocks/generated-card.css"; .entry { color: red }',
+            '/theme/blocks/base.css' => '.base { color: blue }',
+            '/theme/blocks/generated-card.css' => ".card { color: green }\n/*# sourceMappingURL={$inputMap} */",
+        ], null, '/theme');
+
+        $data = $result['sourceMap']->toArray(null, false);
+        $decoded = SourceMap::decodeVlq($data['mappings']);
+        $expectedColumn = strlen('.base{color:#00f}');
+
+        $t->same('.base{color:#00f}.card{color:green}.entry{color:red}', $result['code']);
+        $t->same(['entry.css', 'blocks/base.css', 'blocks/generated-card.scss'], $data['sources']);
+        $t->same([
+            '@import "blocks/base.css"; @import "blocks/generated-card.css"; .entry { color: red }',
+            '.base { color: blue }',
+            '.card { color: $theme-green }',
+        ], $data['sourcesContent']);
+        $t->same($expectedColumn, $decoded[0]['generatedColumn']);
+        $t->same(2, $decoded[0]['sourceIndex']);
+        $t->same(0, $decoded[0]['originalLine']);
+        $t->same(0, $decoded[0]['originalColumn']);
+    },
     'css bundler ignores source map url markers inside imported string literals' => static function (TestRunner $t): void {
         $literalMap = 'data:application/json;base64,' . base64_encode(json_encode([
             'version' => 3,

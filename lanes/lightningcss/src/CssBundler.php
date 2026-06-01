@@ -28,6 +28,9 @@ final class CssBundler
 
     private bool $cssModules = false;
 
+    /** @var list<array{sourceMap:SourceMap, generatedCss:string}> */
+    private array $pendingInputSourceMaps = [];
+
     /** @var array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,pure?:bool,unusedSymbols?:list<string>,unused_symbols?:list<string>,pseudoClasses?:array<string,string>,pseudo_classes?:array<string,string>,projectRoot?:string,project_root?:string} */
     private array $cssModuleOptions = [];
 
@@ -237,6 +240,7 @@ final class CssBundler
         $this->sourceIndexes = [];
         $this->sourceMap = $sourceMapProjectRoot === null ? null : new SourceMap($sourceMapProjectRoot);
         $this->sourceMapProjectRoot = $sourceMapProjectRoot ?? '/';
+        $this->pendingInputSourceMaps = [];
         $this->stylesheets = [];
         $this->cycleConsumedLayers = [];
         $this->cssModules = $cssModules;
@@ -261,6 +265,7 @@ final class CssBundler
         $raw = (new CustomMediaTransformer())->transform($raw);
 
         $code = (new CssMinifier())->minify($raw, false, true);
+        $this->applyPendingInputSourceMaps($code);
         $exports = $cssModules ? $this->resolvedCssModuleExports(0) : [];
 
         return [
@@ -550,7 +555,10 @@ final class CssBundler
         $sourceMapUrl = $this->sourceMapUrl($source);
         if ($sourceMapUrl !== null && str_starts_with(strtolower($sourceMapUrl), 'data:')) {
             try {
-                $this->sourceMap->addSourceMap(SourceMap::fromDataUrl($sourceMapUrl, $this->sourceMapProjectRoot), 0, false);
+                $this->pendingInputSourceMaps[] = [
+                    'sourceMap' => SourceMap::fromDataUrl($sourceMapUrl, $this->sourceMapProjectRoot),
+                    'generatedCss' => (new CssMinifier())->minify($source, false, true),
+                ];
             } catch (\Throwable) {
                 // Upstream suppresses generated source collection for data: maps even when parsing fails.
             }
@@ -560,6 +568,32 @@ final class CssBundler
 
         $sourceMapIndex = $this->sourceMap->addSource($file);
         $this->sourceMap->setSourceContent($sourceMapIndex, $source);
+    }
+
+    private function applyPendingInputSourceMaps(string $code): void
+    {
+        if ($this->sourceMap === null) {
+            return;
+        }
+
+        foreach ($this->pendingInputSourceMaps as $inputSourceMap) {
+            $generatedCss = $inputSourceMap['generatedCss'];
+            $offset = $generatedCss === '' ? 0 : strpos($code, $generatedCss);
+            if ($offset === false) {
+                $offset = 0;
+            }
+
+            $line = substr_count(substr($code, 0, $offset), "\n");
+            $lastLineBreak = strrpos(substr($code, 0, $offset), "\n");
+            $column = $lastLineBreak === false ? $offset : $offset - $lastLineBreak - 1;
+
+            $this->sourceMap->appendSourceMapWithGeneratedOffset(
+                $inputSourceMap['sourceMap'],
+                $line,
+                $column,
+                false
+            );
+        }
     }
 
     private function sourceMapUrl(string $source): ?string

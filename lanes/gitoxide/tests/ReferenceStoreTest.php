@@ -1840,6 +1840,105 @@ return [
             (string) $store->reflogContents('refs/tags/wp-release-v2026.05'),
         );
     },
+    'prepared packed transaction mixes direct object updates and loose symbolic refs like upstream' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-packed-symbolic-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        $store = ReferenceStore::at($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+
+        $transaction = $store->prepareLooseUpdateTransaction(
+            [
+                'refs/a' => ReferenceTarget::object($old),
+                'refs/A' => ReferenceTarget::object($new),
+                'refs/symbolic' => ReferenceTarget::symbolic('refs/heads/target'),
+            ],
+            'sha1',
+            $committer,
+            'packed mixed publish',
+            true,
+            ReferenceStore::PREVIOUS_ANY,
+            null,
+            false,
+            ReferenceStore::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE,
+        );
+
+        $t->same(true, is_file($dir . '/packed-refs.lock'), 'mixed direct-to-packed transaction holds the packed refs lock');
+        $t->same(false, is_file($dir . '/refs/a.lock'), 'direct-to-packed lowercase object ref does not take a loose lock');
+        $t->same(false, is_file($dir . '/refs/A.lock'), 'direct-to-packed uppercase object ref does not take a loose lock');
+        $t->same("ref: refs/heads/target\n", file_get_contents($dir . '/refs/symbolic.lock'), 'symbolic refs remain prepared as loose lockfiles');
+
+        $edits = $transaction->commit();
+        $packed = PackedReferences::open($dir . '/packed-refs');
+        $looseNames = array_map(static fn ($reference): string => $reference->name, $store->looseAll());
+
+        $t->same(['refs/a', 'refs/A', 'refs/symbolic'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same(false, is_file($dir . '/packed-refs.lock'));
+        $t->same(['refs/A', 'refs/a'], $packed->names());
+        $t->same($old, $packed->find('refs/a')->targetObjectId());
+        $t->same($new, $packed->find('refs/A')->targetObjectId());
+        $t->same(['refs/symbolic'], $looseNames);
+        $t->same(false, is_file($dir . '/refs/a'));
+        $t->same(false, is_file($dir . '/refs/A'));
+        $t->same("ref: refs/heads/target\n", file_get_contents($dir . '/refs/symbolic'));
+        $t->same('packed', $store->find('refs/a')->source);
+        $t->same('packed', $store->find('refs/A')->source);
+        $t->same('loose', $store->find('refs/symbolic')->source);
+        $t->contains(
+            str_repeat('0', 40) . " {$old} Deploy Bot <deploy@example.com> 1234 +0000\tpacked mixed publish\n",
+            (string) $store->reflogContents('refs/a'),
+        );
+        $t->contains(
+            str_repeat('0', 40) . " {$new} Deploy Bot <deploy@example.com> 1234 +0000\tpacked mixed publish\n",
+            (string) $store->reflogContents('refs/A'),
+        );
+        $t->same(null, $store->reflogContents('refs/symbolic'), 'symbolic direct creation does not write an object reflog entry');
+
+        file_put_contents($dir . '/refs/a.lock', 'held loose lowercase lock');
+        file_put_contents($dir . '/refs/A.lock', 'held loose uppercase lock');
+        $aReflogBefore = (string) $store->reflogContents('refs/a');
+        $upperReflogBefore = (string) $store->reflogContents('refs/A');
+        $sameTarget = $store->prepareLooseUpdateTransaction(
+            [
+                'refs/a' => ReferenceTarget::object($old),
+                'refs/A' => ReferenceTarget::object($new),
+            ],
+            'sha1',
+            $committer,
+            'same packed target refresh',
+            true,
+            ReferenceStore::PREVIOUS_ANY,
+            null,
+            false,
+            ReferenceStore::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE,
+        );
+
+        $t->same('held loose lowercase lock', file_get_contents($dir . '/refs/a.lock'));
+        $t->same('held loose uppercase lock', file_get_contents($dir . '/refs/A.lock'));
+        $sameTargetEdits = $sameTarget->commit();
+        $t->same(['refs/a', 'refs/A'], array_map(static fn ($edit): string => $edit->name, $sameTargetEdits));
+        $t->same('held loose lowercase lock', file_get_contents($dir . '/refs/a.lock'));
+        $t->same('held loose uppercase lock', file_get_contents($dir . '/refs/A.lock'));
+        $t->same($aReflogBefore, $store->reflogContents('refs/a'), 'same-target packed refresh does not add reflog noise');
+        $t->same($upperReflogBefore, $store->reflogContents('refs/A'), 'same-target uppercase packed refresh does not add reflog noise');
+        unlink($dir . '/refs/a.lock');
+        unlink($dir . '/refs/A.lock');
+
+        $delete = $store->prepareLooseDeleteTransaction(
+            ['refs/a', 'refs/A', 'refs/symbolic'],
+            ReferenceStore::PREVIOUS_MUST_EXIST,
+            null,
+            false,
+            'sha1',
+        );
+        $deleteEdits = $delete->commit();
+
+        $t->same(['refs/a', 'refs/A', 'refs/symbolic'], array_map(static fn ($edit): string => $edit->name, $deleteEdits));
+        $t->same([], array_map(static fn ($reference): string => $reference->name, $store->all()));
+        $t->same(false, is_file($dir . '/packed-refs'));
+        $t->same(false, $store->reflogExists('refs/a'));
+        $t->same(false, $store->reflogExists('refs/A'));
+        $t->same(false, $store->reflogExists('refs/symbolic'));
+    },
     'prepared packed update mode leaves pseudo refs loose and ignores packed refs lock like upstream' => static function (TestRunner $t) use ($new): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-packed-pseudo-' . bin2hex(random_bytes(4));
         mkdir($dir, 0777, true);
@@ -2165,6 +2264,26 @@ return [
             $fixture['reviewCommit'] . ' ' . $fixture['productionCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedPackedUpdateReflogMessage'],
             (string) $summary['preparedPackedUpdateReflog'],
         );
+        $t->same($fixture['expectedPreparedPackedMixedEditNames'], $summary['preparedPackedMixedEditNames']);
+        $t->same($fixture['expectedPreparedPackedMixedHadPackedLock'], $summary['preparedPackedMixedHadPackedLock']);
+        $t->same($fixture['expectedPreparedPackedMixedNoObjectLocks'], $summary['preparedPackedMixedNoObjectLocks']);
+        $t->same($fixture['expectedPreparedPackedMixedHadSymbolicLock'], $summary['preparedPackedMixedHadSymbolicLock']);
+        $t->same($fixture['expectedPreparedPackedMixedCleanedPackedLock'], $summary['preparedPackedMixedCleanedPackedLock']);
+        $t->same($fixture['expectedPreparedPackedMixedPackedNames'], $summary['preparedPackedMixedPackedNames']);
+        $t->same($fixture['expectedPreparedPackedMixedObjectLooseSourcesRemoved'], $summary['preparedPackedMixedObjectLooseSourcesRemoved']);
+        $t->same($fixture['expectedPreparedPackedMixedContentSource'], $summary['preparedPackedMixedContentSource']);
+        $t->same($fixture['expectedPreparedPackedMixedAssetSource'], $summary['preparedPackedMixedAssetSource']);
+        $t->same($fixture['expectedPreparedPackedMixedSymbolicSource'], $summary['preparedPackedMixedSymbolicSource']);
+        $t->same($fixture['preparedPackedMixedSymbolicTargetRef'], $summary['preparedPackedMixedSymbolicTarget']);
+        $t->same($fixture['expectedPreparedPackedMixedSymbolicReflogExists'], $summary['preparedPackedMixedSymbolicReflogExists']);
+        $t->contains(
+            str_repeat('0', 40) . ' ' . $fixture['reviewCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedPackedMixedReflogMessage'],
+            (string) $summary['preparedPackedMixedContentReflog'],
+        );
+        $t->contains(
+            str_repeat('0', 40) . ' ' . $fixture['productionCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedPackedMixedReflogMessage'],
+            (string) $summary['preparedPackedMixedAssetReflog'],
+        );
         $t->same($fixture['expectedPreparedPackedShadowEditNames'], $summary['preparedPackedShadowEditNames']);
         $t->same($fixture['expectedPreparedPackedShadowHadLocks'], $summary['preparedPackedShadowHadLocks']);
         $t->same($fixture['expectedPreparedPackedShadowCleanedLocks'], $summary['preparedPackedShadowCleanedLocks']);
@@ -2287,6 +2406,7 @@ return [
         $t->contains('packed-ref transaction locks', $summary['wordpressUse']);
         $t->contains('prepared packed-refs commit phase', $summary['wordpressUse']);
         $t->contains('pack prepared object updates before pruning loose review sources', $summary['wordpressUse']);
+        $t->contains('mix direct-to-packed object refs with loose symbolic review pointers', $summary['wordpressUse']);
         $t->contains('prepared loose shadows over packed baselines', $summary['wordpressUse']);
         $t->contains('detached HEAD preview updates loose', $summary['wordpressUse']);
         $t->contains('clone-style symbolic review pointer', $summary['wordpressUse']);

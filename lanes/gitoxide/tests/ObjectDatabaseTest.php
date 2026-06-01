@@ -24,6 +24,53 @@ $writeWordPressPackFixture = static function (): array {
     return [$gitDir, $fixture];
 };
 
+$writeWordPressPackFixtureWithDuplicateIndexEntry = static function (): array {
+    $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-data.php';
+    $gitDir = sys_get_temp_dir() . '/port-libs-git-odb-duplicate-pack-prefix-' . bin2hex(random_bytes(4)) . '/.git';
+    $packDir = $gitDir . '/objects/pack';
+    if (!mkdir($packDir, 0777, true) && !is_dir($packDir)) {
+        throw new RuntimeException("Unable to create duplicate-index pack fixture directory: {$packDir}");
+    }
+
+    $object = $fixture['objects'][1];
+    $entries = [$object, $object];
+    $fanout = array_fill(0, 256, 0);
+    foreach ($entries as $entry) {
+        $fanout[hexdec(substr($entry['oid'], 0, 2))]++;
+    }
+    $running = 0;
+    foreach ($fanout as $index => $count) {
+        $running += $count;
+        $fanout[$index] = $running;
+    }
+
+    $indexBytes = "\xfftOc" . pack('N', 2);
+    foreach ($fanout as $count) {
+        $indexBytes .= pack('N', $count);
+    }
+    foreach ($entries as $entry) {
+        $oidBytes = hex2bin($entry['oid']);
+        if ($oidBytes === false) {
+            throw new RuntimeException('Unable to decode duplicate pack object id');
+        }
+        $indexBytes .= $oidBytes;
+    }
+    foreach ($entries as $entry) {
+        $indexBytes .= pack('N', $entry['crc32']);
+    }
+    foreach ($entries as $entry) {
+        $indexBytes .= pack('N', $entry['offset']);
+    }
+    $indexBytes .= hex2bin($fixture['packChecksum']);
+    $indexBytes .= hex2bin(hash('sha1', $indexBytes));
+
+    $basename = 'pack-duplicate-prefix-' . $fixture['packChecksum'];
+    file_put_contents($packDir . '/' . $basename . '.pack', $fixture['packBytes']);
+    file_put_contents($packDir . '/' . $basename . '.idx', $indexBytes);
+
+    return [$gitDir, $fixture, $object['oid']];
+};
+
 $writePackFixtureToObjectsDirectory = static function (string $objectsDirectory): array {
     $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-data.php';
     $packDir = $objectsDirectory . '/pack';
@@ -313,6 +360,22 @@ return [
 
         $t->same('missing', $database->lookupPrefix('ffff')['status']);
         $t->same(['status' => 'missing', 'candidates' => []], $database->lookupPrefix('ffff', true));
+    },
+    'object database preserves pack-index duplicate ambiguity unless candidates are requested like gix-odb' => static function (TestRunner $t) use ($writeWordPressPackFixtureWithDuplicateIndexEntry): void {
+        [$gitDir, , $oid] = $writeWordPressPackFixtureWithDuplicateIndexEntry();
+        $database = new ObjectDatabase($gitDir);
+        $prefix = strtoupper(substr($oid, 0, 8));
+
+        $withoutCandidates = $database->lookupPrefix($prefix);
+        $t->same('ambiguous', $withoutCandidates['status']);
+        $t->same([$oid, $oid], $withoutCandidates['matches']);
+
+        $withCandidates = $database->lookupPrefix($prefix, true);
+        $t->same('found', $withCandidates['status']);
+        $t->same($oid, $withCandidates['oid']);
+        $t->same([$oid], $withCandidates['candidates']);
+        $t->same($oid, $database->disambiguatePrefix(strtoupper($oid), 4));
+        $t->same($oid, $database->disambiguatePrefix(strtoupper($oid), 40));
     },
     'object database rejects incomplete pack pairs' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-data.php';
@@ -1295,6 +1358,13 @@ return [
         $t->same('commit', $summary['deploymentCommitHeaderType']);
         $t->same(true, $summary['deploymentCommitHeaderSize'] > 0);
         $t->same(true, $summary['replacementHeaderUsesReviewedDraft']);
+        $t->same('ambiguous', $summary['duplicateIndexPrefixStatusWithoutCandidates']);
+        $t->same([
+            $summary['duplicateIndexOid'],
+            $summary['duplicateIndexOid'],
+        ], $summary['duplicateIndexPrefixMatchesWithoutCandidates']);
+        $t->same('found', $summary['duplicateIndexPrefixStatusWithCandidates']);
+        $t->same([$summary['duplicateIndexOid']], $summary['duplicateIndexPrefixCandidates']);
         $t->same(2, $summary['looseIntegrityStores']);
         $t->same(4, $summary['looseIntegrityObjects']);
         $t->same(true, $summary['looseIntegrityVerifiedDeploymentCommit']);

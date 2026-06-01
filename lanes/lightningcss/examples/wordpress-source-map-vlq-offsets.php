@@ -801,6 +801,23 @@ $lineOffsetUnsortedVlqReadOrderBeforeWrite = array_column($lineOffsetUnsortedVlq
 $lineOffsetUnsortedVlqJson = $lineOffsetUnsortedVlqMap->toJson(null, false);
 $lineOffsetUnsortedVlqReadOrderAfterWrite = array_column($lineOffsetUnsortedVlqMap->getMappings(), 'generatedColumn');
 
+$middleInsertLineOffsetMap = new SourceMap();
+$middleInsertLineOffsetEntry = $middleInsertLineOffsetMap->addSource('wp-content/themes/example/source-map-middle-insert-entry.css');
+$middleInsertLineOffsetMap->setSourceContent($middleInsertLineOffsetEntry, ".wp-block-middle-insert-entry{}\n");
+$middleInsertLineOffsetMap->addMapping(0, 0, $middleInsertLineOffsetEntry, 0, 0, 'middle-insert-entry-rule');
+$middleInsertLineOffsetMap->addVlqMap(
+    ';UAAAA,RACAC;AAEAC',
+    ['wp-content/themes/example/source-map-middle-insert.css'],
+    [".wp-block-middle-insert-later{}\n.wp-block-middle-insert-earlier{}\n.wp-block-middle-insert-after{}\n"],
+    ['middle-insert-later-rule', 'middle-insert-earlier-rule', 'middle-insert-after-rule']
+);
+$middleInsertLineOffsetMap->offsetLines(1, 2);
+$middleInsertLineOffsetReadOrderBeforeWrite = array_column($middleInsertLineOffsetMap->getMappings(), 'generatedColumn');
+$middleInsertLineOffsetJson = $middleInsertLineOffsetMap->toJson(null, false);
+$middleInsertLineOffsetReadOrderAfterWrite = array_column($middleInsertLineOffsetMap->getMappings(), 'generatedColumn');
+$middleInsertLineOffsetClosest = $middleInsertLineOffsetMap->findClosestMapping(3, 8);
+$middleInsertLineOffsetRoundTrip = SourceMap::fromBuffer('/', $middleInsertLineOffsetMap->toBuffer());
+
 $negativeLineOffsetUnsortedVlqMap = new SourceMap();
 $negativeLineOffsetUnsortedVlqMap->addVlqMap(
     'UAAAA,RACAC',
@@ -1156,6 +1173,11 @@ $actual = [
     'lineOffsetUnsortedVlqReadOrderBeforeWrite' => $lineOffsetUnsortedVlqReadOrderBeforeWrite,
     'lineOffsetUnsortedVlqMap' => $lineOffsetUnsortedVlqJson,
     'lineOffsetUnsortedVlqReadOrderAfterWrite' => $lineOffsetUnsortedVlqReadOrderAfterWrite,
+    'middleInsertLineOffsetReadOrderBeforeWrite' => $middleInsertLineOffsetReadOrderBeforeWrite,
+    'middleInsertLineOffsetMap' => $middleInsertLineOffsetJson,
+    'middleInsertLineOffsetReadOrderAfterWrite' => $middleInsertLineOffsetReadOrderAfterWrite,
+    'middleInsertLineOffsetClosest' => $middleInsertLineOffsetClosest,
+    'middleInsertLineOffsetRoundTrip' => $middleInsertLineOffsetRoundTrip->toJson(null, false),
     'negativeLineOffsetUnsortedVlqReadOrderBeforeLookup' => $negativeLineOffsetUnsortedVlqReadOrderBeforeLookup,
     'negativeLineOffsetUnsortedVlqClosest' => $negativeLineOffsetUnsortedVlqClosest,
     'negativeLineOffsetUnsortedVlqMap' => $negativeLineOffsetUnsortedVlqJson,
@@ -1317,6 +1339,11 @@ if (($argv[1] ?? null) === '--self-test') {
         'lineOffsetUnsortedVlqReadOrderBeforeWrite' => [10, 2],
         'lineOffsetUnsortedVlqMap' => '{"version":3,"mappings":";;EACAC,QADAD","sources":["wp-content/themes/example/source-map-line-offset-unsorted.css"],"sourcesContent":[".wp-block-line-offset-unsorted{}"],"names":["later-line-offset-rule","earlier-line-offset-rule"]}',
         'lineOffsetUnsortedVlqReadOrderAfterWrite' => [2, 10],
+        'middleInsertLineOffsetReadOrderBeforeWrite' => [0, 10, 2, 0],
+        'middleInsertLineOffsetMap' => '{"version":3,"mappings":"AAAAA;;;ECCAE,QADAD;AAGAE","sources":["wp-content/themes/example/source-map-middle-insert-entry.css","wp-content/themes/example/source-map-middle-insert.css"],"sourcesContent":[".wp-block-middle-insert-entry{}\n",".wp-block-middle-insert-later{}\n.wp-block-middle-insert-earlier{}\n.wp-block-middle-insert-after{}\n"],"names":["middle-insert-entry-rule","middle-insert-later-rule","middle-insert-earlier-rule","middle-insert-after-rule"]}',
+        'middleInsertLineOffsetReadOrderAfterWrite' => [0, 2, 10, 0],
+        'middleInsertLineOffsetClosest' => ['generatedLine' => 3, 'generatedColumn' => 2, 'sourceIndex' => 1, 'originalLine' => 1, 'originalColumn' => 0, 'nameIndex' => 2],
+        'middleInsertLineOffsetRoundTrip' => '{"version":3,"mappings":"AAAAA;;;ECCAE,QADAD;AAGAE","sources":["wp-content/themes/example/source-map-middle-insert-entry.css","wp-content/themes/example/source-map-middle-insert.css"],"sourcesContent":[".wp-block-middle-insert-entry{}\n",".wp-block-middle-insert-later{}\n.wp-block-middle-insert-earlier{}\n.wp-block-middle-insert-after{}\n"],"names":["middle-insert-entry-rule","middle-insert-later-rule","middle-insert-earlier-rule","middle-insert-after-rule"]}',
         'negativeLineOffsetUnsortedVlqReadOrderBeforeLookup' => [10, 2],
         'negativeLineOffsetUnsortedVlqClosest' => ['generatedLine' => 1, 'generatedColumn' => 2, 'sourceIndex' => 0, 'originalLine' => 1, 'originalColumn' => 0, 'nameIndex' => 1],
         'negativeLineOffsetUnsortedVlqMap' => '{"version":3,"mappings":";EACAC,QADAD","sources":["wp-content/themes/example/source-map-negative-line-offset-unsorted.css"],"sourcesContent":[".wp-block-negative-line-offset-unsorted{}"],"names":["later-negative-line-offset-rule","earlier-negative-line-offset-rule"]}',

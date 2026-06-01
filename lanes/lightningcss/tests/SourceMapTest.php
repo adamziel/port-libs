@@ -994,6 +994,43 @@ return [
         $t->same(';EACAC,QADAD', $negativeLineShift->writeVlq());
         $t->same(['later', 'earlier'], $negativeLineShift->toArray(null, false)['names']);
     },
+    'source map inserts middle generated-line spans before unsorted vlq lines' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $entry = $map->addSource('entry.css');
+        $map->setSourceContent($entry, ".entry{}\n");
+        $map->addMapping(0, 0, $entry, 0, 0, 'entry');
+        $map->addVlqMap(
+            ';UAAAA,RACAC;AAEAC',
+            ['middle-insert.css'],
+            [".later{}\n.earlier{}\n.after{}\n"],
+            ['later', 'earlier', 'after']
+        );
+
+        $map->offsetLines(1, 2);
+        $beforeWrite = $map->getMappings();
+
+        $t->same([0, 3, 3, 4], array_column($beforeWrite, 'generatedLine'));
+        $t->same([0, 10, 2, 0], array_column($beforeWrite, 'generatedColumn'));
+        $t->same([0, 0, 1, 3], array_column($beforeWrite, 'originalLine'));
+        $t->same([0, 1, 2, 3], array_column($beforeWrite, 'nameIndex'));
+        $t->same('AAAAA;;;ECCAE,QADAD;AAGAE', $map->writeVlq());
+
+        $afterWrite = $map->getMappings();
+        $closest = $map->findClosestMapping(3, 8);
+        $roundTrip = SourceMap::fromBuffer('/', $map->toBuffer());
+        $data = $map->toArray(null, false);
+
+        $t->same([0, 3, 3, 4], array_column($afterWrite, 'generatedLine'));
+        $t->same([0, 2, 10, 0], array_column($afterWrite, 'generatedColumn'));
+        $t->same([0, 1, 0, 3], array_column($afterWrite, 'originalLine'));
+        $t->same(2, $closest['generatedColumn'] ?? null);
+        $t->same(1, $closest['originalLine'] ?? null);
+        $t->same(2, $closest['nameIndex'] ?? null);
+        $t->same('AAAAA;;;ECCAE,QADAD;AAGAE', $roundTrip->writeVlq());
+        $t->same(['entry.css', 'middle-insert.css'], $data['sources']);
+        $t->same([".entry{}\n", ".later{}\n.earlier{}\n.after{}\n"], $data['sourcesContent']);
+        $t->same(['entry', 'later', 'earlier', 'after'], $data['names']);
+    },
     'source map negative line offsets splice unsorted raw vlq lines before sorting' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $removed = $map->addSource('removed-line.css');

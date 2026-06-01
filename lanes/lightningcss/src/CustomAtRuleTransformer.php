@@ -4429,22 +4429,16 @@ final class CustomAtRuleTransformer
             throw new \InvalidArgumentException('Custom at-rule replacement is missing a name');
         }
 
-        $prelude = $this->serializeAtRulePreludeValue($rule['prelude'] ?? '');
-        $head = '@' . $name . ($prelude === '' ? '' : ' ' . $prelude);
-        $bodyType = $rule['bodyType'] ?? null;
-        if ($bodyType === null) {
-            return $head . ';';
+        $visitedRule = $this->processCustomRuleChildrenForExit($rule, $parentSelectors);
+
+        if (!$this->suppressReturnedRuleExitVisitors) {
+            $exitReplacement = $this->applyCustomRuleExit($visitedRule, $parentSelectors);
+            if ($exitReplacement !== null) {
+                return $exitReplacement;
+            }
         }
 
-        $body = (string) ($rule['body'] ?? '');
-        if ($bodyType === 'rule-list') {
-            return $head . '{' . $this->processRuleList($body) . '}';
-        }
-        if ($bodyType === 'style-block' && $parentSelectors !== null) {
-            return $head . '{' . $this->processStyleBody($body, $parentSelectors) . '}';
-        }
-
-        return $head . '{' . $body . '}';
+        return $this->emitVisitedCustomRule($visitedRule);
     }
 
     /**

@@ -1384,12 +1384,17 @@ CSS
         $t->same('.foo{font-style:oblique}', $minifier->minify('.foo { font-style: oblique 14deg; }'));
         $t->same('.foo{font-style:oblique 0deg}', $minifier->minify('.foo { font-style: oblique 0deg; }'));
         $t->same('.foo{font-style:oblique 40deg}', $minifier->minify('.foo { font-style: oblique 40deg; }'));
+        $t->same('.foo{font-style:oblique 0deg}', $minifier->minify('.foo { font-style: oblique -0rad; }'));
+        $t->same('.foo{font-style:oblique 90deg}', $minifier->minify('.foo { font-style: oblique 1.5707963267948966rad; }'));
+        $t->same('.foo{font-style:oblique 180deg}', $minifier->minify('.foo { font-style: oblique 3.141592653589793rad; }'));
         $t->same('@font-face{font-family:Inter;font-style:oblique}', $minifier->minify('@font-face { font-family: Inter; font-style: oblique 14deg 14deg; }'));
         $t->same('@font-face{font-family:Inter;font-style:oblique 0deg}', $minifier->minify('@font-face { font-family: Inter; font-style: oblique 0deg 0deg; }'));
         $t->same('@font-face{font-family:Inter;font-style:oblique 0deg 10deg}', $minifier->minify('@font-face { font-family: Inter; font-style: oblique 0deg 10deg; }'));
+        $t->same('@font-face{font-family:Inter;font-style:oblique 0deg 90deg}', $minifier->minify('@font-face { font-family: Inter; font-style: oblique -0rad 1.5707963267948966rad; }'));
         $t->same('.foo{font:oblique 22px Helvetica}', $minifier->minify('.foo { font: oblique 14deg 22px Helvetica; }'));
         $t->same('.foo{font:oblique 0deg 22px Helvetica}', $minifier->minify('.foo { font: oblique 0deg 22px Helvetica; }'));
         $t->same('.foo{font:oblique 40deg 22px Helvetica}', $minifier->minify('.foo { font: oblique 40deg 22px Helvetica; }'));
+        $t->same('.foo{font:oblique 90deg 22px Helvetica}', $minifier->minify('.foo { font: oblique 1.5707963267948966rad 22px Helvetica; }'));
     },
     'css minifier maps upstream font-face src descriptors and unicode ranges' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

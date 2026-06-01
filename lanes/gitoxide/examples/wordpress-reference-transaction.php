@@ -213,6 +213,35 @@ $preparedPackedUpdateEdits = $preparedPackedUpdate->commit();
 $preparedPackedUpdateCleanedPackedLock = !is_file($packedUpdateDir . '/packed-refs.lock');
 $preparedPackedUpdatePackedNames = PackedReferences::open($packedUpdateDir . '/packed-refs')->names();
 
+$packedMixedDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-packed-mixed-' . bin2hex(random_bytes(4));
+$packedMixedStore = new ReferenceStore($packedMixedDir, null, $fixture['namespace']);
+$packedMixedPrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedPackedMixed = $packedMixedStore->prepareLooseUpdateTransaction(
+    [
+        $fixture['preparedPackedMixedContentRef'] => ReferenceTarget::object($fixture['reviewCommit']),
+        $fixture['preparedPackedMixedAssetRef'] => ReferenceTarget::object($fixture['productionCommit']),
+        $fixture['preparedPackedMixedSymbolicRef'] => ReferenceTarget::symbolic($fixture['preparedPackedMixedSymbolicTargetRef']),
+    ],
+    'sha1',
+    new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+    $fixture['preparedPackedMixedReflogMessage'],
+    true,
+    ReferenceStore::PREVIOUS_ANY,
+    null,
+    false,
+    ReferenceStore::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE,
+);
+$preparedPackedMixedContentPath = $packedMixedDir . '/' . $packedMixedPrefix . $fixture['preparedPackedMixedContentRef'];
+$preparedPackedMixedAssetPath = $packedMixedDir . '/' . $packedMixedPrefix . $fixture['preparedPackedMixedAssetRef'];
+$preparedPackedMixedSymbolicPath = $packedMixedDir . '/' . $packedMixedPrefix . $fixture['preparedPackedMixedSymbolicRef'];
+$preparedPackedMixedHadPackedLock = is_file($packedMixedDir . '/packed-refs.lock');
+$preparedPackedMixedNoObjectLocks = !is_file($preparedPackedMixedContentPath . '.lock')
+    && !is_file($preparedPackedMixedAssetPath . '.lock');
+$preparedPackedMixedHadSymbolicLock = is_file($preparedPackedMixedSymbolicPath . '.lock');
+$preparedPackedMixedEdits = $preparedPackedMixed->commit();
+$preparedPackedMixedCleanedPackedLock = !is_file($packedMixedDir . '/packed-refs.lock');
+$preparedPackedMixedPackedNames = PackedReferences::open($packedMixedDir . '/packed-refs')->names();
+
 $packedShadowDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-packed-shadow-' . bin2hex(random_bytes(4));
 mkdir($packedShadowDir, 0777, true);
 file_put_contents(
@@ -635,6 +664,21 @@ return [
     'preparedPackedUpdateSource' => $packedUpdateStore->find($packedUpdateRef)->source,
     'preparedPackedUpdateCommit' => $packedUpdateStore->find($packedUpdateRef)->targetObjectId(),
     'preparedPackedUpdateReflog' => $packedUpdateStore->reflogContents($packedUpdateRef),
+    'preparedPackedMixedEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedPackedMixedEdits),
+    'preparedPackedMixedHadPackedLock' => $preparedPackedMixedHadPackedLock,
+    'preparedPackedMixedNoObjectLocks' => $preparedPackedMixedNoObjectLocks,
+    'preparedPackedMixedHadSymbolicLock' => $preparedPackedMixedHadSymbolicLock,
+    'preparedPackedMixedCleanedPackedLock' => $preparedPackedMixedCleanedPackedLock,
+    'preparedPackedMixedPackedNames' => $preparedPackedMixedPackedNames,
+    'preparedPackedMixedObjectLooseSourcesRemoved' => !is_file($preparedPackedMixedContentPath)
+        && !is_file($preparedPackedMixedAssetPath),
+    'preparedPackedMixedContentSource' => $packedMixedStore->find($fixture['preparedPackedMixedContentRef'])->source,
+    'preparedPackedMixedAssetSource' => $packedMixedStore->find($fixture['preparedPackedMixedAssetRef'])->source,
+    'preparedPackedMixedSymbolicSource' => $packedMixedStore->find($fixture['preparedPackedMixedSymbolicRef'])->source,
+    'preparedPackedMixedSymbolicTarget' => $packedMixedStore->find($fixture['preparedPackedMixedSymbolicRef'])->target->value,
+    'preparedPackedMixedContentReflog' => $packedMixedStore->reflogContents($fixture['preparedPackedMixedContentRef']),
+    'preparedPackedMixedAssetReflog' => $packedMixedStore->reflogContents($fixture['preparedPackedMixedAssetRef']),
+    'preparedPackedMixedSymbolicReflogExists' => $packedMixedStore->reflogExists($fixture['preparedPackedMixedSymbolicRef']),
     'preparedPackedShadowEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedPackedShadowEdits),
     'preparedPackedShadowHadLocks' => $preparedPackedShadowHadLocks,
     'preparedPackedShadowCleanedLocks' => $preparedPackedShadowCleanedLocks,
