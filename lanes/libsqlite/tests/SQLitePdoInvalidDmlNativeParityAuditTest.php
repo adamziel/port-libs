@@ -85,6 +85,15 @@ return [
                 'connection',
                 true,
             ],
+            'exec insert invalid target column' => [
+                'exec',
+                "INSERT INTO app_settings (missing_key) VALUES ('Janet')",
+                [],
+                ['HY000', 1, 'table app_settings has no column named missing_key'],
+                'exec',
+                'connection',
+                true,
+            ],
             'prepare update invalid numbered parameter expression' => [
                 'prepare',
                 'UPDATE app_settings SET key_value = ?0 + 1 WHERE key_name = ?',
