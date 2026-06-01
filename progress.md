@@ -55,6 +55,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (refs/CSS/sqlite B-tree replay intake
+  04:55 UTC): kept cleanup bounded after the active-session audit: `main`
+  remains the only tmux session, the stale `port-*` session pruner killed `0`,
+  and refills restored the visible pool to 11 isolated `gpt-5.5` xhigh
+  priority workers: 6 LightningCSS, 3 Gitoxide, and 2 libsqlite, with 0 long
+  sleepers. Accepted 7 source-changing handoffs as source commit
+  `4a27fd6be5ffa953c7d918d551ebb545b1ce7b8d` (`ports: integrate refs css
+  parity and sqlite btree corpus`). The batch adds Gitoxide packed-reference
+  transaction lock/reflog parity; LightningCSS bundle/import graph EOF and
+  ordering behavior, CSS Modules invalid composes handling, CSSOM text/writing
+  direct declarations, custom at-rule token-array visitors, and source-map VLQ
+  offset boundaries; and libsqlite real upstream `indexexpr2` B-tree/index
+  UPDATE open-index dynamic corpus coverage. Verification passed PHP lint,
+  `git diff --check`, full Gitoxide `40 files / 7447 assertions / 0 failures`,
+  full LightningCSS `13 files / 6059 assertions / 0 failures`, focused
+  libsqlite `2 files / 33613 assertions / 0 failures`, touched examples, and
+  no new WordPress/wp_/numbered `CurrentSourceNext` strings in changed
+  libsqlite source. Dashboard status should report Gitoxide `1738 / 2886`
+  mapped and `7447 pass / 0 fail`, LightningCSS `2345 / 3532` mapped and
+  `6059 pass / 0 fail`, and libsqlite `1589 / 1589` mapped with `5534681 pass
+  / 7 fail`. Two conflict candidates were parked for repair rather than
+  deletion.
+
 - 2026-06-01 supervisor continuation (AO cleanup and fifteenth replay intake
   04:40 UTC): audited the active-session concern and confirmed `ao` is not on
   PATH and no `ao` process is running. Cleanup is currently the repo pruner
