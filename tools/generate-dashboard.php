@@ -121,6 +121,10 @@ $shortCommit = static function (string $value) use ($shorten): string {
 $blockerSummary = static function (string $value) use ($firstSentence, $shorten): string {
     $normalized = strtolower($value);
     if (str_contains($normalized, 'cargo workspace')) {
+        if (str_contains($normalized, 'not fully green') || str_contains($normalized, 'blocked')) {
+            return 'Cargo workspace blocked by sparse target files';
+        }
+
         return 'Cargo workspace not run';
     }
     if (str_contains($normalized, 'rust/node/wasm')) {
