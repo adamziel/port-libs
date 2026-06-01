@@ -50,6 +50,15 @@ $posixSpaceClassPathspec = SparseCheckoutSpec::fromPathspecs([
 $malformedPosixClassPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)wp-content/uploads/[[:alpha]/photo.jpg',
 ]);
+$malformedPosixDigitPrefixPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content/uploads/[[:digit]ab]',
+]);
+$malformedPosixEmptyNamePrefixPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content/uploads/[[:]ab]',
+]);
+$malformedPosixDoubleColonPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content/uploads/[[::]ab]',
+]);
 $reversedRangePathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)wp-content/uploads/[z-a]/**',
 ]);
@@ -250,8 +259,11 @@ return [
     'pathspecInvalidClassLiteralFallbackIncluded' => $posixClassPathspec->includesPath('wp-content/uploads/[[:unknown:]]*.jpg', false),
     'pathspecInvalidClassWildcardExpansionSkipped' => $posixClassPathspec->skipWorktree('wp-content/uploads/[[:unknown:]]hero.jpg', false),
     'pathspecMalformedPosixAlphaSkipped' => $malformedPosixClassPathspec->skipWorktree('wp-content/uploads/a/photo.jpg', false),
-    'pathspecMalformedPosixOpenBracketSkipped' => $malformedPosixClassPathspec->skipWorktree('wp-content/uploads/[/photo.jpg', false),
+    'pathspecMalformedPosixOpenBracketIncluded' => $malformedPosixClassPathspec->includesPath('wp-content/uploads/[/photo.jpg', false),
     'pathspecMalformedPosixLiteralFallbackIncluded' => $malformedPosixClassPathspec->includesPath('wp-content/uploads/[[:alpha]/photo.jpg', false),
+    'pathspecMalformedPosixDigitPrefixResumed' => $malformedPosixDigitPrefixPathspec->includesPath('wp-content/uploads/[ab]', false),
+    'pathspecMalformedPosixEmptyNamePrefixResumed' => $malformedPosixEmptyNamePrefixPathspec->includesPath('wp-content/uploads/[ab]', false),
+    'pathspecMalformedPosixDoubleColonSkipped' => $malformedPosixDoubleColonPathspec->skipWorktree('wp-content/uploads/[ab]', false),
     'pathspecReversedRangeStartIncluded' => $reversedRangePathspec->includesPath('wp-content/uploads/z/photo.jpg', false),
     'pathspecReversedRangeMiddleSkipped' => $reversedRangePathspec->skipWorktree('wp-content/uploads/m/photo.jpg', false),
     'pathspecNegatedReversedRangeStartSkipped' => $negatedReversedRangePathspec->skipWorktree('wp-content/uploads/z/photo.jpg', false),

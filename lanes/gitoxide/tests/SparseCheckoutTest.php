@@ -667,7 +667,7 @@ return [
 
         $t->same(["slot\v", '[[:unknown:]]*.jpg'], $entryNames($combined->includedTreeEntries($uploads, 'wp-content/uploads')));
     },
-    'pathspec sparse checkout falls back verbatim for malformed POSIX classes' => static function (TestRunner $t): void {
+    'pathspec sparse checkout resumes malformed POSIX class starts before verbatim fallback' => static function (TestRunner $t): void {
         $warnings = [];
         set_error_handler(static function (int $errno, string $message) use (&$warnings): bool {
             if (str_contains($message, 'preg_match()')) {
@@ -683,14 +683,28 @@ return [
             $malformed = SparseCheckoutSpec::fromPathspecs([
                 ':(glob)wp-content/uploads/[[:alpha]/photo.jpg',
             ]);
+            $digitPrefix = SparseCheckoutSpec::fromPathspecs([
+                ':(glob)wp-content/uploads/[[:digit]ab]',
+            ]);
+            $emptyNamePrefix = SparseCheckoutSpec::fromPathspecs([
+                ':(glob)wp-content/uploads/[[:]ab]',
+            ]);
+            $doubleColon = SparseCheckoutSpec::fromPathspecs([
+                ':(glob)wp-content/uploads/[[::]ab]',
+            ]);
 
             $t->same(false, $malformed->includesPath('wp-content/uploads/a/photo.jpg', false));
             $t->same(false, $malformed->includesPath('wp-content/uploads/A/photo.jpg', false));
-            $t->same(false, $malformed->includesPath('wp-content/uploads/[/photo.jpg', false));
+            $t->same(true, $malformed->includesPath('wp-content/uploads/[/photo.jpg', false));
+            $t->same(false, $malformed->skipWorktree('wp-content/uploads/[/photo.jpg', false));
             $t->same(true, $malformed->includesPath('wp-content/uploads/[[:alpha]/photo.jpg', false));
             $t->same(true, $malformed->skipWorktree('wp-content/uploads/a/photo.jpg', false));
             $t->same(false, $malformed->skipWorktree('wp-content/uploads/[[:alpha]/photo.jpg', false));
             $t->same(true, $malformed->includesPath('wp-content/uploads', true));
+            $t->same(true, $digitPrefix->includesPath('wp-content/uploads/[ab]', false));
+            $t->same(true, $emptyNamePrefix->includesPath('wp-content/uploads/[ab]', false));
+            $t->same(false, $doubleColon->includesPath('wp-content/uploads/[ab]', false));
+            $t->same(true, $digitPrefix->includesPath('wp-content/uploads/[[:digit]ab]', false));
         } finally {
             restore_error_handler();
         }

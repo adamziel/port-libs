@@ -719,6 +719,9 @@ final class SparseCheckoutSpec
         if ($class === '') {
             return preg_quote('[]', '#');
         }
+        if (str_starts_with($class, '[:') && strpos($class, ':]', 2) === false) {
+            return preg_quote('[', '#');
+        }
 
         $negated = false;
         if ($class[0] === '!' || $class[0] === '^') {

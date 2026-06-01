@@ -1415,6 +1415,30 @@ CSS;
         $t->same($ms, $prefixer->prefixForTargets($stalePrefixed, ['ie' => 10]));
         $t->same($webkitMs, $prefixer->prefixForTargets($stalePrefixed, ['chrome' => 18, 'ie' => 10]));
     },
+    'transition prefixer maps upstream shape property WebKit browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = '.foo { shape-outside: circle(50%); shape-margin: 12px; shape-image-threshold: .5; }';
+        $modern = '.foo{shape-outside:circle(50%);shape-margin:12px;shape-image-threshold:.5}';
+        $webkit = '.foo{-webkit-shape-outside:circle(50%);shape-outside:circle(50%);-webkit-shape-margin:12px;shape-margin:12px;-webkit-shape-image-threshold:.5;shape-image-threshold:.5}';
+        $stalePrefixed = '.foo { -webkit-shape-outside: circle(50%); shape-outside: circle(50%); -webkit-shape-margin: 12px; shape-margin: 12px; -webkit-shape-image-threshold: .5; shape-image-threshold: .5; }';
+
+        $t->same($modern, $prefixer->prefixForTargets($css, ['safari' => 6]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['safari' => 7]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['safari' => 10]));
+        $t->same($modern, $prefixer->prefixForTargets($stalePrefixed, ['safari' => 11]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['ios_saf' => 7]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['ios_saf' => 8]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['ios_saf' => 10]));
+        $t->same($modern, $prefixer->prefixForTargets($stalePrefixed, ['ios_saf' => 11]));
+        $t->same(
+            '@supports ((-webkit-shape-outside:circle(50%)) or (shape-outside:circle(50%))){.foo{-webkit-shape-outside:circle(50%);shape-outside:circle(50%)}}',
+            $prefixer->prefixForTargets('@supports (shape-outside: circle(50%)) { .foo { shape-outside: circle(50%); } }', ['safari' => 10])
+        );
+        $t->same(
+            '@supports (shape-outside:circle(50%)){.foo{shape-outside:circle(50%)}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-shape-outside: circle(50%)) or (shape-outside: circle(50%))) { .foo { -webkit-shape-outside: circle(50%); shape-outside: circle(50%); } }', ['safari' => 11])
+        );
+    },
     'transition prefixer maps upstream border-image target boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $css = '.foo { border-image: url(border.png) 30 fill / 10px / 4px round; }';

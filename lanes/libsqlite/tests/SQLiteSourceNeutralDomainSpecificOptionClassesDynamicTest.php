@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDmlTriggerCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteJsonUpsertMigrationPlan;
 use PortLibs\LibSqlite\SQLiteRecursiveUpsertConflictYieldPlan;
 use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan;
@@ -23,6 +24,7 @@ $sourceRoot = $libsqliteRoot . '/src';
 
 $sourceFiles = [
     $sourceRoot . '/SQLiteDmlTriggerCurrentNextPlan.php',
+    $sourceRoot . '/SQLiteJsonUpsertMigrationPlan.php',
     $sourceRoot . '/SQLiteRecursiveUpsertConflictYieldPlan.php',
     $sourceRoot . '/SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan.php',
@@ -178,6 +180,39 @@ return [
         $t->same(2, $plan['changes']);
         $t->same(['base_url', 'module_registry'], array_column($plan['returning_rows'], 'key_name'));
         $t->same(['app_settings_after_upsert', 'app_settings_after_insert'], array_column($plan['trigger_effects'], 'trigger'));
+    },
+    'json upsert migration defaults use generic key value columns' => static function (TestRunner $t): void {
+        $plan = SQLiteJsonUpsertMigrationPlan::execute(
+            [
+                [
+                    'setting_id' => 1,
+                    'key_name' => 'base_url',
+                    'key_value' => '{"source":"current","version":1}',
+                    'load_policy' => 'yes',
+                    'migration_generation' => 1,
+                ],
+            ],
+            [
+                [
+                    'setting_id' => 2,
+                    'key_name' => 'base_url',
+                    'key_value' => '{"source":"incoming","version":2}',
+                    'load_policy' => 'no',
+                    'migration_generation' => 3,
+                ],
+            ],
+            [
+                '$.source' => ['excluded_json' => '$.source'],
+                '$.previous_source' => ['current_json' => '$.source'],
+                '$.load_policy_after' => ['excluded_column' => 'load_policy'],
+            ],
+        );
+
+        $t->same(['base_url'], array_column($plan['returning_rows'], 'key_name'));
+        $t->same('no', $plan['returning_rows'][0]['load_policy']);
+        $t->same('incoming', $plan['decoded_returning'][0]['decoded_key_value']['source']);
+        $t->same('current', $plan['decoded_returning'][0]['decoded_key_value']['previous_source']);
+        $t->same('no', $plan['decoded_returning'][0]['decoded_key_value']['load_policy_after']);
     },
     'recursive upsert defaults expose generic setting keys' => static function (TestRunner $t) use ($recursiveRows, $recursiveAssignments, $recursiveTriggers, $recursiveReturning): void {
         $plan = SQLiteRecursiveUpsertConflictYieldPlan::execute(

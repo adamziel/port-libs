@@ -302,48 +302,10 @@ final class SourceMap
             }
 
             $childMaxLine = null;
-            $remappedByLine = [];
             foreach ($sourceMap->mappings as $mapping) {
                 $childMaxLine = $childMaxLine === null
                     ? $mapping['generatedLine']
                     : max($childMaxLine, $mapping['generatedLine']);
-
-                $generatedLine = $mapping['generatedLine'] + $lineOffset;
-                if ($generatedLine < 0) {
-                    continue;
-                }
-
-                $nameIndex = null;
-                if ($mapping['nameIndex'] !== null) {
-                    if (!array_key_exists($mapping['nameIndex'], $sourceMap->names)) {
-                        throw new InvalidArgumentException('Source map mapping references unknown name index: ' . $mapping['nameIndex']);
-                    }
-
-                    $nameIndex = $nameIndexes[$mapping['nameIndex']] ??= $this->addName($sourceMap->names[$mapping['nameIndex']]);
-                }
-
-                $sourceIndex = null;
-                if ($mapping['sourceIndex'] !== null) {
-                    if (!array_key_exists($mapping['sourceIndex'], $sourceMap->sources)) {
-                        throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $mapping['sourceIndex']);
-                    }
-
-                    $sourceIndex = $sourceIndexes[$mapping['sourceIndex']] ??= $this->addSource($sourceMap->sources[$mapping['sourceIndex']]);
-
-                    if (!$preserveUnusedTables && array_key_exists($mapping['sourceIndex'], $sourceMap->sourcesContent)) {
-                        $this->setSourceContent($sourceIndex, $sourceMap->sourcesContent[$mapping['sourceIndex']]);
-                    }
-                }
-
-                $remappedByLine[$generatedLine][] = [
-                    'generatedLine' => $generatedLine,
-                    'generatedColumn' => $mapping['generatedColumn'],
-                    'sourceIndex' => $sourceIndex,
-                    'originalLine' => $mapping['originalLine'],
-                    'originalColumn' => $mapping['originalColumn'],
-                    'nameIndex' => $nameIndex,
-                    'order' => 0,
-                ];
             }
 
             $childLineCount = max(
@@ -355,32 +317,54 @@ final class SourceMap
                 return;
             }
 
-            $replaceLines = [];
+            $mappingsByChildLine = [];
+            foreach ($sourceMap->mappings as $mapping) {
+                $mappingsByChildLine[$mapping['generatedLine']][] = $mapping;
+            }
+
             for ($line = 0; $line < $childLineCount; $line++) {
-                $targetLine = $line + $lineOffset;
-                if ($targetLine >= 0) {
-                    $replaceLines[$targetLine] = true;
+                $generatedLine = $line + $lineOffset;
+                if ($generatedLine < 0) {
+                    continue;
                 }
-            }
 
-            $updated = [];
-            foreach ($this->mappings as $mapping) {
-                if (!isset($replaceLines[$mapping['generatedLine']])) {
-                    $updated[] = $mapping;
+                $lineMappings = [];
+                foreach ($mappingsByChildLine[$line] ?? [] as $mapping) {
+                    $sourceIndex = null;
+                    if ($mapping['sourceIndex'] !== null) {
+                        if (!array_key_exists($mapping['sourceIndex'], $sourceMap->sources)) {
+                            throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $mapping['sourceIndex']);
+                        }
+
+                        $sourceIndex = $sourceIndexes[$mapping['sourceIndex']] ??= $this->addSource($sourceMap->sources[$mapping['sourceIndex']]);
+
+                        if (!$preserveUnusedTables && array_key_exists($mapping['sourceIndex'], $sourceMap->sourcesContent)) {
+                            $this->setSourceContent($sourceIndex, $sourceMap->sourcesContent[$mapping['sourceIndex']]);
+                        }
+                    }
+
+                    $nameIndex = null;
+                    if ($mapping['nameIndex'] !== null) {
+                        if (!array_key_exists($mapping['nameIndex'], $sourceMap->names)) {
+                            throw new InvalidArgumentException('Source map mapping references unknown name index: ' . $mapping['nameIndex']);
+                        }
+
+                        $nameIndex = $nameIndexes[$mapping['nameIndex']] ??= $this->addName($sourceMap->names[$mapping['nameIndex']]);
+                    }
+
+                    $lineMappings[] = [
+                        'generatedLine' => $generatedLine,
+                        'generatedColumn' => $mapping['generatedColumn'],
+                        'sourceIndex' => $sourceIndex,
+                        'originalLine' => $mapping['originalLine'],
+                        'originalColumn' => $mapping['originalColumn'],
+                        'nameIndex' => $nameIndex,
+                        'order' => 0,
+                    ];
                 }
-            }
 
-            ksort($remappedByLine);
-            foreach ($remappedByLine as $lineMappings) {
-                foreach ($lineMappings as $mapping) {
-                    $updated[] = $mapping;
-                }
-            }
-
-            $this->mappings = $this->renumberMappings($updated);
-            $targetEndLine = $lineOffset + $childLineCount - 1;
-            if ($targetEndLine >= 0) {
-                $this->generatedLineCount = max($this->generatedLineCount, $targetEndLine + 1);
+                $this->replaceGeneratedLineMappings($generatedLine, $lineMappings);
+                $this->generatedLineCount = max($this->generatedLineCount, $generatedLine + 1);
             }
         } finally {
             $this->drainSourceMap($sourceMap);
@@ -1326,6 +1310,33 @@ final class SourceMap
         foreach (array_keys($lines) as $generatedLine) {
             $this->sortGeneratedLineMappingsInPlace($generatedLine);
         }
+    }
+
+    /**
+     * @param list<array{
+     *     generatedLine:int,
+     *     generatedColumn:int,
+     *     sourceIndex:int|null,
+     *     originalLine:int|null,
+     *     originalColumn:int|null,
+     *     nameIndex:int|null,
+     *     order:int
+     * }> $lineMappings
+     */
+    private function replaceGeneratedLineMappings(int $generatedLine, array $lineMappings): void
+    {
+        $updated = [];
+        foreach ($this->mappings as $mapping) {
+            if ($mapping['generatedLine'] !== $generatedLine) {
+                $updated[] = $mapping;
+            }
+        }
+
+        foreach ($lineMappings as $mapping) {
+            $updated[] = $mapping;
+        }
+
+        $this->mappings = $this->renumberMappings($updated);
     }
 
     /**

@@ -1158,5 +1158,7 @@ return [
             $summary['looseIntegrityCaseDuplicateVerifiedIds'][0],
             $summary['looseIntegrityCaseDuplicateVerifiedIds'][0],
         ], $summary['looseIntegrityCaseDuplicateVerifiedIds']);
+        $t->same(true, $summary['looseIntegrityCrLfCommitHeaderRejected']);
+        $t->same(true, $summary['looseIntegrityCrLfTagHeaderRejected']);
     },
 ];

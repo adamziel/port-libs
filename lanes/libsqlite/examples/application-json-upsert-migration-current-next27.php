@@ -18,14 +18,14 @@ use PortLibs\LibSqlite\SQLiteJsonUpsertMigrationPlan;
 $current = [
     [
         'setting_id' => 1,
-        'key_name' => 'content_widget',
+        'key_name' => 'display_banner',
         'key_value' => '{"version":1,"widgets":{"hero":{"title":"Old"}},"source":"current"}',
         'load_policy' => 'yes',
         'migration_generation' => 2,
     ],
     [
         'setting_id' => 2,
-        'key_name' => 'visual_profile',
+        'key_name' => 'theme_palette',
         'key_value' => '{"version":3,"mods":{"color":"blue"},"source":"current"}',
         'load_policy' => 'no',
         'migration_generation' => 4,
@@ -35,7 +35,7 @@ $current = [
 $incoming = [
     [
         'setting_id' => 10,
-        'key_name' => 'content_widget',
+        'key_name' => 'display_banner',
         'key_value' => '{"version":5,"widgets":{"hero":{"title":"Imported"}},"source":"import"}',
         'load_policy' => 'no',
         'migration_generation' => 7,
@@ -65,9 +65,9 @@ $result = SQLiteJsonUpsertMigrationPlan::execute(
 );
 
 $payload = [
-    'applicationUse' => 'Preview copied app_settings INSERT ... ON CONFLICT DO UPDATE JSON migration rows using current-row JSON values, excluded JSON values, and RETURNING-style decoded output without ext/sqlite.',
+    'applicationUse' => 'Preview app_settings INSERT ... ON CONFLICT DO UPDATE JSON migration rows using current-row JSON values, excluded JSON values, and RETURNING-style decoded output without ext/sqlite.',
     'changes' => $result['changes'],
-    'returningNames' => array_column($result['returning_rows'], 'key_name'),
+    'returningKeys' => array_column($result['returning_rows'], 'key_name'),
     'decodedReturning' => array_map(
         static fn (array $row): array => [
             'name' => $row['key_name'],
@@ -83,7 +83,7 @@ $payload = [
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($payload['changes'] === 2);
-    assert($payload['returningNames'] === ['content_widget', 'route_rules']);
+    assert($payload['returningKeys'] === ['display_banner', 'route_rules']);
     assert($payload['decodedReturning'][0]['previousSource'] === 'current');
     assert($payload['decodedReturning'][1]['previousSource'] === null);
 }

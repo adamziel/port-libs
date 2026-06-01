@@ -2293,6 +2293,51 @@ return [
         $t->same([], $child->getNames());
         $t->same('', $child->writeVlq());
     },
+    'source map keeps earlier line replacements when upstream offset merge later rejects' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $parentSource = $parent->addSource('parent.css');
+        foreach ([0, 1, 2] as $line) {
+            $parent->addMapping($line, 0, $parentSource, $line, 0, 'parent' . $line);
+        }
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('blocks/partial-broken.css');
+        $child->setSourceContent($childSource, ".valid{}\n.broken{}\n");
+        $child->addMapping(0, 4, $childSource, 10, 1, 'validChild');
+        $child->addMapping(1, 6, $childSource, 11, 2, 'brokenChild');
+
+        $corruptChildMapping = Closure::bind(static function (SourceMap $sourceMap): void {
+            $sourceMap->mappings[1]['sourceIndex'] = 99;
+        }, null, SourceMap::class);
+        if ($corruptChildMapping === null) {
+            throw new RuntimeException('Unable to bind SourceMap test helper.');
+        }
+
+        $corruptChildMapping($child);
+
+        $t->throws(InvalidArgumentException::class, static function () use ($parent, $child): void {
+            $parent->addSourceMap($child, 1);
+        });
+
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $data = $parent->toArray(null, false);
+
+        $t->same('AAAAA;ICUCG;ADRDD', $parent->writeVlq());
+        $t->same([0, 1, 2], array_column($decoded, 'generatedLine'));
+        $t->same([0, 4, 0], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 1, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 10, 2], array_column($decoded, 'originalLine'));
+        $t->same([0, 1, 0], array_column($decoded, 'originalColumn'));
+        $t->same([0, 3, 2], array_column($decoded, 'nameIndex'));
+        $t->same(['parent.css', 'blocks/partial-broken.css'], $data['sources']);
+        $t->same(['', ".valid{}\n.broken{}\n"], $data['sourcesContent']);
+        $t->same(['parent0', 'parent1', 'parent2', 'validChild', 'brokenChild'], $data['names']);
+        $t->same(10, $parent->findClosestMapping(1, 4)['originalLine'] ?? null);
+        $t->same(2, $parent->findClosestMapping(2, 0)['originalLine'] ?? null);
+        $t->same([], $child->getSources());
+        $t->same([], $child->getNames());
+        $t->same('', $child->writeVlq());
+    },
     'source map adds upstream empty line maps with line offsets' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $map->addEmptyMap('theme.css', ".wp-block-cover {}\n\n.wp-block-button {}\n", 2);

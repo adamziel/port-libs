@@ -804,6 +804,49 @@ return [
             $t->contains($canonicalOid, $exception->getMessage());
         }
     },
+    'loose object integrity rejects CRLF-normalized structured headers like gix object decode' => static function (TestRunner $t): void {
+        $treeOid = str_repeat('a', 40);
+        $commitBody = "tree {$treeOid}\r\n"
+            . "author WordPress Importer <importer@example.test> 1710000000 +0000\r\n"
+            . "committer WordPress Deploy Bot <deploy@example.test> 1710000300 +0000\r\n"
+            . "\n"
+            . "Import block snapshot with CRLF object headers\n";
+        $commitObject = new GitObject('commit', $commitBody);
+        $commitStore = new LooseObjectStore(sys_get_temp_dir() . '/port-libs-git-integrity-crlf-commit-' . bin2hex(random_bytes(4)) . '/.git');
+        $commitOid = $commitStore->write($commitObject);
+
+        $t->same($commitOid, $commitObject->oid());
+        $t->same($commitBody, $commitStore->read($commitOid)->body);
+        $t->throws(InvalidArgumentException::class, static fn () => Commit::parse($commitBody));
+        try {
+            $commitStore->verifyIntegrity();
+            throw new RuntimeException('Expected CRLF-normalized commit object headers to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("commit object {$commitOid} could not be decoded", $exception->getMessage());
+            $t->contains('Commit tree must be a 40-character sha1 hex object id', $exception->getMessage());
+        }
+
+        $tagTarget = str_repeat('b', 40);
+        $tagBody = "object {$tagTarget}\r\n"
+            . "type commit\r\n"
+            . "tag deploy/crlf-header\r\n"
+            . "\n"
+            . "Tag body after CRLF object headers\n";
+        $tagObject = new GitObject('tag', $tagBody);
+        $tagStore = new LooseObjectStore(sys_get_temp_dir() . '/port-libs-git-integrity-crlf-tag-' . bin2hex(random_bytes(4)) . '/.git');
+        $tagOid = $tagStore->write($tagObject);
+
+        $t->same($tagOid, $tagObject->oid());
+        $t->same($tagBody, $tagStore->read($tagOid)->body);
+        $t->throws(InvalidArgumentException::class, static fn () => GitTag::parse($tagBody));
+        try {
+            $tagStore->verifyIntegrity();
+            throw new RuntimeException('Expected CRLF-normalized tag object headers to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("tag object {$tagOid} could not be decoded", $exception->getMessage());
+            $t->contains('Git tag target must be a 40-character sha1 hex object id', $exception->getMessage());
+        }
+    },
     'invalid storage header is rejected' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => GitObject::fromStorageBytes("blob nope\0body"));
     },

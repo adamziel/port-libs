@@ -215,6 +215,38 @@ if (!is_dir(dirname($caseDuplicatePath)) && !mkdir(dirname($caseDuplicatePath), 
 file_put_contents($caseDuplicatePath, 'stale case-variant loose object candidate');
 $caseDuplicateIntegrity = (new ObjectDatabase($caseDuplicateGitDir))->verifyLooseIntegrity();
 
+$crlfCommitGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-crlf-commit-' . bin2hex(random_bytes(4)) . '/.git';
+$crlfCommitTree = str_repeat('e', 40);
+$crlfCommitBody = "tree {$crlfCommitTree}\r\n"
+    . "author WordPress Importer <importer@example.test> 1710000000 +0000\r\n"
+    . "committer WordPress Deploy Bot <deploy@example.test> 1710000300 +0000\r\n"
+    . "\n"
+    . "Import block snapshot with CRLF object headers\n";
+$crlfCommitOid = (new LooseObjectStore($crlfCommitGitDir))->write(new GitObject('commit', $crlfCommitBody));
+$looseIntegrityCrLfCommitHeaderRejected = false;
+try {
+    (new ObjectDatabase($crlfCommitGitDir))->verifyLooseIntegrity();
+} catch (RuntimeException $exception) {
+    $looseIntegrityCrLfCommitHeaderRejected = str_contains($exception->getMessage(), "commit object {$crlfCommitOid} could not be decoded")
+        && str_contains($exception->getMessage(), 'Commit tree must be a 40-character sha1 hex object id');
+}
+
+$crlfTagGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-crlf-tag-' . bin2hex(random_bytes(4)) . '/.git';
+$crlfTagTarget = str_repeat('f', 40);
+$crlfTagBody = "object {$crlfTagTarget}\r\n"
+    . "type commit\r\n"
+    . "tag deploy/crlf-header\r\n"
+    . "\n"
+    . "Tag body after CRLF object headers\n";
+$crlfTagOid = (new LooseObjectStore($crlfTagGitDir))->write(new GitObject('tag', $crlfTagBody));
+$looseIntegrityCrLfTagHeaderRejected = false;
+try {
+    (new ObjectDatabase($crlfTagGitDir))->verifyLooseIntegrity();
+} catch (RuntimeException $exception) {
+    $looseIntegrityCrLfTagHeaderRejected = str_contains($exception->getMessage(), "tag object {$crlfTagOid} could not be decoded")
+        && str_contains($exception->getMessage(), 'Git tag target must be a 40-character sha1 hex object id');
+}
+
 return [
     'packedObjects' => $database->packedObjectCount(),
     'totalIterableObjects' => count($database->objectIds()),
@@ -260,4 +292,6 @@ return [
     'looseIntegrityTraversalErrorIgnored' => $looseIntegrityTraversalErrorIgnored,
     'looseIntegrityCaseDuplicateCount' => $caseDuplicateIntegrity[0]['statistics']['numObjects'],
     'looseIntegrityCaseDuplicateVerifiedIds' => $caseDuplicateIntegrity[0]['statistics']['verifiedObjectIds'],
+    'looseIntegrityCrLfCommitHeaderRejected' => $looseIntegrityCrLfCommitHeaderRejected,
+    'looseIntegrityCrLfTagHeaderRejected' => $looseIntegrityCrLfTagHeaderRejected,
 ];

@@ -433,14 +433,6 @@ final class GitTag
     private static function trimLineEnding(string $line): string
     {
         if (str_ends_with($line, "\n")) {
-            $line = substr($line, 0, -1);
-            if (str_ends_with($line, "\r")) {
-                $line = substr($line, 0, -1);
-            }
-            return $line;
-        }
-
-        if (str_ends_with($line, "\r")) {
             return substr($line, 0, -1);
         }
 
