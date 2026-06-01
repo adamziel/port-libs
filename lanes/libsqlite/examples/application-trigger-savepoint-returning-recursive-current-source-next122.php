@@ -10,59 +10,59 @@ use PortLibs\LibSqlite\SQLiteTriggerSavepointReturningRecursiveCurrentSourceNext
 
 $plan = SQLiteTriggerSavepointReturningRecursiveCurrentSourceNextPlan::execute(
     [
-        ['option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 2, 'depth' => 0, 'autoload' => 'yes'],
-        ['option_name' => 'plugin_seed', 'option_value' => 'seed-old', 'revision' => 5, 'depth' => 1, 'autoload' => 'no'],
+        ['key_name' => 'base_url', 'key_value' => 'https://old.test', 'revision' => 2, 'depth' => 0, 'load_policy' => 'yes'],
+        ['key_name' => 'module_seed', 'key_value' => 'seed-old', 'revision' => 5, 'depth' => 1, 'load_policy' => 'no'],
     ],
     [
-        ['option_name' => 'plugin_seed', 'option_value' => 'seed-current', 'revision' => 3, 'depth' => 1, 'autoload' => 'yes'],
-        ['option_name' => 'fresh_plugin', 'option_value' => 'fresh-current', 'revision' => 1, 'depth' => 1, 'autoload' => 'no'],
+        ['key_name' => 'module_seed', 'key_value' => 'seed-current', 'revision' => 3, 'depth' => 1, 'load_policy' => 'yes'],
+        ['key_name' => 'fresh_module', 'key_value' => 'fresh-current', 'revision' => 1, 'depth' => 1, 'load_policy' => 'no'],
     ],
     [
-        ['option_name' => 'plugin_seed:child', 'option_value' => 'seed-child-next', 'revision' => 4, 'depth' => 2, 'autoload' => 'yes'],
-        ['option_name' => 'next_plugin', 'option_value' => 'next', 'revision' => 1, 'depth' => 1, 'autoload' => 'yes'],
+        ['key_name' => 'module_seed:child', 'key_value' => 'seed-child-next', 'revision' => 4, 'depth' => 2, 'load_policy' => 'yes'],
+        ['key_name' => 'next_module', 'key_value' => 'next', 'revision' => 1, 'depth' => 1, 'load_policy' => 'yes'],
     ],
-    ['option_name'],
+    ['key_name'],
     [
-        'option_value' => static fn (array $old, array $incoming): mixed => $incoming['option_value'],
+        'key_value' => static fn (array $old, array $incoming): mixed => $incoming['key_value'],
         'revision' => static fn (array $old, array $incoming): int => (int) $old['revision'] + (int) $incoming['revision'],
         'depth' => static fn (array $old, array $incoming): mixed => $incoming['depth'],
-        'autoload' => static fn (array $old, array $incoming): mixed => $incoming['autoload'],
+        'load_policy' => static fn (array $old, array $incoming): mixed => $incoming['load_policy'],
     ],
     [
         [
-            'name' => 'wp_options_ai_recursive_child',
+            'name' => 'app_settings_ai_recursive_child',
             'timing' => 'after',
             'event' => 'insert',
             'action' => 'upsert-parent',
             'when' => ['new.depth', '<', 3],
             'row' => [
-                'option_name' => ['concat' => ['new.option_name', ':child']],
-                'option_value' => ['concat' => ['new.option_value', ':child']],
+                'key_name' => ['concat' => ['new.key_name', ':child']],
+                'key_value' => ['concat' => ['new.key_value', ':child']],
                 'revision' => 1,
                 'depth' => ['add' => ['new.depth', 1]],
-                'autoload' => 'new.autoload',
+                'load_policy' => 'new.load_policy',
             ],
         ],
         [
-            'name' => 'wp_options_au_recursive_child',
+            'name' => 'app_settings_au_recursive_child',
             'timing' => 'after',
             'event' => 'update',
             'action' => 'upsert-parent',
             'when' => ['new.depth', '<', 3],
             'row' => [
-                'option_name' => ['concat' => ['new.option_name', ':child']],
-                'option_value' => ['concat' => ['new.option_value', ':child']],
+                'key_name' => ['concat' => ['new.key_name', ':child']],
+                'key_value' => ['concat' => ['new.key_value', ':child']],
                 'revision' => 1,
                 'depth' => ['add' => ['new.depth', 1]],
-                'autoload' => 'new.autoload',
+                'load_policy' => 'new.load_policy',
             ],
         ],
     ],
     [
-        'savepoint' => 'wp_trigger_batch',
+        'savepoint' => 'app_trigger_batch',
         'returning' => [
-            'option_name',
-            ['expr' => 'new.option_value', 'as' => 'value'],
+            'key_name',
+            ['expr' => 'new.key_value', 'as' => 'value'],
             ['expr' => 'event', 'as' => 'event_name'],
             ['expr' => 'depth', 'as' => 'trigger_depth'],
         ],
@@ -71,7 +71,7 @@ $plan = SQLiteTriggerSavepointReturningRecursiveCurrentSourceNextPlan::execute(
 
 if (in_array('--self-test', $argv, true)) {
     if (
-        $plan['rows'][1]['option_value'] !== 'seed-old'
+        $plan['rows'][1]['key_value'] !== 'seed-old'
         || count($plan['attempted_returning_rows']) !== 11
         || $plan['discarded_returning_count'] !== 11
         || $plan['yield_stream'][6]['phase'] !== 'next'
@@ -85,12 +85,12 @@ if (in_array('--self-test', $argv, true)) {
 
 echo json_encode([
     'scenario' => 'application-trigger-savepoint-returning-recursive-current-source-next122',
-    'applicationUse' => 'Preview a copied wp_options import where recursive triggers produce RETURNING diagnostics from current and next sources, then ROLLBACK TO restores the savepoint image while retaining attempted RETURNING evidence for importer diagnostics.',
+    'applicationUse' => 'Preview a copied app_settings import where recursive triggers produce RETURNING diagnostics from current and next sources, then ROLLBACK TO restores the savepoint image while retaining attempted RETURNING evidence for importer diagnostics.',
     'savepoint' => $plan['savepoint'],
     'rolledBack' => $plan['rolled_back'],
-    'finalRows' => array_column($plan['rows'], 'option_name'),
-    'attemptedRows' => array_column($plan['attempted_rows'], 'option_name'),
-    'attemptedReturning' => array_column($plan['attempted_returning_rows'], 'option_name'),
+    'finalRows' => array_column($plan['rows'], 'key_name'),
+    'attemptedRows' => array_column($plan['attempted_rows'], 'key_name'),
+    'attemptedReturning' => array_column($plan['attempted_returning_rows'], 'key_name'),
     'discardedReturningCount' => $plan['discarded_returning_count'],
     'yieldPhases' => array_column($plan['yield_stream'], 'phase'),
     'dependencyClosure' => 'no new support component needed; composes existing native PHP recursive trigger RETURNING and savepoint rollback semantics',

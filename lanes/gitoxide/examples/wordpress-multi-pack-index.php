@@ -15,6 +15,14 @@ $mediaObject = $fixture['objectsByRole']['large-media'];
 $content = $index->lookup($contentObject['oid']);
 $media = $index->lookup($mediaObject['oid']);
 $templatePrefix = $index->lookupPrefix(substr($templateObject['oid'], 0, 8));
+$emptyIndex = MultiPackIndex::fromBytes($fixture['emptyMultiIndexBytes'], $allocationCapBytes);
+$emptyPrefix = $emptyIndex->lookupPrefix('0000');
+$emptyIntegrityStatus = 'accepted';
+try {
+    $emptyIndex->verifyIntegrityFast();
+} catch (RuntimeException) {
+    $emptyIntegrityStatus = 'empty-rejected';
+}
 
 return [
     'version' => $index->version(),
@@ -31,4 +39,9 @@ return [
     'templatePrefixStatus' => $templatePrefix['status'],
     'templatePrefixRange' => $templatePrefix['candidateRange'],
     'templateShortestPrefix' => $index->disambiguatePrefix($templateObject['oid'], 4),
+    'emptyObjects' => $emptyIndex->count(),
+    'emptyChecksum' => $emptyIndex->verifyChecksum(),
+    'emptyPrefixStatus' => $emptyPrefix['status'],
+    'emptyPrefixRange' => $emptyPrefix['candidateRange'],
+    'emptyIntegrityStatus' => $emptyIntegrityStatus,
 ];

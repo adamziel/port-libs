@@ -1532,6 +1532,45 @@ return [
         $t->same(false, is_file($dir . '/refs/heads/review/plugin-b/broken.lock'));
         $t->same(false, is_dir($dir . '/refs'));
     },
+    'prepared reference transaction deletes broken loose refs in deref any mode like upstream' => static function (TestRunner $t): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-delete-broken-deref-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . '/HEAD', 'broken');
+
+        $transaction = $store->prepareLooseDeleteTransaction(
+            ['HEAD'],
+            ReferenceStore::PREVIOUS_ANY,
+            null,
+            true,
+        );
+
+        $t->same(true, is_file($dir . '/HEAD.lock'));
+        $edits = $transaction->commit();
+
+        $t->same(['HEAD'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same([null], array_map(static fn ($edit): mixed => $edit->previousTarget?->value, $edits));
+        $t->same([true], array_map(static fn ($edit): bool => $edit->updatesReference, $edits));
+        $t->same(false, is_file($dir . '/HEAD'));
+        $t->same(false, is_file($dir . '/HEAD.lock'));
+
+        $strictDir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-delete-broken-deref-strict-' . bin2hex(random_bytes(4));
+        $strictStore = new ReferenceStore($strictDir);
+        mkdir($strictDir, 0777, true);
+        file_put_contents($strictDir . '/HEAD', 'broken');
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => $strictStore->prepareLooseDeleteTransaction(
+                ['HEAD'],
+                ReferenceStore::PREVIOUS_MUST_EXIST,
+                null,
+                true,
+            ),
+        );
+        $t->same('broken', file_get_contents($strictDir . '/HEAD'));
+        $t->same(false, is_file($strictDir . '/HEAD.lock'));
+    },
     'prepared reference transaction deletes packed refs through packed refs file like upstream' => static function (TestRunner $t) use ($old, $new, $other): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-delete-packed-' . bin2hex(random_bytes(4));
         mkdir($dir, 0777, true);
@@ -1910,6 +1949,15 @@ return [
         $t->same($fixture['expectedPreparedBrokenDeleteHadLock'], $summary['preparedBrokenDeleteHadLock']);
         $t->same($fixture['expectedPreparedBrokenDeleteCleanedLock'], $summary['preparedBrokenDeleteCleanedLock']);
         $t->same($fixture['expectedPreparedBrokenDeleteRefStillExists'], $summary['preparedBrokenDeleteRefStillExists']);
+        $t->same($fixture['expectedPreparedBrokenDerefDeleteEditNames'], $summary['preparedBrokenDerefDeleteEditNames']);
+        $t->same($fixture['expectedPreparedBrokenDerefDeleteHadLock'], $summary['preparedBrokenDerefDeleteHadLock']);
+        $t->same($fixture['expectedPreparedBrokenDerefDeleteCleanedLock'], $summary['preparedBrokenDerefDeleteCleanedLock']);
+        $t->same($fixture['expectedPreparedBrokenDerefDeleteRefStillExists'], $summary['preparedBrokenDerefDeleteRefStillExists']);
+        $t->same(
+            $fixture['expectedPreparedBrokenDerefStrictErrorPrefix'],
+            substr((string) $summary['preparedBrokenDerefStrictError'], 0, strlen($fixture['expectedPreparedBrokenDerefStrictErrorPrefix'])),
+        );
+        $t->same($fixture['expectedPreparedBrokenDerefStrictRefPreserved'], $summary['preparedBrokenDerefStrictRefPreserved']);
         $t->same($fixture['expectedPreparedNoOpEditNames'], $summary['preparedNoOpEditNames']);
         $t->same($fixture['reviewCommit'], $summary['preparedNoOpCommit']);
         $t->same($fixture['expectedPreparedNoOpHeldLockPreserved'], $summary['preparedNoOpHeldLockPreserved']);
@@ -2029,6 +2077,7 @@ return [
         $t->contains('direct production referent publish', $summary['wordpressUse']);
         $t->contains('quiet publish previews', $summary['wordpressUse']);
         $t->contains('disabled write-mode audit cleanup', $summary['wordpressUse']);
+        $t->contains('broken dereferenced tenant HEAD', $summary['wordpressUse']);
         $t->contains('later prepared reflog deletion fails', $summary['wordpressUse']);
     },
     'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {

@@ -104,7 +104,7 @@ final class SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNextPlan
             if (array_key_exists($fk['child_key'], $row)) {
                 $children[] = [
                     $fk['child_key'] => $row[$fk['child_key']],
-                    'option_name' => $row['option_name'] ?? null,
+                    'key_name' => $row['key_name'] ?? null,
                 ];
             }
         }
@@ -130,7 +130,7 @@ final class SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNextPlan
                 'child_index' => $index,
                 'child_key' => $key,
                 'parent_key' => $fk['parent_key'],
-                'option_name' => $child['option_name'] ?? null,
+                'key_name' => $child['key_name'] ?? null,
             ];
         }
 

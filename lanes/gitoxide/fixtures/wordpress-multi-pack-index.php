@@ -119,6 +119,7 @@ foreach ($objects as $index => $object) {
 }
 
 [$multiIndexBytes, $checksum, $sortedObjects] = $buildMultiIndex($objects, $indexNames);
+[$emptyMultiIndexBytes, $emptyChecksum] = $buildMultiIndex([], [$indexNames[0]]);
 $objectsByRole = [];
 foreach ($sortedObjects as $object) {
     $objectsByRole[$object['role']] = $object;
@@ -127,6 +128,8 @@ foreach ($sortedObjects as $object) {
 return [
     'multiIndexBytes' => $multiIndexBytes,
     'checksum' => $checksum,
+    'emptyMultiIndexBytes' => $emptyMultiIndexBytes,
+    'emptyChecksum' => $emptyChecksum,
     'indexNames' => $indexNames,
     'objects' => $sortedObjects,
     'objectsByRole' => $objectsByRole,

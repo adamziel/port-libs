@@ -3,10 +3,18 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDmlTriggerCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteRecursiveUpsertConflictYieldPlan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerReturningFkSavepointCurrentNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerSavepointReturningRecursiveCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteTriggerOrderPlan;
 use PortLibs\LibSqlite\SQLiteUpsertReturningTriggerPlan;
 
@@ -15,10 +23,18 @@ $sourceRoot = $libsqliteRoot . '/src';
 
 $sourceFiles = [
     $sourceRoot . '/SQLiteDmlTriggerCurrentNextPlan.php',
+    $sourceRoot . '/SQLiteRecursiveUpsertConflictYieldPlan.php',
+    $sourceRoot . '/SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerReturningFkSavepointCurrentNextPlan.php',
     $sourceRoot . '/SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerSavepointReturningRecursiveCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteUpdateDeleteTriggerOrderPlan.php',
     $sourceRoot . '/SQLiteUpsertReturningTriggerPlan.php',
 ];
@@ -58,6 +74,37 @@ $legacyDomainMatches = static function () use ($sourceFiles, $libsqliteRoot): ar
 $settingRows = [
     ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'revision' => 1],
     ['setting_id' => 2, 'key_name' => 'cache_policy', 'key_value' => 'stale', 'load_policy' => 'no', 'revision' => 2],
+];
+$recursiveRows = [
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'revision' => 1, 'depth' => 0],
+    ['setting_id' => 2, 'key_name' => 'module_seed', 'key_value' => 'seed-old', 'load_policy' => 'no', 'revision' => 2, 'depth' => 1],
+];
+$recursiveAssignments = [
+    'key_value' => static fn (array $old, array $incoming): mixed => $incoming['key_value'],
+    'load_policy' => static fn (array $old, array $incoming): mixed => $incoming['load_policy'],
+    'revision' => static fn (array $old, array $incoming): int => (int) $old['revision'] + (int) $incoming['revision'],
+    'depth' => static fn (array $old, array $incoming): mixed => $incoming['depth'],
+];
+$recursiveTriggers = [[
+    'name' => 'app_settings_after_upsert_child',
+    'timing' => 'after',
+    'event' => 'update',
+    'action' => 'upsert-parent',
+    'when' => ['new.depth', '<', 2],
+    'row' => [
+        'setting_id' => 3,
+        'key_name' => ['concat' => ['new.key_name', '_child']],
+        'key_value' => ['concat' => ['new.key_value', ':child']],
+        'load_policy' => 'new.load_policy',
+        'revision' => 1,
+        'depth' => ['add' => ['new.depth', 1]],
+    ],
+    'values' => ['name' => 'new.key_name', 'value' => 'new.key_value'],
+]];
+$recursiveReturning = [
+    'key_name',
+    ['expr' => 'new.key_value', 'as' => 'value'],
+    ['expr' => 'event', 'as' => 'event_name'],
 ];
 $trigger = [
     'name' => 'app_settings_after_update',
@@ -131,6 +178,109 @@ return [
         $t->same(2, $plan['changes']);
         $t->same(['base_url', 'module_registry'], array_column($plan['returning_rows'], 'key_name'));
         $t->same(['app_settings_after_upsert', 'app_settings_after_insert'], array_column($plan['trigger_effects'], 'trigger'));
+    },
+    'recursive upsert defaults expose generic setting keys' => static function (TestRunner $t) use ($recursiveRows, $recursiveAssignments, $recursiveTriggers, $recursiveReturning): void {
+        $plan = SQLiteRecursiveUpsertConflictYieldPlan::execute(
+            $recursiveRows,
+            [['setting_id' => 9, 'key_name' => 'module_seed', 'key_value' => 'seed-new', 'load_policy' => 'yes', 'revision' => 3, 'depth' => 1]],
+            ['key_name'],
+            $recursiveAssignments,
+            $recursiveTriggers,
+            ['returning' => $recursiveReturning],
+        );
+
+        $t->same(['module_seed', 'module_seed_child'], array_column($plan['yielded'], 'new_key'));
+        $t->same(['seed-new', 'seed-new:child'], array_column($plan['yielded'], 'new_value'));
+        $t->same(['module_seed', 'module_seed_child'], array_column($plan['returning'], 'key_name'));
+        $t->same(['app_settings_after_upsert_child'], array_column($plan['trigger_effects'], 'trigger'));
+    },
+    'recursive current source handoff uses generic key column' => static function (TestRunner $t) use ($recursiveRows, $recursiveAssignments, $recursiveTriggers, $recursiveReturning): void {
+        $plan = SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan::execute(
+            $recursiveRows,
+            [['setting_id' => 9, 'key_name' => 'module_seed', 'key_value' => 'seed-current', 'load_policy' => 'yes', 'revision' => 2, 'depth' => 1]],
+            [['setting_id' => 10, 'key_name' => 'module_seed_child', 'key_value' => 'seed-next', 'load_policy' => 'yes', 'revision' => 4, 'depth' => 2]],
+            ['key_name'],
+            $recursiveAssignments,
+            $recursiveTriggers,
+            ['returning' => $recursiveReturning],
+        );
+
+        $t->same(['module_seed', 'module_seed_child'], $plan['handoff']['returning_keys']);
+        $t->same(true, $plan['handoff']['next_source_contains_all_returning_keys']);
+        $t->same(['module_seed_child'], array_column(array_column($plan['next_returning_rows'], 'returning'), 'key_name'));
+    },
+    'savepoint recursive returning defaults are application tokens' => static function (TestRunner $t) use ($recursiveRows, $recursiveAssignments, $recursiveTriggers, $recursiveReturning): void {
+        $plan = SQLiteTriggerSavepointReturningRecursiveCurrentSourceNextPlan::execute(
+            $recursiveRows,
+            [['setting_id' => 9, 'key_name' => 'module_seed', 'key_value' => 'seed-current', 'load_policy' => 'yes', 'revision' => 2, 'depth' => 1]],
+            [['setting_id' => 10, 'key_name' => 'module_seed_child', 'key_value' => 'seed-next', 'load_policy' => 'yes', 'revision' => 4, 'depth' => 2]],
+            ['key_name'],
+            $recursiveAssignments,
+            $recursiveTriggers,
+            ['returning' => $recursiveReturning],
+        );
+
+        $t->same('app_import_trigger_batch', $plan['savepoint']);
+        $t->same(['module_seed', 'module_seed_child'], array_column($plan['attempted_current_returning_rows'], 'key_name'));
+        $t->same([], $plan['current_returning_rows']);
+    },
+    'recursive upsert rollback barrier uses generic key column' => static function (TestRunner $t) use ($recursiveRows, $recursiveAssignments, $recursiveTriggers, $recursiveReturning): void {
+        $plan = SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextPlan::execute(
+            $recursiveRows,
+            [['setting_id' => 9, 'key_name' => 'module_seed', 'key_value' => 'seed-current', 'load_policy' => 'yes', 'revision' => 2, 'depth' => 1]],
+            [['setting_id' => 10, 'key_name' => 'module_seed_child', 'key_value' => 'seed-next', 'load_policy' => 'yes', 'revision' => 4, 'depth' => 2]],
+            ['key_name'],
+            $recursiveAssignments,
+            $recursiveTriggers,
+            ['returning' => $recursiveReturning, 'rollback_on_returning_key' => ['module_seed_child']],
+        );
+
+        $t->same('app_recursive_upsert_returning_145', $plan['savepoint']);
+        $t->same('module_seed_child', $plan['rollback_barrier']['returning_key']);
+        $t->same(true, $plan['recursive_summary']['next_replayed_current_key']);
+    },
+    'recursive view upsert defaults are application settings' => static function (TestRunner $t): void {
+        $plan = SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan::execute(
+            [
+                ['key_name' => 'base_url', 'key_value' => 'https://old.test'],
+                ['key_name' => 'landing_page', 'key_value' => 'https://old.test/landing'],
+            ],
+            [['name' => 'base_url', 'value' => 'https://current.test']],
+            [['name' => 'module_seed', 'value' => 'enabled']],
+            [
+                'name' => 'app_setting_import_view',
+                'source' => 'main@settings-view',
+                'mapping' => ['name' => 'key_name', 'value' => 'key_value'],
+            ],
+            ['key_name'],
+            [['name' => 'app_settings_after_base_url', 'when' => 'base_url', 'target' => 'landing_page', 'value' => '{value}/landing']],
+        );
+
+        $t->same('app_view_recursive_148', $plan['savepoint']);
+        $t->same(['base_url', 'landing_page'], array_column($plan['current_returning_rows'], 'key_name'));
+        $t->same(['base_url'], array_column($plan['current_trigger_effects'], 'source_key'));
+        $t->same(['landing_page'], array_column($plan['current_trigger_effects'], 'target_key'));
+    },
+    'recursive deferred returning defaults use setting row ids' => static function (TestRunner $t) use ($settingRows): void {
+        $children = [
+            ['ref_id' => 10, 'setting_id' => 1],
+            ['ref_id' => 11, 'setting_id' => 2],
+        ];
+        $plan = SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update(
+            $settingRows,
+            $children,
+            ['parent_key' => 'setting_id', 'child_key' => 'setting_id', 'deferred' => true],
+            [
+                'where' => static fn (array $row): bool => $row['setting_id'] === 1,
+                'assignments' => ['setting_id' => static fn (array $row): int => (int) $row['setting_id'] + 10],
+                'returning' => ['setting_id', 'key_name'],
+                'rollback_on_deferred_violation' => true,
+            ],
+        );
+
+        $t->same([11, 2], $plan['current_rowids']);
+        $t->same([1, 2], $plan['next_rowids']);
+        $t->same('trigger_returning_deferred', $plan['savepoint']);
     },
     'trigger fk savepoint helpers default to settings keys' => static function (TestRunner $t) use ($settingRows): void {
         $children = [

@@ -342,6 +342,10 @@ final class DeclarationBlock
         'backdrop-filter',
         '-webkit-backdrop-filter',
     ];
+    private const CLIP_PATH_PROPERTIES = [
+        'clip-path',
+        '-webkit-clip-path',
+    ];
 
     private const BACKGROUND_LONGHANDS = [
         'background-color',
@@ -13877,6 +13881,10 @@ final class DeclarationBlock
             return $this->normalizeCursorDeclarationValue($value);
         }
 
+        if (in_array($property, self::CLIP_PATH_PROPERTIES, true)) {
+            return $this->normalizeClipPathDeclarationValue($value);
+        }
+
         if ($property === 'text-transform') {
             return $this->normalizeTextTransformDeclarationValue($value);
         }
@@ -14293,6 +14301,255 @@ final class DeclarationBlock
         }
 
         return $url . ' ' . $this->normalizeCssNumberLiteral($tokens[1]) . ' ' . $this->normalizeCssNumberLiteral($tokens[2]);
+    }
+
+    private function normalizeClipPathDeclarationValue(string $value): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return $trimmed;
+        }
+
+        if (strcasecmp($trimmed, 'none') === 0) {
+            return 'none';
+        }
+
+        if (preg_match('/^url\(/i', $trimmed) === 1) {
+            return $this->normalizeCssUrlToken($trimmed);
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($trimmed);
+        if (count($tokens) === 1) {
+            $box = $this->normalizeClipPathGeometryBox($tokens[0]);
+            if ($box !== null) {
+                return $box;
+            }
+
+            return $this->normalizeClipPathShape($tokens[0]) ?? $trimmed;
+        }
+
+        if (count($tokens) === 2) {
+            $firstBox = $this->normalizeClipPathGeometryBox($tokens[0]);
+            $secondBox = $this->normalizeClipPathGeometryBox($tokens[1]);
+            $shape = $firstBox !== null
+                ? $this->normalizeClipPathShape($tokens[1])
+                : ($secondBox !== null ? $this->normalizeClipPathShape($tokens[0]) : null);
+            $box = $firstBox ?? $secondBox;
+
+            if ($shape !== null && $box !== null) {
+                return $box === 'border-box' ? $shape : $shape . ' ' . $box;
+            }
+        }
+
+        return $trimmed;
+    }
+
+    private function normalizeClipPathGeometryBox(string $token): ?string
+    {
+        $box = strtolower(trim($token));
+
+        return in_array($box, self::MASK_GEOMETRY_BOXES, true) ? $box : null;
+    }
+
+    private function normalizeClipPathShape(string $shape): ?string
+    {
+        $shape = trim($shape);
+        if (preg_match('/^([_a-zA-Z][_a-zA-Z0-9-]*)\((.*)\)$/s', $shape, $matches) !== 1) {
+            return null;
+        }
+
+        $function = strtolower($matches[1]);
+        $body = trim($matches[2]);
+
+        return match ($function) {
+            'inset' => $this->normalizeClipPathInset($body),
+            'circle' => $this->normalizeClipPathCircle($body),
+            'ellipse' => $this->normalizeClipPathEllipse($body),
+            'polygon' => $this->normalizeClipPathPolygon($body),
+            default => null,
+        };
+    }
+
+    private function normalizeClipPathInset(string $body): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($body);
+        if ($tokens === []) {
+            return 'inset()';
+        }
+
+        $roundIndex = null;
+        foreach ($tokens as $index => $token) {
+            if (strcasecmp($token, 'round') === 0) {
+                $roundIndex = $index;
+                break;
+            }
+        }
+
+        $insets = $roundIndex === null ? $tokens : array_slice($tokens, 0, $roundIndex);
+        $parts = [$this->normalizeClipPathBoxSideList($insets)];
+
+        if ($roundIndex !== null) {
+            $radius = array_slice($tokens, $roundIndex + 1);
+            if ($radius !== []) {
+                $parts[] = 'round';
+                $parts[] = $this->normalizeClipPathBoxSideList($radius);
+            }
+        }
+
+        return 'inset(' . implode(' ', array_filter($parts, static fn (string $part): bool => $part !== '')) . ')';
+    }
+
+    private function normalizeClipPathCircle(string $body): string
+    {
+        [$radiusTokens, $positionTokens] = $this->splitClipPathAtPositionTokens($body);
+        $parts = [];
+        $radius = $this->normalizeClipPathRadiusTokens($radiusTokens, true);
+        if ($radius !== null) {
+            $parts[] = $radius;
+        }
+
+        $position = $this->normalizeClipPathPositionTokens($positionTokens);
+        if ($position !== null) {
+            $parts[] = 'at ' . $position;
+        }
+
+        return 'circle(' . implode(' ', $parts) . ')';
+    }
+
+    private function normalizeClipPathEllipse(string $body): string
+    {
+        [$radiusTokens, $positionTokens] = $this->splitClipPathAtPositionTokens($body);
+        $parts = [];
+        $radii = $this->normalizeClipPathRadiusTokens($radiusTokens, false);
+        if ($radii !== null) {
+            $parts[] = $radii;
+        }
+
+        $position = $this->normalizeClipPathPositionTokens($positionTokens);
+        if ($position !== null) {
+            $parts[] = 'at ' . $position;
+        }
+
+        return 'ellipse(' . implode(' ', $parts) . ')';
+    }
+
+    private function normalizeClipPathPolygon(string $body): string
+    {
+        $parts = array_map('trim', $this->splitTopLevel($body, ','));
+        if ($parts === [] || in_array('', $parts, true)) {
+            return 'polygon(' . trim($body) . ')';
+        }
+
+        $fillRule = strtolower($parts[0]);
+        if ($fillRule === 'nonzero') {
+            array_shift($parts);
+        } elseif ($fillRule === 'evenodd') {
+            $parts[0] = 'evenodd';
+        }
+
+        $normalized = [];
+        foreach ($parts as $part) {
+            if ($part === 'evenodd') {
+                $normalized[] = $part;
+                continue;
+            }
+
+            $normalized[] = implode(
+                ' ',
+                array_map(fn (string $token): string => $this->normalizeClipPathComponentToken($token), $this->splitWhitespaceTopLevel($part))
+            );
+        }
+
+        return 'polygon(' . implode(',', $normalized) . ')';
+    }
+
+    /**
+     * @return array{0:list<string>,1:list<string>}
+     */
+    private function splitClipPathAtPositionTokens(string $body): array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($body);
+        foreach ($tokens as $index => $token) {
+            if (strcasecmp($token, 'at') === 0) {
+                return [array_slice($tokens, 0, $index), array_slice($tokens, $index + 1)];
+            }
+        }
+
+        return [$tokens, []];
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function normalizeClipPathRadiusTokens(array $tokens, bool $circle): ?string
+    {
+        if ($tokens === []) {
+            return null;
+        }
+
+        $normalized = array_map(fn (string $token): string => $this->normalizeClipPathComponentToken($token), $tokens);
+        if ($circle && count($normalized) === 1 && $normalized[0] === 'closest-side') {
+            return null;
+        }
+        if (!$circle && count($normalized) === 2 && $normalized[0] === 'closest-side' && $normalized[1] === 'closest-side') {
+            return null;
+        }
+
+        return implode(' ', $normalized);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function normalizeClipPathPositionTokens(array $tokens): ?string
+    {
+        if ($tokens === []) {
+            return null;
+        }
+
+        $normalized = array_map(fn (string $token): string => $this->normalizeClipPathComponentToken($token), $tokens);
+        if ($normalized === ['center', 'center'] || $normalized === ['50%', '50%']) {
+            return null;
+        }
+
+        return implode(' ', $normalized);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function normalizeClipPathBoxSideList(array $tokens): string
+    {
+        if ($tokens === []) {
+            return '';
+        }
+
+        $values = array_map(fn (string $token): string => $this->normalizeClipPathComponentToken($token), $tokens);
+        if (count($values) >= 1 && count($values) <= 4) {
+            $expanded = match (count($values)) {
+                1 => ['top' => $values[0], 'right' => $values[0], 'bottom' => $values[0], 'left' => $values[0]],
+                2 => ['top' => $values[0], 'right' => $values[1], 'bottom' => $values[0], 'left' => $values[1]],
+                3 => ['top' => $values[0], 'right' => $values[1], 'bottom' => $values[2], 'left' => $values[1]],
+                default => ['top' => $values[0], 'right' => $values[1], 'bottom' => $values[2], 'left' => $values[3]],
+            };
+
+            return $this->compressBoxShorthand($expanded);
+        }
+
+        return implode(' ', $values);
+    }
+
+    private function normalizeClipPathComponentToken(string $token): string
+    {
+        $token = trim($token);
+        $keyword = strtolower($token);
+        if (in_array($keyword, ['closest-side', 'farthest-side', 'center', 'left', 'right', 'top', 'bottom', 'nonzero', 'evenodd'], true)) {
+            return $keyword;
+        }
+
+        $normalized = $this->normalizeLengthPercentageDeclarationToken($token);
+
+        return $normalized ?? $token;
     }
 
     private function isCssNumberLiteral(string $value): bool

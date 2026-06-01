@@ -10,30 +10,30 @@ use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentYieldTicket(
     [
-        ['option_name' => 'siteurl', 'option_value' => 'https://old.test'],
-        ['option_name' => 'home', 'option_value' => 'https://old-home.test'],
-        ['option_name' => 'rewrite_rules', 'option_value' => 'old-rules'],
+        ['key_name' => 'base_url', 'key_value' => 'https://old.test'],
+        ['key_name' => 'landing_page', 'key_value' => 'https://old-landing_page.test'],
+        ['key_name' => 'route_rules', 'key_value' => 'old-rules'],
     ],
     [
-        ['name' => 'siteurl', 'value' => 'https://current.test'],
-        ['name' => 'blogname', 'value' => 'Current Blog'],
+        ['name' => 'base_url', 'value' => 'https://current.test'],
+        ['name' => 'site_title', 'value' => 'Current Blog'],
     ],
     [
-        ['name' => 'siteurl', 'value' => 'https://next.test'],
-        ['name' => 'fresh_plugin', 'value' => 'enabled'],
+        ['name' => 'base_url', 'value' => 'https://next.test'],
+        ['name' => 'fresh_module', 'value' => 'enabled'],
     ],
     [
-        'name' => 'wp_option_import_view',
+        'name' => 'app_setting_import_view',
         'source' => 'main@cookie235-current',
-        'mapping' => ['name' => 'option_name', 'value' => 'option_value'],
+        'mapping' => ['name' => 'key_name', 'value' => 'key_value'],
     ],
-    ['option_name'],
+    ['key_name'],
     [
-        ['name' => 'wp_options_au_home', 'when' => 'siteurl', 'target' => 'home', 'value' => '{value}/home'],
-        ['name' => 'wp_options_au_rewrite', 'when' => 'home', 'target' => 'rewrite_rules', 'value' => 'flushed:{value}'],
+        ['name' => 'app_settings_au_home', 'when' => 'base_url', 'target' => 'landing_page', 'value' => '{value}/landing_page'],
+        ['name' => 'app_settings_au_rewrite', 'when' => 'landing_page', 'target' => 'route_rules', 'value' => 'flushed:{value}'],
     ],
     [
-        'savepoint' => 'wp_view_recursive_235',
+        'savepoint' => 'app_view_recursive_235',
         'current_upsert_source_next232' => 'wp.current.upsert.source.235',
         'current_view_source_next232' => 'main@cookie235-current',
         'current_trigger_program_next232' => 'wp.current.recursive.trigger.program.235',
@@ -46,7 +46,7 @@ $summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrent
 if (
     $summary['status_next235'] !== 'trigger-recursive-view-upsert-current-source-next235-yield-released'
     || $summary['current_yield_ticket_plan_next235']['decision'] !== 'publish-next-source-after-current-recursive-view-upsert-yields'
-    || array_column($summary['visible_returning_rows_next235'], 'option_name') !== ['siteurl', 'home', 'rewrite_rules', 'blogname', 'siteurl', 'home', 'rewrite_rules', 'fresh_plugin']
+    || array_column($summary['visible_returning_rows_next235'], 'key_name') !== ['base_url', 'landing_page', 'route_rules', 'site_title', 'base_url', 'landing_page', 'route_rules', 'fresh_module']
     || $summary['held_next_yield_stream_next235'] !== []
 ) {
     fwrite(STDERR, "application-trigger-recursive-view-upsert-current-source-next235 self-test failed\n");

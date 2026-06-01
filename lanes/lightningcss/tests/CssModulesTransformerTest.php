@@ -1038,6 +1038,91 @@ CSS;
             $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
         }
     },
+    'css modules rejects upstream namespace delimiter class splits while preserving local global composes' => static function (TestRunner $t) use ($export, $local): void {
+        $namespaceResult = (new CssModulesTransformer())->transform(<<<'CSS'
+svg|a .card {
+  color: red;
+}
+
+*|button .button {
+  color: yellow;
+}
+
+|slot .title {
+  color: blue;
+}
+
+.link {
+  composes: card;
+  color: white;
+}
+
+.card {
+  color: green;
+}
+CSS);
+
+        $t->same('svg|a .EgL3uq_card{color:red}*|button .EgL3uq_button{color:#ff0}|slot .EgL3uq_title{color:#00f}.EgL3uq_link{color:#fff}.EgL3uq_card{color:green}', $namespaceResult['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'button' => $export('EgL3uq_button'),
+            'title' => $export('EgL3uq_title'),
+            'link' => $export('EgL3uq_link', [$local('EgL3uq_card')]),
+        ], $namespaceResult['exports']);
+        $t->same([], $namespaceResult['references']);
+        $t->same('EgL3uq_link EgL3uq_card', CssModulesTransformer::exportClassList($namespaceResult['exports'], 'link'));
+
+        $forgivingResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:has(.bad|.drop, .kept) {
+  color: red;
+}
+
+.card:is(:local(.bad||.drop), .safe) {
+  color: yellow;
+}
+
+.item:nth-child(odd of .bad|.drop, .row) {
+  color: blue;
+}
+
+.panel {
+  composes: card;
+  color: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_card:has(.EgL3uq_kept){color:red}.EgL3uq_card.EgL3uq_safe{color:#ff0}.EgL3uq_item:nth-child(odd of .EgL3uq_row){color:#00f}.EgL3uq_panel{color:#fff}', $forgivingResult['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'kept' => $export('EgL3uq_kept'),
+            'safe' => $export('EgL3uq_safe'),
+            'item' => $export('EgL3uq_item'),
+            'row' => $export('EgL3uq_row'),
+            'panel' => $export('EgL3uq_panel', [$local('EgL3uq_card')]),
+        ], $forgivingResult['exports']);
+        $t->same([], $forgivingResult['references']);
+
+        foreach ([
+            '.foo|.bar { color: red }',
+            '.foo|bar { color: red }',
+            '#foo|bar { color: red }',
+            'foo|.bar { color: red }',
+            ':local(.foo|.bar) { color: red }',
+            ':global(.foo|.bar) .card { color: red }',
+            ':local(.foo||.bar) { color: red }',
+            ':global(.foo) || .card { color: red }',
+            '.card:not(.foo|.bar, .ok) { color: red }',
+        ] as $css) {
+            try {
+                (new CssModulesTransformer())->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same("Unexpected token Delim('|')", $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream namespace delimiter exception');
+        }
+    },
     'css modules preserves escaped numeric local selectors while applying composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .\31 23, .alpha {

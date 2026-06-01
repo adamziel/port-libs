@@ -12,7 +12,7 @@ final class SQLiteRecursiveUpsertConflictYieldPlan
      * @param list<string> $uniqueColumns
      * @param array<string,callable(array<string,mixed>,array<string,mixed>):mixed> $assignments
      * @param list<array<string,mixed>> $triggers
-     * @param array{recursive_triggers?:bool,max_depth?:int,conflict_action?:string,returning?:list<string|array{expr:string,as?:string}|callable(array<string,mixed>,?array<string,mixed>,array<string,mixed>,string,int,?string):mixed>} $options
+     * @param array{recursive_triggers?:bool,max_depth?:int,conflict_action?:string,key_column?:string,value_column?:string,returning?:list<string|array{expr:string,as?:string}|callable(array<string,mixed>,?array<string,mixed>,array<string,mixed>,string,int,?string):mixed>} $options
      * @return array{rows:list<array<string,mixed>>,inserted:list<array<string,mixed>>,updated:list<array<string,mixed>>,skipped:list<array<string,mixed>>,yielded:list<array<string,mixed>>,trigger_effects:list<array<string,mixed>>,changes:int,max_depth_seen:int,returning:list<array<string,mixed>>}
      */
     public static function execute(
@@ -41,6 +41,8 @@ final class SQLiteRecursiveUpsertConflictYieldPlan
             'recursive_triggers' => (bool) ($options['recursive_triggers'] ?? true),
             'max_depth' => self::maxDepth($options['max_depth'] ?? 1000),
             'conflict_action' => self::conflictAction((string) ($options['conflict_action'] ?? 'update')),
+            'key_column' => self::identifier((string) ($options['key_column'] ?? 'key_name'), 'key column'),
+            'value_column' => self::identifier((string) ($options['value_column'] ?? 'key_value'), 'value column'),
             'returning' => self::returningProjection($options['returning'] ?? null),
         ];
 
@@ -55,7 +57,7 @@ final class SQLiteRecursiveUpsertConflictYieldPlan
 
     /**
      * @param array{rows:list<array<string,mixed>>,inserted:list<array<string,mixed>>,updated:list<array<string,mixed>>,skipped:list<array<string,mixed>>,yielded:list<array<string,mixed>>,trigger_effects:list<array<string,mixed>>,changes:int,max_depth_seen:int,returning:list<array<string,mixed>>} $state
-     * @param array{unique_columns:list<string>,assignments:array<string,callable(array<string,mixed>,array<string,mixed>):mixed>,triggers:list<array<string,mixed>>,recursive_triggers:bool,max_depth:int,conflict_action:string,returning:?array} $context
+     * @param array{unique_columns:list<string>,assignments:array<string,callable(array<string,mixed>,array<string,mixed>):mixed>,triggers:list<array<string,mixed>>,recursive_triggers:bool,max_depth:int,conflict_action:string,key_column:string,value_column:string,returning:?array} $context
      * @param array<string,mixed> $incoming
      */
     private static function upsert(array &$state, array $context, array $incoming, int $depth, int $ordinal, string $source, ?string $triggerName): void
@@ -70,7 +72,7 @@ final class SQLiteRecursiveUpsertConflictYieldPlan
         $event = $old === null ? 'insert' : 'update';
         if ($old !== null && $context['conflict_action'] === 'ignore') {
             $state['skipped'][] = $incoming;
-            $state['yielded'][] = self::yieldRow($ordinal, $source, $triggerName, 'skipped', $event, $old, $incoming, $incoming, $depth, null);
+            $state['yielded'][] = self::yieldRow($ordinal, $source, $triggerName, 'skipped', $event, $old, $incoming, $incoming, $depth, null, $context);
             return;
         }
 
@@ -93,7 +95,7 @@ final class SQLiteRecursiveUpsertConflictYieldPlan
         }
         ++$state['changes'];
         $returning = self::returningRow($context['returning'], $old, $new, $incoming, $event, $depth, $triggerName);
-        $state['yielded'][] = self::yieldRow($ordinal, $source, $triggerName, 'changed', $event, $old, $new, $incoming, $depth, $returning);
+        $state['yielded'][] = self::yieldRow($ordinal, $source, $triggerName, 'changed', $event, $old, $new, $incoming, $depth, $returning, $context);
         $state['returning'][] = $returning;
 
         self::fireTriggers('after', $event, $state, $context, $old, $new, $depth, $ordinal);
@@ -101,7 +103,7 @@ final class SQLiteRecursiveUpsertConflictYieldPlan
 
     /**
      * @param array{rows:list<array<string,mixed>>,inserted:list<array<string,mixed>>,updated:list<array<string,mixed>>,skipped:list<array<string,mixed>>,yielded:list<array<string,mixed>>,trigger_effects:list<array<string,mixed>>,changes:int,max_depth_seen:int,returning:list<array<string,mixed>>} $state
-     * @param array{unique_columns:list<string>,assignments:array<string,callable(array<string,mixed>,array<string,mixed>):mixed>,triggers:list<array<string,mixed>>,recursive_triggers:bool,max_depth:int,conflict_action:string,returning:?array} $context
+     * @param array{unique_columns:list<string>,assignments:array<string,callable(array<string,mixed>,array<string,mixed>):mixed>,triggers:list<array<string,mixed>>,recursive_triggers:bool,max_depth:int,conflict_action:string,key_column:string,value_column:string,returning:?array} $context
      * @param array<string,mixed> $new
      */
     private static function fireTriggers(string $timing, string $event, array &$state, array $context, ?array $old, array $new, int $depth, int $ordinal): void
@@ -115,7 +117,7 @@ final class SQLiteRecursiveUpsertConflictYieldPlan
             }
             $action = strtolower((string) ($trigger['action'] ?? 'audit'));
             if ($action === 'audit') {
-                $state['trigger_effects'][] = self::effect($trigger, $timing, $event, 'audit', $old, $new, $depth);
+                $state['trigger_effects'][] = self::effect($trigger, $timing, $event, 'audit', $old, $new, $depth, $context);
                 continue;
             }
             if ($action !== 'upsert-parent') {
@@ -123,7 +125,7 @@ final class SQLiteRecursiveUpsertConflictYieldPlan
             }
 
             $row = self::project((array) ($trigger['row'] ?? []), $old, $new);
-            $state['trigger_effects'][] = self::effect($trigger, $timing, $event, $context['recursive_triggers'] ? 'recursive-upsert' : 'recursive-suppressed', $old, $new, $depth);
+            $state['trigger_effects'][] = self::effect($trigger, $timing, $event, $context['recursive_triggers'] ? 'recursive-upsert' : 'recursive-suppressed', $old, $new, $depth, $context);
             if (!$context['recursive_triggers']) {
                 continue;
             }
@@ -230,16 +232,17 @@ final class SQLiteRecursiveUpsertConflictYieldPlan
      * @param array<string,mixed> $row
      * @return array<string,mixed>
      */
-    private static function effect(array $trigger, string $timing, string $event, string $result, ?array $old, array $row, int $depth): array
+    private static function effect(array $trigger, string $timing, string $event, string $result, ?array $old, array $row, int $depth, array $context = []): array
     {
+        $keyColumn = (string) ($context['key_column'] ?? 'key_name');
         return [
             'trigger' => (string) ($trigger['name'] ?? ''),
             'timing' => $timing,
             'event' => $event,
             'result' => $result,
             'depth' => $depth,
-            'old_key' => $old['option_name'] ?? null,
-            'new_key' => $row['option_name'] ?? null,
+            'old_key' => $old[$keyColumn] ?? null,
+            'new_key' => $row[$keyColumn] ?? null,
             'row' => self::project((array) ($trigger['values'] ?? []), $old, $row),
         ];
     }
@@ -248,8 +251,10 @@ final class SQLiteRecursiveUpsertConflictYieldPlan
      * @param array<string,mixed> $new
      * @return array<string,mixed>
      */
-    private static function yieldRow(int $ordinal, string $source, ?string $triggerName, string $status, string $event, ?array $old, array $new, array $incoming, int $depth, ?array $returning): array
+    private static function yieldRow(int $ordinal, string $source, ?string $triggerName, string $status, string $event, ?array $old, array $new, array $incoming, int $depth, ?array $returning, array $context): array
     {
+        $keyColumn = (string) $context['key_column'];
+        $valueColumn = (string) $context['value_column'];
         return [
             'ordinal' => $ordinal,
             'source' => $source,
@@ -257,11 +262,11 @@ final class SQLiteRecursiveUpsertConflictYieldPlan
             'status' => $status,
             'event' => $event,
             'depth' => $depth,
-            'old_key' => $old['option_name'] ?? null,
-            'new_key' => $new['option_name'] ?? null,
-            'incoming_key' => $incoming['option_name'] ?? null,
-            'old_value' => $old['option_value'] ?? null,
-            'new_value' => $new['option_value'] ?? null,
+            'old_key' => $old[$keyColumn] ?? null,
+            'new_key' => $new[$keyColumn] ?? null,
+            'incoming_key' => $incoming[$keyColumn] ?? null,
+            'old_value' => $old[$valueColumn] ?? null,
+            'new_value' => $new[$valueColumn] ?? null,
             'returning' => $returning,
         ];
     }

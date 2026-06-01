@@ -297,7 +297,7 @@ final class ReferenceStore
                     throw new \InvalidArgumentException('Prepared reference deletions must be a list of reference names');
                 }
 
-                [$physicalName, $derefParents] = $this->dereferenceUpdateSplit($this->physicalName($name), $deref, $algorithm);
+                [$physicalName, $derefParents] = $this->dereferenceDeleteSplit($this->physicalName($name), $deref, $algorithm, $previous);
                 [$existing, $brokenLooseExists] = $this->tryFindPhysicalForDeletion($physicalName, $algorithm);
                 $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget, $brokenLooseExists);
 
@@ -544,7 +544,7 @@ final class ReferenceStore
         }
 
         if (!$deleteReflog) {
-            $physicalName = $this->dereferenceName($this->physicalName($name), $deref, $algorithm);
+            $physicalName = $this->dereferenceDeleteName($this->physicalName($name), $deref, $algorithm, $previous);
             [$existing, $brokenLooseExists] = $this->tryFindPhysicalForDeletion($physicalName, $algorithm);
 
             $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget, $brokenLooseExists);
@@ -603,7 +603,7 @@ final class ReferenceStore
             throw new \InvalidArgumentException("Unknown reference deletion reflog mode: {$reflogMode}");
         }
 
-        [$physicalName, $derefParents] = $this->dereferenceUpdateSplit($this->physicalName($name), $deref, $algorithm);
+        [$physicalName, $derefParents] = $this->dereferenceDeleteSplit($this->physicalName($name), $deref, $algorithm, $previous);
         [$existing, $brokenLooseExists] = $this->tryFindPhysicalForDeletion($physicalName, $algorithm);
 
         $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget, $brokenLooseExists);
@@ -1015,27 +1015,9 @@ final class ReferenceStore
         return ReferenceTarget::symbolic($this->namespacePrefix . $target->value);
     }
 
-    private function dereferenceName(string $physicalName, bool $deref, string $algorithm): string
+    private function dereferenceDeleteName(string $physicalName, bool $deref, string $algorithm, string $previous): string
     {
-        if (!$deref) {
-            return $physicalName;
-        }
-
-        $seen = [];
-        $name = $physicalName;
-        while (true) {
-            if (isset($seen[$name])) {
-                throw new \RuntimeException("Symbolic reference cycle while resolving {$physicalName}");
-            }
-            $seen[$name] = true;
-
-            $reference = $this->loose->tryRead($name, $algorithm);
-            if ($reference === null || !$reference->target->isSymbolic()) {
-                return $name;
-            }
-
-            $name = $reference->target->value;
-        }
+        return $this->dereferenceDeleteSplit($physicalName, $deref, $algorithm, $previous)[0];
     }
 
     /**
@@ -1057,6 +1039,54 @@ final class ReferenceStore
             $seen[$name] = true;
 
             $reference = $this->loose->tryRead($name, $algorithm);
+            if ($reference === null || !$reference->target->isSymbolic()) {
+                return [$name, $parents];
+            }
+
+            $parents[] = [
+                'name' => $name,
+                'target' => $reference->target,
+            ];
+            $name = $reference->target->value;
+        }
+    }
+
+    /**
+     * @return array{0:string,1:list<array{name:string,target:ReferenceTarget}>}
+     */
+    private function dereferenceDeleteSplit(string $physicalName, bool $deref, string $algorithm, string $previous): array
+    {
+        if (!$deref) {
+            return [$physicalName, []];
+        }
+
+        $parents = [];
+        $seen = [];
+        $name = $physicalName;
+        while (true) {
+            if (isset($seen[$name])) {
+                throw new \RuntimeException("Symbolic reference cycle while resolving {$physicalName}");
+            }
+            $seen[$name] = true;
+
+            try {
+                $reference = $this->loose->tryRead($name, $algorithm);
+            } catch (\InvalidArgumentException $exception) {
+                if ($previous === self::PREVIOUS_ANY) {
+                    return [$name, $parents];
+                }
+
+                if ($previous === self::PREVIOUS_MUST_EXIST) {
+                    throw new \RuntimeException("Reference must exist before deletion: {$name}", 0, $exception);
+                }
+
+                if (in_array($previous, [self::PREVIOUS_MUST_EXIST_AND_MATCH, self::PREVIOUS_EXISTING_MUST_MATCH], true)) {
+                    throw new \RuntimeException("Reference is out of date: {$name}", 0, $exception);
+                }
+
+                throw $exception;
+            }
+
             if ($reference === null || !$reference->target->isSymbolic()) {
                 return [$name, $parents];
             }

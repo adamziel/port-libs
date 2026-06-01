@@ -5,36 +5,36 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan;
 
 $parents = [
-    ['option_id' => 1, 'next_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 1],
-    ['option_id' => 2, 'next_id' => 3, 'option_name' => 'home', 'option_value' => 'https://old.test/home', 'revision' => 1],
-    ['option_id' => 3, 'next_id' => null, 'option_name' => 'blogname', 'option_value' => 'Old Site', 'revision' => 1],
+    ['setting_id' => 1, 'next_id' => 2, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'revision' => 1],
+    ['setting_id' => 2, 'next_id' => 3, 'key_name' => 'landing_page', 'key_value' => 'https://old.test/landing_page', 'revision' => 1],
+    ['setting_id' => 3, 'next_id' => null, 'key_name' => 'site_title', 'key_value' => 'Old Site', 'revision' => 1],
 ];
 $children = [
-    ['meta_id' => 11, 'option_id' => 1, 'meta_key' => '_origin'],
-    ['meta_id' => 12, 'option_id' => 2, 'meta_key' => '_origin'],
-    ['meta_id' => 13, 'option_id' => 3, 'meta_key' => '_origin'],
+    ['detail_id' => 11, 'setting_id' => 1, 'detail_key' => '_origin'],
+    ['detail_id' => 12, 'setting_id' => 2, 'detail_key' => '_origin'],
+    ['detail_id' => 13, 'setting_id' => 3, 'detail_key' => '_origin'],
 ];
-$fk = ['parent_key' => 'option_id', 'child_key' => 'option_id', 'deferred' => true];
+$fk = ['parent_key' => 'setting_id', 'child_key' => 'setting_id', 'deferred' => true];
 $statement = [
-    'savepoint' => 'wp_options_refresh',
+    'savepoint' => 'app_settings_refresh',
     'current_source' => 'main@schema-cookie-9',
     'next_source' => 'main@schema-cookie-10',
-    'where' => static fn (array $row): bool => $row['option_id'] === 1,
+    'where' => static fn (array $row): bool => $row['setting_id'] === 1,
     'assignments' => [
-        'option_id' => static fn (array $row, int $depth, string $source): int => (int) $row['option_id'] + 100 + $depth,
+        'setting_id' => static fn (array $row, int $depth, string $source): int => (int) $row['setting_id'] + 100 + $depth,
         'revision' => static fn (array $row, int $depth, string $source): int => (int) $row['revision'] + 1 + $depth,
-        'option_value' => static fn (array $row, int $depth, string $source): string => (string) $row['option_value'] . '#' . $source . ':' . $depth,
+        'key_value' => static fn (array $row, int $depth, string $source): string => (string) $row['key_value'] . '#' . $source . ':' . $depth,
     ],
     'returning' => [
-        ['expr' => 'old.option_id', 'as' => 'old_id'],
-        ['expr' => 'new.option_id', 'as' => 'new_id'],
+        ['expr' => 'old.setting_id', 'as' => 'old_id'],
+        ['expr' => 'new.setting_id', 'as' => 'new_id'],
         ['expr' => 'context.source', 'as' => 'source_token'],
         ['expr' => 'context.trigger_depth', 'as' => 'depth'],
-        'option_name',
+        'key_name',
         'revision',
-        static fn (array $new, array $old, array $context): string => $context['trigger_source'] . ':' . $old['option_id'] . '>' . $new['option_id'],
+        static fn (array $new, array $old, array $context): string => $context['trigger_source'] . ':' . $old['setting_id'] . '>' . $new['setting_id'],
     ],
-    'trigger' => ['name' => 'wp_options_recursive_rekey', 'match_column' => 'option_id', 'match_value' => 'old.next_id'],
+    'trigger' => ['name' => 'app_settings_recursive_rekey', 'match_column' => 'setting_id', 'match_value' => 'old.next_id'],
     'rollback_on_deferred_violation' => true,
 ];
 
@@ -48,7 +48,7 @@ return [
         $t->same('rolled-back', $rollbackPlan()['status']);
     },
     'trigger recursive deferred returning current source next121 savepoint' => static function (TestRunner $t) use ($rollbackPlan): void {
-        $t->same('wp_options_refresh', $rollbackPlan()['savepoint']);
+        $t->same('app_settings_refresh', $rollbackPlan()['savepoint']);
     },
     'trigger recursive deferred returning current source next121 current source token' => static function (TestRunner $t) use ($rollbackPlan): void {
         $t->same('main@schema-cookie-9', $rollbackPlan()['current_source']);
@@ -93,7 +93,7 @@ return [
         $t->same(0, $rollbackPlan()['current_returning_rows'][0]['depth']);
     },
     'trigger recursive deferred returning current source next121 current returning option name' => static function (TestRunner $t) use ($rollbackPlan): void {
-        $t->same('siteurl', $rollbackPlan()['current_returning_rows'][0]['option_name']);
+        $t->same('base_url', $rollbackPlan()['current_returning_rows'][0]['key_name']);
     },
     'trigger recursive deferred returning current source next121 current returning revision' => static function (TestRunner $t) use ($rollbackPlan): void {
         $t->same(2, $rollbackPlan()['current_returning_rows'][0]['revision']);
@@ -120,7 +120,7 @@ return [
         $t->same([0, 1, 2], array_column($rollbackPlan()['attempted_returning_rows'], 'trigger_depth'));
     },
     'trigger recursive deferred returning current source next121 attempted trigger sources' => static function (TestRunner $t) use ($rollbackPlan): void {
-        $t->same(['statement', 'wp_options_recursive_rekey', 'wp_options_recursive_rekey'], array_column($rollbackPlan()['attempted_returning_rows'], 'trigger_source'));
+        $t->same(['statement', 'app_settings_recursive_rekey', 'app_settings_recursive_rekey'], array_column($rollbackPlan()['attempted_returning_rows'], 'trigger_source'));
     },
     'trigger recursive deferred returning current source next121 trigger returning count' => static function (TestRunner $t) use ($rollbackPlan): void {
         $t->same(2, count($rollbackPlan()['trigger_returning_rows']));
@@ -129,7 +129,7 @@ return [
         $t->same([103, 105], array_column($rollbackPlan()['trigger_returning_rows'], 'new_key'));
     },
     'trigger recursive deferred returning current source next121 trigger name carried' => static function (TestRunner $t) use ($rollbackPlan): void {
-        $t->same('wp_options_recursive_rekey', $rollbackPlan()['trigger_returning_rows'][0]['trigger']);
+        $t->same('app_settings_recursive_rekey', $rollbackPlan()['trigger_returning_rows'][0]['trigger']);
     },
     'trigger recursive deferred returning current source next121 violation count' => static function (TestRunner $t) use ($rollbackPlan): void {
         $t->same(3, count($rollbackPlan()['foreign_key_violations']));
@@ -174,7 +174,7 @@ return [
         $t->same('main@schema-cookie-10', $commitPlan()['next_source']);
     },
     'trigger recursive deferred returning current source next121 commit returns row' => static function (TestRunner $t) use ($commitPlan): void {
-        $t->same('siteurl', $commitPlan()['next_returning_rows'][0]['option_name']);
+        $t->same('base_url', $commitPlan()['next_returning_rows'][0]['key_name']);
     },
     'trigger recursive deferred returning current source next121 commit no violations' => static function (TestRunner $t) use ($commitPlan): void {
         $t->same([], $commitPlan()['foreign_key_violations']);
@@ -209,6 +209,6 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update($parents, $children, $fk, array_replace($statement, ['returning' => ['missing_column']])));
     },
     'trigger recursive deferred returning current source next121 bad alias throws' => static function (TestRunner $t) use ($parents, $children, $fk, $statement): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update($parents, $children, $fk, array_replace($statement, ['returning' => [['expr' => 'new.option_id', 'as' => 'bad-alias']]])));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update($parents, $children, $fk, array_replace($statement, ['returning' => [['expr' => 'new.setting_id', 'as' => 'bad-alias']]])));
     },
 ];

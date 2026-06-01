@@ -751,6 +751,65 @@ return [
             $block->removeProperty('fill: url("#wp-gradient") currentColor; stroke: rgba(255,0,0,.4); stroke-dasharray: 0px, 2px 4px', 'fill')
         );
     },
+    'declaration block canonicalizes upstream clip path cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'clip-path: padding-box circle(50px at 0 100px) !important; -webkit-clip-path: url("clip.svg#star"); --Clip-Path: padding-box circle(50px at 0 100px)';
+
+        $t->same(
+            [
+                'clip-path' => 'circle(50px at 0 100px) padding-box !important',
+                '-webkit-clip-path' => 'url(clip.svg#star)',
+                '--Clip-Path' => 'padding-box circle(50px at 0 100px)',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(
+            ['value' => 'circle(50px at 0 100px) padding-box', 'important' => true],
+            $block->getProperty($declarations, 'clip-path')
+        );
+        $t->same(['value' => 'url(clip.svg#star)', 'important' => false], $block->getProperty($declarations, '-webkit-clip-path'));
+        $t->same(
+            ['value' => 'padding-box circle(50px at 0 100px)', 'important' => false],
+            $block->getProperty($declarations, '--Clip-Path')
+        );
+        $t->same(
+            ['value' => 'inset(100px 50px round 5px)', 'important' => false],
+            $block->getProperty('clip-path: inset(100px 50px round 5px 5px 5px 5px)', 'clip-path')
+        );
+        $t->same(
+            ['value' => 'circle()', 'important' => false],
+            $block->getProperty('clip-path: circle(closest-side at 50% 50%)', 'clip-path')
+        );
+        $t->same(
+            ['value' => 'ellipse(at 10% 20%)', 'important' => false],
+            $block->getProperty('clip-path: ellipse(closest-side closest-side at 10% 20%)', 'clip-path')
+        );
+        $t->same(
+            ['value' => 'polygon(50% 0%,100% 50%,50% 100%,0% 50%)', 'important' => false],
+            $block->getProperty('clip-path: polygon(nonzero, 50% 0%, 100% 50%, 50% 100%, 0% 50%)', 'clip-path')
+        );
+        $t->same(
+            ['value' => 'polygon(evenodd,50% 0%,100% 50%)', 'important' => false],
+            $block->getProperty('clip-path: polygon(evenodd, 50% 0%, 100% 50%)', 'clip-path')
+        );
+        $t->same(['value' => 'margin-box', 'important' => false], $block->getProperty('clip-path: margin-box', 'clip-path'));
+        $t->same(
+            '-webkit-clip-path: url(clip.svg#star); --Clip-Path: padding-box circle(50px at 0 100px); clip-path: circle()',
+            $block->setProperty($declarations, 'clip-path', 'circle(closest-side at 50% 50%)')
+        );
+        $t->same(
+            '-webkit-clip-path: circle(50px at 0 100px) padding-box; --Clip-Path: padding-box circle(50px at 0 100px); clip-path: circle(50px at 0 100px) padding-box !important',
+            $block->setProperty($declarations, '-webkit-clip-path', 'padding-box circle(50px at 0 100px)')
+        );
+        $t->same(
+            '-webkit-clip-path: url(clip.svg#star); --Clip-Path: padding-box circle(50px at 0 100px); clip-path: polygon(50% 0%,100% 50%) !important',
+            $block->setProperty($declarations, 'clip-path', 'polygon(nonzero, 50% 0%, 100% 50%)', true)
+        );
+        $t->same(
+            '--Clip-Path: padding-box circle(50px at 0 100px); clip-path: circle(50px at 0 100px) padding-box !important',
+            $block->removeProperty($declarations, '-webkit-clip-path')
+        );
+    },
     'declaration block canonicalizes upstream transform cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'transform: translateX(10px) scale3d(100%, 100%, 100%); translate: 0px 12px 0px; rotate: 10deg 0 0 -1; scale: 100% 105% 1; color: red';

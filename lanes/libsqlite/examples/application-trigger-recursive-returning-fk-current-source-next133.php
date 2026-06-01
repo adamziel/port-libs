@@ -8,43 +8,43 @@ require_once __DIR__ . '/../src/SQLiteTriggerRecursiveReturningFkCurrentSourceNe
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan;
 
 $rows = [
-    ['option_id' => 1, 'next_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 1],
-    ['option_id' => 2, 'next_id' => null, 'option_name' => 'home', 'option_value' => 'https://old.test/home', 'revision' => 1],
+    ['setting_id' => 1, 'next_id' => 2, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'revision' => 1],
+    ['setting_id' => 2, 'next_id' => null, 'key_name' => 'landing_page', 'key_value' => 'https://old.test/landing_page', 'revision' => 1],
 ];
 $meta = [
-    ['meta_id' => 1, 'option_id' => 1],
-    ['meta_id' => 2, 'option_id' => 2],
+    ['detail_id' => 1, 'setting_id' => 1],
+    ['detail_id' => 2, 'setting_id' => 2],
 ];
-$fk = ['parent_key' => 'option_id', 'child_key' => 'option_id', 'deferred' => true];
+$fk = ['parent_key' => 'setting_id', 'child_key' => 'setting_id', 'deferred' => true];
 
 $current = [
-    'savepoint' => 'wp_options_current_refresh',
+    'savepoint' => 'app_settings_current_refresh',
     'current_source' => 'main@cookie-20',
     'next_source' => 'main@cookie-21',
-    'where' => static fn (array $row): bool => $row['option_id'] === 1,
+    'where' => static fn (array $row): bool => $row['setting_id'] === 1,
     'assignments' => [
         'revision' => static fn (array $row, int $depth, string $source): int => (int) $row['revision'] + 10 + $depth,
     ],
     'returning' => [
-        ['expr' => 'new.option_id', 'as' => 'id'],
-        'option_name',
+        ['expr' => 'new.setting_id', 'as' => 'id'],
+        'key_name',
         ['expr' => 'context.source', 'as' => 'source_token'],
     ],
-    'trigger' => ['name' => 'wp_options_recursive_current_133', 'match_column' => 'option_id', 'match_value' => 'old.next_id'],
+    'trigger' => ['name' => 'app_settings_recursive_current_133', 'match_column' => 'setting_id', 'match_value' => 'old.next_id'],
     'rollback_on_deferred_violation' => true,
 ];
 $next = [
-    'savepoint' => 'wp_options_next_refresh',
-    'where' => static fn (array $row): bool => $row['option_id'] === 2,
+    'savepoint' => 'app_settings_next_refresh',
+    'where' => static fn (array $row): bool => $row['setting_id'] === 2,
     'assignments' => [
         'revision' => static fn (array $row, int $depth, string $source): int => (int) $row['revision'] + 20 + $depth,
     ],
     'returning' => [
-        ['expr' => 'new.option_id', 'as' => 'id'],
-        'option_name',
+        ['expr' => 'new.setting_id', 'as' => 'id'],
+        'key_name',
         ['expr' => 'context.source', 'as' => 'source_token'],
     ],
-    'trigger' => ['name' => 'wp_options_recursive_next_133', 'match_column' => 'option_id', 'match_value' => 'old.next_id'],
+    'trigger' => ['name' => 'app_settings_recursive_next_133', 'match_column' => 'setting_id', 'match_value' => 'old.next_id'],
     'rollback_on_deferred_violation' => true,
 ];
 

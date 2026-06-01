@@ -15,7 +15,7 @@ final class SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan
      */
     public static function update(array $parents, array $children, array $foreignKey, array $statement): array
     {
-        $rowid = self::identifier((string) ($statement['rowid_column'] ?? 'option_id'), 'rowid column');
+        $rowid = self::identifier((string) ($statement['rowid_column'] ?? 'setting_id'), 'rowid column');
         $savepoint = self::identifier((string) ($statement['savepoint'] ?? 'trigger_returning_deferred'), 'savepoint');
         $currentSource = self::sourceName((string) ($statement['current_source'] ?? 'current'));
         $nextSource = self::sourceName((string) ($statement['next_source'] ?? 'next'));

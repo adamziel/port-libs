@@ -25,7 +25,7 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
         array $returning = ['*'],
         array $options = [],
     ): array {
-        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'wp_import_batch'), 'savepoint');
+        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'app_import_batch'), 'savepoint');
         $rollbackTo = (bool) ($options['rollback_to'] ?? true);
         $currentSource = (string) ($options['current_source'] ?? 'current-savepoint-source');
         $nextSource = (string) ($options['next_source'] ?? 'next-after-rollback-to');
@@ -153,7 +153,7 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
         array $returning = ['*'],
         array $options = [],
     ): array {
-        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'wp_import_batch'), 'savepoint');
+        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'app_import_batch'), 'savepoint');
         $rollbackTo = (bool) ($options['rollback_to'] ?? true);
         $retryAfterRollback = (bool) ($options['retry_after_rollback'] ?? true);
         $currentSource = (string) ($options['current_source'] ?? 'current-trigger-returning-source');

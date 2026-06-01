@@ -375,8 +375,8 @@ final class MultiPackIndex
             if ($start > $length || $end > $length) {
                 throw new \InvalidArgumentException('Multi-pack-index chunk offset points past the file');
             }
-            if ($end <= $start) {
-                throw new \InvalidArgumentException('Multi-pack-index chunk offsets must be strictly increasing');
+            if ($end < $start) {
+                throw new \InvalidArgumentException('Multi-pack-index chunk offsets must be ordered');
             }
             $chunks[$id] = ['start' => $start, 'end' => $end];
         }

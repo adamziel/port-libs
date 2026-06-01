@@ -777,8 +777,8 @@ final class SQLiteSelectExpression
             return null;
         }
         if ($operator === '%') {
-            $leftInteger = self::integerOperand($leftNumeric);
-            $rightInteger = self::integerOperand($rightNumeric);
+            $leftInteger = self::integerOperand($left);
+            $rightInteger = self::integerOperand($right);
             if ($rightInteger === 0) {
                 return null;
             }

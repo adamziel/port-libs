@@ -15,7 +15,7 @@ final class SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan
      * @param array{name:string,source:string,mapping:array<string,string>} $view
      * @param list<string> $uniqueColumns
      * @param list<array{name:string,when:string,target:string,value:string,recursive?:bool}> $triggers
-     * @param array{release_next?:bool,recursive_triggers?:bool,savepoint?:string} $options
+     * @param array{release_next?:bool,recursive_triggers?:bool,savepoint?:string,key_column?:string,value_column?:string} $options
      * @return array<string,mixed>
      */
     public static function execute(
@@ -29,21 +29,23 @@ final class SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan
     ): array {
         self::validateColumns($uniqueColumns, 'unique column');
         $view = self::normalizeView($view);
-        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'wp_view_recursive_148'), 'savepoint');
+        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'app_view_recursive_148'), 'savepoint');
+        $keyColumn = self::identifier((string) ($options['key_column'] ?? ($uniqueColumns[0] ?? 'key_name')), 'key column');
+        $valueColumn = self::identifier((string) ($options['value_column'] ?? 'key_value'), 'value column');
         $recursive = (bool) ($options['recursive_triggers'] ?? true);
         $releaseNext = (bool) ($options['release_next'] ?? false);
         $baseRows = array_values($rows);
 
-        $current = self::runSource($baseRows, $currentViewRows, $view, $uniqueColumns, $triggers, 'current', $recursive);
+        $current = self::runSource($baseRows, $currentViewRows, $view, $uniqueColumns, $triggers, 'current', $recursive, $keyColumn, $valueColumn);
         if ($releaseNext) {
             $nextView = array_replace($view, ['source' => $view['source'] . '@next']);
-            $next = self::runSource($current['rows'], $nextViewRows, $nextView, $uniqueColumns, $triggers, 'next', $recursive);
+            $next = self::runSource($current['rows'], $nextViewRows, $nextView, $uniqueColumns, $triggers, 'next', $recursive, $keyColumn, $valueColumn);
             $afterSavepoint = $next['rows'];
             $visibleSource = $view['source'] . '@next';
             $status = 'trigger-upsert-recursive-view-next-source-admitted-next148';
         } else {
             $nextView = array_replace($view, ['source' => $view['source'] . '@next']);
-            $attemptedNext = self::runSource($baseRows, $nextViewRows, $nextView, $uniqueColumns, $triggers, 'next', $recursive);
+            $attemptedNext = self::runSource($baseRows, $nextViewRows, $nextView, $uniqueColumns, $triggers, 'next', $recursive, $keyColumn, $valueColumn);
             $next = [
                 'rows' => $baseRows,
                 'yield_stream' => [],
@@ -99,7 +101,7 @@ final class SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan
      * @param list<array{name:string,when:string,target:string,value:string,recursive?:bool}> $triggers
      * @return array{rows:list<array<string,mixed>>,yield_stream:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>,trigger_effects:list<array<string,mixed>>,changes:int}
      */
-    private static function runSource(array $rows, array $viewRows, array $view, array $uniqueColumns, array $triggers, string $phase, bool $recursive): array
+    private static function runSource(array $rows, array $viewRows, array $view, array $uniqueColumns, array $triggers, string $phase, bool $recursive, string $keyColumn, string $valueColumn): array
     {
         $yield = [];
         $returning = [];
@@ -108,7 +110,7 @@ final class SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan
 
         foreach (array_values($viewRows) as $ordinal => $viewRow) {
             $incoming = self::project($viewRow, $view['mapping']);
-            [$rows, $stepYield, $stepReturning, $stepEffects, $stepChanges] = self::applyUpsert($rows, $incoming, $uniqueColumns, $triggers, $phase, $view, (int) $ordinal, 0, null, $recursive);
+            [$rows, $stepYield, $stepReturning, $stepEffects, $stepChanges] = self::applyUpsert($rows, $incoming, $uniqueColumns, $triggers, $phase, $view, (int) $ordinal, 0, null, $recursive, $keyColumn, $valueColumn);
             $yield = array_merge($yield, $stepYield);
             $returning = array_merge($returning, $stepReturning);
             $effects = array_merge($effects, $stepEffects);
@@ -130,7 +132,7 @@ final class SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan
      * @param list<array{name:string,when:string,target:string,value:string,recursive?:bool}> $triggers
      * @return array{0:list<array<string,mixed>>,1:list<array<string,mixed>>,2:list<array<string,mixed>>,3:list<array<string,mixed>>,4:int}
      */
-    private static function applyUpsert(array $rows, array $incoming, array $uniqueColumns, array $triggers, string $phase, array $view, int $ordinal, int $depth, ?string $trigger, bool $recursive): array
+    private static function applyUpsert(array $rows, array $incoming, array $uniqueColumns, array $triggers, string $phase, array $view, int $ordinal, int $depth, ?string $trigger, bool $recursive, string $keyColumn, string $valueColumn): array
     {
         $index = self::conflictIndex($rows, $incoming, $uniqueColumns);
         $old = $index === null ? null : $rows[$index];
@@ -149,9 +151,9 @@ final class SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan
             'depth' => $depth,
             'event' => $event,
             'trigger' => $trigger,
-            'option_name' => $new['option_name'] ?? null,
-            'option_value' => $new['option_value'] ?? null,
-            'old_value' => $old['option_value'] ?? null,
+            'key_name' => $new[$keyColumn] ?? null,
+            'key_value' => $new[$valueColumn] ?? null,
+            'old_value' => $old[$valueColumn] ?? null,
         ]];
         $yield = [[
             'phase' => $phase,
@@ -172,7 +174,7 @@ final class SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan
 
         foreach ($triggers as $rowTrigger) {
             self::validateTrigger($rowTrigger);
-            if (($rowTrigger['when'] ?? '') !== ($new['option_name'] ?? null)) {
+            if (($rowTrigger['when'] ?? '') !== ($new[$keyColumn] ?? null)) {
                 continue;
             }
             $effect = [
@@ -181,8 +183,8 @@ final class SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan
                 'view_ordinal' => $ordinal,
                 'depth' => $depth,
                 'trigger' => $rowTrigger['name'],
-                'source_option' => $new['option_name'] ?? null,
-                'target_option' => $rowTrigger['target'],
+                'source_key' => $new[$keyColumn] ?? null,
+                'target_key' => $rowTrigger['target'],
                 'result' => $recursive && (bool) ($rowTrigger['recursive'] ?? true) ? 'recursive-upsert' : 'recursive-suppressed',
             ];
             $effects[] = $effect;
@@ -194,7 +196,7 @@ final class SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan
             }
             [$rows, $subYield, $subReturning, $subEffects, $subChanges] = self::applyUpsert(
                 $rows,
-                ['option_name' => $rowTrigger['target'], 'option_value' => str_replace('{value}', (string) ($new['option_value'] ?? ''), $rowTrigger['value'])],
+                [$keyColumn => $rowTrigger['target'], $valueColumn => str_replace('{value}', (string) ($new[$valueColumn] ?? ''), $rowTrigger['value'])],
                 $uniqueColumns,
                 $triggers,
                 $phase,
@@ -203,6 +205,8 @@ final class SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan
                 $depth + 1,
                 $rowTrigger['name'],
                 $recursive,
+                $keyColumn,
+                $valueColumn,
             );
             $yield = array_merge($yield, $subYield);
             $returning = array_merge($returning, $subReturning);

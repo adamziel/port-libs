@@ -2407,9 +2407,14 @@ final class CssModulesTransformer
                 throw new \InvalidArgumentException('Ambiguous CSS module class not supported');
             }
 
+            if ($bracketDepth === 0 && $char === '|') {
+                $this->assertSelectorNamespaceDelimiter($selector, $i);
+            }
+
             if ($bracketDepth === 0 && $mode === 'local' && ($char === '.' || $char === '#')) {
                 $token = $this->readCssIdentifierToken($selector, $i + 1);
                 if ($token !== null) {
+                    $this->assertNoInvalidNamespaceDelimiterAfterScopedIdent($selector, $token['end']);
                     $local = $token['decoded'];
                     $locals[$local] = true;
                     $this->ensureExport($local);
@@ -2432,6 +2437,88 @@ final class CssModulesTransformer
         }
 
         return trim($output);
+    }
+
+    private function assertSelectorNamespaceDelimiter(string $selector, int $offset): void
+    {
+        if (!$this->selectorNamespaceDelimiterAllowed($selector, $offset)) {
+            throw new \InvalidArgumentException("Unexpected token Delim('|')");
+        }
+    }
+
+    private function assertNoInvalidNamespaceDelimiterAfterScopedIdent(string $selector, int $offset): void
+    {
+        $length = strlen($selector);
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            if (ctype_space($selector[$cursor])) {
+                continue;
+            }
+
+            if ($selector[$cursor] === '|') {
+                $this->assertSelectorNamespaceDelimiter($selector, $cursor);
+            }
+
+            return;
+        }
+    }
+
+    private function selectorNamespaceDelimiterAllowed(string $selector, int $offset): bool
+    {
+        if (($selector[$offset + 1] ?? '') === '|' || ($selector[$offset - 1] ?? '') === '|') {
+            return false;
+        }
+
+        if (!$this->selectorNamespaceNameFollowsPipe($selector, $offset + 1)) {
+            return false;
+        }
+
+        $prefixStart = $this->selectorNamespacePrefixStart($selector, $offset);
+        if ($prefixStart === null) {
+            return false;
+        }
+
+        if ($prefixStart === $offset || $prefixStart === 0) {
+            return true;
+        }
+
+        $previous = $selector[$prefixStart - 1] ?? '';
+
+        return ctype_space($previous) || in_array($previous, ['>', '+', '~', ','], true);
+    }
+
+    private function selectorNamespaceNameFollowsPipe(string $selector, int $offset): bool
+    {
+        $next = $selector[$offset] ?? '';
+        if ($next === '' || ctype_space($next)) {
+            return false;
+        }
+
+        return $next === '*' || $this->readCssIdentifierToken($selector, $offset) !== null;
+    }
+
+    private function selectorNamespacePrefixStart(string $selector, int $offset): ?int
+    {
+        if ($offset === 0) {
+            return 0;
+        }
+
+        $previous = $selector[$offset - 1] ?? '';
+        if ($previous === '' || ctype_space($previous) || in_array($previous, ['>', '+', '~', ','], true)) {
+            return $offset;
+        }
+
+        if ($previous === '*') {
+            return $offset - 1;
+        }
+
+        for ($start = 0; $start < $offset; $start++) {
+            $token = $this->readCssIdentifierToken($selector, $start);
+            if ($token !== null && $token['end'] === $offset) {
+                return $start;
+            }
+        }
+
+        return null;
     }
 
     /**

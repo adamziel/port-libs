@@ -25,7 +25,7 @@ final class SQLiteTriggerSavepointReturningRecursiveCurrentSourceNextPlan
         array $triggers,
         array $options = [],
     ): array {
-        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'wp_import_trigger_batch'), 'savepoint');
+        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'app_import_trigger_batch'), 'savepoint');
         $rollbackTo = (bool) ($options['rollback_to'] ?? true);
         $beforeRows = array_values($rows);
 

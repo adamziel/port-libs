@@ -280,6 +280,17 @@ CSS);
 
 try {
     (new CssModulesTransformer())->transform(<<<'CSS'
+:global(.wp-block|.button) .card {
+  color: red;
+}
+CSS);
+    $invalidNamespaceDelimiter = 'accepted';
+} catch (InvalidArgumentException $exception) {
+    $invalidNamespaceDelimiter = $exception->getMessage();
+}
+
+try {
+    (new CssModulesTransformer())->transform(<<<'CSS'
 :local(.card) {
   composes: reset;
   color: red;
@@ -414,6 +425,7 @@ $actual = [
     'bareGlobal' => $bareGlobal,
     'invalidComposes' => $invalidComposes,
     'invalidGlobalList' => $invalidGlobalList,
+    'invalidNamespaceDelimiter' => $invalidNamespaceDelimiter,
     'invalidLocalComposes' => $invalidLocalComposes,
     'nestedComposes' => $nestedComposes,
     'invalidPseudoElementBoundary' => $invalidPseudoElementBoundary,
@@ -603,6 +615,7 @@ $expected = [
     'bareGlobal' => 'rejected',
     'invalidComposes' => 'accepted',
     'invalidGlobalList' => 'rejected',
+    'invalidNamespaceDelimiter' => "Unexpected token Delim('|')",
     'invalidLocalComposes' => 'rejected',
     'nestedComposes' => 'rejected',
     'invalidPseudoElementBoundary' => 'rejected',
@@ -809,6 +822,7 @@ echo 'class-lists: ' . json_encode($actual['classLists'], JSON_UNESCAPED_SLASHES
 echo 'bare-global: ' . $actual['bareGlobal'] . PHP_EOL;
 echo 'invalid-composes: ' . $actual['invalidComposes'] . PHP_EOL;
 echo 'invalid-global-list: ' . $actual['invalidGlobalList'] . PHP_EOL;
+echo 'invalid-namespace-delimiter: ' . $actual['invalidNamespaceDelimiter'] . PHP_EOL;
 echo 'invalid-local-composes: ' . $actual['invalidLocalComposes'] . PHP_EOL;
 echo 'nested-composes: ' . $actual['nestedComposes'] . PHP_EOL;
 echo 'invalid-pseudo-element-boundary: ' . $actual['invalidPseudoElementBoundary'] . PHP_EOL;

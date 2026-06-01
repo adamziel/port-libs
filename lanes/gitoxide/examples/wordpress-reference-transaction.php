@@ -88,6 +88,44 @@ $preparedBrokenDelete = $store->prepareLooseDeleteTransaction(
 $preparedBrokenDeleteHadLock = is_file($preparedBrokenPath . '.lock');
 $preparedBrokenDeleteEdits = $preparedBrokenDelete->commit();
 $preparedBrokenDeleteCleanedLock = !is_file($preparedBrokenPath . '.lock');
+
+$preparedBrokenDerefDeleteDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-broken-deref-delete-' . bin2hex(random_bytes(4));
+$preparedBrokenDerefDeleteStore = new ReferenceStore($preparedBrokenDerefDeleteDir, null, $fixture['namespace']);
+$preparedBrokenDerefDeletePrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedBrokenDerefDeletePath = $preparedBrokenDerefDeleteDir . '/' . $preparedBrokenDerefDeletePrefix . $fixture['preparedBrokenDerefDeleteRef'];
+if (!is_dir(dirname($preparedBrokenDerefDeletePath))) {
+    mkdir(dirname($preparedBrokenDerefDeletePath), 0777, true);
+}
+file_put_contents($preparedBrokenDerefDeletePath, 'interrupted-checkout-left-broken-head');
+$preparedBrokenDerefDelete = $preparedBrokenDerefDeleteStore->prepareLooseDeleteTransaction(
+    [$fixture['preparedBrokenDerefDeleteRef']],
+    ReferenceStore::PREVIOUS_ANY,
+    null,
+    true,
+);
+$preparedBrokenDerefDeleteHadLock = is_file($preparedBrokenDerefDeletePath . '.lock');
+$preparedBrokenDerefDeleteEdits = $preparedBrokenDerefDelete->commit();
+$preparedBrokenDerefDeleteCleanedLock = !is_file($preparedBrokenDerefDeletePath . '.lock');
+
+$preparedBrokenDerefStrictDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-broken-deref-strict-' . bin2hex(random_bytes(4));
+$preparedBrokenDerefStrictStore = new ReferenceStore($preparedBrokenDerefStrictDir, null, $fixture['namespace']);
+$preparedBrokenDerefStrictPrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedBrokenDerefStrictPath = $preparedBrokenDerefStrictDir . '/' . $preparedBrokenDerefStrictPrefix . $fixture['preparedBrokenDerefDeleteRef'];
+if (!is_dir(dirname($preparedBrokenDerefStrictPath))) {
+    mkdir(dirname($preparedBrokenDerefStrictPath), 0777, true);
+}
+file_put_contents($preparedBrokenDerefStrictPath, 'strict-broken-head');
+$preparedBrokenDerefStrictError = null;
+try {
+    $preparedBrokenDerefStrictStore->prepareLooseDeleteTransaction(
+        [$fixture['preparedBrokenDerefDeleteRef']],
+        ReferenceStore::PREVIOUS_MUST_EXIST,
+        null,
+        true,
+    );
+} catch (RuntimeException $exception) {
+    $preparedBrokenDerefStrictError = $exception->getMessage();
+}
 $preparedNoOpRef = $fixture['preparedNoOpRef'];
 $store->update(
     $preparedNoOpRef,
@@ -431,6 +469,13 @@ return [
     'preparedBrokenDeleteHadLock' => $preparedBrokenDeleteHadLock,
     'preparedBrokenDeleteCleanedLock' => $preparedBrokenDeleteCleanedLock,
     'preparedBrokenDeleteRefStillExists' => is_file($preparedBrokenPath),
+    'preparedBrokenDerefDeleteEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedBrokenDerefDeleteEdits),
+    'preparedBrokenDerefDeleteHadLock' => $preparedBrokenDerefDeleteHadLock,
+    'preparedBrokenDerefDeleteCleanedLock' => $preparedBrokenDerefDeleteCleanedLock,
+    'preparedBrokenDerefDeleteRefStillExists' => is_file($preparedBrokenDerefDeletePath),
+    'preparedBrokenDerefStrictError' => $preparedBrokenDerefStrictError,
+    'preparedBrokenDerefStrictRefPreserved' => is_file($preparedBrokenDerefStrictPath)
+        && file_get_contents($preparedBrokenDerefStrictPath) === 'strict-broken-head',
     'preparedNoOpEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedNoOpEdits),
     'preparedNoOpCommit' => $store->find($preparedNoOpRef)->targetObjectId(),
     'preparedNoOpHeldLockPreserved' => is_file($preparedNoOpPath . '.lock')

@@ -317,6 +317,23 @@ return [
         $t->same(null, $index->disambiguatePrefix($missingCandidate, 40));
         $t->same('missing', $index->lookupPrefix($missingCandidate)['status']);
     },
+    'parses empty multi-pack-index lookup chunks and reports missing prefixes like gix-pack' => static function (TestRunner $t) use ($buildMultiIndex, $indexNames): void {
+        $index = MultiPackIndex::fromBytes($buildMultiIndex([], [$indexNames[0]]));
+
+        $t->same(1, $index->version());
+        $t->same(1, $index->packCount());
+        $t->same(0, $index->count());
+        $t->same([$indexNames[0]], $index->packNames());
+        $t->same([], $index->entries());
+        $t->same(null, $index->lookup(str_repeat('0', 40)));
+
+        $missing = $index->lookupPrefix('0000');
+        $t->same('missing', $missing['status']);
+        $t->same(['start' => 0, 'end' => 0], $missing['candidateRange']);
+        $t->same(null, $index->disambiguatePrefix(str_repeat('0', 40), 4));
+        $t->same(null, $index->disambiguatePrefix(str_repeat('0', 40), 40));
+        $t->throws(RuntimeException::class, static fn () => $index->verifyIntegrityFast());
+    },
     'supports raw high-bit offsets when no large-offset chunk is present' => static function (TestRunner $t) use ($buildMultiIndex, $indexNames): void {
         $index = MultiPackIndex::fromBytes($buildMultiIndex([
             ['oid' => '0034111111111111111111111111111111111111', 'packIndex' => 0, 'offset' => 0x80000005],
@@ -384,5 +401,12 @@ return [
         $t->same($mediaObject['packIndex'], $media?->packIndex);
         $t->same($mediaObject['offset'], $media?->packOffset);
         $t->same('found', $index->lookupPrefix(substr($templateObject['oid'], 0, 8))['status']);
+
+        $empty = MultiPackIndex::fromBytes($fixture['emptyMultiIndexBytes']);
+        $emptyPrefix = $empty->lookupPrefix('0000');
+        $t->same(0, $empty->count());
+        $t->same('missing', $emptyPrefix['status']);
+        $t->same(['start' => 0, 'end' => 0], $emptyPrefix['candidateRange']);
+        $t->throws(RuntimeException::class, static fn () => $empty->verifyIntegrityFast());
     },
 ];

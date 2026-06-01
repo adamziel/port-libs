@@ -1936,6 +1936,46 @@ return [
         $t->same([], $child->getSources());
         $t->same('', $child->writeVlq());
     },
+    'source map applies negative offsets to leading empty child spans before kept mappings' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $entry = $parent->addSource('entry.css');
+        foreach ([0, 1, 2, 3] as $line) {
+            $parent->addMapping($line, 0, $entry, $line, 0, 'parent' . $line);
+        }
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('leading-child.css');
+        $child->setSourceContent($childSource, ".leading{}\n");
+        $child->addMapping(0, 6, $childSource, 4, 2, 'leadingChild');
+        $child->offsetLines(0, 2);
+
+        $restoredChild = SourceMap::fromBuffer('/', $child->toBuffer());
+
+        $t->same(';;MAIEA', $child->writeVlq());
+        $t->same(';;MAIEA', $restoredChild->writeVlq());
+
+        $parent->addSourceMap($restoredChild, -1);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $data = $parent->toArray(null, false);
+        $roundTrip = SourceMap::fromBuffer('/', $parent->toBuffer());
+
+        $t->same(';MCIEI;ADFFF;AACAC', $parent->writeVlq());
+        $t->same([1, 2, 3], array_column($decoded, 'generatedLine'));
+        $t->same([6, 0, 0], array_column($decoded, 'generatedColumn'));
+        $t->same([1, 0, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([4, 2, 3], array_column($decoded, 'originalLine'));
+        $t->same([2, 0, 0], array_column($decoded, 'originalColumn'));
+        $t->same([4, 2, 3], array_column($decoded, 'nameIndex'));
+        $t->same(['entry.css', 'leading-child.css'], $data['sources']);
+        $t->same(['', ".leading{}\n"], $data['sourcesContent']);
+        $t->same(['parent0', 'parent1', 'parent2', 'parent3', 'leadingChild'], $data['names']);
+        $t->same(null, $parent->findClosestMapping(0, 0));
+        $t->same(4, $parent->findClosestMapping(1, 6)['originalLine'] ?? null);
+        $t->same(';MCIEI;ADFFF;AACAC', $roundTrip->writeVlq());
+        $t->same([], $restoredChild->getSources());
+        $t->same('', $restoredChild->writeVlq());
+        $t->same(['leading-child.css'], $child->getSources());
+    },
     'source map consumes nested source maps after upstream add_sourcemap merge' => static function (TestRunner $t): void {
         $parent = new SourceMap();
         $entry = $parent->addSource('entry.css');

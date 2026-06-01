@@ -282,6 +282,26 @@ return [
         $t->same(null, $index->disambiguatePrefix($missingCandidate, 40));
         $t->same('missing', $index->lookupPrefix($missingCandidate)['status']);
     },
+    'parses empty pack indexes and reports missing prefix ranges like gix-pack' => static function (TestRunner $t) use ($buildIndex, $buildV1Index, $packChecksum): void {
+        $v2 = PackIndex::fromBytes($buildIndex([], $packChecksum));
+        $t->same(2, $v2->version());
+        $t->same(0, $v2->count());
+        $t->same([], $v2->entries());
+        $t->same([], $v2->sortedOffsets());
+        $t->same(null, $v2->lookup(str_repeat('0', 40)));
+
+        $missing = $v2->lookupPrefix('0000');
+        $t->same('missing', $missing['status']);
+        $t->same(['start' => 0, 'end' => 0], $missing['candidateRange']);
+        $t->same(null, $v2->disambiguatePrefix(str_repeat('0', 40), 4));
+        $t->same(null, $v2->disambiguatePrefix(str_repeat('0', 40), 40));
+
+        $v1 = PackIndex::fromBytes($buildV1Index([], $packChecksum));
+        $t->same(1, $v1->version());
+        $t->same(0, $v1->count());
+        $t->same('missing', $v1->lookupPrefix('ffff')['status']);
+        $t->same(['start' => 0, 'end' => 0], $v1->lookupPrefix('ffff')['candidateRange']);
+    },
     'rejects corrupt pack index headers fanout sizes and checksums' => static function (TestRunner $t) use ($buildIndex, $entries, $packChecksum): void {
         $valid = $buildIndex($entries, $packChecksum);
         $t->throws(InvalidArgumentException::class, static fn () => PackIndex::fromBytes('not an index'));

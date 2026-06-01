@@ -2014,6 +2014,78 @@ return [
         ));
         $t->same([], $result->worktreeConflictFiles($read));
     },
+    'maps upstream gix-merge tree-baseline change-and-delete resolve-tree fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $baseFile = "original\n1\n2\n3\n4\n5\n";
+        $ourFile = "1\n2\n3\n4\n5\n6\n";
+        $base = new Tree([
+            $treeEntry('a', new Tree([$blobEntry('x.f', $baseFile)])),
+            $blobEntry('link', 'a/x.f', '120000'),
+        ]);
+        $ours = new Tree([
+            $treeEntry('a', new Tree([$blobEntry('x.f', $ourFile)])),
+            $blobEntry('link', "not-link\n"),
+        ]);
+        $theirs = new Tree([]);
+        $entryAt = static function (Tree $tree, string $path) use ($read): ?TreeEntry {
+            $current = $tree;
+            $parts = explode('/', $path);
+            $last = count($parts) - 1;
+            foreach ($parts as $index => $part) {
+                $entry = $current->entryNamed($part);
+                if ($entry === null) {
+                    return null;
+                }
+                if ($index === $last) {
+                    return $entry;
+                }
+                if (!$entry->isTree()) {
+                    return null;
+                }
+                $current = Tree::fromObject($read($entry->oid));
+            }
+
+            return null;
+        };
+        $bodyAt = static function (Tree $tree, string $path) use ($entryAt, $read): ?string {
+            $entry = $entryAt($tree, $path);
+
+            return $entry === null ? null : $read($entry->oid)->body;
+        };
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $ancestorResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+        $oursResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+        $theirsResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_THEIRS);
+        $reverse = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write);
+        $reverseAncestorResolved = $reverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+        $reverseOursResolved = $reverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+
+        foreach ([$ancestorResolved, $reverseAncestorResolved] as $resolved) {
+            $t->true($resolved->isClean());
+            $t->same(['a', 'link'], $names($resolved->tree));
+            $t->same($baseFile, $bodyAt($resolved->tree, 'a/x.f'));
+            $t->same('link', $entryAt($resolved->tree, 'link')?->kind());
+            $t->same('a/x.f', $bodyAt($resolved->tree, 'link'));
+            $t->same([], $resolved->indexEntries());
+            $t->same([], $resolved->worktreeConflictFiles($read));
+        }
+
+        $t->true($oursResolved->isClean());
+        $t->same(['a', 'link'], $names($oursResolved->tree));
+        $t->same($ourFile, $bodyAt($oursResolved->tree, 'a/x.f'));
+        $t->same('blob', $entryAt($oursResolved->tree, 'link')?->kind());
+        $t->same("not-link\n", $bodyAt($oursResolved->tree, 'link'));
+        $t->same([], $oursResolved->indexEntries());
+
+        $t->true($theirsResolved->isClean());
+        $t->same([], $names($theirsResolved->tree));
+        $t->same([], $theirsResolved->indexEntries());
+
+        $t->true($reverseOursResolved->isClean());
+        $t->same([], $names($reverseOursResolved->tree));
+        $t->same([], $reverseOursResolved->indexEntries());
+    },
     'maps upstream gix-merge tree-baseline submodule-both-modify fixture shape' => static function (TestRunner $t) use ($entry, $names): void {
         $baseOid = 'e835c0c403c8e494c0ca98f3d25d0b8464c18d38';
         $ourOid = '64466ebdff775ad618d9cc993cf52840e0af528c';

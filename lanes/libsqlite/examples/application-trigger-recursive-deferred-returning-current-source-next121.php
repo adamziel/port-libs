@@ -7,34 +7,34 @@ require_once __DIR__ . '/../src/SQLiteTriggerRecursiveDeferredReturningCurrentSo
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan;
 
 $rows = [
-    ['option_id' => 1, 'next_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 1],
-    ['option_id' => 2, 'next_id' => null, 'option_name' => 'home', 'option_value' => 'https://old.test/home', 'revision' => 1],
+    ['setting_id' => 1, 'next_id' => 2, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'revision' => 1],
+    ['setting_id' => 2, 'next_id' => null, 'key_name' => 'landing_page', 'key_value' => 'https://old.test/landing_page', 'revision' => 1],
 ];
 $meta = [
-    ['meta_id' => 1, 'option_id' => 1, 'meta_key' => '_origin'],
-    ['meta_id' => 2, 'option_id' => 2, 'meta_key' => '_origin'],
+    ['detail_id' => 1, 'setting_id' => 1, 'detail_key' => '_origin'],
+    ['detail_id' => 2, 'setting_id' => 2, 'detail_key' => '_origin'],
 ];
 
 $plan = SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update($rows, $meta, [
-    'parent_key' => 'option_id',
-    'child_key' => 'option_id',
+    'parent_key' => 'setting_id',
+    'child_key' => 'setting_id',
     'deferred' => true,
 ], [
-    'savepoint' => 'wp_options_refresh',
+    'savepoint' => 'app_settings_refresh',
     'current_source' => 'main@schema-cookie-9',
     'next_source' => 'main@schema-cookie-10',
-    'where' => static fn (array $row): bool => $row['option_name'] === 'siteurl',
+    'where' => static fn (array $row): bool => $row['key_name'] === 'base_url',
     'assignments' => [
-        'option_id' => static fn (array $row, int $depth, string $source): int => (int) $row['option_id'] + 100 + $depth,
+        'setting_id' => static fn (array $row, int $depth, string $source): int => (int) $row['setting_id'] + 100 + $depth,
         'revision' => static fn (array $row, int $depth, string $source): int => (int) $row['revision'] + 1 + $depth,
     ],
     'returning' => [
-        ['expr' => 'old.option_id', 'as' => 'old_id'],
-        ['expr' => 'new.option_id', 'as' => 'new_id'],
+        ['expr' => 'old.setting_id', 'as' => 'old_id'],
+        ['expr' => 'new.setting_id', 'as' => 'new_id'],
         ['expr' => 'context.source', 'as' => 'source_token'],
-        'option_name',
+        'key_name',
     ],
-    'trigger' => ['name' => 'wp_options_recursive_rekey', 'match_column' => 'option_id', 'match_value' => 'old.next_id'],
+    'trigger' => ['name' => 'app_settings_recursive_rekey', 'match_column' => 'setting_id', 'match_value' => 'old.next_id'],
     'rollback_on_deferred_violation' => true,
 ]);
 

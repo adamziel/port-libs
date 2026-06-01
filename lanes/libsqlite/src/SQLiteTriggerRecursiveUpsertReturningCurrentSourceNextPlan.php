@@ -13,7 +13,7 @@ final class SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan
      * @param list<string> $uniqueColumns
      * @param array<string,callable(array<string,mixed>,array<string,mixed>):mixed> $assignments
      * @param list<array<string,mixed>> $triggers
-     * @param array{recursive_triggers?:bool,max_depth?:int,conflict_action?:string,current_source?:string,next_source?:string,returning?:list<string|array{expr:string,as?:string}|callable(array<string,mixed>,?array<string,mixed>,array<string,mixed>,string,int,?string):mixed>} $options
+     * @param array{recursive_triggers?:bool,max_depth?:int,conflict_action?:string,current_source?:string,next_source?:string,key_column?:string,returning?:list<string|array{expr:string,as?:string}|callable(array<string,mixed>,?array<string,mixed>,array<string,mixed>,string,int,?string):mixed>} $options
      * @return array<string,mixed>
      */
     public static function execute(
@@ -34,6 +34,7 @@ final class SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan
 
         $currentSource = self::source((string) ($options['current_source'] ?? 'current'));
         $nextSource = self::source((string) ($options['next_source'] ?? 'next'));
+        $keyColumn = self::identifier((string) ($options['key_column'] ?? 'key_name'), 'key column');
         $baseRows = array_values($rows);
 
         $current = SQLiteRecursiveUpsertConflictYieldPlan::execute(
@@ -55,8 +56,8 @@ final class SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan
             $options,
         );
 
-        $currentYield = self::stream($currentSource, 'current', $current['yielded']);
-        $nextYield = self::stream($nextSource, 'next', $next['yielded']);
+        $currentYield = self::stream($currentSource, 'current', $current['yielded'], $keyColumn);
+        $nextYield = self::stream($nextSource, 'next', $next['yielded'], $keyColumn);
         $currentReturning = self::returningOnly($currentYield);
         $nextReturning = self::returningOnly($nextYield);
 
@@ -79,7 +80,7 @@ final class SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan
             'recursive_returning_rows' => self::recursiveRows($currentReturning),
             'next_statement_returning_rows' => self::depthRows($nextReturning, 0),
             'next_recursive_returning_rows' => self::recursiveRows($nextReturning),
-            'handoff' => self::handoff($currentSource, $nextSource, $baseRows, $nextSourceRows, $currentYield),
+            'handoff' => self::handoff($currentSource, $nextSource, $baseRows, $nextSourceRows, $currentYield, $keyColumn),
             'changes' => (int) $current['changes'] + (int) $next['changes'],
             'dependencies' => [
                 'sqlite-trigger-recursive-upsert-returning-current-source-next126',
@@ -93,7 +94,7 @@ final class SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $yielded
      * @return list<array<string,mixed>>
      */
-    private static function stream(string $sourceToken, string $phase, array $yielded): array
+    private static function stream(string $sourceToken, string $phase, array $yielded, string $keyColumn): array
     {
         $stream = [];
         foreach ($yielded as $index => $yield) {
@@ -112,7 +113,7 @@ final class SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan
                 'incoming_key' => $yield['incoming_key'] ?? null,
                 'new_key' => $yield['new_key'] ?? null,
                 'returning_visible' => is_array($returning),
-                'returning_key' => is_array($returning) ? ($returning['option_name'] ?? null) : null,
+                'returning_key' => is_array($returning) ? ($returning[$keyColumn] ?? null) : null,
                 'returning' => $returning,
             ];
         }
@@ -160,7 +161,7 @@ final class SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $currentYield
      * @return array<string,mixed>
      */
-    private static function handoff(string $currentSource, string $nextSource, array $before, array $after, array $currentYield): array
+    private static function handoff(string $currentSource, string $nextSource, array $before, array $after, array $currentYield, string $keyColumn): array
     {
         return [
             'from' => $currentSource,
@@ -169,11 +170,11 @@ final class SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan
             'after_count' => count($after),
             'returning_rows_drained' => count(self::returningOnly($currentYield)),
             'yield_rows_drained' => count($currentYield),
-            'before_keys' => self::keys($before),
-            'after_keys' => self::keys($after),
-            'inserted_keys' => array_values(array_diff(self::keys($after), self::keys($before))),
+            'before_keys' => self::keys($before, $keyColumn),
+            'after_keys' => self::keys($after, $keyColumn),
+            'inserted_keys' => array_values(array_diff(self::keys($after, $keyColumn), self::keys($before, $keyColumn))),
             'returning_keys' => array_values(array_filter(array_column(self::returningOnly($currentYield), 'returning_key'), static fn (mixed $key): bool => $key !== null)),
-            'next_source_contains_all_returning_keys' => self::containsKeys($after, array_column(self::returningOnly($currentYield), 'returning_key')),
+            'next_source_contains_all_returning_keys' => self::containsKeys($after, array_column(self::returningOnly($currentYield), 'returning_key'), $keyColumn),
         ];
     }
 
@@ -181,18 +182,18 @@ final class SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<mixed>
      */
-    private static function keys(array $rows): array
+    private static function keys(array $rows, string $keyColumn): array
     {
-        return array_values(array_map(static fn (array $row): mixed => $row['option_name'] ?? null, $rows));
+        return array_values(array_map(static fn (array $row): mixed => $row[$keyColumn] ?? null, $rows));
     }
 
     /**
      * @param list<array<string,mixed>> $rows
      * @param list<mixed> $keys
      */
-    private static function containsKeys(array $rows, array $keys): bool
+    private static function containsKeys(array $rows, array $keys, string $keyColumn): bool
     {
-        $available = self::keys($rows);
+        $available = self::keys($rows, $keyColumn);
         foreach ($keys as $key) {
             if ($key !== null && !in_array($key, $available, true)) {
                 return false;
@@ -209,5 +210,14 @@ final class SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan
         }
 
         return $source;
+    }
+
+    private static function identifier(string $value, string $label): string
+    {
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
+            throw new \InvalidArgumentException("SQLite trigger recursive UPSERT RETURNING {$label} is malformed");
+        }
+
+        return $value;
     }
 }

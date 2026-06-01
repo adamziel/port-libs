@@ -476,6 +476,40 @@ $submoduleTheirsVendor = $treeAtPath($submoduleTheirsResolved->tree, 'wp-content
 $submoduleAncestorEntry = $submoduleAncestorVendor->entryNamed('acme-lib');
 $submoduleOursEntry = $submoduleOursVendor->entryNamed('acme-lib');
 $submoduleTheirsEntry = $submoduleTheirsVendor->entryNamed('acme-lib');
+$changeDeleteBase = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('mu-plugins', new Tree([
+            $symlink('acme-loader.php', '../plugins/acme/bootstrap.php'),
+        ])),
+        $tree('plugins', new Tree([
+            $tree('acme', new Tree([
+                $blob('bootstrap.php', "Plugin Name: Acme\nVersion: 1.0\n"),
+            ])),
+        ])),
+    ])),
+]);
+$changeDeleteOurs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('mu-plugins', new Tree([
+            $blob('acme-loader.php', "<?php\nrequire __DIR__ . '/../plugins/acme/bootstrap.php';\n"),
+        ])),
+        $tree('plugins', new Tree([
+            $tree('acme', new Tree([
+                $blob('bootstrap.php', "Plugin Name: Acme\nVersion: 1.1\n"),
+            ])),
+        ])),
+    ])),
+]);
+$changeDeleteTheirs = new Tree([]);
+$changeDeleteResult = TreeMerge::mergeRecursive($changeDeleteBase, $changeDeleteOurs, $changeDeleteTheirs, $read, $write);
+$changeDeleteAncestorResolved = $changeDeleteResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+$changeDeleteOursResolved = $changeDeleteResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+$changeDeleteTheirsResolved = $changeDeleteResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_THEIRS);
+$changeDeleteAncestorContent = $treeAtPathOrEmpty($changeDeleteAncestorResolved->tree, 'wp-content');
+$changeDeleteOursMuPlugins = $treeAtPathOrEmpty($changeDeleteOursResolved->tree, 'wp-content/mu-plugins');
+$changeDeleteOursPlugin = $treeAtPathOrEmpty($changeDeleteOursResolved->tree, 'wp-content/plugins/acme');
+$changeDeleteOursLoader = $changeDeleteOursMuPlugins->entryNamed('acme-loader.php');
+$changeDeleteOursBootstrap = $changeDeleteOursPlugin->entryNamed('bootstrap.php');
 $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
 $metadata = $read($contentTree->entryNamed('post.meta')?->oid ?? '');
 $demoRoot = sys_get_temp_dir() . '/port-libs-recursive-merge-' . bin2hex(random_bytes(4));
@@ -723,5 +757,21 @@ echo json_encode([
             static fn ($file): string => $file->path,
             $submoduleResult->worktreeConflictFiles($read),
         ),
+    ],
+    'changeDeleteResolution' => [
+        'cleanBeforeResolution' => $changeDeleteResult->isClean(),
+        'conflicts' => array_map(
+            static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
+            $changeDeleteResult->conflicts,
+        ),
+        'ancestorResolvedClean' => $changeDeleteAncestorResolved->isClean(),
+        'ancestorContentEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $changeDeleteAncestorContent->entries),
+        'oursResolvedClean' => $changeDeleteOursResolved->isClean(),
+        'oursLoaderKind' => $changeDeleteOursLoader?->kind(),
+        'oursLoaderBody' => $changeDeleteOursLoader === null ? null : $read($changeDeleteOursLoader->oid)->body,
+        'oursBootstrapBody' => $changeDeleteOursBootstrap === null ? null : $read($changeDeleteOursBootstrap->oid)->body,
+        'theirsResolvedClean' => $changeDeleteTheirsResolved->isClean(),
+        'theirsRootEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $changeDeleteTheirsResolved->tree->entries),
+        'indexStagesAfterOursResolution' => count($changeDeleteOursResolved->indexEntries()),
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

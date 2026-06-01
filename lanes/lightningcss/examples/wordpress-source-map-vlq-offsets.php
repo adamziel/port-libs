@@ -280,6 +280,23 @@ $leadingEmptyChildOffsetChild->offsetLines(0, 2);
 $leadingEmptyChildOffsetParent->addSourceMap($leadingEmptyChildOffsetChild, 1);
 $leadingEmptyChildOffsetChildConsumed = $leadingEmptyChildOffsetChild->toJson(null, false);
 
+$negativeLeadingEmptyChildOffsetParent = new SourceMap();
+$negativeLeadingEmptyChildOffsetParentSource = $negativeLeadingEmptyChildOffsetParent->addSource('wp-content/themes/example/source-map-negative-leading-parent.css');
+for ($line = 0; $line < 4; $line++) {
+    $negativeLeadingEmptyChildOffsetParent->addMapping($line, 0, $negativeLeadingEmptyChildOffsetParentSource, $line, 0, 'negative-leading-parent-' . $line);
+}
+$negativeLeadingEmptyChildOffsetChild = new SourceMap();
+$negativeLeadingEmptyChildOffsetChildSource = $negativeLeadingEmptyChildOffsetChild->addSource('wp-content/themes/example/source-map-negative-leading-child.css');
+$negativeLeadingEmptyChildOffsetChild->setSourceContent($negativeLeadingEmptyChildOffsetChildSource, ".wp-block-negative-leading-child{}\n");
+$negativeLeadingEmptyChildOffsetChild->addMapping(0, 6, $negativeLeadingEmptyChildOffsetChildSource, 4, 2, 'negative-leading-child-rule');
+$negativeLeadingEmptyChildOffsetChild->offsetLines(0, 2);
+$negativeLeadingEmptyChildOffsetChildBeforeMerge = $negativeLeadingEmptyChildOffsetChild->toJson(null, false);
+$negativeLeadingEmptyChildOffsetRestored = SourceMap::fromBuffer('/', $negativeLeadingEmptyChildOffsetChild->toBuffer());
+$negativeLeadingEmptyChildOffsetParent->addSourceMap($negativeLeadingEmptyChildOffsetRestored, -1);
+$negativeLeadingEmptyChildOffsetChildConsumed = $negativeLeadingEmptyChildOffsetRestored->toJson(null, false);
+$negativeLeadingEmptyChildOffsetClearedClosest = $negativeLeadingEmptyChildOffsetParent->findClosestMapping(0, 0);
+$negativeLeadingEmptyChildOffsetKeptClosest = $negativeLeadingEmptyChildOffsetParent->findClosestMapping(1, 6);
+
 $generatedOnlyOffsetMap = new SourceMap();
 $generatedOnlyOffsetSource = $generatedOnlyOffsetMap->addSource('wp-content/themes/example/generated-offset.css');
 $generatedOnlyOffsetMap->setSourceContent($generatedOnlyOffsetSource, ".wp-block-generated-offset{display:block}\n");
@@ -1046,6 +1063,11 @@ $actual = [
     'negativeChildLineOffsetChildConsumed' => $negativeChildLineOffsetChildConsumed,
     'leadingEmptyChildOffsetMap' => $leadingEmptyChildOffsetParent->toJson(null, false),
     'leadingEmptyChildOffsetChildConsumed' => $leadingEmptyChildOffsetChildConsumed,
+    'negativeLeadingEmptyChildOffsetBeforeMerge' => $negativeLeadingEmptyChildOffsetChildBeforeMerge,
+    'negativeLeadingEmptyChildOffsetMap' => $negativeLeadingEmptyChildOffsetParent->toJson(null, false),
+    'negativeLeadingEmptyChildOffsetChildConsumed' => $negativeLeadingEmptyChildOffsetChildConsumed,
+    'negativeLeadingEmptyChildOffsetClearedClosest' => $negativeLeadingEmptyChildOffsetClearedClosest,
+    'negativeLeadingEmptyChildOffsetKeptClosest' => $negativeLeadingEmptyChildOffsetKeptClosest,
     'generatedOnlyOffsetMap' => $generatedOnlyOffsetMap->toJson(null, false),
     'mappingRecordOffsetMap' => $mappingRecordOffsetMap->toJson(null, false),
     'dedupedRawVlqOffsetMap' => $dedupedRawVlqOffsetMap->toJson(null, false),
@@ -1193,6 +1215,11 @@ if (($argv[1] ?? null) === '--self-test') {
         'negativeChildLineOffsetChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'leadingEmptyChildOffsetMap' => '{"version":3,"mappings":"AAAAA;;;GCOCK;ADHDD","sources":["wp-content/themes/example/source-map-leading-child-parent.css","wp-content/themes/example/source-map-leading-child.css"],"sourcesContent":["",".wp-block-leading-child{}\n"],"names":["leading-parent-line-0","leading-parent-line-1","leading-parent-line-2","leading-parent-line-3","leading-parent-line-4","leading-child-rule"]}',
         'leadingEmptyChildOffsetChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'negativeLeadingEmptyChildOffsetBeforeMerge' => '{"version":3,"mappings":";;MAIEA","sources":["wp-content/themes/example/source-map-negative-leading-child.css"],"sourcesContent":[".wp-block-negative-leading-child{}\n"],"names":["negative-leading-child-rule"]}',
+        'negativeLeadingEmptyChildOffsetMap' => '{"version":3,"mappings":";MCIEI;ADFFF;AACAC","sources":["wp-content/themes/example/source-map-negative-leading-parent.css","wp-content/themes/example/source-map-negative-leading-child.css"],"sourcesContent":["",".wp-block-negative-leading-child{}\n"],"names":["negative-leading-parent-0","negative-leading-parent-1","negative-leading-parent-2","negative-leading-parent-3","negative-leading-child-rule"]}',
+        'negativeLeadingEmptyChildOffsetChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'negativeLeadingEmptyChildOffsetClearedClosest' => null,
+        'negativeLeadingEmptyChildOffsetKeptClosest' => ['generatedLine' => 1, 'generatedColumn' => 6, 'sourceIndex' => 1, 'originalLine' => 4, 'originalColumn' => 2, 'nameIndex' => 4],
         'generatedOnlyOffsetMap' => '{"version":3,"mappings":";;Y,MAAAA;E","sources":["wp-content/themes/example/generated-offset.css"],"sourcesContent":[".wp-block-generated-offset{display:block}\n"],"names":["generated-offset-rule"]}',
         'mappingRecordOffsetMap' => '{"version":3,"mappings":";;OAIGA;M","sources":["wp-content/themes/example/source-map-record-offset.css"],"sourcesContent":[".wp-block-record-offset{}\n"],"names":["record-offset-rule"]}',
         'dedupedRawVlqOffsetMap' => '{"version":3,"mappings":";;GAAAA,ICEGC;GDACD","sources":["shared.css","blocks/card.css"],"sourcesContent":[".wp-block-shared{color:rebeccapurple}",".wp-block-card{color:red}"],"names":["shared-block-rule","card-block-rule"]}',
