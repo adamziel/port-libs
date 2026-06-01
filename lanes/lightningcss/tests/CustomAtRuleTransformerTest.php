@@ -1733,6 +1733,85 @@ CSS;
             $seenRule['preludeAst']['value'] ?? []
         ));
     },
+    'custom at-rules expose upstream number tokens in universal preludes and function exits' => static function (TestRunner $t): void {
+        $events = [];
+        $seenRule = null;
+        $css = <<<'CSS'
+@plugin 2 theme(4) -1.5;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'number' => static function (array $token) use (&$events): array {
+                        $events[] = 'token:' . $token['raw'] . ':' . $token['value'];
+
+                        return [
+                            'type' => 'length',
+                            'unit' => 'px',
+                            'value' => $token['value'] * 8,
+                        ];
+                    },
+                ],
+                'FunctionExit' => [
+                    'theme' => static function (array $function) use (&$events): array {
+                        $argument = $function['arguments'][0] ?? [];
+                        $token = is_array($argument['value'] ?? null) ? $argument['value'] : [];
+                        $events[] = 'function:' . ($token['type'] ?? '') . ':' . ($token['value'] ?? '');
+
+                        return $argument;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'plugin' => static function (array $rule) use (&$events, &$seenRule): array {
+                            $events[] = 'rule:' . $rule['prelude'];
+                            $seenRule = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'plugin' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'token:2:2',
+            'function:number:4',
+            'token:4:4',
+            'token:-1.5:-1.5',
+            'rule:16px 32px -12px',
+        ], $events);
+        $t->same('16px 32px -12px', $seenRule['prelude']);
+        $t->same(['length', 'length', 'length'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seenRule['preludeAst']['value'] ?? []
+        ));
+        $t->same([
+            ['unit' => 'px', 'value' => 16.0],
+            ['unit' => 'px', 'value' => 32.0],
+            ['unit' => 'px', 'value' => -12.0],
+        ], array_map(
+            static fn (array $component): array => $component['value'],
+            $seenRule['preludeAst']['value'] ?? []
+        ));
+    },
     'custom at-rules map upstream bundler mixin visitor after import resolution' => static function (TestRunner $t) use ($customDefinitions, $mixinVisitor): void {
         $mixins = [];
         $result = (new CustomAtRuleTransformer())->bundle('/apply.css', [
@@ -2214,7 +2293,7 @@ CSS;
     'custom at-rules expose upstream unknown prelude component token lists' => static function (TestRunner $t): void {
         $seen = [];
         $css = <<<'CSS'
-@wp-token --wp-gap #056ef0 90deg 250ms 2dppx url(blocks/card/icon.svg);
+@wp-token --wp-gap #056ef0 2 90deg 250ms 2dppx url(blocks/card/icon.svg);
 
 .wp-block-card {
   color: red;
@@ -2237,10 +2316,11 @@ CSS;
         ]);
 
         $t->same('.wp-block-card{color:red}', $result);
-        $t->same('--wp-gap #056ef0 90deg 250ms 2dppx url(blocks/card/icon.svg)', $seen['prelude']);
+        $t->same('--wp-gap #056ef0 2 90deg 250ms 2dppx url(blocks/card/icon.svg)', $seen['prelude']);
         $t->same([
             'dashed-ident',
             'color',
+            'token',
             'angle',
             'time',
             'resolution',
@@ -2251,10 +2331,11 @@ CSS;
         ));
         $t->same('--wp-gap', $seen['tokens'][0]['value']);
         $t->same(['type' => 'rgb', 'r' => 5, 'g' => 110, 'b' => 240, 'alpha' => 1], $seen['tokens'][1]['value']);
-        $t->same(['type' => 'deg', 'value' => 90.0], $seen['tokens'][2]['value']);
-        $t->same(['type' => 'milliseconds', 'value' => 250.0], $seen['tokens'][3]['value']);
-        $t->same(['type' => 'dppx', 'value' => 2.0], $seen['tokens'][4]['value']);
-        $t->same('blocks/card/icon.svg', $seen['tokens'][5]['value']['url']);
+        $t->same(['type' => 'number', 'value' => 2.0], $seen['tokens'][2]['value']);
+        $t->same(['type' => 'deg', 'value' => 90.0], $seen['tokens'][3]['value']);
+        $t->same(['type' => 'milliseconds', 'value' => 250.0], $seen['tokens'][4]['value']);
+        $t->same(['type' => 'dppx', 'value' => 2.0], $seen['tokens'][5]['value']);
+        $t->same('blocks/card/icon.svg', $seen['tokens'][6]['value']['url']);
     },
     'custom at-rules compose upstream Token scalar visitors in declaration values' => static function (TestRunner $t): void {
         $seen = [];

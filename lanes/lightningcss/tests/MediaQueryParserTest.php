@@ -234,12 +234,18 @@ return [
         $t->same('(width>=6)', $parser->minifyList('(width >= calc(2 * 3))'));
         $t->same('(width>calc(1px + 1rem))', $parser->minifyList('(width > calc(1px+1rem))'));
         $t->same('(width>20px)', $parser->minifyList('(width > max(10px, 20px))'));
-        $t->same('(width>2)', $parser->minifyList('(width > max(1, 2))'));
+        $t->same('(width>2px)', $parser->minifyList('(width > max(1, 2))'));
         $t->same('(width>10px)', $parser->minifyList('(width > min(10px, 20px))'));
         $t->same('(width>15px)', $parser->minifyList('(width > clamp(10px, 15px, 20px))'));
         $t->same('(width>20px)', $parser->minifyList('(width > clamp(10px, 25px, 20px))'));
         $t->same('(width>10px)', $parser->minifyList('(width > clamp(10px, 5px, 20px))'));
         $t->same('(width>max(10px,1rem))', $parser->minifyList('(width > max(10px, 1rem))'));
+        $t->same('(aspect-ratio>=.5)', $parser->minifyList('(aspect-ratio >= max(1 / 2, 1 / 3))'));
+        $t->same('(aspect-ratio>=.5)', $parser->minifyList('(aspect-ratio >= min(1 / 2, 2))'));
+        $t->same('(aspect-ratio>=.5)', $parser->minifyList('(aspect-ratio >= clamp(1 / 4, 1 / 2, 3 / 4))'));
+        $t->same('(1<=aspect-ratio<=3)', $parser->minifyList('(1 <= aspect-ratio <= max(2, 3))'));
+        $t->same('(theme-ratio>=.5)', $parser->minifyList('(theme-ratio >= max(1 / 2, 1 / 3))'));
+        $t->same('(theme-ratio>=.5)', $parser->minifyList('(theme-ratio >= clamp(1 / 4, 1 / 2, 3 / 4))'));
         $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= calc(1 + 1))'));
         $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= max(1, 2))'));
         $t->same('(1<=-moz-device-pixel-ratio<=2)', $parser->minifyList('(1 <= -moz-device-pixel-ratio <= calc(1 + 1))'));
@@ -247,8 +253,12 @@ return [
         $t->same('(min-width:6px)', $parser->lowerRangeSyntaxList('(width >= calc(2 * 3px))'));
         $t->same('(min-width:6)', $parser->lowerRangeSyntaxList('(width >= calc(2 * 3))'));
         $t->same('not (max-width:20px)', $parser->lowerRangeSyntaxList('(width > max(10px, 20px))'));
-        $t->same('not (max-width:2)', $parser->lowerRangeSyntaxList('(width > max(1, 2))'));
+        $t->same('not (max-width:2px)', $parser->lowerRangeSyntaxList('(width > max(1, 2))'));
         $t->same('(min-width:15px)', $parser->lowerRangeSyntaxList('(width >= clamp(10px, 15px, 20px))'));
+        $t->same('(min-aspect-ratio:.5)', $parser->lowerRangeSyntaxList('(aspect-ratio >= max(1 / 2, 1 / 3))'));
+        $t->same('(min-aspect-ratio:1) and (max-aspect-ratio:3)', $parser->lowerRangeSyntaxList('(1 <= aspect-ratio <= max(2, 3))'));
+        $t->same('(min-theme-ratio:.5)', $parser->lowerRangeSyntaxList('(theme-ratio >= max(1 / 2, 1 / 3))'));
+        $t->same('(min-theme-ratio:.5)', $parser->lowerRangeSyntaxList('(theme-ratio >= clamp(1 / 4, 1 / 2, 3 / 4))'));
         $t->same('(not (max-width:100px)) and (not (min-width:calc(100vw - 50px)))', $parser->lowerRangeSyntaxList('(100px < width < calc(100vw-50px))'));
         $t->same('(-webkit-min-device-pixel-ratio:2)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio >= calc(1 + 1))'));
         $t->same('(-webkit-min-device-pixel-ratio:2)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio >= max(1, 2))'));
@@ -264,6 +274,10 @@ return [
         $t->same(
             '@layer blocks{@media (width>=6px){.wp-block-query{color:#ff0}}}',
             (new CssMinifier())->minify('@layer blocks { @media (width >= calc(2 * 3px)) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (aspect-ratio>=.5){.wp-block-query{color:#ff0}}}',
+            (new CssMinifier())->minify('@layer blocks { @media (aspect-ratio >= max(1 / 2, 1 / 3)) { .wp-block-query { color: yellow; } } }')
         );
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('&test, speech'));
     },
@@ -543,6 +557,9 @@ return [
             '(width >= calc(6px / 2px))',
             '(width >= calc(6 / 2px))',
             '(width >= calc(6px * 2px))',
+            '(aspect-ratio >= max(1/2, 1px))',
+            '(aspect-ratio >= max(1px, 2px))',
+            '(aspect-ratio >= calc(1px + 1em))',
             '(100px < width > 200px)',
             '(100px <= width > 200px)',
             '(100px > width < 200px)',

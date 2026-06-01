@@ -285,6 +285,29 @@ return [
         $t->same($sha256Second, $sha256Full['entry']->oid);
         $t->same(['start' => 1, 'end' => 2], $sha256Full['candidateRange']);
     },
+    'round-trips generated odd and even multi-pack-index prefixes for every entry like upstream lookup prefix' => static function (TestRunner $t) use ($buildMultiIndex, $indexNames): void {
+        $index = MultiPackIndex::fromBytes($buildMultiIndex([
+            ['oid' => '0111111111111111111111111111111111111111', 'packIndex' => 0, 'offset' => 12],
+            ['oid' => '1222222222222222222222222222222222222222', 'packIndex' => 1, 'offset' => 24],
+            ['oid' => '2333333333333333333333333333333333333333', 'packIndex' => 0, 'offset' => 36],
+            ['oid' => '3444444444444444444444444444444444444444', 'packIndex' => 1, 'offset' => 48],
+            ['oid' => '4555555555555555555555555555555555555555', 'packIndex' => 0, 'offset' => 60],
+            ['oid' => '5666666666666666666666666666666666666666', 'packIndex' => 1, 'offset' => 72],
+        ], $indexNames));
+
+        foreach ($index->entries() as $entryIndex => $entry) {
+            $hexLength = 5 + $entryIndex;
+            $prefix = substr($entry->oid, 0, $hexLength);
+            $lookup = $index->lookupPrefix(strtoupper($prefix));
+
+            $t->same('found', $lookup['status'], "entry {$entryIndex} generated prefix is unique");
+            $t->same($entry->oid, $lookup['entry']->oid);
+            $t->same($entry->packIndex, $lookup['entry']->packIndex);
+            $t->same($entry->packOffset, $lookup['entry']->packOffset);
+            $t->same(['start' => $entryIndex, 'end' => $entryIndex + 1], $lookup['candidateRange']);
+            $t->same($prefix, $index->disambiguatePrefix(strtoupper($entry->oid), $hexLength));
+        }
+    },
     'returns full multi-pack-index prefix after every shorter prefix remains ambiguous like gix-odb' => static function (TestRunner $t) use ($buildMultiIndex, $indexNames): void {
         $sharedThirtyNine = str_repeat('b', 39);
         $first = $sharedThirtyNine . '1';

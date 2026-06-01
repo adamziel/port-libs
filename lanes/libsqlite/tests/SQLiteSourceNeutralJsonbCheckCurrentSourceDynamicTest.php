@@ -5,12 +5,14 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteGeneratedJsonPathIndexPlan;
 use PortLibs\LibSqlite\SQLiteJsonB;
+use PortLibs\LibSqlite\SQLiteJsonbGeneratedCascadePlan;
 use PortLibs\LibSqlite\SQLiteJsonbGeneratedCheckIndexPlan;
 
 $libsqliteRoot = dirname(__DIR__);
 $sourceRoot = $libsqliteRoot . '/src';
 $sourceFiles = [
     $sourceRoot . '/SQLiteGeneratedJsonPathIndexPlan.php',
+    $sourceRoot . '/SQLiteJsonbGeneratedCascadePlan.php',
     $sourceRoot . '/SQLiteJsonbGeneratedCheckIndexPlan.php',
 ];
 
@@ -81,7 +83,7 @@ $updates = [
 ];
 
 return [
-    'source-neutral jsonb check generated-index source files contain no legacy domain strings' => static fn (TestRunner $t) => $t->same([], $legacyJsonbCheckMatches()),
+    'source-neutral jsonb check current-source files contain no legacy domain strings' => static fn (TestRunner $t) => $t->same([], $legacyJsonbCheckMatches()),
     'jsonb generated check index uses schema-derived setting rowid' => static function (TestRunner $t) use ($schema, $rows, $indexes, $updates): void {
         $plan = SQLiteJsonbGeneratedCheckIndexPlan::plan($schema, $rows, $indexes, $updates, 512);
 
@@ -101,8 +103,36 @@ return [
         $t->same(['key_name' => 'module_beta'], $plan['delete_entries'][0]['coveringValues']);
         $t->same(['beta', 'module_beta', 12], $plan['delete_entries'][0]['record']);
     },
+    'jsonb generated cascade uses neutral parent rowid column' => static function (TestRunner $t) use ($jsonb): void {
+        $plan = SQLiteJsonbGeneratedCascadePlan::plan(
+            [
+                ['setting_id' => 21, 'key_name' => 'module_alpha', 'key_value' => $jsonb(['module' => ['tenant' => 'tenant-a']])],
+                ['setting_id' => 22, 'key_name' => 'module_beta', 'key_value' => $jsonb(['module' => ['tenant' => 'tenant-b']])],
+            ],
+            [
+                ['record_id' => 301, 'tenant_key' => 'tenant-a'],
+                ['record_id' => 302, 'tenant_key' => 'tenant-b'],
+            ],
+            [['tenant_key' => 'tenant-a', 'new_tenant_key' => 'tenant-c']],
+            ['tenant-b'],
+            [
+                'parent_column' => 'tenant_key',
+                'source_column' => 'key_value',
+                'json_path' => '$.module.tenant',
+                'child_column' => 'tenant_key',
+                'rowid_column' => 'setting_id',
+                'on_update' => 'CASCADE',
+                'on_delete' => 'CASCADE',
+            ],
+        );
+
+        $t->same([21, 22], array_column($plan['actions'], 'rowid'));
+        $t->same(['tenant-c'], array_column($plan['after_parent'], 'tenant_key'));
+        $t->same(['tenant-c'], array_column($plan['after_child'], 'tenant_key'));
+        $t->same('setting_id', $plan['foreign_key']['rowid_column']);
+    },
     'source-neutral jsonb check dependency closure' => static fn (TestRunner $t) => $t->same(
-        'no new support component needed; reuses JSONB mutation, generated-column evaluation, CHECK evaluation, and schema-derived rowid handling',
-        'no new support component needed; reuses JSONB mutation, generated-column evaluation, CHECK evaluation, and schema-derived rowid handling',
+        'no new support component needed; reuses JSONB mutation, generated-column evaluation, CHECK evaluation, schema-derived rowid handling, and generated-key cascade planning',
+        'no new support component needed; reuses JSONB mutation, generated-column evaluation, CHECK evaluation, schema-derived rowid handling, and generated-key cascade planning',
     ),
 ];

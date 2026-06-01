@@ -174,7 +174,10 @@ CSS
         $t->same('.foo{color:#ff0c}', $minifier->minify('.foo { color: rgba(255, 255, 0, 0.8) }'));
         $t->same('.foo{color:gray}', $minifier->minify('.foo { color: rgb(128, 128, 128) }'));
         $t->same('.foo{color:#7bffff}', $minifier->minify('.foo { color: rgb(123, 255, 255) }'));
+        $t->same('.foo{color:#7bffff80}', $minifier->minify('.foo { color: rgba(123, 255, 255, 0.5) }'));
+        $t->same('.foo{color:#7bffff80}', $minifier->minify('.foo { color: rgba(123, 456, 789, 0.5) }'));
         $t->same('.foo{color:#7bffff}', $minifier->minify('.foo { color: rgb(123 255 255) }'));
+        $t->same('.foo{color:#7bffff80}', $minifier->minify('.foo { color: rgb(123 255 255 / .5) }'));
         $t->same('.foo{color:#7bffff80}', $minifier->minify('.foo { color: rgb(123 255 255 / 50%) }'));
         $t->same('.foo{color:#7affff80}', $minifier->minify('.foo { color: rgb(48% 100% 100% / 50%) }'));
         $t->same('.foo{color:#5f0}', $minifier->minify('.foo { color: hsl(100deg, 100%, 50%) }'));
@@ -187,6 +190,8 @@ CSS
         $t->same('.foo{color:#5f0c}', $minifier->minify('.foo { color: hsla(100 100% 50% / .8) }'));
         $t->same('.foo{color:#19334dcc}', $minifier->minify('.foo { color: hsl(210 50% 20% / 80%) }'));
         $t->same('.foo{color:#0000}', $minifier->minify('.foo { color: transparent }'));
+        $t->same('.foo{color:#f000}', $minifier->minify('.foo { color: rgba(255, 0, 0, 0) }'));
+        $t->same('.foo{color:#7bffff80}', $minifier->minify('.foo { color: #7bffff80 }'));
         $t->same('.foo{color:currentColor}', $minifier->minify('.foo { color: currentColor }'));
         $t->same('.foo{color:buttonborder}', $minifier->minify('.foo { color: ButtonBorder }'));
         $t->same('.foo{color:#00c4ff}', $minifier->minify('.foo { color: hwb(194 0% 0%) }'));

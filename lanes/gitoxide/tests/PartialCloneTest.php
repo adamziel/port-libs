@@ -517,6 +517,40 @@ return [
         $t->same("duplicate filtered pack marker\n", file_get_contents($packDir . '/' . $write['promisorName']));
         $t->same(count($beforePacks) + 1, count($database->promisorPackNames()));
     },
+    'object database keeps interrupted promisor pack resume protected while writing a missing index' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $database = new ObjectDatabase($gitDir);
+        $resumedAssetBlob = new GitObject('blob', 'Interrupted filtered pack resumes for a WordPress asset');
+        $pack = PackBuilder::build([$resumedAssetBlob]);
+        $packDir = $gitDir . '/objects/pack';
+        $basename = 'pack-' . $pack->packChecksum();
+
+        file_put_contents($packDir . '/' . $basename . '.pack', $pack->packBytes());
+        $t->same(true, is_file($packDir . '/' . $basename . '.pack'));
+        $t->same(false, is_file($packDir . '/' . $basename . '.idx'));
+        $t->same(false, is_file($packDir . '/' . $basename . '.promisor'));
+        $t->same(false, is_file($packDir . '/' . $basename . '.keep'));
+
+        $write = $database->writePromisorPackBundle($pack, "resumed interrupted filtered pack\n");
+
+        $t->same(false, $write['alreadyPresent']);
+        $t->same($basename . '.pack', $write['packName']);
+        $t->same($basename . '.idx', $write['indexName']);
+        $t->same($basename . '.promisor', $write['promisorName']);
+        $t->same($basename . '.keep', $write['keepName']);
+        $t->same(true, is_file($packDir . '/' . $write['packName']));
+        $t->same(true, is_file($packDir . '/' . $write['indexName']));
+        $t->same(true, is_file($packDir . '/' . $write['promisorName']));
+        $t->same(true, is_file($packDir . '/' . $write['keepName']));
+        $t->same([$resumedAssetBlob->oid()], $write['objectIds']);
+        $t->same('promisor-present', $database->objectState($resumedAssetBlob->oid())['status']);
+        $t->same('pack', $database->readHeader($resumedAssetBlob->oid())['source']);
+        $t->same($resumedAssetBlob->body, $database->read($resumedAssetBlob->oid())->body);
+
+        $duplicate = $database->writePromisorPackBundle($pack, "resumed pack duplicate marker\n");
+        $t->same(true, $duplicate['alreadyPresent']);
+        $t->same(null, $duplicate['keepName']);
+    },
     'object database writes promisor thin pack bundles using alternate bases' => static function (TestRunner $t) use ($writePromisorPackFixture, $buildThinPromisorBlobs): void {
         [$gitDir] = $writePromisorPackFixture();
         [$baseBlob, $targetBlob] = $buildThinPromisorBlobs('alternate-base');
@@ -952,6 +986,15 @@ return [
         $t->same(true, in_array($summary['directInventoryObject'], $summary['directInventoryObjectIds'], true));
         $t->same(true, $summary['directInventoryIsPromisor']);
         $t->same(true, str_ends_with($summary['directInventoryKeep'], '.keep'));
+        $t->same(false, $summary['resumedPromisorAlreadyPresent']);
+        $t->same(true, str_ends_with($summary['resumedPromisorPack'], '.pack'));
+        $t->same(true, str_ends_with($summary['resumedPromisorIndex'], '.idx'));
+        $t->same(true, str_ends_with($summary['resumedPromisorMarker'], '.promisor'));
+        $t->same(true, str_ends_with($summary['resumedPromisorKeep'], '.keep'));
+        $t->same('promisor-present', $summary['resumedPromisorState']['status']);
+        $t->same($summary['resumedPromisorObject'], $summary['resumedPromisorState']['oid']);
+        $t->same('pack', $summary['resumedPromisorHeader']['source']);
+        $t->same(true, $summary['resumedPromisorBodyMatches']);
         $t->same('promised-missing', $summary['refreshNeverReturnedBefore']['status']);
         $t->same([$summary['refreshNeverReturnedObject']], $summary['refreshNeverReturnedRequests']);
         $t->same('present', $summary['refreshNeverReturnedAfter']['status']);

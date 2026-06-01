@@ -1961,6 +1961,129 @@ return [
         ));
         $t->same(['renamed'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
     },
+    'maps upstream gix-merge tree-baseline multiple-merge-bases diff3 and resolve-tree fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry] = $objectStore();
+        $mergeBaseAncestor = new Tree([$blobEntry('content', "1\n2\n3\n4\n5\n")]);
+        $firstMergeBase = new Tree([$blobEntry('content', "0\n1\n2\n3\n4\n5\n")]);
+        $secondMergeBase = new Tree([$blobEntry('content', "1\n2\n3\n4\n5\n6\n")]);
+        $ours = new Tree([$blobEntry('content', "0\n1\n2\n3\n4\n5\nA\n")]);
+        $theirs = new Tree([$blobEntry('renamed', "0\n2\n3\n4\n5\nsix\n")]);
+        $bodyOf = static function (Tree $tree, string $path) use ($read): ?string {
+            $entry = $tree->entryNamed($path);
+
+            return $entry === null ? null : $read($entry->oid)->body;
+        };
+
+        $diff3 = TreeMerge::mergeRecursiveWithVirtualBase(
+            $mergeBaseAncestor,
+            [$firstMergeBase, $secondMergeBase],
+            $ours,
+            $theirs,
+            $read,
+            $write,
+            BlobMerge::STYLE_DIFF3,
+        );
+        $merged = $bodyOf($diff3->tree, 'renamed');
+
+        $t->same(false, $diff3->isClean());
+        $t->same(['renamed'], $names($diff3->tree));
+        $t->same(
+            "0\n2\n3\n4\n5\n<<<<<<< ours/renamed\nA\n||||||| base/renamed\n6\n=======\nsix\n>>>>>>> theirs/renamed\n",
+            $merged,
+        );
+        $t->same([
+            ['path' => 'renamed', 'reason' => 'content-conflict', 'base' => 'renamed', 'ours' => 'renamed', 'theirs' => 'renamed'],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $diff3->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'renamed', 'body' => "0\n1\n2\n3\n4\n5\n6\n"],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'renamed', 'body' => "0\n1\n2\n3\n4\n5\nA\n"],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'renamed', 'body' => "0\n2\n3\n4\n5\nsix\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
+            $diff3->indexEntries(),
+        ));
+        $t->same([
+            ['path' => 'renamed', 'content' => $merged],
+        ], array_map(
+            static fn ($file): array => ['path' => $file->path, 'content' => $file->content],
+            $diff3->worktreeConflictFiles($read),
+        ));
+
+        $merge = TreeMerge::mergeRecursiveWithVirtualBase(
+            $mergeBaseAncestor,
+            [$firstMergeBase, $secondMergeBase],
+            $ours,
+            $theirs,
+            $read,
+            $write,
+        );
+        $ancestorResolved = $merge->resolveTreeConflicts(
+            $read,
+            $write,
+            TreeMergeResult::RESOLVE_ANCESTOR,
+            TreeMergeResult::RESOLVE_ANCESTOR,
+        );
+        $oursResolved = $merge->resolveTreeConflicts(
+            $read,
+            $write,
+            TreeMergeResult::RESOLVE_OURS,
+            TreeMergeResult::RESOLVE_OURS,
+        );
+        $theirsResolved = $merge->resolveTreeConflicts(
+            $read,
+            $write,
+            TreeMergeResult::RESOLVE_THEIRS,
+            TreeMergeResult::RESOLVE_THEIRS,
+        );
+        $reverseOursResolved = TreeMerge::mergeRecursiveWithVirtualBase(
+            $mergeBaseAncestor,
+            [$firstMergeBase, $secondMergeBase],
+            $theirs,
+            $ours,
+            $read,
+            $write,
+        )->resolveTreeConflicts(
+            $read,
+            $write,
+            TreeMergeResult::RESOLVE_OURS,
+            TreeMergeResult::RESOLVE_OURS,
+        );
+
+        $t->true($ancestorResolved->isClean());
+        $t->same(['renamed'], $names($ancestorResolved->tree));
+        $t->same("0\n1\n2\n3\n4\n5\n6\n", $bodyOf($ancestorResolved->tree, 'renamed'));
+        $t->same([], $ancestorResolved->indexEntries());
+        $t->same([], $ancestorResolved->worktreeConflictFiles($read));
+
+        $t->true($oursResolved->isClean());
+        $t->same(['renamed'], $names($oursResolved->tree));
+        $t->same("0\n1\n2\n3\n4\n5\nA\n", $bodyOf($oursResolved->tree, 'renamed'));
+        $t->same([], $oursResolved->indexEntries());
+
+        $t->true($theirsResolved->isClean());
+        $t->same(['renamed'], $names($theirsResolved->tree));
+        $t->same("0\n2\n3\n4\n5\nsix\n", $bodyOf($theirsResolved->tree, 'renamed'));
+        $t->same([], $theirsResolved->indexEntries());
+
+        $t->true($reverseOursResolved->isClean());
+        $t->same(['renamed'], $names($reverseOursResolved->tree));
+        $t->same("0\n2\n3\n4\n5\nsix\n", $bodyOf($reverseOursResolved->tree, 'renamed'));
+        $t->same([], $reverseOursResolved->indexEntries());
+    },
     'maps upstream gix-merge tree-baseline change-and-delete fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $baseFile = "original\n1\n2\n3\n4\n5\n";

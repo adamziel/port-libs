@@ -264,6 +264,27 @@ return [
         $t->same($entries[2]['oid'], $last['entry']->oid);
         $t->same(['start' => 2, 'end' => 3], $last['candidateRange']);
     },
+    'round-trips generated odd and even pack index prefixes for every entry like upstream lookup prefix' => static function (TestRunner $t) use ($buildIndex, $packChecksum): void {
+        $index = PackIndex::fromBytes($buildIndex([
+            ['oid' => '0211111111111111111111111111111111111111', 'offset' => 12, 'crc32' => 1],
+            ['oid' => '1332222222222222222222222222222222222222', 'offset' => 24, 'crc32' => 2],
+            ['oid' => '2444333333333333333333333333333333333333', 'offset' => 36, 'crc32' => 3],
+            ['oid' => '3555544444444444444444444444444444444444', 'offset' => 48, 'crc32' => 4],
+            ['oid' => '4666655555555555555555555555555555555555', 'offset' => 60, 'crc32' => 5],
+            ['oid' => '5777766666666666666666666666666666666666', 'offset' => 72, 'crc32' => 6],
+        ], $packChecksum));
+
+        foreach ($index->entries() as $entryIndex => $entry) {
+            $hexLength = 7 + $entryIndex;
+            $prefix = substr($entry->oid, 0, $hexLength);
+            $lookup = $index->lookupPrefix(strtoupper($prefix));
+
+            $t->same('found', $lookup['status'], "entry {$entryIndex} generated prefix is unique");
+            $t->same($entry->oid, $lookup['entry']->oid);
+            $t->same(['start' => $entryIndex, 'end' => $entryIndex + 1], $lookup['candidateRange']);
+            $t->same($prefix, $index->disambiguatePrefix(strtoupper($entry->oid), $hexLength));
+        }
+    },
     'returns full pack index prefix after every shorter prefix remains ambiguous like gix-odb' => static function (TestRunner $t) use ($buildIndex, $packChecksum): void {
         $sharedThirtyNine = str_repeat('a', 39);
         $first = $sharedThirtyNine . '1';

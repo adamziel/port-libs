@@ -11,7 +11,7 @@ final class SQLiteJsonbGeneratedCascadePlan
      * @param list<array<string,mixed>> $childRows
      * @param list<array<string,mixed>> $updates
      * @param list<mixed> $deletes
-     * @param array{parent_column:string,source_column:string,json_path:string,child_column:string,on_update?:string,on_delete?:string,default?:mixed} $foreignKey
+     * @param array{parent_column:string,source_column:string,json_path:string,child_column:string,rowid_column?:string,on_update?:string,on_delete?:string,default?:mixed} $foreignKey
      * @return array<string,mixed>
      */
     public static function plan(
@@ -56,7 +56,7 @@ final class SQLiteJsonbGeneratedCascadePlan
                 'action' => 'update-parent-generated-jsonb',
                 'old_key' => $oldKey,
                 'new_key' => $newKey,
-                'rowid' => $oldParent['option_id'] ?? $index,
+                'rowid' => self::parentRowid($oldParent, $index, $spec),
                 'json_path' => $spec['json_path'],
             ];
             $changes++;
@@ -92,7 +92,7 @@ final class SQLiteJsonbGeneratedCascadePlan
             $actions[] = [
                 'action' => 'delete-parent-generated-jsonb',
                 'old_key' => $deleteKey,
-                'rowid' => $deletedParent['option_id'] ?? $index,
+                'rowid' => self::parentRowid($deletedParent, $index, $spec),
             ];
             $changes++;
 
@@ -225,8 +225,8 @@ final class SQLiteJsonbGeneratedCascadePlan
     }
 
     /**
-     * @param array{parent_column:string,source_column:string,json_path:string,child_column:string,on_update?:string,on_delete?:string,default?:mixed} $foreignKey
-     * @return array{parent_column:string,source_column:string,json_path:string,child_column:string,on_update:string,on_delete:string,default:mixed}
+     * @param array{parent_column:string,source_column:string,json_path:string,child_column:string,rowid_column?:string,on_update?:string,on_delete?:string,default?:mixed} $foreignKey
+     * @return array{parent_column:string,source_column:string,json_path:string,child_column:string,rowid_column:string|null,on_update:string,on_delete:string,default:mixed}
      */
     private static function normalizeSpec(array $foreignKey): array
     {
@@ -249,6 +249,9 @@ final class SQLiteJsonbGeneratedCascadePlan
             'source_column' => self::identifier($foreignKey['source_column'] ?? null, 'parent JSONB source column'),
             'json_path' => $path,
             'child_column' => self::identifier($foreignKey['child_column'] ?? null, 'child key column'),
+            'rowid_column' => array_key_exists('rowid_column', $foreignKey)
+                ? self::identifier($foreignKey['rowid_column'], 'parent rowid column')
+                : null,
             'on_update' => $onUpdate,
             'on_delete' => $onDelete,
             'default' => $foreignKey['default'] ?? null,
@@ -274,5 +277,32 @@ final class SQLiteJsonbGeneratedCascadePlan
         }
 
         return $row[$column];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $spec
+     */
+    private static function parentRowid(array $row, int $fallbackIndex, array $spec): int|string
+    {
+        $column = $spec['rowid_column'] ?? null;
+        if (is_string($column)) {
+            $value = self::rowValue($row, $column, 'parent rowid');
+
+            if (is_int($value) || is_string($value)) {
+                return $value;
+            }
+
+            throw new \InvalidArgumentException("SQLite JSONB generated cascade parent rowid column {$column} must be integer or text");
+        }
+
+        foreach (['rowid', 'setting_id', 'id'] as $candidate) {
+            $value = $row[$candidate] ?? null;
+            if (is_int($value) || is_string($value)) {
+                return $value;
+            }
+        }
+
+        return $fallbackIndex;
     }
 }

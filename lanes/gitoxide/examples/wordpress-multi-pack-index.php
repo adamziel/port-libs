@@ -15,6 +15,18 @@ $mediaObject = $fixture['objectsByRole']['large-media'];
 $content = $index->lookup($contentObject['oid']);
 $media = $index->lookup($mediaObject['oid']);
 $templatePrefix = $index->lookupPrefix(substr($templateObject['oid'], 0, 8));
+$generatedPrefixRanges = [];
+foreach ($index->entries() as $entryIndex => $entry) {
+    $hexLength = 5 + $entryIndex;
+    $prefix = substr($entry->oid, 0, $hexLength);
+    $lookup = $index->lookupPrefix(strtoupper($prefix));
+    $generatedPrefixRanges[] = [
+        'oid' => $entry->oid,
+        'prefix' => $prefix,
+        'status' => $lookup['status'],
+        'candidateRange' => $lookup['candidateRange'],
+    ];
+}
 $emptyIndex = MultiPackIndex::fromBytes($fixture['emptyMultiIndexBytes'], $allocationCapBytes);
 $emptyPrefix = $emptyIndex->lookupPrefix('0000');
 $emptyIntegrityStatus = 'accepted';
@@ -43,6 +55,7 @@ return [
     'templatePrefixStatus' => $templatePrefix['status'],
     'templatePrefixRange' => $templatePrefix['candidateRange'],
     'templateShortestPrefix' => $index->disambiguatePrefix($templateObject['oid'], 4),
+    'generatedPrefixRanges' => $generatedPrefixRanges,
     'emptyObjects' => $emptyIndex->count(),
     'emptyChecksum' => $emptyIndex->verifyChecksum(),
     'emptyPrefixStatus' => $emptyPrefix['status'],

@@ -816,6 +816,9 @@ final class MediaQueryParser
 
             return match ($type) {
                 'integer', 'resolution' => false,
+                'ratio' => preg_match('/^calc\(/i', $value) === 1
+                    ? $this->foldSimpleUnitlessCalc($value) !== null
+                    : $this->foldSimpleMathFunction($value, $type) !== $value,
                 'number' => $this->foldSimpleUnitlessCalc($value) !== null
                     || preg_match('/^(?:clamp|max|min)\(/i', $value) === 1,
                 default => true,
@@ -930,7 +933,7 @@ final class MediaQueryParser
 
     private function foldSimpleMathFunction(string $value, ?string $type): string
     {
-        if (!in_array($type, ['length', 'number', 'unknown'], true)) {
+        if (!in_array($type, ['length', 'number', 'ratio', 'unknown'], true)) {
             return $value;
         }
 
@@ -992,7 +995,7 @@ final class MediaQueryParser
     }
 
     /**
-     * @return array{number:float,unit:string}|null
+     * @return array{number:float,unit:string,ratio:bool}|null
      */
     private function comparableMathValue(string $value, ?string $type): ?array
     {
@@ -1000,7 +1003,23 @@ final class MediaQueryParser
         $value = $this->foldSimpleCalc($value);
         $folded = $this->foldSimpleMathFunction($value, $type);
         $value = $this->minifyNumericValue($folded);
+        $value = preg_replace('/\s*\/\s*/', '/', $value) ?? $value;
         $number = $this->cssNumberPattern();
+
+        if (($type === 'ratio' || $type === 'unknown')
+            && preg_match('/^(' . $number . ')\/(' . $number . ')$/', $value, $matches) === 1
+        ) {
+            $denominator = (float) $matches[2];
+            if (abs($denominator) < PHP_FLOAT_EPSILON) {
+                return null;
+            }
+
+            return [
+                'number' => (float) $matches[1] / $denominator,
+                'unit' => '',
+                'ratio' => true,
+            ];
+        }
 
         if (preg_match('/^(' . $number . ')([a-zA-Z%]+)?$/', $value, $matches) !== 1) {
             return null;
@@ -1011,14 +1030,23 @@ final class MediaQueryParser
             return null;
         }
 
+        if ($type === 'ratio' && $unit !== '') {
+            return null;
+        }
+
+        if ($type === 'length' && $unit === '' && (float) $matches[1] !== 0.0) {
+            $unit = 'px';
+        }
+
         return [
             'number' => (float) $matches[1],
             'unit' => $unit,
+            'ratio' => false,
         ];
     }
 
     /**
-     * @param list<array{number:float,unit:string}> $values
+     * @param list<array{number:float,unit:string,ratio:bool}> $values
      */
     private function mathValuesShareComparableUnit(array $values): bool
     {
@@ -1037,11 +1065,12 @@ final class MediaQueryParser
     }
 
     /**
-     * @param array{number:float,unit:string} $value
+     * @param array{number:float,unit:string,ratio:bool} $value
      */
     private function formatComparableMathValue(array $value, ?string $type): string
     {
-        $number = $this->trimNumber(rtrim(rtrim(sprintf('%.12F', $value['number']), '0'), '.'));
+        $precision = $value['ratio'] ? '%.6F' : '%.12F';
+        $number = $this->trimNumber(rtrim(rtrim(sprintf($precision, $value['number']), '0'), '.'));
         if ($number === '-0') {
             $number = '0';
         }

@@ -12,8 +12,8 @@ $jsonb = static fn (array $value): SQLiteBlobValue => new SQLiteBlobValue(SQLite
 
 $plan = SQLiteJsonbGeneratedCascadePlan::plan(
     [
-        ['option_id' => 1, 'option_name' => 'site_one_settings', 'option_value' => $jsonb(['site' => ['id' => 'site-1', 'theme' => 'twentysixteen'], 'source' => 'current'])],
-        ['option_id' => 2, 'option_name' => 'site_two_settings', 'option_value' => $jsonb(['site' => ['id' => 'site-2', 'theme' => 'twentytwenty'], 'source' => 'current'])],
+        ['setting_id' => 1, 'key_name' => 'site_one_settings', 'key_value' => $jsonb(['site' => ['id' => 'site-1', 'theme' => 'twentysixteen'], 'source' => 'current'])],
+        ['setting_id' => 2, 'key_name' => 'site_two_settings', 'key_value' => $jsonb(['site' => ['id' => 'site-2', 'theme' => 'twentytwenty'], 'source' => 'current'])],
     ],
     [
         ['meta_id' => 10, 'site_key' => 'site-1', 'meta_key' => 'home_url'],
@@ -24,9 +24,10 @@ $plan = SQLiteJsonbGeneratedCascadePlan::plan(
     ['site-2'],
     [
         'parent_column' => 'site_key',
-        'source_column' => 'option_value',
+        'source_column' => 'key_value',
         'json_path' => '$.site.id',
         'child_column' => 'site_key',
+        'rowid_column' => 'setting_id',
         'on_update' => 'CASCADE',
         'on_delete' => 'CASCADE',
     ],

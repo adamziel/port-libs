@@ -83,6 +83,7 @@ final class TransitionPrefixer
         $cursor = 0;
         $length = strlen($css);
         $emittedKeyframes = [];
+        $emittedViewportRules = [];
         $lastMergeableStyleRule = null;
 
         while ($cursor < $length) {
@@ -101,6 +102,11 @@ final class TransitionPrefixer
                 $prelude = $this->rewriteSupportsDeclarationPrefixPrelude($prelude, $targetOptions);
                 if ($this->isKeyframesPrelude($prelude)) {
                     $output .= $this->rewriteKeyframesRule($prelude, $body, $targetOptions, $emittedKeyframes);
+                    $cursor = $close + 1;
+                    continue;
+                }
+                if ($this->isViewportPrelude($prelude)) {
+                    $output .= $this->rewriteViewportRule($prelude, $body, $targetOptions, $emittedViewportRules);
                     $cursor = $close + 1;
                     continue;
                 }
@@ -376,6 +382,11 @@ final class TransitionPrefixer
         return preg_match('/^@(?:-(?:webkit|moz|o)-)?keyframes\b/i', $prelude) === 1;
     }
 
+    private function isViewportPrelude(string $prelude): bool
+    {
+        return preg_match('/^@(?:-(?:ms|o)-)?viewport$/i', $prelude) === 1;
+    }
+
     /**
      * @param array<string, bool> $targetOptions
      * @param array<string, true> $emittedKeyframes
@@ -427,6 +438,52 @@ final class TransitionPrefixer
 
         $emittedKeyframes[$key] = true;
         $rules[] = $keyword . ' ' . $name . '{' . $body . '}';
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @param array<string, true> $emittedViewportRules
+     */
+    private function rewriteViewportRule(string $prelude, string $body, array $targetOptions, array &$emittedViewportRules): string
+    {
+        if (preg_match('/^@(?:(-(?:ms|o)-))?viewport$/i', $prelude, $matches) !== 1) {
+            return $prelude . '{' . $body . '}';
+        }
+
+        $prefix = strtolower($matches[1] ?? '');
+        $rules = [];
+        if ($targetOptions['viewportNeedsMs']) {
+            $this->appendViewportRule($rules, $emittedViewportRules, '@-ms-viewport', $body);
+        } elseif ($prefix === '-ms-') {
+            return '';
+        }
+
+        if ($targetOptions['viewportNeedsO']) {
+            $this->appendViewportRule($rules, $emittedViewportRules, '@-o-viewport', $body);
+        } elseif ($prefix === '-o-') {
+            return '';
+        }
+
+        if ($prefix === '') {
+            $this->appendViewportRule($rules, $emittedViewportRules, '@viewport', $body);
+        }
+
+        return implode('', $rules);
+    }
+
+    /**
+     * @param list<string> $rules
+     * @param array<string, true> $emittedViewportRules
+     */
+    private function appendViewportRule(array &$rules, array &$emittedViewportRules, string $keyword, string $body): void
+    {
+        $key = strtolower($keyword) . '{' . $body . '}';
+        if (isset($emittedViewportRules[$key])) {
+            return;
+        }
+
+        $emittedViewportRules[$key] = true;
+        $rules[] = $keyword . '{' . $body . '}';
     }
 
     private function isFontPaletteValuesPrelude(string $prelude): bool
@@ -1661,6 +1718,9 @@ final class TransitionPrefixer
             'animationNeedsWebkit' => $animationNeedsWebkit,
             'animationNeedsMoz' => $animationNeedsMoz,
             'animationNeedsO' => $animationNeedsO,
+            'viewportNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [18])
+                || $this->targetAtLeast($normalized, 'ie', [10]),
+            'viewportNeedsO' => $this->targetInRange($normalized, 'opera', [11], [12, 1]),
             'userSelectNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [53])
                 || $this->targetAtLeast($normalized, 'ios_saf', [3])

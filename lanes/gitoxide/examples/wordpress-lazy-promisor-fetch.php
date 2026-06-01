@@ -202,6 +202,18 @@ $directInventoryPackNames = $database->promisorPackNames();
 $directInventoryObjectIds = $database->promisorObjectIds();
 $directInventoryIsPromisor = $database->isPromisorObject($inventoryBlob->oid());
 
+$resumedAssetBlob = new GitObject('blob', 'Interrupted WordPress filtered pack resumes under keep protection');
+$resumedPack = PackBuilder::build([$resumedAssetBlob]);
+$resumedPackBase = 'pack-' . $resumedPack->packChecksum();
+file_put_contents($packDir . '/' . $resumedPackBase . '.pack', $resumedPack->packBytes());
+$resumedWrite = $database->writePromisorPackBundle(
+    $resumedPack,
+    "WordPress interrupted filtered pack resume\n"
+);
+$resumedState = $database->objectState($resumedAssetBlob->oid());
+$resumedHeader = $database->readHeader($resumedAssetBlob->oid());
+$resumedBodyMatches = $database->read($resumedAssetBlob->oid())->body === $resumedAssetBlob->body;
+
 $deepChainStable = '';
 for ($i = 0; $i < 96; $i++) {
     $deepChainStable .= hash('sha1', 'wordpress-deep-promisor-chain-' . $i) . "\n";
@@ -320,6 +332,15 @@ return [
     'directInventoryPackNames' => $directInventoryPackNames,
     'directInventoryObjectIds' => $directInventoryObjectIds,
     'directInventoryIsPromisor' => $directInventoryIsPromisor,
+    'resumedPromisorObject' => $resumedAssetBlob->oid(),
+    'resumedPromisorPack' => $resumedWrite['packName'],
+    'resumedPromisorIndex' => $resumedWrite['indexName'],
+    'resumedPromisorMarker' => $resumedWrite['promisorName'],
+    'resumedPromisorKeep' => $resumedWrite['keepName'],
+    'resumedPromisorAlreadyPresent' => $resumedWrite['alreadyPresent'],
+    'resumedPromisorState' => $resumedState,
+    'resumedPromisorHeader' => $resumedHeader,
+    'resumedPromisorBodyMatches' => $resumedBodyMatches,
     'deepChainObjectCount' => count($deepChainObjects),
     'deepChainTargetObject' => $deepChainTargetOid,
     'deepChainTargetPack' => $deepChainWrites[40]['promisorName'],

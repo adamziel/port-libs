@@ -9,9 +9,9 @@ use PortLibs\LibSqlite\SQLiteJsonbGeneratedCascadePlan;
 $jsonb = static fn (array $value): SQLiteBlobValue => new SQLiteBlobValue(SQLiteJsonB::encode($value));
 
 $parents = [
-    ['option_id' => 1, 'option_name' => 'site_one_settings', 'option_value' => $jsonb(['site' => ['id' => 'site-1', 'theme' => 'twentysixteen'], 'source' => 'current'])],
-    ['option_id' => 2, 'option_name' => 'site_two_settings', 'option_value' => $jsonb(['site' => ['id' => 'site-2', 'theme' => 'twentytwenty'], 'source' => 'current'])],
-    ['option_id' => 3, 'option_name' => 'site_three_settings', 'option_value' => $jsonb(['site' => ['id' => 'site-3', 'theme' => 'classic'], 'source' => 'current'])],
+    ['setting_id' => 1, 'key_name' => 'site_one_settings', 'key_value' => $jsonb(['site' => ['id' => 'site-1', 'theme' => 'twentysixteen'], 'source' => 'current'])],
+    ['setting_id' => 2, 'key_name' => 'site_two_settings', 'key_value' => $jsonb(['site' => ['id' => 'site-2', 'theme' => 'twentytwenty'], 'source' => 'current'])],
+    ['setting_id' => 3, 'key_name' => 'site_three_settings', 'key_value' => $jsonb(['site' => ['id' => 'site-3', 'theme' => 'classic'], 'source' => 'current'])],
 ];
 $children = [
     ['meta_id' => 10, 'site_key' => 'site-1', 'meta_key' => 'home_url'],
@@ -22,9 +22,10 @@ $children = [
 ];
 $foreignKey = [
     'parent_column' => 'site_key',
-    'source_column' => 'option_value',
+    'source_column' => 'key_value',
     'json_path' => '$.site.id',
     'child_column' => 'site_key',
+    'rowid_column' => 'setting_id',
     'on_update' => 'CASCADE',
     'on_delete' => 'CASCADE',
 ];
@@ -56,19 +57,20 @@ return [
     'jsonb table generated cascade current next53 first action is parent jsonb update' => static fn (TestRunner $t) => $t->same('update-parent-generated-jsonb', $run()['actions'][0]['action']),
     'jsonb table generated cascade current next53 parent action records old key' => static fn (TestRunner $t) => $t->same('site-1', $run()['actions'][0]['old_key']),
     'jsonb table generated cascade current next53 parent action records new key' => static fn (TestRunner $t) => $t->same('site-1-imported', $run()['actions'][0]['new_key']),
+    'jsonb table generated cascade current next53 parent action records neutral rowid' => static fn (TestRunner $t) => $t->same(1, $run()['actions'][0]['rowid']),
     'jsonb table generated cascade current next53 parent action records path' => static fn (TestRunner $t) => $t->same('$.site.id', $run()['actions'][0]['json_path']),
     'jsonb table generated cascade current next53 child cascade actions follow parent update' => static fn (TestRunner $t) => $t->same(['cascade-update-child-generated-key', 'cascade-update-child-generated-key'], array_slice(array_column($run()['actions'], 'action'), 1, 2)),
     'jsonb table generated cascade current next53 delete parent action follows child updates' => static fn (TestRunner $t) => $t->same('delete-parent-generated-jsonb', $run()['actions'][3]['action']),
     'jsonb table generated cascade current next53 delete child action records old child' => static fn (TestRunner $t) => $t->same('rewrite_rules', $run()['actions'][4]['old_child']['meta_key']),
     'jsonb table generated cascade current next53 decoded parent jsonb stores new generated key' => static function (TestRunner $t) use ($run): void {
-        $decoded = SQLiteJsonB::decode($run()['after_parent'][0]['option_value']->bytes);
+        $decoded = SQLiteJsonB::decode($run()['after_parent'][0]['key_value']->bytes);
         $t->same('site-1-imported', $decoded['site']['id']);
     },
     'jsonb table generated cascade current next53 decoded parent jsonb preserves sibling payload' => static function (TestRunner $t) use ($run): void {
-        $decoded = SQLiteJsonB::decode($run()['after_parent'][0]['option_value']->bytes);
+        $decoded = SQLiteJsonB::decode($run()['after_parent'][0]['key_value']->bytes);
         $t->same('twentysixteen', $decoded['site']['theme']);
     },
-    'jsonb table generated cascade current next53 deletes parent row by generated key' => static fn (TestRunner $t) => $t->same(['site_one_settings', 'site_three_settings'], array_column($run()['after_parent'], 'option_name')),
+    'jsonb table generated cascade current next53 deletes parent row by generated key' => static fn (TestRunner $t) => $t->same(['site_one_settings', 'site_three_settings'], array_column($run()['after_parent'], 'key_name')),
     'jsonb table generated cascade current next53 leaves no violations after cascades' => static fn (TestRunner $t) => $t->same([], $run()['violations']),
     'jsonb table generated cascade current next53 before child row order captured' => static fn (TestRunner $t) => $t->same([10, 11, 12, 13, 14], array_column($run()['before_child'], 'meta_id')),
     'jsonb table generated cascade current next53 after child row order stable after delete' => static fn (TestRunner $t) => $t->same([10, 11, 13, 14], array_column($run()['after_child'], 'meta_id')),
@@ -114,22 +116,22 @@ return [
     },
     'jsonb table generated cascade current next53 text json parent source hydrates key' => static function (TestRunner $t) use ($run, $parents): void {
         $textParents = $parents;
-        $textParents[0]['option_value'] = '{"site":{"id":"site-1","theme":"text-json"}}';
+        $textParents[0]['key_value'] = '{"site":{"id":"site-1","theme":"text-json"}}';
         $t->same('site-1-imported', $run([['site_key' => 'site-1', 'new_site_key' => 'site-1-imported']], [], null, $textParents)['after_parent'][0]['site_key']);
     },
     'jsonb table generated cascade current next53 text json mutation returns jsonb blob' => static function (TestRunner $t) use ($run, $parents): void {
         $textParents = $parents;
-        $textParents[0]['option_value'] = '{"site":{"id":"site-1","theme":"text-json"}}';
-        $t->true($run([['site_key' => 'site-1', 'new_site_key' => 'site-1-imported']], [], null, $textParents)['after_parent'][0]['option_value'] instanceof SQLiteBlobValue);
+        $textParents[0]['key_value'] = '{"site":{"id":"site-1","theme":"text-json"}}';
+        $t->true($run([['site_key' => 'site-1', 'new_site_key' => 'site-1-imported']], [], null, $textParents)['after_parent'][0]['key_value'] instanceof SQLiteBlobValue);
     },
     'jsonb table generated cascade current next53 missing generated path creates null key' => static function (TestRunner $t) use ($run, $parents): void {
         $broken = $parents;
-        $broken[0]['option_value'] = new SQLiteBlobValue(SQLiteJsonB::encode(['site' => ['theme' => 'missing']]));
+        $broken[0]['key_value'] = new SQLiteBlobValue(SQLiteJsonB::encode(['site' => ['theme' => 'missing']]));
         $t->same(null, $run([], [], null, $broken)['before_parent'][0]['site_key']);
     },
     'jsonb table generated cascade current next53 null generated parent does not satisfy child' => static function (TestRunner $t) use ($run, $parents, $children): void {
         $broken = $parents;
-        $broken[0]['option_value'] = new SQLiteBlobValue(SQLiteJsonB::encode(['site' => ['theme' => 'missing']]));
+        $broken[0]['key_value'] = new SQLiteBlobValue(SQLiteJsonB::encode(['site' => ['theme' => 'missing']]));
         $t->same('site-1', $run([], [], null, $broken, $children)['violations'][0]['missing_parent_key']);
     },
     'jsonb table generated cascade current next53 missing child key column rejected' => static function (TestRunner $t) use ($run, $children): void {
@@ -139,7 +141,7 @@ return [
     },
     'jsonb table generated cascade current next53 missing parent source column rejected' => static function (TestRunner $t) use ($run, $parents): void {
         $broken = $parents;
-        unset($broken[0]['option_value']);
+        unset($broken[0]['key_value']);
         $t->throws(InvalidArgumentException::class, static fn () => $run([], [], null, $broken));
     },
     'jsonb table generated cascade current next53 malformed json path rejected' => static function (TestRunner $t) use ($run, $foreignKey): void {
@@ -176,8 +178,8 @@ return [
     'jsonb table generated cascade current next53 missing update new key rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run([['site_key' => 'site-1']], [])),
     'jsonb table generated cascade current next53 malformed source value rejected' => static function (TestRunner $t) use ($run, $parents): void {
         $broken = $parents;
-        $broken[0]['option_value'] = 123;
+        $broken[0]['key_value'] = 123;
         $t->throws(InvalidArgumentException::class, static fn () => $run([], [], null, $broken));
     },
-    'jsonb table generated cascade current next53 records normalized foreign key metadata' => static fn (TestRunner $t) => $t->same(['site_key', 'option_value', '$.site.id', 'site_key', 'cascade', 'cascade'], array_values(array_intersect_key($run()['foreign_key'], array_flip(['parent_column', 'source_column', 'json_path', 'child_column', 'on_update', 'on_delete'])))),
+    'jsonb table generated cascade current next53 records normalized foreign key metadata' => static fn (TestRunner $t) => $t->same(['site_key', 'key_value', '$.site.id', 'site_key', 'setting_id', 'cascade', 'cascade'], array_values(array_intersect_key($run()['foreign_key'], array_flip(['parent_column', 'source_column', 'json_path', 'child_column', 'rowid_column', 'on_update', 'on_delete'])))),
 ];

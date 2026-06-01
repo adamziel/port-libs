@@ -14,6 +14,12 @@ $css = <<<'CSS'
     }
   }
 
+  @media (aspect-ratio >= max(1 / 2, 1 / 3)) {
+    .wp-block-query.is-ratio-window {
+      color: yellow;
+    }
+  }
+
   @media (100px < width < calc(100vw - 50px)) {
     .wp-block-query.is-fluid-window {
       color: chartreuse;
@@ -30,9 +36,9 @@ $actual = [
 ];
 
 $expected = [
-    'chrome85' => '@layer theme.blocks{@media not (max-width:calc(1px + 1rem)){.wp-block-query.is-fluid-gap{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:calc(100vw - 50px))){.wp-block-query.is-fluid-window{color:#7fff00}}}',
-    'firefox64' => '@layer theme.blocks{@media (width>calc(1px + 1rem)){.wp-block-query.is-fluid-gap{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:calc(100vw - 50px))){.wp-block-query.is-fluid-window{color:#7fff00}}}',
-    'firefox85' => '@layer theme.blocks{@media (width>calc(1px + 1rem)){.wp-block-query.is-fluid-gap{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:calc(100vw - 50px))){.wp-block-query.is-fluid-window{color:#7fff00}}}',
+    'chrome85' => '@layer theme.blocks{@media not (max-width:calc(1px + 1rem)){.wp-block-query.is-fluid-gap{color:#ff0}}@media (min-aspect-ratio:.5){.wp-block-query.is-ratio-window{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:calc(100vw - 50px))){.wp-block-query.is-fluid-window{color:#7fff00}}}',
+    'firefox64' => '@layer theme.blocks{@media (width>calc(1px + 1rem)){.wp-block-query.is-fluid-gap{color:#ff0}}@media (aspect-ratio>=.5){.wp-block-query.is-ratio-window{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:calc(100vw - 50px))){.wp-block-query.is-fluid-window{color:#7fff00}}}',
+    'firefox85' => '@layer theme.blocks{@media (width>calc(1px + 1rem)){.wp-block-query.is-fluid-gap{color:#ff0}}@media (aspect-ratio>=.5){.wp-block-query.is-ratio-window{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:calc(100vw - 50px))){.wp-block-query.is-fluid-window{color:#7fff00}}}',
 ];
 
 if (($argv[1] ?? null) === '--self-test' && $actual !== $expected) {

@@ -3607,6 +3607,38 @@ CSS;
             $prefixer->prefixForTargets('@-o-keyframes test { from { opacity: 0 } to { opacity: 1 } } @keyframes test { from { opacity: 0 } to { opacity: 1 } }', ['opera' => 12])
         );
     },
+    'transition prefixer maps upstream viewport at-rule target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $viewport = '@viewport { width: device-width; zoom: 1; }';
+        $modern = '@viewport{width:device-width;zoom:1}';
+        $ms = '@-ms-viewport{width:device-width;zoom:1}@viewport{width:device-width;zoom:1}';
+        $opera = '@-o-viewport{width:device-width;zoom:1}@viewport{width:device-width;zoom:1}';
+
+        $t->same($ms, $prefixer->prefixForTargets($viewport, ['ie' => 10]));
+        $t->same($ms, $prefixer->prefixForTargets($viewport, ['edge' => 12]));
+        $t->same($ms, $prefixer->prefixForTargets($viewport, ['edge' => 18]));
+        $t->same($modern, $prefixer->prefixForTargets($viewport, ['edge' => 19]));
+        $t->same($modern, $prefixer->prefixForTargets($viewport, ['ie' => 9]));
+        $t->same($opera, $prefixer->prefixForTargets($viewport, ['opera' => 11]));
+        $t->same($opera, $prefixer->prefixForTargets($viewport, ['opera' => '12.1']));
+        $t->same($modern, $prefixer->prefixForTargets($viewport, ['opera' => 13]));
+        $t->same(
+            $ms,
+            $prefixer->prefixForTargets('@-ms-viewport { width: device-width; zoom: 1; } @viewport { width: device-width; zoom: 1; }', ['ie' => 11])
+        );
+        $t->same(
+            $modern,
+            $prefixer->prefixForTargets('@-ms-viewport { width: device-width; zoom: 1; } @viewport { width: device-width; zoom: 1; }', ['edge' => 19])
+        );
+        $t->same(
+            $modern,
+            $prefixer->prefixForTargets('@-o-viewport { width: device-width; zoom: 1; } @viewport { width: device-width; zoom: 1; }', ['opera' => 13])
+        );
+        $t->same(
+            '@-ms-viewport{width:device-width;zoom:1}@-o-viewport{width:device-width;zoom:1}@viewport{width:device-width;zoom:1}',
+            $prefixer->prefixForTargets($viewport, ['ie' => 10, 'opera' => '12.1'])
+        );
+    },
     'transition prefixer maps upstream animation declaration target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $encoded = static fn (int $major, int $minor = 0, int $patch = 0): int => ($major << 16) | ($minor << 8) | $patch;
@@ -3957,12 +3989,24 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media (width >= calc(6px / 2)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
-            '@layer blocks{@media not (max-width:2){.wp-block-query{color:#ff0}}}',
+            '@layer blocks{@media not (max-width:2px){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width > max(1, 2)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
             '@layer blocks{@media (min-width:2px){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width >= 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-aspect-ratio:.5){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (aspect-ratio >= max(1 / 2, 1 / 3)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (1<=aspect-ratio<=3){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (1 <= aspect-ratio <= max(2, 3)) { .wp-block-query { color: yellow; } } }', ['firefox' => 102])
+        );
+        $t->same(
+            '@layer blocks{@media (min-theme-ratio:.5){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (theme-ratio >= clamp(1 / 4, 1 / 2, 3 / 4)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
             '@layer blocks{@media not (min-width:240px){.wp-block-query{color:#ff0}}}',

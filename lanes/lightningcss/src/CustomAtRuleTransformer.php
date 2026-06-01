@@ -5767,6 +5767,10 @@ final class CustomAtRuleTransformer
             ];
         }
 
+        if (($numberToken = $this->parseNumberTokenValue($token)) !== null) {
+            return $numberToken;
+        }
+
         if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(--[-_a-zA-Z0-9]+)$/', $token, $matches) === 1) {
             return [
                 'type' => 'token',
@@ -5877,6 +5881,25 @@ final class CustomAtRuleTransformer
         }
 
         return ['type' => 'raw', 'value' => $token];
+    }
+
+    /**
+     * @return array{type:string,raw:string,value:array{type:string,value:float}}|null
+     */
+    private function parseNumberTokenValue(string $token): ?array
+    {
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) !== 1) {
+            return null;
+        }
+
+        return [
+            'type' => 'token',
+            'raw' => $token,
+            'value' => [
+                'type' => 'number',
+                'value' => (float) $token,
+            ],
+        ];
     }
 
     /**
@@ -8190,6 +8213,10 @@ final class CustomAtRuleTransformer
                     'value' => (float) $matches[1] / 100,
                 ],
             ];
+        }
+
+        if (($numberToken = $this->parseNumberTokenValue($argument)) !== null) {
+            return $numberToken;
         }
 
         if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z]+)$/', $argument, $matches) === 1) {
