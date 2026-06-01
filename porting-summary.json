@@ -1,13 +1,14 @@
 {
-    "generated": "2026-06-01 07:20:46 UTC",
-    "sourceCommit": "811f5d6b83ee52b766cc41e0a53273a78acf91cd",
-    "sourceCommitShort": "811f5d6b83ee",
-    "sourceBranch": "main",
-    "dashboardCommit": "811f5d6b83ee52b766cc41e0a53273a78acf91cd",
-    "dashboardCommitShort": "811f5d6b83ee",
+    "generated": "2026-06-01 07:33:24 UTC",
+    "sourceCommit": "a94a5fcfa10a3b65829751b77ea46da37f7ff5bc",
+    "sourceCommitShort": "a94a5fcfa10a",
+    "sourceBranch": "unknown",
+    "dashboardCommit": "a94a5fcfa10a3b65829751b77ea46da37f7ff5bc",
+    "dashboardCommitShort": "a94a5fcfa10a",
     "averageProgressPercent": "88.6",
     "lanes": [
         {
+            "lane": "difftastic",
             "library": "difftastic",
             "progressPercent": "80.0",
             "suite": "cloned-static-inventory",
@@ -17,14 +18,15 @@
             "coverage": "272 / 586",
             "php": "279 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "cloned static inventory plus native tokenizer/differ, R...",
-            "audit": "2026-05-25 isolated micro-slice support-r...",
-            "currentWork": "C# syntax highlighting now maps upstream-style keyword/operator/type captures to keyword/...",
-            "nextTarget": "Expand the next upstream-query-backed syntax highlight boundary outside the already mappe...",
-            "blocker": "upstream runner parity unavailable",
+            "phase": "cloned static inventory plus native tokenizer/differ, Ruby block-keyw...",
+            "audit": "2026-05-25 isolated micro-slice support-refill-20260525T173455Z: synt...",
+            "currentWork": "C# syntax highlighting now maps upstream-style keyword/operator/type captures to keyword/type...",
+            "nextTarget": "Expand the next upstream-query-backed syntax highlight boundary outside the already mapped Ja...",
+            "blocker": "Upstream runner parity unavailable",
             "commit": "cd2e8a0"
         },
         {
+            "lane": "dolt",
             "library": "dolt",
             "progressPercent": "69.0",
             "suite": "cloned-static-inventory-plus-bounded-upstream-runner",
@@ -34,14 +36,15 @@
             "coverage": "315 / 613",
             "php": "249 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "cloned static upstream inventory + bounded diff/schema/...",
-            "audit": "updated 2026-05-25 continuous-dev-2026052...",
-            "currentWork": "Native table diff classification, Dolt-style DOLT_DIFF_* rows, schema/tag/index/foreign-k...",
-            "nextTarget": "Implementation worker: map the next bounded SQL merge visibility edge after allow-commit,...",
-            "blocker": "upstream runner parity unavailable",
+            "phase": "cloned static upstream inventory + bounded diff/schema/table/dtablefu...",
+            "audit": "updated 2026-05-25 continuous-dev-20260525T230900Z isolated micro-sli...",
+            "currentWork": "Native table diff classification, Dolt-style DOLT_DIFF_* rows, schema/tag/index/foreign-key/c...",
+            "nextTarget": "Implementation worker: map the next bounded SQL merge visibility edge after allow-commit, pre...",
+            "blocker": "Upstream runner parity unavailable",
             "commit": "cd2e8a0"
         },
         {
+            "lane": "esbuild",
             "library": "esbuild",
             "progressPercent": "77.0",
             "suite": "cloned-static-inventory-plus-make-test-runner-evidence",
@@ -51,65 +54,69 @@
             "coverage": "259 / 2567",
             "php": "259 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "cloned static inventory plus upstream make-test runner...",
-            "audit": "verified 2026-05-25 isolated micro-slice...",
-            "currentWork": "Added a bounded output-format preview slice for named ESM re-export clauses. The graph no...",
-            "nextTarget": "After integrator/root acceptance, the next best lane task is a tiny bounded output-format...",
+            "phase": "cloned static inventory plus upstream make-test runner evidence; redu...",
+            "audit": "verified 2026-05-25 isolated micro-slice continuous-dev-20260525T2248...",
+            "currentWork": "Added a bounded output-format preview slice for named ESM re-export clauses. The graph now fo...",
+            "nextTarget": "After integrator/root acceptance, the next best lane task is a tiny bounded output-format fol...",
             "blocker": "Release-extra upstream `make test-all` coverage remains static-only.",
             "commit": "cd2e8a0"
         },
         {
+            "lane": "gitoxide",
             "library": "gitoxide",
             "progressPercent": "95.6",
-            "suite": "current-base Gitoxide credential/promisor followup replay",
-            "benchmark": "current-base Gitoxide credential/promisor followup replay",
+            "suite": "current-base Gitoxide attrs/config followup replay",
+            "benchmark": "current-base Gitoxide attrs/config followup replay",
             "denominator": "2886",
-            "mapped": "1763",
-            "coverage": "1763 / 2886",
-            "php": "8026 pass / 0 fail",
+            "mapped": "1764",
+            "coverage": "1764 / 2886",
+            "php": "8054 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "current-base source integration accepted by supervisor...",
-            "audit": "2026-06-01 supervisor followup: accepted...",
-            "currentWork": "Credential helper outcome result parity and partial-clone promisor external-delta recursi...",
-            "nextTarget": "Keep three Gitoxide workers on current-base non-overlapping transport, protocol, merge-ba...",
+            "phase": "current-base source integration accepted by supervisor with full lane...",
+            "audit": "2026-06-01 supervisor followup: accepted source a94a5fcfa10a3b6582975...",
+            "currentWork": "Attributes/pathspec NUL-field boundary parity and config include environment-style conditiona...",
+            "nextTarget": "Keep three Gitoxide workers on current-base non-overlapping transport, protocol, merge-base,...",
             "blocker": "Full upstream Cargo workspace remains unexecuted.",
-            "commit": "811f5d6"
+            "commit": "a94a5fc"
         },
         {
+            "lane": "libsqlite",
             "library": "libsqlite",
             "progressPercent": "99.5",
-            "suite": "current-base libsqlite triggerC active-scan followup re...",
-            "benchmark": "current-base libsqlite triggerC active-scan followup re...",
+            "suite": "current-base libsqlite pager/rowvalue source-neutral followup replay",
+            "benchmark": "current-base libsqlite pager/rowvalue source-neutral followup replay",
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "5638930 pass / 7 fail",
+            "php": "5672951 pass / 7 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "focused real-corpus and source-neutral coverage accepte...",
-            "audit": "2026-06-01 supervisor followup: accepted...",
-            "currentWork": "Real upstream triggerC active-scan DROP TRIGGER dynamic corpus coverage integrated on cur...",
-            "nextTarget": "Continue broad release/all parity blockers, source-neutral cleanup of remaining CurrentSo...",
-            "blocker": "Broad libsqlite full-lane/release parity is not green: seven known failur...",
-            "commit": "811f5d6"
+            "phase": "focused real-corpus and source-neutral coverage accepted; broad full-...",
+            "audit": "2026-06-01 supervisor followup: accepted source a94a5fcfa10a3b6582975...",
+            "currentWork": "Real upstream pager WAL exit-header reversion dynamic corpus coverage and source-neutral row-...",
+            "nextTarget": "Continue broad release/all parity blockers, source-neutral cleanup of remaining CurrentSource...",
+            "blocker": "Broad release/all still has 7 known failures",
+            "commit": "a94a5fc"
         },
         {
+            "lane": "lightningcss",
             "library": "LightningCSS",
-            "progressPercent": "99.6",
-            "suite": "current-base LightningCSS bundle/source-map followup re...",
-            "benchmark": "current-base LightningCSS bundle/source-map followup re...",
+            "progressPercent": "99.7",
+            "suite": "current-base LightningCSS CSS Modules/CSSOM/custom-at/prefix followup...",
+            "benchmark": "current-base LightningCSS CSS Modules/CSSOM/custom-at/prefix followup...",
             "denominator": "3532",
             "mapped": "2360",
             "coverage": "2360 / 3532",
-            "php": "6721 pass / 0 fail",
+            "php": "6767 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "current-base source integration accepted by supervisor...",
-            "audit": "2026-06-01 supervisor followup: accepted...",
-            "currentWork": "Bundle import graph resolution followup and source-map VLQ offset/sort boundary parity in...",
-            "nextTarget": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph,...",
-            "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-            "commit": "811f5d6"
+            "phase": "current-base source integration accepted by supervisor with full lane...",
+            "audit": "2026-06-01 supervisor followup: accepted source a94a5fcfa10a3b6582975...",
+            "currentWork": "CSS Modules host/slotted compose parity, CSSOM text-spacing read/write parity, custom at-rule...",
+            "nextTarget": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, medi...",
+            "blocker": "Rust/Node/WASM upstream runners not run",
+            "commit": "a94a5fc"
         },
         {
+            "lane": "markerpdf",
             "library": "markerPDF",
             "progressPercent": "67.0",
             "suite": "cloned-static-inventory",
@@ -119,14 +126,15 @@
             "coverage": "177 / 78",
             "php": "293 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "cloned inventory + inspected CI benchmark archive + loc...",
-            "audit": "isolated lane worker 2026-05-25: reduced...",
-            "currentWork": "Reduced simple-font WinAnsiEncoding handoff. PdfTextExtractor now maps high-bit WinAnsiEn...",
-            "nextTarget": "Choose the next bounded markerPDF text extraction gap, likely a small remaining PDF conte...",
-            "blocker": "upstream runner parity unavailable",
+            "phase": "cloned inventory + inspected CI benchmark archive + locked tabled hel...",
+            "audit": "isolated lane worker 2026-05-25: reduced markerPDF simple-font WinAns...",
+            "currentWork": "Reduced simple-font WinAnsiEncoding handoff. PdfTextExtractor now maps high-bit WinAnsiEncodi...",
+            "nextTarget": "Choose the next bounded markerPDF text extraction gap, likely a small remaining PDF content-s...",
+            "blocker": "Upstream runner parity unavailable",
             "commit": "cd2e8a0"
         },
         {
+            "lane": "pandoc",
             "library": "pandoc",
             "progressPercent": "95.0",
             "suite": "cloned-static-inventory",
@@ -136,14 +144,15 @@
             "coverage": "660 / 2276",
             "php": "239 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "cloned inventory plus native Markdown/HTML reader and M...",
-            "audit": "updated 2026-05-26: continuous-dev-202605...",
-            "currentWork": "Native MarkdownWriter keeps the accepted inline line-break, table, definition-list, under...",
-            "nextTarget": "Map another bounded Markdown writer branch after block-start list-marker escaping, such a...",
-            "blocker": "Pandoc-local PHP blocker: none; focused pandoc behavior count is 239 test...",
+            "phase": "cloned inventory plus native Markdown/HTML reader and Markdown/LaTeX/...",
+            "audit": "updated 2026-05-26: continuous-dev-20260526T002956Z extended Markdown...",
+            "currentWork": "Native MarkdownWriter keeps the accepted inline line-break, table, definition-list, underline...",
+            "nextTarget": "Map another bounded Markdown writer branch after block-start list-marker escaping, such as se...",
+            "blocker": "Pandoc-local PHP blocker: none; focused pandoc behavior count is 239 tests with 2,317...",
             "commit": "cd2e8a0"
         },
         {
+            "lane": "quadrable",
             "library": "quadrable",
             "progressPercent": "98.0",
             "suite": "cloned-upstream-runner-pass",
@@ -153,14 +162,15 @@
             "coverage": "55 / 55",
             "php": "137 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "upstream runner pass plus native BLAKE2s/key/sparse-tre...",
-            "audit": "updated 2026-05-25T17:38Z isolated closur...",
-            "currentWork": "Pure-PHP Quadrable data structures and proof transport plus native file-backed `QuadbStor...",
-            "nextTarget": "If accepted, continue reducing any remaining command-surface parity gaps only where upstr...",
+            "phase": "upstream runner pass plus native BLAKE2s/key/sparse-tree/proof/range/...",
+            "audit": "updated 2026-05-25T17:38Z isolated closure-refill micro-slice on acce...",
+            "currentWork": "Pure-PHP Quadrable data structures and proof transport plus native file-backed `QuadbStore`;...",
+            "nextTarget": "If accepted, continue reducing any remaining command-surface parity gaps only where upstream...",
             "blocker": "No current quadrable-specific upstream runner or focused PHP blocker.",
             "commit": "cd2e8a0"
         },
         {
+            "lane": "rclone",
             "library": "rclone",
             "progressPercent": "98.0",
             "suite": "cloned-static-inventory-plus-bounded-go-runner-evidence",
@@ -170,31 +180,33 @@
             "coverage": "512 / 2553",
             "php": "512 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "cloned static inventory plus bounded upstream Go runner...",
-            "audit": "verified 2026-05-26 isolated continuous-d...",
-            "currentWork": "Native PHP maps OneDrive CleanUp/no-versions command and RC wiring locally on top of acce...",
-            "nextTarget": "Map another bounded credential-free OneDrive/provider lifecycle cluster, such as a featur...",
+            "phase": "cloned static inventory plus bounded upstream Go runner evidence and...",
+            "audit": "verified 2026-05-26 isolated continuous-dev rework refresh: targeted...",
+            "currentWork": "Native PHP maps OneDrive CleanUp/no-versions command and RC wiring locally on top of accepted...",
+            "nextTarget": "Map another bounded credential-free OneDrive/provider lifecycle cluster, such as a feature-ma...",
             "blocker": "No rclone-local PHP blocker after this slice.",
             "commit": "cd2e8a0"
         },
         {
+            "lane": "readability",
             "library": "Readability/content rewrite engine",
             "progressPercent": "85.0",
-            "suite": "cloned-static-inventory-plus-runner-evidence-and-ninety...",
-            "benchmark": "cloned-static-inventory-plus-runner-evidence-and-ninety...",
+            "suite": "cloned-static-inventory-plus-runner-evidence-and-ninety-two-copied-fi...",
+            "benchmark": "cloned-static-inventory-plus-runner-evidence-and-ninety-two-copied-fi...",
             "denominator": "1984",
             "mapped": "1578",
             "coverage": "1578 / 1984",
             "php": "154 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "cloned static inventory plus upstream npm runner eviden...",
-            "audit": "verified 2026-05-26 isolated micro-slice:...",
-            "currentWork": "The copied Mozilla base URL fixture family now has focused WordPress block evidence provi...",
-            "nextTarget": "Map `lifehacker-working` or another remaining Kinja/comment-heavy fixture with a targeted...",
+            "phase": "cloned static inventory plus upstream npm runner evidence and Mozilla...",
+            "audit": "verified 2026-05-26 isolated micro-slice: syntax checks pass for chan...",
+            "currentWork": "The copied Mozilla base URL fixture family now has focused WordPress block evidence proving m...",
+            "nextTarget": "Map `lifehacker-working` or another remaining Kinja/comment-heavy fixture with a targeted ups...",
             "blocker": "No focused readability blocker.",
             "commit": "cd2e8a0"
         },
         {
+            "lane": "syncthing",
             "library": "syncthing",
             "progressPercent": "99.0",
             "suite": "verified-cloned-static-test-inventory-plus-focused-runner",
@@ -204,388 +216,12 @@
             "coverage": "350 / 658",
             "php": "350 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "verified cloned static upstream test inventory plus bou...",
-            "audit": "audited 2026-05-26",
-            "currentWork": "Native `FolderScanRouteRegistry::forScanApi()` now exposes `GET /syncthing/db/scan/status...",
-            "nextTarget": "Map the next Syncthing closure edge: audit remaining route/status surfaces for acceptance...",
-            "blocker": "No Syncthing lane-local PHP blocker for this micro-slice: focused route-r...",
+            "phase": "verified cloned static upstream test inventory plus bounded focused u...",
+            "audit": "audited 2026-05-26: targeted WordPress route-registry scan-status ack...",
+            "currentWork": "Native `FolderScanRouteRegistry::forScanApi()` now exposes `GET /syncthing/db/scan/status` wi...",
+            "nextTarget": "Map the next Syncthing closure edge: audit remaining route/status surfaces for acceptance, es...",
+            "blocker": "No Syncthing lane-local PHP blocker for this micro-slice: focused route-registry scan...",
             "commit": "cd2e8a0"
         }
-    ],
-    "dependencyBacklog": {
-        "updated": "2026-05-24 12:29:10 UTC",
-        "policy": "Gate optional dependency ports behind base-tool blockers; a row becomes active only when a base lane is green enough for the next rich-function slice or is blocked on that component. Port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with mapped fixtures, PHP pass/fail counts, malformed/corrupt cases where relevant, and explicit non-goals; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
-        "count": 37,
-        "countsByPriority": {
-            "critical": 4,
-            "high": 27,
-            "medium": 6
-        },
-        "countsByStatus": {
-            "blocked": 1,
-            "candidate": 25,
-            "deferred": 11
-        },
-        "topGates": [
-            {
-                "gate": "difftastic-concrete-grammar-structural-next",
-                "count": 1
-            },
-            {
-                "gate": "difftastic-diff-algorithm-next-or-gitoxide-content-merge-diff-next-or-dolt-row-diff-render-next-or-quadrable-diff-patch-next",
-                "count": 1
-            },
-            {
-                "gate": "dolt-query-diff-sql-next-or-libsqlite-sql-execution-next",
-                "count": 1
-            },
-            {
-                "gate": "esbuild-rich-output-next-or-lightningcss-source-map-next-or-difftastic-source-map-review-next",
-                "count": 1
-            },
-            {
-                "gate": "gitoxide-protocol-v2-pktline-next-or-gitoxide-receive-pack-wire-next-or-gitoxide-upload-pack-wire-next",
-                "count": 1
-            },
-            {
-                "gate": "libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next-or-rclone-json-metadata-next-or-syncthing-json-config-next-or-dolt-json-scalar-next-or-pandoc-metadata-json-next",
-                "count": 1
-            }
-        ],
-        "items": [
-            {
-                "id": "shared-zip-package-core",
-                "name": "Shared ZIP/package container core",
-                "neededBy": "pandoc, markerpdf, rclone",
-                "priority": "critical",
-                "gate": "pandoc-docx-openxml-package-next-or-pandoc-epub-package-next-or-pandoc-odt-package-next-or-markerpdf-benchmark-archive-next-or-rclone-archive-provider-next",
-                "status": "candidate",
-                "testExpectation": "Require an upstream/spec denominator from PKWARE APPNOTE plus mapped Pandoc DOCX/EPUB/ODT package fixtures, markerPDF benchmark a..."
-            },
-            {
-                "id": "xml-html5-dom-core",
-                "name": "XML and HTML5 parse/serialize core",
-                "neededBy": "pandoc, readability, markerpdf, difftastic, rclone",
-                "priority": "critical",
-                "gate": "pandoc-html-docbook-next-or-pandoc-rich-package-xml-next-or-readability-dom-parser-gap-next-or-markerpdf-html-output-next-or-difftastic-xml-structure-next-or-rclone-webdav-xml-next",
-                "status": "candidate",
-                "testExpectation": "Require WHATWG HTML, XML 1.0/namespaces, and mapped Pandoc HTML/DocBook/OpenXML/EPUB/ODT, Readability, markerPDF, Difftastic, and..."
-            },
-            {
-                "id": "webdav-protocol-core",
-                "name": "WebDAV protocol and property core",
-                "neededBy": "rclone",
-                "priority": "high",
-                "gate": "rclone-webdav-provider-next",
-                "status": "candidate",
-                "testExpectation": "Require a WebDAV/x/net-specific upstream/spec denominator with mapped rclone and x/net WebDAV fixtures, PHP pass/fail evidence, l..."
-            },
-            {
-                "id": "url-percent-encoding-core",
-                "name": "URL percent-encoding core",
-                "neededBy": "rclone, gitoxide, esbuild, lightningcss, readability",
-                "priority": "high",
-                "gate": "rclone-webdav-filename-destination-next-or-gitoxide-url-parse-next-or-esbuild-new-url-asset-next-or-lightningcss-css-url-token-next-or-readability-relative-uri-cleanup-next",
-                "status": "candidate",
-                "testExpectation": "Require a dependency-specific vector manifest with PHP pass/fail counts for percent-escape round trips, path-segment preservation..."
-            },
-            {
-                "id": "docx-openxml-core",
-                "name": "DOCX/OpenXML document core",
-                "neededBy": "pandoc",
-                "priority": "high",
-                "gate": "pandoc-docx-openxml-next",
-                "status": "candidate",
-                "testExpectation": "Require Pandoc DOCX reader/writer fixtures plus OpenXML/OPC package specifications, PHP pass/fail evidence for semantic AST parit..."
-            },
-            {
-                "id": "git-wire-protocol-core",
-                "name": "Git wire protocol packet core",
-                "neededBy": "gitoxide",
-                "priority": "high",
-                "gate": "gitoxide-protocol-v2-pktline-next-or-gitoxide-receive-pack-wire-next-or-gitoxide-upload-pack-wire-next",
-                "status": "candidate",
-                "testExpectation": "Require Git pack-protocol/protocol-v2 specs plus gix-packetline/gix-protocol/Gitoxide transport/fetch fixture denominators, with..."
-            },
-            {
-                "id": "quadrable-proof-transport-codec-core",
-                "name": "Quadrable proof and sync transport codec core",
-                "neededBy": "quadrable",
-                "priority": "high",
-                "gate": "quadrable-proof-transport-codec-next-or-quadrable-sync-codec-next",
-                "status": "candidate",
-                "testExpectation": "Require Quadrable proof/sync transport source and fixture denominators with PHP pass/fail evidence for proof encode/decode, proof..."
-            },
-            {
-                "id": "legacy-doc-cfb-core",
-                "name": "Legacy DOC/Compound File Binary extraction core",
-                "neededBy": "pandoc",
-                "priority": "high",
-                "gate": "pandoc-legacy-doc-cfb-next",
-                "status": "candidate",
-                "testExpectation": "Require Microsoft MS-CFB/MS-DOC specifications plus mapped Pandoc or generated legacy .doc fixtures, PHP pass/fail evidence for C..."
-            },
-            {
-                "id": "epub3-package-core",
-                "name": "EPUB package and spine core",
-                "neededBy": "pandoc, readability, rclone",
-                "priority": "high",
-                "gate": "pandoc-epub-package-next-or-readability-epub-export-next",
-                "status": "candidate",
-                "testExpectation": "Require W3C EPUB 3 specifications plus mapped Pandoc EPUB fixtures and any Readability article-package export fixtures, PHP pass/..."
-            },
-            {
-                "id": "odf-open-document-core",
-                "name": "OpenDocument text package core",
-                "neededBy": "pandoc",
-                "priority": "high",
-                "gate": "pandoc-odt-open-document-next",
-                "status": "deferred",
-                "testExpectation": "Require OASIS OpenDocument specifications plus mapped Pandoc ODT fixtures, PHP pass/fail evidence for semantic AST parity over te..."
-            },
-            {
-                "id": "pandoc-doctemplates-core",
-                "name": "Pandoc doctemplates rendering core",
-                "neededBy": "pandoc",
-                "priority": "medium",
-                "gate": "pandoc-template-writer-next",
-                "status": "candidate",
-                "testExpectation": "Require a doctemplates-specific upstream denominator from jgm/doctemplates plus mapped Pandoc writer/template fixtures, PHP pass/..."
-            },
-            {
-                "id": "pandoc-syntax-highlighting-core",
-                "name": "Pandoc syntax highlighting core",
-                "neededBy": "pandoc",
-                "priority": "high",
-                "gate": "pandoc-syntax-highlighting-next",
-                "status": "candidate",
-                "testExpectation": "Require a syntax-highlighting-specific upstream denominator from Pandoc writer fixtures and Skylighting-style syntax definition/s..."
-            },
-            {
-                "id": "citation-bibliography-csl-core",
-                "name": "Citation, bibliography, and CSL conversion core",
-                "neededBy": "pandoc",
-                "priority": "high",
-                "gate": "pandoc-citation-bibliography-next",
-                "status": "deferred",
-                "testExpectation": "Require Pandoc citation fixtures, Citation Style Language, CSL JSON, BibTeX/BibLaTeX where mapped, and citeproc behavior needed b..."
-            },
-            {
-                "id": "math-tex-conversion-core",
-                "name": "Math and TeX conversion core",
-                "neededBy": "pandoc, markerpdf, readability",
-                "priority": "high",
-                "gate": "pandoc-math-next-or-markerpdf-equation-handoff-next-or-readability-mathjax-next",
-                "status": "deferred",
-                "testExpectation": "Require Pandoc math fixtures, markerPDF supplied Formula/equation evidence, Readability MathJax/math article fixtures, TeX math s..."
-            },
-            {
-                "id": "pandoc-pdf-engine-handoff-core",
-                "name": "Pandoc PDF engine handoff core",
-                "neededBy": "pandoc",
-                "priority": "high",
-                "gate": "pandoc-pdf-output-next",
-                "status": "deferred",
-                "testExpectation": "Require a Pandoc PDF-output-specific upstream/spec denominator with mapped Text.Pandoc.PDF, MANUAL --pdf-engine, and PDF diagnost..."
-            },
-            {
-                "id": "pdf-text-dictionary-core",
-                "name": "PDF text dictionary extraction core",
-                "neededBy": "markerpdf, pandoc",
-                "priority": "critical",
-                "gate": "markerpdf-pdf-text-next-or-pandoc-pdf-input-handoff-next",
-                "status": "candidate",
-                "testExpectation": "Require PDF text/content-stream operators and filters, markerPDF/pdftext dictionary evidence, and mapped markerPDF benchmark/refe..."
-            },
-            {
-                "id": "pdf-page-render-plan-core",
-                "name": "PDF page layout and render-planning core",
-                "neededBy": "markerpdf, pandoc",
-                "priority": "high",
-                "gate": "markerpdf-page-layout-next-or-markerpdf-ocr-page-plan-next-or-pandoc-pdf-page-handoff-next",
-                "status": "candidate",
-                "testExpectation": "Require a PDF page/layout/render-planning upstream/spec denominator with mapped page-tree, page-box, crop, debug, and supplied-re..."
-            },
-            {
-                "id": "layout-ocr-result-core",
-                "name": "Layout and OCR result core",
-                "neededBy": "markerpdf",
-                "priority": "critical",
-                "gate": "markerpdf-ocr-layout-result-next-or-markerpdf-scanned-pdf-handoff-next",
-                "status": "candidate",
-                "testExpectation": "Require an OCR/layout-result upstream/spec denominator with mapped supplied hOCR/TSV/plain text, Surya-style layout/OCR predictio..."
-            },
-            {
-                "id": "table-geometry-core",
-                "name": "Table extraction, geometry, and formatter core",
-                "neededBy": "markerpdf, pandoc, readability",
-                "priority": "high",
-                "gate": "markerpdf-table-next-or-pandoc-table-rich-next-or-readability-table-cleanup-next",
-                "status": "candidate",
-                "testExpectation": "Require a table extraction/geometry upstream/spec denominator with mapped markerPDF/tabled table evidence, Pandoc table fixtures,..."
-            },
-            {
-                "id": "unicode-text-repair-width",
-                "name": "Unicode repair, width, and segmentation core",
-                "neededBy": "markerpdf, pandoc, difftastic, readability, lightningcss, esbuild, gitoxide, dolt, quadrable, syncthing",
-                "priority": "high",
-                "gate": "markerpdf-text-repair-next-or-pandoc-table-width-next-or-difftastic-unicode-display-next-or-readability-mojibake-cleanup-next-or-lightningcss-unicode-token-next-or-esbuild-unicode-identifier-next-or-gitoxide-path-display-next-or-dolt-unicode-query-diff-next-or-quadrable-key-display-next-or-syncthing-path-normalization-next",
-                "status": "candidate",
-                "testExpectation": "Create a Unicode/ftfy/UAX-specific denominator with mapped Pandoc, Difftastic, Readability, LightningCSS, esbuild, Gitoxide, Dolt..."
-            },
-            {
-                "id": "charset-encoding-core",
-                "name": "Charset and byte-decoding core",
-                "neededBy": "difftastic, readability, pandoc, markerpdf, rclone, esbuild, lightningcss, gitoxide, dolt, quadrable, libsqlite",
-                "priority": "high",
-                "gate": "markerpdf-pdfdocencoding-next-or-pandoc-legacy-doc-cfb-next-or-pandoc-html-charset-next-or-readability-declared-charset-next-or-libsqlite-utf16-record-encoding-next-or-shared-nonutf8-import-next",
-                "status": "candidate",
-                "testExpectation": "Require WHATWG Encoding plus PDF/document/SQLite encoding tables and mapped markerPDF/Pandoc/Readability/libsqlite byte fixtures,..."
-            },
-            {
-                "id": "json-json5-document-core",
-                "name": "JSON, JSON5, and JSON document import core",
-                "neededBy": "libsqlite, esbuild, readability, rclone, syncthing, dolt, pandoc",
-                "priority": "high",
-                "gate": "libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next-or-rclone-json-metadata-next-or-syncthing-json-config-next-or-dolt-json-scalar-next-or-pandoc-metadata-json-next",
-                "status": "candidate",
-                "testExpectation": "Require a JSON/JSON5-specific upstream/spec denominator with mapped libsqlite json101/json501/json502, esbuild JSON object/array/..."
-            },
-            {
-                "id": "yaml-metadata-core",
-                "name": "YAML metadata conversion core",
-                "neededBy": "pandoc",
-                "priority": "high",
-                "gate": "pandoc-yaml-metadata-next-or-pandoc-markdown-metadata-block-next",
-                "status": "candidate",
-                "testExpectation": "Require a YAML-specific spec/upstream denominator from YAML 1.2 plus mapped Pandoc metadata fixtures, PHP pass/fail counts, scala..."
-            },
-            {
-                "id": "source-map-v3-core",
-                "name": "Source Map v3 parser and writer core",
-                "neededBy": "esbuild, lightningcss, difftastic",
-                "priority": "high",
-                "gate": "esbuild-rich-output-next-or-lightningcss-source-map-next-or-difftastic-source-map-review-next",
-                "status": "candidate",
-                "testExpectation": "Require a Source Map v3/upstream denominator with mapped esbuild, LightningCSS, and Difftastic review-span fixtures, PHP pass/fai..."
-            },
-            {
-                "id": "browser-compat-target-data-core",
-                "name": "Browser compatibility and target-data core",
-                "neededBy": "lightningcss, esbuild",
-                "priority": "high",
-                "gate": "lightningcss-prefixer-targets-next-or-esbuild-target-lowering-next",
-                "status": "deferred",
-                "testExpectation": "Require a target-data-specific upstream/spec denominator with mapped LightningCSS target/prefixer and esbuild target-lowering fix..."
-            },
-            {
-                "id": "js-package-resolution-core",
-                "name": "JavaScript package metadata and module-resolution core",
-                "neededBy": "esbuild, lightningcss",
-                "priority": "high",
-                "gate": "esbuild-bundler-resolution-next-or-lightningcss-css-package-resolution-next",
-                "status": "deferred",
-                "testExpectation": "Require a package-resolution-specific upstream/spec denominator with mapped esbuild resolver/tsconfig/package tests and Lightning..."
-            },
-            {
-                "id": "tree-sitter-grammar-subset",
-                "name": "Tree-sitter grammar/query compatibility subset",
-                "neededBy": "difftastic",
-                "priority": "high",
-                "gate": "difftastic-concrete-grammar-structural-next",
-                "status": "candidate",
-                "testExpectation": "Require a tree-sitter/grammar-specific upstream denominator with per-language mapped sample/golden fixtures, exact grammar crate/..."
-            },
-            {
-                "id": "sequence-diff-merge-core",
-                "name": "Sequence diff and merge core",
-                "neededBy": "difftastic, gitoxide, dolt, quadrable",
-                "priority": "high",
-                "gate": "difftastic-diff-algorithm-next-or-gitoxide-content-merge-diff-next-or-dolt-row-diff-render-next-or-quadrable-diff-patch-next",
-                "status": "candidate",
-                "testExpectation": "Require separate upstream-family denominators for Difftastic display/diff fixtures and exact parser config evidence, Gitoxide gix..."
-            },
-            {
-                "id": "protobuf-wire-core",
-                "name": "Protocol Buffers wire-format core",
-                "neededBy": "syncthing",
-                "priority": "high",
-                "gate": "syncthing-protocol-next",
-                "status": "candidate",
-                "testExpectation": "Require a Protocol Buffers/BEP wire-format denominator with mapped Syncthing wire fixtures, PHP pass/fail evidence, malformed/cor..."
-            },
-            {
-                "id": "qr-code-matrix-core",
-                "name": "QR code matrix and image contract core",
-                "neededBy": "syncthing",
-                "priority": "medium",
-                "gate": "syncthing-qr-route-next",
-                "status": "blocked",
-                "testExpectation": "Require a QR-specific upstream/spec denominator from ISO/IEC 18004 or a bounded public vector set plus mapped Syncthing /qr route..."
-            },
-            {
-                "id": "checksum-hash-suite",
-                "name": "Checksum and hash suite",
-                "neededBy": "rclone, gitoxide, dolt, quadrable, syncthing, markerpdf",
-                "priority": "high",
-                "gate": "rclone-checksum-next-or-gitoxide-object-hash-next-or-dolt-content-hash-next-or-quadrable-blake2s-next-or-syncthing-block-hash-next-or-markerpdf-benchmark-integrity-next",
-                "status": "candidate",
-                "testExpectation": "Require official algorithm vectors plus rclone hash/QuickXorHash evidence, Gitoxide object hash evidence, Dolt hash/scalar fixtur..."
-            },
-            {
-                "id": "sql-storage-codec-core",
-                "name": "SQL and storage codec core",
-                "neededBy": "dolt, libsqlite, quadrable",
-                "priority": "medium",
-                "gate": "dolt-prolly-row-codec-next-or-libsqlite-record-page-write-next-or-quadrable-raw-store-codec-next",
-                "status": "deferred",
-                "testExpectation": "Require SQLite file-format specs and libsqlite evidence, Dolt/prolly storage fixture evidence, and Quadrable raw LMDB/dump/restor..."
-            },
-            {
-                "id": "mysql-wire-protocol-core",
-                "name": "MySQL wire protocol packet core",
-                "neededBy": "dolt",
-                "priority": "medium",
-                "gate": "dolt-mysql-wire-protocol-next",
-                "status": "deferred",
-                "testExpectation": "Require a MySQL wire-protocol-specific upstream/spec denominator with mapped Dolt/go-mysql-server packet fixtures and any selecte..."
-            },
-            {
-                "id": "sql-expression-semantics-core",
-                "name": "SQL expression and scalar semantics core",
-                "neededBy": "dolt, libsqlite",
-                "priority": "high",
-                "gate": "dolt-query-diff-sql-next-or-libsqlite-sql-execution-next",
-                "status": "candidate",
-                "testExpectation": "Require a SQL-expression-specific upstream/spec denominator with mapped Dolt/go-mysql-server scalar selectors, SQLite json/date/e..."
-            },
-            {
-                "id": "archive-compression-streams",
-                "name": "Archive and compression stream helpers",
-                "neededBy": "rclone, syncthing, pandoc, markerpdf, gitoxide",
-                "priority": "high",
-                "gate": "rclone-webdav-gzip-or-archive-next-or-syncthing-lz4-bep-next-or-gitoxide-pack-deflate-next-or-pandoc-package-compression-next",
-                "status": "deferred",
-                "testExpectation": "Require gzip/deflate/tar/LZ4 specs plus rclone gzip/archive evidence, Syncthing LZ4/BEP evidence, Gitoxide pack/deflate evidence,..."
-            },
-            {
-                "id": "glob-filter-pathspec-core",
-                "name": "Glob, ignore, and pathspec matcher core",
-                "neededBy": "rclone, syncthing, gitoxide, esbuild, difftastic",
-                "priority": "medium",
-                "gate": "rclone-filter-next-or-syncthing-ignore-next-or-gitoxide-pathspec-next-or-esbuild-entry-glob-next-or-difftastic-override-path-next",
-                "status": "deferred",
-                "testExpectation": "Require rclone fs/filter tests, Syncthing ignore matcher tests, Gitoxide gix-pathspec/gix-ignore generated baselines, esbuild ent..."
-            },
-            {
-                "id": "provider-metadata-normalization-core",
-                "name": "Local provider metadata normalization core",
-                "neededBy": "rclone, syncthing",
-                "priority": "medium",
-                "gate": "rclone-provider-normalization-next-or-syncthing-device-folder-metadata-next",
-                "status": "deferred",
-                "testExpectation": "Require rclone provider contract/local memory-provider evidence, rclone metadata mapper and OneDrive normalization fixtures, plus..."
-            }
-        ]
-    }
+    ]
 }
