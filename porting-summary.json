@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 23:06:05 UTC",
-    "sourceCommit": "8135a394aa28c2059afc0c2655ed4d0c7b9084e1",
-    "sourceCommitShort": "8135a394aa28",
+    "generated": "2026-06-01 23:08:29 UTC",
+    "sourceCommit": "4e808df7c8d925680896f5e68c359023c513b77f",
+    "sourceCommitShort": "4e808df7c8d9",
     "sourceBranch": "unknown",
-    "dashboardCommit": "8135a394aa28c2059afc0c2655ed4d0c7b9084e1",
-    "dashboardCommitShort": "8135a394aa28",
+    "dashboardCommit": "4e808df7c8d925680896f5e68c359023c513b77f",
+    "dashboardCommitShort": "4e808df7c8d9",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -45,13 +45,13 @@
             "coverage": "2,439 / 3,532 (69.1%)",
             "mapPercent": "69.1%",
             "unmapped": "1,093",
-            "php": "9,100 pass / 0 fail",
+            "php": "9,102 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
             "audit": "2026-06-01 isolated worker on base 4891303774c9ca404591d2f3a4d35bc9e1...",
-            "currentWork": "Mixed all/not-all media-list range lowering inside layered @media blocks and layered...",
-            "nextTarget": "Keep LightningCSS workers on current-base bundle/import graph...",
+            "currentWork": "SourceMap empty generated-line negative column offset parity is corrected on current...",
+            "nextTarget": "Wrap up LightningCSS by integrating only current-base, produc...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "ccff9e0"
+            "commit": "4e808df"
         },
         {
             "lane": "gitoxide",
