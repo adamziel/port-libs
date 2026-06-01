@@ -12,6 +12,15 @@ final class SQLitePDO extends \PDO
     /** @var array<string,list<string>> */
     private array $columns = [];
 
+    /** @var array<string,string> */
+    private array $tableSql = [];
+
+    /** @var array<string,string|null> */
+    private array $rowidAliases = [];
+
+    private ?string $filePath = null;
+    private int $schemaCookie = 0;
+    private int $fileChangeCounter = 0;
     private int $lastInsertId = 0;
     private int $lastChanges = 0;
     private ?array $transactionSnapshot = null;
@@ -33,13 +42,50 @@ final class SQLitePDO extends \PDO
             if ($path === '') {
                 throw new \PDOException("SQLitePDO invalid DSN '{$dsn}': file path cannot be empty");
             }
-            if (is_file($path) && filesize($path) > 0) {
-                throw new \PDOException('SQLitePDO cannot open existing SQLite file images in this first slice');
-            }
+            $this->openFileBackedDatabase($path);
         }
         foreach ($options ?? [] as $attribute => $value) {
             $this->setAttribute((int) $attribute, $value);
         }
+    }
+
+    private function openFileBackedDatabase(string $path): void
+    {
+        if (is_dir($path)) {
+            throw new \PDOException("SQLitePDO invalid DSN sqlite:{$path}: path is a directory");
+        }
+
+        $parent = dirname($path);
+        if ($parent !== '' && !is_dir($parent)) {
+            throw new \PDOException("SQLitePDO cannot open sqlite:{$path}: parent directory does not exist");
+        }
+
+        if (!is_file($path) && @file_put_contents($path, '') === false) {
+            throw new \PDOException("SQLitePDO cannot create SQLite file: {$path}");
+        }
+
+        $this->filePath = $path;
+        clearstatcache(true, $path);
+        $size = filesize($path);
+        if ($size === false) {
+            throw new \PDOException("SQLitePDO cannot inspect SQLite file: {$path}");
+        }
+        if ($size === 0) {
+            return;
+        }
+
+        try {
+            $state = SQLitePdoFileImage::decode($path);
+        } catch (\Throwable $exception) {
+            throw new \PDOException("SQLitePDO cannot open SQLite file image {$path}: {$exception->getMessage()}", 0, $exception);
+        }
+
+        $this->columns = $state['columns'];
+        $this->tables = $state['tables'];
+        $this->tableSql = $state['tableSql'];
+        $this->rowidAliases = $state['rowidAliases'];
+        $this->schemaCookie = $state['schemaCookie'];
+        $this->fileChangeCounter = $state['fileChangeCounter'];
     }
 
     public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): \PDOStatement|false
@@ -132,8 +178,24 @@ final class SQLitePDO extends \PDO
         return $this->transactionSnapshot !== null;
     }
 
-    public function exec(string $statement): int|false
+    public function exec(string $statement, ?array $params = null): int|false
     {
+        if ($params !== null) {
+            $statements = $this->splitStatements($statement);
+            if (count($statements) > 1) {
+                throw $this->failure('SQLitePDO exec with parameters does not support multi-statement SQL batches');
+            }
+
+            $prepared = $this->prepare($statements[0] ?? '');
+            if ($prepared === false) {
+                return false;
+            }
+            $prepared->execute($params);
+            $this->lastChanges = $prepared->rowCount();
+
+            return $this->lastChanges;
+        }
+
         $changes = 0;
         foreach ($this->splitStatements($statement) as $sql) {
             $result = $this->executeSql($sql, []);
@@ -158,7 +220,15 @@ final class SQLitePDO extends \PDO
         if ($this->transactionSnapshot !== null) {
             throw new \PDOException('SQLitePDO does not support nested transactions');
         }
-        $this->transactionSnapshot = [$this->tables, $this->columns, $this->lastInsertId];
+        $this->transactionSnapshot = [
+            $this->tables,
+            $this->columns,
+            $this->tableSql,
+            $this->rowidAliases,
+            $this->lastInsertId,
+            $this->schemaCookie,
+            $this->fileChangeCounter,
+        ];
 
         return true;
     }
@@ -179,6 +249,7 @@ final class SQLitePDO extends \PDO
         if ($this->transactionSnapshot === null) {
             throw new \PDOException('SQLitePDO has no active transaction');
         }
+        $this->persistIfNeeded(true);
         $this->transactionSnapshot = null;
 
         return true;
@@ -189,7 +260,15 @@ final class SQLitePDO extends \PDO
         if ($this->transactionSnapshot === null) {
             throw new \PDOException('SQLitePDO has no active transaction');
         }
-        [$this->tables, $this->columns, $this->lastInsertId] = $this->transactionSnapshot;
+        [
+            $this->tables,
+            $this->columns,
+            $this->tableSql,
+            $this->rowidAliases,
+            $this->lastInsertId,
+            $this->schemaCookie,
+            $this->fileChangeCounter,
+        ] = $this->transactionSnapshot;
         $this->transactionSnapshot = null;
 
         return true;
@@ -199,7 +278,7 @@ final class SQLitePDO extends \PDO
      * @param array<int|string,mixed> $parameters
      * @return array{rows:list<array<string,mixed>>,changes:int}
      */
-    public function executeSql(string $sql, array $parameters): array
+    public function executeSql(string $sql, array $parameters, bool $requireBoundParameters = false): array
     {
         $sql = trim(rtrim(trim($sql), ';'));
         if ($sql === '') {
@@ -207,6 +286,9 @@ final class SQLitePDO extends \PDO
             return ['rows' => [], 'changes' => 0];
         }
         try {
+            if ($requireBoundParameters) {
+                $this->assertBoundParametersPresent($sql, $parameters);
+            }
             if (preg_match('/^(?:select|values|with)\b/i', $sql) === 1) {
                 $result = ['rows' => SQLiteSelectSql::execute($sql, $this->tables, $parameters), 'changes' => 0];
                 $this->clearError();
@@ -214,7 +296,13 @@ final class SQLitePDO extends \PDO
                 return $result;
             }
             if (preg_match('/^create\s+table\b/i', $sql) === 1) {
-                $this->createTable($sql);
+                $this->executeDataChangeAtomically(
+                    function () use ($sql): array {
+                        $this->createTable($sql);
+
+                        return ['rows' => [], 'changes' => 0];
+                    },
+                );
                 $this->clearError();
                 return ['rows' => [], 'changes' => 0];
             }
@@ -278,6 +366,101 @@ final class SQLitePDO extends \PDO
         return new \PDOException($message, 0, $previous);
     }
 
+    /** @param array<int|string,mixed> $parameters */
+    private function assertBoundParametersPresent(string $sql, array $parameters): void
+    {
+        $quote = false;
+        $positionalIndex = 1;
+        $length = strlen($sql);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($quote) {
+                if ($char === "'" && ($sql[$i + 1] ?? null) === "'") {
+                    $i++;
+                } elseif ($char === "'") {
+                    $quote = false;
+                }
+                continue;
+            }
+            if ($char === "'") {
+                $quote = true;
+                continue;
+            }
+            if ($char === '?') {
+                $end = $i + 1;
+                while ($end < $length && ctype_digit($sql[$end])) {
+                    $end++;
+                }
+                $token = substr($sql, $i, $end - $i);
+                if ($token === '?') {
+                    $index = $positionalIndex++;
+                } else {
+                    $index = (int) substr($token, 1);
+                    $positionalIndex = max($positionalIndex, $index + 1);
+                }
+                if (!array_key_exists($index, $parameters)) {
+                    throw new \PDOException("SQLitePDO missing positional parameter {$token}");
+                }
+                $i = $end - 1;
+                continue;
+            }
+            if ($char === ':') {
+                $token = $this->namedParameterToken($sql, $i);
+                if ($token === null) {
+                    continue;
+                }
+                $bare = substr($token, 1);
+                if (!array_key_exists($token, $parameters) && !array_key_exists($bare, $parameters)) {
+                    throw new \PDOException("SQLitePDO missing named parameter {$token}");
+                }
+                $i += strlen($token) - 1;
+            }
+        }
+    }
+
+    private function namedParameterToken(string $sql, int $offset): ?string
+    {
+        $first = $sql[$offset + 1] ?? '';
+        if ($first === '' || (!ctype_alpha($first) && $first !== '_')) {
+            return null;
+        }
+
+        $end = $offset + 2;
+        $length = strlen($sql);
+        while ($end < $length) {
+            $char = $sql[$end];
+            if (!ctype_alnum($char) && $char !== '_') {
+                break;
+            }
+            $end++;
+        }
+
+        return substr($sql, $offset, $end - $offset);
+    }
+
+    private function persistIfNeeded(bool $force = false): void
+    {
+        if ($this->filePath === null || (!$force && $this->transactionSnapshot !== null)) {
+            return;
+        }
+
+        $nextFileChangeCounter = $this->fileChangeCounter + 1;
+        $bytes = SQLitePdoFileImage::encode(
+            $this->columns,
+            $this->tables,
+            $this->tableSql,
+            $this->rowidAliases,
+            $this->schemaCookie,
+            $nextFileChangeCounter,
+        );
+
+        $written = @file_put_contents($this->filePath, $bytes);
+        if ($written !== strlen($bytes)) {
+            throw new \PDOException("SQLitePDO cannot write SQLite file: {$this->filePath}");
+        }
+        $this->fileChangeCounter = $nextFileChangeCounter;
+    }
+
     /**
      * @param callable(): array{rows:list<array<string,mixed>>,changes:int} $operation
      * @return array{rows:list<array<string,mixed>>,changes:int}
@@ -286,14 +469,25 @@ final class SQLitePDO extends \PDO
     {
         $tables = $this->tables;
         $columns = $this->columns;
+        $tableSql = $this->tableSql;
+        $rowidAliases = $this->rowidAliases;
         $lastInsertId = $this->lastInsertId;
+        $schemaCookie = $this->schemaCookie;
+        $fileChangeCounter = $this->fileChangeCounter;
 
         try {
-            return $operation();
+            $result = $operation();
+            $this->persistIfNeeded();
+
+            return $result;
         } catch (\Throwable $exception) {
             $this->tables = $tables;
             $this->columns = $columns;
+            $this->tableSql = $tableSql;
+            $this->rowidAliases = $rowidAliases;
             $this->lastInsertId = $lastInsertId;
+            $this->schemaCookie = $schemaCookie;
+            $this->fileChangeCounter = $fileChangeCounter;
 
             throw $exception;
         }
@@ -336,26 +530,21 @@ final class SQLitePDO extends \PDO
 
     private function createTable(string $sql): void
     {
-        if (preg_match('/^create\s+table\s+([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)$/is', $sql, $match) !== 1) {
+        if (preg_match('/^create\s+table\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/i', $sql, $match) !== 1) {
             throw new \PDOException('SQLitePDO CREATE TABLE support requires a simple column list');
         }
         $table = $match[1];
-        $columns = [];
-        foreach ($this->splitTopLevel($match[2], ',') as $definition) {
-            $definition = trim($definition);
-            if ($definition === '' || preg_match('/^(?:constraint\s+\S+\s+)?(?:primary|unique|check|foreign)\b/i', $definition) === 1) {
-                continue;
-            }
-            if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\b/', $definition, $columnMatch) !== 1) {
-                throw new \PDOException('SQLitePDO CREATE TABLE column is malformed');
-            }
-            $columns[] = $columnMatch[1];
+        try {
+            $definition = SQLitePdoFileImage::parseCreateTableDefinition($sql);
+        } catch (\InvalidArgumentException $exception) {
+            throw new \PDOException($exception->getMessage(), 0, $exception);
         }
-        if ($columns === []) {
-            throw new \PDOException('SQLitePDO CREATE TABLE needs at least one column');
-        }
+
         $this->tables[$table] = [];
-        $this->columns[$table] = $columns;
+        $this->columns[$table] = $definition['columns'];
+        $this->tableSql[$table] = $sql;
+        $this->rowidAliases[$table] = $definition['rowidAlias'];
+        $this->schemaCookie++;
     }
 
     /** @param array<int|string,mixed> $parameters */
@@ -376,8 +565,11 @@ final class SQLitePDO extends \PDO
             foreach ($columns as $index => $column) {
                 $row[$column] = $this->value($values[$index], $parameterCursor);
             }
-            $rowidColumn = $this->columns[$table][0] ?? null;
-            if ($rowidColumn !== null && ($row[$rowidColumn] ?? null) === null && preg_match('/(?:^|_)id$/i', $rowidColumn) === 1) {
+            $rowidAlias = $this->rowidAliases[$table] ?? null;
+            $rowidColumn = $rowidAlias ?? ($this->columns[$table][0] ?? null);
+            if ($rowidAlias !== null && ($row[$rowidAlias] ?? null) === null) {
+                $row[$rowidAlias] = $this->nextRowId($table, $rowidAlias);
+            } elseif ($rowidColumn !== null && ($row[$rowidColumn] ?? null) === null && preg_match('/(?:^|_)id$/i', $rowidColumn) === 1) {
                 $row[$rowidColumn] = $this->nextRowId($table, $rowidColumn);
             }
             $this->tables[$table][] = $row;

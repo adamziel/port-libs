@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLitePDO;
 use PortLibs\LibSqlite\SQLitePDOStatement;
+use PortLibs\LibSqlite\SQLiteDatabase;
 
 final class SQLitePdoFetchTarget
 {
@@ -43,6 +44,48 @@ return [
         $t->same(['Ada', 'Linus'], $statement->fetchAll());
     },
 
+    'SQLitePDO file DSN creates a SQLite file and persists rows across reopen' => static function (TestRunner $t): void {
+        $scratchRoot = __DIR__ . '/.sqlite-pdo-tmp';
+        if (!is_dir($scratchRoot) && !mkdir($scratchRoot)) {
+            throw new RuntimeException("Unable to create temporary test root: {$scratchRoot}");
+        }
+        chmod($scratchRoot, 0700);
+        $dir = $scratchRoot . '/sqlite-pdo-polyfill-' . bin2hex(random_bytes(6));
+        if (!mkdir($dir) && !is_dir($dir)) {
+            throw new RuntimeException("Unable to create temporary test directory: {$dir}");
+        }
+        chmod($dir, 0700);
+        $path = $dir . '/test.sqlite';
+
+        try {
+            $sqlite = new SQLitePDO('sqlite:' . $path);
+            $t->true(is_file($path));
+
+            $t->same(0, $sqlite->exec('CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)'));
+            $t->same(1, $sqlite->exec("INSERT INTO test (name) VALUES ('Janet')"));
+            $t->same([['id' => 1, 'name' => 'Janet']], $sqlite->query('SELECT * FROM test')->fetchAll(PDO::FETCH_ASSOC));
+
+            $database = SQLiteDatabase::fromFile($path);
+            $rows = $database->tableRowsByName('test');
+            $t->same(1, count($rows));
+            $t->same(1, $rows[0]->rowId);
+            $t->same([null, 'Janet'], $rows[0]->values());
+
+            $reopened = new SQLitePDO('sqlite:' . $path);
+            $t->same([['id' => 1, 'name' => 'Janet']], $reopened->query('SELECT * FROM test')->fetchAll(PDO::FETCH_ASSOC));
+        } finally {
+            if (is_file($path)) {
+                unlink($path);
+            }
+            if (is_dir($dir)) {
+                rmdir($dir);
+            }
+            if (is_dir($scratchRoot) && (scandir($scratchRoot) ?: ['.', '..']) === ['.', '..']) {
+                rmdir($scratchRoot);
+            }
+        }
+    },
+
     'SQLitePDO prepared statements bind positional named and referenced parameters' => static function (TestRunner $t): void {
         $pdo = new SQLitePDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, qty INTEGER)');
@@ -74,6 +117,54 @@ return [
         $delete->execute([8]);
         $t->same(1, $delete->rowCount());
         $t->same(2, (int) $pdo->query('SELECT count(*) AS c FROM items')->fetchColumn());
+    },
+
+    'SQLitePDO exec accepts optional positional and named parameters' => static function (TestRunner $t): void {
+        $pdo = new SQLitePDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, qty INTEGER)');
+
+        $t->same(1, $pdo->exec('INSERT INTO items (name, qty) VALUES (?, ?)', ['first', 4]));
+        $t->same('1', $pdo->lastInsertId());
+        $t->same(1, $pdo->exec('INSERT INTO items (name, qty) VALUES (:name, :qty)', ['name' => 'second', 'qty' => 6]));
+        $t->same('2', $pdo->lastInsertId());
+        $t->same(1, $pdo->exec('UPDATE items SET qty = :qty WHERE name = :name', [':qty' => 8, ':name' => 'first']));
+        $t->same(1, $pdo->exec('DELETE FROM items WHERE qty = ?', [6]));
+        $t->same([['name' => 'first', 'qty' => 8]], $pdo->query('SELECT name, qty FROM items ORDER BY id')->fetchAll(PDO::FETCH_ASSOC));
+    },
+
+    'SQLitePDO exec parameter arrays reject batches and missing placeholders' => static function (TestRunner $t): void {
+        $pdo = new SQLitePDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, qty INTEGER)');
+        $t->same(1, $pdo->exec('INSERT INTO items (name, qty) VALUES (?, ?)', ['first', 4]));
+
+        try {
+            $pdo->exec('INSERT INTO items (name, qty) VALUES (?, ?); INSERT INTO items (name, qty) VALUES (?, ?)', ['second', 6, 'third', 8]);
+            throw new RuntimeException('Expected PDOException for parameterized multi-statement exec');
+        } catch (PDOException $exception) {
+            $t->contains('multi-statement SQL batches', $exception->getMessage());
+            $t->same('HY000', $pdo->errorCode());
+            $t->same('HY000', $pdo->errorInfo()[0]);
+        }
+
+        try {
+            $pdo->exec('INSERT INTO items (name, qty) VALUES (?, ?)', ['second']);
+            throw new RuntimeException('Expected PDOException for missing positional exec parameter');
+        } catch (PDOException $exception) {
+            $t->contains('missing positional parameter ?', $exception->getMessage());
+            $t->same('HY000', $pdo->errorCode());
+            $t->same('HY000', $pdo->errorInfo()[0]);
+        }
+
+        try {
+            $pdo->exec('INSERT INTO items (name, qty) VALUES (:name, :qty)', ['name' => 'second']);
+            throw new RuntimeException('Expected PDOException for missing named exec parameter');
+        } catch (PDOException $exception) {
+            $t->contains('missing named parameter :qty', $exception->getMessage());
+            $t->same('HY000', $pdo->errorCode());
+            $t->same('HY000', $pdo->errorInfo()[0]);
+        }
+
+        $t->same([['name' => 'first', 'qty' => 4]], $pdo->query('SELECT name, qty FROM items ORDER BY id')->fetchAll(PDO::FETCH_ASSOC));
     },
 
     'SQLitePDO transaction rollback restores in-memory tables' => static function (TestRunner $t): void {

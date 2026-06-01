@@ -57,6 +57,7 @@ final class SQLitePDOStatement extends \PDOStatement
 
     public function execute(?array $params = null): bool
     {
+        $requireBoundParameters = $params !== null;
         $parameters = $this->boundValues;
         foreach ($this->boundReferences as $key => &$value) {
             $parameters[$key] = $this->coerce($value, $this->boundReferenceTypes[$key] ?? \PDO::PARAM_STR);
@@ -68,7 +69,7 @@ final class SQLitePDOStatement extends \PDOStatement
             }
         }
         try {
-            $result = $this->connection->executeSql($this->sql, $parameters);
+            $result = $this->connection->executeSql($this->sql, $parameters, $requireBoundParameters);
         } catch (\PDOException $exception) {
             $this->errorCode = $this->connection->errorCode() ?? 'HY000';
             $this->errorInfo = $this->connection->errorInfo();
