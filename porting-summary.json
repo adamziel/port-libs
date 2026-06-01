@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 22:34:42 UTC",
-    "sourceCommit": "ee2e328cff890cb89e0eb4c1220d58f55622ea8c",
-    "sourceCommitShort": "ee2e328cff89",
+    "generated": "2026-06-01 22:37:24 UTC",
+    "sourceCommit": "e76cce77b51694e2902420eaf0b84ee1d1259744",
+    "sourceCommitShort": "e76cce77b516",
     "sourceBranch": "unknown",
-    "dashboardCommit": "ee2e328cff890cb89e0eb4c1220d58f55622ea8c",
-    "dashboardCommitShort": "ee2e328cff89",
+    "dashboardCommit": "e76cce77b51694e2902420eaf0b84ee1d1259744",
+    "dashboardCommitShort": "e76cce77b516",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,285,635 pass / 16 fail",
-            "phase": "current-base source integration accepted by supervisor with focused J...",
+            "php": "6,285,636 pass / 16 fail",
+            "phase": "current-base source integration accepted by supervisor with focused S...",
             "audit": "2026-06-01 21:15 UTC supervisor integration: source commit c3bf2f17bb...",
-            "currentWork": "Real upstream JSON106 SELECT SQL invariant coverage is integrated on top of crash4 pa...",
-            "nextTarget": "Integrate or reject the active PDO invalid-DML audit handoff...",
+            "currentWork": "SQLitePDO conflict-modifier invalid-DML native parity is integrated on top of real up...",
+            "nextTarget": "Continue reducing the 16 broad libsqlite failures, especially...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "ee2e328"
+            "commit": "e76cce7"
         },
         {
             "lane": "lightningcss",
