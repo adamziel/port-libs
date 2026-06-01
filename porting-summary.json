@@ -1,11 +1,11 @@
 {
-    "generated": "2026-06-01 02:50:01 UTC",
-    "sourceCommit": "53a0970f151c3984527e085b92a55ef4d8b9f2a0",
-    "sourceCommitShort": "53a0970f151c",
+    "generated": "2026-06-01 02:52:44 UTC",
+    "sourceCommit": "84de57d4ee7aa029c3ba427798dba3179c46fa3b",
+    "sourceCommitShort": "84de57d4ee7a",
     "sourceBranch": "main",
-    "dashboardCommit": "53a0970f151c3984527e085b92a55ef4d8b9f2a0",
-    "dashboardCommitShort": "53a0970f151c",
-    "averageProgressPercent": "88.1",
+    "dashboardCommit": "84de57d4ee7aa029c3ba427798dba3179c46fa3b",
+    "dashboardCommitShort": "84de57d4ee7a",
+    "averageProgressPercent": "88.2",
     "lanes": [
         {
             "library": "difftastic",
@@ -60,20 +60,20 @@
         },
         {
             "library": "gitoxide",
-            "progressPercent": "92.7",
-            "suite": "current-base-gitoxide-config-credential-replay",
-            "benchmark": "current-base-gitoxide-config-credential-replay",
+            "progressPercent": "92.8",
+            "suite": "current-base-gitoxide-attrs-pathspec-replay",
+            "benchmark": "current-base-gitoxide-attrs-pathspec-replay",
             "denominator": "2886",
-            "mapped": "1710",
-            "coverage": "1710 / 2886",
-            "php": "7036 pass / 0 fail",
+            "mapped": "1711",
+            "coverage": "1711 / 2886",
+            "php": "7059 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
-            "audit": "2026-06-01 supervisor replay batch: full...",
-            "currentWork": "Config include legacy dot-subsection parsing and credential next-action context decoding...",
+            "audit": "2026-06-01 supervisor replay followup: fu...",
+            "currentWork": "Attributes/pathspec malformed bracket parity integrated on current base after config and...",
             "nextTarget": "Keep three Gitoxide workers on current-base non-overlapping protocol, pack/object, refere...",
             "blocker": "Full upstream Cargo workspace remains unexecuted.",
-            "commit": "53a0970"
+            "commit": "84de57d"
         },
         {
             "library": "libsqlite",
@@ -90,24 +90,24 @@
             "currentWork": "Source-neutral key-value WAL import cleanup and PRAGMA trusted_schema schema-function saf...",
             "nextTarget": "Continue libsqlite source-neutral cleanup and broad release/all parity blockers while kee...",
             "blocker": "Broad libsqlite full-lane/release parity is not green: sampled failures r...",
-            "commit": "53a0970"
+            "commit": "84de57d"
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "97.6",
-            "suite": "current-base-lightningcss-replay-bundle-cssom-custom-so...",
-            "benchmark": "current-base-lightningcss-replay-bundle-cssom-custom-so...",
+            "progressPercent": "97.7",
+            "suite": "current-base-lightningcss-source-map-replay",
+            "benchmark": "current-base-lightningcss-source-map-replay",
             "denominator": "3532",
             "mapped": "2314",
             "coverage": "2314 / 3532",
-            "php": "5657 pass / 0 fail",
+            "php": "5669 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
-            "audit": "2026-06-01 supervisor replay batch: full...",
-            "currentWork": "Bundle resolver diagnostics, animation-timeline CSSOM, custom at-rule RuleExit traversal,...",
+            "audit": "2026-06-01 supervisor replay followup: fu...",
+            "currentWork": "Source-map raw VLQ source/name table dedupe and duplicate sourceContent offset parity int...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph,...",
             "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-            "commit": "53a0970"
+            "commit": "84de57d"
         },
         {
             "library": "markerPDF",

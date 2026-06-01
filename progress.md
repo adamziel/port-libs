@@ -55,6 +55,19 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (third replay followup 02:57 UTC):
+  accepted 2 additional source-only handoffs as source commit
+  `84de57d4ee7aa029c3ba427798dba3179c46fa3b` (`ports: add attributes
+  pathspec and source map slices`). The batch adds Gitoxide attributes/pathspec
+  malformed bracket parity and LightningCSS raw VLQ source/name table dedupe
+  plus duplicate sourceContent source-map parity. Verification passed PHP lint,
+  `git diff --check`, full Gitoxide `40 files / 7059 assertions / 0
+  failures`, full LightningCSS `13 files / 5669 assertions / 0 failures`, and
+  touched examples. Dashboard/status should report Gitoxide `1711 / 2886`
+  mapped and `7059 pass / 0 fail`, LightningCSS `2314 / 3532` mapped and
+  `5669 pass / 0 fail`, and libsqlite unchanged at `1589 / 1589` mapped with
+  `5402399 pass / 7 fail`.
+
 - 2026-06-01 supervisor continuation (second replay intake 02:53 UTC):
   accepted 9 source-only handoffs as source commit
   `53a0970f151c3984527e085b92a55ef4d8b9f2a0` (`ports: replay config
