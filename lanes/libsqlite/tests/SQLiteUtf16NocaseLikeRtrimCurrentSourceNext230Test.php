@@ -24,30 +24,30 @@ $bad230 = static fn (int $id, string $bytes, int $encoding): array => [
 ];
 
 $current230 = [
-    $row230(1, 'plugin_cache', 'UTF-16LE'),
-    $row230(2, "Plugin_Cache\n", 'UTF-16BE'),
-    $row230(3, "plugin_cache\r", 'UTF-16LE'),
-    $row230(4, "plugin_cache\f", 'UTF-16BE'),
-    $row230(5, 'PLUGIN_CACHE ', 'UTF-8'),
-    $row230(6, 'plugin_cachex', 'UTF-16LE'),
-    $row230(7, 'theme_cache', 'UTF-16BE'),
+    $row230(1, 'module_cache', 'UTF-16LE'),
+    $row230(2, "Module_Cache\n", 'UTF-16BE'),
+    $row230(3, "module_cache\r", 'UTF-16LE'),
+    $row230(4, "module_cache\f", 'UTF-16BE'),
+    $row230(5, 'MODULE_CACHE ', 'UTF-8'),
+    $row230(6, 'module_cachex', 'UTF-16LE'),
+    $row230(7, 'layout_cache', 'UTF-16BE'),
     $bad230(8, "\x00\xd8", 2),
 ];
 $nextTwoThreeZero = [
-    $row230(1, 'plugin_cache ', 'UTF-16BE'),
-    $row230(2, 'Plugin_Cache', 'UTF-16LE'),
-    $row230(3, "plugin_cache\n", 'UTF-16BE'),
-    $row230(4, "plugin_cache\f", 'UTF-16LE'),
-    $row230(5, 'PLUGIN_CACHE ', 'UTF-8'),
-    $row230(6, 'plugin_cachex', 'UTF-16BE'),
-    $row230(9, 'plugin_cache', 'UTF-16LE'),
+    $row230(1, 'module_cache ', 'UTF-16BE'),
+    $row230(2, 'Module_Cache', 'UTF-16LE'),
+    $row230(3, "module_cache\n", 'UTF-16BE'),
+    $row230(4, "module_cache\f", 'UTF-16LE'),
+    $row230(5, 'MODULE_CACHE ', 'UTF-8'),
+    $row230(6, 'module_cachex', 'UTF-16BE'),
+    $row230(9, 'module_cache', 'UTF-16LE'),
     $bad230(10, "\x00\xd8", 2),
 ];
 
 $plan230 = static fn (
     ?array $current = null,
     ?array $next = null,
-    string $pattern = 'plugin_cache',
+    string $pattern = 'module_cache',
     ?string $escape = null,
     string $currentSource = 'main.app_settings@229',
     string $nextSource = 'main.app_settings@230',
@@ -79,16 +79,16 @@ $cases230 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoThreeZero'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? /* line-break RTRIM boundary */'],
-    'pattern' => ['pattern', 'plugin_cache'],
+    'pattern' => ['pattern', 'module_cache'],
     'escape' => ['escape', null],
     'collation' => ['collation', 'NOCASE'],
     'current source' => ['currentSource', 'main.app_settings@229'],
     'next source' => ['nextSource', 'main.app_settings@230'],
     'current cookie' => ['currentSchemaCookie', 229],
     'next cookie' => ['nextSchemaCookie', 230],
-    'prefix' => ['prefix', 'plugin'],
-    'range lower' => ['rangeLowerInclusive', 'plugin'],
-    'range upper' => ['rangeUpperBound', 'plugio'],
+    'prefix' => ['prefix', 'module'],
+    'range lower' => ['rangeLowerInclusive', 'module'],
+    'range upper' => ['rangeUpperBound', 'modulf'],
     'index usable' => ['indexUsable', true],
     'current candidates' => ['currentCandidateRowids', [1, 5, 2, 4, 3, 6]],
     'next candidates' => ['nextCandidateRowids', [1, 2, 5, 9, 3, 4, 6]],
@@ -109,15 +109,15 @@ $cases230 = [
     'next malformed' => ['nextMalformedRowids', [10]],
     'current error' => ['currentErrors.8', 'SQLite encoding source UTF-16 text payload ends with a high surrogate'],
     'next error' => ['nextErrors.10', 'SQLite encoding source UTF-16 text payload ends with a high surrogate'],
-    'current row two decoded' => ['currentDecodedTexts.2', "Plugin_Cache\n"],
-    'current row two rtrim keeps newline' => ['currentRtrimTexts.2', "Plugin_Cache\n"],
-    'current row three rtrim keeps carriage return' => ['currentRtrimTexts.3', "plugin_cache\r"],
-    'current row four rtrim keeps form feed' => ['currentRtrimTexts.4', "plugin_cache\f"],
-    'next row one rtrim trims ascii space' => ['nextRtrimTexts.1', 'plugin_cache'],
-    'next row two rtrim exact' => ['nextRtrimTexts.2', 'Plugin_Cache'],
-    'current row two key keeps newline' => ['currentNocaseKeys.2', "plugin_cache\n"],
-    'current row three key keeps carriage return' => ['currentNocaseKeys.3', "plugin_cache\r"],
-    'next row two key exact' => ['nextNocaseKeys.2', 'plugin_cache'],
+    'current row two decoded' => ['currentDecodedTexts.2', "Module_Cache\n"],
+    'current row two rtrim keeps newline' => ['currentRtrimTexts.2', "Module_Cache\n"],
+    'current row three rtrim keeps carriage return' => ['currentRtrimTexts.3', "module_cache\r"],
+    'current row four rtrim keeps form feed' => ['currentRtrimTexts.4', "module_cache\f"],
+    'next row one rtrim trims ascii space' => ['nextRtrimTexts.1', 'module_cache'],
+    'next row two rtrim exact' => ['nextRtrimTexts.2', 'Module_Cache'],
+    'current row two key keeps newline' => ['currentNocaseKeys.2', "module_cache\n"],
+    'current row three key keeps carriage return' => ['currentNocaseKeys.3', "module_cache\r"],
+    'next row two key exact' => ['nextNocaseKeys.2', 'module_cache'],
     'current row two suffix' => ['currentSuffixClasses.2', 'line-break'],
     'current row four suffix' => ['currentSuffixClasses.4', 'form-feed'],
     'next row two suffix' => ['nextSuffixClasses.2', 'none'],
@@ -169,14 +169,14 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeZero invalidation rea
 
 $tests['utf16 nocase like rtrim current source nextTwoThreeZero stable line break false positive is reusable after residual recheck'] = static function (TestRunner $t) use ($row230): void {
     $rows = [
-        $row230(1, 'plugin_cache', 'UTF-16LE'),
-        $row230(2, "plugin_cache\n", 'UTF-16BE'),
-        $row230(3, 'PLUGIN_CACHE ', 'UTF-8'),
+        $row230(1, 'module_cache', 'UTF-16LE'),
+        $row230(2, "module_cache\n", 'UTF-16BE'),
+        $row230(3, 'MODULE_CACHE ', 'UTF-8'),
     ];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyLineBreakBoundaryPlan(
         $rows,
         $rows,
-        'plugin_cache',
+        'module_cache',
         null,
         'stable',
         'stable',
@@ -192,14 +192,14 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeZero stable line brea
 
 $tests['utf16 nocase like rtrim current source nextTwoThreeZero escaped underscore still treats newline as significant'] = static function (TestRunner $t) use ($row230): void {
     $rows = [
-        $row230(1, 'plugin_cache', 'UTF-16LE'),
-        $row230(2, "plugin_cache\r", 'UTF-16LE'),
-        $row230(3, 'pluginXcache', 'UTF-16BE'),
+        $row230(1, 'module_cache', 'UTF-16LE'),
+        $row230(2, "module_cache\r", 'UTF-16LE'),
+        $row230(3, 'moduleXcache', 'UTF-16BE'),
     ];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyLineBreakBoundaryPlan(
         $rows,
         $rows,
-        'plugin!_cache',
+        'module!_cache',
         '!',
         'stable',
         'stable',
@@ -213,7 +213,7 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeZero escaped undersco
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoThreeZero rejects malformed row shape'] = static function (TestRunner $t) use ($enc230): void {
-    $rows = [['setting_id' => 1, 'key_name_bytes' => $enc230('plugin_cache', 'UTF-16LE')]];
+    $rows = [['setting_id' => 1, 'key_name_bytes' => $enc230('module_cache', 'UTF-16LE')]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyLineBreakBoundaryPlan($rows, $rows));
 };
 

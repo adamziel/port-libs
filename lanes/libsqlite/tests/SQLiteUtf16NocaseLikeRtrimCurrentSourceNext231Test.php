@@ -24,31 +24,31 @@ $bad231 = static fn (int $id, string $bytes, int $encoding): array => [
 ];
 
 $current231 = [
-    $row231(1, 'PLUGIN_CAFÉ_MAIN ', 'UTF-16LE'),
-    $row231(2, 'plugin_café_main', 'UTF-16BE'),
-    $row231(3, 'plugin_cafÉ_aux', 'UTF-8'),
-    $row231(4, 'plugin_cafÉ_Μeta', 'UTF-16LE'),
-    $row231(5, 'plugin_cafÉ_μeta', 'UTF-16BE'),
-    $row231(6, 'plugin_cafÉ', 'UTF-16LE'),
-    $row231(7, 'plugin_cafe_plain', 'UTF-16BE'),
-    $row231(8, 'theme_cafÉ_main', 'UTF-16LE'),
+    $row231(1, 'MODULE_CAFÉ_MAIN ', 'UTF-16LE'),
+    $row231(2, 'module_café_main', 'UTF-16BE'),
+    $row231(3, 'module_cafÉ_aux', 'UTF-8'),
+    $row231(4, 'module_cafÉ_Μeta', 'UTF-16LE'),
+    $row231(5, 'module_cafÉ_μeta', 'UTF-16BE'),
+    $row231(6, 'module_cafÉ', 'UTF-16LE'),
+    $row231(7, 'module_cafe_plain', 'UTF-16BE'),
+    $row231(8, 'layout_cafÉ_main', 'UTF-16LE'),
     $bad231(9, "\x00\xd8", 2),
 ];
 $nextTwoThreeOne = [
-    $row231(1, 'plugin_café_main ', 'UTF-16BE'),
-    $row231(2, 'plugin_cafÉ_main', 'UTF-16LE'),
-    $row231(3, 'PLUGIN_CAFÉ_AUX ', 'UTF-8'),
-    $row231(4, 'plugin_cafÉ_μeta', 'UTF-16BE'),
-    $row231(5, 'plugin_cafÉ_Μeta', 'UTF-16LE'),
-    $row231(6, 'plugin_cafÉ  ', 'UTF-16BE'),
-    $row231(10, 'plugin_cafÉ_extra', 'UTF-16LE'),
+    $row231(1, 'module_café_main ', 'UTF-16BE'),
+    $row231(2, 'module_cafÉ_main', 'UTF-16LE'),
+    $row231(3, 'MODULE_CAFÉ_AUX ', 'UTF-8'),
+    $row231(4, 'module_cafÉ_μeta', 'UTF-16BE'),
+    $row231(5, 'module_cafÉ_Μeta', 'UTF-16LE'),
+    $row231(6, 'module_cafÉ  ', 'UTF-16BE'),
+    $row231(10, 'module_cafÉ_extra', 'UTF-16LE'),
     $bad231(11, "\x00\xd8", 2),
 ];
 
 $plan231 = static fn (
     ?array $current = null,
     ?array $next = null,
-    string $pattern = 'plugin_cafÉ%',
+    string $pattern = 'module_cafÉ%',
     ?string $escape = null,
     string $currentSource = 'main.app_settings@230',
     string $nextSource = 'main.app_settings@231',
@@ -80,16 +80,16 @@ $cases231 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoThreeOne'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? /* ASCII-only NOCASE boundary */'],
-    'pattern' => ['pattern', 'plugin_cafÉ%'],
+    'pattern' => ['pattern', 'module_cafÉ%'],
     'escape' => ['escape', null],
     'collation' => ['collation', 'NOCASE'],
     'current source' => ['currentSource', 'main.app_settings@230'],
     'next source' => ['nextSource', 'main.app_settings@231'],
     'current cookie' => ['currentSchemaCookie', 230],
     'next cookie' => ['nextSchemaCookie', 231],
-    'prefix' => ['prefix', 'plugin'],
-    'range lower' => ['rangeLowerInclusive', 'plugin'],
-    'range upper' => ['rangeUpperBound', 'plugio'],
+    'prefix' => ['prefix', 'module'],
+    'range lower' => ['rangeLowerInclusive', 'module'],
+    'range upper' => ['rangeUpperBound', 'modulf'],
     'index usable' => ['indexUsable', true],
     'current candidates' => ['currentCandidateRowids', [7, 6, 3, 1, 4, 5, 2]],
     'next candidates' => ['nextCandidateRowids', [6, 3, 10, 2, 5, 4, 1]],
@@ -108,11 +108,11 @@ $cases231 = [
     'next malformed' => ['nextMalformedRowids', [11]],
     'current error' => ['currentErrors.9', 'SQLite encoding source UTF-16 text payload ends with a high surrogate'],
     'next error' => ['nextErrors.11', 'SQLite encoding source UTF-16 text payload ends with a high surrogate'],
-    'current row one rtrim' => ['currentRtrimTexts.1', 'PLUGIN_CAFÉ_MAIN'],
-    'next row six rtrim' => ['nextRtrimTexts.6', 'plugin_cafÉ'],
-    'current row one key' => ['currentNocaseKeys.1', 'plugin_cafÉ_main'],
-    'current row two key preserves lower e acute' => ['currentNocaseKeys.2', 'plugin_café_main'],
-    'next row two key preserves upper e acute' => ['nextNocaseKeys.2', 'plugin_cafÉ_main'],
+    'current row one rtrim' => ['currentRtrimTexts.1', 'MODULE_CAFÉ_MAIN'],
+    'next row six rtrim' => ['nextRtrimTexts.6', 'module_cafÉ'],
+    'current row one key' => ['currentNocaseKeys.1', 'module_cafÉ_main'],
+    'current row two key preserves lower e acute' => ['currentNocaseKeys.2', 'module_café_main'],
+    'next row two key preserves upper e acute' => ['nextNocaseKeys.2', 'module_cafÉ_main'],
     'current row four upper greek class' => ['currentNonAsciiCaseClasses.4', 'upper-non-ascii-case'],
     'current row five lower greek class' => ['currentNonAsciiCaseClasses.5', 'mixed-non-ascii-case'],
     'next row one lower e class' => ['nextNonAsciiCaseClasses.1', 'lower-non-ascii-case'],
@@ -158,13 +158,13 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeOne invalidation reas
 
 $tests['utf16 nocase like rtrim current source nextTwoThreeOne stable ascii folded cursor is reusable'] = static function (TestRunner $t) use ($row231): void {
     $rows = [
-        $row231(1, 'PLUGIN_CAFÉ_MAIN ', 'UTF-16LE'),
-        $row231(2, 'plugin_cafÉ_aux', 'UTF-16BE'),
+        $row231(1, 'MODULE_CAFÉ_MAIN ', 'UTF-16LE'),
+        $row231(2, 'module_cafÉ_aux', 'UTF-16BE'),
     ];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiOnlyNocasePlan(
         $rows,
         $rows,
-        'plugin_cafÉ%',
+        'module_cafÉ%',
         null,
         'stable',
         'stable',
@@ -180,13 +180,13 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeOne stable ascii fold
 
 $tests['utf16 nocase like rtrim current source nextTwoThreeOne lower e acute does not match upper e acute pattern'] = static function (TestRunner $t) use ($row231): void {
     $rows = [
-        $row231(1, 'plugin_café_main', 'UTF-16LE'),
-        $row231(2, 'plugin_cafÉ_main', 'UTF-16BE'),
+        $row231(1, 'module_café_main', 'UTF-16LE'),
+        $row231(2, 'module_cafÉ_main', 'UTF-16BE'),
     ];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiOnlyNocasePlan(
         $rows,
         $rows,
-        'plugin_cafÉ%',
+        'module_cafÉ%',
         null,
         'stable',
         'stable',
@@ -202,14 +202,14 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeOne lower e acute doe
 
 $tests['utf16 nocase like rtrim current source nextTwoThreeOne ascii prefix still folds before non ascii suffix'] = static function (TestRunner $t) use ($row231): void {
     $rows = [
-        $row231(1, 'PLUGIN_CAFÉ_MAIN', 'UTF-16LE'),
-        $row231(2, 'plugin_cafÉ_main', 'UTF-16BE'),
-        $row231(3, 'Plugin_CafÉ_extra', 'UTF-8'),
+        $row231(1, 'MODULE_CAFÉ_MAIN', 'UTF-16LE'),
+        $row231(2, 'module_cafÉ_main', 'UTF-16BE'),
+        $row231(3, 'Module_CafÉ_extra', 'UTF-8'),
     ];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiOnlyNocasePlan(
         $rows,
         $rows,
-        'plugin_cafÉ%',
+        'module_cafÉ%',
         null,
         'stable',
         'stable',
@@ -219,11 +219,11 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeOne ascii prefix stil
 
     $t->same([3, 1, 2], $result['currentMatchedRowids']);
     $t->same([1, 3], $result['currentAsciiFoldedRowids']);
-    $t->same('plugin_cafÉ_main', $result['currentNocaseKeys'][1]);
+    $t->same('module_cafÉ_main', $result['currentNocaseKeys'][1]);
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoThreeOne rejects malformed row shape'] = static function (TestRunner $t) use ($enc231): void {
-    $rows = [['setting_id' => 1, 'key_name_bytes' => $enc231('plugin_cafÉ_main', 'UTF-16LE')]];
+    $rows = [['setting_id' => 1, 'key_name_bytes' => $enc231('module_cafÉ_main', 'UTF-16LE')]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiOnlyNocasePlan($rows, $rows));
 };
 

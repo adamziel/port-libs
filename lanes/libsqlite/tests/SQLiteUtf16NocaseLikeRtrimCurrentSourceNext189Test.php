@@ -24,33 +24,33 @@ $bad189 = static fn (int $id, string $bytes, int $encoding): array => [
 ];
 
 $current189 = [
-    $row189(1, 'Plugin_Cache', 'UTF-16LE'),
-    $row189(2, 'plugin_cache  ', 'UTF-16BE'),
-    $row189(3, 'PLUGIN_CACHE', 'UTF-8'),
-    $row189(4, "plugin_cache\t", 'UTF-16LE'),
-    $row189(5, 'plugin_cache_alpha', 'UTF-16BE'),
-    $row189(6, 'plugin_cache_beta', 'UTF-16LE'),
-    $row189(7, 'plugin_cache%literal', 'UTF-16BE'),
-    $row189(8, 'theme_cache', 'UTF-16LE'),
+    $row189(1, 'Module_Cache', 'UTF-16LE'),
+    $row189(2, 'module_cache  ', 'UTF-16BE'),
+    $row189(3, 'MODULE_CACHE', 'UTF-8'),
+    $row189(4, "module_cache\t", 'UTF-16LE'),
+    $row189(5, 'module_cache_alpha', 'UTF-16BE'),
+    $row189(6, 'module_cache_beta', 'UTF-16LE'),
+    $row189(7, 'module_cache%literal', 'UTF-16BE'),
+    $row189(8, 'layout_cache', 'UTF-16LE'),
     $bad189(9, "\x00\xd8", 2),
 ];
 $nextOneEightNine = [
-    $row189(1, 'plugin_cache ', 'UTF-16BE'),
-    $row189(2, 'plugin_cache   ', 'UTF-16LE'),
-    $row189(3, 'PLUGIN_CACHE_ARCHIVE', 'UTF-8'),
-    $row189(4, "plugin_cache\t", 'UTF-16BE'),
-    $row189(5, 'plugin_cache_alpha  ', 'UTF-16LE'),
-    $row189(6, 'plugin_cache_beta', 'UTF-16BE'),
-    $row189(7, 'plugin_other', 'UTF-16BE'),
-    $row189(10, 'Plugin_Cache', 'UTF-16LE'),
-    $row189(11, 'plugin_cache_delta', 'UTF-16BE'),
+    $row189(1, 'module_cache ', 'UTF-16BE'),
+    $row189(2, 'module_cache   ', 'UTF-16LE'),
+    $row189(3, 'MODULE_CACHE_ARCHIVE', 'UTF-8'),
+    $row189(4, "module_cache\t", 'UTF-16BE'),
+    $row189(5, 'module_cache_alpha  ', 'UTF-16LE'),
+    $row189(6, 'module_cache_beta', 'UTF-16BE'),
+    $row189(7, 'module_other', 'UTF-16BE'),
+    $row189(10, 'Module_Cache', 'UTF-16LE'),
+    $row189(11, 'module_cache_delta', 'UTF-16BE'),
     $bad189(12, "x\0y", 2),
 ];
 
 $plan189 = static fn (
     ?array $current = null,
     ?array $next = null,
-    ?array $token = ['key' => 'plugin_cache', 'rowid' => 2],
+    ?array $token = ['key' => 'module_cache', 'rowid' => 2],
     string $currentSource = 'main.app_settings@188',
     string $nextSource = 'main.app_settings@189',
     int $currentCookie = 188,
@@ -58,7 +58,7 @@ $plan189 = static fn (
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerWindowPlan(
     $current ?? $current189,
     $next ?? $nextOneEightNine,
-    'plugin!_cache%',
+    'module!_cache%',
     '!',
     $token,
     $currentSource,
@@ -82,7 +82,7 @@ $cases189 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneEightNine'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* peer window */'],
-    'pattern' => ['pattern', 'plugin!_cache%'],
+    'pattern' => ['pattern', 'module!_cache%'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
     'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneEightThree'],
@@ -90,15 +90,15 @@ $cases189 = [
     'next source' => ['nextSource', 'main.app_settings@189'],
     'current cookie' => ['currentSchemaCookie', 188],
     'next cookie' => ['nextSchemaCookie', 189],
-    'prefix' => ['prefix', 'plugin_cache'],
-    'range lower' => ['rangeLowerInclusive', 'plugin_cache'],
-    'range upper' => ['rangeUpperBound', 'plugin_cachf'],
+    'prefix' => ['prefix', 'module_cache'],
+    'range lower' => ['rangeLowerInclusive', 'module_cache'],
+    'range upper' => ['rangeUpperBound', 'module_cachf'],
     'index usable' => ['indexUsable', true],
     'prefix cursor' => ['usesPrefixRangeCursor', true],
-    'token key' => ['resumeToken.key', 'plugin_cache'],
+    'token key' => ['resumeToken.key', 'module_cache'],
     'token rowid' => ['resumeToken.rowid', 2],
     'token canonical' => ['resumeToken.normalizationReasons', []],
-    'peer key' => ['peerKey', 'plugin_cache'],
+    'peer key' => ['peerKey', 'module_cache'],
     'current peers' => ['currentPeerRowids', [1, 2, 3]],
     'next peers' => ['nextPeerRowids', [1, 2, 10]],
     'current before token' => ['currentPeerBeforeOrAtTokenRowids', [1, 2]],
@@ -111,10 +111,10 @@ $cases189 = [
     'residual changed' => ['residualChangedRowids', [7, 10, 11]],
     'current matched' => ['currentMatchedRowids', [1, 2, 3, 4, 7, 5, 6]],
     'next matched' => ['nextMatchedRowids', [1, 2, 10, 4, 5, 3, 6, 11]],
-    'current text one' => ['currentMatchedTexts.1', 'Plugin_Cache'],
-    'next text one rtrim' => ['nextMatchedTexts.1', 'plugin_cache'],
-    'tab key kept' => ['nextNocaseKeys.4', "plugin_cache\t"],
-    'archive key' => ['nextNocaseKeys.3', 'plugin_cache_archive'],
+    'current text one' => ['currentMatchedTexts.1', 'Module_Cache'],
+    'next text one rtrim' => ['nextMatchedTexts.1', 'module_cache'],
+    'tab key kept' => ['nextNocaseKeys.4', "module_cache\t"],
+    'archive key' => ['nextNocaseKeys.3', 'module_cache_archive'],
     'current malformed' => ['currentMalformedRowids', [9]],
     'next malformed' => ['nextMalformedRowids', [12]],
     'unsafe source' => ['peerWindowUnsafeReasons.0', 'source-or-schema-changed'],
@@ -142,17 +142,17 @@ foreach ($cases189 as $name => [$path, $expected]) {
 
 $tests['utf16 nocase like rtrim current source nextOneEightNine stable peer window resumes after token'] = static function (TestRunner $t) use ($row189): void {
     $rows = [
-        $row189(1, 'Plugin_Cache', 'UTF-16LE'),
-        $row189(2, 'plugin_cache  ', 'UTF-16BE'),
-        $row189(3, 'PLUGIN_CACHE', 'UTF-8'),
-        $row189(4, 'plugin_cache_alpha', 'UTF-16LE'),
+        $row189(1, 'Module_Cache', 'UTF-16LE'),
+        $row189(2, 'module_cache  ', 'UTF-16BE'),
+        $row189(3, 'MODULE_CACHE', 'UTF-8'),
+        $row189(4, 'module_cache_alpha', 'UTF-16LE'),
     ];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerWindowPlan(
         $rows,
         $rows,
-        'plugin!_cache%',
+        'module!_cache%',
         '!',
-        ['key' => 'plugin_cache', 'rowid' => 2],
+        ['key' => 'module_cache', 'rowid' => 2],
         'stable',
         'stable',
         189,
@@ -166,14 +166,14 @@ $tests['utf16 nocase like rtrim current source nextOneEightNine stable peer wind
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightNine row inserted before token is unsafe'] = static function (TestRunner $t) use ($row189): void {
-    $current = [$row189(2, 'plugin_cache', 'UTF-16LE'), $row189(3, 'plugin_cache_alpha', 'UTF-16LE')];
-    $next = [$row189(1, 'PLUGIN_CACHE ', 'UTF-16BE'), $row189(2, 'plugin_cache', 'UTF-16LE'), $row189(3, 'plugin_cache_alpha', 'UTF-16LE')];
+    $current = [$row189(2, 'module_cache', 'UTF-16LE'), $row189(3, 'module_cache_alpha', 'UTF-16LE')];
+    $next = [$row189(1, 'MODULE_CACHE ', 'UTF-16BE'), $row189(2, 'module_cache', 'UTF-16LE'), $row189(3, 'module_cache_alpha', 'UTF-16LE')];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerWindowPlan(
         $current,
         $next,
-        'plugin!_cache%',
+        'module!_cache%',
         '!',
-        ['key' => 'plugin_cache', 'rowid' => 2],
+        ['key' => 'module_cache', 'rowid' => 2],
         'stable',
         'stable',
         189,
@@ -186,43 +186,43 @@ $tests['utf16 nocase like rtrim current source nextOneEightNine row inserted bef
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightNine canonicalizes token key before peer lookup'] = static function (TestRunner $t) use ($row189): void {
-    $rows = [$row189(1, 'Plugin_Cache', 'UTF-16LE'), $row189(2, 'plugin_cache_alpha', 'UTF-16LE')];
+    $rows = [$row189(1, 'Module_Cache', 'UTF-16LE'), $row189(2, 'module_cache_alpha', 'UTF-16LE')];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerWindowPlan(
         $rows,
         $rows,
-        'plugin!_cache%',
+        'module!_cache%',
         '!',
-        ['key' => 'PLUGIN_CACHE  ', 'rowid' => 1],
+        ['key' => 'MODULE_CACHE  ', 'rowid' => 1],
         'stable',
         'stable',
         189,
         189,
     );
 
-    $t->same('plugin_cache', $result['resumeToken']['key']);
+    $t->same('module_cache', $result['resumeToken']['key']);
     $t->same(['token-key-not-canonical'], $result['resumeToken']['normalizationReasons']);
     $t->same(['yield-token-not-canonical'], $result['peerWindowUnsafeReasons']);
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightNine rejects malformed token key'] = static function (TestRunner $t) use ($row189): void {
-    $rows = [$row189(1, 'plugin_cache', 'UTF-16LE')];
+    $rows = [$row189(1, 'module_cache', 'UTF-16LE')];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerWindowPlan(
         $rows,
         $rows,
-        'plugin%',
+        'module%',
         null,
         ['key' => 189, 'rowid' => 1],
     ));
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightNine rejects malformed token rowid'] = static function (TestRunner $t) use ($row189): void {
-    $rows = [$row189(1, 'plugin_cache', 'UTF-16LE')];
+    $rows = [$row189(1, 'module_cache', 'UTF-16LE')];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerWindowPlan(
         $rows,
         $rows,
-        'plugin%',
+        'module%',
         null,
-        ['key' => 'plugin_cache', 'rowid' => '1'],
+        ['key' => 'module_cache', 'rowid' => '1'],
     ));
 };
 

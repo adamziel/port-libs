@@ -123,6 +123,13 @@ $utf16LateKeyValuePlanLegacyDefaultMatches = static function () use ($libsqliteR
         'autoload',
         'blog_id',
         'optionRowName',
+        'plugin_',
+        'Plugin_',
+        'PLUGIN_',
+        'theme_',
+        'Theme_',
+        'THEME_',
+        'siteurl',
     ];
     $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
     if (preg_match_all($pattern, $source, $matches) < 1) {
@@ -132,6 +139,43 @@ $utf16LateKeyValuePlanLegacyDefaultMatches = static function () use ($libsqliteR
     $relative = str_replace($libsqliteRoot . '/', '', $file);
 
     return array_map(static fn (string $match): string => "{$relative}: {$match}", $matches[0]);
+};
+
+$utf16NocaseLikeRtrimPluginDefaultMatches = static function () use ($libsqliteRoot): array {
+    $reflection = new ReflectionClass(SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::class);
+    $file = $reflection->getFileName();
+    if ($file === false) {
+        throw new RuntimeException('Unable to locate UTF-16 NOCASE LIKE RTRIM source file');
+    }
+
+    $contents = file_get_contents($file);
+    if ($contents === false) {
+        throw new RuntimeException("Unable to read {$file}");
+    }
+
+    $terms = [
+        'plugin_',
+        'Plugin_',
+        'PLUGIN_',
+        'plugin!',
+        'Plugin!',
+        'PLUGIN!',
+        "plugin\0",
+        "Plugin\0",
+        "PLUGIN\0",
+        'theme_',
+        'Theme_',
+        'THEME_',
+        'siteurl',
+    ];
+    $matches = [];
+    foreach ($terms as $term) {
+        if (str_contains($contents, $term)) {
+            $matches[] = str_replace($libsqliteRoot . '/', '', $file) . ': ' . str_replace("\0", '\\0', $term);
+        }
+    }
+
+    return $matches;
 };
 
 $legacyOptionTableDefaultMatches = static function () use ($optionTableDefaultSourceFiles, $libsqliteRoot): array {
@@ -301,6 +345,7 @@ return [
     'source-neutral option table default source files contain no hardcoded wp table defaults' => static fn (TestRunner $t) => $t->same([], $legacyOptionTableDefaultMatches()),
     'utf16 key value byte-order plan source uses neutral setting defaults' => static fn (TestRunner $t) => $t->same([], $utf16KeyValuePlanLegacyDefaultMatches()),
     'utf16 late key value source uses neutral setting defaults' => static fn (TestRunner $t) => $t->same([], $utf16LateKeyValuePlanLegacyDefaultMatches()),
+    'utf16 nocase like rtrim source default sample keys are generic modules' => static fn (TestRunner $t) => $t->same([], $utf16NocaseLikeRtrimPluginDefaultMatches()),
     'source-neutral json path defaults use generic setting keys in source' => static fn (TestRunner $t) => $t->same([], $jsonPathLegacyDefaultMatches()),
     'source-neutral trigger foreign key returning defaults use generic setting rowids in source' => static fn (TestRunner $t) => $t->same([], $triggerForeignKeyLegacyDefaultMatches()),
     'source-neutral vfs defaults use generic application paths in source' => static fn (TestRunner $t) => $t->same([], $vfsLegacyDefaultMatches()),

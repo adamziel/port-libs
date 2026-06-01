@@ -25,30 +25,30 @@ $bad227 = static fn (int $id, string $bytes, int $encoding): array => [
 
 $nbsp227 = "\xc2\xa0";
 $current227 = [
-    $row227(1, 'plugin_cache', 'UTF-16LE'),
-    $row227(2, 'Plugin_Cache  ', 'UTF-16BE'),
-    $row227(3, 'plugin_cache' . $nbsp227, 'UTF-16LE'),
-    $row227(4, "plugin_cache\t", 'UTF-16BE'),
-    $row227(5, 'PLUGIN_CACHE ', 'UTF-8'),
-    $row227(6, 'plugin_cachex', 'UTF-16LE'),
-    $row227(7, 'theme_cache ', 'UTF-16BE'),
+    $row227(1, 'module_cache', 'UTF-16LE'),
+    $row227(2, 'Module_Cache  ', 'UTF-16BE'),
+    $row227(3, 'module_cache' . $nbsp227, 'UTF-16LE'),
+    $row227(4, "module_cache\t", 'UTF-16BE'),
+    $row227(5, 'MODULE_CACHE ', 'UTF-8'),
+    $row227(6, 'module_cachex', 'UTF-16LE'),
+    $row227(7, 'layout_cache ', 'UTF-16BE'),
     $bad227(8, "\x00\xd8", 2),
 ];
 $nextTwoTwoSeven = [
-    $row227(1, 'plugin_cache ', 'UTF-16BE'),
-    $row227(2, 'Plugin_Cache' . $nbsp227, 'UTF-16LE'),
-    $row227(3, 'plugin_cache  ', 'UTF-16BE'),
-    $row227(4, "plugin_cache\t", 'UTF-16LE'),
-    $row227(5, 'PLUGIN_CACHE ', 'UTF-8'),
-    $row227(6, 'plugin_cachex', 'UTF-16BE'),
-    $row227(9, 'plugin_cache', 'UTF-16LE'),
+    $row227(1, 'module_cache ', 'UTF-16BE'),
+    $row227(2, 'Module_Cache' . $nbsp227, 'UTF-16LE'),
+    $row227(3, 'module_cache  ', 'UTF-16BE'),
+    $row227(4, "module_cache\t", 'UTF-16LE'),
+    $row227(5, 'MODULE_CACHE ', 'UTF-8'),
+    $row227(6, 'module_cachex', 'UTF-16BE'),
+    $row227(9, 'module_cache', 'UTF-16LE'),
     $bad227(10, "\x00\xd8", 2),
 ];
 
 $plan227 = static fn (
     ?array $current = null,
     ?array $next = null,
-    string $pattern = 'plugin_cache',
+    string $pattern = 'module_cache',
     ?string $escape = null,
     string $currentSource = 'main.app_settings@226',
     string $nextSource = 'main.app_settings@227',
@@ -80,16 +80,16 @@ $cases227 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoTwoSeven'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? /* ASCII-space RTRIM boundary */'],
-    'pattern' => ['pattern', 'plugin_cache'],
+    'pattern' => ['pattern', 'module_cache'],
     'escape' => ['escape', null],
     'collation' => ['collation', 'NOCASE'],
     'current source' => ['currentSource', 'main.app_settings@226'],
     'next source' => ['nextSource', 'main.app_settings@227'],
     'current cookie' => ['currentSchemaCookie', 226],
     'next cookie' => ['nextSchemaCookie', 227],
-    'prefix' => ['prefix', 'plugin'],
-    'range lower' => ['rangeLowerInclusive', 'plugin'],
-    'range upper' => ['rangeUpperBound', 'plugio'],
+    'prefix' => ['prefix', 'module'],
+    'range lower' => ['rangeLowerInclusive', 'module'],
+    'range upper' => ['rangeUpperBound', 'modulf'],
     'index usable' => ['indexUsable', true],
     'equality prefix' => ['usesEqualityPrefixRange', true],
     'current candidates' => ['currentCandidateRowids', [1, 2, 5, 4, 6, 3]],
@@ -111,11 +111,11 @@ $cases227 = [
     'next malformed' => ['nextMalformedRowids', [10]],
     'current error' => ['currentErrors.8', 'SQLite encoding source UTF-16 text payload ends with a high surrogate'],
     'next error' => ['nextErrors.10', 'SQLite encoding source UTF-16 text payload ends with a high surrogate'],
-    'current row two rtrim' => ['currentRtrimTexts.2', 'Plugin_Cache'],
-    'current row three rtrim' => ['currentRtrimTexts.3', 'plugin_cache' . $nbsp227],
-    'next row three rtrim' => ['nextRtrimTexts.3', 'plugin_cache'],
-    'current row two key' => ['currentNocaseKeys.2', 'plugin_cache'],
-    'next row two key preserves nbsp' => ['nextNocaseKeys.2', 'plugin_cache' . $nbsp227],
+    'current row two rtrim' => ['currentRtrimTexts.2', 'Module_Cache'],
+    'current row three rtrim' => ['currentRtrimTexts.3', 'module_cache' . $nbsp227],
+    'next row three rtrim' => ['nextRtrimTexts.3', 'module_cache'],
+    'current row two key' => ['currentNocaseKeys.2', 'module_cache'],
+    'next row two key preserves nbsp' => ['nextNocaseKeys.2', 'module_cache' . $nbsp227],
     'current row three suffix' => ['currentSuffixClasses.3', 'nbsp'],
     'next row three suffix' => ['nextSuffixClasses.3', 'ascii-space'],
     'current tab residual' => ['currentResidualMatches.4', false],
@@ -160,13 +160,13 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoSeven invalidation reas
 
 $tests['utf16 nocase like rtrim current source nextTwoTwoSeven stable ascii space cursor is reusable'] = static function (TestRunner $t) use ($row227): void {
     $rows = [
-        $row227(1, 'plugin_cache', 'UTF-16LE'),
-        $row227(2, 'PLUGIN_CACHE ', 'UTF-16BE'),
+        $row227(1, 'module_cache', 'UTF-16LE'),
+        $row227(2, 'MODULE_CACHE ', 'UTF-16BE'),
     ];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiSpaceBoundaryPlan(
         $rows,
         $rows,
-        'plugin_cache',
+        'module_cache',
         null,
         'stable',
         'stable',
@@ -181,8 +181,8 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoSeven stable ascii spac
 
 $tests['utf16 nocase like rtrim current source nextTwoTwoSeven nbsp alone prevents equality match'] = static function (TestRunner $t) use ($row227, $nbsp227): void {
     $rows = [
-        $row227(1, 'plugin_cache' . $nbsp227, 'UTF-16LE'),
-        $row227(2, 'plugin_cache ', 'UTF-16BE'),
+        $row227(1, 'module_cache' . $nbsp227, 'UTF-16LE'),
+        $row227(2, 'module_cache ', 'UTF-16BE'),
     ];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiSpaceBoundaryPlan($rows, $rows);
 
@@ -192,7 +192,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoSeven nbsp alone preven
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoTwoSeven rejects malformed row shape'] = static function (TestRunner $t) use ($enc227): void {
-    $rows = [['setting_id' => 1, 'key_name_bytes' => $enc227('plugin_cache', 'UTF-16LE')]];
+    $rows = [['setting_id' => 1, 'key_name_bytes' => $enc227('module_cache', 'UTF-16LE')]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiSpaceBoundaryPlan($rows, $rows));
 };
 

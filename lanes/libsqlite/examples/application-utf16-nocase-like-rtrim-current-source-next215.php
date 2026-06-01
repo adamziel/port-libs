@@ -18,23 +18,23 @@ $row = static fn (int $id, string $name, int|string $encoding): array => [
 ];
 
 $current = [
-    $row(1, 'Plugin_Cache', 'UTF-16LE'),
-    $row(2, "plugin_cache\0shadow", 'UTF-16BE'),
-    $row(3, 'plugin_cache_extra', 'UTF-16LE'),
+    $row(1, 'Module_Cache', 'UTF-16LE'),
+    $row(2, "module_cache\0shadow", 'UTF-16BE'),
+    $row(3, 'module_cache_extra', 'UTF-16LE'),
 ];
 $next = [
-    $row(1, 'Plugin_Cache', 'UTF-16BE'),
-    $row(2, "plugin_cache\0shadow", 'UTF-16LE'),
-    $row(3, 'plugin_cache_extra', 'UTF-16BE'),
-    $row(4, "plugin_cache\0later", 'UTF-16LE'),
+    $row(1, 'Module_Cache', 'UTF-16BE'),
+    $row(2, "module_cache\0shadow", 'UTF-16LE'),
+    $row(3, 'module_cache_extra', 'UTF-16BE'),
+    $row(4, "module_cache\0later", 'UTF-16LE'),
 ];
 
 $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulTokenPlan(
     $current,
     $next,
-    'plugin!_cache%',
+    'module!_cache%',
     '!',
-    ['key' => "plugin_cache\0shadow", 'rowid' => 2],
+    ['key' => "module_cache\0shadow", 'rowid' => 2],
     'copied-app-settings@before-embedded-nul-token',
     'copied-app-settings@after-embedded-nul-token',
     214,

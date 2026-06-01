@@ -4304,7 +4304,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyAsciiPrefixRangePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache',
+        string $pattern = 'module!_cache',
         ?string $escape = '!',
         string $currentSource = 'main.app_settings@182',
         string $nextSource = 'main.app_settings@183',
@@ -4849,7 +4849,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyResumeBoundaryPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache%',
+        string $pattern = 'module!_cache%',
         ?string $escape = '!',
         string $currentSource = 'main.app_settings@185',
         string $nextSource = 'main.app_settings@186',
@@ -5024,7 +5024,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyDanglingEscapePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!',
+        string $pattern = 'module!',
         ?string $escape = '!',
         string $currentSource = 'main.app_settings@186',
         string $nextSource = 'main.app_settings@187',
@@ -5321,9 +5321,9 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyPeerWindowPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache%',
+        string $pattern = 'module!_cache%',
         ?string $escape = '!',
-        ?array $resumeToken = ['key' => 'plugin_cache', 'rowid' => 2],
+        ?array $resumeToken = ['key' => 'module_cache', 'rowid' => 2],
         string $currentSource = 'main.app_settings@188',
         string $nextSource = 'main.app_settings@189',
         int $currentSchemaCookie = 188,
@@ -5525,7 +5525,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyAsciiSpaceTrimBoundaryPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin%',
+        string $pattern = 'module%',
         ?string $escape = null,
         string $currentSource = 'main.app_settings@189',
         string $nextSource = 'main.app_settings@190',
@@ -5895,9 +5895,9 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyCandidateTokenPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache',
+        string $pattern = 'module!_cache',
         ?string $escape = '!',
-        ?array $resumeToken = ['key' => 'plugin_cache_old', 'rowid' => 6],
+        ?array $resumeToken = ['key' => 'module_cache_old', 'rowid' => 6],
         string $currentSource = 'main.app_settings@191',
         string $nextSource = 'main.app_settings@192',
         int $currentSchemaCookie = 191,
@@ -6094,7 +6094,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyLimitOffsetPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache%',
+        string $pattern = 'module!_cache%',
         ?string $escape = '!',
         int $limit = 3,
         int $offset = 2,
@@ -6262,7 +6262,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyEscapedWildcardPrefixPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!%%',
+        string $pattern = 'module!%%',
         ?string $escape = '!',
         string $currentSource = 'main.app_settings@193',
         string $nextSource = 'main.app_settings@194',
@@ -6463,7 +6463,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyEscapedLiteralTailPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_!%!_cache',
+        string $pattern = 'module!_!%!_cache',
         ?string $escape = '!',
         string $currentSource = 'main.app_settings@194',
         string $nextSource = 'main.app_settings@195',
@@ -6598,9 +6598,9 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyDuplicatePeerResumePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache',
+        string $pattern = 'module!_cache',
         ?string $escape = '!',
-        ?array $resumeToken = ['key' => 'plugin_cache', 'rowid' => 6],
+        ?array $resumeToken = ['key' => 'module_cache', 'rowid' => 6],
         string $currentSource = 'main.app_settings@195',
         string $nextSource = 'main.app_settings@196',
         int $currentSchemaCookie = 195,
@@ -6814,9 +6814,9 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyEscapeRebindPlan(
         array $currentRows,
         array $nextRows,
-        string $currentPattern = 'plugin!_%',
+        string $currentPattern = 'module!_%',
         ?string $currentEscape = '!',
-        string $nextPattern = 'plugin!_%',
+        string $nextPattern = 'module!_%',
         ?string $nextEscape = '~',
         string $currentSource = 'main.app_settings@199',
         string $nextSource = 'main.app_settings@200',
@@ -7984,7 +7984,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyRtrimCollationRebindPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache%',
+        string $pattern = 'module!_cache%',
         ?string $escape = '!',
         bool $currentUsesRtrim = true,
         bool $nextUsesRtrim = false,
@@ -8236,7 +8236,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyPreparedEscapePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache%',
+        string $pattern = 'module!_cache%',
         string $currentEscapeBytes = "!\0",
         int|string $currentEscapeEncoding = 'UTF-16LE',
         string $nextEscapeBytes = "\xfe\xff\x00~",
@@ -8441,7 +8441,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyAsciiSpaceRtrimPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin%',
+        string $pattern = 'module%',
         ?string $escape = '!',
         string $currentSource = 'main.app_settings@208',
         string $nextSource = 'main.app_settings@209',
@@ -8679,7 +8679,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyEmbeddedNulPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = "plugin\0cache%",
+        string $pattern = "module\0cache%",
         ?string $escape = null,
         string $currentSource = 'main.app_settings@209',
         string $nextSource = 'main.app_settings@210',
@@ -8856,7 +8856,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $nulRowids[] = $rowid;
             $positions[$rowid] = $position;
             $afterNul[$rowid] = substr($text, $position + 1);
-            if (str_starts_with(strtolower(substr($text, 0, $position)), 'plugin')) {
+            if (str_starts_with(strtolower(substr($text, 0, $position)), 'module')) {
                 $truncatedPrefixWouldMatch[] = $rowid;
             }
         }
@@ -8915,7 +8915,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeySourceRefreshPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache%',
+        string $pattern = 'module!_cache%',
         ?string $escape = '!',
         string $currentSource = 'main.app_settings@210',
         string $nextSource = 'main.app_settings@211',
@@ -9985,7 +9985,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyYieldPagePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache%',
+        string $pattern = 'module!_cache%',
         string $currentEscapeBytes = "!\0",
         int|string $currentEscapeEncoding = 'UTF-16LE',
         string $nextEscapeBytes = "!\0",
@@ -10209,7 +10209,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeySupplementaryWildcardPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache_',
+        string $pattern = 'module!_cache_',
         ?string $escape = '!',
         string $currentSource = 'main.app_settings@218',
         string $nextSource = 'main.app_settings@219',
@@ -10765,7 +10765,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyDescYieldPagePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache%',
+        string $pattern = 'module!_cache%',
         string $currentEscapeBytes = "!\0",
         int|string $currentEscapeEncoding = 'UTF-16LE',
         string $nextEscapeBytes = "!\0",
@@ -11002,7 +11002,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyKeysetResumePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache%',
+        string $pattern = 'module!_cache%',
         string $currentEscapeBytes = "!\0",
         int|string $currentEscapeEncoding = 'UTF-16LE',
         string $nextEscapeBytes = "!\0",
@@ -11245,7 +11245,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeySourceBytePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache%',
+        string $pattern = 'module!_cache%',
         ?string $escape = '!',
         string $currentSource = 'main.app_settings@224',
         string $nextSource = 'main.app_settings@225',
@@ -11475,7 +11475,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyCombiningMarkPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin_caf_',
+        string $pattern = 'module_caf_',
         ?string $escape = null,
         string $currentSource = 'main.app_settings@225',
         string $nextSource = 'main.app_settings@226',
@@ -11846,7 +11846,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyAsciiSpaceBoundaryPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin_cache',
+        string $pattern = 'module_cache',
         ?string $escape = null,
         string $currentSource = 'main.app_settings@226',
         string $nextSource = 'main.app_settings@227',
@@ -12176,7 +12176,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyHeaderEncodingFencePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache%',
+        string $pattern = 'module!_cache%',
         ?string $escape = '!',
         int|string $currentDatabaseEncoding = 'UTF-16LE',
         int|string $nextDatabaseEncoding = 'UTF-16BE',
@@ -12327,7 +12327,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyUnicodeSpaceRtrimPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache%',
+        string $pattern = 'module!_cache%',
         string $escapeBytes = "!\0",
         int|string $escapeEncoding = 'UTF-16LE',
         int $pageSize = 4,
@@ -12544,7 +12544,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyLineBreakBoundaryPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin_cache',
+        string $pattern = 'module_cache',
         ?string $escape = null,
         string $currentSource = 'main.app_settings@229',
         string $nextSource = 'main.app_settings@230',
@@ -12898,7 +12898,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyAsciiOnlyNocasePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin_cafÉ%',
+        string $pattern = 'module_cafÉ%',
         ?string $escape = null,
         string $currentSource = 'main.app_settings@230',
         string $nextSource = 'main.app_settings@231',
@@ -13226,7 +13226,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyCanonicalUnicodePlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_caf_',
+        string $pattern = 'module!_caf_',
         ?string $escape = '!',
         string $currentSource = 'main.app_settings@232',
         string $nextSource = 'main.app_settings@233',
@@ -13658,7 +13658,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyNullPatternRebindPlan(
         array $currentRows,
         array $nextRows,
-        ?string $currentPattern = 'plugin!_cache%',
+        ?string $currentPattern = 'module!_cache%',
         ?string $nextPattern = null,
         ?string $escape = '!',
         string $currentSource = 'main.app_settings@200',
@@ -13909,7 +13909,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyNonAsciiPrefixFullScanPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_é%',
+        string $pattern = 'module!_é%',
         ?string $escape = '!',
         string $currentSource = 'main.app_settings@203',
         string $nextSource = 'main.app_settings@204',
@@ -14190,9 +14190,9 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     public static function keyValueRowKeyEmbeddedNulTokenPlan(
         array $currentRows,
         array $nextRows,
-        string $pattern = 'plugin!_cache%',
+        string $pattern = 'module!_cache%',
         ?string $escape = '!',
-        ?array $resumeToken = ['key' => "plugin_cache\0shadow", 'rowid' => 4],
+        ?array $resumeToken = ['key' => "module_cache\0shadow", 'rowid' => 4],
         string $currentSource = 'main.app_settings@214',
         string $nextSource = 'main.app_settings@215',
         int $currentSchemaCookie = 214,

@@ -25,27 +25,27 @@ $row = static fn (int $id, string $name, int|string $encoding): array => [
 ];
 
 $current = [
-    $row(1, 'Plugin_Cache', 'UTF-16LE'),
-    $row(2, 'plugin_cache  ', 'UTF-16BE'),
-    $row(6, 'plugin_cache', 'UTF-16LE'),
-    $row(8, "plugin_cache\t", 'UTF-16LE'),
-    $row(12, 'plugin_cache_alpha', 'UTF-16BE'),
+    $row(1, 'Module_Cache', 'UTF-16LE'),
+    $row(2, 'module_cache  ', 'UTF-16BE'),
+    $row(6, 'module_cache', 'UTF-16LE'),
+    $row(8, "module_cache\t", 'UTF-16LE'),
+    $row(12, 'module_cache_alpha', 'UTF-16BE'),
 ];
 $next = [
-    $row(1, 'plugin_cache', 'UTF-16BE'),
-    $row(2, 'Plugin_Cache   ', 'UTF-16LE'),
-    $row(6, 'PLUGIN_CACHE  ', 'UTF-16BE'),
-    $row(11, 'plugin_cache', 'UTF-16LE'),
-    $row(8, "plugin_cache\t", 'UTF-16BE'),
-    $row(12, 'plugin_cache_alpha', 'UTF-16LE'),
+    $row(1, 'module_cache', 'UTF-16BE'),
+    $row(2, 'Module_Cache   ', 'UTF-16LE'),
+    $row(6, 'MODULE_CACHE  ', 'UTF-16BE'),
+    $row(11, 'module_cache', 'UTF-16LE'),
+    $row(8, "module_cache\t", 'UTF-16BE'),
+    $row(12, 'module_cache_alpha', 'UTF-16LE'),
 ];
 
 $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDuplicatePeerResumePlan(
     $current,
     $next,
-    'plugin!_cache',
+    'module!_cache',
     '!',
-    ['key' => 'plugin_cache', 'rowid' => 6],
+    ['key' => 'module_cache', 'rowid' => 6],
     'main.app_settings@195',
     'main.app_settings@196',
     195,

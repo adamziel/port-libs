@@ -18,21 +18,21 @@ $row = static fn (int $id, string $name, int|string $encoding): array => [
 ];
 
 $currentRows = [
-    $row(1, "Plugin\0Cache  ", 'UTF-16LE'),
-    $row(2, "plugin\0cache_more", 'UTF-16BE'),
-    $row(3, "plugin\0other", 'UTF-8'),
+    $row(1, "Module\0Cache  ", 'UTF-16LE'),
+    $row(2, "module\0cache_more", 'UTF-16BE'),
+    $row(3, "module\0other", 'UTF-8'),
 ];
 $nextRows = [
-    $row(1, "Plugin\0Cache", 'UTF-16BE'),
-    $row(2, "plugin\0cache_more", 'UTF-16LE'),
-    $row(3, "plugin\0other", 'UTF-8'),
-    $row(4, "PLUGIN\0CACHE_NEW", 'UTF-16BE'),
+    $row(1, "Module\0Cache", 'UTF-16BE'),
+    $row(2, "module\0cache_more", 'UTF-16LE'),
+    $row(3, "module\0other", 'UTF-8'),
+    $row(4, "MODULE\0CACHE_NEW", 'UTF-16BE'),
 ];
 
 $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulPlan(
     $currentRows,
     $nextRows,
-    "plugin\0cache%",
+    "module\0cache%",
     null,
     'copied-app-settings@209',
     'copied-app-settings@210',

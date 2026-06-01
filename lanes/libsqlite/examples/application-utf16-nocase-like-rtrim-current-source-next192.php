@@ -24,23 +24,23 @@ $row = static fn (int $id, string $name, int|string $encoding): array => [
 ];
 
 $current = [
-    $row(1, 'Plugin_Cache', 'UTF-16LE'),
-    $row(2, "plugin_cache\t", 'UTF-16BE'),
-    $row(3, 'plugin_cache_alpha', 'UTF-16LE'),
+    $row(1, 'Module_Cache', 'UTF-16LE'),
+    $row(2, "module_cache\t", 'UTF-16BE'),
+    $row(3, 'module_cache_alpha', 'UTF-16LE'),
 ];
 $next = [
-    $row(1, 'plugin_cache', 'UTF-16BE'),
-    $row(2, "plugin_cache\t", 'UTF-16LE'),
-    $row(3, 'plugin_cache_alpha', 'UTF-16BE'),
-    $row(4, 'plugin_cache_zip', 'UTF-16LE'),
+    $row(1, 'module_cache', 'UTF-16BE'),
+    $row(2, "module_cache\t", 'UTF-16LE'),
+    $row(3, 'module_cache_alpha', 'UTF-16BE'),
+    $row(4, 'module_cache_zip', 'UTF-16LE'),
 ];
 
 $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCandidateTokenPlan(
     $current,
     $next,
-    'plugin!_cache',
+    'module!_cache',
     '!',
-    ['key' => "plugin_cache\t", 'rowid' => 2],
+    ['key' => "module_cache\t", 'rowid' => 2],
     'stable',
     'stable',
     192,

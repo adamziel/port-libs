@@ -22,14 +22,14 @@ $row = static fn (int $id, string $name, int|string $encoding): array => [
 ];
 
 $current = [
-    $row(1, 'PLUGIN_CAFÉ_MAIN ', 'UTF-16LE'),
-    $row(2, 'plugin_café_main', 'UTF-16BE'),
-    $row(3, 'plugin_cafÉ_aux', 'UTF-8'),
+    $row(1, 'MODULE_CAFÉ_MAIN ', 'UTF-16LE'),
+    $row(2, 'module_café_main', 'UTF-16BE'),
+    $row(3, 'module_cafÉ_aux', 'UTF-8'),
 ];
 $next = [
-    $row(1, 'plugin_café_main ', 'UTF-16BE'),
-    $row(2, 'plugin_cafÉ_main', 'UTF-16LE'),
-    $row(3, 'PLUGIN_CAFÉ_AUX ', 'UTF-8'),
+    $row(1, 'module_café_main ', 'UTF-16BE'),
+    $row(2, 'module_cafÉ_main', 'UTF-16LE'),
+    $row(3, 'MODULE_CAFÉ_AUX ', 'UTF-8'),
 ];
 
 $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiOnlyNocasePlan($current, $next);

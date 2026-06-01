@@ -24,28 +24,28 @@ $bad210 = static fn (int $id, string $bytes, int $encoding): array => [
 ];
 
 $current210 = [
-    $row210(1, "plugin\0cache", 'UTF-16LE'),
-    $row210(2, "Plugin\0Cache  ", 'UTF-16BE'),
-    $row210(3, "plugin\0cache_extra", 'UTF-8'),
-    $row210(4, "plugin\0other", 'UTF-16LE'),
-    $row210(5, 'plugin', 'UTF-16BE'),
-    $row210(6, "plugin\0cache\t", 'UTF-16LE'),
-    $row210(7, "theme\0cache", 'UTF-16BE'),
+    $row210(1, "module\0cache", 'UTF-16LE'),
+    $row210(2, "Module\0Cache  ", 'UTF-16BE'),
+    $row210(3, "module\0cache_extra", 'UTF-8'),
+    $row210(4, "module\0other", 'UTF-16LE'),
+    $row210(5, 'module', 'UTF-16BE'),
+    $row210(6, "module\0cache\t", 'UTF-16LE'),
+    $row210(7, "layout\0cache", 'UTF-16BE'),
     $bad210(8, "\x00\xd8", 2),
 ];
 $nextTwoOneZero = [
-    $row210(1, "plugin\0cache", 'UTF-16BE'),
-    $row210(2, "Plugin\0Cache", 'UTF-16LE'),
-    $row210(3, "plugin\0cache_extra", 'UTF-16BE'),
-    $row210(4, "plugin\0other", 'UTF-16LE'),
-    $row210(5, 'plugin', 'UTF-8'),
-    $row210(6, "plugin\0cache\t", 'UTF-16BE'),
-    $row210(9, "PLUGIN\0CACHE_NEW", 'UTF-16LE'),
-    $row210(10, "plugin\0cache  ", 'UTF-16BE'),
+    $row210(1, "module\0cache", 'UTF-16BE'),
+    $row210(2, "Module\0Cache", 'UTF-16LE'),
+    $row210(3, "module\0cache_extra", 'UTF-16BE'),
+    $row210(4, "module\0other", 'UTF-16LE'),
+    $row210(5, 'module', 'UTF-8'),
+    $row210(6, "module\0cache\t", 'UTF-16BE'),
+    $row210(9, "MODULE\0CACHE_NEW", 'UTF-16LE'),
+    $row210(10, "module\0cache  ", 'UTF-16BE'),
     $bad210(11, "\x00\xd8", 2),
 ];
 
-$plan210 = static fn (?array $current = null, ?array $next = null, string $pattern = "plugin\0cache%"): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulPlan(
+$plan210 = static fn (?array $current = null, ?array $next = null, string $pattern = "module\0cache%"): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulPlan(
     $current ?? $current210,
     $next ?? $nextTwoOneZero,
     $pattern,
@@ -66,21 +66,21 @@ $cases210 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoOneZero'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? /* embedded NUL */'],
-    'pattern' => ['pattern', "plugin\0cache%"],
-    'pattern hex' => ['patternHex', '706c7567696e00636163686525'],
+    'pattern' => ['pattern', "module\0cache%"],
+    'pattern hex' => ['patternHex', '6d6f64756c6500636163686525'],
     'escape' => ['escape', null],
     'collation' => ['collation', 'NOCASE'],
     'current source' => ['currentSource', 'main.app_settings@209'],
     'next source' => ['nextSource', 'main.app_settings@210'],
     'current cookie' => ['currentSchemaCookie', 209],
     'next cookie' => ['nextSchemaCookie', 210],
-    'prefix' => ['prefix', "plugin\0cache"],
-    'prefix hex' => ['prefixHex', '706c7567696e006361636865'],
+    'prefix' => ['prefix', "module\0cache"],
+    'prefix hex' => ['prefixHex', '6d6f64756c65006361636865'],
     'prefix contains nul' => ['prefixContainsNul', true],
-    'range lower' => ['rangeLowerInclusive', "plugin\0cache"],
-    'range lower hex' => ['rangeLowerInclusiveHex', '706c7567696e006361636865'],
-    'range upper' => ['rangeUpperBound', "plugin\0cachf"],
-    'range upper hex' => ['rangeUpperBoundHex', '706c7567696e006361636866'],
+    'range lower' => ['rangeLowerInclusive', "module\0cache"],
+    'range lower hex' => ['rangeLowerInclusiveHex', '6d6f64756c65006361636865'],
+    'range upper' => ['rangeUpperBound', "module\0cachf"],
+    'range upper hex' => ['rangeUpperBoundHex', '6d6f64756c65006361636866'],
     'nul byte position' => ['nulBytePositionInPrefix', 6],
     'current index' => ['currentIndexUsable', true],
     'next index' => ['nextIndexUsable', true],
@@ -94,19 +94,19 @@ $cases210 = [
     'matched entered' => ['matchedEnteredRowids', [10, 9]],
     'current false positives' => ['currentFalsePositiveRowids', []],
     'next false positives' => ['nextFalsePositiveRowids', []],
-    'current excluded' => ['currentExcludedDecodedRowids', [5, 4, 7]],
+    'current excluded' => ['currentExcludedDecodedRowids', [7, 5, 4]],
     'next excluded' => ['nextExcludedDecodedRowids', [5, 4]],
-    'current row two rtrim text' => ['currentRtrimTexts.2', "Plugin\0Cache"],
-    'current row six tab preserved' => ['currentRtrimTexts.6', "plugin\0cache\t"],
-    'next row ten rtrim text' => ['nextRtrimTexts.10', "plugin\0cache"],
-    'current row two rtrim hex' => ['currentRtrimHex.2', '506c7567696e004361636865'],
-    'next row ten rtrim hex' => ['nextRtrimHex.10', '706c7567696e006361636865'],
-    'current row two nocase' => ['currentNocaseKeys.2', "plugin\0cache"],
-    'next row nine nocase' => ['nextNocaseKeys.9', "plugin\0cache_new"],
-    'current row two nocase hex' => ['currentNocaseKeyHex.2', '706c7567696e006361636865'],
-    'next row nine nocase hex' => ['nextNocaseKeyHex.9', '706c7567696e0063616368655f6e6577'],
-    'current matched row one hex' => ['currentMatchedHex.1', '706c7567696e006361636865'],
-    'next matched row nine hex' => ['nextMatchedHex.9', '504c5547494e0043414348455f4e4557'],
+    'current row two rtrim text' => ['currentRtrimTexts.2', "Module\0Cache"],
+    'current row six tab preserved' => ['currentRtrimTexts.6', "module\0cache\t"],
+    'next row ten rtrim text' => ['nextRtrimTexts.10', "module\0cache"],
+    'current row two rtrim hex' => ['currentRtrimHex.2', '4d6f64756c65004361636865'],
+    'next row ten rtrim hex' => ['nextRtrimHex.10', '6d6f64756c65006361636865'],
+    'current row two nocase' => ['currentNocaseKeys.2', "module\0cache"],
+    'next row nine nocase' => ['nextNocaseKeys.9', "module\0cache_new"],
+    'current row two nocase hex' => ['currentNocaseKeyHex.2', '6d6f64756c65006361636865'],
+    'next row nine nocase hex' => ['nextNocaseKeyHex.9', '6d6f64756c650063616368655f6e6577'],
+    'current matched row one hex' => ['currentMatchedHex.1', '6d6f64756c65006361636865'],
+    'next matched row nine hex' => ['nextMatchedHex.9', '4d4f44554c450043414348455f4e4557'],
     'current embedded nul rows' => ['currentEmbeddedNulRowids', [1, 2, 3, 4, 6, 7]],
     'next embedded nul rows' => ['nextEmbeddedNulRowids', [1, 2, 3, 4, 6, 9, 10]],
     'current embedded nul matched' => ['currentEmbeddedNulMatchedRowids', [1, 2, 3, 6]],
@@ -159,14 +159,14 @@ $tests['utf16 nocase like rtrim current source nextTwoOneZero invalidation reaso
 
 $tests['utf16 nocase like rtrim current source nextTwoOneZero stable embedded nul cursor can be reused'] = static function (TestRunner $t) use ($row210): void {
     $rows = [
-        $row210(1, "Plugin\0Cache  ", 'UTF-16LE'),
-        $row210(2, "plugin\0cache_more", 'UTF-16BE'),
-        $row210(3, "plugin\0other", 'UTF-8'),
+        $row210(1, "Module\0Cache  ", 'UTF-16LE'),
+        $row210(2, "module\0cache_more", 'UTF-16BE'),
+        $row210(3, "module\0other", 'UTF-8'),
     ];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulPlan(
         $rows,
         $rows,
-        "plugin\0cache%",
+        "module\0cache%",
         null,
         'stable',
         'stable',
@@ -186,14 +186,14 @@ $tests['utf16 nocase like rtrim current source nextTwoOneZero rejects pattern wi
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulPlan(
         $current210,
         $nextTwoOneZero,
-        'plugin%',
+        'module%',
     ));
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoOneZero rejects invalid row shape'] = static function (TestRunner $t) use ($row210): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulPlan(
-        [['setting_id' => '1', 'key_name_bytes' => 'plugin', 'text_encoding' => 1]],
-        [$row210(1, "plugin\0cache", 'UTF-8')],
+        [['setting_id' => '1', 'key_name_bytes' => 'module', 'text_encoding' => 1]],
+        [$row210(1, "module\0cache", 'UTF-8')],
     ));
 };
 

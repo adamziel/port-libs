@@ -25,14 +25,14 @@ $decomposed = "e\xcc\x81";
 $composed = "\xc3\xa9";
 
 $current = [
-    $row(1, 'plugin_caf' . $composed, 'UTF-16LE'),
-    $row(2, 'Plugin_Caf' . $composed . '  ', 'UTF-16BE'),
-    $row(3, 'plugin_caf' . $decomposed, 'UTF-16LE'),
+    $row(1, 'module_caf' . $composed, 'UTF-16LE'),
+    $row(2, 'Module_Caf' . $composed . '  ', 'UTF-16BE'),
+    $row(3, 'module_caf' . $decomposed, 'UTF-16LE'),
 ];
 $next = [
-    $row(1, 'plugin_caf' . $decomposed, 'UTF-16BE'),
-    $row(2, 'Plugin_Caf' . $composed, 'UTF-16LE'),
-    $row(4, 'PLUGIN_CAF' . $composed, 'UTF-16BE'),
+    $row(1, 'module_caf' . $decomposed, 'UTF-16BE'),
+    $row(2, 'Module_Caf' . $composed, 'UTF-16LE'),
+    $row(4, 'MODULE_CAF' . $composed, 'UTF-16BE'),
 ];
 
 $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCombiningMarkPlan($current, $next);
@@ -53,7 +53,7 @@ $payload = [
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($payload['status'] === 'utf16-nocase-like-rtrim-current-source-next226');
-    assert($payload['pattern'] === 'plugin_caf_');
+    assert($payload['pattern'] === 'module_caf_');
     assert($payload['currentMatchedRowids'] === [1, 2]);
     assert($payload['nextMatchedRowids'] === [2, 4]);
     assert($payload['currentNormalizationTrapRowids'] === [3]);

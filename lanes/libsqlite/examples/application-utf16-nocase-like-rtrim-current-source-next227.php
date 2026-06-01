@@ -23,14 +23,14 @@ $row = static fn (int $id, string $name, int|string $encoding): array => [
 
 $nbsp = "\xc2\xa0";
 $current = [
-    $row(1, 'plugin_cache ', 'UTF-16LE'),
-    $row(2, 'plugin_cache' . $nbsp, 'UTF-16BE'),
-    $row(3, "plugin_cache\t", 'UTF-16LE'),
+    $row(1, 'module_cache ', 'UTF-16LE'),
+    $row(2, 'module_cache' . $nbsp, 'UTF-16BE'),
+    $row(3, "module_cache\t", 'UTF-16LE'),
 ];
 $next = [
-    $row(1, 'PLUGIN_CACHE ', 'UTF-16BE'),
-    $row(2, 'plugin_cache ', 'UTF-16LE'),
-    $row(3, "plugin_cache\t", 'UTF-16BE'),
+    $row(1, 'MODULE_CACHE ', 'UTF-16BE'),
+    $row(2, 'module_cache ', 'UTF-16LE'),
+    $row(3, "module_cache\t", 'UTF-16BE'),
 ];
 
 $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiSpaceBoundaryPlan($current, $next);

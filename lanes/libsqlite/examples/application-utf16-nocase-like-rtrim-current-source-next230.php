@@ -20,17 +20,17 @@ $row = static function (int $id, string $name, string $encoding): array {
 };
 
 $current = [
-    $row(1, 'plugin_cache', 'UTF-16LE'),
-    $row(2, "Plugin_Cache\n", 'UTF-16BE'),
-    $row(3, "plugin_cache\f", 'UTF-16LE'),
-    $row(4, 'PLUGIN_CACHE ', 'UTF-8'),
+    $row(1, 'module_cache', 'UTF-16LE'),
+    $row(2, "Module_Cache\n", 'UTF-16BE'),
+    $row(3, "module_cache\f", 'UTF-16LE'),
+    $row(4, 'MODULE_CACHE ', 'UTF-8'),
 ];
 $next = [
-    $row(1, 'plugin_cache ', 'UTF-16BE'),
-    $row(2, 'Plugin_Cache', 'UTF-16LE'),
-    $row(3, "plugin_cache\f", 'UTF-16BE'),
-    $row(4, 'PLUGIN_CACHE ', 'UTF-8'),
-    $row(5, 'plugin_cache', 'UTF-16LE'),
+    $row(1, 'module_cache ', 'UTF-16BE'),
+    $row(2, 'Module_Cache', 'UTF-16LE'),
+    $row(3, "module_cache\f", 'UTF-16BE'),
+    $row(4, 'MODULE_CACHE ', 'UTF-8'),
+    $row(5, 'module_cache', 'UTF-16LE'),
 ];
 
 $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyLineBreakBoundaryPlan($current, $next);

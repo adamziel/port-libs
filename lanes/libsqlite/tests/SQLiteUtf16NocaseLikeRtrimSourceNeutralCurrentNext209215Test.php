@@ -94,6 +94,13 @@ $legacySourceMatches = static function () use ($methodNames): array {
         'opt' . 'ionName',
         'opt' . 'ionValue',
         'opt' . 'ionId',
+        'plugin' . '_',
+        'Plugin' . '_',
+        'PLUGIN' . '_',
+        'theme' . '_',
+        'Theme' . '_',
+        'THEME' . '_',
+        'siteurl',
     ];
     $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $legacyTerms)) . ')/';
 
@@ -133,18 +140,18 @@ return [
     'utf16 nocase like rtrim next209 generic row shape executes' => static function (TestRunner $t) use ($row): void {
         $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiSpaceRtrimPlan(
             [
-                $row(1, 'Plugin_Cache  ', 'UTF-16LE'),
+                $row(1, 'Module_Cache  ', 'UTF-16LE'),
                 $row(2, 'module_cache', 'UTF-16BE'),
             ],
             [
-                $row(1, 'Plugin_Cache', 'UTF-16BE'),
-                $row(3, 'plugin_queue', 'UTF-16LE'),
+                $row(1, 'Module_Cache', 'UTF-16BE'),
+                $row(3, 'module_queue', 'UTF-16LE'),
             ],
-            'plugin%',
+            'module%',
         );
 
         $t->same('rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* ASCII-space RTRIM only */', $plan['expression']);
-        $t->same([1], $plan['currentMatchedRowids']);
+        $t->same([1, 2], $plan['currentMatchedRowids']);
         $t->same([1, 3], $plan['nextMatchedRowids']);
     },
 ];

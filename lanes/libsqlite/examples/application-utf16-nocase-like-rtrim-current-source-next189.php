@@ -18,24 +18,24 @@ $row = static fn (int $id, string $name, int|string $encoding): array => [
 ];
 
 $current = [
-    $row(1, 'Plugin_Cache', 'UTF-16LE'),
-    $row(2, 'plugin_cache  ', 'UTF-16BE'),
-    $row(3, 'PLUGIN_CACHE', 'UTF-8'),
-    $row(4, 'plugin_cache_alpha', 'UTF-16LE'),
+    $row(1, 'Module_Cache', 'UTF-16LE'),
+    $row(2, 'module_cache  ', 'UTF-16BE'),
+    $row(3, 'MODULE_CACHE', 'UTF-8'),
+    $row(4, 'module_cache_alpha', 'UTF-16LE'),
 ];
 $next = [
-    $row(1, 'Plugin_Cache ', 'UTF-16BE'),
-    $row(2, 'plugin_cache   ', 'UTF-16LE'),
-    $row(3, 'PLUGIN_CACHE', 'UTF-8'),
-    $row(4, 'plugin_cache_alpha', 'UTF-16BE'),
+    $row(1, 'Module_Cache ', 'UTF-16BE'),
+    $row(2, 'module_cache   ', 'UTF-16LE'),
+    $row(3, 'MODULE_CACHE', 'UTF-8'),
+    $row(4, 'module_cache_alpha', 'UTF-16BE'),
 ];
 
 $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerWindowPlan(
     $current,
     $next,
-    'plugin!_cache%',
+    'module!_cache%',
     '!',
-    ['key' => 'plugin_cache', 'rowid' => 2],
+    ['key' => 'module_cache', 'rowid' => 2],
     'copied-wp-options',
     'copied-wp-options',
     189,
