@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 11:36:01 UTC",
-    "sourceCommit": "3ec6eca5d768da593338507a6f68979d67b734cf",
-    "sourceCommitShort": "3ec6eca5d768",
+    "generated": "2026-06-01 11:39:29 UTC",
+    "sourceCommit": "03ce71ccfc879c6cbd005762195973f03639d327",
+    "sourceCommitShort": "03ce71ccfc87",
     "sourceBranch": "main",
-    "dashboardCommit": "3ec6eca5d768da593338507a6f68979d67b734cf",
-    "dashboardCommitShort": "3ec6eca5d768",
+    "dashboardCommit": "03ce71ccfc879c6cbd005762195973f03639d327",
+    "dashboardCommitShort": "03ce71ccfc87",
     "averageProgressPercent": "88.7",
     "lanes": [
         {
@@ -45,13 +45,13 @@
             "coverage": "2,374 / 3,532 (67.2%)",
             "mapPercent": "67.2%",
             "unmapped": "1,158",
-            "php": "7,610 pass / 0 fail",
+            "php": "7,615 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
             "audit": "2026-06-01 supervisor batch: full LightningCSS PHP lane passed 13 fil...",
-            "currentWork": "Bundle/import unknown statement at-rule preservation, CSS Modules escaped view-transi...",
+            "currentWork": "Custom at-rule SyntaxString literal-start parser parity integrated on current base; C...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, bundle...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "3ec6eca"
+            "commit": "03ce71c"
         },
         {
             "lane": "gitoxide",
