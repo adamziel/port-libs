@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 21:08:13 UTC",
-    "sourceCommit": "b5cc83e4d916dba038981e6b493de8649af6d9ab",
-    "sourceCommitShort": "b5cc83e4d916",
+    "generated": "2026-06-01 21:12:38 UTC",
+    "sourceCommit": "51f464f4a819911ce844f9277400e95202b06e0a",
+    "sourceCommitShort": "51f464f4a819",
     "sourceBranch": "unknown",
-    "dashboardCommit": "b5cc83e4d916dba038981e6b493de8649af6d9ab",
-    "dashboardCommitShort": "b5cc83e4d916",
+    "dashboardCommit": "51f464f4a819911ce844f9277400e95202b06e0a",
+    "dashboardCommitShort": "51f464f4a819",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,270,884 pass / 16 fail",
+            "php": "6,271,886 pass / 16 fail",
             "phase": "current-base source integration accepted by supervisor with focused i...",
-            "audit": "2026-06-01 21:07 UTC supervisor integration: source commit b5cc83e4d9...",
-            "currentWork": "Real upstream pager1 hot-journal checksum-stop/read-only recovery is integrated on to...",
+            "audit": "2026-06-01 21:12 UTC supervisor integration: source commit 51f464f4a8...",
+            "currentWork": "Real upstream JSON101 null-semantics select SQL and source-neutral JSONB CHECK defaul...",
             "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "b5cc83e"
+            "commit": "51f464f"
         },
         {
             "lane": "lightningcss",
