@@ -46,7 +46,7 @@
 - Root filesystem: current supervisor sample reports `/` at 452G size with about 367G available after bounded cache/log/worktree cleanup; `/tmp` has about 9.2G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool is
-  capped at 11 visible development windows: 5 LightningCSS, 3 Gitoxide, and 3
+  capped at 11 visible development windows: 6 LightningCSS, 3 Gitoxide, and 2
   libsqlite workers. The latest refills started workers on `gpt-5.5` xhigh
   with the priority service tier; the latest process sample found no real
   `sleep 900` or `Sleeping 900` workers. The active-session audit found one
@@ -54,6 +54,33 @@
   sessions and completed handoff windows were closed/refilled by lane refills.
 
 ## Current Coordination Snapshot
+
+- 2026-06-01 supervisor continuation (AO cleanup and fifteenth replay intake
+  04:40 UTC): audited the active-session concern and confirmed `ao` is not on
+  PATH and no `ao` process is running. Cleanup is currently the repo pruner
+  plus refill-script completed-window closure. `scripts/prune-stale-tmux-sessions.sh`
+  killed `0` stale `port-*` sessions because `main` is the only tmux session.
+  Refilled to 11 visible isolated `gpt-5.5` xhigh priority workers: 6
+  LightningCSS, 3 Gitoxide, and 2 libsqlite, with 0 long sleepers.
+  Accepted 11 source-changing handoffs as source commit
+  `afcfa557a3b80f26793d8ccfde38278bad8d53e4` (`ports: integrate git transport
+  css modules and sqlite runtime slices`). The batch adds Gitoxide
+  protocol-v2 fetch sideband stopped-at/delimiter parsing, send-pack empty
+  unpack status, receive-pack content-type/header/proxy handling, and smart
+  HTTP IPv6/noProxy cookie boundaries; LightningCSS CSS Modules escaped-pseudo
+  composition, custom at-rule nested returned-body parsing, property-value
+  color/font/grid minifier coverage, and target-prefix browser boundaries; and
+  libsqlite source-neutral key-value DB API cleanup, PRAGMA schema legacy
+  runtime coverage, and SELECT ORDER/COLLATE real-corpus coverage. Verification
+  passed PHP lint, `git diff --check`, full Gitoxide `40 files / 7420 assertions
+  / 0 failures`, full LightningCSS `13 files / 6001 assertions / 0 failures`,
+  focused libsqlite `7 files / 23008 assertions / 0 failures`, touched
+  examples, and no new WordPress/wp_/numbered `CurrentSourceNext` strings in
+  changed libsqlite source. Dashboard status should report Gitoxide `1737 /
+  2886` mapped and `7420 pass / 0 fail`, LightningCSS `2340 / 3532` mapped and
+  `6001 pass / 0 fail`, and libsqlite `1589 / 1589` mapped with `5501068 pass /
+  7 fail`. Parked five candidates for conflicts or a failing expected-output
+  test; they remain queued for repair rather than deletion.
 
 - 2026-06-01 supervisor continuation (AO cleanup and fourteenth replay intake
   04:46 UTC): audited the active-session concern and confirmed there is only
