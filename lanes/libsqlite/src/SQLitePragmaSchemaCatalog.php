@@ -114,6 +114,32 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
+     * @return array{
+     *     source:string,
+     *     sql:string,
+     *     pragma:string,
+     *     schema:string,
+     *     limit:int,
+     *     root_pages:list<int>,
+     *     root_page_program:string,
+     *     rows:list<array{addr:int,opcode:string,p1:int,p2:int,p3:int,p4:?string,p5:int,comment:string}>,
+     *     integrity_opcode:array{addr:int,opcode:string,p1:int,p2:int,p3:int,p4:string,p5:int,comment:string},
+     *     dependencies:list<string>
+     * }
+     */
+    public function explain(string $sql): array
+    {
+        $rootPages = [];
+        foreach ($this->records as $record) {
+            if ($record->rootPage !== null && $record->rootPage > 0) {
+                $rootPages[] = $record->rootPage;
+            }
+        }
+
+        return SQLitePragmaExplainPlan::explainIntegrityCheck($sql, null, $rootPages);
+    }
+
+    /**
      * @return array{status: string, pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list', schema: string, target: string, rows: list<array<string, int|string|null>>}
      */
     public function executeTableValuedPragma(string $sql): array

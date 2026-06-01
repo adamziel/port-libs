@@ -3233,6 +3233,10 @@ final class CssBundler
                 continue;
             }
 
+            if (!$this->isDirectTopLevelCssStyleRuleOffset($source, $propertyOffset)) {
+                continue;
+            }
+
             $valueStart = $this->skipWhitespaceAndComments($source, $colon + 1);
             $valueEnd = $this->findNextTopLevel($source, ';', $valueStart)
                 ?? $this->findNextTopLevel($source, '}', $valueStart)
@@ -3265,7 +3269,12 @@ final class CssBundler
                 continue;
             }
             $value = substr($source, $open + 1, $close - $open - 1);
-            $location = $this->cssStyleRuleLocationForOffset($source, $functionOffset);
+            $location = $this->cssModuleDirectStyleDeclarationLocationForValueOffset($source, $functionOffset);
+            if ($location === null) {
+                $offset = $close + 1;
+                continue;
+            }
+
             foreach ($this->cssModuleDependencySpecifiersInValue($value) as $specifier) {
                 $locations[$specifier] ??= [
                     'read' => $location,
@@ -3410,6 +3419,65 @@ final class CssBundler
         $start = $this->cssPreludeStartInParent($source, $parentOpen + 1, $blockOpen);
 
         return $this->sourceLocation($source, $start);
+    }
+
+    private function isDirectTopLevelCssStyleRuleOffset(string $source, int $offset): bool
+    {
+        return $this->directTopLevelCssStyleRuleBlockOpenBeforeOffset($source, $offset) !== null;
+    }
+
+    /**
+     * @return array{line:int,column:int}|null
+     */
+    private function cssModuleDirectStyleDeclarationLocationForValueOffset(string $source, int $offset): ?array
+    {
+        $blockOpen = $this->directTopLevelCssStyleRuleBlockOpenBeforeOffset($source, $offset);
+        if ($blockOpen === null) {
+            return null;
+        }
+
+        $declarationStart = $this->cssPreludeStartInParent($source, $blockOpen + 1, $offset);
+        if ($declarationStart >= $offset) {
+            return null;
+        }
+
+        $fragment = substr($source, $declarationStart, $offset - $declarationStart);
+        $colon = $this->findNextTopLevel($fragment, ':', 0);
+        if ($colon === null) {
+            return null;
+        }
+
+        $property = trim(substr($fragment, 0, $colon));
+        if (!$this->isCssDeclarationPropertyName($property)) {
+            return null;
+        }
+
+        return $this->cssStyleRuleLocationForOffset($source, $offset);
+    }
+
+    private function isCssDeclarationPropertyName(string $property): bool
+    {
+        $identifier = $this->readCssIdentifierToken($property, 0);
+
+        return $identifier !== null
+            && $this->skipWhitespaceAndComments($property, $identifier['end']) === strlen($property);
+    }
+
+    private function directTopLevelCssStyleRuleBlockOpenBeforeOffset(string $source, int $offset): ?int
+    {
+        $stack = $this->cssBlockOpenStackBeforeOffset($source, $offset);
+        if (count($stack) !== 1) {
+            return null;
+        }
+
+        $blockOpen = $stack[0];
+        $preludeStart = $this->cssPreludeStartInParent($source, 0, $blockOpen);
+        $first = $this->skipWhitespaceAndComments($source, $preludeStart);
+        if ($first >= $blockOpen || ($source[$first] ?? '') === '@') {
+            return null;
+        }
+
+        return $blockOpen;
     }
 
     /**

@@ -8051,21 +8051,11 @@ final class CustomAtRuleTransformer
         }
 
         if ($type === 'var' && isset($component['value']) && is_array($component['value'])) {
-            $argumentsCss = $this->variableArgumentsCss($component['value']);
-            $raw = 'var(' . $argumentsCss . ')';
-            $replacement = $this->callStructuredValueVisitor('var', $argumentsCss, $raw);
-            if ($replacement !== null) {
-                return $this->customPreludeTokenListReplacement($replacement, $originalCss, $depth);
-            }
+            return $this->visitCustomPreludeVariableComponent($component, $originalCss, $depth, $skipTokenType);
         }
 
         if ($type === 'env' && isset($component['value']) && is_array($component['value'])) {
-            $argumentsCss = $this->environmentVariableArgumentsCss($component['value']);
-            $raw = 'env(' . $argumentsCss . ')';
-            $replacement = $this->callStructuredValueVisitor('env', $argumentsCss, $raw);
-            if ($replacement !== null) {
-                return $this->customPreludeTokenListReplacement($replacement, $originalCss, $depth);
-            }
+            return $this->visitCustomPreludeEnvironmentVariableComponent($component, $originalCss, $depth, $skipTokenType);
         }
 
         if ($type === 'dashed-ident' && is_string($component['value'] ?? null)) {
@@ -8104,6 +8094,132 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * @param array<string, mixed> $component
+     * @return array{value:list<mixed>,changed:bool}
+     */
+    private function visitCustomPreludeVariableComponent(array $component, string $originalCss, int $depth, ?string $skipTokenType): array
+    {
+        $variable = $component['value'] ?? null;
+        if (!is_array($variable)) {
+            return ['value' => [$component], 'changed' => false];
+        }
+
+        $changed = false;
+        $replacement = $this->callVariableVisitor($variable);
+        if ($replacement !== null) {
+            $value = $this->applyValueVisitors($this->normalizeVisitorValue($replacement), ['var']);
+            if (!is_array($value) || ($value['type'] ?? null) !== 'var') {
+                $this->recordRawValueVisitorReplacement($value);
+
+                return $this->customPreludeTokenListReplacement($value, $originalCss, $depth);
+            }
+
+            $variable = is_array($value['value'] ?? null) ? $value['value'] : $value;
+            $changed = true;
+        }
+
+        $fallback = $this->visitCustomPreludeFallbackTokenList($variable['fallback'] ?? null, $depth + 1, $skipTokenType);
+        if ($fallback['changed']) {
+            $variable['fallback'] = $fallback['value'];
+            $changed = true;
+        }
+
+        $exitReplacement = $this->callVariableExitVisitor($variable);
+        if ($exitReplacement !== null) {
+            $value = $this->applyValueVisitors($this->normalizeVisitorValue($exitReplacement), ['var']);
+            $this->recordRawValueVisitorReplacement($value);
+
+            return $this->customPreludeTokenListReplacement($value, $originalCss, $depth);
+        }
+
+        if ($changed) {
+            $component['value'] = $variable;
+
+            return ['value' => [$component], 'changed' => true];
+        }
+
+        return ['value' => [$component], 'changed' => false];
+    }
+
+    /**
+     * @param array<string, mixed> $component
+     * @return array{value:list<mixed>,changed:bool}
+     */
+    private function visitCustomPreludeEnvironmentVariableComponent(array $component, string $originalCss, int $depth, ?string $skipTokenType): array
+    {
+        $environmentVariable = $component['value'] ?? null;
+        if (!is_array($environmentVariable)) {
+            return ['value' => [$component], 'changed' => false];
+        }
+
+        $changed = false;
+        $replacement = $this->callEnvironmentVariableVisitor($environmentVariable);
+        if ($replacement !== null) {
+            $value = $this->applyValueVisitors($this->normalizeVisitorValue($replacement), ['env']);
+            if (!is_array($value) || ($value['type'] ?? null) !== 'env') {
+                $this->recordRawValueVisitorReplacement($value);
+
+                return $this->customPreludeTokenListReplacement($value, $originalCss, $depth);
+            }
+
+            $environmentVariable = is_array($value['value'] ?? null) ? $value['value'] : $value;
+            $changed = true;
+        }
+
+        $fallback = $this->visitCustomPreludeFallbackTokenList($environmentVariable['fallback'] ?? null, $depth + 1, $skipTokenType);
+        if ($fallback['changed']) {
+            $environmentVariable['fallback'] = $fallback['value'];
+            $changed = true;
+        }
+
+        $exitReplacement = $this->callEnvironmentVariableExitVisitor($environmentVariable);
+        if ($exitReplacement !== null) {
+            $value = $this->applyValueVisitors($this->normalizeVisitorValue($exitReplacement), ['env']);
+            $this->recordRawValueVisitorReplacement($value);
+
+            return $this->customPreludeTokenListReplacement($value, $originalCss, $depth);
+        }
+
+        if ($changed) {
+            $component['value'] = $environmentVariable;
+
+            return ['value' => [$component], 'changed' => true];
+        }
+
+        return ['value' => [$component], 'changed' => false];
+    }
+
+    /**
+     * @return array{value:list<mixed>|null,changed:bool}
+     */
+    private function visitCustomPreludeFallbackTokenList(mixed $fallback, int $depth, ?string $skipTokenType): array
+    {
+        if (!is_array($fallback)) {
+            return ['value' => null, 'changed' => false];
+        }
+
+        $components = $fallback;
+        $parsedRawFallback = false;
+        if (
+            count($fallback) === 1
+            && is_array($fallback[0] ?? null)
+            && ($fallback[0]['type'] ?? null) === 'raw'
+            && is_string($fallback[0]['value'] ?? null)
+        ) {
+            $cursor = 0;
+            $components = $this->parseNestedComponentValueList($fallback[0]['value'], $cursor, null)['components'];
+            $parsedRawFallback = true;
+        }
+
+        $visited = $this->visitCustomPreludeTokenList($components, $depth, $skipTokenType);
+
+        return [
+            'value' => ($parsedRawFallback || $visited['changed']) ? $visited['value'] : $fallback,
+            'changed' => $parsedRawFallback || $visited['changed'],
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $function
      */
     private function functionValueArgumentsCss(array $function): string
@@ -8129,7 +8245,7 @@ final class CustomAtRuleTransformer
             return $name;
         }
 
-        return $name . ',' . implode(',', array_map(fn (mixed $value): string => $this->serializeVisitorValue($value), $fallback));
+        return $name . ',' . $this->serializeTokenListFallback($fallback);
     }
 
     /**
@@ -8145,7 +8261,18 @@ final class CustomAtRuleTransformer
             return $head;
         }
 
-        return $head . ',' . implode(',', array_map(fn (mixed $value): string => $this->serializeVisitorValue($value), $fallback));
+        return $head . ',' . $this->serializeTokenListFallback($fallback);
+    }
+
+    /**
+     * @param list<mixed> $fallback
+     */
+    private function serializeTokenListFallback(array $fallback): string
+    {
+        return $this->serializeComponentSequence(
+            $fallback,
+            fn (mixed $component): string => $this->serializeVisitorValue($component)
+        );
     }
 
     /**
@@ -9888,7 +10015,7 @@ final class CustomAtRuleTransformer
             return 'var(' . $name . ')';
         }
 
-        return 'var(' . $name . ',' . implode(',', array_map(fn (mixed $value): string => $this->serializeVisitorValue($value), $fallback)) . ')';
+        return 'var(' . $name . ',' . $this->serializeTokenListFallback($fallback) . ')';
     }
 
     /**
@@ -9907,7 +10034,7 @@ final class CustomAtRuleTransformer
             return 'env(' . $head . ')';
         }
 
-        return 'env(' . $head . ',' . implode(',', array_map(fn (mixed $value): string => $this->serializeVisitorValue($value), $fallback)) . ')';
+        return 'env(' . $head . ',' . $this->serializeTokenListFallback($fallback) . ')';
     }
 
     /**

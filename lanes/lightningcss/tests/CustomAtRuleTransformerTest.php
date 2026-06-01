@@ -6439,6 +6439,117 @@ CSS;
         $t->same('theme(1rem --theme-wp-gap live)', $seen['rule']['prelude']);
         $t->same('space', $seen['rule']['preludeAst']['value'][0]['value']['argumentSeparator'] ?? null);
     },
+    'custom at-rules visit upstream variable prelude fallbacks before exit visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rules' => [],
+            'exitFallbackTypes' => [],
+        ];
+        $css = <<<'CSS'
+@wp-token var(--card-gap, 16px draft);
+@wp-safe env(--safe-gap 1, 8px draft);
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-token' => ['prelude' => '*'],
+            'wp-safe' => ['prelude' => '*'],
+        ], [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                if ($length['unit'] !== 'px') {
+                    return null;
+                }
+
+                $seen['events'][] = 'length:' . $length['value'] . $length['unit'];
+
+                return ['unit' => 'rem', 'value' => $length['value'] / 16];
+            },
+            'Token' => [
+                'ident' => static function (array $token) use (&$seen): ?string {
+                    if (($token['value'] ?? null) !== 'draft') {
+                        return null;
+                    }
+
+                    $seen['events'][] = 'token:ident:' . $token['value'];
+
+                    return 'live';
+                },
+            ],
+            'VariableExit' => [
+                '--card-gap' => static function (array $variable) use (&$seen): ?array {
+                    $fallback = $variable['fallback'] ?? [];
+                    $seen['events'][] = 'var-exit:' . implode(',', array_map(
+                        static fn (array $component): string => $component['type'] ?? 'raw',
+                        $fallback
+                    ));
+                    $seen['exitFallbackTypes']['var'] = array_map(
+                        static fn (array $component): string => $component['type'] ?? 'raw',
+                        $fallback
+                    );
+
+                    return null;
+                },
+            ],
+            'EnvironmentVariableExit' => [
+                '--safe-gap' => static function (array $environmentVariable) use (&$seen): ?array {
+                    $fallback = $environmentVariable['fallback'] ?? [];
+                    $seen['events'][] = 'env-exit:' . implode(',', array_map(
+                        static fn (array $component): string => $component['type'] ?? 'raw',
+                        $fallback
+                    ));
+                    $seen['exitFallbackTypes']['env'] = array_map(
+                        static fn (array $component): string => $component['type'] ?? 'raw',
+                        $fallback
+                    );
+
+                    return null;
+                },
+            ],
+            'Rule' => [
+                'custom' => static function (array $rule) use (&$seen): array {
+                    $seen['events'][] = 'rule:' . $rule['prelude'];
+                    $seen['rules'][] = [
+                        'prelude' => $rule['prelude'],
+                        'preludeAst' => $rule['preludeAst'],
+                    ];
+
+                    return [];
+                },
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same([
+            'length:16px',
+            'token:ident:draft',
+            'var-exit:length,token',
+            'rule:var(--card-gap,1rem live)',
+            'length:8px',
+            'token:ident:draft',
+            'env-exit:length,token',
+            'rule:env(--safe-gap 1,0.5rem live)',
+        ], $seen['events']);
+        $t->same(['length', 'token'], $seen['exitFallbackTypes']['var']);
+        $t->same(['length', 'token'], $seen['exitFallbackTypes']['env']);
+        $t->same('var(--card-gap,1rem live)', $seen['rules'][0]['prelude']);
+        $t->same('env(--safe-gap 1,0.5rem live)', $seen['rules'][1]['prelude']);
+        $t->same(['length', 'token'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rules'][0]['preludeAst']['value'][0]['value']['fallback']
+        ));
+        $t->same(['unit' => 'rem', 'value' => 1.0], $seen['rules'][0]['preludeAst']['value'][0]['value']['fallback'][0]['value']);
+        $t->same('live', $seen['rules'][0]['preludeAst']['value'][0]['value']['fallback'][1]['value']['value']);
+        $t->same(['length', 'token'], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rules'][1]['preludeAst']['value'][0]['value']['fallback']
+        ));
+        $t->same(['unit' => 'rem', 'value' => 0.5], $seen['rules'][1]['preludeAst']['value'][0]['value']['fallback'][0]['value']);
+        $t->same('live', $seen['rules'][1]['preludeAst']['value'][0]['value']['fallback'][1]['value']['value']);
+        $t->same([1], $seen['rules'][1]['preludeAst']['value'][0]['value']['indices']);
+    },
     'custom at-rules expose upstream attribute selectors to parser bodies and Selector visitors' => static function (TestRunner $t): void {
         $seen = [
             'customAttribute' => null,

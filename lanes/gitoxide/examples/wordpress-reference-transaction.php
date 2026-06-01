@@ -144,6 +144,25 @@ $preparedNoOp = $store->prepareLooseUpdateTransaction(
 );
 $preparedNoOpEdits = $preparedNoOp->commit();
 
+$preparedSymbolicNoOpDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-symbolic-noop-' . bin2hex(random_bytes(4));
+$preparedSymbolicNoOpStore = new ReferenceStore($preparedSymbolicNoOpDir, null, $fixture['namespace']);
+$preparedSymbolicNoOpPrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedSymbolicNoOpStore->looseStore()->writeSymbolic(
+    $preparedSymbolicNoOpPrefix . $fixture['preparedSymbolicNoOpRef'],
+    $preparedSymbolicNoOpPrefix . $fixture['preparedSymbolicNoOpTargetRef'],
+);
+$preparedSymbolicNoOpPath = $preparedSymbolicNoOpDir . '/' . $preparedSymbolicNoOpPrefix . $fixture['preparedSymbolicNoOpRef'];
+file_put_contents($preparedSymbolicNoOpPath . '.lock', 'held by another tenant checkout');
+$preparedSymbolicNoOp = $preparedSymbolicNoOpStore->prepareLooseUpdateTransaction(
+    [$fixture['preparedSymbolicNoOpRef'] => ReferenceTarget::symbolic($fixture['preparedSymbolicNoOpTargetRef'])],
+    'sha1',
+    new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+    $fixture['preparedSymbolicNoOpReflogMessage'],
+    true,
+    ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+);
+$preparedSymbolicNoOpEdits = $preparedSymbolicNoOp->commit();
+
 $packedLockDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-packed-lock-' . bin2hex(random_bytes(4));
 mkdir($packedLockDir, 0777, true);
 file_put_contents($packedLockDir . '/packed-refs', "{$fixture['productionCommit']} refs/heads/production\n");
@@ -670,6 +689,12 @@ return [
     'preparedNoOpHeldLockPreserved' => is_file($preparedNoOpPath . '.lock')
         && file_get_contents($preparedNoOpPath . '.lock') === 'held by an idempotent deploy check',
     'preparedNoOpReflogExists' => $store->reflogExists($preparedNoOpRef),
+    'preparedSymbolicNoOpEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedSymbolicNoOpEdits),
+    'preparedSymbolicNoOpTarget' => $preparedSymbolicNoOpStore->find($fixture['preparedSymbolicNoOpRef'])->target->value,
+    'preparedSymbolicNoOpHeadContents' => file_get_contents($preparedSymbolicNoOpPath),
+    'preparedSymbolicNoOpHeldLockPreserved' => is_file($preparedSymbolicNoOpPath . '.lock')
+        && file_get_contents($preparedSymbolicNoOpPath . '.lock') === 'held by another tenant checkout',
+    'preparedSymbolicNoOpReflogExists' => $preparedSymbolicNoOpStore->reflogExists($fixture['preparedSymbolicNoOpRef']),
     'preparedPackedRollbackEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedPackedRollbackEdits),
     'preparedPackedLockHeld' => $preparedPackedLockHeld,
     'preparedPackedLockBlocked' => $preparedPackedLockBlocked,

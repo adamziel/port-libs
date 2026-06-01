@@ -4178,6 +4178,58 @@ CSS,
 
         throw new RuntimeException('Expected external CSS Modules dependency diagnostic');
     },
+    'css bundler maps upstream dashed ident dependency diagnostics to direct style locations' => static function (TestRunner $t) use ($bundleModules): void {
+        $source = <<<'CSS'
+@media screen {
+  .teaser {
+    color: var(--brand-color from "pkg:tokens.css", red);
+  }
+}
+
+.card {
+  color: var(--brand-color from "pkg:tokens.css", red);
+}
+CSS;
+
+        $resolverCalls = [];
+        try {
+            $bundleModules([
+                '/entry.css' => $source,
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolverCalls): string {
+                $resolverCalls[] = [$specifier, $originatingFile];
+                throw new RuntimeException("Cannot resolve {$specifier} from {$originatingFile}");
+            }, [
+                'dashedIdents' => true,
+            ]);
+
+            throw new RuntimeException('Expected dashed-ident CSS Modules resolver diagnostic');
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('Cannot resolve pkg:tokens.css from /entry.css', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(7, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
+            $t->same([['pkg:tokens.css', '/entry.css']], $resolverCalls);
+        }
+
+        try {
+            $bundleModules([
+                '/entry.css' => $source,
+            ], '/entry.css', static function (): string {
+                return '/missing.css';
+            }, [
+                'dashedIdents' => true,
+            ]);
+
+            throw new RuntimeException('Expected dashed-ident CSS Modules read diagnostic');
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('Could not read `/missing.css`.', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(7, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
+        }
+    },
     'css bundler maps upstream escaped css module dependency diagnostics to decoded from locations' => static function (TestRunner $t) use ($bundleModules): void {
         try {
             $bundleModules([

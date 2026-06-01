@@ -46,12 +46,12 @@ $buildRootSplitFixture = static function (string $replacementValue, string $load
         ])),
     ], $pageSize, 100, $firstPage);
     $rootLeafPage = SQLiteTableLeafPage::assemble([
-        SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
-        SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'site_name', 'Stale Site', 'yes'])),
+        SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'primary_url', 'https://example.test', 'yes'])),
+        SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'display_title', 'Stale Title', 'yes'])),
         SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'migration_lock', 'old-lock', 'no'])),
     ], $pageSize);
     $database = SQLiteDatabase::fromBytes($schemaPage . $pointerMapPage . $rootLeafPage);
-    $plan = $database->planKeyValueRowReplace('site_name', $replacementValue, $loadPolicy);
+    $plan = $database->planKeyValueRowReplace('display_title', $replacementValue, $loadPolicy);
     $postPages = [];
     for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
         $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -103,11 +103,11 @@ $assertRootSplitPointerMap = static function (
     $t->same(3, $postDatabase->pointerMapEntryForPage($rightChildPage)->parentPageNumber);
     $t->same([1], array_map(static fn (SQLiteTableRow $row): int => $row->rowId, $leftRows));
     $t->same([2, 3], array_map(static fn (SQLiteTableRow $row): int => $row->rowId, $rightRows));
-    $t->same(['siteurl'], array_map(static fn (SQLiteTableRow $row): mixed => $row->values()[1] ?? null, $leftRows));
-    $t->same(['site_name', 'migration_lock'], array_map(static fn (SQLiteTableRow $row): mixed => $row->values()[1] ?? null, $rightRows));
+    $t->same(['primary_url'], array_map(static fn (SQLiteTableRow $row): mixed => $row->values()[1] ?? null, $leftRows));
+    $t->same(['display_title', 'migration_lock'], array_map(static fn (SQLiteTableRow $row): mixed => $row->values()[1] ?? null, $rightRows));
     $t->true($setting !== null);
-    $t->same([null, 'site_name', $replacementValue, $loadPolicy], $setting?->values());
-    $t->same(strlen(SQLiteRecord::encode([null, 'site_name', $replacementValue, $loadPolicy])), $plan->localPayloadLength);
+    $t->same([null, 'display_title', $replacementValue, $loadPolicy], $setting?->values());
+    $t->same(strlen(SQLiteRecord::encode([null, 'display_title', $replacementValue, $loadPolicy])), $plan->localPayloadLength);
     $t->same([], $plan->overflowPageNumbers);
     $t->same([], $plan->obsoleteOverflowPageNumbers);
     $t->same([1, 2, 3, 4, 5], $summary['updated_page_numbers']);

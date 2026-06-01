@@ -231,7 +231,7 @@ final class ReferenceStore
                     'writeMode' => $this->writeReflogMode,
                 ] : null;
 
-                if ($existing !== null && $physicalTarget->isObject() && self::targetsEqual($existing->target, $physicalTarget) && !$writesObjectToPackedRefs) {
+                if ($existing !== null && self::targetsEqual($existing->target, $physicalTarget) && !$writesObjectToPackedRefs) {
                     $locks[] = [
                         'action' => PreparedReferenceTransaction::ACTION_NOOP,
                         'edit' => $edit,

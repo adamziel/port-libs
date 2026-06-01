@@ -551,6 +551,39 @@ return [
             $block->removeProperty($declarations, 'text-overflow')
         );
     },
+    'declaration block canonicalizes upstream opera text overflow cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = '-o-text-overflow: Ellipsis; text-overflow: Clip; color: red; --Text-Overflow: Ellipsis';
+
+        $t->same(
+            [
+                '-o-text-overflow' => 'ellipsis',
+                'text-overflow' => 'clip',
+                'color' => 'red',
+                '--Text-Overflow' => 'Ellipsis',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'ellipsis', 'important' => false], $block->getProperty($declarations, '-O-Text-Overflow'));
+        $t->same(['value' => 'clip', 'important' => false], $block->getProperty($declarations, 'text-overflow'));
+        $t->same(['value' => 'Ellipsis', 'important' => false], $block->getProperty($declarations, '--Text-Overflow'));
+        $t->same(
+            ['value' => 'clip', 'important' => true],
+            $block->getProperty('-o-text-overflow: Clip !important; text-overflow: Ellipsis', '-o-text-overflow')
+        );
+        $t->same(
+            'text-overflow: clip; color: red; --Text-Overflow: Ellipsis; -o-text-overflow: clip !important',
+            $block->setProperty($declarations, '-O-Text-Overflow', 'Clip', true)
+        );
+        $t->same(
+            '-o-text-overflow: ellipsis; color: red; --Text-Overflow: Ellipsis; text-overflow: ellipsis !important',
+            $block->setProperty($declarations, 'text-overflow', 'Ellipsis', true)
+        );
+        $t->same(
+            'text-overflow: clip; color: red; --Text-Overflow: Ellipsis',
+            $block->removeProperty($declarations, '-o-text-overflow')
+        );
+    },
     'declaration block canonicalizes upstream cursor cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'cursor: URL("drag.cur") 4.0 12.00, Grab !important; --Block-Cursor: URL("drag.cur") 4.0 12.00, Grab; color: red';

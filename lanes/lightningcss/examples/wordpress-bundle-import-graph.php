@@ -2517,6 +2517,47 @@ if (
 
 echo 'css-modules-conditional-var-dependency: scoped-without-resolve' . PHP_EOL;
 
+$directVarLocationResolverCalls = [];
+try {
+    (new CssBundler())->bundleCssModules('/blocks/direct-var-location.css', [
+        '/blocks/direct-var-location.css' => <<<'CSS'
+@media screen {
+  .wp-block-card--preview {
+    color: var(--wp-card-color from "pkg:tokens.css", red);
+  }
+}
+
+.wp-block-card {
+  color: var(--wp-card-color from "pkg:tokens.css", red);
+}
+CSS,
+    ], static function (string $specifier, string $originatingFile) use (&$directVarLocationResolverCalls): string {
+        $directVarLocationResolverCalls[] = [$specifier, $originatingFile];
+        throw new RuntimeException("Cannot resolve {$specifier} from {$originatingFile}");
+    }, [
+        'dashedIdents' => true,
+    ]);
+
+    fwrite(STDERR, "Expected direct CSS Modules var() dependency resolver diagnostic\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'resolver-error'
+        || $exception->getMessage() !== 'Cannot resolve pkg:tokens.css from /blocks/direct-var-location.css'
+        || $exception->sourceFile !== '/blocks/direct-var-location.css'
+        || $exception->sourceLine !== 7
+        || $exception->sourceColumn !== 1
+        || $directVarLocationResolverCalls !== [
+            ['pkg:tokens.css', '/blocks/direct-var-location.css'],
+        ]
+    ) {
+        fwrite(STDERR, 'Unexpected direct CSS Modules var() dependency diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+}
+
+echo 'css-modules-direct-var-location: direct-style' . PHP_EOL;
+
 $conditionalComposesFiles = [
     '/modules/conditional-card.css' => '@import "blocks/card.css" layer(theme.blocks) screen; .wp-site-blocks { color: red }',
     '/modules/blocks/card.css' => '.wp-block-card { composes: token from "tokens.css"; color: green }',

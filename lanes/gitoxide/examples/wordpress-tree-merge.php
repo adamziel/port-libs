@@ -68,6 +68,17 @@ $sameRenameModeReverseMerge = TreeMerge::mergeRecursive(
 );
 $sameRenameModeTree = Tree::fromObject($sameRenameMode['read']($sameRenameModeMerge->tree->entryNamed('acme-suite', true)?->oid ?? ''));
 $sameRenameModeReverseTree = Tree::fromObject($sameRenameMode['read']($sameRenameModeReverseMerge->tree->entryNamed('acme-suite', true)?->oid ?? ''));
+$binaryAttr = $fixture['binaryAttr'];
+$binaryAttrMerge = TreeMerge::mergeRecursive(
+    $binaryAttr['base'],
+    $binaryAttr['ours'],
+    $binaryAttr['theirs'],
+    $binaryAttr['read'],
+    $binaryAttr['write'],
+);
+$binaryAttrContent = Tree::fromObject($binaryAttr['read']($binaryAttrMerge->tree->entryNamed('wp-content', true)?->oid ?? ''));
+$binaryAttrUploads = Tree::fromObject($binaryAttr['read']($binaryAttrContent->entryNamed('uploads', true)?->oid ?? ''));
+$binaryAttrHero = $binaryAttrUploads->entryNamed('hero.png');
 
 echo 'clean=' . ($clean->isClean() ? 'yes' : 'no') . "\n";
 echo 'entries=' . implode(',', array_map(static fn (TreeEntry $entry): string => $entry->filename, $clean->tree->entries)) . "\n";
@@ -83,3 +94,5 @@ echo 'rename-add-body=' . $renameAdd['read']($renameAddEntry?->oid ?? '')->body;
 echo 'same-rename-mode-conflicts=' . count($sameRenameModeMerge->conflicts) . "\n";
 echo 'same-rename-mode-cli-mode=' . ($sameRenameModeTree->entryNamed('cli.php')?->mode ?? '') . "\n";
 echo 'same-rename-mode-reverse-cli-mode=' . ($sameRenameModeReverseTree->entryNamed('cli.php')?->mode ?? '') . "\n";
+echo 'binary-attr-conflicts=' . count($binaryAttrMerge->conflicts) . "\n";
+echo 'binary-attr-hero=' . $binaryAttr['read']($binaryAttrHero?->oid ?? '')->body;

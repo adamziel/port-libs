@@ -116,6 +116,7 @@ final class DeclarationBlock
         'position' => ['static', 'relative', 'absolute', 'sticky', 'fixed', '-webkit-sticky'],
         'box-sizing' => ['content-box', 'border-box'],
         'text-overflow' => ['clip', 'ellipsis'],
+        '-o-text-overflow' => ['clip', 'ellipsis'],
         'transform-style' => ['flat', 'preserve-3d'],
         'transform-box' => ['content-box', 'border-box', 'fill-box', 'stroke-box', 'view-box'],
         'backface-visibility' => ['visible', 'hidden'],
@@ -198,6 +199,7 @@ final class DeclarationBlock
         'box-sizing' => ['content-box', 'border-box'],
         'position' => ['static', 'relative', 'absolute', 'fixed', 'sticky', '-webkit-sticky'],
         'text-overflow' => ['clip', 'ellipsis'],
+        '-o-text-overflow' => ['clip', 'ellipsis'],
         'mix-blend-mode' => [
             'normal',
             'multiply',

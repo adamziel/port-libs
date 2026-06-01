@@ -1206,6 +1206,41 @@ return [
         $t->same(null, $store->reflogContents('refs/heads/main'), 'unchanged object updates do not append even with a forced reflog request');
         $t->same(['refs/heads/main'], array_map(static fn ($reference): string => $reference->name, $store->looseAll()));
     },
+    'prepared reference transaction skips locks and reflogs for unchanged symbolic updates like upstream' => static function (TestRunner $t): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-symbolic-noop-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $store->looseStore()->writeSymbolic('HEAD', 'refs/heads/main');
+        $heldLock = $dir . '/HEAD.lock';
+        file_put_contents($heldLock, 'held by another checkout');
+
+        $transaction = $store->prepareLooseUpdateTransaction(
+            ['HEAD' => ReferenceTarget::symbolic('refs/heads/main')],
+            'sha1',
+            $committer,
+            'same symbolic target should not log',
+            true,
+            ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+        );
+
+        $t->same('held by another checkout', file_get_contents($heldLock));
+        $t->same(null, $store->reflogContents('HEAD'));
+
+        $edits = $transaction->commit();
+
+        $t->same(false, $transaction->isOpen());
+        $t->same(['HEAD'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same(['symbolic'], array_map(static fn ($edit): ?string => $edit->previousTarget?->kind, $edits));
+        $t->same(['refs/heads/main'], array_map(static fn ($edit): ?string => $edit->previousTarget?->value, $edits));
+        $t->same(['symbolic'], array_map(static fn ($edit): ?string => $edit->newTarget?->kind, $edits));
+        $t->same(['refs/heads/main'], array_map(static fn ($edit): ?string => $edit->newTarget?->value, $edits));
+        $t->same([ReferenceTransactionEdit::REFLOG_AND_REFERENCE], array_map(static fn ($edit): string => $edit->reflogMode, $edits));
+        $t->same([true], array_map(static fn ($edit): bool => $edit->updatesReference, $edits));
+        $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/HEAD'));
+        $t->same('held by another checkout', file_get_contents($heldLock));
+        $t->same(null, $store->reflogContents('HEAD'), 'unchanged symbolic updates do not append even with a forced reflog request');
+        $t->same('refs/heads/main', $store->find('HEAD')->target->value);
+    },
     'prepared non-conflicting transactions write reflogs while another lock remains open' => static function (TestRunner $t) use ($old, $new): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-non-conflicting-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -2273,6 +2308,11 @@ return [
         $t->same($fixture['reviewCommit'], $summary['preparedNoOpCommit']);
         $t->same($fixture['expectedPreparedNoOpHeldLockPreserved'], $summary['preparedNoOpHeldLockPreserved']);
         $t->same($fixture['expectedPreparedNoOpReflogExists'], $summary['preparedNoOpReflogExists']);
+        $t->same($fixture['expectedPreparedSymbolicNoOpEditNames'], $summary['preparedSymbolicNoOpEditNames']);
+        $t->same($fixture['preparedSymbolicNoOpTargetRef'], $summary['preparedSymbolicNoOpTarget']);
+        $t->same($fixture['expectedPreparedSymbolicNoOpHeadContents'], $summary['preparedSymbolicNoOpHeadContents']);
+        $t->same($fixture['expectedPreparedSymbolicNoOpHeldLockPreserved'], $summary['preparedSymbolicNoOpHeldLockPreserved']);
+        $t->same($fixture['expectedPreparedSymbolicNoOpReflogExists'], $summary['preparedSymbolicNoOpReflogExists']);
         $t->same($fixture['expectedPreparedPackedRollbackEditNames'], $summary['preparedPackedRollbackEditNames']);
         $t->same($fixture['expectedPreparedPackedLockHeld'], $summary['preparedPackedLockHeld']);
         $t->same(
@@ -2453,7 +2493,7 @@ return [
             str_repeat('0', 40) . ' ' . $fixture['productionCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedPhasedUpdateReflogMessage'] . "\n",
             $summary['preparedPhasedUpdateSecondReflog'],
         );
-        $t->contains('idempotent prepared writes', $summary['wordpressUse']);
+        $t->contains('idempotent prepared object and symbolic writes', $summary['wordpressUse']);
         $t->contains('packed-ref transaction locks', $summary['wordpressUse']);
         $t->contains('prepared packed-refs commit phase', $summary['wordpressUse']);
         $t->contains('pack prepared object updates before pruning loose review sources', $summary['wordpressUse']);

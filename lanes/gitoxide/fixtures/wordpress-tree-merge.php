@@ -93,4 +93,26 @@ return [
             $blob('plugin.php', "original\nVersion: 1.0\nRequires: 6.5\nNetwork: true\n"),
         ]))]),
     ],
+    'binaryAttr' => [
+        'read' => $read,
+        'write' => $write,
+        'base' => new Tree([
+            $blob('.gitattributes', "wp-content/uploads/** binary\n"),
+            $tree('wp-content', new Tree([
+                $tree('uploads', new Tree([$blob('hero.png', "base media\n")])),
+            ])),
+        ]),
+        'ours' => new Tree([
+            $blob('.gitattributes', "wp-content/uploads/** binary\n"),
+            $tree('wp-content', new Tree([
+                $tree('uploads', new Tree([$blob('hero.png', "ours media\n")])),
+            ])),
+        ]),
+        'theirs' => new Tree([
+            $blob('.gitattributes', "wp-content/uploads/** binary\n"),
+            $tree('wp-content', new Tree([
+                $tree('uploads', new Tree([$blob('hero.png', "theirs media\n")])),
+            ])),
+        ]),
+    ],
 ];

@@ -571,9 +571,15 @@ CSS
             'color(from color(%1$s 0.7 0.5 0.3) %1$s 20%% g b / 20%%)' => 'color(%1$s .2 .5 .3/.2)',
             'color(from color(%1$s 0.7 0.5 0.3) %1$s 2 3 4 / 5)' => 'color(%1$s 2 3 4)',
             'color(from color(%1$s 0.7 0.5 0.3) %1$s -2 -3 -4 / -5)' => 'color(%1$s -2 -3 -4/0)',
+            'color(from color(%1$s 0.7 0.5 0.3) %1$s 200%% 300%% 400%% / 500%%)' => 'color(%1$s 2 3 4)',
+            'color(from color(%1$s 0.7 0.5 0.3) %1$s -200%% -300%% -400%% / -500%%)' => 'color(%1$s -2 -3 -4/0)',
             'color(from color(%1$s 0.7 0.5 0.3) %1$s g b r)' => 'color(%1$s .5 .3 .7)',
             'color(from color(%1$s 0.7 0.5 0.3) %1$s b alpha r / g)' => 'color(%1$s .3 1 .7/.5)',
             'color(from color(%1$s 0.7 0.5 0.3 / 40%%) %1$s b alpha r / g)' => 'color(%1$s .3 .4 .7/.5)',
+            'color(from color(%1$s 1.7 1.5 1.3) %1$s r g b)' => 'color(%1$s 1.7 1.5 1.3)',
+            'color(from color(%1$s 1.7 1.5 1.3 / 140%%) %1$s r g b / alpha)' => 'color(%1$s 1.7 1.5 1.3)',
+            'color(from color(%1$s -0.7 -0.5 -0.3) %1$s r g b)' => 'color(%1$s -.7 -.5 -.3)',
+            'color(from color(%1$s -0.7 -0.5 -0.3 / -40%%) %1$s r g b / alpha)' => 'color(%1$s -.7 -.5 -.3/0)',
             'color(from color(%1$s 0.7 0.5 0.3 / 40%%) %1$s calc(r) calc(g) calc(b) / calc(alpha))' => 'color(%1$s .7 .5 .3/.4)',
             'color(from color(%1$s 0.7 0.5 0.3) %1$s none none none / none)' => 'color(%1$s none none none/none)',
             'color(from color(%1$s none none none / none) %1$s r g b / alpha)' => 'color(%1$s 0 0 0/0)',
@@ -593,6 +599,7 @@ CSS
         $minifier = new CssMinifier();
         $cases = [
             'color(from color(%1$s 7 -20.5 100) %1$s x y z)' => 'color(%2$s 7 -20.5 100)',
+            'color(from color(%1$s 7 -20.5 100 / 40%%) %1$s x y z)' => 'color(%2$s 7 -20.5 100)',
             'color(from color(%1$s 7 -20.5 100 / 40%%) %1$s x y z / alpha)' => 'color(%2$s 7 -20.5 100/.4)',
             'color(from color(from color(%1$s 7 -20.5 100) %1$s x y z) %1$s x y z)' => 'color(%2$s 7 -20.5 100)',
             'color(from color(%1$s 7 -20.5 100) %1$s 0 y z / alpha)' => 'color(%2$s 0 -20.5 100)',
@@ -604,6 +611,8 @@ CSS
             'color(from color(%1$s 7 -20.5 100 / 40%%) %1$s calc(x) calc(y) calc(z) / calc(alpha))' => 'color(%2$s 7 -20.5 100/.4)',
             'color(from color(%1$s 7 -20.5 100) %1$s none none none / none)' => 'color(%2$s none none none/none)',
             'color(from color(%1$s none none none / none) %1$s x y z / alpha)' => 'color(%2$s 0 0 0/0)',
+            'color(from color(%1$s 7 none 100) %1$s x y z)' => 'color(%2$s 7 0 100)',
+            'color(from color(%1$s 7 -20.5 100 / none) %1$s x y z / alpha)' => 'color(%2$s 7 -20.5 100/0)',
         ];
 
         foreach (['xyz' => 'xyz', 'xyz-d50' => 'xyz-d50', 'xyz-d65' => 'xyz'] as $space => $outputSpace) {

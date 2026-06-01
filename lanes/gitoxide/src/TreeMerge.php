@@ -91,7 +91,7 @@ final class TreeMerge
             throw new \InvalidArgumentException('Big file threshold must be positive');
         }
 
-        return self::mergeRecursiveAt($base, $ours, $theirs, $readObject, $writeObject, $conflictStyle, '', [], $bigFileThreshold);
+        return self::mergeRecursiveAt($base, $ours, $theirs, $readObject, $writeObject, $conflictStyle, '', [], [], $bigFileThreshold);
     }
 
     /**
@@ -161,12 +161,14 @@ final class TreeMerge
         string $conflictStyle,
         string $pathPrefix,
         array $unionMergePatterns = [],
+        array $binaryMergePatterns = [],
         ?int $bigFileThreshold = null,
     ): TreeMergeResult {
         $baseEntries = self::entriesByName($base);
         $ourEntries = self::entriesByName($ours);
         $theirEntries = self::entriesByName($theirs);
         $unionMergePatterns = self::unionMergeAttributePatterns($baseEntries, $ourEntries, $theirEntries, $readObject, $pathPrefix, $unionMergePatterns);
+        $binaryMergePatterns = self::binaryMergeAttributePatterns($baseEntries, $ourEntries, $theirEntries, $readObject, $pathPrefix, $binaryMergePatterns);
 
         [$renameConflicts, $consumedPaths, $renameMerged] = self::renameConflicts($baseEntries, $ourEntries, $theirEntries, $pathPrefix, $readObject, $writeObject, $conflictStyle, $bigFileThreshold);
         $paths = array_keys($baseEntries + $ourEntries + $theirEntries);
@@ -221,7 +223,7 @@ final class TreeMerge
                 continue;
             }
 
-            $addedBlobConflict = self::tryMergeAddedBlobConflict($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle, $bigFileThreshold);
+            $addedBlobConflict = self::tryMergeAddedBlobConflict($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle, $binaryMergePatterns, $bigFileThreshold);
             if ($addedBlobConflict !== null) {
                 $merged[] = $addedBlobConflict['entry'];
                 array_push($conflicts, ...$addedBlobConflict['conflicts']);
@@ -256,7 +258,7 @@ final class TreeMerge
                 continue;
             }
 
-            $contentMerge = self::tryMergeChangedEntry($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle, $unionMergePatterns, $bigFileThreshold);
+            $contentMerge = self::tryMergeChangedEntry($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle, $unionMergePatterns, $binaryMergePatterns, $bigFileThreshold);
             if ($contentMerge !== null) {
                 if ($contentMerge['entry'] !== null) {
                     $merged[] = $contentMerge['entry'];
@@ -297,6 +299,7 @@ final class TreeMerge
         callable $writeObject,
         string $conflictStyle,
         array $unionMergePatterns = [],
+        array $binaryMergePatterns = [],
         ?int $bigFileThreshold = null,
     ): ?array {
         if ($baseEntry === null || $ourEntry === null || $theirEntry === null) {
@@ -313,6 +316,7 @@ final class TreeMerge
                 $conflictStyle,
                 $fullPath,
                 $unionMergePatterns,
+                $binaryMergePatterns,
                 $bigFileThreshold,
             );
 
@@ -341,7 +345,7 @@ final class TreeMerge
         $baseBlob = self::readTypedObject($readObject, $baseEntry->oid, 'blob');
         $ourBlob = self::readTypedObject($readObject, $ourEntry->oid, 'blob');
         $theirBlob = self::readTypedObject($readObject, $theirEntry->oid, 'blob');
-        $merge = self::shouldUseBinaryMerge($baseBlob->body, $ourBlob->body, $theirBlob->body, $bigFileThreshold)
+        $merge = (self::usesBinaryMerge($fullPath, $binaryMergePatterns) || self::shouldUseBinaryMerge($baseBlob->body, $ourBlob->body, $theirBlob->body, $bigFileThreshold))
             ? BlobMerge::mergeBinary($baseBlob->body, $ourBlob->body, $theirBlob->body)
             : BlobMerge::mergeText(
                 $baseBlob->body,
@@ -422,6 +426,7 @@ final class TreeMerge
         callable $readObject,
         callable $writeObject,
         string $conflictStyle,
+        array $binaryMergePatterns = [],
         ?int $bigFileThreshold = null,
     ): ?array {
         if ($baseEntry !== null || $ourEntry === null || $theirEntry === null || !$ourEntry->isBlob() || !$theirEntry->isBlob()) {
@@ -434,7 +439,7 @@ final class TreeMerge
 
         $ourBlob = self::readTypedObject($readObject, $ourEntry->oid, 'blob');
         $theirBlob = self::readTypedObject($readObject, $theirEntry->oid, 'blob');
-        $merge = self::shouldUseBinaryMerge('', $ourBlob->body, $theirBlob->body, $bigFileThreshold)
+        $merge = (self::usesBinaryMerge($fullPath, $binaryMergePatterns) || self::shouldUseBinaryMerge('', $ourBlob->body, $theirBlob->body, $bigFileThreshold))
             ? BlobMerge::mergeBinary('', $ourBlob->body, $theirBlob->body)
             : BlobMerge::mergeText(
                 '',
@@ -610,6 +615,7 @@ final class TreeMerge
             $readObject,
             $writeObject,
             $conflictStyle,
+            [],
             [],
             $bigFileThreshold,
         );
@@ -862,6 +868,36 @@ final class TreeMerge
     }
 
     /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param array<string, TreeEntry> $ourEntries
+     * @param array<string, TreeEntry> $theirEntries
+     * @param callable(string): GitObject $readObject
+     * @param list<string> $inherited
+     * @return list<string>
+     */
+    private static function binaryMergeAttributePatterns(
+        array $baseEntries,
+        array $ourEntries,
+        array $theirEntries,
+        callable $readObject,
+        string $pathPrefix,
+        array $inherited,
+    ): array
+    {
+        $entry = $ourEntries['.gitattributes'] ?? $baseEntries['.gitattributes'] ?? $theirEntries['.gitattributes'] ?? null;
+        if ($entry === null || !$entry->isBlob()) {
+            return $inherited;
+        }
+
+        $object = self::readTypedObject($readObject, $entry->oid, 'blob');
+        foreach (self::parseBinaryMergeAttributes($object->body) as $pattern) {
+            $inherited[] = self::joinPath($pathPrefix, ltrim($pattern, '/'));
+        }
+
+        return array_values(array_unique($inherited));
+    }
+
+    /**
      * @return list<string>
      */
     private static function parseUnionMergeAttributes(string $attributes): array
@@ -887,9 +923,48 @@ final class TreeMerge
     }
 
     /**
+     * @return list<string>
+     */
+    private static function parseBinaryMergeAttributes(string $attributes): array
+    {
+        $patterns = [];
+        foreach (preg_split('/\r\n|\n|\r/', $attributes) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+
+            $parts = preg_split('/\s+/', $line) ?: [];
+            $pattern = array_shift($parts);
+            if ($pattern === null || $pattern === '' || str_starts_with($pattern, '!')) {
+                continue;
+            }
+            if (in_array('binary', $parts, true) || in_array('-merge', $parts, true) || in_array('merge=binary', $parts, true)) {
+                $patterns[] = $pattern;
+            }
+        }
+
+        return $patterns;
+    }
+
+    /**
      * @param list<string> $patterns
      */
     private static function usesUnionMerge(string $path, array $patterns): bool
+    {
+        foreach ($patterns as $pattern) {
+            if (self::attributePatternMatches($pattern, $path)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $patterns
+     */
+    private static function usesBinaryMerge(string $path, array $patterns): bool
     {
         foreach ($patterns as $pattern) {
             if (self::attributePatternMatches($pattern, $path)) {
@@ -916,7 +991,12 @@ final class TreeMerge
         for ($i = 0; $i < $length; $i++) {
             $char = $pattern[$i];
             if ($char === '*') {
-                $regex .= '[^/]*';
+                if ($i + 1 < $length && $pattern[$i + 1] === '*') {
+                    $regex .= '.*';
+                    $i++;
+                } else {
+                    $regex .= '[^/]*';
+                }
             } elseif ($char === '?') {
                 $regex .= '[^/]';
             } else {
@@ -1414,6 +1494,7 @@ final class TreeMerge
             $writeObject,
             $conflictStyle,
             [],
+            [],
             $bigFileThreshold,
         );
         if ($merge === null || $merge['conflicts'] === []) {
@@ -1618,6 +1699,7 @@ final class TreeMerge
                     $writeObject,
                     $conflictStyle,
                     [],
+                    [],
                     $bigFileThreshold,
                 );
                 if ($merge === null || $merge['entry'] === null) {
@@ -1709,6 +1791,7 @@ final class TreeMerge
             $readObject,
             $writeObject,
             $conflictStyle,
+            [],
             [],
             $bigFileThreshold,
         );
@@ -1862,6 +1945,7 @@ final class TreeMerge
                     $readObject,
                     $writeObject,
                     $conflictStyle,
+                    [],
                     [],
                     $bigFileThreshold,
                 );
@@ -2107,6 +2191,7 @@ final class TreeMerge
             $writeObject,
             $conflictStyle,
             [],
+            [],
             $bigFileThreshold,
         );
         if ($result === null) {
@@ -2256,6 +2341,7 @@ final class TreeMerge
             $readObject,
             $writeObject,
             $conflictStyle,
+            [],
             [],
             $bigFileThreshold,
         );

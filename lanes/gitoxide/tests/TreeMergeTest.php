@@ -2622,21 +2622,31 @@ return [
     },
     'maps upstream gix-merge tree-baseline both-modify-file-with-binary-attr fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
-        $base = new Tree([$treeEntry('a', new Tree([$blobEntry('x.f', "not binary\n")]))]);
-        $ours = new Tree([$treeEntry('a', new Tree([$blobEntry('x.f', "A binary\n")]))]);
-        $theirs = new Tree([$treeEntry('a', new Tree([$blobEntry('x.f', "B binary\n")]))]);
+        $base = new Tree([
+            $blobEntry('.gitattributes', "a/** binary\n"),
+            $treeEntry('a', new Tree([$blobEntry('x.f', "not binary\n")])),
+        ]);
+        $ours = new Tree([
+            $blobEntry('.gitattributes', "a/** binary\n"),
+            $treeEntry('a', new Tree([$blobEntry('x.f', "A binary\n")])),
+        ]);
+        $theirs = new Tree([
+            $blobEntry('.gitattributes', "a/** binary\n"),
+            $treeEntry('a', new Tree([$blobEntry('x.f', "B binary\n")])),
+        ]);
 
         $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $attributes = $result->tree->entryNamed('.gitattributes');
         $a = Tree::fromObject($read($result->tree->entryNamed('a', true)?->oid ?? ''));
         $x = $a->entryNamed('x.f');
         $mergedBody = $read($x?->oid ?? '')->body;
 
         $t->same(false, $result->isClean());
-        $t->same(['a'], $names($result->tree));
+        $t->same(['.gitattributes', 'a'], $names($result->tree));
+        $t->same('100644', $attributes?->mode);
+        $t->same("a/** binary\n", $read($attributes?->oid ?? '')->body);
         $t->same(['x.f'], $names($a));
-        $t->contains('<<<<<<< ours/a/x.f', $mergedBody);
-        $t->contains("A binary\n", $mergedBody);
-        $t->contains("B binary\n", $mergedBody);
+        $t->same("A binary\n", $mergedBody);
         $t->same([
             ['path' => 'a/x.f', 'reason' => 'content-conflict', 'base' => 'x.f', 'ours' => 'x.f', 'theirs' => 'x.f'],
         ], array_map(
@@ -2663,7 +2673,7 @@ return [
             $result->indexEntries(),
         ));
         $t->same([
-            ['path' => 'a/x.f', 'body' => $mergedBody],
+            ['path' => 'a/x.f', 'body' => "A binary\n"],
         ], array_map(
             static fn ($file): array => ['path' => $file->path, 'body' => $file->content],
             $result->worktreeConflictFiles($read),
