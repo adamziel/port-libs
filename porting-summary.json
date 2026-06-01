@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 00:03:43 UTC",
-    "sourceCommit": "85f106700a64a56e013cb9779b2217c298e8a5899",
-    "sourceCommitShort": "85f106700a64",
+    "generated": "2026-06-01 00:13:42 UTC",
+    "sourceCommit": "7320884f2eb62ec4890dbcbbf2464befa2bdb336",
+    "sourceCommitShort": "7320884f2eb6",
     "sourceBranch": "main",
-    "dashboardCommit": "85f106700b9d26d4d0fd1259fbb326623bc8108b",
-    "dashboardCommitShort": "85f106700b9d",
+    "dashboardCommit": "7320884f2eb62ec4890dbcbbf2464befa2bdb336",
+    "dashboardCommitShort": "7320884f2eb6",
     "averageProgressPercent": "87.9",
     "lanes": [
         {
@@ -60,20 +60,20 @@
         },
         {
             "library": "gitoxide",
-            "progressPercent": "91.0",
+            "progressPercent": "91.1",
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1675",
-            "coverage": "1675 / 2886",
-            "php": "6404 pass / 0 fail",
+            "mapped": "1678",
+            "coverage": "1678 / 2886",
+            "php": "6453 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
-            "audit": "2026-06-01 supervisor batch at source 85f...",
-            "currentWork": "Receive-pack request packet-line boundary parity integrated on current base.",
+            "audit": "2026-06-01 supervisor batch at source 732...",
+            "currentWork": "Smart HTTP trailing-dot noProxy/cookie, SSH receive-pack feature-probe boundary, and refe...",
             "nextTarget": "Keep three Gitoxide workers on config/include, loose-object integrity, attributes/pathspe...",
             "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch.",
-            "commit": "85f1067"
+            "commit": "7320884"
         },
         {
             "library": "libsqlite",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "95.9",
+            "progressPercent": "96.0",
             "suite": "cloned-static-inventory-plus-bundler-source-map-css-mod...",
             "benchmark": "cloned-static-inventory-plus-bundler-source-map-css-mod...",
             "denominator": "3532",
-            "mapped": "2218",
-            "coverage": "2218 / 3532",
-            "php": "5016 pass / 0 fail",
+            "mapped": "2222",
+            "coverage": "2222 / 3532",
+            "php": "5077 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
-            "audit": "2026-06-01 supervisor batch at source 85f...",
-            "currentWork": "Media-query bare-not/layer validation and placeholder pseudo-element target prefix bounda...",
+            "audit": "2026-06-01 supervisor batch at source 732...",
+            "currentWork": "Source-map VLQ sort side effects, bundle-import malformed condition tails, CSS Modules po...",
             "nextTarget": "Keep six LightningCSS workers on bundle/import graph, CSS Modules, media queries, target...",
             "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for t...",
-            "commit": "85f1067"
+            "commit": "7320884"
         },
         {
             "library": "markerPDF",
