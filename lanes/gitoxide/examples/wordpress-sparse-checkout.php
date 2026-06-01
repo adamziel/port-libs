@@ -33,6 +33,11 @@ $posixClassPathspec = SparseCheckoutSpec::fromPathspecs([
 $posixSpaceClassPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)wp-content/uploads/slot[[:space:]]/**',
 ]);
+$doubleStarComponentPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content/**.php',
+    ':(glob)wp-content/**/loader.php',
+    ':(glob)wp-content/plugins**/block.json',
+]);
 $prefixedPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)*.php',
     ':(icase)BLOCK.JSON',
@@ -181,6 +186,11 @@ return [
     'pathspecPosixSpaceTabSkipped' => $posixSpaceClassPathspec->skipWorktree("wp-content/uploads/slot\t/photo.jpg", false),
     'pathspecInvalidClassLiteralFallbackIncluded' => $posixClassPathspec->includesPath('wp-content/uploads/[[:unknown:]]*.jpg', false),
     'pathspecInvalidClassWildcardExpansionSkipped' => $posixClassPathspec->skipWorktree('wp-content/uploads/[[:unknown:]]hero.jpg', false),
+    'pathspecDoubleStarComponentLocalFileIncluded' => $doubleStarComponentPathspec->includesPath('wp-content/index.php', false),
+    'pathspecDoubleStarComponentLocalNestedFileSkipped' => $doubleStarComponentPathspec->skipWorktree('wp-content/plugins/editor.php', false),
+    'pathspecDoubleStarComponentDirectoryGlobIncluded' => $doubleStarComponentPathspec->includesPath('wp-content/plugins/loader.php', false),
+    'pathspecDoubleStarMidComponentNestedDirectorySkipped' => $doubleStarComponentPathspec->skipWorktree('wp-content/plugins/vendor/block.json', false),
+    'pathspecDoubleStarMidComponentSiblingIncluded' => $doubleStarComponentPathspec->includesPath('wp-content/plugins-vendor/block.json', false),
     'prefixedPathspecIndexIncluded' => $prefixedPathspec->includesPath('wp-content/plugins/gutenberg/index.php', false),
     'prefixedPathspecNestedPhpSkipped' => $prefixedPathspec->skipWorktree('wp-content/plugins/gutenberg/src/editor.php', false),
     'prefixedPathspecIcaseFileIncluded' => $prefixedPathspec->includesPath('wp-content/plugins/gutenberg/block.json', false),

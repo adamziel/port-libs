@@ -296,12 +296,11 @@ final class PathspecMatcher
 
     private static function hasWildcard(string $pattern): bool
     {
-        return strpbrk($pattern, '*?[') !== false;
+        return strpbrk($pattern, '*?[\\') !== false;
     }
 
     private static function normalizePath(string $path, bool $trimLeadingSlash = true): string
     {
-        $path = str_replace('\\', '/', $path);
         if (str_contains($path, "\0")) {
             throw new \InvalidArgumentException('Pathspec paths cannot contain NUL bytes');
         }

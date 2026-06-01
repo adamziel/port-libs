@@ -98,6 +98,24 @@ $actual = [
         '@layer theme.blocks { @media (0.5x <= resolution <= 1.5x) { .wp-block-query.is-low-density-window { color: yellow; } } }',
         ['safari' => 15, 'firefox' => 10]
     ),
+    'numericCalcRangeFallback' => $prefixer->prefixForTargets(
+        <<<'CSS'
+@layer theme.blocks {
+  @media (-webkit-device-pixel-ratio >= calc(1 + 1)) {
+    .wp-block-query.is-density-calc {
+      color: yellow;
+    }
+  }
+
+  @media (1 <= -moz-device-pixel-ratio <= calc(1 + 1)) {
+    .wp-block-query.is-density-calc-window {
+      color: yellow;
+    }
+  }
+}
+CSS,
+        ['firefox' => 60]
+    ),
     'negatedRangeGroup' => $prefixer->prefixForTargets(
         '@layer theme.blocks { @media not ((100px <= width <= 200px) or (hover)) { .wp-block-query.is-not-compact-hover { color: yellow; } } }',
         ['firefox' => 85]
@@ -198,6 +216,26 @@ try {
 
 try {
     $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (color >= calc(1 + 1)) { .wp-block-query { color: chartreuse; } } }',
+        ['firefox' => 60]
+    );
+    $actual['invalidIntegerCalcGuard'] = 'missing';
+} catch (InvalidArgumentException) {
+    $actual['invalidIntegerCalcGuard'] = 'invalid-media-query';
+}
+
+try {
+    $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (resolution >= calc(1 + 1dppx)) { .wp-block-query { color: chartreuse; } } }',
+        ['firefox' => 60]
+    );
+    $actual['invalidResolutionCalcGuard'] = 'missing';
+} catch (InvalidArgumentException) {
+    $actual['invalidResolutionCalcGuard'] = 'invalid-media-query';
+}
+
+try {
+    $prefixer->prefixForTargets(
         '@layer theme.blocks { @media screen not (width >= 240px) { .wp-block-query { color: chartreuse; } } }',
         ['firefox' => 60]
     );
@@ -219,6 +257,7 @@ $expected = [
     'xResolutionPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query.is-density-aware{color:#ff0}}}',
     'resolutionEqualityPrefixFallback' => '@layer theme.blocks{@media (-webkit-device-pixel-ratio:2),(-moz-device-pixel-ratio:2),(resolution:2dppx){.wp-block-query.is-density-exact{color:#ff0}}}',
     'xResolutionIntervalPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query.is-low-density-window{color:#ff0}}}',
+    'numericCalcRangeFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2){.wp-block-query.is-density-calc{color:#ff0}}@media (min--moz-device-pixel-ratio:1) and (max--moz-device-pixel-ratio:2){.wp-block-query.is-density-calc-window{color:#ff0}}}',
     'negatedRangeGroup' => '@layer theme.blocks{@media not (((min-width:100px) and (max-width:200px)) or (hover)){.wp-block-query.is-not-compact-hover{color:#ff0}}}',
     'negatedIntervalWithHover' => '@layer theme.blocks{@media (hover) and (not ((min-width:200px) and (not (min-width:500px)))){.wp-block-query.is-not-middle-hover{color:#ff0}}}',
     'upstreamIntervalPrefixFallbacks' => '@layer theme.blocks{@media not ((min-width:100px) and (max-width:200px)){.wp-block-query.is-not-compact-range{color:#ff0}}@media (hover) and (min-width:100px) and (max-width:200px){.wp-block-query.is-hover-compact-range{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:200px)){.wp-block-query.is-open-range{color:#ff0}}@media not ((not (max-width:100px)) and (not (min-width:200px))){.wp-block-query.is-not-open-range{color:#ff0}}@media (max-width:200px) and (min-width:100px){.wp-block-query.is-descending-range{color:#ff0}}@media not (max-color:2){.wp-block-query.is-rich-color{color:#ff0}}@media not (min-color:2){.wp-block-query.is-low-color{color:#ff0}}}',
@@ -226,6 +265,8 @@ $expected = [
     'invalidIntervalGuard' => 'invalid-media-query',
     'invalidFunctionGuard' => 'invalid-media-query',
     'invalidRangeValueGuard' => 'invalid-media-query',
+    'invalidIntegerCalcGuard' => 'invalid-media-query',
+    'invalidResolutionCalcGuard' => 'invalid-media-query',
     'missingAndGuard' => 'invalid-media-query',
 ];
 

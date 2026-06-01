@@ -23,6 +23,7 @@ $homeMirrorExpandedPath = GitUrl::expandHomePath(
 );
 $relativeMirror = GitUrl::parse($fixture['relativeMirrorUrl']);
 $relativeMirrorCanonical = $relativeMirror->canonicalized($fixture['relativeMirrorCurrentDirectory']);
+$customHelperRemote = GitUrl::parse($fixture['customHelperRemoteUrl']);
 $fetch = array_map(
     static fn (string $spec): array => RefSpec::parseFetch($spec)->toArray(),
     $fixture['fetchRefspecs']
@@ -65,6 +66,8 @@ $summary = [
     'homeMirrorShellPath' => $homeMirrorShellPath,
     'homeMirrorExpandedPath' => $homeMirrorExpandedPath,
     'relativeMirrorCanonical' => $relativeMirrorCanonical->toArray(),
+    'customHelperRemote' => $customHelperRemote->toArray(),
+    'customHelperRemotePathArgumentSafe' => $customHelperRemote->pathArgumentSafe(),
     'fetch' => $fetch,
     'push' => $push,
     'oversizedRemoteRejected' => $oversizedRemoteRejected,
@@ -113,6 +116,15 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if ($summary['relativeMirrorCanonical']['normalized'] !== $fixture['expectedRelativeMirrorCanonicalUrl']) {
         throw new RuntimeException('Unexpected relative mirror canonical URL');
+    }
+    if ($summary['customHelperRemote']['normalized'] !== $fixture['expectedCustomHelperRemoteUrl']) {
+        throw new RuntimeException('Unexpected normalized custom helper remote URL');
+    }
+    if ($summary['customHelperRemote']['path'] !== $fixture['expectedCustomHelperRemotePath']) {
+        throw new RuntimeException('Unexpected custom helper remote path');
+    }
+    if ($summary['customHelperRemotePathArgumentSafe'] !== $fixture['expectedCustomHelperRemotePathArgumentSafe']) {
+        throw new RuntimeException('Unexpected custom helper remote path safety');
     }
     if (array_column($summary['fetch'], 'instruction') !== $fixture['expectedFetchInstructions']) {
         throw new RuntimeException('Unexpected fetch refspec instructions');

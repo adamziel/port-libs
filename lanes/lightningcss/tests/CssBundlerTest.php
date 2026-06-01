@@ -1965,6 +1965,101 @@ CSS,
             ]),
         ], $result['exports']);
     },
+    'css bundler maps upstream css module source maps across import graph' => static function (TestRunner $t) use ($moduleExport, $moduleLocal): void {
+        $entryCss = <<<'CSS'
+@import "./theme.css";
+
+.entry {
+  composes: token from "./tokens.css";
+  color: red;
+}
+CSS;
+        $tokensCss = <<<'CSS'
+.token {
+  color: blue;
+}
+CSS;
+        $themeCss = <<<'CSS'
+.theme {
+  color: yellow;
+}
+CSS;
+
+        $result = (new CssBundler())->bundleCssModulesWithSourceMap('/modules/entry.css', [
+            '/modules/entry.css' => $entryCss,
+            '/tokens.css' => $tokensCss,
+            '/theme.css' => $themeCss,
+        ], static function (string $specifier, string $originatingFile): string {
+            return match ($specifier) {
+                './tokens.css' => '/tokens.css',
+                './theme.css' => '/theme.css',
+                default => throw new RuntimeException("Unexpected CSS Modules source-map specifier {$specifier} from {$originatingFile}"),
+            };
+        }, [
+            'hashes' => [
+                '/modules/entry.css' => 'entry',
+                '/tokens.css' => 'tok',
+                '/theme.css' => 'theme',
+            ],
+        ], '/');
+
+        $t->same('.tok_token{color:#00f}.theme_theme{color:#ff0}.entry_entry{color:red}', $result['code']);
+        $t->same([
+            'entry' => $moduleExport('entry_entry', [
+                $moduleLocal('tok_token'),
+            ]),
+        ], $result['exports']);
+
+        $sourceMap = $result['sourceMap']->toArray(null, false);
+        $t->same(['modules/entry.css', 'tokens.css', 'theme.css'], $sourceMap['sources']);
+        $t->same([$entryCss, $tokensCss, $themeCss], $sourceMap['sourcesContent']);
+        $t->same('', $sourceMap['mappings']);
+
+        $readerFiles = [
+            '/modules/card.css' => <<<'CSS'
+.wp-block-card {
+  composes: token from "pkg:tokens.css";
+  color: red;
+}
+CSS,
+            '/modules/../shared/tokens.css' => <<<'CSS'
+.token {
+  color: blue;
+}
+CSS,
+        ];
+        $reads = [];
+        $resolved = [];
+
+        $readerResult = (new CssBundler())->bundleCssModulesWithReaderSourceMap(
+            '/modules/card.css',
+            static function (string $file) use (&$reads, $readerFiles): string {
+                $reads[] = $file;
+                if (!array_key_exists($file, $readerFiles)) {
+                    throw new RuntimeException("Missing reader source {$file}");
+                }
+
+                return $readerFiles[$file];
+            },
+            static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return '/modules/../shared/tokens.css';
+            },
+            [
+                'hashes' => [
+                    '/modules/card.css' => 'card',
+                    '/modules/../shared/tokens.css' => 'tok',
+                ],
+            ],
+            '/modules'
+        );
+
+        $t->same('.tok_token{color:#00f}.card_wp-block-card{color:red}', $readerResult['code']);
+        $t->same(['card.css', '../shared/tokens.css'], $readerResult['sourceMap']->toArray(null, false)['sources']);
+        $t->same(['/modules/card.css', '/modules/../shared/tokens.css'], $reads);
+        $t->same([['pkg:tokens.css', '/modules/card.css']], $resolved);
+    },
     'css bundler resolves upstream css module dashed ident dependency graph' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleDashed): void {
         $result = $bundleModules([
             '/entry.css' => <<<'CSS'
@@ -2008,6 +2103,82 @@ CSS,
             'card' => $moduleExport('entry_card'),
             '--inline-size' => $moduleDashed('--entry_inline-size', true),
         ], $result['exports']);
+    },
+    'css bundler maps upstream css module env name dependency graph' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
+        $resolved = [];
+        $result = $bundleModules([
+            '/entry.css' => <<<'CSS'
+@import "pkg:theme.css";
+
+.card {
+  margin: env(--wp-card-gap from "pkg:tokens.css", var(--fallback-gap from "pkg:fallback.css"));
+  color: red;
+}
+CSS,
+            '/vendor/tokens.css' => <<<'CSS'
+.tokens {
+  --wp-card-gap: 24px;
+}
+CSS,
+            '/vendor/fallback.css' => <<<'CSS'
+.fallback {
+  --fallback-gap: 12px;
+}
+CSS,
+            '/vendor/theme.css' => '.theme { color: blue }',
+        ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+            $resolved[] = [$specifier, $originatingFile];
+
+            return '/vendor/' . substr($specifier, strlen('pkg:'));
+        }, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/vendor/tokens.css' => 'tok',
+                '/vendor/fallback.css' => 'fallback',
+                '/vendor/theme.css' => 'theme',
+            ],
+            'dashedIdents' => true,
+        ]);
+
+        $t->same(
+            '.tok_tokens{--tok_wp-card-gap:24px}.fallback_fallback{--fallback_fallback-gap:12px}.theme_theme{color:#00f}.entry_card{margin:env(--tok_wp-card-gap,var(--fallback_fallback-gap));color:red}',
+            $result['code']
+        );
+        $t->same([
+            ['pkg:tokens.css', '/entry.css'],
+            ['pkg:fallback.css', '/entry.css'],
+            ['pkg:theme.css', '/entry.css'],
+        ], $resolved);
+        $t->same([
+            'card' => $moduleExport('entry_card'),
+        ], $result['exports']);
+
+        try {
+            $bundleModules([
+                '/entry.css' => <<<'CSS'
+.intro { color: red; }
+
+@media screen {
+  .card {
+    margin: env(--wp-card-gap from "./missing.css", 1rem);
+    color: blue;
+  }
+}
+CSS,
+            ], '/entry.css', null, [
+                'dashedIdents' => true,
+            ]);
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('Could not read `/missing.css`.', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(4, $exception->sourceLine);
+            $t->same(3, $exception->sourceColumn);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected missing env() CSS Modules dependency diagnostic');
     },
     'css bundler maps upstream css module content-hash imports' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
         $result = $bundleModules([

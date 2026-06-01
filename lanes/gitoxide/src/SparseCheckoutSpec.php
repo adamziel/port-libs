@@ -611,15 +611,28 @@ final class SparseCheckoutSpec
                 continue;
             }
             if ($char === '*') {
+                $starStart = $i;
                 if (($pattern[$i + 1] ?? '') === '*') {
                     while (($pattern[$i + 1] ?? '') === '*') {
                         $i++;
                     }
-                    if (($pattern[$i + 1] ?? '') === '/') {
+                    $next = $pattern[$i + 1] ?? null;
+                    $wholePathComponent = !$matchSlash
+                        && ($starStart === 0 || $pattern[$starStart - 1] === '/')
+                        && ($next === null || $next === '/' || ($next === '\\' && ($pattern[$i + 2] ?? null) === '/'));
+
+                    if ($matchSlash) {
+                        $regex .= '.*';
+                    } elseif ($wholePathComponent && $next === '/') {
                         $regex .= '(?:.*/)?';
                         $i++;
-                    } else {
+                    } elseif ($wholePathComponent && $next === '\\' && ($pattern[$i + 2] ?? null) === '/') {
+                        $regex .= '(?:.*/)?';
+                        $i += 2;
+                    } elseif ($wholePathComponent) {
                         $regex .= '.*';
+                    } else {
+                        $regex .= '[^/]*';
                     }
                 } else {
                     $regex .= $matchSlash ? '.*' : '[^/]*';

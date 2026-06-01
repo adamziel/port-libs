@@ -171,6 +171,32 @@ return [
         $t->same('PACKtiny', $keepalive->packData());
         $t->same([], $keepalive->errorMessages());
     },
+    'rejects truncated fetch response sections and sideband streams before flush' => static function (TestRunner $t) use ($packet, $runtimeMessage): void {
+        $t->contains(
+            'fetch response: missing section terminator',
+            $runtimeMessage(static fn () => FetchResponse::fromV2PacketLines(
+                $packet("acknowledgments\n")
+                . $packet("NAK\n")
+            ))
+        );
+        $t->contains(
+            'fetch response: missing sideband flush packet',
+            $runtimeMessage(static fn () => FetchResponse::fromV2PacketLines(
+                $packet("packfile\n")
+                . $packet("\x02Counting objects: 100% (1/1)\r")
+                . $packet("\x01PACKtiny")
+            ))
+        );
+        $t->contains(
+            'fetch response: missing sideband flush packet',
+            $runtimeMessage(static fn () => FetchResponse::fromV2PacketLines(
+                $packet("\x02remote: preparing pack\n")
+                . $packet("\x01packfile\n")
+                . $packet("\x01PACKtiny"),
+                true
+            ))
+        );
+    },
     'surfaces raw upload-pack ERR packets before sideband decoding' => static function (TestRunner $t) use ($packet, $flush, $runtimeMessage): void {
         $t->contains(
             'fetch response: upload-pack error backend died',
@@ -533,10 +559,16 @@ return [
             'fetch response: upload-pack error raw WordPress fetch failure',
             rtrim($runtimeMessage(static fn () => FetchResponse::fromV2PacketLines($fixture['rawUploadPackErrorResponse'], true)))
         );
+        $t->same(
+            'fetch response: missing sideband flush packet',
+            rtrim($runtimeMessage(static fn () => FetchResponse::fromV2PacketLines($fixture['truncatedPackResponse'])))
+        );
         $t->same(['remote: preparing WordPress blobless pack', 'Enumerating objects: 1, done.'], $response->progressMessages());
 
         $summary = require dirname(__DIR__) . '/examples/wordpress-protocol-v2-fetch-response.php';
         $t->same('fetch response: upload-pack error raw WordPress fetch failure', $summary['uploadPackError']);
+        $t->same(true, $summary['truncatedPackRejected']);
+        $t->same('fetch response: missing sideband flush packet', $summary['truncatedPackError']);
         $t->same(true, $summary['emptyErrorKeepaliveIgnored']);
         $t->same(4294967295, $overflowProgressResponse->remoteProgress()[0]->percent);
         $t->same(null, $overflowProgressResponse->remoteProgress()[1]->percent);

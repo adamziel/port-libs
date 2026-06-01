@@ -184,14 +184,46 @@ final class SQLiteSelectPredicate
 
         $leftAffinity = self::operandAffinity($row, $predicate['left'] ?? null);
         $rightAffinity = self::operandAffinity($row, $predicate['right'] ?? null);
-        $comparison = $leftAffinity !== null || $rightAffinity !== null
-            ? SQLiteAffinityComparison::compare($left, $right, $leftAffinity ?? 'NONE', $rightAffinity ?? 'NONE', self::predicateCollation($predicate) ?? 'BINARY')
-            : self::compareValues($left, $right, $nullsEqual, self::predicateCollations($predicate) ?? self::predicateCollation($predicate));
+        $comparison = null;
+        if ($leftAffinity !== null || $rightAffinity !== null) {
+            $comparison = self::bothOperandsAreColumns($predicate)
+                ? SQLiteAffinityComparison::compareColumnValues($left, $right, $leftAffinity ?? 'NONE', $rightAffinity ?? 'NONE', self::predicateCollation($predicate) ?? 'BINARY')
+                : SQLiteAffinityComparison::compare($left, $right, $leftAffinity ?? 'NONE', $rightAffinity ?? 'NONE', self::predicateCollation($predicate) ?? 'BINARY');
+        } else {
+            $comparison = self::compareValues($left, $right, $nullsEqual, self::predicateCollations($predicate) ?? self::predicateCollation($predicate));
+        }
         if ($comparison === null && $nullsEqual) {
             return $accept(1);
         }
 
         return $comparison === null ? null : $accept($comparison);
+    }
+
+    /**
+     * @param array<string,mixed> $predicate
+     */
+    private static function bothOperandsAreColumns(array $predicate): bool
+    {
+        return self::expressionIsColumnReference($predicate['left'] ?? null)
+            && self::expressionIsColumnReference($predicate['right'] ?? null);
+    }
+
+    private static function expressionIsColumnReference(mixed $expression): bool
+    {
+        if (!is_array($expression)) {
+            return false;
+        }
+        if (array_key_exists('column', $expression)) {
+            return true;
+        }
+        if (($expression['type'] ?? null) === 'column') {
+            return true;
+        }
+        if (($expression['type'] ?? null) === 'collate') {
+            return self::expressionIsColumnReference($expression['operand'] ?? null);
+        }
+
+        return false;
     }
 
     /**

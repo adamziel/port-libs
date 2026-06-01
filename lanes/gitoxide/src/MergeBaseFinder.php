@@ -12,7 +12,7 @@ final class MergeBaseFinder
     private const FLAG_RESULT = 8;
 
     /**
-     * @var \Closure(string): Commit
+     * @var \Closure(string): (?Commit)
      */
     private readonly \Closure $readCommit;
 
@@ -25,6 +25,11 @@ final class MergeBaseFinder
      * @var array<string, Commit>
      */
     private array $commitCache = [];
+
+    /**
+     * @var array<string, true>
+     */
+    private array $missingCommitCache = [];
 
     /**
      * @var array<string, array<string, int>>
@@ -164,10 +169,15 @@ final class MergeBaseFinder
                 return;
             }
 
+            $priority = $this->walkPriorityIfPresent($oid);
+            if ($priority === null) {
+                return;
+            }
+
             $flagsByCommit[$oid] = $currentFlags | $flags;
             $queue[] = [
                 'oid' => $oid,
-                'priority' => $this->walkPriority($oid),
+                'priority' => $priority,
             ];
         };
 
@@ -193,16 +203,7 @@ final class MergeBaseFinder
             foreach ($this->commit($commitId)->parents as $parent) {
                 $parent = strtolower($parent);
                 self::assertSameObjectFormat($hashLength, $parent);
-                $parentFlags = $flagsByCommit[$parent] ?? 0;
-                if (($parentFlags & $flagsWithoutResult) === $flagsWithoutResult) {
-                    continue;
-                }
-
-                $flagsByCommit[$parent] = $parentFlags | $flagsWithoutResult;
-                $queue[] = [
-                    'oid' => $parent,
-                    'priority' => $this->walkPriority($parent),
-                ];
+                $enqueue($parent, $flagsWithoutResult);
             }
         }
 
@@ -234,6 +235,9 @@ final class MergeBaseFinder
                 $parent = strtolower($parent);
                 self::assertSameObjectFormat($hashLength, $parent);
                 if ((($flagsByCommit[$parent] ?? 0) & self::FLAG_STALE) !== 0) {
+                    continue;
+                }
+                if ($this->tryCommit($parent) === null) {
                     continue;
                 }
                 $flagsByCommit[$parent] = ($flagsByCommit[$parent] ?? 0) | self::FLAG_STALE;
@@ -271,6 +275,9 @@ final class MergeBaseFinder
                     $parent = strtolower($parent);
                     self::assertSameObjectFormat($hashLength, $parent);
                     if ((($flagsByCommit[$parent] ?? 0) & self::FLAG_STALE) !== 0) {
+                        continue;
+                    }
+                    if ($this->tryCommit($parent) === null) {
                         continue;
                     }
                     $flagsByCommit[$parent] = ($flagsByCommit[$parent] ?? 0) | self::FLAG_STALE;
@@ -501,10 +508,29 @@ final class MergeBaseFinder
 
     private function commit(string $oid): Commit
     {
+        $commit = $this->tryCommit($oid);
+        if ($commit === null) {
+            throw new \RuntimeException("Missing commit object: {$oid}");
+        }
+
+        return $commit;
+    }
+
+    private function tryCommit(string $oid): ?Commit
+    {
+        $oid = strtolower($oid);
+        if (isset($this->missingCommitCache[$oid])) {
+            return null;
+        }
         if (!isset($this->commitCache[$oid])) {
             $commit = ($this->readCommit)($oid);
+            if ($commit === null) {
+                $this->missingCommitCache[$oid] = true;
+
+                return null;
+            }
             if (!$commit instanceof Commit) {
-                throw new \InvalidArgumentException('Commit reader must return ' . Commit::class);
+                throw new \InvalidArgumentException('Commit reader must return ' . Commit::class . ' or null');
             }
             $this->commitCache[$oid] = $commit;
         }
@@ -548,13 +574,18 @@ final class MergeBaseFinder
     }
 
     /**
-     * @return array{int, int, string}
+     * @return ?array{int, int, string}
      */
-    private function walkPriority(string $oid): array
+    private function walkPriorityIfPresent(string $oid): ?array
     {
+        $commitTime = $this->tryCommitTime($oid);
+        if ($commitTime === null) {
+            return null;
+        }
+
         return [
             $this->useCommitGraphGenerations ? $this->graphWalkGeneration($oid) : 0,
-            $this->commitTime($oid),
+            $commitTime,
             $oid,
         ];
     }
@@ -586,7 +617,7 @@ final class MergeBaseFinder
             return $this->providedCommitGraphGeneration($oid) ?? PHP_INT_MAX;
         }
 
-        return $this->commitGeneration($oid);
+        return $this->commitGeneration($oid) ?? PHP_INT_MAX;
     }
 
     private function providedCommitGraphGeneration(string $oid): ?int
@@ -604,7 +635,7 @@ final class MergeBaseFinder
         return $this->commitGraphGenerationCache[$oid] = $generation;
     }
 
-    private function commitGeneration(string $oid): int
+    private function commitGeneration(string $oid): ?int
     {
         $oid = strtolower($oid);
         if (isset($this->generationCache[$oid])) {
@@ -612,12 +643,21 @@ final class MergeBaseFinder
         }
 
         $hashLength = self::assertObjectId($oid);
+        $commit = $this->tryCommit($oid);
+        if ($commit === null) {
+            return null;
+        }
+
         $this->generationCache[$oid] = 1;
         $generation = 1;
-        foreach ($this->commit($oid)->parents as $parent) {
+        foreach ($commit->parents as $parent) {
             $parent = strtolower($parent);
             self::assertSameObjectFormat($hashLength, $parent);
-            $generation = max($generation, $this->commitGeneration($parent) + 1);
+            $parentGeneration = $this->commitGeneration($parent);
+            if ($parentGeneration === null) {
+                continue;
+            }
+            $generation = max($generation, $parentGeneration + 1);
         }
 
         return $this->generationCache[$oid] = $generation;
@@ -625,9 +665,23 @@ final class MergeBaseFinder
 
     private function commitTime(string $oid): int
     {
+        $commitTime = $this->tryCommitTime($oid);
+        if ($commitTime === null) {
+            throw new \RuntimeException("Missing commit object: {$oid}");
+        }
+
+        return $commitTime;
+    }
+
+    private function tryCommitTime(string $oid): ?int
+    {
         $oid = strtolower($oid);
         if (!isset($this->commitTimeCache[$oid])) {
-            $this->commitTimeCache[$oid] = $this->commit($oid)->committerSignature()->seconds();
+            $commit = $this->tryCommit($oid);
+            if ($commit === null) {
+                return null;
+            }
+            $this->commitTimeCache[$oid] = $commit->committerSignature()->seconds();
         }
 
         return $this->commitTimeCache[$oid];

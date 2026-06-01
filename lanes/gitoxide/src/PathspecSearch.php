@@ -134,7 +134,7 @@ final class PathspecSearch
 
     public function match(string $relativePath, ?bool $isDirectory = null, ?GitAttributes $attributes = null): ?PathspecMatch
     {
-        $relativePath = self::normalizePath($relativePath);
+        $relativePath = self::validateRelativePath($relativePath);
         if ($relativePath === '') {
             return new PathspecMatch(
                 new PathspecPattern('', nil: true),
@@ -188,7 +188,7 @@ final class PathspecSearch
 
     public function canMatch(string $relativePath, ?bool $isDirectory = null): bool
     {
-        $relativePath = self::normalizePath($relativePath);
+        $relativePath = self::validateRelativePath($relativePath);
         if ($this->patterns === [] || $relativePath === '') {
             return true;
         }
@@ -212,7 +212,7 @@ final class PathspecSearch
 
     public function directoryMatchesPrefix(string $relativePath, bool $leading = false): bool
     {
-        $relativePath = self::normalizePath($relativePath);
+        $relativePath = self::validateRelativePath($relativePath);
         if ($this->patterns === [] || $relativePath === '') {
             return true;
         }
@@ -644,7 +644,6 @@ final class PathspecSearch
 
     private static function normalizePath(string $path): string
     {
-        $path = str_replace('\\', '/', $path);
         if (str_contains($path, "\0")) {
             throw new \InvalidArgumentException('Pathspec relative path cannot contain NUL bytes');
         }
@@ -662,6 +661,15 @@ final class PathspecSearch
         }
 
         return implode('/', $parts);
+    }
+
+    private static function validateRelativePath(string $path): string
+    {
+        if (str_contains($path, "\0")) {
+            throw new \InvalidArgumentException('Pathspec relative path cannot contain NUL bytes');
+        }
+
+        return $path;
     }
 
     private static function normalizePatternPath(string $path): string

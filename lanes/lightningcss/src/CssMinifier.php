@@ -16177,7 +16177,7 @@ final class CssMinifier
     /**
      * @return array{
      *   space:string,
-     *   origin:array{r:float,g:float,b:float,alpha:float},
+     *   origin:array<string,float>,
      *   components:list<string>,
      *   alpha:?string
      * }|null
@@ -16195,7 +16195,7 @@ final class CssMinifier
         }
 
         $space = strtolower($tokens[2]);
-        if (!in_array($space, ['srgb', 'srgb-linear', 'a98-rgb', 'rec2020', 'prophoto-rgb'], true)) {
+        if (!in_array($space, ['srgb', 'srgb-linear', 'a98-rgb', 'rec2020', 'prophoto-rgb', 'xyz', 'xyz-d50', 'xyz-d65'], true)) {
             return null;
         }
 
@@ -16205,7 +16205,7 @@ final class CssMinifier
         }
 
         return [
-            'space' => $space,
+            'space' => $this->normalizeColorSpaceName($space),
             'origin' => $origin,
             'components' => array_slice($tokens, 3, 3),
             'alpha' => isset($slashParts[1]) ? trim($slashParts[1]) : null,
@@ -16213,7 +16213,7 @@ final class CssMinifier
     }
 
     /**
-     * @return array{r:float,g:float,b:float,alpha:float}|null
+     * @return array<string,float>|null
      */
     private function parseRelativeColorSpaceOrigin(string $space, string $origin): ?array
     {
@@ -16227,24 +16227,35 @@ final class CssMinifier
             return null;
         }
 
-        if (strtolower($parts['components'][0]) !== $space) {
+        if ($this->normalizeColorSpaceName(strtolower($parts['components'][0])) !== $this->normalizeColorSpaceName($space)) {
             return null;
         }
 
-        $red = $this->parseRelativeColorSpaceOriginComponent($parts['components'][1]);
-        $green = $this->parseRelativeColorSpaceOriginComponent($parts['components'][2]);
-        $blue = $this->parseRelativeColorSpaceOriginComponent($parts['components'][3]);
+        $channelNames = $this->relativeColorSpaceChannelNames($space);
+        $first = $this->parseRelativeColorSpaceOriginComponent($parts['components'][1]);
+        $second = $this->parseRelativeColorSpaceOriginComponent($parts['components'][2]);
+        $third = $this->parseRelativeColorSpaceOriginComponent($parts['components'][3]);
         $alpha = $this->parseRelativeColorSpaceOriginAlpha($parts['alpha']);
-        if ($red === null || $green === null || $blue === null || $alpha === null) {
+        if ($first === null || $second === null || $third === null || $alpha === null) {
             return null;
         }
 
         return [
-            'r' => $red,
-            'g' => $green,
-            'b' => $blue,
+            $channelNames[0] => $first,
+            $channelNames[1] => $second,
+            $channelNames[2] => $third,
             'alpha' => $alpha,
         ];
+    }
+
+    /**
+     * @return array{0:string,1:string,2:string}
+     */
+    private function relativeColorSpaceChannelNames(string $space): array
+    {
+        return in_array($this->normalizeColorSpaceName($space), ['xyz', 'xyz-d50'], true)
+            ? ['x', 'y', 'z']
+            : ['r', 'g', 'b'];
     }
 
     private function parseRelativeColorSpaceOriginComponent(string $token): ?float
@@ -16282,7 +16293,7 @@ final class CssMinifier
     }
 
     /**
-     * @param array{r:float,g:float,b:float,alpha:float} $origin
+     * @param array<string,float> $origin
      * @return array{type:'none'}|array{type:'number',value:float}|null
      */
     private function evaluateRelativeColorSpaceComponent(string $token, array $origin): ?array

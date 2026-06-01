@@ -491,6 +491,42 @@ return [
         $t->same([1, 0], array_column($offset->getMappings(), 'nameIndex'));
         $t->same('EACAC,WADAD', $offset->writeVlq());
     },
+    'source map preserves nested unsorted vlq line order until upstream sort entrypoints' => static function (TestRunner $t): void {
+        $writeParent = new SourceMap();
+        $writeChild = new SourceMap();
+        $writeChild->addVlqMap(
+            'UAAAA,RACAC',
+            ['child.css'],
+            ['.child{}'],
+            ['later', 'earlier']
+        );
+        $writeParent->addSourceMap($writeChild, 2);
+
+        $t->same([10, 2], array_column($writeParent->getMappings(), 'generatedColumn'));
+        $t->same([0, 1], array_column($writeParent->getMappings(), 'originalLine'));
+        $t->same([0, 1], array_column($writeParent->getMappings(), 'nameIndex'));
+        $t->same([], $writeChild->getMappings());
+        $t->same(';;EACAC,QADAD', $writeParent->writeVlq());
+        $t->same([2, 10], array_column($writeParent->getMappings(), 'generatedColumn'));
+        $t->same(['child.css'], $writeParent->toArray(null, false)['sources']);
+        $t->same(['later', 'earlier'], $writeParent->toArray(null, false)['names']);
+
+        $lookupParent = new SourceMap();
+        $lookupChild = new SourceMap();
+        $lookupChild->addVlqMap(
+            'UAAAA,RACAC',
+            ['child.css'],
+            ['.child{}'],
+            ['later', 'earlier']
+        );
+        $lookupParent->addSourceMap($lookupChild, 2);
+        $closest = $lookupParent->findClosestMapping(2, 8);
+
+        $t->same(2, $closest['generatedColumn'] ?? null);
+        $t->same(1, $closest['originalLine'] ?? null);
+        $t->same(1, $closest['nameIndex'] ?? null);
+        $t->same([2, 10], array_column($lookupParent->getMappings(), 'generatedColumn'));
+    },
     'source map closest lookup follows upstream duplicate generated-column search' => static function (TestRunner $t): void {
         $inputMap = SourceMap::fromJson(
             '{"version":3,"mappings":"AAAAAA","sources":["compiled.css"],"sourcesContent":[".compiled{}"],"names":["rule"]}'

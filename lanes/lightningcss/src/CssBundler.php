@@ -132,7 +132,27 @@ final class CssBundler
      * @return array{
      *   code:string,
      *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>,
-     *   sourceMap?:SourceMap
+     *   sourceMap:SourceMap
+     * }
+     *
+     * @param array<string, string> $files
+     * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,grid?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
+     */
+    public function bundleCssModulesWithSourceMap(
+        string $entry,
+        array $files,
+        ?callable $resolver = null,
+        array $options = [],
+        string $projectRoot = '/'
+    ): array {
+        return $this->bundleInternal($entry, $files, $resolver, true, $options, null, false, $projectRoot);
+    }
+
+    /**
+     * @return array{
+     *   code:string,
+     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
      * }
      *
      * @param callable(string): string $reader
@@ -142,6 +162,27 @@ final class CssBundler
     public function bundleCssModulesWithReader(string $entry, callable $reader, ?callable $resolver = null, array $options = []): array
     {
         return $this->bundleInternal($entry, [], $resolver, true, $options, $reader);
+    }
+
+    /**
+     * @return array{
+     *   code:string,
+     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>,
+     *   sourceMap:SourceMap
+     * }
+     *
+     * @param callable(string): string $reader
+     * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,grid?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
+     */
+    public function bundleCssModulesWithReaderSourceMap(
+        string $entry,
+        callable $reader,
+        ?callable $resolver = null,
+        array $options = [],
+        string $projectRoot = '/'
+    ): array {
+        return $this->bundleInternal($entry, [], $resolver, true, $options, $reader, false, $projectRoot);
     }
 
     /**

@@ -555,6 +555,58 @@ return [
             static fn () => PathspecSearch::fromSpecs(['../..'], 'wp-content'),
         );
     },
+    'tree pathspec matching preserves raw candidate path components' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
+        $objects = [];
+        $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
+        $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
+            $object = $tree->toObject();
+            $objects[$object->oid()] = $object;
+
+            return new TreeEntry('040000', $name, $object->oid());
+        };
+        $root = new Tree([
+            $tree('wp-content', new Tree([
+                $tree('plugins', new Tree([
+                    $tree('..', new Tree([$blob('secret.php')])),
+                    $blob('safe.php'),
+                    $blob('weird\\name.php'),
+                ])),
+            ])),
+        ]);
+        $read = static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+            if (!isset($objects[$entry->oid])) {
+                throw new RuntimeException("Missing tree object for {$path}");
+            }
+
+            return $objects[$entry->oid];
+        };
+        $search = PathspecSearch::fromSpecs([
+            'wp-content/secret.php',
+            'wp-content/plugins/safe.php',
+            'wp-content/plugins/weird/name.php',
+        ]);
+
+        $t->same(null, $search->match('wp-content/plugins/../secret.php', false));
+        $t->same(null, $search->match('wp-content/plugins/weird\\name.php', false));
+        $t->same(false, $search->canMatch('wp-content/plugins/..', true));
+        $t->same(true, $search->directoryMatchesPrefix('wp-content/plugins/..', true));
+        $t->same(true, $search->isIncluded('wp-content/plugins/safe.php', false));
+
+        $readPaths = [];
+        $records = TreePathspecWalk::breadthFirst(
+            $root,
+            $search,
+            static function (TreeEntry $entry, string $path) use ($read, &$readPaths): GitObject {
+                $readPaths[] = $path;
+
+                return $read($entry, $path);
+            },
+            includeTrees: false,
+        );
+
+        $t->same(['wp-content/plugins/safe.php'], $walkPaths($records));
+        $t->same(['wp-content', 'wp-content/plugins'], $readPaths);
+    },
     'walks trees breadth first with pathspec matches and subtree pruning' => static function (TestRunner $t) use ($makeTreeStore, $walkPaths): void {
         [$root, $read] = $makeTreeStore();
         $readPaths = [];
@@ -772,5 +824,9 @@ return [
         $t->same(false, $example['excludeNilCanDescendIntoContent']);
         $t->same([], $example['excludeNilContentPaths']);
         $t->same([], $example['excludeNilReadPaths']);
+        $t->same(['wp-content/plugins/safe.php'], $example['rawComponentGuardContentPaths']);
+        $t->same(['wp-content', 'wp-content/plugins'], $example['rawComponentGuardReadPaths']);
+        $t->same(true, $example['rawParentComponentSkipped']);
+        $t->same(true, $example['rawBackslashComponentSkipped']);
     },
 ];

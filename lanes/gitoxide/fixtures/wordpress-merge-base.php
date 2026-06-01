@@ -93,6 +93,8 @@ $missingGenerationReleaseBaseline = $oidPair('c2');
 $missingGenerationPluginReview = $oidPair('c3');
 $missingGenerationThemeReview = $oidPair('c4');
 $missingGenerationArchiveReview = $oidPair('c5');
+$shallowMissingArchiveRoot = $oidPair('c6');
+$shallowMissingArchiveReview = $oidPair('c7');
 $sha256Root = $oid256('1');
 $sha256Release = $oid256('2');
 $sha256PluginReview = $oid256('a');
@@ -168,6 +170,9 @@ return [
     'missingGenerationThemeReview' => $missingGenerationThemeReview,
     'missingGenerationArchiveReview' => $missingGenerationArchiveReview,
     'missingGenerationGraphWalkOthers' => [$missingGenerationThemeReview, $missingGenerationArchiveReview],
+    'shallowMissingArchiveRoot' => $shallowMissingArchiveRoot,
+    'shallowMissingArchiveReview' => $shallowMissingArchiveReview,
+    'shallowMissingArchiveGraphWalkOthers' => [$shallowThemeReview, $shallowMissingArchiveReview],
     'sha256ReleaseBaseline' => $sha256Release,
     'sha256PluginReview' => $sha256PluginReview,
     'sha256ThemeReview' => $sha256ThemeReview,
@@ -236,6 +241,7 @@ return [
         $missingGenerationPluginReview => $commit([$missingGenerationReleaseBaseline], 1700004600),
         $missingGenerationThemeReview => $commit([$missingGenerationReleaseBaseline], 1700004700),
         $missingGenerationArchiveReview => $commit([], 1700004800),
+        $shallowMissingArchiveReview => $commit([$shallowMissingArchiveRoot], 1700004900),
         $sha256Root => $commit256(),
         $sha256Release => $commit256([$sha256Root]),
         $sha256PluginReview => $commit256([$sha256Release]),

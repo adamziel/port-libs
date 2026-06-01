@@ -9,47 +9,27 @@ use PortLibs\Gitoxide\MergeBaseFinder;
 
 $fixture = require dirname(__DIR__) . '/fixtures/wordpress-merge-base.php';
 
-$finder = new MergeBaseFinder(static function (string $oid) use ($fixture): Commit {
-    if (!isset($fixture['commits'][$oid])) {
-        throw new RuntimeException("Missing WordPress commit fixture: {$oid}");
-    }
-
-    return $fixture['commits'][$oid];
+$finder = new MergeBaseFinder(static function (string $oid) use ($fixture): ?Commit {
+    return $fixture['commits'][$oid] ?? null;
 });
-$timeOnlyFinder = new MergeBaseFinder(static function (string $oid) use ($fixture): Commit {
-    if (!isset($fixture['commits'][$oid])) {
-        throw new RuntimeException("Missing WordPress commit fixture: {$oid}");
-    }
-
-    return $fixture['commits'][$oid];
+$timeOnlyFinder = new MergeBaseFinder(static function (string $oid) use ($fixture): ?Commit {
+    return $fixture['commits'][$oid] ?? null;
 }, useCommitGraphGenerations: false);
 $commitGraphFinder = new MergeBaseFinder(
-    static function (string $oid) use ($fixture): Commit {
-        if (!isset($fixture['commits'][$oid])) {
-            throw new RuntimeException("Missing WordPress commit fixture: {$oid}");
-        }
-
-        return $fixture['commits'][$oid];
+    static function (string $oid) use ($fixture): ?Commit {
+        return $fixture['commits'][$oid] ?? null;
     },
     commitGraphGeneration: static fn (string $oid): ?int => $fixture['shallowCommitGraphGenerations'][$oid] ?? null,
 );
 $redundantPruneFinder = new MergeBaseFinder(
-    static function (string $oid) use ($fixture): Commit {
-        if (!isset($fixture['commits'][$oid])) {
-            throw new RuntimeException("Missing WordPress commit fixture: {$oid}");
-        }
-
-        return $fixture['commits'][$oid];
+    static function (string $oid) use ($fixture): ?Commit {
+        return $fixture['commits'][$oid] ?? null;
     },
     commitGraphGeneration: static fn (string $oid): ?int => $fixture['redundantPruneCommitGraphGenerations'][$oid] ?? null,
 );
 $missingGenerationFinder = new MergeBaseFinder(
-    static function (string $oid) use ($fixture): Commit {
-        if (!isset($fixture['commits'][$oid])) {
-            throw new RuntimeException("Missing WordPress commit fixture: {$oid}");
-        }
-
-        return $fixture['commits'][$oid];
+    static function (string $oid) use ($fixture): ?Commit {
+        return $fixture['commits'][$oid] ?? null;
     },
     commitGraphGeneration: static fn (string $oid): ?int => null,
 );
@@ -91,6 +71,10 @@ $shallowCommitGraphBase = $commitGraphFinder->mergeBaseAgainst(
 $shallowPairwiseBase = $timeOnlyFinder->mergeBase(
     $fixture['shallowPluginReview'],
     $fixture['shallowThemeReview'],
+);
+$shallowMissingArchiveBase = $timeOnlyFinder->mergeBaseAgainst(
+    $fixture['shallowPluginReview'],
+    $fixture['shallowMissingArchiveGraphWalkOthers'],
 );
 $timestampSkewBase = $finder->mergeBase(
     $fixture['timestampSkewLeftReview'],
@@ -158,10 +142,12 @@ return [
     'shallowGraphWalkBase' => $shallowGraphWalkBase,
     'shallowCommitGraphBase' => $shallowCommitGraphBase,
     'shallowPairwiseBase' => $shallowPairwiseBase,
+    'shallowMissingArchiveBase' => $shallowMissingArchiveBase,
     'shallowReleaseBaseline' => $fixture['shallowReleaseBaseline'],
     'shallowGraphWalkStopsAtReleaseBaseline' => $shallowGraphWalkBase === $fixture['shallowReleaseBaseline'],
     'shallowCommitGraphUsesMetadata' => $shallowCommitGraphBase === $fixture['shallowReleaseBaseline'],
     'shallowPairwiseStopsAtReleaseBaseline' => $shallowPairwiseBase === $fixture['shallowReleaseBaseline'],
+    'shallowMissingArchiveParentIsSkipped' => $shallowMissingArchiveBase === $fixture['shallowReleaseBaseline'],
     'timestampSkewHeads' => $fixture['timestampSkewHeads'],
     'timestampSkewBase' => $timestampSkewBase,
     'timestampSkewReverseBase' => $timestampSkewReverseBase,

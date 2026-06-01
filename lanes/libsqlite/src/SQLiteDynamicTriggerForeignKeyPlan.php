@@ -487,6 +487,133 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{
+     *     case:string,
+     *     sql:string,
+     *     table_columns:list<string>,
+     *     child_columns:list<string>,
+     *     parent_table:string,
+     *     parent_columns?:list<string>|null,
+     *     reason?:string
+     * }> $definitions
+     * @return array<string,mixed>
+     */
+    public static function eForeignKeyCreateTableValidationPlan(array $definitions, bool $foreignKeysEnabled): array
+    {
+        if ($definitions === []) {
+            throw new \InvalidArgumentException('SQLite e_fkey54 create-table validation corpus cannot be empty');
+        }
+
+        $cases = [];
+        foreach (array_values($definitions) as $index => $definition) {
+            $case = trim((string) ($definition['case'] ?? ''));
+            if ($case === '') {
+                throw new \InvalidArgumentException('SQLite e_fkey54 create-table case name is required');
+            }
+
+            $sql = trim((string) ($definition['sql'] ?? ''));
+            if ($sql === '') {
+                throw new \InvalidArgumentException('SQLite e_fkey54 CREATE TABLE SQL is required');
+            }
+
+            $tableColumns = self::identifierList(
+                array_values(array_map(static fn (mixed $column): string => (string) $column, $definition['table_columns'] ?? [])),
+                'e_fkey54 child table columns'
+            );
+            $childColumns = self::identifierList(
+                array_values(array_map(static fn (mixed $column): string => (string) $column, $definition['child_columns'] ?? [])),
+                'e_fkey54 foreign-key child columns'
+            );
+            $parentTable = self::identifier((string) ($definition['parent_table'] ?? ''), 'e_fkey54 parent table');
+            $parentColumns = null;
+            if (array_key_exists('parent_columns', $definition) && $definition['parent_columns'] !== null) {
+                $parentColumns = self::identifierList(
+                    array_values(array_map(static fn (mixed $column): string => (string) $column, $definition['parent_columns'])),
+                    'e_fkey54 explicit parent columns'
+                );
+            }
+
+            $unknownChildColumns = [];
+            foreach ($childColumns as $column) {
+                if (!in_array($column, $tableColumns, true)) {
+                    $unknownChildColumns[] = $column;
+                }
+            }
+
+            $arityMismatch = $parentColumns !== null && count($childColumns) !== count($parentColumns);
+            $status = 'commit-ok';
+            $error = null;
+            if ($arityMismatch) {
+                $status = 'schema-error';
+                $error = 'number of columns in foreign key does not match the number of columns in the referenced table';
+            } elseif ($unknownChildColumns !== []) {
+                $status = 'schema-error';
+                $error = 'unknown column "' . $unknownChildColumns[0] . '" in foreign key definition';
+            }
+
+            $cases[] = [
+                'case' => $case,
+                'case_index' => $index,
+                'sql' => $sql,
+                'status' => $status,
+                'error' => $error,
+                'create_table_allowed' => $status === 'commit-ok',
+                'foreign_keys_enabled' => $foreignKeysEnabled,
+                'foreign_keys_setting_affects_result' => false,
+                'table_columns' => $tableColumns,
+                'child_columns' => $childColumns,
+                'child_columns_valid' => $unknownChildColumns === [],
+                'unknown_child_columns' => $unknownChildColumns,
+                'parent_table' => $parentTable,
+                'parent_columns' => $parentColumns,
+                'parent_columns_explicit' => $parentColumns !== null,
+                'parent_child_key_arity_checked' => $parentColumns !== null,
+                'parent_child_key_arity_matches' => !$arityMismatch,
+                'parent_table_required_at_create' => false,
+                'parent_definition_checked' => false,
+                'parent_key_columns_checked_at_create' => false,
+                'reason' => (string) ($definition['reason'] ?? (
+                    $status === 'commit-ok'
+                        ? 'parent definition not checked at create time'
+                        : ($arityMismatch ? 'explicit parent child key arity mismatch is rejected' : 'child key column must exist in child table')
+                )),
+            ];
+        }
+
+        $okCases = array_values(array_map(
+            static fn (array $case): string => $case['case'],
+            array_filter($cases, static fn (array $case): bool => $case['status'] === 'commit-ok')
+        ));
+        $schemaErrorCases = array_values(array_map(
+            static fn (array $case): string => $case['case'],
+            array_filter($cases, static fn (array $case): bool => $case['status'] !== 'commit-ok')
+        ));
+
+        return [
+            'source' => 'e_fkey.test e_fkey-54.1..54.B',
+            'operation' => 'foreign-key-create-table-definition-validation',
+            'foreign_keys_enabled' => $foreignKeysEnabled,
+            'foreign_keys_pragma' => $foreignKeysEnabled ? 'ON' : 'OFF',
+            'case_count' => count($cases),
+            'ok_count' => count($okCases),
+            'schema_error_count' => count($schemaErrorCases),
+            'ok_cases' => $okCases,
+            'schema_error_cases' => $schemaErrorCases,
+            'foreign_keys_changed_result_count' => 0,
+            'parent_definition_checked_at_create' => false,
+            'parent_table_required_at_create' => false,
+            'parent_key_columns_checked_at_create' => false,
+            'child_key_shape_checked_at_create' => true,
+            'cases' => $cases,
+            'dependencies' => [
+                'sqlite-efkey54-foreign-keys-pragma-does-not-change-create-table-validation',
+                'sqlite-efkey54-create-table-checks-child-key-shape-only',
+                'sqlite-efkey54-parent-table-and-key-validity-deferred-to-dml',
+            ],
+        ];
+    }
+
+    /**
      * @return array<string,mixed>
      */
     public static function countChangesForeignKeyPlan(string $statement, bool $deferred, bool $foreignKeyAction = false): array

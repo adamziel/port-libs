@@ -15338,6 +15338,113 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,left_table:string,right_table:string,left_column:string,right_column:string,left_declared_type:string,right_declared_type:string,left_affinity:string,right_affinity:string,left_stored_value:int|float|string,right_stored_value:int|float|string,predicate_sql:string,index_present:bool,unary_plus:bool,expected_equal:bool,expected_result_rows:list<list<int>>,projection_value:int,planner_detail:string,integrity:string}>
+     */
+    public static function whereBAffinityComparisonCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite whereB affinity comparison corpus requires at least one case');
+        }
+
+        $groups = [
+            [1, 'app_none_integer_values', 'BLOB', 'NONE', 99, 'app_text_values', 'TEXT', 'TEXT', '99', false, 'NONE integer storage does not equal TEXT storage without numeric affinity'],
+            [2, 'app_text_values', 'TEXT', 'TEXT', '99', 'app_none_integer_values', 'BLOB', 'NONE', 99, false, 'TEXT storage does not equal NONE integer storage in column-to-column comparison'],
+            [3, 'app_none_integer_values', 'BLOB', 'NONE', 99, 'app_none_text_values', 'BLOB', 'NONE', '99', false, 'NONE integer storage does not equal NONE text storage'],
+            [4, 'app_none_text_values', 'BLOB', 'NONE', '99', 'app_numeric_values', 'NUMERIC', 'NUMERIC', 99, true, 'right NUMERIC affinity coerces left text storage before comparison'],
+            [5, 'app_none_text_values', 'BLOB', 'NONE', '99', 'app_integer_values', 'INT', 'INTEGER', 99, true, 'right INTEGER affinity coerces left text storage before comparison'],
+            [6, 'app_none_text_values', 'BLOB', 'NONE', '99', 'app_real_values', 'REAL', 'REAL', 99.0, true, 'right REAL affinity coerces left text storage before comparison'],
+            [7, 'app_numeric_values', 'NUMERIC', 'NUMERIC', 99, 'app_none_text_values', 'BLOB', 'NONE', '99', true, 'left NUMERIC affinity coerces right text storage before comparison'],
+            [8, 'app_integer_values', 'INT', 'INTEGER', 99, 'app_none_text_values', 'BLOB', 'NONE', '99', true, 'left INTEGER affinity coerces right text storage before comparison'],
+            [9, 'app_real_values', 'REAL', 'REAL', 99.0, 'app_none_text_values', 'BLOB', 'NONE', '99', true, 'left REAL affinity coerces right text storage before comparison'],
+        ];
+        $operations = [
+            ['1', 'projection', 'y=b', true],
+            ['2', 'where-left', 'y=b', true],
+            ['3', 'where-right', 'b=y', true],
+            ['4', 'where-unary', '+y=+b', true],
+            ['100', 'where-left-after-drop', 'y=b', false],
+            ['101', 'where-right-after-drop', 'b=y', false],
+            ['102', 'where-unary-after-drop', '+y=+b', false],
+        ];
+
+        $templates = [];
+        foreach ($groups as [$group, $leftTable, $leftDeclaredType, $leftAffinity, $leftValue, $rightTable, $rightDeclaredType, $rightAffinity, $rightValue, $numericEqual, $scenario]) {
+            foreach ($operations as [$suffix, $operation, $predicate, $indexPresent]) {
+                $unary = str_contains($predicate, '+');
+                $expectedEqual = $unary ? false : $numericEqual;
+                $templates[] = [
+                    'whereB-' . $group . '.' . $suffix,
+                    $scenario . ' via ' . $operation,
+                    $leftTable,
+                    $rightTable,
+                    $leftDeclaredType,
+                    $rightDeclaredType,
+                    $leftAffinity,
+                    $rightAffinity,
+                    $leftValue,
+                    $rightValue,
+                    $predicate,
+                    $indexPresent,
+                    $unary,
+                    $expectedEqual,
+                ];
+            }
+        }
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [
+                $section,
+                $scenario,
+                $leftTable,
+                $rightTable,
+                $leftDeclaredType,
+                $rightDeclaredType,
+                $leftAffinity,
+                $rightAffinity,
+                $leftValue,
+                $rightValue,
+                $predicate,
+                $indexPresent,
+                $unary,
+                $expectedEqual,
+            ] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $projectionValue = $expectedEqual ? 1 : 0;
+
+            $out[] = [
+                'source' => 'whereB.test sections whereB-1.1 through whereB-9.102',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $scenario . ' dynamic batch ' . $batch,
+                'left_table' => $leftTable,
+                'right_table' => $rightTable,
+                'left_column' => 'y',
+                'right_column' => 'b',
+                'left_declared_type' => $leftDeclaredType,
+                'right_declared_type' => $rightDeclaredType,
+                'left_affinity' => $leftAffinity,
+                'right_affinity' => $rightAffinity,
+                'left_stored_value' => $leftValue,
+                'right_stored_value' => $rightValue,
+                'predicate_sql' => $predicate,
+                'index_present' => $indexPresent,
+                'unary_plus' => $unary,
+                'expected_equal' => $expectedEqual,
+                'expected_result_rows' => $expectedEqual ? [[1, 2, 1]] : [],
+                'projection_value' => $projectionValue,
+                'planner_detail' => $unary
+                    ? 'SCAN both tables' . ($indexPresent ? '' : ' after DROP INDEX t2b') . '; unary plus removes comparison affinity'
+                    : ($indexPresent ? 'SEARCH app_text_or_numeric_side USING INDEX t2b before residual affinity check' : 'SCAN both tables after DROP INDEX t2b'),
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,table_name:string,declared_type:string,affinity:string,raw_values:list<int>,stored_values:list<mixed>,select_sql:string,predicate_sql:string|null,expression_sql:string|null,projection_mode:bool,uses_rowid_btree:bool,comparison_family:string,expected_rows:list<mixed>,projected_values:list<int|null>|null,matched_row_count:int,null_result_count:int,detail:string,integrity:string}>
      */
     public static function where5NullComparisonCases(int $cases = 1200): array

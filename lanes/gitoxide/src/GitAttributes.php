@@ -731,7 +731,6 @@ final class GitAttributes
 
     private static function normalizePath(string $path): string
     {
-        $path = str_replace('\\', '/', $path);
         if (str_contains($path, "\0")) {
             throw new \InvalidArgumentException('Git attribute paths cannot contain NUL bytes');
         }

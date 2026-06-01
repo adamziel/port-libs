@@ -289,6 +289,7 @@ final class TransitionPrefixer
         $imageSetChanged = $this->rewriteImageSetPrefixEntries($entries, $targetOptions);
         $gradientPrefixChanged = $this->rewriteGradientPrefixEntries($entries, $targetOptions);
         $sizingKeywordChanged = $this->rewriteSizingKeywordPrefixEntries($entries, $targetOptions);
+        $logicalSizeFallbackChanged = $this->rewriteLogicalSizeFallbackEntries($entries, $targetOptions);
         $clampChanged = $this->rewriteClampFallbackEntries($entries, $targetOptions);
         $colorChanged = $insideAdvancedColorSupports
             ? false
@@ -331,7 +332,7 @@ final class TransitionPrefixer
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
         $selectorVariants = $this->selectorPrefixVariants($selectors, $targetOptions);
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $gradientPrefixChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $lengthTargetChanged || $selectorVariants !== null) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $lengthTargetChanged || $selectorVariants !== null) {
             return $this->serializeRulesForSelectors($selectorVariants ?? [$selectors], $entries) . implode('', $supportRules);
         }
 
@@ -1312,6 +1313,17 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'opera', [0], [61, 255, 255])
                 || $this->targetInRange($normalized, 'safari', [0], [14, 0, 255])
                 || $this->targetInRange($normalized, 'samsung', [0], [13, 255, 255])
+                || isset($normalized['ie'])
+            )),
+            'logicalSizeNeedsFallback' => $logicalPropertiesIncluded || (!$logicalPropertiesExcluded && (
+                $this->targetInRange($normalized, 'android', [0], [56, 255, 255])
+                || $this->targetInRange($normalized, 'chrome', [0], [56, 255, 255])
+                || $this->targetInRange($normalized, 'edge', [0], [78, 255, 255])
+                || $this->targetInRange($normalized, 'firefox', [0], [40, 255, 255])
+                || $this->targetInRange($normalized, 'ios_saf', [0], [12, 1, 255])
+                || $this->targetInRange($normalized, 'opera', [0], [42, 255, 255])
+                || $this->targetInRange($normalized, 'safari', [0], [12, 0, 255])
+                || $this->targetInRange($normalized, 'samsung', [0], [6, 255, 255])
                 || isset($normalized['ie'])
             )),
             'logicalTextAlignNeedsFallback' => $logicalPropertiesIncluded || (!$logicalPropertiesExcluded && $this->targetsNeedFeatureFallback($normalized, [
@@ -4940,7 +4952,7 @@ final class TransitionPrefixer
      */
     private function rewriteSizingKeywordPrefixEntries(array &$entries, array $targetOptions): bool
     {
-        $logicalFallback = $targetOptions['logicalInsetNeedsFallback'] ?? false;
+        $logicalFallback = $targetOptions['logicalSizeNeedsFallback'] ?? false;
         $metadata = [];
         $hasSizingValue = false;
         $prefixedValues = [];
@@ -4979,7 +4991,7 @@ final class TransitionPrefixer
                 continue;
             }
 
-            if ($outputProperty !== $entry['property']) {
+            if ($value !== null && $outputProperty !== $entry['property']) {
                 $entry = $this->declarationEntry($outputProperty, $entry['value'], $entry['important']);
                 $changed = true;
             }
@@ -5041,6 +5053,91 @@ final class TransitionPrefixer
 
         $entries = $rewritten;
         return true;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteLogicalSizeFallbackEntries(array &$entries, array $targetOptions): bool
+    {
+        if (!($targetOptions['logicalSizeNeedsFallback'] ?? false)) {
+            return false;
+        }
+
+        $changed = false;
+        $rewritten = [];
+        $pending = [];
+        $pendingIndex = 0;
+
+        $flushPending = function () use (&$pending, &$rewritten): void {
+            if ($pending === []) {
+                return;
+            }
+
+            usort($pending, static function (array $left, array $right): int {
+                $rank = $left['rank'] <=> $right['rank'];
+
+                return $rank !== 0 ? $rank : $left['index'] <=> $right['index'];
+            });
+
+            foreach ($pending as $pendingEntry) {
+                $rewritten[] = $pendingEntry['entry'];
+            }
+
+            $pending = [];
+        };
+
+        foreach ($entries as $entry) {
+            $physicalProperty = $this->logicalSizePhysicalProperty($entry['property']);
+            if ($physicalProperty === null) {
+                $flushPending();
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $pending[] = [
+                'entry' => $this->declarationEntry($physicalProperty, $entry['value'], $entry['important']),
+                'rank' => $this->logicalSizePhysicalOrder($physicalProperty),
+                'index' => $pendingIndex++,
+            ];
+            $changed = true;
+        }
+
+        $flushPending();
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+        return true;
+    }
+
+    private function logicalSizePhysicalProperty(string $property): ?string
+    {
+        return match ($property) {
+            'block-size' => 'height',
+            'min-block-size' => 'min-height',
+            'max-block-size' => 'max-height',
+            'inline-size' => 'width',
+            'min-inline-size' => 'min-width',
+            'max-inline-size' => 'max-width',
+            default => null,
+        };
+    }
+
+    private function logicalSizePhysicalOrder(string $property): int
+    {
+        return match ($property) {
+            'height' => 0,
+            'min-height' => 1,
+            'max-height' => 2,
+            'width' => 3,
+            'min-width' => 4,
+            'max-width' => 5,
+            default => 99,
+        };
     }
 
     private function sizingKeywordOutputProperty(string $property, bool $logicalFallback): ?string

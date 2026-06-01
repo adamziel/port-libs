@@ -4274,7 +4274,7 @@ final class SQLiteDatabase
     {
         $rows = [];
         foreach ($this->tableLeafCells($rootPageNumber, $limit) as $cell) {
-            $rows[] = SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding);
+            $rows[] = $this->tableRowFromLeafCell($cell);
         }
 
         return $rows;
@@ -4315,7 +4315,7 @@ final class SQLiteDatabase
 
         $rows = [];
         foreach ($cells as $cell) {
-            $rows[] = SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding);
+            $rows[] = $this->tableRowFromLeafCell($cell);
         }
 
         return $rows;
@@ -4433,7 +4433,16 @@ final class SQLiteDatabase
         $visited = [];
         $cell = $this->findTableLeafCellByRowId($rootPageNumber, $rowId, $visited);
 
-        return $cell === null ? null : SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding);
+        return $cell === null ? null : $this->tableRowFromLeafCell($cell);
+    }
+
+    private function tableRowFromLeafCell(SQLiteTableLeafCell $cell): SQLiteTableRow
+    {
+        try {
+            return SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding);
+        } catch (\InvalidArgumentException $exception) {
+            throw new \InvalidArgumentException('database disk image is malformed', 0, $exception);
+        }
     }
 
     public function tableRowByRowIdByName(string $tableName, int $rowId): ?SQLiteTableRow

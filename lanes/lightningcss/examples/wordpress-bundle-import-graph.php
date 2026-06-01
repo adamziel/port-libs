@@ -1033,6 +1033,40 @@ if (
 
 echo 'css-modules: dependency graph resolved' . PHP_EOL;
 
+$moduleMappedBundle = (new CssBundler())->bundleCssModulesWithSourceMap('/modules/card.css', [
+    '/modules/card.css' => <<<'CSS'
+@import "../theme.css";
+
+.wp-block-card {
+  composes: token from "../tokens.module.css";
+  color: red;
+}
+CSS,
+    '/tokens.module.css' => <<<'CSS'
+.token {
+  color: blue;
+}
+CSS,
+    '/theme.css' => '.wp-block-theme { color: yellow; }',
+], null, [
+    'hashes' => [
+        '/modules/card.css' => 'card',
+        '/tokens.module.css' => 'tok',
+        '/theme.css' => 'theme',
+    ],
+], '/');
+$moduleMappedSources = $moduleMappedBundle['sourceMap']->toArray(null, false)['sources'];
+if (
+    $moduleMappedBundle['code'] !== '.tok_token{color:#00f}.theme_wp-block-theme{color:#ff0}.card_wp-block-card{color:red}'
+    || ($moduleMappedBundle['exports']['wp-block-card']['composes'][0]['name'] ?? null) !== 'tok_token'
+    || $moduleMappedSources !== ['modules/card.css', 'tokens.module.css', 'theme.css']
+) {
+    fwrite(STDERR, "Expected CSS Modules source-map bundle graph output\n");
+    exit(1);
+}
+
+echo 'css-modules-source-map: collected' . PHP_EOL;
+
 try {
     (new CssBundler())->bundleCssModules('/modules/missing-card.css', [
         '/modules/missing-card.css' => <<<'CSS'
@@ -1196,3 +1230,45 @@ if (
 }
 
 echo 'css-modules-first-instance: stable' . PHP_EOL;
+
+$cssModuleEnvDependency = (new CssBundler())->bundleCssModules('/blocks/card.css', [
+    '/blocks/card.css' => <<<'CSS'
+@import "pkg:theme.css";
+
+.wp-block-card {
+  margin: env(--wp-card-gap from "pkg:tokens.css", var(--fallback-gap from "pkg:fallback.css"));
+  color: red;
+}
+CSS,
+    '/vendor/tokens.css' => <<<'CSS'
+.tokens {
+  --wp-card-gap: 24px;
+}
+CSS,
+    '/vendor/fallback.css' => <<<'CSS'
+.fallback {
+  --fallback-gap: 12px;
+}
+CSS,
+    '/vendor/theme.css' => '.theme { color: blue }',
+], static function (string $specifier): string {
+    return '/vendor/' . substr($specifier, strlen('pkg:'));
+}, [
+    'hashes' => [
+        '/blocks/card.css' => 'card',
+        '/vendor/tokens.css' => 'tok',
+        '/vendor/fallback.css' => 'fallback',
+        '/vendor/theme.css' => 'theme',
+    ],
+    'dashedIdents' => true,
+]);
+
+if (
+    $cssModuleEnvDependency['code'] !== '.tok_tokens{--tok_wp-card-gap:24px}.fallback_fallback{--fallback_fallback-gap:12px}.theme_theme{color:#00f}.card_wp-block-card{margin:env(--tok_wp-card-gap,var(--fallback_fallback-gap));color:red}'
+    || ($cssModuleEnvDependency['exports']['wp-block-card']['name'] ?? null) !== 'card_wp-block-card'
+) {
+    fwrite(STDERR, "Unexpected CSS Modules env() dependency graph output\n");
+    exit(1);
+}
+
+echo 'css-modules-env-dependency: resolved' . PHP_EOL;

@@ -178,8 +178,16 @@ return [
         $t->same('(width>=calc(1em + 5px))', $parser->minifyList('(min-width: calc(1em+5px))'));
         $t->same('(width>=6px)', $parser->minifyList('(width >= calc(2px + 4px))'));
         $t->same('(width>calc(1px + 1rem))', $parser->minifyList('(width > calc(1px+1rem))'));
+        $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= calc(1 + 1))'));
+        $t->same('(1<=-moz-device-pixel-ratio<=2)', $parser->minifyList('(1 <= -moz-device-pixel-ratio <= calc(1 + 1))'));
         $t->same('not (max-width:calc(1px + 1rem))', $parser->lowerRangeSyntaxList('(width > calc(1px+1rem))'));
         $t->same('(not (max-width:100px)) and (not (min-width:calc(100vw - 50px)))', $parser->lowerRangeSyntaxList('(100px < width < calc(100vw-50px))'));
+        $t->same('(-webkit-min-device-pixel-ratio:2)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio >= calc(1 + 1))'));
+        $t->same('(min--moz-device-pixel-ratio:1) and (max--moz-device-pixel-ratio:2)', $parser->lowerRangeSyntaxList('(1 <= -moz-device-pixel-ratio <= calc(1 + 1))'));
+        $t->same(
+            '@layer blocks{@media (-webkit-device-pixel-ratio>=2){.wp-block-query{color:#ff0}}}',
+            (new CssMinifier())->minify('@layer blocks { @media (-webkit-device-pixel-ratio >= calc(1 + 1)) { .wp-block-query { color: yellow; } } }')
+        );
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('&test, speech'));
     },
     'media query parser maps upstream environment variable range values' => static function (TestRunner $t): void {
@@ -212,6 +220,8 @@ return [
             '(grid: 1.0)',
             '(grid: true)',
             '(prefers-color-scheme = dark)',
+            '(color >= calc(1 + 1))',
+            '(resolution >= calc(1 + 1dppx))',
             '(width >= var(--theme-breakpoint))',
             '(--theme-breakpoint >= var(--theme-breakpoint))',
             '(-webkit-min-device-pixel-ratio: hi)',
@@ -458,6 +468,8 @@ return [
             '@layer blocks { @media (grid: 10) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (grid: 1.0) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (prefers-color-scheme = dark) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (color >= calc(1 + 1)) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (resolution >= calc(1 + 1dppx)) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (width >= var(--theme-breakpoint)) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media var(--theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media screen and calc(theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',

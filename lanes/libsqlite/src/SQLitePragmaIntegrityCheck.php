@@ -260,6 +260,7 @@ final class SQLitePragmaIntegrityCheck
     {
         $overflowPages = [];
         $rootPages = self::schemaRootPageNumbers($database);
+        $tableRootPages = self::schemaTableRootPageNumbers($database);
         $pageCount = $database->pageCount();
         $usableSize = $database->usablePageSize();
 
@@ -303,7 +304,14 @@ final class SQLitePragmaIntegrityCheck
                 };
 
                 match ($header->pageType) {
-                    'table-leaf' => self::appendTableLeafOrderErrors($pageNumber, SQLiteTableLeafCell::parsePageCells($page, $header, $usableSize, $overflowReader), $errors, $limit),
+                    'table-leaf' => self::appendTableLeafCellErrors(
+                        $database,
+                        $pageNumber,
+                        SQLiteTableLeafCell::parsePageCells($page, $header, $usableSize, $overflowReader),
+                        $errors,
+                        $limit,
+                        $pageNumber === 1 || isset($tableRootPages[$pageNumber]),
+                    ),
                     'index-leaf' => self::appendIndexCellOrderErrors($database, $pageNumber, SQLiteIndexCell::parsePageCells($page, $header, $usableSize, $overflowReader), $errors, $limit),
                     'index-interior' => self::appendIndexInteriorChildErrors($database, $pageNumber, $page, $header, $usableSize, $overflowReader, $errors, $limit),
                     'table-interior' => self::appendTableInteriorChildErrors($database, $pageNumber, $page, $header, $errors, $limit),
@@ -311,6 +319,34 @@ final class SQLitePragmaIntegrityCheck
                 };
             } catch (\InvalidArgumentException $exception) {
                 self::append($errors, $limit, "btree page {$pageNumber}: " . self::formatError($exception));
+            }
+        }
+    }
+
+    /**
+     * @param list<SQLiteTableLeafCell> $cells
+     * @param list<string> $errors
+     */
+    private static function appendTableLeafCellErrors(
+        SQLiteDatabase $database,
+        int $pageNumber,
+        array $cells,
+        array &$errors,
+        int $limit,
+        bool $validatePayloadRecords,
+    ): void {
+        self::appendTableLeafOrderErrors($pageNumber, $cells, $errors, $limit);
+        if (!$validatePayloadRecords || count($errors) >= $limit) {
+            return;
+        }
+
+        foreach ($cells as $cell) {
+            try {
+                SQLiteRecord::parse($cell->payload, $database->header->textEncoding);
+            } catch (\InvalidArgumentException) {
+                self::append($errors, $limit, 'database disk image is malformed');
+
+                return;
             }
         }
     }
@@ -460,6 +496,24 @@ final class SQLitePragmaIntegrityCheck
             }
             foreach ($records as $record) {
                 if (($record->type === 'table' || $record->type === 'index') && $record->rootPage !== null && $record->rootPage > 0 && $record->rootPage <= $database->pageCount()) {
+                    $rootPages[$record->rootPage] = true;
+                }
+            }
+        } catch (\InvalidArgumentException) {
+        }
+
+        return $rootPages;
+    }
+
+    /**
+     * @return array<int, true>
+     */
+    private static function schemaTableRootPageNumbers(SQLiteDatabase $database): array
+    {
+        $rootPages = [];
+        try {
+            foreach ($database->schemaRecords() as $record) {
+                if ($record->type === 'table' && $record->rootPage !== null && $record->rootPage > 0 && $record->rootPage <= $database->pageCount()) {
                     $rootPages[$record->rootPage] = true;
                 }
             }

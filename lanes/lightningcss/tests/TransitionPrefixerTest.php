@@ -296,6 +296,33 @@ return [
         $t->same('.foo{block-size:-moz-available;block-size:stretch}', $prefixer->prefixForTargets('.foo { block-size: stretch; }', ['firefox' => 120]));
         $t->same('.foo{block-size:-webkit-fill-available;block-size:stretch}', $prefixer->prefixForTargets('.foo { block-size: stretch; }', ['safari' => 16]));
     },
+    'transition prefixer maps upstream logical size browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $legacyNumeric = '.foo{height:25px;min-height:25px;width:25px;min-width:25px}';
+        $legacyVariable = '.foo{height:var(--size);min-height:var(--size);width:var(--size);min-width:var(--size)}';
+        $modernVariable = '.foo{block-size:var(--size);inline-size:var(--size);min-block-size:var(--size);min-inline-size:var(--size)}';
+        $variableSource = '.foo { block-size: var(--size); inline-size: var(--size); min-block-size: var(--size); min-inline-size: var(--size); }';
+
+        $t->same(
+            $legacyNumeric,
+            $prefixer->prefixForTargets('.foo { block-size: 25px; inline-size: 25px; min-block-size: 25px; min-inline-size: 25px; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{block-size:25px;min-block-size:25px;inline-size:25px;min-inline-size:25px}',
+            $prefixer->prefixForTargets('.foo { block-size: 25px; min-block-size: 25px; inline-size: 25px; min-inline-size: 25px; }', ['safari' => 14])
+        );
+        $t->same($legacyVariable, $prefixer->prefixForTargets($variableSource, ['safari' => 8]));
+        $t->same($legacyVariable, $prefixer->prefixForTargets($variableSource, ['safari' => 12]));
+        $t->same($modernVariable, $prefixer->prefixForTargets($variableSource, ['safari' => '12.1']));
+        $t->same($legacyVariable, $prefixer->prefixForTargets($variableSource, ['ios_saf' => '12.1']));
+        $t->same($modernVariable, $prefixer->prefixForTargets($variableSource, ['ios_saf' => '12.2']));
+        $t->same($legacyVariable, $prefixer->prefixForTargets($variableSource, ['opera' => 42]));
+        $t->same($modernVariable, $prefixer->prefixForTargets($variableSource, ['opera' => 43]));
+        $t->same($legacyVariable, $prefixer->prefixForTargets($variableSource, ['chrome' => 56]));
+        $t->same($modernVariable, $prefixer->prefixForTargets($variableSource, ['chrome' => 57]));
+        $t->same($legacyVariable, $prefixer->prefixForTargets($variableSource, ['firefox' => 40]));
+        $t->same($modernVariable, $prefixer->prefixForTargets($variableSource, ['firefox' => 41]));
+    },
     'transition prefixer maps upstream clamp lowering for legacy safari targets' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -2935,6 +2962,10 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media (-webkit-device-pixel-ratio >= 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
+            '@layer blocks{@media (-webkit-min-device-pixel-ratio:2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (-webkit-device-pixel-ratio >= calc(1 + 1)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
             '@layer blocks{@media not (-webkit-max-device-pixel-ratio:2){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (-webkit-device-pixel-ratio > 2) { .wp-block-query { color: yellow; } } }', ['chrome' => 85])
         );
@@ -2949,6 +2980,10 @@ CSS;
         $t->same(
             '@layer blocks{@media (min--moz-device-pixel-ratio:2) and (max--moz-device-pixel-ratio:3){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (2 <= -moz-device-pixel-ratio <= 3) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min--moz-device-pixel-ratio:1) and (max--moz-device-pixel-ratio:2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (1 <= -moz-device-pixel-ratio <= calc(1 + 1)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
             '@layer blocks{@media (min-width:.5px){.wp-block-query{color:#ff0}}}',
@@ -3050,6 +3085,14 @@ CSS;
         $t->throws(
             InvalidArgumentException::class,
             static fn () => $prefixer->prefixForTargets('@layer blocks { @media (width >= var(--theme-breakpoint)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $prefixer->prefixForTargets('@layer blocks { @media (color >= calc(1 + 1)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $prefixer->prefixForTargets('@layer blocks { @media (resolution >= calc(1 + 1dppx)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->throws(
             InvalidArgumentException::class,

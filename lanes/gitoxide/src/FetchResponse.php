@@ -234,7 +234,10 @@ final class FetchResponse
     ): bool {
         while (true) {
             $packet = self::readV2Packet($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages);
-            if ($packet === null || $packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
+            if ($packet === null) {
+                throw new \RuntimeException('fetch response: missing section terminator');
+            }
+            if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
                 return true;
             }
             if ($packet['kind'] === 'delimiter') {
@@ -261,7 +264,10 @@ final class FetchResponse
 
         while (true) {
             $packet = self::readV2Packet($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages);
-            if ($packet === null || $packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
+            if ($packet === null) {
+                throw new \RuntimeException('fetch response: missing sideband flush packet');
+            }
+            if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
                 break;
             }
             if ($packet['kind'] === 'delimiter') {

@@ -620,8 +620,17 @@ final class MediaQueryParser
             return false;
         }
 
-        if (preg_match('/^(?:calc|clamp|env|max|min)\(/i', $value) === 1) {
+        if (preg_match('/^env\(/i', $value) === 1) {
             return true;
+        }
+
+        if (preg_match('/^(?:calc|clamp|max|min)\(/i', $value) === 1) {
+            return match ($type) {
+                'integer', 'resolution' => false,
+                'number' => $this->foldSimpleUnitlessCalc($value) !== null
+                    || preg_match('/^(?:clamp|max|min)\(/i', $value) === 1,
+                default => true,
+            };
         }
 
         if (str_starts_with($value, '--styled-jsx-placeholder-')) {
@@ -824,6 +833,11 @@ final class MediaQueryParser
 
     private function foldSimpleCalc(string $value): string
     {
+        $unitless = $this->foldSimpleUnitlessCalc($value);
+        if ($unitless !== null) {
+            return $unitless;
+        }
+
         if (preg_match('/^calc\(\s*([+-]?[0-9]+(?:\.[0-9]+)?)([a-zA-Z%]+)\s*([+-])\s*([0-9]+(?:\.[0-9]+)?)\2\s*\)$/', $value, $matches) !== 1) {
             return preg_replace_callback(
                 '/^calc\(\s*(.+)\s*\)$/',
@@ -837,6 +851,33 @@ final class MediaQueryParser
         $result = $matches[3] === '+' ? $left + $right : $left - $right;
 
         return $this->trimNumber((string) $result) . strtolower($matches[2]);
+    }
+
+    private function foldSimpleUnitlessCalc(string $value): ?string
+    {
+        $number = '[+-]?(?:\d+|\d*\.\d+)';
+        if (preg_match('/^calc\(\s*(' . $number . ')\s*([+\-*\/])\s*(' . $number . ')\s*\)$/', $value, $matches) !== 1) {
+            return null;
+        }
+
+        $left = (float) $matches[1];
+        $right = (float) $matches[3];
+        if ($matches[2] === '/' && abs($right) < PHP_FLOAT_EPSILON) {
+            return null;
+        }
+
+        $result = match ($matches[2]) {
+            '+' => $left + $right,
+            '-' => $left - $right,
+            '*' => $left * $right,
+            '/' => $left / $right,
+            default => null,
+        };
+        if ($result === null || !is_finite($result)) {
+            return null;
+        }
+
+        return $this->trimNumber(rtrim(rtrim(sprintf('%.8F', $result), '0'), '.'));
     }
 
     private function normalizeCalcOperatorSpacing(string $value): string

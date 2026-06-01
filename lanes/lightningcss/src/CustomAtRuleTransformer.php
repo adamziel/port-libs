@@ -5956,6 +5956,20 @@ final class CustomAtRuleTransformer
             }
         }
 
+        if ($type === 'custom-ident' && is_string($value['value'] ?? null)) {
+            $original = $value['value'];
+            $value['value'] = $this->applyCustomIdentVisitor($original);
+
+            return ['value' => $value, 'changed' => $value['value'] !== $original];
+        }
+
+        if ($type === 'dashed-ident' && is_string($value['value'] ?? null)) {
+            $original = $value['value'];
+            $value['value'] = $this->applyDashedIdentVisitor($original);
+
+            return ['value' => $value, 'changed' => $value['value'] !== $original];
+        }
+
         $visited = $this->applyValueVisitors($value);
         if ($visited !== $value) {
             return ['value' => $visited, 'changed' => true];

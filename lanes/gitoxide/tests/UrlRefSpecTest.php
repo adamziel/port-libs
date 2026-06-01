@@ -286,6 +286,27 @@ return [
         $t->same('host.xz:abc', $invalidPortFormat->host());
         $t->same(null, $invalidPortFormat->port());
     },
+    'git url keeps pathless extension scheme remotes and empty path safety like gix-url' => static function (TestRunner $t): void {
+        $radicle = GitUrl::parse('rad://hynkuwzskprmswzeo4qdtku7grdrs4ffj3g9tjdxomgmjzhtzpqf81@hwd1yregyf1dudqwkx85x5ps3qsrqw3ihxpx3ieopq6ukuuq597p6m8161c.git');
+
+        $t->same('rad', $radicle->scheme());
+        $t->same('hynkuwzskprmswzeo4qdtku7grdrs4ffj3g9tjdxomgmjzhtzpqf81', $radicle->user());
+        $t->same(null, $radicle->password());
+        $t->same('hwd1yregyf1dudqwkx85x5ps3qsrqw3ihxpx3ieopq6ukuuq597p6m8161c.git', $radicle->host());
+        $t->same(null, $radicle->port());
+        $t->same('', $radicle->path());
+        $t->same(null, $radicle->portOrDefault());
+        $t->same('rad://hynkuwzskprmswzeo4qdtku7grdrs4ffj3g9tjdxomgmjzhtzpqf81@hwd1yregyf1dudqwkx85x5ps3qsrqw3ihxpx3ieopq6ukuuq597p6m8161c.git', $radicle->toBytes());
+        $t->same($radicle->toBytes(), $radicle->display());
+        $t->same(null, $radicle->pathArgumentSafe(), 'empty extension-scheme paths are not usable shell arguments');
+
+        $withPath = GitUrl::parse('abc://example.com/~byron/hello');
+        $t->same('abc', $withPath->scheme());
+        $t->same('example.com', $withPath->host());
+        $t->same('/~byron/hello', $withPath->path());
+        $t->same('/~byron/hello', $withPath->pathArgumentSafe());
+        $t->same('abc://example.com/~byron/hello', $withPath->toBytes());
+    },
     'git url normalizes empty ssh url port markers like gix-url' => static function (TestRunner $t): void {
         $hostWithEmptyPort = GitUrl::parse('ssh://host:/re/po');
         $t->same(GitUrl::SCHEME_SSH, $hostWithEmptyPort->scheme());

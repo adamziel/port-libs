@@ -415,6 +415,20 @@ $unsortedRawVlqLookupMap->addVlqMap(
 $unsortedRawVlqLookupClosest = $unsortedRawVlqLookupMap->findClosestMapping(0, 8);
 $unsortedRawVlqLookupOrder = array_column($unsortedRawVlqLookupMap->getMappings(), 'generatedColumn');
 
+$nestedUnsortedVlqParent = new SourceMap();
+$nestedUnsortedVlqChild = new SourceMap();
+$nestedUnsortedVlqChild->addVlqMap(
+    'UAAAA,RACAC',
+    ['wp-content/themes/example/source-map-nested-unsorted.css'],
+    ['.wp-block-nested-unsorted{}'],
+    ['later-rule', 'earlier-rule']
+);
+$nestedUnsortedVlqParent->addSourceMap($nestedUnsortedVlqChild, 2);
+$nestedUnsortedVlqReadOrderBeforeWrite = array_column($nestedUnsortedVlqParent->getMappings(), 'generatedColumn');
+$nestedUnsortedVlqMap = $nestedUnsortedVlqParent->toJson(null, false);
+$nestedUnsortedVlqReadOrderAfterWrite = array_column($nestedUnsortedVlqParent->getMappings(), 'generatedColumn');
+$nestedUnsortedVlqChildConsumed = $nestedUnsortedVlqChild->toJson(null, false);
+
 $duplicateLookupInputMap = SourceMap::fromJson(
     '{"version":3,"mappings":"AAAAAA","sources":["wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{}"],"names":["duplicate-lookup-rule"]}'
 );
@@ -597,6 +611,10 @@ $actual = [
     'unsortedRawVlqZeroOffsetOrder' => $unsortedRawVlqZeroOffsetOrder,
     'unsortedRawVlqLookupClosest' => $unsortedRawVlqLookupClosest,
     'unsortedRawVlqLookupOrder' => $unsortedRawVlqLookupOrder,
+    'nestedUnsortedVlqReadOrderBeforeWrite' => $nestedUnsortedVlqReadOrderBeforeWrite,
+    'nestedUnsortedVlqMap' => $nestedUnsortedVlqMap,
+    'nestedUnsortedVlqReadOrderAfterWrite' => $nestedUnsortedVlqReadOrderAfterWrite,
+    'nestedUnsortedVlqChildConsumed' => $nestedUnsortedVlqChildConsumed,
     'duplicateLookupExact' => $duplicateLookupExact,
     'duplicateLookupAfterLast' => $duplicateLookupAfterLast,
     'duplicateLookupExtendedMap' => $duplicateLookupExtendedMap->toJson(null, false),
@@ -659,6 +677,10 @@ if (($argv[1] ?? null) === '--self-test') {
         'unsortedRawVlqZeroOffsetOrder' => [2, 10],
         'unsortedRawVlqLookupClosest' => ['generatedLine' => 0, 'generatedColumn' => 2, 'sourceIndex' => 0, 'originalLine' => 1, 'originalColumn' => 0, 'nameIndex' => 1],
         'unsortedRawVlqLookupOrder' => [2, 10],
+        'nestedUnsortedVlqReadOrderBeforeWrite' => [10, 2],
+        'nestedUnsortedVlqMap' => '{"version":3,"mappings":";;EACAC,QADAD","sources":["wp-content/themes/example/source-map-nested-unsorted.css"],"sourcesContent":[".wp-block-nested-unsorted{}"],"names":["later-rule","earlier-rule"]}',
+        'nestedUnsortedVlqReadOrderAfterWrite' => [2, 10],
+        'nestedUnsortedVlqChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'duplicateLookupExact' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
         'duplicateLookupAfterLast' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0],
         'duplicateLookupExtendedMap' => '{"version":3,"mappings":"A","sources":["wp-content/cache/duplicate-lookup.css","wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{color:red}",".wp-block-duplicate-lookup{}"],"names":["compiled-duplicate-lookup","duplicate-lookup-rule"]}',

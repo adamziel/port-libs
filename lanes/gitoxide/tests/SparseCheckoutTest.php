@@ -516,6 +516,42 @@ return [
         $t->same(['plugins', 'uploads'], $entryNames($spec->includedTreeEntries($wpContent, 'wp-content')));
         $t->same(['akismet', 'gutenberg'], $entryNames($spec->includedTreeEntries($plugins, 'wp-content/plugins')));
     },
+    'pathspec sparse checkout keeps gix double star path component boundaries' => static function (TestRunner $t): void {
+        $componentLocal = SparseCheckoutSpec::fromPathspecs([
+            ':(glob)wp-content/**.php',
+        ]);
+        $recursiveComponent = SparseCheckoutSpec::fromPathspecs([
+            ':(glob)wp-content/**/loader.php',
+        ]);
+        $midComponent = SparseCheckoutSpec::fromPathspecs([
+            ':(glob)wp-content/plugins**/loader.php',
+        ]);
+        $escapedSlashComponent = SparseCheckoutSpec::fromPathspecs([
+            ':(glob)wp-content/**\/loader.php',
+        ]);
+        $shellGlob = SparseCheckoutSpec::fromPathspecs([
+            'wp-content/**.php',
+        ]);
+
+        $t->same(true, $componentLocal->includesPath('wp-content/index.php', false));
+        $t->same(false, $componentLocal->includesPath('wp-content/plugins/loader.php', false));
+        $t->same(false, $componentLocal->includesPath('wp-content/plugins/nested/loader.php', false));
+
+        $t->same(true, $recursiveComponent->includesPath('wp-content/loader.php', false));
+        $t->same(true, $recursiveComponent->includesPath('wp-content/plugins/loader.php', false));
+        $t->same(true, $recursiveComponent->includesPath('wp-content/plugins/nested/loader.php', false));
+
+        $t->same(true, $midComponent->includesPath('wp-content/plugins-vendor/loader.php', false));
+        $t->same(false, $midComponent->includesPath('wp-content/plugins/vendor/loader.php', false));
+        $t->same(false, $midComponent->includesPath('wp-content/plugins/vendor/nested/loader.php', false));
+
+        $t->same(true, $escapedSlashComponent->includesPath('wp-content/loader.php', false));
+        $t->same(true, $escapedSlashComponent->includesPath('wp-content/plugins/loader.php', false));
+        $t->same(false, $escapedSlashComponent->includesPath('wp-content/plugins/other.php', false));
+
+        $t->same(true, $shellGlob->includesPath('wp-content/plugins/loader.php', false));
+        $t->same(true, $shellGlob->includesPath('wp-content/plugins/nested/loader.php', false));
+    },
     'pathspec sparse checkout follows gix POSIX blank and invalid class fallback boundaries' => static function (TestRunner $t) use ($entryNames): void {
         $blank = SparseCheckoutSpec::fromPathspecs([':(glob)wp-content/uploads/slot[[:blank:]]/**']);
         $space = SparseCheckoutSpec::fromPathspecs([':(glob)wp-content/uploads/slot[[:space:]]/**']);

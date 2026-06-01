@@ -194,6 +194,10 @@ final class GitUrl
     public function pathArgumentSafe(): ?string
     {
         $path = $this->path;
+        if ($path === '') {
+            return null;
+        }
+
         if (str_starts_with($path, '/')) {
             $path = substr($path, 1);
         }

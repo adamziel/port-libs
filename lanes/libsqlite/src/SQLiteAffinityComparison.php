@@ -84,6 +84,13 @@ final class SQLiteAffinityComparison
         return strcmp($leftText, $rightText);
     }
 
+    public static function compareColumnValues(mixed $left, mixed $right, string $leftAffinity = 'NONE', string $rightAffinity = 'NONE', string $collation = 'BINARY'): ?int
+    {
+        [$leftAffinity, $rightAffinity] = self::columnComparisonAffinities($leftAffinity, $rightAffinity);
+
+        return self::compare($left, $right, $leftAffinity, $rightAffinity, $collation);
+    }
+
     public static function storageClass(mixed $value): string
     {
         self::assertComparable($value);
@@ -192,6 +199,20 @@ final class SQLiteAffinityComparison
     private static function isNumericAffinity(string $affinity): bool
     {
         return $affinity === 'INTEGER' || $affinity === 'REAL' || $affinity === 'NUMERIC';
+    }
+
+    /**
+     * @return array{0:string,1:string}
+     */
+    private static function columnComparisonAffinities(string $leftAffinity, string $rightAffinity): array
+    {
+        $leftAffinity = self::normalizeAffinity($leftAffinity);
+        $rightAffinity = self::normalizeAffinity($rightAffinity);
+
+        return [
+            self::isNumericAffinity($leftAffinity) ? $leftAffinity : 'NONE',
+            self::isNumericAffinity($rightAffinity) ? $rightAffinity : 'NONE',
+        ];
     }
 
     private static function sortRank(mixed $value): int

@@ -22,6 +22,14 @@ $classAttributes = GitAttributes::fromString(
     . "wp-content/plugins/foo[/]bar.php slash-class\n",
     withBuiltInMacros: false,
 );
+$backslashAttributes = GitAttributes::fromString(
+    'wp-content/plugins/f\\\\oo/block.json backslash-plugin' . "\n"
+    . 'wp-content/plugins/f/oo/block.json slash-plugin' . "\n",
+    withBuiltInMacros: false,
+);
+$backslashPath = 'wp-content/plugins/f\\oo/block.json';
+$slashPath = 'wp-content/plugins/f/oo/block.json';
+$backslashPathspec = ':(glob,attr:backslash-plugin)wp-content/plugins/f\\\\oo/block.json';
 $tabAttributes = GitAttributes::fromString(
     "wp-content/plugins/gutenberg/** deploy review=yes\n",
     withBuiltInMacros: false,
@@ -152,6 +160,25 @@ return [
         'wp-content/plugins/foo/bar.php',
         false,
         $classAttributes,
+    ),
+    'backslashPathAttributes' => $backslashAttributes->attributesForPath(
+        $backslashPath,
+        ['backslash-plugin'],
+    ),
+    'slashPathDoesNotMatchBackslashAttribute' => $backslashAttributes->attributesForPath(
+        $slashPath,
+        ['backslash-plugin'],
+    ),
+    'backslashPathspecMatchesByte' => PathspecMatcher::matchesOne(
+        $backslashPathspec,
+        $backslashPath,
+        false,
+        $backslashAttributes,
+    ),
+    'backslashPathspecSkipsSlash' => !PathspecSearch::fromSpecs([$backslashPathspec])->isIncluded(
+        $slashPath,
+        false,
+        $backslashAttributes,
     ),
     'reversedRangePathspecMatchesStart' => $reversedRangeSearch->isIncluded(
         'wp-content/uploads/z/photo.jpg',

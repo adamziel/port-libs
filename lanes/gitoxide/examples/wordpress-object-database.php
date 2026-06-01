@@ -171,6 +171,30 @@ try {
 $looseIntegrityTraversalErrorIgnored = $looseIntegrityTraversalSummary[0]['statistics']['numObjects'] === 1
     && in_array($unwalkableOid, $looseIntegrityTraversalSummary[0]['statistics']['verifiedObjectIds'], true);
 
+$caseDuplicateGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-case-duplicate-' . bin2hex(random_bytes(4)) . '/.git';
+$caseDuplicateStore = new LooseObjectStore($caseDuplicateGitDir);
+$caseDuplicateObject = null;
+$caseDuplicateOid = null;
+for ($i = 0; $i < 100; $i++) {
+    $candidate = new GitObject('blob', "WordPress case-variant loose object candidate {$i}");
+    $candidateOid = $candidate->oid();
+    if (strtoupper($candidateOid) !== $candidateOid) {
+        $caseDuplicateObject = $candidate;
+        $caseDuplicateOid = $candidateOid;
+        break;
+    }
+}
+if (!$caseDuplicateObject instanceof GitObject || $caseDuplicateOid === null) {
+    throw new RuntimeException('Unable to create mixed-case loose object example fixture');
+}
+$caseDuplicateStore->write($caseDuplicateObject);
+$caseDuplicatePath = $caseDuplicateGitDir . '/objects/' . substr(strtoupper($caseDuplicateOid), 0, 2) . '/' . substr(strtoupper($caseDuplicateOid), 2);
+if (!is_dir(dirname($caseDuplicatePath)) && !mkdir(dirname($caseDuplicatePath), 0777, true) && !is_dir(dirname($caseDuplicatePath))) {
+    throw new RuntimeException("Unable to create case-variant loose object example directory: " . dirname($caseDuplicatePath));
+}
+file_put_contents($caseDuplicatePath, 'stale case-variant loose object candidate');
+$caseDuplicateIntegrity = (new ObjectDatabase($caseDuplicateGitDir))->verifyLooseIntegrity();
+
 return [
     'packedObjects' => $database->packedObjectCount(),
     'totalIterableObjects' => count($database->objectIds()),
@@ -213,4 +237,6 @@ return [
     'looseIntegritySizeMismatchRejected' => $looseIntegritySizeMismatchRejected,
     'looseIntegrityEmptyFileRejected' => $looseIntegrityEmptyFileRejected,
     'looseIntegrityTraversalErrorIgnored' => $looseIntegrityTraversalErrorIgnored,
+    'looseIntegrityCaseDuplicateCount' => $caseDuplicateIntegrity[0]['statistics']['numObjects'],
+    'looseIntegrityCaseDuplicateVerifiedIds' => $caseDuplicateIntegrity[0]['statistics']['verifiedObjectIds'],
 ];

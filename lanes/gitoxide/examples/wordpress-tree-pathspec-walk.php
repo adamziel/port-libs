@@ -29,6 +29,7 @@ $root = new Tree([
     $tree('wp-content', new Tree([
         $tree('mu-plugins', new Tree([$blob('Loader.PHP')])),
         $tree('plugins', new Tree([
+            $tree('..', new Tree([$blob('secret.php')])),
             $tree('akismet', new Tree([$blob('akismet.php'), $blob('block.json')])),
             $tree('gutenberg', new Tree([
                 $blob('block.json'),
@@ -36,6 +37,8 @@ $root = new Tree([
                 $tree('build', new Tree([$blob('index.js')])),
                 $tree('src', new Tree([$blob('editor.js')])),
             ])),
+            $blob('safe.php'),
+            $blob('weird\\name.php'),
             $tree('[literal]', new Tree([$blob('block.?son')])),
         ])),
         $tree('themes', new Tree([
@@ -106,6 +109,11 @@ $directoryOnlyHintPathspecs = PathspecSearch::fromSpecs([
     'wp-content/plugins/gutenberg/',
 ]);
 $excludeNilPathspecs = PathspecSearch::fromSpecs([':(exclude)']);
+$rawComponentGuardPathspecs = PathspecSearch::fromSpecs([
+    'wp-content/secret.php',
+    'wp-content/plugins/safe.php',
+    'wp-content/plugins/weird/name.php',
+]);
 $deploymentAttributes = GitAttributes::fromString(
     "wp-content/plugins/gutenberg/** deploy=plugin merge=union\n"
     . "wp-content/plugins/gutenberg/build/** !deploy\n"
@@ -259,6 +267,20 @@ $excludeNilRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$rawComponentReadPaths = [];
+$rawComponentGuardRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $rawComponentGuardPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects, &$rawComponentReadPaths): GitObject {
+        $rawComponentReadPaths[] = $path;
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 
 return [
     'matchedContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $records),
@@ -289,6 +311,10 @@ return [
     'excludeNilCanDescendIntoContent' => $excludeNilPathspecs->canMatch('wp-content', true),
     'excludeNilContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $excludeNilRecords),
     'excludeNilReadPaths' => $excludeNilReadPaths,
+    'rawComponentGuardContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $rawComponentGuardRecords),
+    'rawComponentGuardReadPaths' => $rawComponentReadPaths,
+    'rawParentComponentSkipped' => $rawComponentGuardPathspecs->match('wp-content/plugins/../secret.php', false) === null,
+    'rawBackslashComponentSkipped' => $rawComponentGuardPathspecs->match('wp-content/plugins/weird\\name.php', false) === null,
     'attrFilteredContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $attrFilteredRecords),
     'attrFilteredWithoutProviderEmpty' => $attrFilteredWithoutProviderRecords === [],
     'rootEscapingPathspecRejected' => $rootEscapingPathspecRejected,

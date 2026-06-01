@@ -377,6 +377,38 @@ return [
             $t->contains('Loose object not found', $exception->getMessage());
         }
     },
+    'loose object integrity counts duplicate case-normalized iterator candidates' => static function (TestRunner $t): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-integrity-case-duplicate-' . bin2hex(random_bytes(4)) . '/.git';
+        $store = new LooseObjectStore($gitDir);
+        $object = null;
+        $oid = null;
+        for ($i = 0; $i < 100; $i++) {
+            $candidate = new GitObject('blob', "WordPress case-variant loose object candidate {$i}");
+            $candidateOid = $candidate->oid();
+            if (strtoupper($candidateOid) !== $candidateOid) {
+                $object = $candidate;
+                $oid = $candidateOid;
+                break;
+            }
+        }
+        if (!$object instanceof GitObject || $oid === null) {
+            throw new RuntimeException('Unable to create mixed-case loose object id fixture');
+        }
+
+        $store->write($object);
+        $caseVariant = strtoupper($oid);
+        $caseVariantPath = $gitDir . '/objects/' . substr($caseVariant, 0, 2) . '/' . substr($caseVariant, 2);
+        if (!is_dir(dirname($caseVariantPath)) && !mkdir(dirname($caseVariantPath), 0777, true) && !is_dir(dirname($caseVariantPath))) {
+            throw new RuntimeException('Unable to create loose object case-variant candidate directory');
+        }
+        file_put_contents($caseVariantPath, 'stale case-variant loose object candidate');
+
+        $t->same([$oid], $store->objectIds());
+        $t->same([
+            'numObjects' => 2,
+            'verifiedObjectIds' => [$oid, $oid],
+        ], $store->verifyIntegrity());
+    },
     'loose object integrity ignores traversal errors but verifies yielded objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-integrity-unwalkable-' . bin2hex(random_bytes(4)) . '/.git';
         $store = new LooseObjectStore($gitDir);

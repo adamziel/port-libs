@@ -22,6 +22,12 @@ try {
 } catch (RuntimeException $error) {
     $uploadPackError = rtrim($error->getMessage());
 }
+$truncatedPackError = null;
+try {
+    FetchResponse::fromV2PacketLines($fixture['truncatedPackResponse']);
+} catch (RuntimeException $error) {
+    $truncatedPackError = rtrim($error->getMessage());
+}
 
 return [
     'acknowledgements' => array_map(
@@ -53,6 +59,8 @@ return [
     ),
     'errors' => $response->errorMessages(),
     'uploadPackError' => $uploadPackError,
+    'truncatedPackRejected' => $truncatedPackError === 'fetch response: missing sideband flush packet',
+    'truncatedPackError' => $truncatedPackError,
     'emptyErrorKeepaliveIgnored' => $emptyErrorSidebandResponse->errorMessages() === []
         && $emptyErrorSidebandResponse->packData() === $fixture['packData'],
     'overflowProgress' => array_map(

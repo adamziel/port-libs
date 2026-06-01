@@ -236,14 +236,13 @@ final class LooseObjectStore
         $suffixLength = self::hashHexLength($this->algorithm) - 2;
         $this->collectIntegrityObjectIds($objectsDirectory, 0, $suffixLength, $ids);
 
-        $ids = array_keys($ids);
         sort($ids, SORT_STRING);
 
         return $ids;
     }
 
     /**
-     * @param array<string,true> $ids
+     * @param list<string> $ids
      */
     private function collectIntegrityObjectIds(string $directory, int $depth, int $suffixLength, array &$ids): void
     {
@@ -266,7 +265,7 @@ final class LooseObjectStore
                     preg_match('/^[0-9a-fA-F]{2}$/', $prefix) === 1
                     && preg_match('/^[0-9a-fA-F]{' . $suffixLength . '}$/', $suffix) === 1
                 ) {
-                    $ids[strtolower($prefix . $suffix)] = true;
+                    $ids[] = strtolower($prefix . $suffix);
                 }
             }
 

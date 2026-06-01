@@ -3976,7 +3976,7 @@ final class SQLiteSelectSql
         self::joinValueKey($leftValue);
         self::joinValueKey($rightValue);
 
-        return SQLiteAffinityComparison::compare($leftValue, $rightValue, $leftAffinity, $rightAffinity, $collation) === 0;
+        return SQLiteAffinityComparison::compareColumnValues($leftValue, $rightValue, $leftAffinity, $rightAffinity, $collation) === 0;
     }
 
     /**

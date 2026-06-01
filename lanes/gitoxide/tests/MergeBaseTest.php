@@ -831,50 +831,77 @@ BASELINE;
         $t->same([], $mergeBase->mergeBases($left, $right));
         $t->same(null, $mergeBase->mergeBase($left, $right));
     },
+    'maps upstream shallow graph walk by skipping missing active commits' => static function (TestRunner $t) use ($oid): void {
+        $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            "Ada <ada@example.test> {$seconds} +0000",
+            "CI <ci@example.test> {$seconds} +0000",
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ["Ada <ada@example.test> {$seconds} +0000"],
+                'committer' => ["CI <ci@example.test> {$seconds} +0000"],
+            ],
+        );
+        $missingFirst = $oid('0');
+        $missingParent = $oid('1');
+        $release = $oid('2');
+        $pluginReview = $oid('3');
+        $themeReview = $oid('4');
+        $archivedReview = $oid('5');
+        $orphanReview = $oid('6');
+        $reads = [];
+        $commits = [
+            $release => $timedCommit(1700000000),
+            $pluginReview => $timedCommit(1700000100, [$release]),
+            $themeReview => $timedCommit(1700000200, [$release]),
+            $archivedReview => $timedCommit(1700000300, [$missingParent]),
+            $orphanReview => $timedCommit(1700000400),
+        ];
+        $mergeBase = new MergeBaseFinder(
+            static function (string $oid) use ($commits, &$reads): ?Commit {
+                $reads[] = $oid;
+
+                return $commits[$oid] ?? null;
+            },
+            useCommitGraphGenerations: false,
+        );
+
+        $t->same([$release], $mergeBase->mergeBasesAgainst($pluginReview, [$themeReview, $archivedReview]));
+        $t->same($release, $mergeBase->mergeBase($pluginReview, $themeReview));
+        $t->same([], $mergeBase->mergeBases($missingFirst, $themeReview));
+        $t->same(null, $mergeBase->mergeBase($pluginReview, $missingFirst));
+        $t->same([], $mergeBase->mergeBasesAgainst($pluginReview, [$archivedReview]));
+        $t->same([], $mergeBase->mergeBases($archivedReview, $orphanReview));
+        $t->same(true, in_array($missingParent, $reads, true));
+        $t->same(true, in_array($missingFirst, $reads, true));
+    },
     'wordpress fixture finds shared release baseline for multiple review branches' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-merge-base.php';
         $example = require dirname(__DIR__) . '/examples/wordpress-merge-base.php';
-        $finder = new MergeBaseFinder(static function (string $oid) use ($fixture): Commit {
-            if (!isset($fixture['commits'][$oid])) {
-                throw new RuntimeException("Missing commit fixture: {$oid}");
-            }
-
-            return $fixture['commits'][$oid];
+        $finder = new MergeBaseFinder(static function (string $oid) use ($fixture): ?Commit {
+            return $fixture['commits'][$oid] ?? null;
         });
-        $timeOnlyFinder = new MergeBaseFinder(static function (string $oid) use ($fixture): Commit {
-            if (!isset($fixture['commits'][$oid])) {
-                throw new RuntimeException("Missing commit fixture: {$oid}");
-            }
-
-            return $fixture['commits'][$oid];
+        $timeOnlyFinder = new MergeBaseFinder(static function (string $oid) use ($fixture): ?Commit {
+            return $fixture['commits'][$oid] ?? null;
         }, useCommitGraphGenerations: false);
         $commitGraphFinder = new MergeBaseFinder(
-            static function (string $oid) use ($fixture): Commit {
-                if (!isset($fixture['commits'][$oid])) {
-                    throw new RuntimeException("Missing commit fixture: {$oid}");
-                }
-
-                return $fixture['commits'][$oid];
+            static function (string $oid) use ($fixture): ?Commit {
+                return $fixture['commits'][$oid] ?? null;
             },
             commitGraphGeneration: static fn (string $oid): ?int => $fixture['shallowCommitGraphGenerations'][$oid] ?? null,
         );
         $redundantPruneFinder = new MergeBaseFinder(
-            static function (string $oid) use ($fixture): Commit {
-                if (!isset($fixture['commits'][$oid])) {
-                    throw new RuntimeException("Missing commit fixture: {$oid}");
-                }
-
-                return $fixture['commits'][$oid];
+            static function (string $oid) use ($fixture): ?Commit {
+                return $fixture['commits'][$oid] ?? null;
             },
             commitGraphGeneration: static fn (string $oid): ?int => $fixture['redundantPruneCommitGraphGenerations'][$oid] ?? null,
         );
         $missingGenerationFinder = new MergeBaseFinder(
-            static function (string $oid) use ($fixture): Commit {
-                if (!isset($fixture['commits'][$oid])) {
-                    throw new RuntimeException("Missing commit fixture: {$oid}");
-                }
-
-                return $fixture['commits'][$oid];
+            static function (string $oid) use ($fixture): ?Commit {
+                return $fixture['commits'][$oid] ?? null;
             },
             commitGraphGeneration: static fn (string $oid): ?int => null,
         );
@@ -921,9 +948,12 @@ BASELINE;
         $t->same($fixture['shallowReleaseBaseline'], $example['shallowGraphWalkBase']);
         $t->same($fixture['shallowReleaseBaseline'], $example['shallowCommitGraphBase']);
         $t->same($fixture['shallowReleaseBaseline'], $example['shallowPairwiseBase']);
+        $t->same($fixture['shallowReleaseBaseline'], $timeOnlyFinder->mergeBaseAgainst($fixture['shallowPluginReview'], $fixture['shallowMissingArchiveGraphWalkOthers']));
+        $t->same($fixture['shallowReleaseBaseline'], $example['shallowMissingArchiveBase']);
         $t->same(true, $example['shallowGraphWalkStopsAtReleaseBaseline']);
         $t->same(true, $example['shallowCommitGraphUsesMetadata']);
         $t->same(true, $example['shallowPairwiseStopsAtReleaseBaseline']);
+        $t->same(true, $example['shallowMissingArchiveParentIsSkipped']);
         $t->same($fixture['timestampSkewExpectedBase'], $finder->mergeBase($fixture['timestampSkewLeftReview'], $fixture['timestampSkewRightReview']));
         $t->same($fixture['timestampSkewExpectedBase'], $timeOnlyFinder->mergeBase($fixture['timestampSkewLeftReview'], $fixture['timestampSkewRightReview']));
         $t->same([$fixture['timestampSkewExpectedBase']], $finder->mergeBasesAgainst($fixture['timestampSkewLeftReview'], [$fixture['timestampSkewRightReview']]));

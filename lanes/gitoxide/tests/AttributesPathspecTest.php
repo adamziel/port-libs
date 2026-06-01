@@ -146,6 +146,28 @@ return [
 
         $t->same([], $warnings);
     },
+    'attribute pathspec filters preserve escaped backslash path bytes like gix wildmatch' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString(
+            'wp-content/plugins/f\\\\oo/block.json backslash-plugin' . "\n"
+            . 'wp-content/plugins/f/oo/block.json slash-plugin' . "\n",
+            withBuiltInMacros: false,
+        );
+        $backslashPath = 'wp-content/plugins/f\\oo/block.json';
+        $slashPath = 'wp-content/plugins/f/oo/block.json';
+
+        $t->same(['backslash-plugin' => true], $attributes->attributesForPath($backslashPath, ['backslash-plugin']));
+        $t->same(['backslash-plugin' => null], $attributes->attributesForPath($slashPath, ['backslash-plugin']));
+        $t->same(['slash-plugin' => true], $attributes->attributesForPath($slashPath, ['slash-plugin']));
+        $t->same(['slash-plugin' => null], $attributes->attributesForPath($backslashPath, ['slash-plugin']));
+
+        $escapedBackslashPathspec = ':(glob,attr:backslash-plugin)wp-content/plugins/f\\\\oo/block.json';
+        $t->same(true, PathspecMatcher::matchesOne($escapedBackslashPathspec, $backslashPath, false, $attributes));
+        $t->same(false, PathspecMatcher::matchesOne($escapedBackslashPathspec, $slashPath, false, $attributes));
+        $t->same(true, PathspecSearch::fromSpecs([$escapedBackslashPathspec])->isIncluded($backslashPath, false, $attributes));
+        $t->same(false, PathspecSearch::fromSpecs([$escapedBackslashPathspec])->isIncluded($slashPath, false, $attributes));
+        $t->same(true, PathspecMatcher::matchesOne(':(glob)wp-content/plugins/f\\\\oo/block.json', $backslashPath, false));
+        $t->same(false, PathspecMatcher::matchesOne(':(glob)wp-content/plugins/f\\\\oo/block.json', $slashPath, false));
+    },
     'pathspec parser accepts upstream attribute magic and escaped values' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/plugins/** deploy=plugin kind=one,two\n"
             . "wp-content/themes/** deploy=theme kind=one-two\n"
@@ -460,6 +482,10 @@ return [
         $t->same(['dated-upload' => true], $example['datedUploadAttributes']);
         $t->same(true, $example['datedUploadPathspecMatches']);
         $t->same(true, $example['slashClassDoesNotCrossDirectory']);
+        $t->same(['backslash-plugin' => true], $example['backslashPathAttributes']);
+        $t->same(['backslash-plugin' => null], $example['slashPathDoesNotMatchBackslashAttribute']);
+        $t->same(true, $example['backslashPathspecMatchesByte']);
+        $t->same(true, $example['backslashPathspecSkipsSlash']);
         $t->same(true, $example['reversedRangePathspecMatchesStart']);
         $t->same(true, $example['reversedRangePathspecSkipsMiddle']);
         $t->same(['not-reversed-range' => true], $example['reversedRangeNegationMatchesMiddle']);

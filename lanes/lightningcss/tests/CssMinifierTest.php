@@ -517,6 +517,32 @@ CSS
             }
         }
     },
+    'css minifier maps upstream xyz relative color function same-space colors' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            'color(from color(%1$s 7 -20.5 100) %1$s x y z)' => 'color(%2$s 7 -20.5 100)',
+            'color(from color(%1$s 7 -20.5 100 / 40%%) %1$s x y z / alpha)' => 'color(%2$s 7 -20.5 100/.4)',
+            'color(from color(from color(%1$s 7 -20.5 100) %1$s x y z) %1$s x y z)' => 'color(%2$s 7 -20.5 100)',
+            'color(from color(%1$s 7 -20.5 100) %1$s 0 y z / alpha)' => 'color(%2$s 0 -20.5 100)',
+            'color(from color(%1$s 7 -20.5 100) %1$s 20%% y z / 20%%)' => 'color(%2$s .2 -20.5 100/.2)',
+            'color(from color(%1$s 7 -20.5 100) %1$s 2 3 4 / 5)' => 'color(%2$s 2 3 4)',
+            'color(from color(%1$s 7 -20.5 100) %1$s -2 -3 -4 / -5)' => 'color(%2$s -2 -3 -4/0)',
+            'color(from color(%1$s 7 -20.5 100) %1$s y z x)' => 'color(%2$s -20.5 100 7)',
+            'color(from color(%1$s 7 -20.5 100) %1$s x x x / x)' => 'color(%2$s 7 7 7)',
+            'color(from color(%1$s 7 -20.5 100 / 40%%) %1$s calc(x) calc(y) calc(z) / calc(alpha))' => 'color(%2$s 7 -20.5 100/.4)',
+            'color(from color(%1$s 7 -20.5 100) %1$s none none none / none)' => 'color(%2$s none none none/none)',
+            'color(from color(%1$s none none none / none) %1$s x y z / alpha)' => 'color(%2$s 0 0 0/0)',
+        ];
+
+        foreach (['xyz' => 'xyz', 'xyz-d50' => 'xyz-d50', 'xyz-d65' => 'xyz'] as $space => $outputSpace) {
+            foreach ($cases as $input => $expected) {
+                $t->same(
+                    '.foo{color:' . sprintf($expected, $space, $outputSpace) . '}',
+                    $minifier->minify('.foo { color: ' . sprintf($input, $space, $outputSpace) . '; }')
+                );
+            }
+        }
+    },
     'css minifier maps upstream lab and oklab relative same-space colors' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
         $cases = [

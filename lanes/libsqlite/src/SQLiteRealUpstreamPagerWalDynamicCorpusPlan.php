@@ -1963,6 +1963,184 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     /**
      * @return list<array<string, mixed>>
      */
+    public static function savepoint2WalSignatureRows(int $count = 1000): array
+    {
+        if ($count < 1) {
+            throw new \InvalidArgumentException('SQLite savepoint2 WAL signature rows require a positive count');
+        }
+
+        $phases = [
+            [
+                'suffix' => '1',
+                'phase' => 'open-savepoint-one-after-optional-begin',
+                'stage' => 'open_one',
+                'sql_group' => null,
+                'rollback_target' => null,
+                'expected_signature_source' => 'one',
+                'expected_autocommit' => false,
+            ],
+            [
+                'suffix' => '2',
+                'phase' => 'rollback-sql1-to-savepoint-one',
+                'stage' => 'rollback_one_sql1',
+                'sql_group' => 'SQL(1)',
+                'rollback_target' => 'one',
+                'expected_signature_source' => 'one',
+                'expected_autocommit' => false,
+            ],
+            [
+                'suffix' => '3',
+                'phase' => 'open-savepoint-two-after-sql1',
+                'stage' => 'open_two_after_sql1',
+                'sql_group' => 'SQL(1)',
+                'rollback_target' => null,
+                'expected_signature_source' => 'two',
+                'expected_autocommit' => false,
+            ],
+            [
+                'suffix' => '4',
+                'phase' => 'rollback-sql2-to-savepoint-two',
+                'stage' => 'rollback_two_sql2',
+                'sql_group' => 'SQL(2)',
+                'rollback_target' => 'two',
+                'expected_signature_source' => 'two',
+                'expected_autocommit' => false,
+            ],
+            [
+                'suffix' => '5',
+                'phase' => 'release-three-then-rollback-one',
+                'stage' => 'release_three_rollback_one',
+                'sql_group' => 'SQL(2)+SQL(3)',
+                'rollback_target' => 'one',
+                'expected_signature_source' => 'one',
+                'expected_autocommit' => false,
+            ],
+            [
+                'suffix' => '6',
+                'phase' => 'commit-after-sql4-restores-autocommit',
+                'stage' => 'commit_after_sql4',
+                'sql_group' => 'SQL(4)',
+                'rollback_target' => null,
+                'expected_signature_source' => 'commit',
+                'expected_autocommit' => true,
+            ],
+            [
+                'suffix' => '7',
+                'phase' => 'wal-mode-persists-after-savepoint-cycle',
+                'stage' => 'wal_mode_check',
+                'sql_group' => null,
+                'rollback_target' => null,
+                'expected_signature_source' => 'wal',
+                'expected_autocommit' => true,
+            ],
+        ];
+
+        $sqlGroups = [
+            'SQL(1)' => [
+                'DELETE FROM t3 WHERE random()%10!=0',
+                'INSERT INTO t3 SELECT randstr(10,10)||x FROM t3',
+                'INSERT INTO t3 SELECT randstr(10,10)||x FROM t3',
+            ],
+            'SQL(2)' => [
+                'DELETE FROM t3 WHERE random()%10!=0',
+                'INSERT INTO t3 SELECT randstr(10,10)||x FROM t3',
+                'DELETE FROM t3 WHERE random()%10!=0',
+                'INSERT INTO t3 SELECT randstr(10,10)||x FROM t3',
+            ],
+            'SQL(3)' => [
+                'UPDATE t3 SET x = randstr(10, 400) WHERE random()%10',
+                'INSERT INTO t3 SELECT x FROM t3 WHERE random()%10',
+                'DELETE FROM t3 WHERE random()%10',
+            ],
+            'SQL(4)' => [
+                'INSERT INTO t3 SELECT randstr(10,400) FROM t3 WHERE (random()%10 == 0)',
+            ],
+        ];
+
+        $rows = [];
+        $pageSizes = [512, 1024, 2048, 4096];
+        $phaseCount = count($phases);
+        $iterationCount = 20;
+
+        foreach (range(1, $count) as $case) {
+            $phase = $phases[($case - 1) % $phaseCount];
+            $iteration = 2 + intdiv(($case - 1) % ($phaseCount * $iterationCount), $phaseCount);
+            $variant = intdiv($case - 1, $phaseCount * $iterationCount);
+            $outerBegin = ($iteration % 2) === 1;
+            $pageSize = $pageSizes[($case + $iteration) % count($pageSizes)];
+            $sql1Frames = 2 + (($case + $iteration) % 5);
+            $sql2Frames = 3 + (($case * 2 + $iteration) % 6);
+            $sql3Frames = 2 + (($case * 3 + $iteration) % 5);
+            $sql4Frames = 1 + (($case + $variant) % 4);
+            $signatureOne = hash('sha256', sprintf('savepoint2|%02d|%02d|one|1024', $iteration, $variant));
+            $signatureTwo = hash('sha256', sprintf('savepoint2|%02d|%02d|two|%d', $iteration, $variant, $sql1Frames));
+            $signatureCommit = hash('sha256', sprintf('savepoint2|%02d|%02d|commit|%d', $iteration, $variant, $sql4Frames));
+            $signatureWal = hash('sha256', sprintf('savepoint2|%02d|%02d|wal|mode', $iteration, $variant));
+            $expectedSignature = match ($phase['expected_signature_source']) {
+                'two' => $signatureTwo,
+                'commit' => $signatureCommit,
+                'wal' => $signatureWal,
+                default => $signatureOne,
+            };
+            $expectedRollbackFrame = match ($phase['stage']) {
+                'rollback_two_sql2' => $sql1Frames,
+                default => 0,
+            };
+            $expectedDiscardedFrames = match ($phase['stage']) {
+                'rollback_one_sql1' => $sql1Frames,
+                'rollback_two_sql2' => $sql2Frames,
+                'release_three_rollback_one' => $sql1Frames + $sql2Frames + $sql3Frames,
+                default => 0,
+            };
+
+            $rows[] = [
+                'upstream' => sprintf('savepoint2.test savepoint2-%d.%s WAL savepoint signature dynamic case %04d', $iteration, $phase['suffix'], $case),
+                'script' => 'savepoint2.test',
+                'section' => sprintf('savepoint2-%d.%s', $iteration, $phase['suffix']),
+                'case' => $case,
+                'iteration' => $iteration,
+                'variant' => $variant,
+                'phase' => $phase['phase'],
+                'stage' => $phase['stage'],
+                'journal_mode' => 'wal',
+                'cache_size' => 10,
+                'page_size' => $pageSize,
+                'initial_rows' => 1024,
+                'outer_transaction_opened_with_begin' => $outerBegin,
+                'one_is_transaction_savepoint' => !$outerBegin,
+                'sql_group' => $phase['sql_group'],
+                'sql_statements' => $phase['sql_group'] === null ? [] : ($sqlGroups[$phase['sql_group']] ?? []),
+                'sql1_frame_count' => $sql1Frames,
+                'sql2_frame_count' => $sql2Frames,
+                'sql3_frame_count' => $sql3Frames,
+                'sql4_frame_count' => $sql4Frames,
+                'expected_rollback_target' => $phase['rollback_target'],
+                'expected_rollback_to_frame' => $expectedRollbackFrame,
+                'expected_discarded_wal_frame_count' => $expectedDiscardedFrames,
+                'signature_one' => $signatureOne,
+                'signature_two' => $signatureTwo,
+                'signature_commit' => $signatureCommit,
+                'signature_wal_mode' => $signatureWal,
+                'expected_signature' => $expectedSignature,
+                'expected_signature_source' => $phase['expected_signature_source'],
+                'expected_integrity_check' => 'ok',
+                'expected_wal_mode' => 'wal',
+                'expected_autocommit_after_phase' => (bool) $phase['expected_autocommit'],
+                'dependencies' => [
+                    'real-upstream-corpus-savepoint2',
+                    'sqlite-savepoint-wal-signature-rollback',
+                    'sqlite-pager-savepoint-playback',
+                    'sqlite-real-upstream-pager-wal-dynamic',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
     public static function walFullSyncPaddingRows(int $count = 1000): array
     {
         if ($count < 1) {

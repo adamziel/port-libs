@@ -586,6 +586,51 @@ return [
             $t->contains('Loose object inflated size mismatch', $exception->getMessage());
         }
     },
+    'object database loose integrity counts duplicate case-normalized candidates in primary and alternates' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-case-duplicate-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateObjectsDir = $root . '/shared-cache/.git/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+        if (!mkdir($alternateObjectsDir, 0777, true) && !is_dir($alternateObjectsDir)) {
+            throw new RuntimeException("Unable to create alternate objects directory: {$alternateObjectsDir}");
+        }
+
+        $createMixedCaseObject = static function (string $label): GitObject {
+            for ($i = 0; $i < 100; $i++) {
+                $object = new GitObject('blob', "WordPress {$label} loose candidate {$i}");
+                if (strtoupper($object->oid()) !== $object->oid()) {
+                    return $object;
+                }
+            }
+
+            throw new RuntimeException("Unable to create mixed-case {$label} loose object id fixture");
+        };
+        $writeCaseVariantCandidate = static function (string $objectsDirectory, string $oid): void {
+            $caseVariant = strtoupper($oid);
+            $path = $objectsDirectory . '/' . substr($caseVariant, 0, 2) . '/' . substr($caseVariant, 2);
+            if (!is_dir(dirname($path)) && !mkdir(dirname($path), 0777, true) && !is_dir(dirname($path))) {
+                throw new RuntimeException("Unable to create case-variant loose object candidate directory: " . dirname($path));
+            }
+            file_put_contents($path, 'stale case-variant loose object candidate');
+        };
+
+        $primaryStore = new LooseObjectStore($gitDir);
+        $primaryOid = $primaryStore->write($createMixedCaseObject('primary'));
+        $writeCaseVariantCandidate($objectsDir, $primaryOid);
+        $alternateStore = LooseObjectStore::fromObjectsDirectory($alternateObjectsDir);
+        $alternateOid = $alternateStore->write($createMixedCaseObject('alternate'));
+        $writeCaseVariantCandidate($alternateObjectsDir, $alternateOid);
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $integrity = (new ObjectDatabase($gitDir))->verifyLooseIntegrity();
+        $t->same([$objectsDir, realpath($alternateObjectsDir)], array_column($integrity, 'path'));
+        $t->same([2, 2], array_map(static fn (array $row): int => $row['statistics']['numObjects'], $integrity));
+        $t->same([$primaryOid, $primaryOid], $integrity[0]['statistics']['verifiedObjectIds']);
+        $t->same([$alternateOid, $alternateOid], $integrity[1]['statistics']['verifiedObjectIds']);
+    },
     'object database reads object headers across packed loose and replacement stores' => static function (TestRunner $t) use ($writeWordPressPackFixture): void {
         [$gitDir, $fixture] = $writeWordPressPackFixture();
         $loose = new LooseObjectStore($gitDir);
@@ -816,5 +861,10 @@ return [
         $t->same(true, $summary['looseIntegritySizeMismatchRejected']);
         $t->same(true, $summary['looseIntegrityEmptyFileRejected']);
         $t->same(true, $summary['looseIntegrityTraversalErrorIgnored']);
+        $t->same(2, $summary['looseIntegrityCaseDuplicateCount']);
+        $t->same([
+            $summary['looseIntegrityCaseDuplicateVerifiedIds'][0],
+            $summary['looseIntegrityCaseDuplicateVerifiedIds'][0],
+        ], $summary['looseIntegrityCaseDuplicateVerifiedIds']);
     },
 ];
