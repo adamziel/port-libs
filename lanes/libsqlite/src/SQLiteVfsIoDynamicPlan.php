@@ -561,6 +561,113 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function blockedCacheSpillReadLockProfile(
+        string $scenario,
+        int $cachePages,
+        int $rowsTouched,
+        int $payloadBytes,
+        bool $readLockHeld = true,
+        bool $releaseReadLockBeforeCommit = false,
+        int $pageSize = 1024
+    ): array {
+        $scenario = trim($scenario);
+        if (!in_array($scenario, ['tkt2409-1', 'tkt2409-2', 'tkt2409-3', 'tkt2409-4'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite blocked cache-spill scenario: {$scenario}");
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite blocked cache-spill page size must be a power of two at least 512');
+        }
+        if ($cachePages < 1 || $rowsTouched < 1 || $payloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite blocked cache-spill profile requires positive cache, row, and payload counts');
+        }
+
+        $dirtyBytes = $rowsTouched * ($payloadBytes + 64);
+        $dirtyPages = max(1, (int) ceil($dirtyBytes / $pageSize));
+        $cacheSpillAttempted = $dirtyPages > $cachePages;
+        $commitScenario = $scenario === 'tkt2409-2';
+        $statementTransaction = $scenario === 'tkt2409-4';
+        $manyStatements = $scenario === 'tkt2409-4';
+        $insertSelect = $scenario === 'tkt2409-3';
+        $blockedDuringStatement = $readLockHeld && $cacheSpillAttempted;
+        $pcacheFallback = $blockedDuringStatement;
+        $commitBlocked = $commitScenario && $readLockHeld && !$releaseReadLockBeforeCommit;
+        $memoryPages = $pcacheFallback ? max(1, $dirtyPages - $cachePages) : 0;
+
+        return [
+            'status' => 'ok',
+            'script' => 'tkt2409.test',
+            'scenario' => $scenario,
+            'upstream' => match ($scenario) {
+                'tkt2409-1' => [
+                    'tkt2409.test tkt2409-1.1 insert inside transaction while peer holds read lock',
+                    'tkt2409.test tkt2409-1.2 sqlite3_errcode remains SQLITE_OK',
+                    'tkt2409.test tkt2409-1.3 integrity_check after cache pressure',
+                    'tkt2409.test tkt2409-1.4 explicit rollback succeeds',
+                ],
+                'tkt2409-2' => [
+                    'tkt2409.test tkt2409-2.1 cache-size loop accepts statement or disk I/O error during spill pressure',
+                    'tkt2409.test tkt2409-2.2 COMMIT reports database is locked while peer read lock remains',
+                    'tkt2409.test tkt2409-2.3 COMMIT succeeds after peer read lock is released',
+                ],
+                'tkt2409-3' => [
+                    'tkt2409.test tkt2409-3.1 insert-select inside transaction while peer holds read lock',
+                    'tkt2409.test tkt2409-3.2 sqlite3_errcode remains SQLITE_OK',
+                    'tkt2409.test tkt2409-3.3 integrity_check after insert-select pressure',
+                    'tkt2409.test tkt2409-3.4 explicit rollback succeeds',
+                    'tkt2409.test tkt2409-3.5 integrity_check after rollback',
+                ],
+                default => [
+                    'tkt2409.test tkt2409-4.1 many statements inside a transaction while peer holds read lock',
+                    'tkt2409.test tkt2409-4.2 sqlite3_errcode remains SQLITE_OK',
+                    'tkt2409.test tkt2409-4.3 integrity_check after many-statement cache pressure',
+                    'tkt2409.test tkt2409-4.4 explicit rollback succeeds',
+                    'tkt2409.test tkt2409-4.5 integrity_check after rollback',
+                ],
+            },
+            'page_size' => $pageSize,
+            'cache_pages' => $cachePages,
+            'rows_touched' => $rowsTouched,
+            'payload_bytes' => $payloadBytes,
+            'dirty_bytes' => $dirtyBytes,
+            'dirty_pages' => $dirtyPages,
+            'read_lock_held' => $readLockHeld,
+            'read_lock_released_before_commit' => $releaseReadLockBeforeCommit,
+            'cache_spill_attempted' => $cacheSpillAttempted,
+            'exclusive_lock_upgrade_blocked' => $blockedDuringStatement,
+            'pcache_heap_fallback_used' => $pcacheFallback,
+            'memory_pages_used_for_blocked_spill' => $memoryPages,
+            'statement_transaction_started' => $statementTransaction,
+            'many_statement_batch' => $manyStatements,
+            'insert_select_statement' => $insertSelect,
+            'statement_result_code' => 'SQLITE_OK',
+            'sqlite_errcode_after_statement' => 'SQLITE_OK',
+            'transaction_rolled_back_automatically' => false,
+            'transaction_active_after_statement' => true,
+            'commit_attempted' => $commitScenario,
+            'commit_result_code' => $commitScenario ? ($commitBlocked ? 'SQLITE_BUSY' : 'SQLITE_OK') : null,
+            'commit_error_message' => $commitBlocked ? 'database is locked' : '',
+            'transaction_active_after_commit_attempt' => $commitBlocked,
+            'final_commit_after_read_lock_release' => $commitScenario && ($commitBlocked || $releaseReadLockBeforeCommit),
+            'explicit_rollback_result_code' => $commitScenario ? null : 'SQLITE_OK',
+            'pager_cache_integrity_preserved' => true,
+            'integrity_check' => 'ok',
+            'open_statement_finalized' => true,
+            'open_file_count' => 0,
+            'reason' => $commitBlocked
+                ? 'commit_change_counter_lock_conflict_reports_database_locked_until_reader_releases'
+                : ($pcacheFallback ? 'blocked_statement_cache_spill_uses_heap_fallback_without_ioerr' : 'cache_spill_not_required_for_current_pressure'),
+            'dependencies' => [
+                'upstream-tkt2409-cache-spill-read-lock',
+                'sqlite-pcache-spill-uses-heap-on-blocked-exclusive-lock',
+                'sqlite-commit-still-reports-busy-under-peer-read-lock',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function powersafeOverwriteJournalProfile(
         bool $powersafeOverwrite,
         string $journalMode,

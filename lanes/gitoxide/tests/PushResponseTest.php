@@ -538,6 +538,24 @@ return [
         $t->same(true, str_contains($response->progressMessages()[4], 'GitHub found 1 vulnerability'));
         $t->same('refs/heads/main', $response->refStatuses()[0]->refName);
     },
+    'ignores empty progress sideband keepalives around receive-status bytes' => static function (TestRunner $t) use ($packet, $flush): void {
+        $direct = PushResponse::fromSidebandPacketLines(
+            $packet("\x02")
+            . $packet("\x01" . substr($packet("unpack ok\n"), 0, 6))
+            . $packet("\x02remote: validating deployment\n")
+            . $packet("\x01" . substr($packet("unpack ok\n"), 6))
+            . $packet("\x02")
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $packet("\x02")
+            . $flush
+        );
+
+        $t->same(true, $direct->isSuccessful());
+        $t->same(['remote: validating deployment'], $direct->progressMessages());
+        $t->same('refs/heads/main', $direct->refStatuses()[0]->refName);
+        $t->same([], $direct->errorMessages());
+    },
     'accepts response-end terminated receive-status streams' => static function (TestRunner $t) use ($packet, $flush): void {
         $old = str_repeat('a', 40);
         $new = str_repeat('b', 40);
@@ -651,6 +669,15 @@ return [
         );
         $t->same(true, $keepalive->isSuccessful());
         $t->same([], $keepalive->errorMessages());
+        $emptyProgressKeepalive = PushResponse::fromSidebandPacketLines(
+            $packet("\x02")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $flush
+        );
+        $t->same(true, $emptyProgressKeepalive->isSuccessful());
+        $t->same([], $emptyProgressKeepalive->progressMessages());
     },
     'wordpress fixture parses deployment branch and tag push status' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v1-push-response.php';
@@ -750,6 +777,7 @@ return [
         $t->same(true, $summary['unpackOnlyExpectedRefsRejected']);
         $t->same(true, $summary['fatalAfterStatusRejected']);
         $t->same(true, $summary['emptyErrorSidebandAccepted']);
+        $t->same(true, $summary['emptyProgressSidebandIgnored']);
         $t->same(true, $summary['responseEndTerminatedAccepted']);
         $t->same(true, $summary['delimiterTerminatedAccepted']);
         $t->same(true, $summary['valuelessReportStatusOptionsAccepted']);

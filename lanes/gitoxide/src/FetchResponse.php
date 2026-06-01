@@ -510,6 +510,6 @@ final class FetchResponse
 
     private static function trimProtocolLineEnd(string $line): string
     {
-        return rtrim($line, " \t\n\r\v\f");
+        return ProtocolLine::trimEnd($line);
     }
 }

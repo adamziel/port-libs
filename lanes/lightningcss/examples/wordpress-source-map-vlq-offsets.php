@@ -845,6 +845,22 @@ $duplicateLookupExtendedMap->setSourceContent($duplicateLookupCompiled, '.wp-blo
 $duplicateLookupExtendedMap->addMapping(0, 0, $duplicateLookupCompiled, 0, 0, 'compiled-duplicate-lookup');
 $duplicateLookupExtendedMap->extendWithSourceMap($duplicateLookupInputMap);
 
+$afterLastGeneratedOnlyInputMap = SourceMap::fromJson(
+    '{"version":3,"mappings":"A,KAAA","sources":["wp-content/themes/example/source-map-after-last.scss"],"sourcesContent":[".wp-block-after-last{}"],"names":[]}'
+);
+$afterLastGeneratedOnlyClosest = $afterLastGeneratedOnlyInputMap->findClosestMapping(0, 99);
+$afterLastGeneratedOnlyExact = $afterLastGeneratedOnlyInputMap->findClosestMapping(0, 5);
+$afterLastGeneratedOnlyInputMap->offsetColumns(0, 5, 3);
+$afterLastGeneratedOnlyOffsetClosest = $afterLastGeneratedOnlyInputMap->findClosestMapping(0, 99);
+$afterLastGeneratedOnlyOffsetExact = $afterLastGeneratedOnlyInputMap->findClosestMapping(0, 8);
+$afterLastGeneratedOnlyExtendedMap = new SourceMap();
+$afterLastGeneratedOnlyCompiled = $afterLastGeneratedOnlyExtendedMap->addSource('wp-content/cache/source-map-after-last.css');
+$afterLastGeneratedOnlyExtendedMap->setSourceContent($afterLastGeneratedOnlyCompiled, '.wp-block-after-last{color:red}');
+$afterLastGeneratedOnlyExtendedMap->addMapping(0, 0, $afterLastGeneratedOnlyCompiled, 0, 99, 'compiled-after-last');
+$afterLastGeneratedOnlyExtendedMap->extendWithSourceMap(SourceMap::fromJson(
+    '{"version":3,"mappings":"A,KAAA","sources":["wp-content/themes/example/source-map-after-last.scss"],"sourcesContent":[".wp-block-after-last{}"],"names":[]}'
+));
+
 $maxUnsignedVlqDecode = SourceMap::decodeVlq('+/////H')[0]['generatedColumn'];
 $shiftedColumnOverflowMap = new SourceMap();
 $shiftedColumnOverflowSource = $shiftedColumnOverflowMap->addSource('wp-content/themes/example/source-map-shifted-column-overflow.css');
@@ -1111,6 +1127,12 @@ $actual = [
     'duplicateLookupExact' => $duplicateLookupExact,
     'duplicateLookupAfterLast' => $duplicateLookupAfterLast,
     'duplicateLookupExtendedMap' => $duplicateLookupExtendedMap->toJson(null, false),
+    'afterLastGeneratedOnlyClosest' => $afterLastGeneratedOnlyClosest,
+    'afterLastGeneratedOnlyExact' => $afterLastGeneratedOnlyExact,
+    'afterLastGeneratedOnlyOffsetMap' => $afterLastGeneratedOnlyInputMap->toJson(null, false),
+    'afterLastGeneratedOnlyOffsetClosest' => $afterLastGeneratedOnlyOffsetClosest,
+    'afterLastGeneratedOnlyOffsetExact' => $afterLastGeneratedOnlyOffsetExact,
+    'afterLastGeneratedOnlyExtendedMap' => $afterLastGeneratedOnlyExtendedMap->toJson(null, false),
     'maxUnsignedVlqDecode' => $maxUnsignedVlqDecode,
     'shiftedColumnOverflowGuard' => $shiftedColumnOverflowGuard && $shiftedColumnOverflowBeforeGuard === $shiftedColumnOverflowMap->toJson(null, false),
     'unsortedColumnOverflowBeforeGuard' => $unsortedColumnOverflowBeforeGuard,
@@ -1252,6 +1274,12 @@ if (($argv[1] ?? null) === '--self-test') {
         'duplicateLookupExact' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
         'duplicateLookupAfterLast' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0],
         'duplicateLookupExtendedMap' => '{"version":3,"mappings":"A","sources":["wp-content/cache/duplicate-lookup.css","wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{color:red}",".wp-block-duplicate-lookup{}"],"names":["compiled-duplicate-lookup","duplicate-lookup-rule"]}',
+        'afterLastGeneratedOnlyClosest' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
+        'afterLastGeneratedOnlyExact' => ['generatedLine' => 0, 'generatedColumn' => 5, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => null],
+        'afterLastGeneratedOnlyOffsetMap' => '{"version":3,"mappings":"A,QAAA","sources":["wp-content/themes/example/source-map-after-last.scss"],"sourcesContent":[".wp-block-after-last{}"],"names":[]}',
+        'afterLastGeneratedOnlyOffsetClosest' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
+        'afterLastGeneratedOnlyOffsetExact' => ['generatedLine' => 0, 'generatedColumn' => 8, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => null],
+        'afterLastGeneratedOnlyExtendedMap' => '{"version":3,"mappings":"A","sources":["wp-content/cache/source-map-after-last.css","wp-content/themes/example/source-map-after-last.scss"],"sourcesContent":[".wp-block-after-last{color:red}",".wp-block-after-last{}"],"names":["compiled-after-last"]}',
         'maxUnsignedVlqDecode' => 4294967295,
         'shiftedColumnOverflowGuard' => true,
         'unsortedColumnOverflowBeforeGuard' => [10, 2],

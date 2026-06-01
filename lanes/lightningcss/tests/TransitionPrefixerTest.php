@@ -1523,6 +1523,52 @@ CSS;
             $prefixer->prefixForTargets('.foo { position: sticky; }', ['safari' => 13])
         );
     },
+    'transition prefixer maps upstream writing-mode browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = '.foo { writing-mode: vertical-rl; }';
+        $modern = '.foo{writing-mode:vertical-rl}';
+        $webkit = '.foo{-webkit-writing-mode:vertical-rl;writing-mode:vertical-rl}';
+        $ms = '.foo{-ms-writing-mode:tb-rl;writing-mode:vertical-rl}';
+        $webkitMs = '.foo{-webkit-writing-mode:vertical-rl;-ms-writing-mode:tb-rl;writing-mode:vertical-rl}';
+        $stalePrefixed = '.foo { -webkit-writing-mode: vertical-rl; -ms-writing-mode: tb-rl; writing-mode: vertical-rl; }';
+
+        $t->same($modern, $prefixer->prefixForTargets($css, ['android' => '2.3']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['android' => 3]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['android' => '4.4.3']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['android' => '4.4.4']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['chrome' => 7]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['chrome' => 8]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['chrome' => 47]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['chrome' => 48]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['ios_saf' => '4.3']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['ios_saf' => 5]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['ios_saf' => '10.3']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['ios_saf' => '10.4']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['opera' => 14]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['opera' => 15]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['opera' => 34]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['opera' => 35]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['safari' => 5]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['safari' => '5.1']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['safari' => '10.1']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['safari' => '10.2']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['samsung' => 4]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['samsung' => 5]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['ie' => 5]));
+        $t->same($ms, $prefixer->prefixForTargets($css, ['ie' => '5.5']));
+        $t->same($ms, $prefixer->prefixForTargets($css, ['ie' => 11]));
+        $t->same($webkitMs, $prefixer->prefixForTargets($css, ['chrome' => 47, 'ie' => 11]));
+        $t->same(
+            '.foo{-ms-writing-mode:lr-tb;writing-mode:horizontal-tb}',
+            $prefixer->prefixForTargets('.foo { writing-mode: horizontal-tb; }', ['ie' => 11])
+        );
+        $t->same(
+            '.foo{-ms-writing-mode:tb-lr;writing-mode:vertical-lr}',
+            $prefixer->prefixForTargets('.foo { writing-mode: vertical-lr; }', ['ie' => 11])
+        );
+        $t->same($modern, $prefixer->prefixForTargets($stalePrefixed, ['chrome' => 48, 'safari' => '10.2', 'samsung' => 5]));
+        $t->same($ms, $prefixer->prefixForTargets($stalePrefixed, ['chrome' => 48, 'ie' => 11]));
+    },
     'transition prefixer maps upstream break property WebKit browser boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $css = '.foo { break-before: page; break-after: column; break-inside: avoid; }';
@@ -2818,6 +2864,26 @@ CSS;
         $t->same(
             '@supports (backdrop-filter:blur(10px)){div{backdrop-filter:blur(10px)}}',
             $prefixer->prefixForTargets('@supports ((-webkit-backdrop-filter: blur(10px)) or (backdrop-filter: blur(10px))) { div { backdrop-filter: blur(10px); } }', ['chrome' => 80])
+        );
+        $t->same(
+            '@supports ((-webkit-filter:blur(5px)) or (filter:blur(5px))){.foo{-webkit-filter:blur(5px);filter:blur(5px)}}',
+            $prefixer->prefixForTargets('@supports (filter: blur(5px)) { .foo { filter: blur(5px); } }', ['chrome' => 52])
+        );
+        $t->same(
+            '@supports (filter:blur(5px)){.foo{filter:blur(5px)}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-filter: blur(5px)) or (filter: blur(5px))) { .foo { -webkit-filter: blur(5px); filter: blur(5px); } }', ['chrome' => 53])
+        );
+        $t->same(
+            '@supports ((-webkit-filter:blur(5px)) or (filter:blur(5px))) and (color:red){.foo{-webkit-filter:blur(5px);filter:blur(5px);color:red}}',
+            $prefixer->prefixForTargets('@supports (filter: blur(5px)) and (color: red) { .foo { filter: blur(5px); color: red; } }', ['chrome' => 52])
+        );
+        $t->same(
+            '@supports ((-webkit-filter:blur(5px)) or (filter:blur(5px))){.foo{-webkit-filter:blur(5px);filter:blur(5px)}}',
+            $prefixer->prefixForTargets('@supports (filter: blur(5px)) { .foo { filter: blur(5px); } }', ['safari' => 9])
+        );
+        $t->same(
+            '@supports (filter:blur(5px)){.foo{filter:blur(5px)}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-filter: blur(5px)) or (filter: blur(5px))) { .foo { -webkit-filter: blur(5px); filter: blur(5px); } }', ['safari' => 10])
         );
     },
     'transition prefixer maps upstream supports declaration target-prefix boundaries' => static function (TestRunner $t): void {

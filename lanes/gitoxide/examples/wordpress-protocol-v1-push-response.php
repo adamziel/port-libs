@@ -52,6 +52,7 @@ try {
     $fatalAfterStatusRejected = str_contains($error->getMessage(), 'sideband error pre-receive hook declined after deployment status');
 }
 $emptyErrorSidebandResponse = PushResponse::fromSidebandPacketLines($fixture['emptyErrorSidebandResponse']);
+$emptyProgressSidebandResponse = PushResponse::fromSidebandPacketLines($fixture['emptyProgressSidebandResponse']);
 $responseEndTerminatedResponse = PushResponse::fromReportStatusPacketLines($fixture['responseEndTerminatedResponse']);
 $delimiterTerminatedResponse = PushResponse::fromReportStatusPacketLines($fixture['delimiterTerminatedResponse']);
 $carriageReturnStatusRejected = false;
@@ -198,6 +199,8 @@ return [
     'fatalAfterStatusRejected' => $fatalAfterStatusRejected,
     'emptyErrorSidebandAccepted' => $emptyErrorSidebandResponse->isSuccessful()
         && $emptyErrorSidebandResponse->errorMessages() === [],
+    'emptyProgressSidebandIgnored' => $emptyProgressSidebandResponse->isSuccessful()
+        && $emptyProgressSidebandResponse->progressMessages() === ['remote: WordPress deployment accepted'],
     'responseEndTerminatedAccepted' => $responseEndTerminatedResponse->isSuccessful()
         && $responseEndTerminatedResponse->refStatuses()[0]->refName === 'refs/heads/wp-release',
     'delimiterTerminatedAccepted' => $delimiterTerminatedResponse->isSuccessful()

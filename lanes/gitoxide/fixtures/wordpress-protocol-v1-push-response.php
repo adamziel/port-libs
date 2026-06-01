@@ -183,6 +183,13 @@ return [
         . $packet("\x01" . $packet("ok refs/heads/main\n"))
         . $packet("\x01" . $flush)
         . $flush,
+    'emptyProgressSidebandResponse' => $packet("\x02")
+        . $packet("\x02remote: WordPress deployment accepted\n")
+        . $packet("\x01" . $packet("unpack ok\n"))
+        . $packet("\x02")
+        . $packet("\x01" . $packet("ok refs/heads/main\n"))
+        . $packet("\x01" . $flush)
+        . $flush,
     'responseEndTerminatedResponse' => $packet("unpack ok\n")
         . $packet("ok refs/heads/wp-release\n")
         . '0002',

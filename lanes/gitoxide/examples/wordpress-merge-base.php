@@ -5,7 +5,10 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Gitoxide\Commit;
+use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\LooseObjectStore;
 use PortLibs\Gitoxide\MergeBaseFinder;
+use PortLibs\Gitoxide\ObjectDatabase;
 
 $fixture = require dirname(__DIR__) . '/fixtures/wordpress-merge-base.php';
 
@@ -166,6 +169,43 @@ $generationHydrationAfterBases = $generationHydrationFinder->mergeBases(
     $fixture['generationHydrationPluginReview'],
     $fixture['generationHydrationThemeReview'],
 );
+$objectDatabaseGitDir = sys_get_temp_dir() . '/port-libs-wp-merge-base-shallow-db-' . bin2hex(random_bytes(4)) . '/.git';
+$objectDatabaseStore = new LooseObjectStore($objectDatabaseGitDir);
+$objectDatabaseCommitBody = static function (array $parents, int $seconds, string $message): string {
+    $lines = ["tree " . str_repeat('f', 40)];
+    foreach ($parents as $parent) {
+        $lines[] = "parent {$parent}";
+    }
+    $lines[] = "author Release Bot <release@example.test> {$seconds} +0000";
+    $lines[] = "committer Deploy Bot <deploy@example.test> {$seconds} +0000";
+    $lines[] = '';
+    $lines[] = $message;
+
+    return implode("\n", $lines) . "\n";
+};
+$objectDatabaseReleaseObject = new GitObject(
+    'commit',
+    $objectDatabaseCommitBody([], 1700005800, 'object database release baseline'),
+);
+$objectDatabaseReleaseBaseline = $objectDatabaseReleaseObject->oid();
+$objectDatabasePluginReview = $objectDatabaseStore->write(new GitObject(
+    'commit',
+    $objectDatabaseCommitBody([$objectDatabaseReleaseBaseline], 1700005900, 'object database plugin review'),
+));
+$objectDatabaseThemeReview = $objectDatabaseStore->write(new GitObject(
+    'commit',
+    $objectDatabaseCommitBody([$objectDatabaseReleaseBaseline], 1700006000, 'object database theme review'),
+));
+$objectDatabaseFinder = MergeBaseFinder::fromObjectDatabase(new ObjectDatabase($objectDatabaseGitDir));
+$objectDatabaseShallowBeforeBases = $objectDatabaseFinder->mergeBases(
+    $objectDatabasePluginReview,
+    $objectDatabaseThemeReview,
+);
+$objectDatabaseStore->write($objectDatabaseReleaseObject);
+$objectDatabaseShallowAfterBases = $objectDatabaseFinder->mergeBases(
+    $objectDatabasePluginReview,
+    $objectDatabaseThemeReview,
+);
 
 return [
     'reviewHeads' => $fixture['heads'],
@@ -256,6 +296,12 @@ return [
         $fixture['generationHydrationLegacyBase'],
         $fixture['generationHydrationSecurityBase'],
     ],
+    'objectDatabaseShallowHeads' => [$objectDatabasePluginReview, $objectDatabaseThemeReview],
+    'objectDatabaseReleaseBaseline' => $objectDatabaseReleaseBaseline,
+    'objectDatabaseShallowBeforeBases' => $objectDatabaseShallowBeforeBases,
+    'objectDatabaseShallowAfterBases' => $objectDatabaseShallowAfterBases,
+    'objectDatabaseFinderReusesHydratedParent' => $objectDatabaseShallowBeforeBases === []
+        && $objectDatabaseShallowAfterBases === [$objectDatabaseReleaseBaseline],
     'sha256ReviewHeads' => $fixture['sha256ReviewHeads'],
     'sha256ReviewBase' => $sha256ReviewBase,
     'sha256GraphWalkBase' => $sha256GraphWalkBase,

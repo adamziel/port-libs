@@ -720,6 +720,55 @@ CSS);
             throw new RuntimeException('Expected upstream language selector function exception');
         }
     },
+    'css modules canonicalizes no-argument pseudos while preserving local global composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+:global(.wp-block:LOCAL-LINK) .card:READ-ONLY {
+  color: red;
+}
+
+.card:l\6f cal-link,
+.card:-WEBKIT-any-link,
+.card:-moz-placeholder {
+  color: yellow;
+}
+
+.button {
+  composes: card;
+  color: blue;
+}
+CSS);
+
+        $t->same('.wp-block:local-link .EgL3uq_card:read-only{color:red}.EgL3uq_card:local-link,.EgL3uq_card:-webkit-any-link,.EgL3uq_card:-moz-placeholder-shown{color:#ff0}.EgL3uq_button{color:#00f}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+
+        $replaced = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:h\6f ver {
+  color: red;
+}
+
+.button {
+  composes: card;
+  color: blue;
+}
+CSS, [
+            'pseudoClasses' => [
+                'hover' => 'is-hovered',
+            ],
+        ]);
+
+        $t->same('.EgL3uq_card.EgL3uq_is-hovered{color:red}.EgL3uq_button{color:#00f}', $replaced['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'is-hovered' => $export('EgL3uq_is-hovered'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $replaced['exports']);
+        $t->same([], $replaced['references']);
+    },
     'css modules leaves upstream host-context arguments public while preserving local composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 :host-context(.public-theme) .card {

@@ -958,6 +958,10 @@ final class SQLiteUpdateDeleteReturningSql
         if (strcasecmp($expression, 'FALSE') === 0) {
             return 0;
         }
+        $currentDateTime = self::currentDateTimeLimitLiteral($expression);
+        if ($currentDateTime !== null) {
+            return SQLiteCoreScalarFunction::sqlFunctionArguments($currentDateTime, []);
+        }
         if (preg_match('/^CAST\s*\((.+)\s+AS\s+([A-Za-z]+)\s*\)$/is', $expression, $match) === 1) {
             $value = self::limitExpressionValue(trim($match[1]));
             return self::castLimitExpressionValue($value, strtoupper($match[2]));
@@ -1065,6 +1069,15 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT expression is not supported');
+    }
+
+    private static function currentDateTimeLimitLiteral(string $expression): ?string
+    {
+        $normalized = strtolower($expression);
+
+        return in_array($normalized, ['current_date', 'current_time', 'current_timestamp'], true)
+            ? $normalized
+            : null;
     }
 
     /**
@@ -2518,12 +2531,26 @@ final class SQLiteUpdateDeleteReturningSql
                 continue;
             }
             if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $term) !== 1) {
+                if (self::isBareReturningLiteral($term)) {
+                    $projection[$term] = static fn (array $row): mixed => self::evaluateReturningExpression($term, $row, $tables);
+                    continue;
+                }
+
                 throw new \InvalidArgumentException('SQLite UPDATE/DELETE RETURNING expressions require an AS alias');
             }
             $projection[] = $term;
         }
 
         return $projection;
+    }
+
+    private static function isBareReturningLiteral(string $term): bool
+    {
+        return preg_match("/^'.*'$/s", $term) === 1
+            || strcasecmp($term, 'NULL') === 0
+            || strcasecmp($term, 'TRUE') === 0
+            || strcasecmp($term, 'FALSE') === 0
+            || preg_match('/^-?(?:\d+|\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?$/', $term) === 1;
     }
 
     /**

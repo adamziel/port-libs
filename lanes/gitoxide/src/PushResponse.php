@@ -58,7 +58,9 @@ final class PushResponse
             if ($band === 1) {
                 $statusBytes .= $data;
             } elseif ($band === 2) {
-                $progressMessages[] = self::trimOneTrailingNewline($data);
+                if ($data !== '') {
+                    $progressMessages[] = self::trimOneTrailingNewline($data);
+                }
             } elseif ($band === 3) {
                 if ($data !== '') {
                     $errorMessages[] = self::trimOneTrailingNewline($data);

@@ -953,6 +953,37 @@ try {
     echo 'invalid-import-layer-block: rejected-before-read' . PHP_EOL;
 }
 
+$validImportBlockReads = [];
+try {
+    (new CssBundler())->bundleWithReader(
+        '/valid-import-block.css',
+        static function (string $file) use (&$validImportBlockReads): string {
+            $validImportBlockReads[] = $file;
+
+            return $file === '/valid-import-block.css'
+                ? '@import "tokens.css" layer(theme.tokens) {}; .wp-site-blocks { color: red }'
+                : ':root { --wp--preset--color--brand: blue; }';
+        }
+    );
+
+    fwrite(STDERR, "Expected valid block-form import to reject at curly block before block-theme graph resolution\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== 'Unexpected token CurlyBracketBlock'
+        || $exception->sourceFile !== '/valid-import-block.css'
+        || $exception->sourceLine !== 1
+        || $exception->sourceColumn !== 43
+        || $validImportBlockReads !== ['/valid-import-block.css']
+    ) {
+        fwrite(STDERR, 'Unexpected valid block-form import diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'valid-import-block: rejected-at-curly-block' . PHP_EOL;
+}
+
 $escapedLayerNameBundle = (new CssBundler())->bundle('/escaped-layer-name.css', [
     '/escaped-layer-name.css' => '@import "tokens.css" layer(theme\20 tokens.block); .wp-site-blocks { color: red }',
     '/tokens.css' => ':root { --wp--preset--color--brand: blue; }',

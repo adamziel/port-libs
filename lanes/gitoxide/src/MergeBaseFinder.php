@@ -66,14 +66,30 @@ final class MergeBaseFinder
         ?callable $commitGraphGeneration = null,
     ): self
     {
-        return new self(static function (string $oid) use ($database): Commit {
-            $object = $database->read($oid);
+        return new self(static function (string $oid) use ($database): ?Commit {
+            try {
+                $object = $database->read($oid);
+            } catch (\RuntimeException $exception) {
+                if (self::isSkippableObjectDatabaseMiss($exception)) {
+                    return null;
+                }
+
+                throw $exception;
+            }
             if ($object->type !== 'commit') {
                 throw new \InvalidArgumentException("Expected a commit object for {$oid}, got {$object->type}");
             }
 
             return Commit::parse($object->body);
         }, $useCommitGraphGenerations, $commitGraphGeneration);
+    }
+
+    private static function isSkippableObjectDatabaseMiss(\RuntimeException $exception): bool
+    {
+        $message = $exception->getMessage();
+
+        return str_starts_with($message, 'Object not found in database: ')
+            || str_starts_with($message, 'Object promised by partial clone filter but not present locally: ');
     }
 
     /**

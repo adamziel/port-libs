@@ -12,6 +12,12 @@ $css = <<<'CSS'
   backdrop-filter: blur(8px);
   filter: var(--wp--custom--header-filter);
 }
+
+@supports (filter: blur(8px)) {
+  .wp-block-template-part.is-style-glass-header .wp-block-site-logo {
+    filter: blur(8px);
+  }
+}
 CSS;
 
 $actual = [
@@ -20,8 +26,8 @@ $actual = [
 ];
 
 $expected = [
-    'chrome52_safari14' => '.wp-block-template-part.is-style-glass-header{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);-webkit-filter:var(--wp--custom--header-filter);filter:var(--wp--custom--header-filter)}',
-    'chrome53_safari14' => '.wp-block-template-part.is-style-glass-header{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);filter:var(--wp--custom--header-filter)}',
+    'chrome52_safari14' => '.wp-block-template-part.is-style-glass-header{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);-webkit-filter:var(--wp--custom--header-filter);filter:var(--wp--custom--header-filter)}@supports ((-webkit-filter:blur(8px)) or (filter:blur(8px))){.wp-block-template-part.is-style-glass-header .wp-block-site-logo{-webkit-filter:blur(8px);filter:blur(8px)}}',
+    'chrome53_safari14' => '.wp-block-template-part.is-style-glass-header{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);filter:var(--wp--custom--header-filter)}@supports (filter:blur(8px)){.wp-block-template-part.is-style-glass-header .wp-block-site-logo{filter:blur(8px)}}',
 ];
 
 if ($actual !== $expected) {

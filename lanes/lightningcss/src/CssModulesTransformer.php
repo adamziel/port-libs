@@ -2372,6 +2372,13 @@ final class CssModulesTransformer
                 continue;
             }
 
+            $standardPseudoClass = $bracketDepth === 0 ? $this->standardPseudoClassAt($selector, $i) : null;
+            if ($standardPseudoClass !== null) {
+                $output .= ':' . $standardPseudoClass['name'];
+                $i += $standardPseudoClass['length'] - 1;
+                continue;
+            }
+
             $viewTransitionFunction = $bracketDepth === 0
                 ? $this->viewTransitionSelectorFunctionAt($selector, $i)
                 : null;
@@ -3448,30 +3455,127 @@ final class CssModulesTransformer
             return null;
         }
 
-        foreach (['focus-visible', 'focus-within', 'hover', 'active', 'focus'] as $pseudo) {
-            $class = $this->pseudoClasses[$pseudo] ?? null;
-            if ($class === null) {
-                continue;
-            }
-
-            $needle = ':' . $pseudo;
-            $length = strlen($needle);
-            if (strncasecmp(substr($selector, $offset, $length), $needle, $length) !== 0) {
-                continue;
-            }
-
-            $next = $selector[$offset + $length] ?? '';
-            if ($next !== '' && ($this->isIdentChar($next) || $next === '(')) {
-                continue;
-            }
-
-            return [
-                'class' => $class,
-                'length' => $length,
-            ];
+        $token = $this->readCssIdentifierToken($selector, $offset + 1);
+        if ($token === null || ($selector[$token['end']] ?? '') === '(') {
+            return null;
         }
 
-        return null;
+        $pseudo = strtolower($token['decoded']);
+        $class = $this->pseudoClasses[$pseudo] ?? null;
+        if ($class === null) {
+            return null;
+        }
+
+        return [
+            'class' => $class,
+            'length' => $token['end'] - $offset,
+        ];
+    }
+
+    /**
+     * @return array{name:string,length:int}|null
+     */
+    private function standardPseudoClassAt(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset] ?? '') !== ':' || ($selector[$offset + 1] ?? '') === ':') {
+            return null;
+        }
+
+        $token = $this->readCssIdentifierToken($selector, $offset + 1);
+        if ($token === null || ($selector[$token['end']] ?? '') === '(') {
+            return null;
+        }
+
+        $canonical = $this->canonicalStandardPseudoClassName($token['decoded']);
+        if ($canonical === null) {
+            return null;
+        }
+
+        return [
+            'name' => $canonical,
+            'length' => $token['end'] - $offset,
+        ];
+    }
+
+    private function canonicalStandardPseudoClassName(string $name): ?string
+    {
+        $name = strtolower($name);
+
+        return match ($name) {
+            '-moz-placeholder' => '-moz-placeholder-shown',
+            '-ms-input-placeholder' => '-ms-placeholder-shown',
+            default => in_array($name, [
+                '-moz-any-link',
+                '-moz-full-screen',
+                '-moz-read-only',
+                '-moz-read-write',
+                '-ms-fullscreen',
+                '-o-autofill',
+                '-webkit-any-link',
+                '-webkit-autofill',
+                '-webkit-full-screen',
+                'active',
+                'active-view-transition',
+                'any-link',
+                'autofill',
+                'blank',
+                'buffering',
+                'checked',
+                'closed',
+                'corner-present',
+                'current',
+                'decrement',
+                'default',
+                'defined',
+                'disabled',
+                'double-button',
+                'enabled',
+                'end',
+                'focus',
+                'focus-visible',
+                'focus-within',
+                'fullscreen',
+                'future',
+                'horizontal',
+                'host',
+                'hover',
+                'in-range',
+                'increment',
+                'indeterminate',
+                'invalid',
+                'link',
+                'local-link',
+                'modal',
+                'muted',
+                'no-button',
+                'open',
+                'optional',
+                'out-of-range',
+                'past',
+                'paused',
+                'picture-in-picture',
+                'placeholder-shown',
+                'playing',
+                'popover-open',
+                'read-only',
+                'read-write',
+                'required',
+                'scope',
+                'seeking',
+                'single-button',
+                'stalled',
+                'start',
+                'target',
+                'target-within',
+                'user-invalid',
+                'user-valid',
+                'valid',
+                'vertical',
+                'visited',
+                'volume-locked',
+                'window-inactive',
+            ], true) ? $name : null,
+        };
     }
 
     /**

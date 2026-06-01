@@ -248,8 +248,10 @@ return [
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
         $blob = new GitObject('blob', 'WordPress stream transport payload');
         $advertisement = $packet("{$old} refs/heads/main\0report-status side-band-64k object-format=sha1\n") . $flush;
-        $responseBytes = $packet("\x02Writing objects: 100% (1/1)\n")
+        $responseBytes = $packet("\x02")
+            . $packet("\x02Writing objects: 100% (1/1)\n")
             . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x02")
             . $packet("\x01" . $packet("ok refs/heads/main\n"))
             . $packet("\x01" . $flush)
             . $flush;

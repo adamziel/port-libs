@@ -1037,6 +1037,49 @@ return [
         $t->same(['cache/compiled.css', 'compiled.css'], $data['sources']);
         $t->same(['compiledRule', 'rule'], $data['names']);
     },
+    'source map closest lookup keeps upstream first-segment fallback after offsets' => static function (TestRunner $t): void {
+        $inputMap = SourceMap::fromJson(
+            '{"version":3,"mappings":"A,KAAA","sources":["origin.css"],"sourcesContent":[".origin{}"],"names":[]}'
+        );
+
+        $afterLast = $inputMap->findClosestMapping(0, 99);
+        $exactSourceBacked = $inputMap->findClosestMapping(0, 5);
+
+        $t->same('A,KAAA', $inputMap->writeVlq());
+        $t->same(
+            ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
+            $afterLast
+        );
+        $t->same(0, $exactSourceBacked['sourceIndex'] ?? null);
+        $t->same(0, $exactSourceBacked['originalLine'] ?? null);
+
+        $inputMap->offsetColumns(0, 5, 3);
+        $shiftedAfterLast = $inputMap->findClosestMapping(0, 99);
+        $shiftedExact = $inputMap->findClosestMapping(0, 8);
+
+        $t->same('A,QAAA', $inputMap->writeVlq());
+        $t->same(
+            ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
+            $shiftedAfterLast
+        );
+        $t->same(0, $shiftedExact['sourceIndex'] ?? null);
+        $t->same(0, $shiftedExact['originalColumn'] ?? null);
+
+        $compiled = new SourceMap();
+        $compiledSource = $compiled->addSource('cache/compiled.css');
+        $compiled->setSourceContent($compiledSource, '.compiled{}');
+        $compiled->addMapping(0, 0, $compiledSource, 0, 99, 'compiledAfterLast');
+        $compiled->extendWithSourceMap(SourceMap::fromJson(
+            '{"version":3,"mappings":"A,KAAA","sources":["origin.css"],"sourcesContent":[".origin{}"],"names":[]}'
+        ));
+        $compiledData = $compiled->toArray(null, false);
+
+        $t->same('A', $compiled->writeVlq());
+        $t->same([null], array_column(SourceMap::decodeVlq($compiled->writeVlq()), 'sourceIndex'));
+        $t->same(['cache/compiled.css', 'origin.css'], $compiledData['sources']);
+        $t->same(['.compiled{}', '.origin{}'], $compiledData['sourcesContent']);
+        $t->same(['compiledAfterLast'], $compiledData['names']);
+    },
     'source map rejects invalid raw vlq map indexes' => static function (TestRunner $t): void {
         $map = new SourceMap();
 

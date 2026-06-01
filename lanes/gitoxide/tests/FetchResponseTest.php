@@ -492,6 +492,42 @@ return [
         $t->same(["Counting objects: 100% (1/1) \t\r"], $response->progressMessages());
         $t->same(100, $response->remoteProgress()[0]->percent);
     },
+    'trims unicode whitespace on protocol v2 sideband-all section lines like rust trim end' => static function (TestRunner $t) use ($packet, $delimiter, $flush): void {
+        $main = '73a6868963993a3328e7d8fe94e5a6ac5078a944';
+        $installed = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $unicodeSpace = "\xE2\x80\x83";
+        $pack = 'PACK' . pack('N', 2) . pack('N', 1) . 'unicode-trim-fetch';
+
+        $response = FetchResponse::fromV2PacketLines(
+            $packet("\x01acknowledgments{$unicodeSpace}\n")
+            . $packet("\x01ACK {$installed} common{$unicodeSpace}\n")
+            . $packet("\x01ready{$unicodeSpace}\n")
+            . $delimiter
+            . $packet("\x01shallow-info{$unicodeSpace}\n")
+            . $packet("\x01shallow {$main}{$unicodeSpace}\n")
+            . $delimiter
+            . $packet("\x01wanted-refs{$unicodeSpace}\n")
+            . $packet("\x01{$main} refs/heads/main{$unicodeSpace}\n")
+            . $delimiter
+            . $packet("\x01packfile{$unicodeSpace}\n")
+            . $packet("\x02Counting objects: 100% (1/1)\n")
+            . $packet("\x01" . $pack)
+            . $flush,
+            true
+        );
+
+        $t->same(true, $response->hasPack());
+        $t->same(FetchAcknowledgement::COMMON, $response->acknowledgements()[0]->kind);
+        $t->same($installed, $response->acknowledgements()[0]->object);
+        $t->same(FetchAcknowledgement::READY, $response->acknowledgements()[1]->kind);
+        $t->same(FetchShallowUpdate::SHALLOW, $response->shallowUpdates()[0]->kind);
+        $t->same($main, $response->shallowUpdates()[0]->object);
+        $t->same('refs/heads/main', $response->wantedRefs()[0]->path);
+        $t->same($main, $response->wantedRefs()[0]->object);
+        $t->same($pack, $response->packData());
+        $t->same(['Counting objects: 100% (1/1)'], $response->progressMessages());
+        $t->same(100, $response->remoteProgress()[0]->percent);
+    },
     'maps remote progress chunks like gix-protocol sideband readers' => static function (TestRunner $t): void {
         $counting = RemoteProgress::fromText("Counting objects:  25% (1/4)\rCounting objects:  50% (2/4)\r");
         $enumerating = RemoteProgress::fromText('Enumerating objects: 4, done.');
@@ -865,6 +901,8 @@ return [
         ], $summary['sidebandAllResponseEndMessages']);
         $t->same(true, $summary['trailingWhitespaceParsed']);
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['trailingWhitespacePackTrailer']);
+        $t->same(true, $summary['unicodeWhitespaceParsed']);
+        $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['unicodeWhitespacePackTrailer']);
         $t->same($fixture['packData'], $smartHttpUploadPackResponse->packData());
         $t->same(['Counting objects: 100% (1/1)' . "\r" . 'Counting objects: 100% (1/1), done.'], $smartHttpUploadPackResponse->progressMessages());
         $t->same(true, $summary['smartHttpUploadPackParsed']);

@@ -27,7 +27,7 @@ final class FetchShallowUpdate
 
     public static function fromLine(string $line): self
     {
-        $line = rtrim($line, " \t\n\r\v\f");
+        $line = ProtocolLine::trimEnd($line);
         [$prefix, $objectId] = array_pad(explode(' ', $line, 2), 2, null);
         if ($objectId === null) {
             throw new \InvalidArgumentException("fetch response: unknown line prefix in {$line}");

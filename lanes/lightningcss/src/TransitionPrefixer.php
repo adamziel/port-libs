@@ -797,6 +797,9 @@ final class TransitionPrefixer
             'backdrop-filter' => [
                 '-webkit-' => $targetOptions['backdropFilterNeedsWebkit'] ?? false,
             ],
+            'filter' => [
+                '-webkit-' => $targetOptions['filterNeedsWebkit'] ?? false,
+            ],
             'transform' => [
                 '-webkit-' => $targetOptions['transformNeedsWebkit'] ?? false,
                 '-moz-' => $targetOptions['transformNeedsMoz'] ?? false,
@@ -1504,6 +1507,13 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'safari', [3, 1], [5]),
             'boxSizingNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [28]),
             'objectFitNeedsO' => $this->targetInRange($normalized, 'opera', [10, 6], [12, 1]),
+            'writingModeNeedsWebkit' => $this->targetInRange($normalized, 'android', [3], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [8], [47])
+                || $this->targetInRange($normalized, 'ios_saf', [5], [10, 3])
+                || $this->targetInRange($normalized, 'opera', [15], [34])
+                || $this->targetInRange($normalized, 'safari', [5, 1], [10, 1])
+                || $this->targetInRange($normalized, 'samsung', [0], [4]),
+            'writingModeNeedsMs' => $this->targetAtLeast($normalized, 'ie', [5, 5]),
             'textSizeAdjustNeedsWebkit' => $this->targetAtLeast($normalized, 'ios_saf', [5]),
             'textSizeAdjustNeedsMoz' => isset($normalized['firefox']),
             'textSizeAdjustNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [18])
@@ -5511,6 +5521,111 @@ final class TransitionPrefixer
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
      * @param array<string, bool> $targetOptions
      */
+    private function rewriteWritingModePrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $needsWebkit = $targetOptions['writingModeNeedsWebkit'] ?? false;
+        $needsMs = $targetOptions['writingModeNeedsMs'] ?? false;
+        $hasRelevantDeclaration = false;
+        $unprefixedValues = [];
+        $equivalentMsValues = [];
+        $prefixedValues = [
+            '-webkit-' => [],
+            '-ms-' => [],
+        ];
+
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'writing-mode') {
+                $hasRelevantDeclaration = true;
+                if (!$entry['important']) {
+                    $unprefixedValues[$entry['value']] = true;
+                    $equivalentMsValues[$entry['value']] = true;
+                    $msValue = $this->legacyMsWritingModeValue($entry['value']);
+                    if ($msValue !== null) {
+                        $equivalentMsValues[$msValue] = true;
+                    }
+                }
+                continue;
+            }
+
+            if ($entry['property'] === '-webkit-writing-mode') {
+                $hasRelevantDeclaration = true;
+                $prefixedValues['-webkit-'][$entry['value']] = true;
+                continue;
+            }
+
+            if ($entry['property'] === '-ms-writing-mode') {
+                $hasRelevantDeclaration = true;
+                $prefixedValues['-ms-'][$entry['value']] = true;
+            }
+        }
+
+        if (!$hasRelevantDeclaration || $unprefixedValues === []) {
+            return false;
+        }
+
+        $rewritten = [];
+        $changed = false;
+        foreach ($entries as $entry) {
+            if (
+                $entry['property'] === '-webkit-writing-mode'
+                && !$entry['important']
+                && !$needsWebkit
+                && isset($unprefixedValues[$entry['value']])
+            ) {
+                $changed = true;
+                continue;
+            }
+
+            if (
+                $entry['property'] === '-ms-writing-mode'
+                && !$entry['important']
+                && !$needsMs
+                && isset($equivalentMsValues[$entry['value']])
+            ) {
+                $changed = true;
+                continue;
+            }
+
+            if ($entry['property'] === 'writing-mode' && !$entry['important']) {
+                if ($needsWebkit && !isset($prefixedValues['-webkit-'][$entry['value']])) {
+                    $rewritten[] = $this->declarationEntry('-webkit-writing-mode', $entry['value']);
+                    $prefixedValues['-webkit-'][$entry['value']] = true;
+                    $changed = true;
+                }
+
+                $msValue = $this->legacyMsWritingModeValue($entry['value']);
+                if ($needsMs && $msValue !== null && !isset($prefixedValues['-ms-'][$msValue])) {
+                    $rewritten[] = $this->declarationEntry('-ms-writing-mode', $msValue);
+                    $prefixedValues['-ms-'][$msValue] = true;
+                    $changed = true;
+                }
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+        return true;
+    }
+
+    private function legacyMsWritingModeValue(string $value): ?string
+    {
+        return match (strtolower(trim($value))) {
+            'horizontal-tb' => 'lr-tb',
+            'vertical-rl' => 'tb-rl',
+            'vertical-lr' => 'tb-lr',
+            default => null,
+        };
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
     private function rewriteTextCompatibilityPrefixEntries(array &$entries, array $targetOptions): bool
     {
         $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'text-size-adjust', [
@@ -5533,6 +5648,7 @@ final class TransitionPrefixer
         $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'text-overflow', [
             '-o-' => $targetOptions['textOverflowNeedsO'] ?? false,
         ]) || $changed;
+        $changed = $this->rewriteWritingModePrefixEntries($entries, $targetOptions) || $changed;
         $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'text-orientation', [
             '-webkit-' => $targetOptions['textOrientationNeedsWebkit'] ?? false,
         ]) || $changed;

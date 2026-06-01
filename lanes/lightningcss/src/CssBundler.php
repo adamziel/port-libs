@@ -1258,13 +1258,14 @@ final class CssBundler
 
                 $loc = $this->sourceLocation($css, $cursor);
                 $this->parseImportStatement(substr($css, $cursor, $blockOpen - $cursor), $loc, $file);
+                $blockLoc = $this->sourceLocation($css, $blockOpen + 1);
 
                 throw new CssBundleException(
                     'parser-error',
-                    '@import rules cannot contain blocks',
+                    'Unexpected token CurlyBracketBlock',
                     $file,
-                    $loc['line'],
-                    $loc['column'],
+                    $blockLoc['line'],
+                    $blockLoc['column'],
                 );
             }
 

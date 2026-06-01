@@ -1180,6 +1180,10 @@ BASELINE;
         $t->same([$fixture['generationHydrationSecurityBase'], $fixture['generationHydrationLegacyBase']], $example['generationHydrationBeforeBases']);
         $t->same([$fixture['generationHydrationLegacyBase'], $fixture['generationHydrationSecurityBase']], $example['generationHydrationAfterBases']);
         $t->same(true, $example['generationHydrationRecomputesIncompleteGraph']);
+        $t->same(2, count($example['objectDatabaseShallowHeads']));
+        $t->same([], $example['objectDatabaseShallowBeforeBases']);
+        $t->same([$example['objectDatabaseReleaseBaseline']], $example['objectDatabaseShallowAfterBases']);
+        $t->same(true, $example['objectDatabaseFinderReusesHydratedParent']);
     },
     'object database reader requires commit objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-' . bin2hex(random_bytes(4)) . '/.git';
@@ -1194,5 +1198,34 @@ BASELINE;
 
         $mergeBase = MergeBaseFinder::fromObjectDatabase(new ObjectDatabase($gitDir));
         $t->throws(InvalidArgumentException::class, static fn () => $mergeBase->mergeBase($blobOid, $commitOid));
+    },
+    'object database reader skips missing shallow parents and reuses hydrated parent' => static function (TestRunner $t): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-shallow-db-' . bin2hex(random_bytes(4)) . '/.git';
+        $store = new LooseObjectStore($gitDir);
+        $body = static function (array $parents, int $seconds, string $message): string {
+            $lines = ["tree " . str_repeat('f', 40)];
+            foreach ($parents as $parent) {
+                $lines[] = "parent {$parent}";
+            }
+            $lines[] = "author Release Bot <release@example.test> {$seconds} +0000";
+            $lines[] = "committer Deploy Bot <deploy@example.test> {$seconds} +0000";
+            $lines[] = '';
+            $lines[] = $message;
+
+            return implode("\n", $lines) . "\n";
+        };
+        $releaseObject = new GitObject('commit', $body([], 1700000000, 'release baseline'));
+        $releaseOid = $releaseObject->oid();
+        $pluginReviewOid = $store->write(new GitObject('commit', $body([$releaseOid], 1700000100, 'plugin review')));
+        $themeReviewOid = $store->write(new GitObject('commit', $body([$releaseOid], 1700000200, 'theme review')));
+        $mergeBase = MergeBaseFinder::fromObjectDatabase(new ObjectDatabase($gitDir));
+
+        $t->same([], $mergeBase->mergeBases($pluginReviewOid, $themeReviewOid));
+        $t->same(null, $mergeBase->mergeBase($pluginReviewOid, $themeReviewOid));
+
+        $store->write($releaseObject);
+
+        $t->same([$releaseOid], $mergeBase->mergeBases($pluginReviewOid, $themeReviewOid));
+        $t->same($releaseOid, $mergeBase->mergeBaseAgainst($pluginReviewOid, [$themeReviewOid]));
     },
 ];

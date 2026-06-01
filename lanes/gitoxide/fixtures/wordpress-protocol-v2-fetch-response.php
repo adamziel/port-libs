@@ -10,6 +10,7 @@ $sha256Main = 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210'
 $sha256Shallow = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 $sha256PackTrailer = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 $sha256PackData = 'PACK' . pack('N', 2) . pack('N', 1) . 'wordpress-sha256-pack' . hex2bin($sha256PackTrailer);
+$unicodeSpace = "\xE2\x80\x83";
 
 $packet = static fn (string $payload): string => sprintf('%04x', strlen($payload) + 4) . $payload;
 $delimiter = '0001';
@@ -131,6 +132,20 @@ return [
         . $packet("\x02Counting objects: 100% (1/1) \t\r\n")
         . $packet("\x01" . $packData)
         . $flush,
+    'unicodeWhitespaceResponse' => $packet("\x01acknowledgments{$unicodeSpace}\n")
+        . $packet("\x01ACK {$installed} common{$unicodeSpace}\n")
+        . $packet("\x01ready{$unicodeSpace}\n")
+        . $delimiter
+        . $packet("\x01shallow-info{$unicodeSpace}\n")
+        . $packet("\x01shallow {$main}{$unicodeSpace}\n")
+        . $delimiter
+        . $packet("\x01wanted-refs{$unicodeSpace}\n")
+        . $packet("\x01{$main} refs/heads/main{$unicodeSpace}\n")
+        . $delimiter
+        . $packet("\x01packfile{$unicodeSpace}\n")
+        . $packet("\x02Counting objects: 100% (1/1)\n")
+        . $packet("\x01" . $packData)
+        . $flush,
     'delimiterPackResponse' => $packet("packfile\n")
         . $packet("\x02Counting objects: 100% (1/1)\n")
         . $packet("\x01" . $packData)
@@ -170,4 +185,5 @@ return [
     'sha256ObjectFormatUse' => 'A WordPress deployment fetch from a SHA-256 object-format repository can parse 64-hex acknowledgements, shallow updates, and wanted refs before preserving sidebanded pack bytes.',
     'smartHttpUploadPackUse' => 'A WordPress deployment fetch can unwrap a smart HTTP upload-pack result response, validate the upload-pack result content type and length, then parse the sidebanded protocol v2 fetch response without invoking git.',
     'trailingWhitespaceUse' => 'Protocol v2 fetch response section lines with trailing spaces or tabs are trimmed like Gitoxide before WordPress deployment tooling validates ACKs, shallow updates, wanted refs, and the following sideband pack bytes.',
+    'unicodeWhitespaceUse' => 'Protocol v2 fetch response sideband-all section lines with trailing UTF-8 whitespace are trimmed like Gitoxide before WordPress deployment tooling validates ACKs, shallow updates, wanted refs, and pack bytes.',
 ];

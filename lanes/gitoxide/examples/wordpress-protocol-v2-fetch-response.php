@@ -39,6 +39,7 @@ $sidebandAllResponseEndResponse = FetchResponse::fromV2PacketLines(
     }
 );
 $trailingWhitespaceResponse = FetchResponse::fromV2PacketLines($fixture['trailingWhitespaceResponse'], true);
+$unicodeWhitespaceResponse = FetchResponse::fromV2PacketLines($fixture['unicodeWhitespaceResponse'], true);
 $smartHttpUploadPackResponse = FetchResponse::fromSmartHttpUploadPackResult($fixture['smartHttpUploadPackResponse']);
 $uploadPackError = null;
 try {
@@ -180,6 +181,15 @@ return [
         && $trailingWhitespaceResponse->packData() === $fixture['packData']
         && $trailingWhitespaceResponse->remoteProgress()[0]->percent === 100,
     'trailingWhitespacePackTrailer' => bin2hex(substr($trailingWhitespaceResponse->packData(), -20)),
+    'unicodeWhitespaceParsed' => $unicodeWhitespaceResponse->hasPack()
+        && $unicodeWhitespaceResponse->acknowledgements()[0]->object === $fixture['objects']['installed']
+        && $unicodeWhitespaceResponse->acknowledgements()[1]->kind === 'ready'
+        && $unicodeWhitespaceResponse->shallowUpdates()[0]->object === $fixture['objects']['main']
+        && $unicodeWhitespaceResponse->wantedRefs()[0]->path === 'refs/heads/main'
+        && $unicodeWhitespaceResponse->wantedRefs()[0]->object === $fixture['objects']['main']
+        && $unicodeWhitespaceResponse->packData() === $fixture['packData']
+        && $unicodeWhitespaceResponse->remoteProgress()[0]->percent === 100,
+    'unicodeWhitespacePackTrailer' => bin2hex(substr($unicodeWhitespaceResponse->packData(), -20)),
     'smartHttpUploadPackParsed' => $smartHttpUploadPackResponse->packData() === $fixture['packData']
         && count($smartHttpUploadPackResponse->acknowledgements()) === 3
         && $smartHttpUploadPackResponse->progressMessages() === ['Counting objects: 100% (1/1)' . "\r" . 'Counting objects: 100% (1/1), done.'],

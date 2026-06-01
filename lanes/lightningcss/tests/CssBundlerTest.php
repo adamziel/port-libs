@@ -1708,6 +1708,34 @@ CSS,
         $assertInvalidLayerImport('@import "tokens.css" layer(foo..bar); .entry { color: red }', 'Invalid @import layer name: foo..bar');
         $assertInvalidLayerImport('@import "tokens.css" layer(foo/* old */.bar); .entry { color: red }', 'Invalid @import layer name: foo/* old */.bar');
     },
+    'css bundler rejects valid block-form imports at upstream curly block locations' => static function (TestRunner $t): void {
+        $assertBlockImportRejected = static function (string $css, int $column) use ($t): void {
+            $reads = [];
+            try {
+                (new CssBundler())->bundleWithReader('/entry.css', static function (string $file) use (&$reads, $css): string {
+                    $reads[] = $file;
+
+                    return $file === '/entry.css'
+                        ? $css
+                        : '.tokens { color: green }';
+                });
+            } catch (CssBundleException $exception) {
+                $t->same('parser-error', $exception->kind);
+                $t->same('Unexpected token CurlyBracketBlock', $exception->getMessage());
+                $t->same('/entry.css', $exception->sourceFile);
+                $t->same(1, $exception->sourceLine);
+                $t->same($column, $exception->sourceColumn);
+                $t->same(['/entry.css'], $reads);
+
+                return;
+            }
+
+            throw new RuntimeException('Expected block-form @import parser exception');
+        };
+
+        $assertBlockImportRejected('@import "tokens.css" {} .entry { color: red }', 23);
+        $assertBlockImportRejected('@import "tokens.css" layer(theme.tokens) {} .entry { color: red }', 43);
+    },
     'css bundler rejects block-form invalid import layer names before graph resolution' => static function (TestRunner $t): void {
         $reads = [];
         try {
