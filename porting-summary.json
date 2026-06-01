@@ -1,11 +1,11 @@
 {
-    "generated": "2026-06-01 05:49:50 UTC",
-    "sourceCommit": "4c1cd973406f2c5e6dc9670e3181db319590e57f",
-    "sourceCommitShort": "4c1cd973406f",
+    "generated": "2026-06-01 05:59:59 UTC",
+    "sourceCommit": "72112fd17703240b98ef17e2a588aad16af848b9",
+    "sourceCommitShort": "72112fd17703",
     "sourceBranch": "unknown",
-    "dashboardCommit": "4c1cd973406f2c5e6dc9670e3181db319590e57f",
-    "dashboardCommitShort": "4c1cd973406f",
-    "averageProgressPercent": "88.4",
+    "dashboardCommit": "72112fd17703240b98ef17e2a588aad16af848b9",
+    "dashboardCommitShort": "72112fd17703",
+    "averageProgressPercent": "88.5",
     "lanes": [
         {
             "library": "difftastic",
@@ -60,20 +60,20 @@
         },
         {
             "library": "gitoxide",
-            "progressPercent": "94.6",
+            "progressPercent": "94.8",
             "suite": "current-base Gitoxide merge-base replay",
             "benchmark": "current-base Gitoxide merge-base replay",
             "denominator": "2886",
             "mapped": "1749",
             "coverage": "1749 / 2886",
-            "php": "7675 pass / 0 fail",
+            "php": "7706 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
             "audit": "2026-06-01 supervisor batch: full Gitoxid...",
-            "currentWork": "Receive-pack transport header boundaries, smart HTTP upgrade redirect proxy/cookie handli...",
+            "currentWork": "Reference transaction pseudo-ref packed-lock parity and recursive tree-merge submodule re...",
             "nextTarget": "Keep three Gitoxide workers on current-base non-overlapping fetch sideband, send-pack, re...",
             "blocker": "Full upstream Cargo workspace remains unexecuted.",
-            "commit": "4c1cd97"
+            "commit": "72112fd"
         },
         {
             "library": "libsqlite",
@@ -83,31 +83,31 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "5618074 pass / 7 fail",
+            "php": "5619423 pass / 7 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "focused real-corpus and source-neutral coverage accepte...",
             "audit": "2026-06-01 supervisor batch: accepted sou...",
-            "currentWork": "Source-neutral CAST/LIKE/GLOB defaults cleanup integrated on current base.",
+            "currentWork": "JSONB generated partial UPSERT source-neutral cleanup, row-value UPDATE/DELETE LIMIT LIKE...",
             "nextTarget": "Continue broad release/all parity blockers, source-neutral cleanup of CurrentSourceNext/C...",
             "blocker": "Broad libsqlite full-lane/release parity is not green: sampled failures r...",
-            "commit": "4c1cd97"
+            "commit": "72112fd"
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "99.3",
+            "progressPercent": "99.4",
             "suite": "current-base LightningCSS import/grid/target replay",
             "benchmark": "current-base LightningCSS import/grid/target replay",
             "denominator": "3532",
             "mapped": "2359",
             "coverage": "2359 / 3532",
-            "php": "6322 pass / 0 fail",
+            "php": "6374 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
             "audit": "2026-06-01 supervisor batch: full Lightni...",
-            "currentWork": "Bundle/import graph parity, CSSOM transition property identifier read/write parity, custo...",
+            "currentWork": "CSS Modules local/global compose parity, CSSOM direct declaration read/write parity, cust...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph,...",
             "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-            "commit": "4c1cd97"
+            "commit": "72112fd"
         },
         {
             "library": "markerPDF",
