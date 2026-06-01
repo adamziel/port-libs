@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 17:59:03 UTC",
-    "sourceCommit": "8c95fb5eb5c88b1afad15ed63cfd1fa69585122d",
-    "sourceCommitShort": "8c95fb5eb5c8",
-    "sourceBranch": "main",
-    "dashboardCommit": "8c95fb5eb5c88b1afad15ed63cfd1fa69585122d",
-    "dashboardCommitShort": "8c95fb5eb5c8",
+    "generated": "2026-06-01 18:04:26 UTC",
+    "sourceCommit": "26e4aed2914370aeeec3e17743d4dfb195af214d",
+    "sourceCommitShort": "26e4aed29143",
+    "sourceBranch": "unknown",
+    "dashboardCommit": "26e4aed2914370aeeec3e17743d4dfb195af214d",
+    "dashboardCommitShort": "26e4aed29143",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,158,762 pass / 16 fail",
+            "php": "6,158,827 pass / 16 fail",
             "phase": "current-base source integration accepted; broad full-lane/release par...",
-            "audit": "2026-06-01 17:58 UTC supervisor integration: source commit 8c95fb5eb5...",
-            "currentWork": "Real upstream without_rowid5 B-tree/index requirements, PRAGMA/schema WITHOUT ROWID p...",
+            "audit": "2026-06-01 18:08 UTC supervisor integration: source commit 26e4aed291...",
+            "currentWork": "SQLitePDO native silent-error parity, native invalid-column/error-persistence/file-pe...",
             "nextTarget": "Prioritize broad full-lane memory exhaustion and the 16 obser...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "8c95fb5"
+            "commit": "26e4aed"
         },
         {
             "lane": "lightningcss",
