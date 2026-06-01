@@ -1776,6 +1776,73 @@ return [
         $t->same('broken', file_get_contents($strictDir . '/HEAD'));
         $t->same(false, is_file($strictDir . '/HEAD.lock'));
     },
+    'prepared loose rename cannot create nested ref below source in one transaction like upstream' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-rename-nested-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $store->looseStore()->writeDirect('refs/heads/old', $old);
+        $store->appendReflog(
+            'refs/heads/old',
+            ReferenceTarget::object($old),
+            ReferenceTarget::object($new),
+            $committer,
+            'audit before nested rename',
+            true,
+        );
+        $oldReflog = $store->reflogContents('refs/heads/old');
+        $error = null;
+
+        try {
+            $store->prepareLooseRenameTransaction(
+                'refs/heads/old',
+                'refs/heads/old/new',
+                ReferenceStore::PREVIOUS_MUST_EXIST,
+                null,
+                true,
+                'sha1',
+                $committer,
+                'rename old under itself',
+                true,
+            );
+        } catch (RuntimeException $exception) {
+            $error = $exception->getMessage();
+        }
+
+        $t->contains('Unable to create prepared reference lock directory', (string) $error);
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/old'));
+        $t->same(false, is_file($dir . '/refs/heads/old.lock'), 'failed same-transaction rename rolls back the staged delete lock');
+        $t->same(false, is_dir($dir . '/refs/heads/old/new'));
+        $t->same($oldReflog, $store->reflogContents('refs/heads/old'), 'failed prepare writes no reflog side effects');
+
+        $delete = $store->prepareLooseDeleteTransaction(
+            ['refs/heads/old'],
+            ReferenceStore::PREVIOUS_MUST_EXIST,
+            null,
+            true,
+        );
+        $deleteEdits = $delete->commit();
+        $create = $store->prepareLooseUpdateTransaction(
+            ['refs/heads/old/new' => ReferenceTarget::object($old)],
+            'sha1',
+            $committer,
+            'rename old under itself after delete',
+            true,
+            ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+        );
+        $createEdits = $create->commit();
+
+        $t->same(['refs/heads/old'], array_map(static fn ($edit): string => $edit->name, $deleteEdits));
+        $t->same(['refs/heads/old/new'], array_map(static fn ($edit): string => $edit->name, $createEdits));
+        $t->same(false, is_file($dir . '/refs/heads/old.lock'));
+        $t->same(false, is_file($dir . '/refs/heads/old/new.lock'));
+        $t->same(null, $store->tryFind('refs/heads/old'));
+        $t->same($old, $store->find('refs/heads/old/new')->targetObjectId());
+        $t->same(false, $store->reflogExists('refs/heads/old'));
+        $t->contains(
+            str_repeat('0', 40) . " {$old} Deploy Bot <deploy@example.com> 1234 +0000\trename old under itself after delete\n",
+            (string) $store->reflogContents('refs/heads/old/new'),
+        );
+    },
     'prepared reference transaction deletes packed refs through packed refs file like upstream' => static function (TestRunner $t) use ($old, $new, $other): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-delete-packed-' . bin2hex(random_bytes(4));
         mkdir($dir, 0777, true);
@@ -2493,6 +2560,23 @@ return [
             str_repeat('0', 40) . ' ' . $fixture['productionCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedPhasedUpdateReflogMessage'] . "\n",
             $summary['preparedPhasedUpdateSecondReflog'],
         );
+        $t->same(
+            $fixture['expectedPreparedNestedRenameErrorPrefix'],
+            substr((string) $summary['preparedNestedRenameError'], 0, strlen($fixture['expectedPreparedNestedRenameErrorPrefix'])),
+        );
+        $t->same($fixture['expectedPreparedNestedRenameDeleteEditNames'], $summary['preparedNestedRenameDeleteEditNames']);
+        $t->same($fixture['expectedPreparedNestedRenameCreateEditNames'], $summary['preparedNestedRenameCreateEditNames']);
+        $t->same($fixture['expectedPreparedNestedRenameOldRefStillExistsAfterFailedPrepare'], $summary['preparedNestedRenameOldRefStillExistsAfterFailedPrepare']);
+        $t->same($fixture['expectedPreparedNestedRenameOldLockRolledBack'], $summary['preparedNestedRenameOldLockRolledBack']);
+        $t->same(true, $summary['preparedNestedRenameOldReflogUnchangedAfterFailedPrepare']);
+        $t->same($fixture['expectedPreparedNestedRenameNewRefCreated'], $summary['preparedNestedRenameNewRefCreated']);
+        $t->same($fixture['expectedPreparedNestedRenameOldReflogRemoved'], $summary['preparedNestedRenameOldReflogRemoved']);
+        $t->same(false, $summary['preparedNestedRenameOldLockExists']);
+        $t->same(false, $summary['preparedNestedRenameNewLockExists']);
+        $t->contains(
+            str_repeat('0', 40) . ' ' . $fixture['reviewCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedNestedRenameReflogMessage'] . "\n",
+            (string) $summary['preparedNestedRenameNewReflog'],
+        );
         $t->contains('idempotent prepared object and symbolic writes', $summary['wordpressUse']);
         $t->contains('packed-ref transaction locks', $summary['wordpressUse']);
         $t->contains('prepared packed-refs commit phase', $summary['wordpressUse']);
@@ -2511,6 +2595,7 @@ return [
         $t->contains('broken dereferenced tenant HEAD', $summary['wordpressUse']);
         $t->contains('later prepared reflog deletion fails', $summary['wordpressUse']);
         $t->contains('prepared lock publication fails', $summary['wordpressUse']);
+        $t->contains('same-transaction nested branch renames', $summary['wordpressUse']);
     },
     'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-deref-reference-transaction.php';

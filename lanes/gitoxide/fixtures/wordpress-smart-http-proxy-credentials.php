@@ -153,6 +153,65 @@ $defaultPortProxySession = $defaultPortProxyClient->handshake();
 $defaultPortProxySession->createOrUpdate('refs/heads/main', $defaultPortProxyBlob->oid());
 $defaultPortProxyResponse = $defaultPortProxyClient->send($defaultPortProxySession->buildRequest([$defaultPortProxyBlob]));
 
+$nonDefaultPortProxyRequests = [];
+$nonDefaultPortProxyHelperCalls = [];
+$nonDefaultPortProxyStores = [];
+$nonDefaultPortProxyBlob = new GitObject('blob', 'WordPress non-default-port proxy helper payload');
+$nonDefaultPortProxyResponseBytes = $packet("\x01" . $packet("unpack ok\n"))
+    . $packet("\x01" . $packet("ok refs/heads/main\n"))
+    . $packet("\x01" . $flush)
+    . $flush;
+$nonDefaultPortProxyClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://git.example.test:8443/wp-content.git',
+        static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$nonDefaultPortProxyRequests, $packet, $flush, $advertisementBytes, $nonDefaultPortProxyResponseBytes): array {
+            $nonDefaultPortProxyRequests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'timeout' => $timeout,
+                'httpOptions' => $httpOptions,
+            ];
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'headers' => [
+                        'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                        'Set-Cookie' => 'wp_session=non-default-port; Path=/; Secure',
+                    ],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                'body' => $nonDefaultPortProxyResponseBytes,
+            ];
+        },
+        [],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+        [
+            'proxy' => 'http://wp-non-default-proxy.example.test:8080',
+            'proxyCredentialHelper' => static function (string $proxyUrl, string $requestHost) use (&$nonDefaultPortProxyHelperCalls): array {
+                $nonDefaultPortProxyHelperCalls[] = [$proxyUrl, $requestHost];
+
+                return ['username' => 'non-default-port-proxy-user', 'password' => 'non-default-port-proxy-pass'];
+            },
+            'proxyCredentialStore' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$nonDefaultPortProxyStores): void {
+                $nonDefaultPortProxyStores[] = [$proxyUrl, $requestHost, $credentials];
+            },
+        ],
+    ),
+    'port-libs/wordpress',
+);
+$nonDefaultPortProxySession = $nonDefaultPortProxyClient->handshake();
+$nonDefaultPortProxySession->createOrUpdate('refs/heads/main', $nonDefaultPortProxyBlob->oid());
+$nonDefaultPortProxyResponse = $nonDefaultPortProxyClient->send($nonDefaultPortProxySession->buildRequest([$nonDefaultPortProxyBlob]));
+
 $pathNoSlashCookieRequests = [];
 $pathNoSlashCookieBlob = new GitObject('blob', 'WordPress path-no-slash cookie proxy payload');
 $pathNoSlashCookieResponseBytes = $packet("\x01" . $packet("unpack ok\n"))
@@ -1239,6 +1298,16 @@ return [
     'defaultPortProxyOriginProxyHeaderLeaked' => isset($defaultPortProxyRequests[0]['headers']['Proxy-Authorization'])
         || isset($defaultPortProxyRequests[1]['headers']['Proxy-Authorization']),
     'defaultPortProxyPostCookieHeader' => $defaultPortProxyRequests[1]['headers']['Cookie'] ?? null,
+    'nonDefaultPortProxyResponseSuccessful' => $nonDefaultPortProxyResponse->isSuccessful(),
+    'nonDefaultPortProxyHelperCalls' => $nonDefaultPortProxyHelperCalls,
+    'nonDefaultPortProxyStores' => $nonDefaultPortProxyStores,
+    'nonDefaultPortProxyRequestUrls' => array_map(static fn (array $request): string => $request['url'], $nonDefaultPortProxyRequests),
+    'nonDefaultPortProxyRequestProxyUrl' => $nonDefaultPortProxyRequests[0]['httpOptions']['proxyUrl'] ?? null,
+    'nonDefaultPortProxyRequestProxyStream' => $nonDefaultPortProxyRequests[0]['httpOptions']['proxy'] ?? null,
+    'nonDefaultPortProxyAuthorizationSent' => $nonDefaultPortProxyRequests[0]['httpOptions']['proxyAuthorization'] ?? null,
+    'nonDefaultPortProxyOriginProxyHeaderLeaked' => isset($nonDefaultPortProxyRequests[0]['headers']['Proxy-Authorization'])
+        || isset($nonDefaultPortProxyRequests[1]['headers']['Proxy-Authorization']),
+    'nonDefaultPortProxyPostCookieHeader' => $nonDefaultPortProxyRequests[1]['headers']['Cookie'] ?? null,
     'pathNoSlashCookieResponseSuccessful' => $pathNoSlashCookieResponse->isSuccessful(),
     'pathNoSlashCookieUsedProxy' => ($pathNoSlashCookieRequests[0]['httpOptions']['proxy'] ?? null) === 'tcp://wp-path-cookie-proxy.example.test:8080'
         && ($pathNoSlashCookieRequests[1]['httpOptions']['proxy'] ?? null) === 'tcp://wp-path-cookie-proxy.example.test:8080',
@@ -1357,5 +1426,5 @@ return [
     'notModifiedNoRedirectRequestCount' => count($notModifiedNoRedirectRequests),
     'proxyAuthorizationSent' => $requests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'originProxyHeaderLeaked' => isset($requests[0]['headers']['Proxy-Authorization']),
-    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, canonicalize default proxy ports out of credential-helper context while preserving concrete proxy streams, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass bracketed IPv6 literal repository hosts without consulting proxy helpers, bypass bracketed IPv6 CIDR noProxy ranges while preserving receive-pack cookies, preserve proxy use for curl-style port-qualified noProxy literal tokens, carry curl-compatible root-scoped non-slash Path cookies through authenticated receive-pack proxies, use HTTPS-specific and all-proxy fallbacks with receive-pack cookies intact, treat an explicitly empty HTTPS proxy as disabling lower all-proxy fallback, keep an HTTP-origin request direct when a safe redirect upgrades it to HTTPS, resolve protocol-relative redirects through the same smart HTTP proxy while preserving scoped cookies, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies and curl-accepted trailing-dot Domain attributes from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or default redirect-mode 304 smart HTTP responses, preserve accepted 304 discovery cookies into receive-pack POSTs, and erase helper credentials when no-redirect mode rejects a 304 or when unexpected proxy/origin statuses arrive.',
+    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, canonicalize default proxy ports out of credential-helper context while preserving concrete proxy streams, preserve non-default repository ports in proxy helper and store context, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass bracketed IPv6 literal repository hosts without consulting proxy helpers, bypass bracketed IPv6 CIDR noProxy ranges while preserving receive-pack cookies, preserve proxy use for curl-style port-qualified noProxy literal tokens, carry curl-compatible root-scoped non-slash Path cookies through authenticated receive-pack proxies, use HTTPS-specific and all-proxy fallbacks with receive-pack cookies intact, treat an explicitly empty HTTPS proxy as disabling lower all-proxy fallback, keep an HTTP-origin request direct when a safe redirect upgrades it to HTTPS, resolve protocol-relative redirects through the same smart HTTP proxy while preserving scoped cookies, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies and curl-accepted trailing-dot Domain attributes from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or default redirect-mode 304 smart HTTP responses, preserve accepted 304 discovery cookies into receive-pack POSTs, and erase helper credentials when no-redirect mode rejects a 304 or when unexpected proxy/origin statuses arrive.',
 ];

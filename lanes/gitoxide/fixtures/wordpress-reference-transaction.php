@@ -75,6 +75,8 @@ return [
         'refs/heads/review/plugin-p/first',
         'refs/heads/review/plugin-p/second',
     ],
+    'preparedNestedRenameOldRef' => 'refs/heads/review/plugin-q',
+    'preparedNestedRenameNewRef' => 'refs/heads/review/plugin-q/published',
     'expectedPreparedDeleteEditNames' => [
         'refs/heads/review/plugin-d/stale',
     ],
@@ -258,6 +260,17 @@ return [
     'expectedPreparedPhasedUpdateFirstLockCleaned' => true,
     'expectedPreparedPhasedUpdateSecondLockPreserved' => true,
     'expectedPreparedPhasedUpdateSecondBlockerPreserved' => true,
+    'expectedPreparedNestedRenameErrorPrefix' => 'Unable to create prepared reference lock directory',
+    'expectedPreparedNestedRenameDeleteEditNames' => [
+        'refs/heads/review/plugin-q',
+    ],
+    'expectedPreparedNestedRenameCreateEditNames' => [
+        'refs/heads/review/plugin-q/published',
+    ],
+    'expectedPreparedNestedRenameOldRefStillExistsAfterFailedPrepare' => true,
+    'expectedPreparedNestedRenameOldLockRolledBack' => true,
+    'expectedPreparedNestedRenameNewRefCreated' => true,
+    'expectedPreparedNestedRenameOldReflogRemoved' => true,
     'preparedReflogMessage' => 'prepared tenant review refs',
     'preparedNoOpReflogMessage' => 'idempotent tenant review ref',
     'preparedSymbolicNoOpReflogMessage' => 'idempotent symbolic tenant head',
@@ -274,8 +287,10 @@ return [
     'preparedPackedShadowReflogMessage' => 'prepared loose overlay over packed baseline',
     'preparedPackedPseudoReflogMessage' => 'detached preview without pack-refs',
     'preparedPhasedUpdateReflogMessage' => 'prepared phased review publish',
+    'preparedNestedRenameInitialReflogMessage' => 'initial nested review branch audit',
+    'preparedNestedRenameReflogMessage' => 'sequential nested review branch rename',
     'preparedReflogCommitter' => 'Deploy Bot <deploy@example.com> 1234 +0000',
     'expectedPreparedReferentHeadReflog' => "{$review} {$production} Deploy Bot <deploy@example.com> 1234 +0000\tinitial production checkout\n",
     'expectedPreparedReferentReflogLine' => "{$production} {$review} Deploy Bot <deploy@example.com> 1234 +0000\n",
-    'wordpressUse' => 'A multisite WordPress deployment tool can promote a reviewed plugin snapshot, stage a pair of prepared tenant review refs with audit reflogs, stage a clone-style symbolic review pointer whose reflog records the peeled production commit before publishing the symbolic lock, stage a dereferenced symbolic HEAD publish that logs both HEAD and the production branch while preserving the symbolic parent, fan out recursive symbolic tenant HEAD publishes and prunes so each parent receives log-only handling and only the leaf branch is rewritten or removed, stage a direct production referent publish that updates only the branch reflog while leaving HEAD audit history untouched, reject duplicate dereferenced prepared updates before waiting on packed-ref locks, disable prepared deref reflog writes for quiet publish previews, delete disabled write-mode audit cleanup logs when pruning a symbolic tenant HEAD, reject protected Windows device refnames before creating locks or reflogs, delete a broken dereferenced tenant HEAD left by an interrupted checkout only when the previous value is unconstrained, preserve tenant review references when a later prepared reflog deletion fails after earlier audit logs were pruned, retain audit reflogs when a later prepared lock publication fails, hold packed-ref transaction locks while prepared ref updates are in flight, pack prepared object updates before pruning loose review sources, mix direct-to-packed object refs with loose symbolic review pointers so object audit logs are written without symbolic reflog noise, write prepared loose shadows over packed baselines while preserving the packed production ref, keep detached HEAD preview updates loose even when a packed-ref compaction lock is present, delete packed review refs through the prepared packed-refs commit phase, skip idempotent prepared object and symbolic writes without disturbing held ref locks or adding reflog noise, prune stale and broken review refs through prepared delete locks, remove reflog-only audit trails even while packed refs are locked for compaction, prune the old review ref, and recover from an interrupted deploy that left an empty tenant HEAD directory blocker without invoking git update-ref.',
+    'wordpressUse' => 'A multisite WordPress deployment tool can promote a reviewed plugin snapshot, stage a pair of prepared tenant review refs with audit reflogs, stage a clone-style symbolic review pointer whose reflog records the peeled production commit before publishing the symbolic lock, stage a dereferenced symbolic HEAD publish that logs both HEAD and the production branch while preserving the symbolic parent, fan out recursive symbolic tenant HEAD publishes and prunes so each parent receives log-only handling and only the leaf branch is rewritten or removed, stage a direct production referent publish that updates only the branch reflog while leaving HEAD audit history untouched, reject duplicate dereferenced prepared updates before waiting on packed-ref locks, disable prepared deref reflog writes for quiet publish previews, delete disabled write-mode audit cleanup logs when pruning a symbolic tenant HEAD, reject protected Windows device refnames before creating locks or reflogs, delete a broken dereferenced tenant HEAD left by an interrupted checkout only when the previous value is unconstrained, preserve tenant review references when a later prepared reflog deletion fails after earlier audit logs were pruned, retain audit reflogs when a later prepared lock publication fails, hold packed-ref transaction locks while prepared ref updates are in flight, reject same-transaction nested branch renames while rolling back prepared delete locks, pack prepared object updates before pruning loose review sources, mix direct-to-packed object refs with loose symbolic review pointers so object audit logs are written without symbolic reflog noise, write prepared loose shadows over packed baselines while preserving the packed production ref, keep detached HEAD preview updates loose even when a packed-ref compaction lock is present, delete packed review refs through the prepared packed-refs commit phase, skip idempotent prepared object and symbolic writes without disturbing held ref locks or adding reflog noise, prune stale and broken review refs through prepared delete locks, remove reflog-only audit trails even while packed refs are locked for compaction, prune the old review ref, and recover from an interrupted deploy that left an empty tenant HEAD directory blocker without invoking git update-ref.',
 ];

@@ -627,6 +627,17 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         return $parts['scheme'] === 'https' ? 443 : 80;
     }
 
+    /**
+     * @param array{scheme: string, host: string, port: ?int} $parts
+     */
+    private static function credentialRequestHost(array $parts): string
+    {
+        $defaultPort = $parts['scheme'] === 'https' ? 443 : 80;
+        $port = $parts['port'] !== null && $parts['port'] !== $defaultPort ? $parts['port'] : null;
+
+        return self::authority($parts['host'], $port);
+    }
+
     private static function normalizeRedirectPath(string $path): string
     {
         if ($path === '') {
@@ -736,7 +747,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         ];
         $authorization = $this->proxyAuthorization(
             $proxy,
-            $request['host'],
+            self::credentialRequestHost($request),
             $proxyCredentialAction,
             $proxyCredentialAuthorization,
         );

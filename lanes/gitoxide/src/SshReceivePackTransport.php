@@ -563,7 +563,11 @@ final class SshReceivePackTransport implements ReceivePackTransport
     private static function normalizeHost(string $host): string
     {
         if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
-            return substr($host, 1, -1);
+            return strtolower(substr($host, 1, -1));
+        }
+
+        if (preg_match('/^[A-Za-z0-9._*-]+$/', $host) === 1) {
+            return strtolower($host);
         }
 
         return $host;
@@ -584,8 +588,8 @@ final class SshReceivePackTransport implements ReceivePackTransport
         if ($host === '' || self::hasControlBytes($host)) {
             throw new \InvalidArgumentException('SSH receive-pack host must be non-empty and must not contain control bytes');
         }
-        if (preg_match('/[\s\/\\\\]/', $host) === 1) {
-            throw new \InvalidArgumentException('SSH receive-pack host must not contain whitespace, slash, or backslash delimiters');
+        if (preg_match('/[\s\/\\\\?]/', $host) === 1) {
+            throw new \InvalidArgumentException('SSH receive-pack host must not contain whitespace, slash, backslash, or question-mark delimiters');
         }
         if ($user === null && str_starts_with($host, '-')) {
             throw new \InvalidArgumentException('SSH receive-pack host is ambiguous as an SSH command argument');

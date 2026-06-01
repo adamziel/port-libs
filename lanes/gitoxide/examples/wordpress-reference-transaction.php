@@ -648,6 +648,61 @@ try {
     $preparedPhasedUpdateError = $exception->getMessage();
 }
 
+$preparedNestedRenameDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-nested-rename-' . bin2hex(random_bytes(4));
+$preparedNestedRenameStore = new ReferenceStore($preparedNestedRenameDir, null, $fixture['namespace']);
+$preparedNestedRenamePrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedNestedRenameCommitter = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+$preparedNestedRenameOldPath = $preparedNestedRenameDir . '/' . $preparedNestedRenamePrefix . $fixture['preparedNestedRenameOldRef'];
+$preparedNestedRenameNewPath = $preparedNestedRenameDir . '/' . $preparedNestedRenamePrefix . $fixture['preparedNestedRenameNewRef'];
+$preparedNestedRenameStore->looseStore()->writeDirect(
+    $preparedNestedRenamePrefix . $fixture['preparedNestedRenameOldRef'],
+    $fixture['reviewCommit'],
+);
+$preparedNestedRenameStore->appendReflog(
+    $fixture['preparedNestedRenameOldRef'],
+    ReferenceTarget::object($fixture['productionCommit']),
+    ReferenceTarget::object($fixture['reviewCommit']),
+    $preparedNestedRenameCommitter,
+    $fixture['preparedNestedRenameInitialReflogMessage'],
+    true,
+);
+$preparedNestedRenameOldReflogBefore = $preparedNestedRenameStore->reflogContents($fixture['preparedNestedRenameOldRef']);
+$preparedNestedRenameError = null;
+try {
+    $preparedNestedRenameStore->prepareLooseRenameTransaction(
+        $fixture['preparedNestedRenameOldRef'],
+        $fixture['preparedNestedRenameNewRef'],
+        ReferenceStore::PREVIOUS_MUST_EXIST,
+        null,
+        true,
+        'sha1',
+        $preparedNestedRenameCommitter,
+        $fixture['preparedNestedRenameReflogMessage'],
+        true,
+    );
+} catch (RuntimeException $exception) {
+    $preparedNestedRenameError = $exception->getMessage();
+}
+$preparedNestedRenameOldStillExistsAfterFailedPrepare = $preparedNestedRenameStore->tryFind($fixture['preparedNestedRenameOldRef']) !== null;
+$preparedNestedRenameOldLockRolledBack = !is_file($preparedNestedRenameOldPath . '.lock');
+$preparedNestedRenameOldReflogAfterFailedPrepare = $preparedNestedRenameStore->reflogContents($fixture['preparedNestedRenameOldRef']);
+$preparedNestedRenameDelete = $preparedNestedRenameStore->prepareLooseDeleteTransaction(
+    [$fixture['preparedNestedRenameOldRef']],
+    ReferenceStore::PREVIOUS_MUST_EXIST,
+    null,
+    true,
+);
+$preparedNestedRenameDeleteEdits = $preparedNestedRenameDelete->commit();
+$preparedNestedRenameCreate = $preparedNestedRenameStore->prepareLooseUpdateTransaction(
+    [$fixture['preparedNestedRenameNewRef'] => ReferenceTarget::object($fixture['reviewCommit'])],
+    'sha1',
+    $preparedNestedRenameCommitter,
+    $fixture['preparedNestedRenameReflogMessage'],
+    true,
+    ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+);
+$preparedNestedRenameCreateEdits = $preparedNestedRenameCreate->commit();
+
 return [
     'namespace' => $fixture['namespace'],
     'productionCommit' => $production->targetObjectId(),
@@ -832,5 +887,16 @@ return [
     'preparedPhasedUpdateSecondBlockerPreserved' => is_file($preparedPhasedUpdateSecondPath . '/blocker.txt'),
     'preparedPhasedUpdateFirstReflog' => $preparedPhasedUpdateStore->reflogContents($fixture['preparedPhasedUpdateRefs'][0]),
     'preparedPhasedUpdateSecondReflog' => $preparedPhasedUpdateStore->reflogContents($fixture['preparedPhasedUpdateRefs'][1]),
+    'preparedNestedRenameError' => $preparedNestedRenameError,
+    'preparedNestedRenameDeleteEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedNestedRenameDeleteEdits),
+    'preparedNestedRenameCreateEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedNestedRenameCreateEdits),
+    'preparedNestedRenameOldRefStillExistsAfterFailedPrepare' => $preparedNestedRenameOldStillExistsAfterFailedPrepare,
+    'preparedNestedRenameOldLockRolledBack' => $preparedNestedRenameOldLockRolledBack,
+    'preparedNestedRenameOldReflogUnchangedAfterFailedPrepare' => $preparedNestedRenameOldReflogBefore === $preparedNestedRenameOldReflogAfterFailedPrepare,
+    'preparedNestedRenameNewRefCreated' => $preparedNestedRenameStore->find($fixture['preparedNestedRenameNewRef'])->targetObjectId() === $fixture['reviewCommit'],
+    'preparedNestedRenameOldReflogRemoved' => !$preparedNestedRenameStore->reflogExists($fixture['preparedNestedRenameOldRef']),
+    'preparedNestedRenameNewReflog' => $preparedNestedRenameStore->reflogContents($fixture['preparedNestedRenameNewRef']),
+    'preparedNestedRenameOldLockExists' => is_file($preparedNestedRenameOldPath . '.lock'),
+    'preparedNestedRenameNewLockExists' => is_file($preparedNestedRenameNewPath . '.lock'),
     'wordpressUse' => $fixture['wordpressUse'],
 ];

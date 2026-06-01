@@ -400,6 +400,176 @@ final class ReferenceStore
         return new PreparedReferenceTransaction($this->gitDirectory, $locks, $packedRefsLockPath, $packedRefsDeletionPlan);
     }
 
+    public function prepareLooseRenameTransaction(
+        string $oldName,
+        string $newName,
+        string $previous = self::PREVIOUS_MUST_EXIST,
+        ?ReferenceTarget $expectedTarget = null,
+        bool $deref = false,
+        string $algorithm = 'sha1',
+        ?CommitSignature $committer = null,
+        string $reflogMessage = '',
+        bool $forceCreateReflog = false,
+    ): PreparedReferenceTransaction
+    {
+        if ($previous === self::PREVIOUS_MUST_NOT_EXIST) {
+            throw new \InvalidArgumentException('Must-not-exist constraints are invalid for reference rename');
+        }
+
+        $locks = [];
+        $preparedNames = [];
+        $deletePlans = [];
+        $updatePlans = [];
+        $hasPackableReference = false;
+        $packedRefsLockPath = null;
+
+        [$oldPhysicalName, $deleteDerefParents] = $this->dereferenceDeleteSplit($this->physicalName($oldName), $deref, $algorithm, $previous);
+        [$existingOld, $brokenLooseExists] = $this->tryFindPhysicalForDeletion($oldPhysicalName, $algorithm);
+        $this->assertPreviousValueAllowsDeletion($oldPhysicalName, $existingOld, $previous, $expectedTarget, $brokenLooseExists);
+        if ($existingOld === null || $brokenLooseExists || $existingOld->source !== 'loose') {
+            throw new \RuntimeException("Loose rename source must be an existing loose reference: {$oldPhysicalName}");
+        }
+
+        foreach ($this->deleteReport($deleteDerefParents, $existingOld->target, $oldPhysicalName, ReferenceTransactionEdit::REFLOG_AND_REFERENCE) as $edit) {
+            $editPhysicalName = $this->physicalName($edit->name);
+            if (isset($preparedNames[$editPhysicalName])) {
+                throw new \RuntimeException("A reference named \"{$edit->name}\" has multiple prepared edits");
+            }
+            $preparedNames[$editPhysicalName] = true;
+            $deletePlans[] = [
+                'edit' => $edit,
+                'physicalName' => $editPhysicalName,
+                'deleteReference' => $edit->updatesReference || ($editPhysicalName === $oldPhysicalName && $brokenLooseExists),
+            ];
+            $hasPackableReference = $hasPackableReference || $this->packedTransactionPhysicalName($editPhysicalName) !== null;
+        }
+
+        $renameTarget = $existingOld->target;
+        [$newPhysicalName, $updateDerefParents] = $this->dereferenceUpdateSplit($this->physicalName($newName), $deref, $algorithm);
+        $existingNew = $this->tryFindPhysical($newPhysicalName, $algorithm);
+        $this->assertPreviousValueAllowsUpdate($newPhysicalName, $renameTarget, $existingNew, self::PREVIOUS_MUST_NOT_EXIST, null);
+        $edit = ReferenceTransactionEdit::update(
+            $this->storeRelativeName($newPhysicalName),
+            $this->storeRelativeTarget($existingNew?->target),
+            $this->storeRelativeTarget($renameTarget),
+            ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
+            true,
+        );
+        foreach ($updateDerefParents as $parent) {
+            $parentPhysicalName = $parent['name'];
+            if (isset($preparedNames[$parentPhysicalName])) {
+                throw new \RuntimeException("A reference named \"{$this->storeRelativeName($parentPhysicalName)}\" has multiple prepared edits");
+            }
+            $preparedNames[$parentPhysicalName] = true;
+            $updatePlans[] = [
+                'physicalName' => $parentPhysicalName,
+                'target' => $renameTarget,
+                'edit' => ReferenceTransactionEdit::update(
+                    $this->storeRelativeName($parentPhysicalName),
+                    $this->storeRelativeTarget($parent['target']),
+                    $this->storeRelativeTarget($renameTarget),
+                    ReferenceTransactionEdit::REFLOG_ONLY,
+                    false,
+                ),
+                'reflogPrevious' => $existingNew?->target,
+            ];
+            $hasPackableReference = $hasPackableReference || $this->packedTransactionPhysicalName($parentPhysicalName) !== null;
+        }
+        if (isset($preparedNames[$newPhysicalName])) {
+            throw new \RuntimeException("A reference named \"{$this->storeRelativeName($newPhysicalName)}\" has multiple prepared edits");
+        }
+        $preparedNames[$newPhysicalName] = true;
+        $updatePlans[] = [
+            'physicalName' => $newPhysicalName,
+            'target' => $renameTarget,
+            'edit' => $edit,
+            'reflogPrevious' => $renameTarget->isSymbolic() ? null : $existingNew?->target,
+        ];
+        $hasPackableReference = $hasPackableReference || $this->packedTransactionPhysicalName($newPhysicalName) !== null;
+
+        try {
+            if ($hasPackableReference) {
+                $packedRefsLockPath = $this->preparePackedRefsLockForLooseTransaction();
+            }
+
+            foreach ($deletePlans as $deletePlan) {
+                $edit = $deletePlan['edit'];
+                $targetPath = $this->referencePath($deletePlan['physicalName']);
+                $lockPath = $targetPath . '.lock';
+                if (is_file($lockPath) || is_dir($lockPath)) {
+                    throw new \RuntimeException("A lock could not be obtained for reference \"{$edit->name}\"");
+                }
+                $directory = dirname($lockPath);
+                if (file_exists($directory) && !is_dir($directory)) {
+                    throw new \RuntimeException("Unable to create prepared reference lock directory: {$directory}");
+                }
+                if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+                    throw new \RuntimeException("Unable to create prepared reference lock directory: {$directory}");
+                }
+                if (file_put_contents($lockPath, '', LOCK_EX) === false) {
+                    throw new \RuntimeException("Unable to write prepared reference deletion lock: {$deletePlan['physicalName']}");
+                }
+                $locks[] = [
+                    'action' => PreparedReferenceTransaction::ACTION_DELETE,
+                    'lockPath' => $lockPath,
+                    'edit' => $edit,
+                    'delete' => [
+                        'physicalName' => $deletePlan['physicalName'],
+                        'deleteReference' => $deletePlan['deleteReference'],
+                        'deleteReflog' => true,
+                    ],
+                ];
+            }
+
+            foreach ($updatePlans as $updatePlan) {
+                $targetPath = $this->referencePath($updatePlan['physicalName']);
+                $lockPath = $targetPath . '.lock';
+                $edit = $updatePlan['edit'];
+                $target = $updatePlan['target'];
+                if ($existingNew !== null && $updatePlan['physicalName'] === $newPhysicalName && self::targetsEqual($existingNew->target, $target)) {
+                    $locks[] = [
+                        'action' => PreparedReferenceTransaction::ACTION_NOOP,
+                        'edit' => $edit,
+                    ];
+                    continue;
+                }
+                if (is_file($lockPath) || is_dir($lockPath)) {
+                    throw new \RuntimeException("A lock could not be obtained for reference \"{$edit->name}\"");
+                }
+                $directory = dirname($lockPath);
+                if (file_exists($directory) && !is_dir($directory)) {
+                    throw new \RuntimeException("Unable to create prepared reference lock directory: {$directory}");
+                }
+                if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+                    throw new \RuntimeException("Unable to create prepared reference lock directory: {$directory}");
+                }
+                if (file_put_contents($lockPath, $target->storageBytes(), LOCK_EX) === false) {
+                    throw new \RuntimeException("Unable to write prepared reference lock: {$updatePlan['physicalName']}");
+                }
+                $locks[] = [
+                    'lockPath' => $lockPath,
+                    'edit' => $edit,
+                    'reflog' => [
+                        'physicalName' => $updatePlan['physicalName'],
+                        'previousTarget' => $updatePlan['reflogPrevious'],
+                        'newTarget' => $target,
+                        'committer' => $committer,
+                        'message' => $reflogMessage,
+                        'forceCreate' => $forceCreateReflog,
+                        'algorithm' => $algorithm,
+                        'writeMode' => $this->writeReflogMode,
+                    ],
+                ];
+            }
+        } catch (\Throwable $throwable) {
+            (new PreparedReferenceTransaction($this->gitDirectory, $locks, $packedRefsLockPath))->rollback();
+
+            throw $throwable;
+        }
+
+        return new PreparedReferenceTransaction($this->gitDirectory, $locks, $packedRefsLockPath);
+    }
+
     public function update(
         string $name,
         ReferenceTarget $target,

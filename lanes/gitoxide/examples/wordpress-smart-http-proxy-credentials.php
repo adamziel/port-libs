@@ -44,6 +44,22 @@ return [
     ),
     'defaultPortProxyOriginProxyHeaderLeaked' => $fixture['defaultPortProxyOriginProxyHeaderLeaked'],
     'defaultPortProxyPostCookieHeader' => $fixture['defaultPortProxyPostCookieHeader'],
+    'nonDefaultPortProxyResponseSuccessful' => $fixture['nonDefaultPortProxyResponseSuccessful'],
+    'nonDefaultPortProxyHelperCalls' => $fixture['nonDefaultPortProxyHelperCalls'],
+    'nonDefaultPortProxyRequestUrls' => $fixture['nonDefaultPortProxyRequestUrls'],
+    'nonDefaultPortProxyRequestProxyUrl' => $fixture['nonDefaultPortProxyRequestProxyUrl'],
+    'nonDefaultPortProxyRequestProxyStream' => $fixture['nonDefaultPortProxyRequestProxyStream'],
+    'nonDefaultPortProxyAuthorizationSent' => $fixture['nonDefaultPortProxyAuthorizationSent'],
+    'nonDefaultPortProxyCredentialsStored' => array_map(
+        static fn (array $entry): array => [
+            'proxyUrl' => $entry[0],
+            'requestHost' => $entry[1],
+            'username' => $entry[2]['username'],
+        ],
+        $fixture['nonDefaultPortProxyStores']
+    ),
+    'nonDefaultPortProxyOriginProxyHeaderLeaked' => $fixture['nonDefaultPortProxyOriginProxyHeaderLeaked'],
+    'nonDefaultPortProxyPostCookieHeader' => $fixture['nonDefaultPortProxyPostCookieHeader'],
     'pathNoSlashCookieResponseSuccessful' => $fixture['pathNoSlashCookieResponseSuccessful'],
     'pathNoSlashCookieUsedProxy' => $fixture['pathNoSlashCookieUsedProxy'],
     'pathNoSlashCookieAuthorizationSent' => $fixture['pathNoSlashCookieAuthorizationSent'],
