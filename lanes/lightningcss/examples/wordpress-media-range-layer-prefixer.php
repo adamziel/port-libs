@@ -290,6 +290,18 @@ CSS,
     }
   }
 
+  @media (width >= calc(infinity * 1px)) {
+    .wp-block-query.is-calc-infinite-wide {
+      color: yellow;
+    }
+  }
+
+  @media (calc(-infinity * 1px) <= width <= calc(infinity * 1px)) {
+    .wp-block-query.is-calc-infinite-window {
+      color: yellow;
+    }
+  }
+
   @media (width > max(1, 2)) {
     .wp-block-query.is-unitless-math {
       color: yellow;
@@ -581,6 +593,16 @@ try {
 
 try {
     $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (width >= infinity) { .wp-block-query { color: chartreuse; } } }',
+        ['firefox' => 60]
+    );
+    $actual['invalidBareInfinityRangeGuard'] = 'missing';
+} catch (InvalidArgumentException) {
+    $actual['invalidBareInfinityRangeGuard'] = 'invalid-media-query';
+}
+
+try {
+    $prefixer->prefixForTargets(
         '@layer theme.blocks { @media (theme-breakpoint >= 50%) { .wp-block-query { color: chartreuse; } } }',
         ['firefox' => 60]
     );
@@ -756,7 +778,7 @@ $expected = [
     'mixedEnvResolutionPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2) and (min-resolution:env(--wp-density-floor)),(min--moz-device-pixel-ratio:2) and (min-resolution:env(--wp-density-floor)),(min-resolution:2dppx) and (min-resolution:env(--wp-density-floor)){.wp-block-query.is-density-env-window{color:#ff0}}}',
     'numericCalcRangeFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2){.wp-block-query.is-density-calc{color:#ff0}}@media (min--moz-device-pixel-ratio:1) and (max--moz-device-pixel-ratio:2){.wp-block-query.is-density-calc-window{color:#ff0}}}',
     'mathFunctionRangeFallback' => '@layer theme.blocks{@media not (max-width:20px){.wp-block-query.is-math-function-wide{color:#ff0}}@media (min-width:15px){.wp-block-query.is-math-function-clamp{color:#ff0}}}',
-    'calcMultiplicativeRangeFallback' => '@layer theme.blocks{@media (min-width:6px){.wp-block-query.is-calc-product{color:#ff0}}@media (min-width:3px){.wp-block-query.is-calc-quotient{color:#ff0}}@media not (max-width:2){.wp-block-query.is-unitless-math{color:#ff0}}}',
+    'calcMultiplicativeRangeFallback' => '@layer theme.blocks{@media (min-width:6px){.wp-block-query.is-calc-product{color:#ff0}}@media (min-width:3px){.wp-block-query.is-calc-quotient{color:#ff0}}@media (min-width:3.40282e38px){.wp-block-query.is-calc-infinite-wide{color:#ff0}}@media (min-width:-3.40282e38px) and (max-width:3.40282e38px){.wp-block-query.is-calc-infinite-window{color:#ff0}}@media not (max-width:2){.wp-block-query.is-unitless-math{color:#ff0}}}',
     'signFunctionRangeFallback' => '@layer theme.blocks{@media (min-width:1){.wp-block-query.is-sign-wide{color:#ff0}}@media (min-width:2){.wp-block-query.is-unitless-abs{color:#ff0}}@media (min-width:5){.wp-block-query.is-unitless-hypot{color:#ff0}}@media (min-width:10px) and (max-width:1){.wp-block-query.is-sign-window{color:#ff0}}@media (min-theme-breakpoint:1){.wp-block-query.is-sign-theme-breakpoint{color:#ff0}}@media (min-width:sign(1em + 2px)){.wp-block-query.is-fluid-sign-wide{color:#ff0}}@media (min-theme-breakpoint:sign(max(1em,2px))){.wp-block-query.is-fluid-sign-theme{color:#ff0}}}',
     'rootLengthUnitRangeFallback' => '@layer theme.blocks{@media (min-width:2rcap){.wp-block-query.is-root-cap-wide{color:#ff0}}}',
     'customMixedLengthRangeFallback' => '@layer theme.blocks{@media (min-theme-breakpoint:max(1em,2px)){.wp-block-query.is-fluid-token{color:#ff0}}}',
@@ -776,6 +798,7 @@ $expected = [
     'invalidIntervalGuard' => 'invalid-media-query',
     'invalidFunctionGuard' => 'invalid-media-query',
     'invalidRangeValueGuard' => 'invalid-media-query',
+    'invalidBareInfinityRangeGuard' => 'invalid-media-query',
     'invalidCustomPercentageRangeGuard' => 'invalid-media-query',
     'invalidIntegerCalcGuard' => 'invalid-media-query',
     'invalidResolutionCalcGuard' => 'invalid-media-query',

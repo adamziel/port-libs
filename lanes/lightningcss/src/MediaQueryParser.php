@@ -8,6 +8,8 @@ final class MediaQueryParser
 {
     private const UNITLESS_LENGTH_MATH_MARKER = 'lcssunitless';
     private const MEDIA_MATH_FUNCTION_PATTERN = 'calc|clamp|max|min|round|rem|mod|hypot|sqrt|pow|log|exp|sin|cos|tan|abs|sign';
+    private const CSS_CALC_FLOAT_MAX = '3.40282e38';
+    private const CSS_CALC_NAN_SENTINEL = '5.10424e38';
 
     public function minifyList(string $queryList, bool $allowCompactedNegation = false, bool $recoverInvalidFeatureValues = false): string
     {
@@ -2104,35 +2106,41 @@ final class MediaQueryParser
     private function foldSimpleMultiplicativeCalc(string $value): ?string
     {
         $value = $this->normalizeSimpleCalcWrapper($value);
-        $number = $this->cssNumberPattern();
-        if (preg_match('/^calc\(\s*(' . $number . ')([a-zA-Z%]+)?\s*([*\/])\s*(' . $number . ')([a-zA-Z%]+)?\s*\)$/', $value, $matches) !== 1) {
+        $factor = $this->cssCalcNumberPattern();
+        if (preg_match('/^calc\(\s*(' . $factor . ')([a-zA-Z%]+)?\s*([*\/])\s*(' . $factor . ')([a-zA-Z%]+)?\s*\)$/i', $value, $matches) !== 1) {
             return null;
         }
 
-        $left = (float) $matches[1];
+        $left = $this->parseCssCalcNumber($matches[1]);
         $leftUnit = strtolower($matches[2] ?? '');
         $operator = $matches[3];
-        $right = (float) $matches[4];
+        $right = $this->parseCssCalcNumber($matches[4]);
         $rightUnit = strtolower($matches[5] ?? '');
+        if ($left === null || $right === null) {
+            return null;
+        }
 
         if ($operator === '*') {
             if ($leftUnit !== '' && $rightUnit !== '') {
                 return null;
             }
 
-            $result = $left * $right;
+            $result = $this->multiplyCssCalcNumbers($left, $right);
             $unit = $leftUnit !== '' ? $leftUnit : $rightUnit;
         } else {
-            if ($rightUnit !== '' || abs($right) < PHP_FLOAT_EPSILON) {
+            if ($rightUnit !== '' || $this->isZeroCssCalcNumber($right)) {
                 return null;
             }
 
-            $result = $left / $right;
+            $result = $this->divideCssCalcNumbers($left, $right);
             $unit = $leftUnit;
         }
 
-        if (!is_finite($result)) {
+        if ($result === null) {
             return null;
+        }
+        if (is_string($result)) {
+            return $result . $unit;
         }
 
         return $this->trimNumber(rtrim(rtrim(sprintf('%.8F', $result), '0'), '.')) . $unit;
@@ -2141,21 +2149,118 @@ final class MediaQueryParser
     private function isInvalidSimpleMultiplicativeCalc(string $value): bool
     {
         $value = $this->normalizeSimpleCalcWrapper($value);
-        $number = $this->cssNumberPattern();
-        if (preg_match('/^calc\(\s*(' . $number . ')([a-zA-Z%]+)?\s*([*\/])\s*(' . $number . ')([a-zA-Z%]+)?\s*\)$/', $value, $matches) !== 1) {
+        $factor = $this->cssCalcNumberPattern();
+        if (preg_match('/^calc\(\s*(' . $factor . ')([a-zA-Z%]+)?\s*([*\/])\s*(' . $factor . ')([a-zA-Z%]+)?\s*\)$/i', $value, $matches) !== 1) {
             return false;
         }
 
         $leftUnit = strtolower($matches[2] ?? '');
         $operator = $matches[3];
-        $right = (float) $matches[4];
+        $right = $this->parseCssCalcNumber($matches[4]);
         $rightUnit = strtolower($matches[5] ?? '');
+        if ($right === null) {
+            return false;
+        }
 
         if ($operator === '*') {
             return $leftUnit !== '' && $rightUnit !== '';
         }
 
-        return $rightUnit !== '' || abs($right) < PHP_FLOAT_EPSILON;
+        return $rightUnit !== '' || $this->isZeroCssCalcNumber($right);
+    }
+
+    private function cssCalcNumberPattern(): string
+    {
+        return '(?:' . $this->cssNumberPattern() . '|[+-]?infinity|nan)';
+    }
+
+    /**
+     * @return array{kind:string,value:float,sign:int}|null
+     */
+    private function parseCssCalcNumber(string $value): ?array
+    {
+        $value = trim($value);
+        if (preg_match('/^[+-]?infinity$/i', $value) === 1) {
+            return [
+                'kind' => 'infinity',
+                'value' => stripos($value, '-') === 0 ? -INF : INF,
+                'sign' => stripos($value, '-') === 0 ? -1 : 1,
+            ];
+        }
+
+        if (strcasecmp($value, 'nan') === 0) {
+            return [
+                'kind' => 'nan',
+                'value' => NAN,
+                'sign' => 1,
+            ];
+        }
+
+        if (preg_match('/^' . $this->cssNumberPattern() . '$/', $value) !== 1) {
+            return null;
+        }
+
+        $number = (float) $value;
+
+        return [
+            'kind' => 'finite',
+            'value' => $number,
+            'sign' => $number < 0.0 ? -1 : 1,
+        ];
+    }
+
+    /**
+     * @param array{kind:string,value:float,sign:int} $value
+     */
+    private function isZeroCssCalcNumber(array $value): bool
+    {
+        return $value['kind'] === 'finite' && abs($value['value']) < PHP_FLOAT_EPSILON;
+    }
+
+    /**
+     * @param array{kind:string,value:float,sign:int} $left
+     * @param array{kind:string,value:float,sign:int} $right
+     */
+    private function multiplyCssCalcNumbers(array $left, array $right): float|string|null
+    {
+        if ($left['kind'] === 'nan' || $right['kind'] === 'nan') {
+            return self::CSS_CALC_NAN_SENTINEL;
+        }
+
+        if ($left['kind'] === 'infinity' || $right['kind'] === 'infinity') {
+            if ($this->isZeroCssCalcNumber($left) || $this->isZeroCssCalcNumber($right)) {
+                return self::CSS_CALC_NAN_SENTINEL;
+            }
+
+            return ($left['sign'] * $right['sign'] < 0 ? '-' : '') . self::CSS_CALC_FLOAT_MAX;
+        }
+
+        $result = $left['value'] * $right['value'];
+
+        return is_finite($result) ? $result : null;
+    }
+
+    /**
+     * @param array{kind:string,value:float,sign:int} $left
+     * @param array{kind:string,value:float,sign:int} $right
+     */
+    private function divideCssCalcNumbers(array $left, array $right): float|string|null
+    {
+        if ($left['kind'] === 'nan' || $right['kind'] === 'nan') {
+            return self::CSS_CALC_NAN_SENTINEL;
+        }
+
+        if ($right['kind'] === 'infinity') {
+            return 0.0;
+        }
+
+        if ($left['kind'] === 'infinity') {
+            return ($left['sign'] * $right['sign'] < 0 ? '-' : '') . self::CSS_CALC_FLOAT_MAX;
+        }
+
+        $result = $left['value'] / $right['value'];
+
+        return is_finite($result) ? $result : null;
     }
 
     private function foldSimpleUnitlessCalc(string $value): ?string
@@ -3001,7 +3106,7 @@ final class MediaQueryParser
 
         if (stripos($number, 'e') !== false) {
             $float = (float) $number;
-            if ($float !== 0.0 && abs($float) < 0.000001) {
+            if ($float !== 0.0 && (abs($float) < 0.000001 || abs($float) >= 1.0e21)) {
                 return $this->normalizeScientificNumber($number);
             }
 

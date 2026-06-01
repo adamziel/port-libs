@@ -335,6 +335,86 @@ return [
             $prefixer->prefixForTargets($targetPair, ['safari' => 17])
         );
     },
+    'transition prefixer maps upstream newer selector pseudo browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            'a::target-text{color:green}a{color:green}',
+            $prefixer->prefixForTargets('a::target-text, a { color: green; }', ['chrome' => 88])
+        );
+        $t->same(
+            'a::target-text,a{color:green}',
+            $prefixer->prefixForTargets('a::target-text, a { color: green; }', ['chrome' => 89])
+        );
+        $t->same(
+            'a::target-text{color:green}a{color:green}',
+            $prefixer->prefixForTargets('a::target-text, a { color: green; }', ['firefox' => 130])
+        );
+        $t->same(
+            'a::target-text,a{color:green}',
+            $prefixer->prefixForTargets('a::target-text, a { color: green; }', ['firefox' => 131])
+        );
+        $t->same(
+            'mark::search-text{color:#ff0}mark{color:#ff0}',
+            $prefixer->prefixForTargets('mark::search-text, mark { color: yellow; }', ['chrome' => 143])
+        );
+        $t->same(
+            'mark::search-text,mark{color:#ff0}',
+            $prefixer->prefixForTargets('mark::search-text, mark { color: yellow; }', ['chrome' => 144])
+        );
+        $t->same(
+            'mark::search-text{color:#ff0}mark{color:#ff0}',
+            $prefixer->prefixForTargets('mark::search-text, mark { color: yellow; }', ['safari' => '18.4'])
+        );
+        $t->same(
+            'details::details-content{color:#00f}summary{color:#00f}',
+            $prefixer->prefixForTargets('details::details-content, summary { color: blue; }', ['chrome' => 130])
+        );
+        $t->same(
+            'details::details-content,summary{color:#00f}',
+            $prefixer->prefixForTargets('details::details-content, summary { color: blue; }', ['chrome' => 131])
+        );
+        $t->same(
+            'select::picker-icon{color:red}select::checkmark{color:red}',
+            $prefixer->prefixForTargets('select::picker-icon, select::checkmark { color: red; }', ['chrome' => 132])
+        );
+        $t->same(
+            'select::picker-icon,select::checkmark{color:red}',
+            $prefixer->prefixForTargets('select::picker-icon, select::checkmark { color: red; }', ['chrome' => 133])
+        );
+        $t->same(
+            'select::picker(select){color:red}select::picker-icon{color:red}',
+            $prefixer->prefixForTargets('select::picker(select), select::picker-icon { color: red; }', ['chrome' => 134])
+        );
+        $t->same(
+            'select::picker(select),select::picker-icon{color:red}',
+            $prefixer->prefixForTargets('select::picker(select), select::picker-icon { color: red; }', ['chrome' => 135])
+        );
+        $t->same(
+            'input::grammar-error{color:red}input::spelling-error{color:red}',
+            $prefixer->prefixForTargets('input::grammar-error, input::spelling-error { color: red; }', ['firefox' => 130])
+        );
+        $t->same(
+            'input::grammar-error,input::spelling-error{color:red}',
+            $prefixer->prefixForTargets('input::grammar-error, input::spelling-error { color: red; }', ['safari' => '17.4'])
+        );
+        $t->same(
+            ':is(wa-checkbox:state(disabled),button:state(checked)){color:red}',
+            $prefixer->prefixForTargets('wa-checkbox:state(disabled), button:state(checked) { color: red; }', ['chrome' => 124])
+        );
+        $t->same(
+            'wa-checkbox:state(disabled),button:state(checked){color:red}',
+            $prefixer->prefixForTargets('wa-checkbox:state(disabled), button:state(checked) { color: red; }', ['chrome' => 125])
+        );
+        $t->same(
+            ':is(wa-checkbox:state(disabled),button:state(checked)){color:red}',
+            $prefixer->prefixForTargets('wa-checkbox:state(disabled), button:state(checked) { color: red; }', ['firefox' => 125])
+        );
+        $t->same(
+            'wa-checkbox:state(disabled),button:state(checked){color:red}',
+            $prefixer->prefixForTargets('wa-checkbox:state(disabled), button:state(checked) { color: red; }', ['firefox' => 126])
+        );
+    },
     'transition prefixer composes upstream unsupported selector-list isolation with logical fallbacks' => static function (TestRunner $t) use ($variants): void {
         $prefixer = new TransitionPrefixer();
 

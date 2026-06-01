@@ -2662,6 +2662,65 @@ final class TransitionPrefixer
                 'chrome' => [142],
                 'edge' => [142],
             ]),
+            'targetTextNeedsSelectorListFallback' => $this->targetsNeedFeatureFallback($normalized, [
+                'android' => [89],
+                'chrome' => [89],
+                'edge' => [89],
+                'firefox' => [131],
+                'ios_saf' => [18, 1],
+                'opera' => [63],
+                'safari' => [18, 1],
+                'samsung' => [15],
+            ]),
+            'searchTextNeedsSelectorListFallback' => $this->targetsNeedFeatureFallback($normalized, [
+                'android' => [144],
+                'chrome' => [144],
+                'edge' => [144],
+                'opera' => [95],
+            ]),
+            'detailsContentNeedsSelectorListFallback' => $this->targetsNeedFeatureFallback($normalized, [
+                'android' => [131],
+                'chrome' => [131],
+                'edge' => [131],
+                'firefox' => [143],
+                'ios_saf' => [18, 4],
+                'opera' => [87],
+                'safari' => [18, 4],
+                'samsung' => [29],
+            ]),
+            'pickerNeedsSelectorListFallback' => $this->targetsNeedFeatureFallback($normalized, [
+                'android' => [135],
+                'chrome' => [135],
+                'edge' => [135],
+                'opera' => [89],
+                'samsung' => [29],
+            ]),
+            'pickerIconCheckmarkNeedsSelectorListFallback' => $this->targetsNeedFeatureFallback($normalized, [
+                'android' => [133],
+                'chrome' => [133],
+                'edge' => [133],
+                'opera' => [88],
+                'samsung' => [29],
+            ]),
+            'grammarSpellingNeedsSelectorListFallback' => $this->targetsNeedFeatureFallback($normalized, [
+                'android' => [121],
+                'chrome' => [121],
+                'edge' => [121],
+                'ios_saf' => [17, 4],
+                'opera' => [81],
+                'safari' => [17, 4],
+                'samsung' => [25],
+            ]),
+            'statePseudoNeedsSelectorListFallback' => $this->targetsNeedFeatureFallback($normalized, [
+                'android' => [125],
+                'chrome' => [125],
+                'edge' => [125],
+                'firefox' => [126],
+                'ios_saf' => [17, 4],
+                'opera' => [83],
+                'safari' => [17, 4],
+                'samsung' => [27],
+            ]),
             'placeholderNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [56])
                 || $this->targetInRange($normalized, 'ios_saf', [4, 3], [10])
@@ -3693,7 +3752,7 @@ final class TransitionPrefixer
     {
         $hasUnsupportedPseudo = false;
         foreach ($selectorList as $selector) {
-            if ($this->selectorContainsUnsupportedTargetPseudo($selector, $targetOptions)) {
+            if ($this->selectorContainsUnsupportedSelectorListPseudo($selector, $targetOptions)) {
                 $hasUnsupportedPseudo = true;
                 break;
             }
@@ -3718,7 +3777,7 @@ final class TransitionPrefixer
     /**
      * @param array<string, bool> $targetOptions
      */
-    private function selectorContainsUnsupportedTargetPseudo(string $selector, array $targetOptions): bool
+    private function selectorContainsUnsupportedSelectorListPseudo(string $selector, array $targetOptions): bool
     {
         return (($targetOptions['focusVisibleNeedsSelectorListFallback'] ?? false)
                 && preg_match($this->pseudoClassPattern('focus-visible'), $selector) === 1)
@@ -3727,7 +3786,21 @@ final class TransitionPrefixer
             || (($targetOptions['targetCurrentNeedsSelectorListFallback'] ?? false)
                 && preg_match($this->pseudoClassPattern('target-current'), $selector) === 1)
             || (($targetOptions['targetBeforeAfterNeedsSelectorListFallback'] ?? false)
-                && preg_match('/:target-(?:before|after)(?![-_a-z0-9])/i', $selector) === 1);
+                && preg_match('/:target-(?:before|after)(?![-_a-z0-9])/i', $selector) === 1)
+            || (($targetOptions['targetTextNeedsSelectorListFallback'] ?? false)
+                && preg_match('/::target-text(?![-_a-z0-9])/i', $selector) === 1)
+            || (($targetOptions['searchTextNeedsSelectorListFallback'] ?? false)
+                && preg_match('/::search-text(?![-_a-z0-9])/i', $selector) === 1)
+            || (($targetOptions['detailsContentNeedsSelectorListFallback'] ?? false)
+                && preg_match('/::details-content(?![-_a-z0-9])/i', $selector) === 1)
+            || (($targetOptions['pickerNeedsSelectorListFallback'] ?? false)
+                && preg_match('/::picker\s*\(/i', $selector) === 1)
+            || (($targetOptions['pickerIconCheckmarkNeedsSelectorListFallback'] ?? false)
+                && preg_match('/::(?:picker-icon|checkmark)(?![-_a-z0-9])/i', $selector) === 1)
+            || (($targetOptions['grammarSpellingNeedsSelectorListFallback'] ?? false)
+                && preg_match('/::(?:grammar-error|spelling-error)(?![-_a-z0-9])/i', $selector) === 1)
+            || (($targetOptions['statePseudoNeedsSelectorListFallback'] ?? false)
+                && preg_match('/:state\s*\(/i', $selector) === 1);
     }
 
     /**

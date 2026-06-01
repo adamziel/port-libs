@@ -46,6 +46,27 @@ $scrollNavigationCss = <<<'CSS'
 }
 CSS;
 
+$highlightPseudoCss = <<<'CSS'
+.wp-block-search__input::target-text,
+.wp-block-search__input::search-text {
+  color: var(--wp--preset--color--contrast);
+}
+CSS;
+
+$statePseudoCss = <<<'CSS'
+.wp-block-navigation button:state(open),
+.wp-block-navigation button:state(closed) {
+  outline-color: currentColor;
+}
+CSS;
+
+$pickerPseudoCss = <<<'CSS'
+.wp-block-query select::picker(select),
+.wp-block-query select::picker-icon {
+  color: currentColor;
+}
+CSS;
+
 $androidSelectorCss = <<<'CSS'
 .wp-block-navigation:is(.is-open, .has-modal-open) {
   color: currentColor;
@@ -69,6 +90,12 @@ $actual = [
     'chrome110_autofill_list' => $prefixer->prefixForTargets($autofillSelectorListCss, ['chrome' => 110]),
     'chrome141_scroll_target' => $prefixer->prefixForTargets($scrollNavigationCss, ['chrome' => 141]),
     'chrome142_scroll_target' => $prefixer->prefixForTargets($scrollNavigationCss, ['chrome' => 142]),
+    'chrome88_highlight_pseudos' => $prefixer->prefixForTargets($highlightPseudoCss, ['chrome' => 88]),
+    'chrome144_highlight_pseudos' => $prefixer->prefixForTargets($highlightPseudoCss, ['chrome' => 144]),
+    'chrome124_state_pseudo' => $prefixer->prefixForTargets($statePseudoCss, ['chrome' => 124]),
+    'chrome125_state_pseudo' => $prefixer->prefixForTargets($statePseudoCss, ['chrome' => 125]),
+    'chrome134_picker_pseudo' => $prefixer->prefixForTargets($pickerPseudoCss, ['chrome' => 134]),
+    'chrome135_picker_pseudo' => $prefixer->prefixForTargets($pickerPseudoCss, ['chrome' => 135]),
 ];
 
 $rtlLangs = ':lang(ae),:lang(ar),:lang(arc),:lang(bcc),:lang(bqi),:lang(ckb),:lang(dv),:lang(fa),:lang(glk),:lang(he),:lang(ku),:lang(mzn),:lang(nqo),:lang(pnb),:lang(ps),:lang(sd),:lang(ug),:lang(ur),:lang(yi)';
@@ -87,6 +114,12 @@ $expected = [
     'chrome110_autofill_list' => '.wp-block-search__input:placeholder-shown,.wp-block-search__input:autofill{color:var(--wp--preset--color--contrast)}',
     'chrome141_scroll_target' => ':is(.wp-block-navigation a:target-before,.wp-block-navigation a:target-after){color:currentColor}',
     'chrome142_scroll_target' => '.wp-block-navigation a:target-before,.wp-block-navigation a:target-after{color:currentColor}',
+    'chrome88_highlight_pseudos' => '.wp-block-search__input::target-text{color:var(--wp--preset--color--contrast)}.wp-block-search__input::search-text{color:var(--wp--preset--color--contrast)}',
+    'chrome144_highlight_pseudos' => '.wp-block-search__input::target-text,.wp-block-search__input::search-text{color:var(--wp--preset--color--contrast)}',
+    'chrome124_state_pseudo' => ':is(.wp-block-navigation button:state(open),.wp-block-navigation button:state(closed)){outline-color:currentColor}',
+    'chrome125_state_pseudo' => '.wp-block-navigation button:state(open),.wp-block-navigation button:state(closed){outline-color:currentColor}',
+    'chrome134_picker_pseudo' => '.wp-block-query select::picker(select){color:currentColor}.wp-block-query select::picker-icon{color:currentColor}',
+    'chrome135_picker_pseudo' => '.wp-block-query select::picker(select),.wp-block-query select::picker-icon{color:currentColor}',
 ];
 
 if ($actual !== $expected) {

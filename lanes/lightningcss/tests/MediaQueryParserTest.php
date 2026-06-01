@@ -277,6 +277,10 @@ return [
         $t->same('(width>=6px)', $parser->minifyList('(width >= calc(2px * 3))'));
         $t->same('(width>=3px)', $parser->minifyList('(width >= calc(6px / 2))'));
         $t->same('(width>=6)', $parser->minifyList('(width >= calc(2 * 3))'));
+        $t->same('(width>=3.40282e38px)', $parser->minifyList('(width >= calc(infinity * 1px))'));
+        $t->same('(width>=-3.40282e38px)', $parser->minifyList('(width >= calc(-infinity * 1px))'));
+        $t->same('(width>=0)', $parser->minifyList('(width >= calc(1px / infinity))'));
+        $t->same('(width>=3.40282e38)', $parser->minifyList('(width >= calc(infinity / 2))'));
         $t->same('(width>calc(1px + 1rem))', $parser->minifyList('(width > calc(1px+1rem))'));
         $t->same('(width>20px)', $parser->minifyList('(width > max(10px, 20px))'));
         $t->same('(width>2)', $parser->minifyList('(width > max(1, 2))'));
@@ -323,6 +327,8 @@ return [
         $t->same('not (max-width:calc(1px + 1rem))', $parser->lowerRangeSyntaxList('(width > calc(1px+1rem))'));
         $t->same('(min-width:6px)', $parser->lowerRangeSyntaxList('(width >= calc(2 * 3px))'));
         $t->same('(min-width:6)', $parser->lowerRangeSyntaxList('(width >= calc(2 * 3))'));
+        $t->same('(min-width:3.40282e38px)', $parser->lowerRangeSyntaxList('(width >= calc(infinity * 1px))'));
+        $t->same('(min-width:-3.40282e38px) and (max-width:3.40282e38px)', $parser->lowerRangeSyntaxList('(calc(-infinity * 1px) <= width <= calc(infinity * 1px))'));
         $t->same('not (max-width:20px)', $parser->lowerRangeSyntaxList('(width > max(10px, 20px))'));
         $t->same('not (max-width:2)', $parser->lowerRangeSyntaxList('(width > max(1, 2))'));
         $t->same('(min-width:15px)', $parser->lowerRangeSyntaxList('(width >= clamp(10px, 15px, 20px))'));
@@ -368,6 +374,14 @@ return [
         $t->same(
             '@layer blocks{@media (width>=6px){.wp-block-query{color:#ff0}}}',
             (new CssMinifier())->minify('@layer blocks { @media (width >= calc(2 * 3px)) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (width>=3.40282e38px){.wp-block-query{color:#ff0}}}',
+            (new CssMinifier())->minify('@layer blocks { @media (width >= calc(infinity * 1px)) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (-3.40282e38px<=width<=3.40282e38px){.wp-block-query{color:#ff0}}}',
+            (new CssMinifier())->minify('@layer blocks { @media (calc(-infinity * 1px) <= width <= calc(infinity * 1px)) { .wp-block-query { color: yellow; } } }')
         );
         $t->same(
             '@layer blocks{@media (aspect-ratio>=.5){.wp-block-query{color:#ff0}}}',
@@ -596,6 +610,8 @@ return [
             '(width >= calc(6px / 2px))',
             '(width >= calc(6 / 2px))',
             '(width >= calc(6px * 2px))',
+            '(width >= infinity)',
+            '(width >= calc(infinity / 2px))',
             '(width >= var(--theme-breakpoint))',
             '(--theme-breakpoint >= var(--theme-breakpoint))',
             '(-webkit-min-device-pixel-ratio: hi)',
@@ -823,6 +839,8 @@ return [
             '(width >= calc(6px / 2px))',
             '(width >= calc(6 / 2px))',
             '(width >= calc(6px * 2px))',
+            '(width >= infinity)',
+            '(width >= calc(infinity / 2px))',
             '(width >= calc((6px / 2px)))',
             '(width >= calc((6 / 2px)))',
             '(width >= calc((6px * 2px)))',
