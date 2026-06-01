@@ -1306,6 +1306,19 @@ CSS
             $minifier->minify('.foo { font: 22px Helvetica; font: oblique 40deg 22px Helvetica; }')
         );
     },
+    'css minifier maps upstream oblique default angle font values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{font-style:oblique}', $minifier->minify('.foo { font-style: oblique 14deg; }'));
+        $t->same('.foo{font-style:oblique 0deg}', $minifier->minify('.foo { font-style: oblique 0deg; }'));
+        $t->same('.foo{font-style:oblique 40deg}', $minifier->minify('.foo { font-style: oblique 40deg; }'));
+        $t->same('@font-face{font-family:Inter;font-style:oblique}', $minifier->minify('@font-face { font-family: Inter; font-style: oblique 14deg 14deg; }'));
+        $t->same('@font-face{font-family:Inter;font-style:oblique 0deg}', $minifier->minify('@font-face { font-family: Inter; font-style: oblique 0deg 0deg; }'));
+        $t->same('@font-face{font-family:Inter;font-style:oblique 0deg 10deg}', $minifier->minify('@font-face { font-family: Inter; font-style: oblique 0deg 10deg; }'));
+        $t->same('.foo{font:oblique 22px Helvetica}', $minifier->minify('.foo { font: oblique 14deg 22px Helvetica; }'));
+        $t->same('.foo{font:oblique 0deg 22px Helvetica}', $minifier->minify('.foo { font: oblique 0deg 22px Helvetica; }'));
+        $t->same('.foo{font:oblique 40deg 22px Helvetica}', $minifier->minify('.foo { font: oblique 40deg 22px Helvetica; }'));
+    },
     'css minifier maps upstream font-face src descriptors and unicode ranges' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -3113,6 +3126,39 @@ CSS;
                 ],
             ],
             $nestedMedia['warnings']
+        );
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minify('@layer blocks { @media (hover: 1) { .bad { color: yellow; } } }')
+        );
+
+        $invalidFeatureValues = $minifier->minifyWithErrorRecovery(
+            '@layer blocks { @media (hover: 1) { .a { color: yellow; } } @media (min-width: hi) { .b { color: chartreuse; } } }',
+            'invalid-media-value.css'
+        );
+        $t->same('@layer blocks{@media (hover:1){.a{color:#ff0}}@media (width>=hi){.b{color:#7fff00}}}', $invalidFeatureValues['code']);
+        $t->same(
+            [
+                [
+                    'message' => 'Invalid media query',
+                    'type' => 'InvalidMediaQuery',
+                    'loc' => ['filename' => 'invalid-media-value.css', 'line' => 1, 'column' => 23],
+                ],
+                [
+                    'message' => 'Invalid media query',
+                    'type' => 'InvalidMediaQuery',
+                    'loc' => ['filename' => 'invalid-media-value.css', 'line' => 1, 'column' => 67],
+                ],
+            ],
+            $invalidFeatureValues['warnings']
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minifyWithErrorRecovery(
+                '@layer blocks { @media (2/1 <= width) { .bad { color: yellow; } } }',
+                'invalid-media-value-first.css'
+            )
         );
     },
     'css minifier maps upstream transition longhand value minification' => static function (TestRunner $t): void {

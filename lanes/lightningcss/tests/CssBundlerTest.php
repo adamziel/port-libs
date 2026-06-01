@@ -2057,6 +2057,76 @@ CSS,
             '/theme/blocks/../base.css',
         ], $reads);
     },
+    'css bundler resolves reader absolute url imports as source provider paths like upstream' => static function (TestRunner $t) use ($withTempFiles): void {
+        $files = [
+            '/entry.css' => '@import "https://cdn.example/reset.css" screen; @import "//cdn.example/print.css"; @import "blocks/card.css"; .entry { color: red }',
+            '/https://cdn.example/reset.css' => '.remote { color: green }',
+            '//cdn.example/print.css' => '.protocol { color: purple }',
+            '/blocks/card.css' => '.card { color: blue }',
+        ];
+        $reads = [];
+
+        $code = (new CssBundler())->bundleWithReader('/entry.css', static function (string $file) use (&$reads, $files): string {
+            $reads[] = $file;
+            if (!array_key_exists($file, $files)) {
+                throw new RuntimeException("Missing reader source {$file}");
+            }
+
+            return $files[$file];
+        });
+
+        $t->same('@media screen{.remote{color:green}}.protocol{color:purple}.card{color:#00f}.entry{color:red}', $code);
+        $t->same([
+            '/entry.css',
+            '/https://cdn.example/reset.css',
+            '//cdn.example/print.css',
+            '/blocks/card.css',
+        ], $reads);
+
+        $externalFiles = [
+            '/resolver-entry.css' => '@import "https://cdn.example/reset.css" screen; @import "blocks/card.css"; .entry { color: red }',
+            '/blocks/card.css' => '.card { color: blue }',
+        ];
+        $externalReads = [];
+        $resolved = [];
+        $externalCode = (new CssBundler())->bundleWithReader(
+            '/resolver-entry.css',
+            static function (string $file) use (&$externalReads, $externalFiles): string {
+                $externalReads[] = $file;
+                if (!array_key_exists($file, $externalFiles)) {
+                    throw new RuntimeException("Missing reader source {$file}");
+                }
+
+                return $externalFiles[$file];
+            },
+            static function (string $specifier, string $originatingFile) use (&$resolved): array|string {
+                $resolved[] = [$specifier, $originatingFile];
+                if (str_starts_with($specifier, 'https:')) {
+                    return ['external' => $specifier];
+                }
+
+                return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+            }
+        );
+
+        $t->same('@import "https://cdn.example/reset.css" screen;.card{color:#00f}.entry{color:red}', $externalCode);
+        $t->same(['/resolver-entry.css', '/blocks/card.css'], $externalReads);
+        $t->same([
+            ['https://cdn.example/reset.css', '/resolver-entry.css'],
+            ['blocks/card.css', '/resolver-entry.css'],
+        ], $resolved);
+
+        $withTempFiles([
+            'entry.css' => '@import "https://cdn.example/reset.css" screen; @import "blocks/card.css"; .entry { color: red }',
+            'https:/cdn.example/reset.css' => '.remote { color: green }',
+            'blocks/card.css' => '.card { color: blue }',
+        ], static function (string $root) use ($t): void {
+            $t->same(
+                '@media screen{.remote{color:green}}.card{color:#00f}.entry{color:red}',
+                (new CssBundler())->bundleFile($root . '/entry.css')
+            );
+        });
+    },
     'css bundler preserves resolver-returned reader paths like upstream' => static function (TestRunner $t): void {
         $files = [
             '/entry.css' => '@import "pkg:tokens.css"; @import "pkg:card.css"; .entry { color: red }',

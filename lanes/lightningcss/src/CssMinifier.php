@@ -6,16 +6,35 @@ namespace PortLibs\LightningCSS;
 
 final class CssMinifier
 {
+    private bool $recoverInvalidMediaFeatureValues = false;
+
     /**
      * @return array{code:string,warnings:list<array{message:string,type:string,loc:array{filename:string,line:int,column:int}}>}
      */
     public function minifyWithErrorRecovery(string $css, string $filename = '<stdin>'): array
     {
         $warnings = [];
+        $invalidFeatureValueWarnings = $this->collectRecoverableInvalidMediaFeatureValueWarnings($css, $filename);
         $css = $this->omitRecoverableInvalidAtRules($css, $filename, $warnings);
 
+        $previousRecover = $this->recoverInvalidMediaFeatureValues;
+
+        $this->recoverInvalidMediaFeatureValues = true;
+
+        try {
+            $code = $this->minify($css);
+            $warnings = array_merge($warnings, $invalidFeatureValueWarnings);
+            usort(
+                $warnings,
+                static fn (array $left, array $right): int => [$left['loc']['line'], $left['loc']['column']]
+                    <=> [$right['loc']['line'], $right['loc']['column']]
+            );
+        } finally {
+            $this->recoverInvalidMediaFeatureValues = $previousRecover;
+        }
+
         return [
-            'code' => $this->minify($css),
+            'code' => $code,
             'warnings' => $warnings,
         ];
     }
@@ -146,6 +165,7 @@ final class CssMinifier
 
         while (($invalid = $this->findRecoverableInvalidAtRule($css, $cursor)) !== null) {
             $output .= substr($css, $cursor, $invalid['start'] - $cursor);
+            $output .= $this->blankCssSpanPreservingLines(substr($css, $invalid['start'], $invalid['end'] - $invalid['start']));
             $warnings[] = [
                 'message' => 'Unexpected token Function("' . $invalid['function'] . '")',
                 'type' => 'UnexpectedToken',
@@ -155,6 +175,11 @@ final class CssMinifier
         }
 
         return $output . substr($css, $cursor);
+    }
+
+    private function blankCssSpanPreservingLines(string $span): string
+    {
+        return preg_replace('/[^\r\n]/', ' ', $span) ?? $span;
     }
 
     /**
@@ -425,6 +450,109 @@ final class CssMinifier
         }
 
         return $lastToken;
+    }
+
+    /**
+     * @return list<array{message:string,type:string,loc:array{filename:string,line:int,column:int}}>
+     */
+    private function collectRecoverableInvalidMediaFeatureValueWarnings(string $css, string $filename): array
+    {
+        $warnings = [];
+        $parser = new MediaQueryParser();
+        $cursor = 0;
+        $length = strlen($css);
+
+        while (($position = stripos($css, '@media', $cursor)) !== false) {
+            $before = $position === 0 ? '' : $css[$position - 1];
+            $after = $css[$position + 6] ?? '';
+            if (($before !== '' && $this->isIdentifierChar($before))
+                || ($after !== '' && $this->isIdentifierChar($after))
+            ) {
+                $cursor = $position + 6;
+                continue;
+            }
+
+            $open = $this->findNextTopLevel($css, '{', $position + 6);
+            if ($open === null) {
+                break;
+            }
+
+            $rawPrelude = substr($css, $position + 6, $open - ($position + 6));
+            $trimOffset = strspn($rawPrelude, " \t\n\r\f");
+            $prelude = trim($rawPrelude);
+            if ($prelude !== '') {
+                try {
+                    $parser->minifyList($prelude, allowCompactedNegation: true);
+                } catch (\InvalidArgumentException) {
+                    try {
+                        $parser->minifyList($prelude, allowCompactedNegation: true, recoverInvalidFeatureValues: true);
+                        $featureOffset = $this->firstRecoverableInvalidMediaFeatureOffset($prelude) ?? 0;
+                        $warnings[] = [
+                            'message' => 'Invalid media query',
+                            'type' => 'InvalidMediaQuery',
+                            'loc' => $this->sourceLocation($css, $position + 6 + $trimOffset + $featureOffset, $filename),
+                        ];
+                    } catch (\InvalidArgumentException) {
+                    }
+                }
+            }
+
+            $cursor = $this->findMatchingBraceInCss($css, $open) + 1;
+        }
+
+        return $warnings;
+    }
+
+    private function firstRecoverableInvalidMediaFeatureOffset(string $prelude): ?int
+    {
+        $parser = new MediaQueryParser();
+        $quote = null;
+        $length = strlen($prelude);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $prelude[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char !== '(') {
+                continue;
+            }
+
+            [$raw, $end] = $this->readFunctionRaw($prelude, $i);
+            $innerOffset = $this->firstRecoverableInvalidMediaFeatureOffset(substr($raw, 1, -1));
+            if ($innerOffset !== null) {
+                return $i + 1 + $innerOffset;
+            }
+
+            try {
+                $parser->minifyList($raw, allowCompactedNegation: true);
+            } catch (\InvalidArgumentException) {
+                try {
+                    $parser->minifyList($raw, allowCompactedNegation: true, recoverInvalidFeatureValues: true);
+
+                    return $i;
+                } catch (\InvalidArgumentException) {
+                    // Keep scanning for the first value mismatch that recovery preserves.
+                }
+            }
+
+            $i = $end;
+        }
+
+        return null;
     }
 
     /**
@@ -2246,6 +2374,24 @@ final class CssMinifier
         return $selector !== '' && in_array($selector[0], ['>', '+', '~'], true);
     }
 
+    private function mediaQueryListAlwaysMatches(MediaQueryParser $parser, string $prelude): bool
+    {
+        try {
+            return $parser->alwaysMatchesList($prelude);
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
+    }
+
+    private function mediaQueryListNeverMatches(MediaQueryParser $parser, string $prelude): bool
+    {
+        try {
+            return $parser->neverMatchesList($prelude);
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
+    }
+
     private function minifyMediaQueries(string $css): string
     {
         $output = '';
@@ -2276,8 +2422,14 @@ final class CssMinifier
             }
 
             $prelude = trim(substr($css, $position + 6, $open - ($position + 6)));
-            $minifiedPrelude = $prelude === '' ? '' : $parser->minifyList($prelude, allowCompactedNegation: true);
-            if ($parser->alwaysMatchesList($minifiedPrelude)) {
+            $minifiedPrelude = $prelude === ''
+                ? ''
+                : $parser->minifyList(
+                    $prelude,
+                    allowCompactedNegation: true,
+                    recoverInvalidFeatureValues: $this->recoverInvalidMediaFeatureValues
+                );
+            if ($this->mediaQueryListAlwaysMatches($parser, $minifiedPrelude)) {
                 $close = $this->findMatchingBraceInCss($css, $open);
                 $body = substr($css, $open + 1, $close - $open - 1);
                 $output .= substr($css, $cursor, $position - $cursor) . $this->minifyMediaQueries($body);
@@ -2285,7 +2437,7 @@ final class CssMinifier
                 continue;
             }
 
-            if ($parser->neverMatchesList($minifiedPrelude)) {
+            if ($this->mediaQueryListNeverMatches($parser, $minifiedPrelude)) {
                 $close = $this->findMatchingBraceInCss($css, $open);
                 $output .= substr($css, $cursor, $position - $cursor);
                 $cursor = $close + 1;
@@ -3795,7 +3947,8 @@ final class CssMinifier
             'explicitWeight' => false,
         ];
 
-        foreach ($tokens as $index => $token) {
+        for ($index = 0, $tokenCount = count($tokens); $index < $tokenCount; $index++) {
+            $token = $tokens[$index];
             $sizeAndLineHeight = $this->splitTopLevel($token, '/');
             if (count($sizeAndLineHeight) > 2) {
                 return null;
@@ -3819,6 +3972,17 @@ final class CssMinifier
                 $components['family'] = $this->minifyFontFamilyList($family);
 
                 return $components;
+            }
+
+            if (
+                strcasecmp($token, 'oblique') === 0
+                && isset($tokens[$index + 1])
+                && $this->isFontStyleObliqueAngleToken($tokens[$index + 1])
+            ) {
+                $components['style'] = $this->minifyFontStyleValue($token . ' ' . $tokens[$index + 1]);
+                $index++;
+
+                continue;
             }
 
             if (!$this->applyFontPreSizeToken($components, $token)) {
@@ -4062,14 +4226,84 @@ final class CssMinifier
         if ($tokens[0] !== 'oblique') {
             return implode(' ', $tokens);
         }
-        if (count($tokens) === 3 && $tokens[1] === $tokens[2]) {
-            return 'oblique';
-        }
-        if (count($tokens) === 2 && $tokens[1] === '0deg') {
+
+        if (count($tokens) === 1) {
             return 'oblique';
         }
 
+        if (count($tokens) === 2) {
+            $angle = $this->minifyFontStyleObliqueAngleToken($tokens[1]);
+            if ($angle === null) {
+                return implode(' ', $tokens);
+            }
+
+            return $this->isDefaultFontStyleObliqueAngle($angle) ? 'oblique' : 'oblique ' . $angle;
+        }
+
+        if (count($tokens) === 3) {
+            $start = $this->minifyFontStyleObliqueAngleToken($tokens[1]);
+            $end = $this->minifyFontStyleObliqueAngleToken($tokens[2]);
+            if ($start === null || $end === null) {
+                return implode(' ', $tokens);
+            }
+
+            if ($this->fontStyleObliqueAnglesEquivalent($start, $end)) {
+                return $this->isDefaultFontStyleObliqueAngle($start) ? 'oblique' : 'oblique ' . $start;
+            }
+
+            return 'oblique ' . $start . ' ' . $end;
+        }
+
         return implode(' ', $tokens);
+    }
+
+    private function isFontStyleObliqueAngleToken(string $token): bool
+    {
+        return $this->fontStyleObliqueAngleDegrees($token) !== null;
+    }
+
+    private function minifyFontStyleObliqueAngleToken(string $token): ?string
+    {
+        $token = strtolower(trim($token));
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(deg|grad|rad|turn)$/', $token, $matches) !== 1) {
+            return null;
+        }
+
+        return $this->minifyNumber((float) $matches[1]) . $matches[2];
+    }
+
+    private function isDefaultFontStyleObliqueAngle(string $token): bool
+    {
+        $degrees = $this->fontStyleObliqueAngleDegrees($token);
+
+        return $degrees !== null && abs($degrees - 14.0) < 0.00001;
+    }
+
+    private function fontStyleObliqueAnglesEquivalent(string $first, string $second): bool
+    {
+        $firstDegrees = $this->fontStyleObliqueAngleDegrees($first);
+        $secondDegrees = $this->fontStyleObliqueAngleDegrees($second);
+
+        return $firstDegrees !== null
+            && $secondDegrees !== null
+            && abs($firstDegrees - $secondDegrees) < 0.00001;
+    }
+
+    private function fontStyleObliqueAngleDegrees(string $token): ?float
+    {
+        $token = strtolower(trim($token));
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(deg|grad|rad|turn)$/', $token, $matches) !== 1) {
+            return null;
+        }
+
+        $number = (float) $matches[1];
+
+        return match ($matches[2]) {
+            'deg' => $number,
+            'grad' => $number * 0.9,
+            'rad' => $number * 180 / M_PI,
+            'turn' => $number * 360,
+        };
     }
 
     private function minifyFontFaceSrcValue(string $value): string

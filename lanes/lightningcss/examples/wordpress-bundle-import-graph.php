@@ -1217,6 +1217,47 @@ if (
 
 echo 'reader-provider: resolved' . PHP_EOL;
 
+$readerAbsoluteUrlFiles = [
+    '/reader-absolute-url.css' => <<<'CSS'
+@import "https://cdn.example/wp-block-reset.css" screen;
+@import "//cdn.example/wp-print.css";
+@import "blocks/card.css";
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/https://cdn.example/wp-block-reset.css' => '.wp-block-reset { color: green; }',
+    '//cdn.example/wp-print.css' => '.wp-block-print { color: purple; }',
+    '/blocks/card.css' => '.wp-block-card { color: blue; }',
+];
+$readerAbsoluteUrlReads = [];
+$readerAbsoluteUrlBundle = (new CssBundler())->bundleWithReader(
+    '/reader-absolute-url.css',
+    static function (string $file) use (&$readerAbsoluteUrlReads, $readerAbsoluteUrlFiles): string {
+        $readerAbsoluteUrlReads[] = $file;
+        if (!array_key_exists($file, $readerAbsoluteUrlFiles)) {
+            throw new RuntimeException("Missing reader-backed absolute URL import file {$file}");
+        }
+
+        return $readerAbsoluteUrlFiles[$file];
+    }
+);
+
+if (
+    $readerAbsoluteUrlBundle !== '@media screen{.wp-block-reset{color:green}}.wp-block-print{color:purple}.wp-block-card{color:#00f}.wp-site-blocks{color:red}'
+    || $readerAbsoluteUrlReads !== [
+        '/reader-absolute-url.css',
+        '/https://cdn.example/wp-block-reset.css',
+        '//cdn.example/wp-print.css',
+        '/blocks/card.css',
+    ]
+) {
+    fwrite(STDERR, "Expected reader-backed URL imports to resolve through source-provider paths\n");
+    exit(1);
+}
+
+echo 'reader-absolute-url-imports: resolved' . PHP_EOL;
+
 $rawReaderFiles = [
     '/reader-raw-theme.css' => <<<'CSS'
 @import "pkg:presets.css";

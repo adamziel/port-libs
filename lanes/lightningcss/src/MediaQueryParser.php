@@ -6,7 +6,7 @@ namespace PortLibs\LightningCSS;
 
 final class MediaQueryParser
 {
-    public function minifyList(string $queryList, bool $allowCompactedNegation = false): string
+    public function minifyList(string $queryList, bool $allowCompactedNegation = false, bool $recoverInvalidFeatureValues = false): string
     {
         $queryList = $this->stripCommentsAsWhitespace($queryList);
         $queries = $this->splitMediaQueryList($queryList);
@@ -14,7 +14,10 @@ final class MediaQueryParser
             return '';
         }
 
-        return implode(',', array_map(fn (string $query): string => $this->minifyQuery($query, $allowCompactedNegation), $queries));
+        return implode(',', array_map(
+            fn (string $query): string => $this->minifyQuery($query, $allowCompactedNegation, $recoverInvalidFeatureValues),
+            $queries
+        ));
     }
 
     public function lowerRangeSyntaxList(string $queryList, bool $lowerSimpleRanges = true, bool $lowerIntervalRanges = true): string
@@ -168,7 +171,7 @@ final class MediaQueryParser
         return $parts;
     }
 
-    private function minifyQuery(string $query, bool $allowCompactedNegation): string
+    private function minifyQuery(string $query, bool $allowCompactedNegation, bool $recoverInvalidFeatureValues): string
     {
         $query = trim($query);
         if ($query === '') {
@@ -179,7 +182,7 @@ final class MediaQueryParser
         }
 
         $query = $this->normalizeEscapedMediaKeywords($this->normalizeWhitespace($query));
-        $query = $this->normalizeParentheses($query, $allowCompactedNegation);
+        $query = $this->normalizeParentheses($query, $allowCompactedNegation, $recoverInvalidFeatureValues);
         $query = preg_replace_callback(
             '/\b(and|or)\b/i',
             static fn (array $matches): string => ' ' . strtolower($matches[1]) . ' ',
@@ -376,7 +379,7 @@ final class MediaQueryParser
         return $this->findMatchingDelimiter($condition, 0, '(', ')') === strlen($condition) - 1;
     }
 
-    private function normalizeParentheses(string $source, bool $allowCompactedNegation): string
+    private function normalizeParentheses(string $source, bool $allowCompactedNegation, bool $recoverInvalidFeatureValues = false): string
     {
         $output = '';
         $quote = null;
@@ -409,14 +412,14 @@ final class MediaQueryParser
 
             $close = $this->findMatchingDelimiter($source, $i, '(', ')');
             $inner = substr($source, $i + 1, $close - $i - 1);
-            $output .= '(' . $this->minifyParenthesized($inner, $allowCompactedNegation) . ')';
+            $output .= '(' . $this->minifyParenthesized($inner, $allowCompactedNegation, $recoverInvalidFeatureValues) . ')';
             $i = $close;
         }
 
         return $output;
     }
 
-    private function minifyParenthesized(string $inner, bool $allowCompactedNegation): string
+    private function minifyParenthesized(string $inner, bool $allowCompactedNegation, bool $recoverInvalidFeatureValues): string
     {
         $inner = trim($inner);
         if ($inner === '') {
@@ -435,7 +438,7 @@ final class MediaQueryParser
             $this->validateTopLevelLogicalOperators($inner);
             $this->validateConditionOperationOperands($inner);
 
-            return $this->normalizeParentheses($inner, $allowCompactedNegation);
+            return $this->normalizeParentheses($inner, $allowCompactedNegation, $recoverInvalidFeatureValues);
         }
 
         if (preg_match('/^not\s+(.+)$/i', $inner, $matches) === 1) {
@@ -444,17 +447,17 @@ final class MediaQueryParser
                 throw new \InvalidArgumentException('Media query negation must be followed by a parenthesized condition');
             }
 
-            return 'not ' . $this->normalizeParentheses($condition, $allowCompactedNegation);
+            return 'not ' . $this->normalizeParentheses($condition, $allowCompactedNegation, $recoverInvalidFeatureValues);
         }
 
         if ($inner[0] === '(') {
-            return $this->normalizeParentheses($this->normalizeWhitespace($inner), $allowCompactedNegation);
+            return $this->normalizeParentheses($this->normalizeWhitespace($inner), $allowCompactedNegation, $recoverInvalidFeatureValues);
         }
 
-        return $this->minifyFeature($inner);
+        return $this->minifyFeature($inner, $recoverInvalidFeatureValues);
     }
 
-    private function minifyFeature(string $feature): string
+    private function minifyFeature(string $feature, bool $recoverInvalidFeatureValues = false): string
     {
         $feature = $this->normalizeWhitespace($feature);
         if ($this->containsTopLevelDelimiter($feature, ',')) {
@@ -479,7 +482,7 @@ final class MediaQueryParser
                 throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
             }
             $type = $this->rangeComparableMediaFeatureType($name);
-            $this->validateRangeFeature($name, $matches[3], null, $feature);
+            $this->validateRangeFeature($name, $matches[3], null, $feature, $recoverInvalidFeatureValues);
 
             return $name . $matches[2] . $this->minifyValue($matches[3], $type);
         }
@@ -505,7 +508,7 @@ final class MediaQueryParser
                         throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
                     }
 
-                    $this->validateRangeFeature($canonical, $matches[2], null, $feature);
+                    $this->validateRangeFeature($canonical, $matches[2], null, $feature, $recoverInvalidFeatureValues);
                     $operator = $legacyMatches[1] === 'min' ? '>=' : '<=';
 
                     return $canonical . $operator . $this->minifyValue($matches[2], $type);
@@ -519,14 +522,14 @@ final class MediaQueryParser
                     throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
                 }
                 if ($type !== null) {
-                    $this->validateRangeFeature($canonical, $matches[2], null, $feature);
+                    $this->validateRangeFeature($canonical, $matches[2], null, $feature, $recoverInvalidFeatureValues);
                     $operator = $legacyMatches[1] === 'min' ? '>=' : '<=';
 
                     return $canonical . $operator . $this->minifyValue($matches[2], $type);
                 }
             }
 
-            $this->validateDiscreteMediaFeature($name, $matches[2], $feature);
+            $this->validateDiscreteMediaFeature($name, $matches[2], $feature, $recoverInvalidFeatureValues);
 
             return $name . ':' . $this->minifyValue($matches[2], $this->knownMediaFeatureType($name));
         }
@@ -593,7 +596,7 @@ final class MediaQueryParser
         }
     }
 
-    private function validateRangeFeature(string $name, string $leftValue, ?string $rightValue, string $feature): void
+    private function validateRangeFeature(string $name, string $leftValue, ?string $rightValue, string $feature, bool $recoverInvalidFeatureValues = false): void
     {
         $type = $this->rangeComparableMediaFeatureType($name);
         if ($type === null) {
@@ -604,16 +607,20 @@ final class MediaQueryParser
             if ($value === null) {
                 continue;
             }
-            if (!$this->isValidRangeValue($type, $value)) {
+            if (!$this->isValidRangeValue($type, $value)
+                && (!$recoverInvalidFeatureValues || !$this->isRecoverableInvalidFeatureValue($value))
+            ) {
                 throw new \InvalidArgumentException("Invalid media query range value: {$feature}");
             }
         }
     }
 
-    private function validateDiscreteMediaFeature(string $name, string $value, string $feature): void
+    private function validateDiscreteMediaFeature(string $name, string $value, string $feature, bool $recoverInvalidFeatureValues = false): void
     {
         $type = $this->knownMediaFeatureType($name) ?? 'unknown';
-        if (!$this->isValidDiscreteMediaFeatureValue($type, $value)) {
+        if (!$this->isValidDiscreteMediaFeatureValue($type, $value)
+            && (!$recoverInvalidFeatureValues || !$this->isRecoverableInvalidFeatureValue($value))
+        ) {
             throw new \InvalidArgumentException("Invalid media query feature value: {$feature}");
         }
     }
@@ -781,6 +788,20 @@ final class MediaQueryParser
             || preg_match('/^' . $number . '(?:dpcm|dpi|dppx|x)$/i', $value) === 1
             || preg_match('/^' . $this->cssIdentifierPattern() . '$/', $value) === 1
             || preg_match('/^[-_a-zA-Z][-_a-zA-Z0-9]*$/', $value) === 1;
+    }
+
+    private function isRecoverableInvalidFeatureValue(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        if (preg_match('/^(?:calc|clamp|max|min)\(/i', $value) === 1) {
+            return true;
+        }
+
+        return $this->isValidUnknownRangeValue($value);
     }
 
     private function isValidIntervalComparisonPair(string $startOperator, string $endOperator): bool

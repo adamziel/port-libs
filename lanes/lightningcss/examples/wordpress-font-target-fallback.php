@@ -22,6 +22,14 @@ $css = <<<'CSS'
   font: 22px Helvetica;
   font: oblique 40deg 22px system-ui, sans-serif;
 }
+
+.wp-block-quote.is-style-default-slant {
+  font-style: oblique 14deg;
+}
+
+.wp-block-heading.is-style-editorial {
+  font: oblique 14deg 1.125rem Georgia, serif;
+}
 CSS;
 
 $prefixer = new TransitionPrefixer();
@@ -32,8 +40,8 @@ $actual = [
 ];
 
 $expected = [
-    'legacy_editor' => '.wp-block-post-title{font-family:Inter,' . $systemFallback . ',sans-serif;font-size:22px;font-size:max(2cqw,22px)}.wp-block-button .wp-element-button{font-weight:700;font-weight:789}.wp-block-heading.is-style-slanted{font:22px Helvetica;font:oblique 40deg 22px ' . $systemFallback . ',sans-serif}',
-    'modern_chrome' => '.wp-block-post-title{font-family:Inter,system-ui,sans-serif;font-size:22px;font-size:max(2cqw,22px)}.wp-block-button .wp-element-button{font-weight:789}.wp-block-heading.is-style-slanted{font:oblique 40deg 22px system-ui,sans-serif}',
+    'legacy_editor' => '.wp-block-post-title{font-family:Inter,' . $systemFallback . ',sans-serif;font-size:22px;font-size:max(2cqw,22px)}.wp-block-button .wp-element-button{font-weight:700;font-weight:789}.wp-block-heading.is-style-slanted{font:22px Helvetica;font:oblique 40deg 22px ' . $systemFallback . ',sans-serif}.wp-block-quote.is-style-default-slant{font-style:oblique}.wp-block-heading.is-style-editorial{font:oblique 1.125rem Georgia,serif}',
+    'modern_chrome' => '.wp-block-post-title{font-family:Inter,system-ui,sans-serif;font-size:22px;font-size:max(2cqw,22px)}.wp-block-button .wp-element-button{font-weight:789}.wp-block-heading.is-style-slanted{font:oblique 40deg 22px system-ui,sans-serif}.wp-block-quote.is-style-default-slant{font-style:oblique}.wp-block-heading.is-style-editorial{font:oblique 1.125rem Georgia,serif}',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

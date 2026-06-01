@@ -14,6 +14,12 @@ $css = <<<'CSS'
     }
   }
 
+  @media (hover: 1) {
+    .wp-block-query.is-invalid-value {
+      color: chartreuse;
+    }
+  }
+
   @media (width >= calc(1px + 2px)) {
     .wp-block-query {
       color: yellow;
@@ -36,12 +42,17 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '@layer theme.blocks{@media (width>=3px){.wp-block-query{color:#ff0}}}',
+    'code' => '@layer theme.blocks{@media (hover:1){.wp-block-query.is-invalid-value{color:#7fff00}}@media (width>=3px){.wp-block-query{color:#ff0}}}',
     'warnings' => [
         [
             'message' => 'Unexpected token Function("unknown")',
             'line' => 2,
             'column' => 14,
+        ],
+        [
+            'message' => 'Invalid media query',
+            'line' => 8,
+            'column' => 9,
         ],
     ],
 ];

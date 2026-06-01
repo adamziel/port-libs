@@ -2167,7 +2167,7 @@ final class CssBundler
             $this->throwUnsupportedResolveResult($originatingFile, $loc);
         }
 
-        if (preg_match('/^https?:/i', $specifier) === 1) {
+        if (!$this->preserveResolverPaths && preg_match('/^https?:/i', $specifier) === 1) {
             return ['external' => $specifier];
         }
 
