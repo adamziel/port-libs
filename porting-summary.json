@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 08:01:54 UTC",
-    "sourceCommit": "dfde8639ec184531438b4b64831a0eeb040763c6",
-    "sourceCommitShort": "dfde8639ec18",
+    "generated": "2026-06-01 08:05:23 UTC",
+    "sourceCommit": "71d4d5b6f31cca035a3a582e6a6809757cc4bce8",
+    "sourceCommitShort": "71d4d5b6f31c",
     "sourceBranch": "main",
-    "dashboardCommit": "dfde8639ec184531438b4b64831a0eeb040763c6",
-    "dashboardCommitShort": "dfde8639ec18",
+    "dashboardCommit": "71d4d5b6f31cca035a3a582e6a6809757cc4bce8",
+    "dashboardCommitShort": "71d4d5b6f31c",
     "averageProgressPercent": "88.6",
     "lanes": [
         {
@@ -64,20 +64,20 @@
         {
             "lane": "gitoxide",
             "library": "gitoxide",
-            "progressPercent": "95.9",
-            "suite": "current-base Gitoxide loose/sparse/tree/url followup replay",
-            "benchmark": "current-base Gitoxide loose/sparse/tree/url followup replay",
+            "progressPercent": "96.0",
+            "suite": "current-base Gitoxide receive-pack options parity replay",
+            "benchmark": "current-base Gitoxide receive-pack options parity replay",
             "denominator": "2886",
-            "mapped": "1768",
-            "coverage": "1,768 / 2,886",
-            "php": "8,139 pass / 0 fail",
+            "mapped": "1769",
+            "coverage": "1,769 / 2,886",
+            "php": "8,180 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor batch: accepted source dfde8639e with Gitoxide...",
-            "currentWork": "Protocol v2 sideband-all Unicode trimming, merge-base shallow parent hydration, a...",
+            "audit": "2026-06-01 supervisor followup: accepted source 71d4d5b6 with smart H...",
+            "currentWork": "Smart HTTP receive-pack connect-timeout, low-speed, HTTP-version, and verbose opt...",
             "nextTarget": "Keep Gitoxide workers on current-base non-overlapping transport, protocol, merge-...",
             "blocker": "Full upstream Cargo workspace remains unexecuted.",
-            "commit": "dfde863"
+            "commit": "71d4d5b"
         },
         {
             "lane": "libsqlite",
