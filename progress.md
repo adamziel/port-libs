@@ -9083,6 +9083,25 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   regressions, remaining app-WAL/row-value conflicts, and release/all-runner
   parity remain blockers before gitoxide.
 
+## Supervisor Integration 2026-06-01T06:38Z
+
+- Integrated source commit `6cf82f49d692b5a7dd41d4896809438275157cdc`
+  from 10 ready handoffs across Gitoxide, LightningCSS, and libsqlite. A stale
+  LightningCSS CSSOM overlap was resolved by keeping the existing integer
+  `z-index` normalization helper and merging `-webkit-sticky` into the newer
+  direct-layout keyword map.
+- Verification after integration: `git diff --check`, PHP lint over changed
+  PHP, Gitoxide full lane `40 test files, 7798 assertions, 0 failures`,
+  LightningCSS full lane `13 test files, 6458 assertions, 0 failures`, focused
+  libsqlite gate `11 test files, 9225 assertions, 0 failures`, plus touched
+  example smokes/self-tests.
+- Dashboard status now reports Gitoxide `7798 pass / 0 fail` with mapped
+  `1750 / 2886`, LightningCSS `6458 pass / 0 fail` with mapped `2360 / 3532`,
+  and libsqlite `5621661 pass / 7 fail` with mapped `1589 / 1589`.
+- Next integration bottleneck: drain newly-ready worker handoffs before
+  increasing worker count; keep the visible pool around 10-11 active workers
+  and avoid long sleeps.
+
 ## Supervisor Integration 2026-05-31T17:33Z LightningCSS CSSOM/Import-Graph Batch
 
 - Integrated source commit
