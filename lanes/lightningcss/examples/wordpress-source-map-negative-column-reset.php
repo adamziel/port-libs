@@ -36,6 +36,21 @@ try {
     $generatedOnlyUnderflowRejected = true;
 }
 
+$skippedLineMap = new SourceMap();
+$skippedLineUnderflowRejected = false;
+try {
+    $skippedLineMap->addVlqMap(
+        'C;A',
+        ['wp-content/themes/example/blocks/skipped-reset.scss'],
+        ['.wp-block-skipped-reset { color: blue; }'],
+        ['skipped-reset-rule'],
+        -2,
+        -1
+    );
+} catch (InvalidArgumentException) {
+    $skippedLineUnderflowRejected = true;
+}
+
 $actual = [
     'blockUnderflowRejected' => $blockUnderflowRejected,
     'blockMap' => $blockMap->toJson(null, false),
@@ -43,6 +58,9 @@ $actual = [
     'generatedOnlyUnderflowRejected' => $generatedOnlyUnderflowRejected,
     'generatedOnlyMap' => $generatedOnlyMap->toJson(null, false),
     'generatedOnlyMappings' => $generatedOnlyMap->getMappings(),
+    'skippedLineUnderflowRejected' => $skippedLineUnderflowRejected,
+    'skippedLineMap' => $skippedLineMap->toJson(null, false),
+    'skippedLineMappings' => $skippedLineMap->getMappings(),
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -57,6 +75,9 @@ if (($argv[1] ?? null) === '--self-test') {
         'generatedOnlyMappings' => [
             ['generatedLine' => 0, 'generatedColumn' => 2, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
         ],
+        'skippedLineUnderflowRejected' => true,
+        'skippedLineMap' => '{"version":3,"mappings":"","sources":["wp-content/themes/example/blocks/skipped-reset.scss"],"sourcesContent":[".wp-block-skipped-reset { color: blue; }"],"names":["skipped-reset-rule"]}',
+        'skippedLineMappings' => [],
     ];
 
     if ($actual !== $expected) {

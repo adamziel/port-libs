@@ -1789,6 +1789,7 @@ CSS
     'css minifier maps upstream explicit grid track list compaction' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
         $cases = [
+            '.foo { grid-template-columns: [first nav-start]  150px [main-start] 1fr [last]; }' => '.foo{grid-template-columns:[first nav-start]150px[main-start]1fr[last]}',
             '.foo { grid-template-columns: 150px 1fr; }' => '.foo{grid-template-columns:150px 1fr}',
             '.foo { grid-template-columns: repeat(4, 1fr); }' => '.foo{grid-template-columns:repeat(4,1fr)}',
             '.foo { grid-template-columns: repeat(2, [e] 40px); }' => '.foo{grid-template-columns:repeat(2,[e]40px)}',
@@ -1804,10 +1805,13 @@ CSS
             '.foo { grid-template-columns: repeat(auto-fill, 250px); }' => '.foo{grid-template-columns:repeat(auto-fill,250px)}',
             '.foo { grid-template-columns: repeat(auto-fit, 250px); }' => '.foo{grid-template-columns:repeat(auto-fit,250px)}',
             '.foo { grid-template-columns: repeat(auto-fill, [col-start] 250px [col-end]); }' => '.foo{grid-template-columns:repeat(auto-fill,[col-start]250px[col-end])}',
+            '.foo { grid-template-columns: repeat(auto-fill, [col-start] minmax(100px, 1fr) [col-end]); }' => '.foo{grid-template-columns:repeat(auto-fill,[col-start]minmax(100px,1fr)[col-end])}',
             '.foo { grid-template-columns: minmax(min-content, 1fr); }' => '.foo{grid-template-columns:minmax(min-content,1fr)}',
             '.foo { grid-template-columns: 200px repeat(auto-fill, 100px) 300px; }' => '.foo{grid-template-columns:200px repeat(auto-fill,100px) 300px}',
             '.foo { grid-template-columns: [linename1 linename2] 100px repeat(auto-fit, [linename1] 300px) [linename3]; }' => '.foo{grid-template-columns:[linename1 linename2]100px repeat(auto-fit,[linename1]300px)[linename3]}',
             '.foo { grid-template-rows: [linename1 linename2] 100px repeat(auto-fit, [linename1] 300px) [linename3]; }' => '.foo{grid-template-rows:[linename1 linename2]100px repeat(auto-fit,[linename1]300px)[linename3]}',
+            '.foo { grid-auto-rows: 100px minmax(100px, auto) 10% 0.5fr fit-content(400px); }' => '.foo{grid-auto-rows:100px minmax(100px,auto) 10% .5fr fit-content(400px)}',
+            '.foo { grid-auto-columns: 100px minmax(100px, auto) 10% 0.5fr fit-content(400px); }' => '.foo{grid-auto-columns:100px minmax(100px,auto) 10% .5fr fit-content(400px)}',
             '.foo { grid-template: auto 1fr / auto 1fr auto; }' => '.foo{grid-template:auto 1fr/auto 1fr auto}',
             '.foo { grid-template: [linename1 linename2] 100px repeat(auto-fit, [linename1] 300px) [linename3] / [linename1 linename2] 100px repeat(auto-fit, [linename1] 300px) [linename3]; }' => '.foo{grid-template:[linename1 linename2]100px repeat(auto-fit,[linename1]300px)[linename3]/[linename1 linename2]100px repeat(auto-fit,[linename1]300px)[linename3]}',
         ];

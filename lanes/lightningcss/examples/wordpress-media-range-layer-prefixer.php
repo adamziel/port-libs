@@ -88,8 +88,16 @@ $actual = [
         '@import "blocks/density.css" layer(theme.blocks) (resolution >= 2dppx); @layer theme.blocks { .wp-block-query.is-imported-density { color: yellow; } }',
         ['chrome' => 95]
     ),
-    'importResolutionRangePrefixTailFallback' => $prefixer->prefixForTargets(
+    'importResolutionRangeNoPrefixTailFallback' => $prefixer->prefixForTargets(
         '@import "blocks/density.css" layer(theme.blocks) ((resolution >= 2dppx)); @layer theme.blocks { .wp-block-query.is-imported-density { color: yellow; } }',
+        ['safari' => 15, 'firefox' => 10]
+    ),
+    'importResolutionEqualityNoPrefixTailFallback' => $prefixer->prefixForTargets(
+        '@import "blocks/density.css" layer(theme.blocks) (resolution = 2dppx); @layer theme.blocks { .wp-block-query.is-imported-density-exact { color: yellow; } }',
+        ['safari' => 15, 'firefox' => 10]
+    ),
+    'importResolutionNegatedNoPrefixTailFallback' => $prefixer->prefixForTargets(
+        '@import "blocks/density.css" layer(theme.blocks) not (resolution >= 2dppx); @layer theme.blocks { .wp-block-query.is-imported-density-not { color: yellow; } }',
         ['safari' => 15, 'firefox' => 10]
     ),
     'importBareLayerSupportsRangeFallback' => $prefixer->prefixForTargets(
@@ -711,7 +719,9 @@ $expected = [
     'importRangeLayerTailFallback' => '@import "blocks/query.css" layer(theme.blocks) (min-width:240px);@layer theme.blocks{.wp-block-query.is-imported-range{color:#ff0}}',
     'importIntervalLayerTailFallback' => '@import "blocks/query.css" layer(theme.blocks) (min-width:100px) and (max-width:200px);@layer theme.blocks{.wp-block-query.is-imported-window{color:#ff0}}',
     'importResolutionRangeXUnitTailFallback' => '@import "blocks/density.css" layer(theme.blocks) (min-resolution:2x);@layer theme.blocks{.wp-block-query.is-imported-density{color:#ff0}}',
-    'importResolutionRangePrefixTailFallback' => '@import "blocks/density.css" layer(theme.blocks) (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx);@layer theme.blocks{.wp-block-query.is-imported-density{color:#ff0}}',
+    'importResolutionRangeNoPrefixTailFallback' => '@import "blocks/density.css" layer(theme.blocks) (min-resolution:2dppx);@layer theme.blocks{.wp-block-query.is-imported-density{color:#ff0}}',
+    'importResolutionEqualityNoPrefixTailFallback' => '@import "blocks/density.css" layer(theme.blocks) (resolution:2dppx);@layer theme.blocks{.wp-block-query.is-imported-density-exact{color:#ff0}}',
+    'importResolutionNegatedNoPrefixTailFallback' => '@import "blocks/density.css" layer(theme.blocks) not (min-resolution:2dppx);@layer theme.blocks{.wp-block-query.is-imported-density-not{color:#ff0}}',
     'importBareLayerSupportsRangeFallback' => '@import "blocks/query.css" layer supports(display:grid) (min-width:240px);@layer theme.blocks{.wp-block-query.is-imported-range{color:#ff0}}',
     'importRangeLayerMediaListFallback' => '@import "blocks/query.css" layer(theme.blocks) (min-width:240px),(hover);@layer theme.blocks{.wp-block-query.is-imported-range{color:#ff0}}',
     'layerStatementBeforeMediaRangeFallback' => '@layer reset,theme.blocks;@media (min-width:240px){@layer theme.blocks{.wp-block-query.is-layer-statement-range{color:#ff0}}}',

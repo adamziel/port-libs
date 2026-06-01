@@ -2031,6 +2031,53 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler keeps repeated media imports unconditional at last position like upstream' => static function (TestRunner $t) use ($bundle): void {
+        $resolved = [];
+        $code = $bundle([
+            '/entry.css' => '@import "card.css" screen; @import "cdn:reset.css"; @import "gallery.css"; @import "card.css"; .entry { color: red }',
+            '/card.css' => '.card { color: green }',
+            '/gallery.css' => '.gallery { color: blue }',
+        ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): array|string {
+            $resolved[] = [$specifier, $originatingFile];
+
+            if ($specifier === 'cdn:reset.css') {
+                return ['external' => 'https://cdn.example/reset.css'];
+            }
+
+            return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+        });
+
+        $t->same(
+            '@import "https://cdn.example/reset.css";.gallery{color:#00f}.card{color:green}.entry{color:red}',
+            $code
+        );
+
+        usort($resolved, static fn (array $a, array $b): int => $a <=> $b);
+        $t->same([
+            ['card.css', '/entry.css'],
+            ['card.css', '/entry.css'],
+            ['cdn:reset.css', '/entry.css'],
+            ['gallery.css', '/entry.css'],
+        ], $resolved);
+
+        $t->same(
+            '.gallery{color:#00f}.card{color:green}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "card.css"; @import "gallery.css"; @import "card.css" screen; .entry { color: red }',
+                '/card.css' => '.card { color: green }',
+                '/gallery.css' => '.gallery { color: blue }',
+            ], '/entry.css')
+        );
+
+        $t->same(
+            '.gallery{color:#00f}@media print,screen{.card{color:green}}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "card.css" print; @import "gallery.css"; @import "card.css" screen; .entry { color: red }',
+                '/card.css' => '.card { color: green }',
+                '/gallery.css' => '.gallery { color: blue }',
+            ], '/entry.css')
+        );
+    },
     'css bundler rejects incompatible repeated media and supports imports' => static function (TestRunner $t) use ($bundle): void {
         try {
             $bundle([

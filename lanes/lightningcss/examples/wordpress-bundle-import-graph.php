@@ -1740,6 +1740,26 @@ if ($repeatedImportBundle !== '@import "https://cdn.example/editor-reset.css";.w
 
 echo 'repeated-import-position: preserved' . PHP_EOL;
 
+$repeatedMediaUnconditionalBundle = (new CssBundler())->bundle('/repeated-media-entry.css', [
+    '/repeated-media-entry.css' => <<<'CSS'
+@import "blocks/card.css" screen;
+@import "blocks/gallery.css";
+@import "blocks/card.css";
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/blocks/card.css' => '.wp-block-card { color: green; }',
+    '/blocks/gallery.css' => '.wp-block-gallery { color: blue; }',
+]);
+
+if ($repeatedMediaUnconditionalBundle !== '.wp-block-gallery{color:#00f}.wp-block-card{color:green}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected repeated media block import to become unconditional at the last import position\n");
+    exit(1);
+}
+
+echo 'repeated-media-unconditional-import: merged-last' . PHP_EOL;
+
 $cycleLayerBundle = (new CssBundler())->bundle('/cycle-layer-entry.css', [
     '/cycle-layer-entry.css' => <<<'CSS'
 @import "blocks/card.css" layer(theme.blocks) screen;

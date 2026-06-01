@@ -11,6 +11,8 @@ $scrollPanel = 'overflow: hidden auto; scrollbar-gutter: stable; color: var(--wp
 
 $actual = [
     'verticalOverflow' => $block->getProperty($scrollPanel, 'overflow-y'),
+    'canonicalImportOverflow' => $block->parse('overflow: HIDDEN Auto; overflow-x: Clip; --wp--custom--overflow: HIDDEN Auto'),
+    'canonicalResetOverflow' => $block->setProperty($scrollPanel, 'overflow', 'VISIBLE HIDDEN'),
     'editorHorizontalScroll' => $block->setProperty($scrollPanel, 'overflow-x', 'scroll'),
     'lockBothAxes' => $block->setProperty($scrollPanel, 'overflow-y', 'hidden'),
     'dropHorizontalOverflow' => $block->removeProperty($scrollPanel, 'overflow-x'),
@@ -22,6 +24,12 @@ $expected = [
         'value' => 'auto',
         'important' => false,
     ],
+    'canonicalImportOverflow' => [
+        'overflow' => 'hidden auto',
+        'overflow-x' => 'clip',
+        '--wp--custom--overflow' => 'HIDDEN Auto',
+    ],
+    'canonicalResetOverflow' => 'overflow: visible hidden; scrollbar-gutter: stable; color: var(--wp--preset--color--contrast)',
     'editorHorizontalScroll' => 'overflow: scroll auto; scrollbar-gutter: stable; color: var(--wp--preset--color--contrast)',
     'lockBothAxes' => 'overflow: hidden; scrollbar-gutter: stable; color: var(--wp--preset--color--contrast)',
     'dropHorizontalOverflow' => 'overflow-y: auto; scrollbar-gutter: stable; color: var(--wp--preset--color--contrast)',

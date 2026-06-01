@@ -1014,9 +1014,7 @@ final class TransitionPrefixer
         $lowerIntervalRanges = $targetOptions['mediaRangeIntervalNeedsFallback'] ?? false;
         $usesXResolutionUnit = $targetOptions['mediaResolutionUsesXUnit'] ?? false;
         $usesDppxResolutionUnit = $targetOptions['mediaResolutionUsesDppxUnit'] ?? false;
-        $needsResolutionPrefixes = ($targetOptions['mediaResolutionNeedsWebkitPrefix'] ?? false)
-            || ($targetOptions['mediaResolutionNeedsMozPrefix'] ?? false);
-        if (!$lowerSimpleRanges && !$lowerIntervalRanges && !$needsResolutionPrefixes && !$usesXResolutionUnit && !$usesDppxResolutionUnit) {
+        if (!$lowerSimpleRanges && !$lowerIntervalRanges && !$usesXResolutionUnit && !$usesDppxResolutionUnit) {
             return $css;
         }
 
@@ -1085,11 +1083,6 @@ final class TransitionPrefixer
         }
 
         $parser = new MediaQueryParser();
-        $needsResolutionPrefixes = ($targetOptions['mediaResolutionNeedsWebkitPrefix'] ?? false)
-            || ($targetOptions['mediaResolutionNeedsMozPrefix'] ?? false);
-        if ($needsResolutionPrefixes) {
-            $media = $this->prefixResolutionMediaQueries($media, $targetOptions);
-        }
         $media = $parser->lowerRangeSyntaxList(
             $media,
             $targetOptions['mediaRangeSimpleNeedsFallback'] ?? false,

@@ -616,6 +616,43 @@ return [
         $t->same(['.unused { color: red; }'], $generatedOnly->getSourcesContent());
         $t->same(['unusedRule'], $generatedOnly->getNames());
     },
+    'source map rejects skipped-line negative column underflow after importing raw tables' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->addVlqMap(
+                'A',
+                ['blocks/skipped-column.scss'],
+                ['.skipped { color: red; }'],
+                ['skippedColumnRule'],
+                -1,
+                -1
+            );
+        });
+
+        $t->same('', $map->writeVlq());
+        $t->same([], $map->getMappings());
+        $t->same(['blocks/skipped-column.scss'], $map->getSources());
+        $t->same(['.skipped { color: red; }'], $map->getSourcesContent());
+        $t->same(['skippedColumnRule'], $map->getNames());
+
+        $laterReset = new SourceMap();
+        $t->throws(InvalidArgumentException::class, static function () use ($laterReset): void {
+            $laterReset->addVlqMap(
+                'C;A',
+                ['blocks/skipped-reset.scss'],
+                ['.skipped-reset { color: blue; }'],
+                ['skippedResetRule'],
+                -2,
+                -1
+            );
+        });
+
+        $t->same('', $laterReset->writeVlq());
+        $t->same([], $laterReset->getMappings());
+        $t->same(['blocks/skipped-reset.scss'], $laterReset->getSources());
+        $t->same(['.skipped-reset { color: blue; }'], $laterReset->getSourcesContent());
+        $t->same(['skippedResetRule'], $laterReset->getNames());
+    },
     'source map imports upstream raw vlq byte-stream mappings without comma separators' => static function (TestRunner $t): void {
         $map = SourceMap::fromJson(
             '{"version":3,"mappings":"AAAAAA","sources":["compiled.css"],"sourcesContent":[".compiled{}"],"names":["rule"]}'

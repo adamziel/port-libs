@@ -14790,6 +14790,18 @@ final class DeclarationBlock
             return $backgroundLonghandValue;
         }
 
+        if ($property === 'overflow') {
+            $components = $this->parseOverflowComponents($value);
+
+            return $components === null
+                ? trim($value)
+                : $this->serializeOverflowComponents($components['overflow-x'], $components['overflow-y']);
+        }
+
+        if ($this->isOverflowLonghand($property)) {
+            return $this->normalizeOverflowValue($value);
+        }
+
         if (in_array($property, self::BACKGROUND_CLIP_PROPERTIES, true)) {
             return $this->normalizeBackgroundClipDeclarationValue($value);
         }

@@ -2480,6 +2480,43 @@ return [
             $block->getProperty('overflow: hidden !important; overflow-x: visible', 'overflow-x')
         );
     },
+    'declaration block canonicalizes upstream overflow cssom read write declarations' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            [
+                'overflow' => 'hidden auto',
+                'overflow-x' => 'clip',
+                'overflow-y' => 'visible',
+                '--Panel-Overflow' => 'HIDDEN Auto',
+            ],
+            $block->parse('overflow: HIDDEN Auto; overflow-x: Clip; overflow-y: Visible; --Panel-Overflow: HIDDEN Auto')
+        );
+        $t->same(
+            ['overflow' => 'clip'],
+            $block->parse('overflow: Clip Clip')
+        );
+        $t->same(
+            ['value' => 'hidden auto', 'important' => false],
+            $block->getProperty('overflow: HIDDEN Auto', 'overflow')
+        );
+        $t->same(
+            'color: red; overflow: hidden',
+            $block->setProperty('color: red', 'overflow', 'HIDDEN HIDDEN')
+        );
+        $t->same(
+            'overflow: visible hidden !important',
+            $block->setProperty('overflow: hidden auto', 'overflow', 'VISIBLE HIDDEN', true)
+        );
+        $t->same(
+            'color: red; overflow-x: clip',
+            $block->setProperty('color: red', 'overflow-x', 'CLIP')
+        );
+        $t->same(
+            'overflow: hidden auto; overflow-x: scroll',
+            $block->setProperty('overflow: hidden auto; overflow-x: Clip', 'overflow-x', 'SCROLL')
+        );
+    },
     'declaration block reads upstream scroll snap cssom rect shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

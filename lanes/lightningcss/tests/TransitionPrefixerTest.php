@@ -5130,8 +5130,16 @@ CSS;
             $prefixer->prefixForTargets('@import "blocks/density.css" layer(theme.blocks) (resolution >= 2dppx); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['chrome' => 95])
         );
         $t->same(
-            '@import "blocks/density.css" layer(theme.blocks) (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx);@layer theme.blocks{.wp-block-query{color:#ff0}}',
+            '@import "blocks/density.css" layer(theme.blocks) (min-resolution:2dppx);@layer theme.blocks{.wp-block-query{color:#ff0}}',
             $prefixer->prefixForTargets('@import "blocks/density.css" layer(theme.blocks) ((resolution >= 2dppx)); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@import "blocks/density.css" layer(theme.blocks) (resolution:2dppx);@layer theme.blocks{.wp-block-query{color:#ff0}}',
+            $prefixer->prefixForTargets('@import "blocks/density.css" layer(theme.blocks) (resolution = 2dppx); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@import "blocks/density.css" layer(theme.blocks) not (min-resolution:2dppx);@layer theme.blocks{.wp-block-query{color:#ff0}}',
+            $prefixer->prefixForTargets('@import "blocks/density.css" layer(theme.blocks) not (resolution >= 2dppx); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['safari' => 15, 'firefox' => 10])
         );
         $t->throws(
             InvalidArgumentException::class,
