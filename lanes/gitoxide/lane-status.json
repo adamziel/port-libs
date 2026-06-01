@@ -1,17 +1,17 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 98,
-    "suiteProgress": "Supervisor-integrated Gitoxide protocol-v2 fetch sideband-all capability exchange, receive-pack SSL version boundaries, send-pack empty refname option parsing, and tree pathspec escaped-byte traversal parity. Verification passed changed PHP lint, git diff --check, focused Gitoxide gate 4 files / 2385 assertions / 0 failures, changed example smokes, and full Gitoxide lane 40 files / 9778 assertions / 0 failures.",
-    "phpPass": 9778,
+    "estimatedProgress": 98.1,
+    "suiteProgress": "Supervisor-integrated Gitoxide receive-pack SSH/HTTP transport and reference transaction parity batch. Verification passed changed PHP lint, git diff --check, focused Gitoxide gate 2 files / 2132 assertions / 0 failures, changed example smokes, and full Gitoxide lane 40 files / 9835 assertions / 0 failures.",
+    "phpPass": 9835,
     "phpFail": 0,
-    "wordpressScenarios": "Git-backed workflows remain covered; latest accepted source adds protocol-v2 sideband-all fetch handling, receive-pack SSL version boundary checks, send-pack empty refname option parsing, and tree pathspec escaped-byte traversal parity.",
+    "wordpressScenarios": "Git-backed workflows remain covered; latest accepted source adds receive-pack SSH bare/IPv6 authority parity, smart-HTTP 304/proxy/cookie parity, and reference transaction reflog/lock failure parity.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 supervisor integration: source commit 2f93de8d1df29b902bb6139cd24d63c47ff5ffad accepted protocol-v2 fetch sideband-all capability exchange, receive-pack SSL version boundary, send-pack empty refname option, and tree pathspec escaped-byte traversal parity. Changed PHP lint passed; git diff --check passed; focused Gitoxide gate passed 4 files / 2385 assertions / 0 failures; changed Gitoxide example smokes passed; full Gitoxide PHP lane passed 40 files / 9778 assertions / 0 failures. Cargo workspace was not run.",
-    "currentWork": "Protocol-v2 sideband-all fetch handling, receive-pack SSL version boundaries, send-pack empty refname option parsing, and tree pathspec escaped-byte traversal parity integrated on current main.",
+    "audit": "2026-06-01 supervisor integration: source commit eef9582145ab6422998777b814b61569f08c5e06 accepted receive-pack SSH bare/IPv6 authority parity, smart-HTTP 304/proxy/cookie parity, and reference transaction reflog/lock failure parity. Changed PHP lint passed; git diff --check passed; focused Gitoxide gate passed 2 files / 2132 assertions / 0 failures; changed Gitoxide example smokes passed; full Gitoxide PHP lane passed 40 files / 9835 assertions / 0 failures. Cargo workspace was not run.",
+    "currentWork": "Receive-pack SSH bare/IPv6 authority parity, smart-HTTP 304/proxy/cookie parity, and reference transaction reflog/lock failure parity integrated on current main.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "2f93de8d1df29b902bb6139cd24d63c47ff5ffad",
+    "latestCommit": "eef9582145ab6422998777b814b61569f08c5e06",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping reference transaction, partial-clone, credential/config, pack/index, object database, tree-merge, merge-base, protocol-v2, receive-pack/send-pack, smart-HTTP/SSH, sparse-checkout/pathspec, and URL/refspec parity slices.",
-    "commit": "2f93de8d1df29b902bb6139cd24d63c47ff5ffad",
-    "latestFocusedSlice": "2026-06-01 supervisor batch: protocol-v2 fetch sideband-all capability exchange, receive-pack SSL version boundaries, send-pack empty refname option parsing, and tree pathspec escaped-byte traversal parity. Focused Gitoxide gate passed 4 files / 2385 assertions / 0 failures; full Gitoxide lane passed 40 files / 9778 assertions / 0 failures; phpPass moves 9707 -> 9778; mapped coverage remains 1799 / 2886; full upstream Cargo workspace was not executed."
+    "commit": "eef9582145ab6422998777b814b61569f08c5e06",
+    "latestFocusedSlice": "2026-06-01 supervisor batch: receive-pack SSH bare/IPv6 authority parity, smart-HTTP 304/proxy/cookie parity, and reference transaction reflog/lock failure parity. Focused Gitoxide gate passed 2 files / 2132 assertions / 0 failures; full Gitoxide lane passed 40 files / 9835 assertions / 0 failures; phpPass moves 9778 -> 9835; mapped coverage remains 1799 / 2886; full upstream Cargo workspace was not executed."
 }

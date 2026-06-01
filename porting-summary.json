@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 14:27:34 UTC",
-    "sourceCommit": "2f93de8d1df29b902bb6139cd24d63c47ff5ffad",
-    "sourceCommitShort": "2f93de8d1df2",
-    "sourceBranch": "unknown",
-    "dashboardCommit": "2f93de8d16904cb3165086cd51952b32ffb4d2b1",
-    "dashboardCommitShort": "2f93de8d1690",
+    "generated": "2026-06-01 14:36:59 UTC",
+    "sourceCommit": "eef9582145ab6422998777b814b61569f08c5e06",
+    "sourceCommitShort": "eef9582145ab",
+    "sourceBranch": "main",
+    "dashboardCommit": "eef9582145ab6422998777b814b61569f08c5e06",
+    "dashboardCommitShort": "eef9582145ab",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "5,938,420 pass / 16 fail",
+            "php": "5,941,178 pass / 16 fail",
             "phase": "current-base source integration accepted; broad full-lane/release par...",
-            "audit": "2026-06-01 supervisor integration: source commit 2f93de8d1df29b902bb6...",
-            "currentWork": "Real upstream btree wherelimit2 view/index and window1 fuzz subquery corpus coverage...",
+            "audit": "2026-06-01 supervisor integration: source commit eef9582145ab64229987...",
+            "currentWork": "Trigger7 malformed-schema trigger/FK dynamic corpus coverage integrated on current ma...",
             "nextTarget": "Prioritize broad full-lane memory exhaustion and the 16 obser...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "2f93de8"
+            "commit": "eef9582"
         },
         {
             "lane": "lightningcss",
@@ -45,13 +45,13 @@
             "coverage": "2,393 / 3,532 (67.8%)",
             "mapPercent": "67.8%",
             "unmapped": "1,139",
-            "php": "8,231 pass / 0 fail",
+            "php": "8,290 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor integration: source commit 2f93de8d1df29b902bb6...",
-            "currentWork": "Media-query unresolved sign/range/layer parity, non-SRGB property value minifier pari...",
+            "audit": "2026-06-01 supervisor integration: source commit eef9582145ab64229987...",
+            "currentWork": "Bundle/import graph, CSS Modules at-rule composes descriptor, CSSOM declaration read/...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, bundle...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "2f93de8"
+            "commit": "eef9582"
         },
         {
             "lane": "gitoxide",
@@ -59,8 +59,8 @@
             "priority": "Active",
             "queue": "Active",
             "state": "High coverage",
-            "progressPercent": "98.0",
-            "completion": "98.0%",
+            "progressPercent": "98.1",
+            "completion": "98.1%",
             "suite": "current-base Gitoxide loose-object missing-NUL header parity follow-up",
             "benchmark": "current-base Gitoxide loose-object missing-NUL header parity follow-up",
             "denominator": "2886",
@@ -68,13 +68,13 @@
             "coverage": "1,799 / 2,886 (62.3%)",
             "mapPercent": "62.3%",
             "unmapped": "1,087",
-            "php": "9,778 pass / 0 fail",
+            "php": "9,835 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor integration: source commit 2f93de8d1df29b902bb6...",
-            "currentWork": "Protocol-v2 sideband-all fetch handling, receive-pack SSL version boundaries, send-pa...",
+            "audit": "2026-06-01 supervisor integration: source commit eef9582145ab64229987...",
+            "currentWork": "Receive-pack SSH bare/IPv6 authority parity, smart-HTTP 304/proxy/cookie parity, and...",
             "nextTarget": "Keep Gitoxide workers on current-base non-overlapping referen...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "2f93de8"
+            "commit": "eef9582"
         },
         {
             "lane": "readability",
