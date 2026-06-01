@@ -3431,10 +3431,10 @@
             "focusedUpstreamVeryquickShardCurrentSourceNext431": "The 2026-05-28 isolated current-source next431 suite veryquick-shard runner slice maps one additional runner-countability blocker row for launcher Base accepted HEAD fca16e3d, current integration source 8a447f44, lane-local zero-error guarded runner artifact rows, duplicate-runner gates, exact 96 focused PASS-line admission, focused current-source veryquick shard scope, and no release/all parity claim."
         }
     },
-    "latestFocusedSlice": "2026-06-01 PRAGMA/schema authorizer-clear plus source-neutral cleanup: +1002 PASS cases; full release/all still blocked by known memory/failure issues.",
-    "latestNativePhpVerification": "Source commit 0b3b727dd122141d074b8c7559435d640769c28b: PHP lint, git diff --check, zero-domain source guard, focused combined gate 6 files / 13814 assertions / 0 failures, adjacent schema family 5 files / 67687 assertions / 0 failures, PDO parity gate 4 files / 608 assertions / 0 failures, and exact SQLitePDO invalid-column repro passed.",
-    "runnerStatus": "Focused libsqlite PRAGMA/schema and PDO gates passed. Broad release/all still has 16 known failures and the full-lane memory blocker remains.",
-    "latestCommit": "0b3b727dd122141d074b8c7559435d640769c28b",
+    "latestFocusedSlice": "2026-06-01 window1 and without_rowid2 corpus plus STAT4/encoding source-neutral cleanup: +2207 PASS cases; full release/all still blocked by known memory/failure issues.",
+    "latestNativePhpVerification": "Source commit a21633288ad0cd2d795de3d0561e2a1e47996533: PHP lint, git diff --check, zero-domain source guard, and focused combined gate 9 files / 114533 assertions / 0 failures for window1 NATURAL JOIN/row-value misuse, without_rowid2 foreign-key catalog, STAT4 tenant proof, encoding fixture source-neutral cleanup, adjacent B-tree/STAT4 guards, and no-domain coverage.",
+    "runnerStatus": "Focused libsqlite window1, without_rowid2, STAT4, encoding, B-tree adjacent, and no-domain gates passed. Broad release/all still has 16 known failures and the full-lane memory blocker remains.",
+    "latestCommit": "a21633288ad0cd2d795de3d0561e2a1e47996533",
     "latestFocusedCorpusBatch20260531T2250Z": {
         "sourceCommit": "48a678f72e367c869dc62452fbad34f36daa273b",
         "selectedPassIncrease": 2411,
@@ -3676,7 +3676,7 @@
         "nativeVerification": "Changed PHP lint passed; git diff --check passed; SQLiteNoDomainSpecificApiTest.php 1 file / 6 assertions / 0 failures; application-json-path-validation-preflight.php self-test passed.",
         "upstreamEvidence": "Source-neutral guard evidence only; no new upstream corpus PASS delta. Broad release/all remains blocked by seven known failures and the memory-limited full-lane run."
     },
-    "currentSliceSource": "2026-06-01 supervisor batch: PRAGMA/schema authorizer-clear, source-neutral database key/value defaults, and trigger/upsert/view defaults. Focused combined gate passed 6 files / 13814 assertions / 0 failures; adjacent schema family passed 5 files / 67687 assertions / 0 failures; PDO parity gate passed 4 files / 608 assertions / 0 failures; exact invalid-column PDO repro throws and leaves zero rows; phpPass moves to 6192971; mapped coverage remains 1589 / 1589.",
+    "currentSliceSource": "2026-06-01 supervisor batch: window1 NATURAL JOIN/window row-value misuse, without_rowid2 foreign-key catalog, source-neutral STAT4 tenant proof fields, and source-neutral encoding fixture cleanup. Focused combined gate passed 9 files / 114533 assertions / 0 failures; phpPass moves to 6195178; mapped coverage remains 1589 / 1589.",
     "focusedSelectAReversedUnionCollation20260601T133455Z": {
         "sourceCommit": "b377ea5b2fa3ea8bf0b90afbb451893100795e29",
         "selectedPassIncrease": 1003,
@@ -3791,5 +3791,24 @@
         "countingNote": "The SQLite upstream denominator is already complete at 1589 / 1589, so this batch increases accepted PHP PASS cases without changing mapped coverage.",
         "nativeVerification": "Changed PHP lint passed; git diff --check passed; zero-domain source guard passed; focused combined gate 6 files / 13814 assertions / 0 failures; adjacent schema family 5 files / 67687 assertions / 0 failures; PDO parity gate 4 files / 608 assertions / 0 failures; exact INSERT INTO test (namedd) repro throws PDOException and leaves zero rows.",
         "upstreamEvidence": "Worker notes cite local SQLite upstream PRAGMA/schema authorizer-clear corpus behavior. Full broad release parity still has 16 known failures."
+    },
+    "focusedWindowBtreeNeutralBatch20260601T1936Z": {
+        "sourceCommit": "a21633288ad0cd2d795de3d0561e2a1e47996533",
+        "mappedSliceIncrease": 0,
+        "mappedBefore": 1589,
+        "mappedAfter": 1589,
+        "acceptedPassDelta": 2207,
+        "phpPassBefore": 6192971,
+        "phpPassAfter": 6195178,
+        "acceptedSlices": [
+            "window1.test 50.5 nested NATURAL JOIN scalar-window subqueries",
+            "window1.test 51.1 row value misused diagnostic",
+            "without_rowid2.test 1.0 through 3.5 WITHOUT ROWID foreign-key catalog behavior",
+            "source-neutral STAT4 tenant proof fields",
+            "source-neutral encoding cursor fixture cleanup"
+        ],
+        "countingNote": "The SQLite upstream denominator is already complete at 1589 / 1589, so this batch increases accepted PHP PASS cases without changing mapped coverage. STAT4 and encoding cleanups are source-neutral guard improvements and do not change counters.",
+        "nativeVerification": "Changed PHP lint passed; git diff --check passed; zero-domain source guard passed; focused combined gate 9 files / 114533 assertions / 0 failures.",
+        "upstreamEvidence": "Worker notes cite local SQLite upstream window1.test and without_rowid2.test source truth. Full broad release parity still has 16 known failures."
     }
 }

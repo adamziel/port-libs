@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 19:29:00 UTC",
-    "sourceCommit": "0b3b727dd122141d074b8c7559435d640769c28b",
-    "sourceCommitShort": "0b3b727dd122",
+    "generated": "2026-06-01 19:33:33 UTC",
+    "sourceCommit": "a21633288ad0cd2d795de3d0561e2a1e47996533",
+    "sourceCommitShort": "a21633288ad0",
     "sourceBranch": "unknown",
-    "dashboardCommit": "a4a6381f71d1e7bf6b1f7633059ebf2d50415b02",
-    "dashboardCommitShort": "a4a6381f71d1",
+    "dashboardCommit": "a21633288ad0cd2d795de3d0561e2a1e47996533",
+    "dashboardCommitShort": "a21633288ad0",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,192,971 pass / 16 fail",
-            "phase": "current-base source integration accepted by supervisor with focused a...",
-            "audit": "2026-06-01 19:31 UTC supervisor integration: source commit 0b3b727dd1...",
-            "currentWork": "PRAGMA/schema authorizer-clear coverage, source-neutral database key/value defaults,...",
+            "php": "6,195,178 pass / 16 fail",
+            "phase": "current-base source integration accepted by supervisor with focused c...",
+            "audit": "2026-06-01 19:36 UTC supervisor integration: source commit a21633288a...",
+            "currentWork": "window1 NATURAL JOIN/window row-value misuse coverage, without_rowid2 foreign-key cat...",
             "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "0b3b727"
+            "commit": "a216332"
         },
         {
             "lane": "lightningcss",
