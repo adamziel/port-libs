@@ -25,6 +25,13 @@ $smartHttpUploadPackBody = $packet("acknowledgments\n")
     . $packet("\x02Counting objects: 100% (1/1)\rCounting objects: 100% (1/1), done.\n")
     . $packet("\x01" . $packData)
     . $flush;
+$persistentFirstFetchResponse = $packet("packfile\n")
+    . $packet("\x02remote: first WordPress fetch response\n")
+    . $packet("\x01" . $packData)
+    . $flush;
+$persistentSecondFetchResponse = $packet("acknowledgments\n")
+    . $packet("NAK\n")
+    . $flush;
 
 return [
     'sidebandAll' => true,
@@ -230,6 +237,9 @@ return [
         . $packet("\x02Counting objects: 100% (1/1)\n")
         . $packet("\x01" . $packData)
         . $delimiter,
+    'persistentFetchStream' => $persistentFirstFetchResponse . $persistentSecondFetchResponse,
+    'persistentFirstFetchResponse' => $persistentFirstFetchResponse,
+    'persistentSecondFetchResponse' => $persistentSecondFetchResponse,
     'smartHttpUploadPackResponse' => "HTTP/1.1 200 OK\r\n"
         . "Content-Type: application/x-git-upload-pack-result\r\n"
         . 'Content-Length: ' . strlen($smartHttpUploadPackBody) . "\r\n"
@@ -260,6 +270,7 @@ return [
     'progressCancelUse' => 'A WordPress deployment fetch can abort while reading sideband progress, matching Gitoxide sideband reader interruption behavior before pack bytes are imported.',
     'responseEndUse' => 'Stateless protocol v2 fetch responses can end with a response-end packet after acknowledgements or sidebanded pack bytes, so WordPress deployment tooling does not require a flush-only terminator.',
     'delimiterPackUse' => 'Protocol v2 sideband readers preserve delimiter stop-packet state after pack bytes, so WordPress deployment tooling can distinguish a section boundary from a flush-only response end.',
+    'persistentFetchUse' => 'Persistent protocol v2 upload-pack streams leave the reader positioned after the sidebanded fetch response terminator, so WordPress deployment tooling can parse a following response without losing packet-line boundaries.',
     'suffixlessAckUse' => 'Suffixless protocol v2 ACK lines are treated as common acknowledgements before the packfile, matching Gitoxide fetch.response fixture behavior for deployment fetch negotiation.',
     'refInWantUse' => 'A WordPress deployment fetch using ref-in-want can parse the wanted-refs section and still hand the following sideband pack bytes to object import without requiring a separate ls-refs advertisement.',
     'refInWantExchangeUse' => 'A WordPress deployment fetch using ref-in-want can parse a full protocol v2 exchange where capabilities are followed directly by wanted-refs and sideband pack bytes, without an ls-refs advertisement.',

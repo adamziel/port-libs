@@ -26,6 +26,7 @@ final class FetchResponse
         private readonly array $errorMessages = [],
         private readonly ?string $terminator = null,
         private readonly array $sidebandEvents = [],
+        private readonly int $consumedBytes = 0,
     ) {
     }
 
@@ -48,7 +49,7 @@ final class FetchResponse
                 throw new \RuntimeException('fetch response: could not read message headline');
             }
             if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
-                return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $packet['kind'], $sidebandEvents);
+                return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $packet['kind'], $sidebandEvents, $offset);
             }
             if ($packet['kind'] === 'delimiter') {
                 continue;
@@ -62,21 +63,21 @@ final class FetchResponse
             if ($header === 'acknowledgments') {
                 $terminator = self::parseV2Section($bytes, $offset, $acknowledgements, FetchAcknowledgement::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $sidebandEvents, $progressHandler);
                 if ($terminator !== null) {
-                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $terminator, $sidebandEvents);
+                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $terminator, $sidebandEvents, $offset);
                 }
                 continue;
             }
             if ($header === 'shallow-info') {
                 $terminator = self::parseV2Section($bytes, $offset, $shallowUpdates, FetchShallowUpdate::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $sidebandEvents, $progressHandler);
                 if ($terminator !== null) {
-                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $terminator, $sidebandEvents);
+                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $terminator, $sidebandEvents, $offset);
                 }
                 continue;
             }
             if ($header === 'wanted-refs') {
                 $terminator = self::parseV2Section($bytes, $offset, $wantedRefs, FetchWantedRef::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $sidebandEvents, $progressHandler);
                 if ($terminator !== null) {
-                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $terminator, $sidebandEvents);
+                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $terminator, $sidebandEvents, $offset);
                 }
                 continue;
             }
@@ -92,7 +93,8 @@ final class FetchResponse
                     $progressMessages,
                     $errorMessages,
                     $sidebands['terminator'],
-                    $sidebandEvents
+                    $sidebandEvents,
+                    $offset
                 );
             }
 
@@ -167,7 +169,8 @@ final class FetchResponse
             $this->progressMessages,
             $this->errorMessages,
             $this->terminator,
-            $this->sidebandEvents
+            $this->sidebandEvents,
+            $this->consumedBytes
         );
     }
 
@@ -251,6 +254,11 @@ final class FetchResponse
     public function terminator(): ?string
     {
         return $this->terminator;
+    }
+
+    public function consumedBytes(): int
+    {
+        return $this->consumedBytes;
     }
 
     /**

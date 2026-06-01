@@ -278,6 +278,40 @@ $objectDatabaseNonCommitStartBases = $objectDatabaseFinder->mergeBases(
     $objectDatabaseAssetBlob,
     $objectDatabaseAssetPluginReview,
 );
+$objectDatabaseGraphTailGitDir = sys_get_temp_dir() . '/port-libs-wp-merge-base-graph-tail-' . bin2hex(random_bytes(4)) . '/.git';
+$objectDatabaseGraphTailStore = new LooseObjectStore($objectDatabaseGraphTailGitDir);
+$objectDatabaseGraphTailBody = static function (array $parents, int $seconds, string $tail = "\nobject database graph tail\n"): string {
+    $lines = ["tree " . str_repeat('f', 40)];
+    foreach ($parents as $parent) {
+        $lines[] = "parent {$parent}";
+    }
+    $lines[] = "author Release Bot <release@example.test> {$seconds} +0000";
+    $lines[] = "committer Deploy Bot <deploy@example.test> {$seconds} +0000";
+
+    return implode("\n", $lines) . "\n" . $tail;
+};
+$objectDatabaseGraphTailReleaseObject = new GitObject(
+    'commit',
+    $objectDatabaseGraphTailBody([], 1700006070, "malformed-tail-without-header-separator\n"),
+);
+$objectDatabaseGraphTailReleaseBaseline = $objectDatabaseGraphTailStore->write($objectDatabaseGraphTailReleaseObject);
+$objectDatabaseGraphTailPluginReview = $objectDatabaseGraphTailStore->write(new GitObject(
+    'commit',
+    $objectDatabaseGraphTailBody([$objectDatabaseGraphTailReleaseBaseline], 1700006080),
+));
+$objectDatabaseGraphTailThemeReview = $objectDatabaseGraphTailStore->write(new GitObject(
+    'commit',
+    $objectDatabaseGraphTailBody([$objectDatabaseGraphTailReleaseBaseline], 1700006090),
+));
+$objectDatabaseGraphTailFinder = MergeBaseFinder::fromObjectDatabase(new ObjectDatabase($objectDatabaseGraphTailGitDir));
+$objectDatabaseGraphTailBases = $objectDatabaseGraphTailFinder->mergeBases(
+    $objectDatabaseGraphTailPluginReview,
+    $objectDatabaseGraphTailThemeReview,
+);
+$objectDatabaseGraphTailGraphWalkBase = $objectDatabaseGraphTailFinder->mergeBaseAgainst(
+    $objectDatabaseGraphTailPluginReview,
+    [$objectDatabaseGraphTailThemeReview],
+);
 $sha256ObjectDatabaseGitDir = sys_get_temp_dir() . '/port-libs-wp-merge-base-sha256-db-' . bin2hex(random_bytes(4)) . '/.git';
 $sha256ObjectDatabaseStore = new LooseObjectStore($sha256ObjectDatabaseGitDir, false, 'sha256');
 $sha256ObjectDatabaseCommitBody = static function (array $parents, int $seconds, string $message): string {
@@ -451,6 +485,13 @@ return [
     'objectDatabaseNonCommitStartBases' => $objectDatabaseNonCommitStartBases,
     'objectDatabaseSkipsNonCommitAncestors' => $objectDatabaseNonCommitParentBases === []
         && $objectDatabaseNonCommitStartBases === [],
+    'objectDatabaseGraphTailHeads' => [$objectDatabaseGraphTailPluginReview, $objectDatabaseGraphTailThemeReview],
+    'objectDatabaseGraphTailReleaseBaseline' => $objectDatabaseGraphTailReleaseBaseline,
+    'objectDatabaseGraphTailBases' => $objectDatabaseGraphTailBases,
+    'objectDatabaseGraphTailGraphWalkBase' => $objectDatabaseGraphTailGraphWalkBase,
+    'objectDatabaseGraphReaderIgnoresMalformedTail' => $objectDatabaseGraphTailBases === [
+        $objectDatabaseGraphTailReleaseBaseline,
+    ] && $objectDatabaseGraphTailGraphWalkBase === $objectDatabaseGraphTailReleaseBaseline,
     'sha256ObjectDatabaseHeads' => [$sha256ObjectDatabasePluginReview, $sha256ObjectDatabaseThemeReview],
     'sha256ObjectDatabaseReleaseBaseline' => $sha256ObjectDatabaseReleaseBaseline,
     'sha256ObjectDatabaseBases' => $sha256ObjectDatabaseBases,

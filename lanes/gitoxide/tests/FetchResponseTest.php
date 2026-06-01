@@ -439,6 +439,61 @@ return [
             [true, 'remote: delimiter warning'],
         ], $sidebandAllCalls);
     },
+    'exposes protocol v2 fetch response consumed bytes like gix streaming readers' => static function (TestRunner $t) use ($packet, $delimiter, $flush): void {
+        $first = $packet("packfile\n")
+            . $packet("\x02Counting objects: 100% (1/1)\n")
+            . $packet("\x01PACKcursor")
+            . $flush;
+        $second = $packet("acknowledgments\n")
+            . $packet("NAK\n")
+            . $flush;
+        $firstResponse = FetchResponse::fromV2PacketLines($first . $second);
+
+        $t->same(true, $firstResponse->hasPack());
+        $t->same('PACKcursor', $firstResponse->packData());
+        $t->same('flush', $firstResponse->terminator());
+        $t->same(strlen($first), $firstResponse->consumedBytes());
+        $t->same($second, substr($first . $second, $firstResponse->consumedBytes()));
+
+        $secondResponse = FetchResponse::fromV2PacketLines(substr($first . $second, $firstResponse->consumedBytes()));
+        $t->same(false, $secondResponse->hasPack());
+        $t->same('flush', $secondResponse->terminator());
+        $t->same(strlen($second), $secondResponse->consumedBytes());
+        $t->same(FetchAcknowledgement::NAK, $secondResponse->acknowledgements()[0]->kind);
+
+        $sidebandAllFirst = $packet("\x02remote: cursor progress\n")
+            . $packet("\x01packfile\n")
+            . $packet("\x01PACKsideband-all-cursor")
+            . $delimiter;
+        $sidebandAllSecond = $packet("\x01acknowledgments\n")
+            . $packet("\x01NAK\n")
+            . $flush;
+        $calls = [];
+        $sidebandAllResponse = FetchResponse::fromV2PacketLines(
+            $sidebandAllFirst . $sidebandAllSecond,
+            true,
+            static function (bool $isError, string $text) use (&$calls): bool {
+                $calls[] = [$isError, $text];
+
+                return true;
+            }
+        );
+
+        $t->same(true, $sidebandAllResponse->hasPack());
+        $t->same('PACKsideband-all-cursor', $sidebandAllResponse->packData());
+        $t->same('delimiter', $sidebandAllResponse->terminator());
+        $t->same(strlen($sidebandAllFirst), $sidebandAllResponse->consumedBytes());
+        $t->same([[false, 'remote: cursor progress']], $calls);
+        $t->same($sidebandAllSecond, substr($sidebandAllFirst . $sidebandAllSecond, $sidebandAllResponse->consumedBytes()));
+
+        $sidebandAllSecondResponse = FetchResponse::fromV2PacketLines(
+            substr($sidebandAllFirst . $sidebandAllSecond, $sidebandAllResponse->consumedBytes()),
+            true
+        );
+        $t->same(false, $sidebandAllSecondResponse->hasPack());
+        $t->same(FetchAcknowledgement::NAK, $sidebandAllSecondResponse->acknowledgements()[0]->kind);
+        $t->same(strlen($sidebandAllSecond), $sidebandAllSecondResponse->consumedBytes());
+    },
     'surfaces raw upload-pack ERR packets before sideband decoding' => static function (TestRunner $t) use ($packet, $flush, $runtimeMessage): void {
         $t->contains(
             'fetch response: upload-pack error backend died',
@@ -1223,6 +1278,10 @@ return [
         $t->same(true, $summary['sidebandAllResponseEndParsed']);
         $t->same(true, $summary['delimiterPackParsed']);
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['delimiterPackTrailer']);
+        $t->same(true, $summary['persistentFetchCursorParsed']);
+        $t->same(strlen($fixture['persistentFirstFetchResponse']), $summary['persistentFetchConsumedBytes']);
+        $t->same(strlen($fixture['persistentSecondFetchResponse']), $summary['persistentFetchTailBytes']);
+        $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['persistentFetchFirstPackTrailer']);
         $t->same([
             ['isError' => false, 'text' => 'remote: response-end aware negotiation'],
             ['isError' => true, 'text' => 'remote: deployment warning before pack'],

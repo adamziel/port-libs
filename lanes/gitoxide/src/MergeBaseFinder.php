@@ -91,8 +91,75 @@ final class MergeBaseFinder
                 return null;
             }
 
-            return Commit::parse($object->body, $algorithm);
+            return self::parseGraphCommit($object->body, $algorithm);
         }, $useCommitGraphGenerations, $commitGraphGeneration, $commitGraphCommit);
+    }
+
+    private static function parseGraphCommit(string $body, string $algorithm): Commit
+    {
+        $hashLength = ReferenceTarget::hashHexLength($algorithm);
+        $offset = 0;
+        $headers = [];
+        $appendHeader = static function (string $name, string $value) use (&$headers): void {
+            $headers[$name][] = $value;
+        };
+
+        $treeRaw = self::readGraphHeader($body, $offset, 'tree');
+        self::assertSameObjectFormat($hashLength, $treeRaw);
+        $tree = strtolower($treeRaw);
+        $appendHeader('tree', $treeRaw);
+
+        $parents = [];
+        while (substr($body, $offset, 7) === 'parent ') {
+            $parentRaw = self::readGraphHeader($body, $offset, 'parent');
+            self::assertSameObjectFormat($hashLength, $parentRaw);
+            $parents[] = strtolower($parentRaw);
+            $appendHeader('parent', $parentRaw);
+        }
+
+        $author = self::readGraphHeader($body, $offset, 'author');
+        self::parseCompleteGraphSignature($author, 'author');
+        $appendHeader('author', $author);
+
+        $committer = self::readGraphHeader($body, $offset, 'committer');
+        self::parseCompleteGraphSignature($committer, 'committer');
+        $appendHeader('committer', $committer);
+
+        return new Commit(
+            $tree,
+            $parents,
+            $author,
+            $committer,
+            '',
+            $headers,
+            rawBody: $body,
+        );
+    }
+
+    private static function readGraphHeader(string $input, int &$offset, string $name): string
+    {
+        $newline = strpos($input, "\n", $offset);
+        if ($newline === false) {
+            throw new \InvalidArgumentException("Commit {$name} header is not newline terminated");
+        }
+
+        $line = substr($input, $offset, $newline - $offset);
+        $prefix = $name . ' ';
+        if (!str_starts_with($line, $prefix)) {
+            throw new \InvalidArgumentException("Commit is missing required {$name} header");
+        }
+
+        $offset = $newline + 1;
+
+        return substr($line, strlen($prefix));
+    }
+
+    private static function parseCompleteGraphSignature(string $signature, string $field): void
+    {
+        $parsed = CommitSignature::parseConsuming($signature);
+        if ($parsed['rest'] !== '') {
+            throw new \InvalidArgumentException("Commit {$field} signature has unconsumed bytes after the timestamp");
+        }
     }
 
     private static function isSkippableObjectDatabaseMiss(\RuntimeException $exception): bool

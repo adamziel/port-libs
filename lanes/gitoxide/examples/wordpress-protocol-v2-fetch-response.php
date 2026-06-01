@@ -50,6 +50,9 @@ $interleavedSidebandAllResponse = FetchResponse::fromV2PacketLines(
 $responseEndNoPackResponse = FetchResponse::fromV2PacketLines($fixture['responseEndNoPackResponse']);
 $responseEndPackResponse = FetchResponse::fromV2PacketLines($fixture['responseEndPackResponse']);
 $delimiterPackResponse = FetchResponse::fromV2PacketLines($fixture['delimiterPackResponse']);
+$persistentFirstFetchResponse = FetchResponse::fromV2PacketLines($fixture['persistentFetchStream']);
+$persistentFetchTail = substr($fixture['persistentFetchStream'], $persistentFirstFetchResponse->consumedBytes());
+$persistentSecondFetchResponse = FetchResponse::fromV2PacketLines($persistentFetchTail);
 $emptyErrorSidebandMessages = [];
 $emptyErrorSidebandHandledResponse = FetchResponse::fromV2PacketLines(
     $fixture['emptyErrorSidebandResponse'],
@@ -245,6 +248,16 @@ return [
         && $delimiterPackResponse->progressMessages() === ['Counting objects: 100% (1/1)']
         && $delimiterPackResponse->terminator() === 'delimiter',
     'delimiterPackTrailer' => bin2hex(substr($delimiterPackResponse->packData(), -20)),
+    'persistentFetchCursorParsed' => $persistentFirstFetchResponse->hasPack()
+        && $persistentFirstFetchResponse->packData() === $fixture['packData']
+        && $persistentFirstFetchResponse->consumedBytes() === strlen($fixture['persistentFirstFetchResponse'])
+        && $persistentFetchTail === $fixture['persistentSecondFetchResponse']
+        && $persistentSecondFetchResponse->hasPack() === false
+        && $persistentSecondFetchResponse->acknowledgements()[0]->kind === 'nak'
+        && $persistentSecondFetchResponse->consumedBytes() === strlen($fixture['persistentSecondFetchResponse']),
+    'persistentFetchConsumedBytes' => $persistentFirstFetchResponse->consumedBytes(),
+    'persistentFetchTailBytes' => strlen($persistentFetchTail),
+    'persistentFetchFirstPackTrailer' => bin2hex(substr($persistentFirstFetchResponse->packData(), -20)),
     'sidebandAllResponseEndParsed' => $sidebandAllResponseEndResponse->hasPack()
         && $sidebandAllResponseEndResponse->packData() === $fixture['packData']
         && $sidebandAllResponseEndResponse->errorMessages() === ['remote: deployment warning before pack']

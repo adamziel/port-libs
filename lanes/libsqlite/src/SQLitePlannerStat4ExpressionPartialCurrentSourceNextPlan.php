@@ -22940,7 +22940,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     $ordered[] = [
                         'rowid' => self::intValueCurrentSourceLimitOffsetWindowValidation($row['rowid'] ?? null, 'current rowid'),
                         'expressionKey' => self::expressionKeyCurrentSourceLimitOffsetWindowValidation($row, $keyColumn),
-                        'keyName' => (string) ($row[$keyColumn] ?? ''),
+                        'keyColumn' => $keyColumn,
+                        'keyValue' => (string) ($row[$keyColumn] ?? ''),
                         'tenantId' => self::stat4TenantValueFromRow($row, $tenantColumn, 'next244'),
                     ];
                 }
@@ -23805,7 +23806,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     $ordered[] = [
                         'rowid' => self::intValueStat4BoundaryPeer($row['rowid'] ?? null, 'current rowid'),
                         'expressionKey' => self::expressionKeyStat4BoundaryPeer($row, $keyColumn),
-                        'keyName' => (string) ($row[$keyColumn] ?? ''),
+                        'keyColumn' => $keyColumn,
+                        'keyValue' => (string) ($row[$keyColumn] ?? ''),
                         'tenantId' => self::stat4TenantValueFromRow($row, $tenantColumn, 'stat4BoundaryPeer'),
                     ];
                 }

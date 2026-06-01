@@ -239,6 +239,52 @@ return [
         [['rowid' => 7, 'source' => 'current', 'keyColumn' => 'key_name', 'keyValue' => 'Module_Sync', 'sampleKey' => 'module_sync', 'stat4Anchor' => true]],
         $callPrivate('stat4WindowProvenance', [7], [7 => ['rowid' => 7, 'key_name' => 'Module_Sync']], [['key' => 'module_sync', 'rowid' => 7, 'neq' => 1, 'nlt' => 0, 'ndlt' => 0]], 'key_name')
     ),
+    'planner stat4 limit offset proof rows expose generic key metadata' => static function (TestRunner $t) use ($callPrivate, $genericIndex): void {
+        $fence = $callPrivate(
+            'windowFenceCurrentSourceLimitOffsetWindowValidation',
+            [
+                ['rowid' => 1, 'key_name' => 'Module_Alpha', 'tenant_id' => 1],
+                ['rowid' => 2, 'key_name' => 'Module_Zulu', 'tenant_id' => 1],
+            ],
+            [
+                ['left' => ['expression' => 'lower(key_name)'], 'operator' => 'BETWEEN', 'lower' => 'module_alpha', 'upper' => 'module_zulu'],
+                ['left' => ['column' => 'tenant_id'], 'operator' => '=', 'right' => 1],
+                ['left' => ['column' => 'key_name'], 'operator' => 'LIKE', 'right' => 'module_%'],
+            ],
+            $genericIndex + ['descending' => true],
+            [2, 1],
+            2,
+            0
+        );
+
+        $t->same(['key_name', 'key_name'], array_column($fence['currentWindowRows'], 'keyColumn'));
+        $t->same(['Module_Zulu', 'Module_Alpha'], array_column($fence['currentWindowRows'], 'keyValue'));
+        $t->same(false, array_key_exists('keyName', $fence['currentWindowRows'][0]));
+    },
+    'planner stat4 boundary peer proof rows expose generic key metadata' => static function (TestRunner $t) use ($callPrivate, $genericIndex): void {
+        $fence = $callPrivate(
+            'boundaryPeerFenceStat4BoundaryPeer',
+            [
+                ['rowid' => 1, 'key_name' => 'Module_Alpha', 'tenant_id' => 1],
+                ['rowid' => 2, 'key_name' => 'Module_Beta', 'tenant_id' => 1],
+                ['rowid' => 3, 'key_name' => 'module_beta', 'tenant_id' => 1],
+                ['rowid' => 4, 'key_name' => 'Module_Zulu', 'tenant_id' => 1],
+            ],
+            [
+                ['left' => ['expression' => 'lower(key_name)'], 'operator' => 'BETWEEN', 'lower' => 'module_alpha', 'upper' => 'module_zulu'],
+                ['left' => ['column' => 'tenant_id'], 'operator' => '=', 'right' => 1],
+            ],
+            $genericIndex + ['descending' => false],
+            [2, 3],
+            1,
+            1
+        );
+
+        $t->same(['module_beta'], $fence['boundaryExpressionKeys']);
+        $t->same(['key_name', 'key_name'], array_column($fence['currentBoundaryPeerRows'], 'keyColumn'));
+        $t->same(['Module_Beta', 'module_beta'], array_column($fence['currentBoundaryPeerRows'], 'keyValue'));
+        $t->same(false, array_key_exists('keyName', $fence['currentBoundaryPeerRows'][0]));
+    },
     'planner stat4 duplicate cardinality expression key uses generic key field' => static fn (TestRunner $t) => $t->same('module_cache', $callPrivate('expressionKeyCurrentSourceDuplicateCardinalityValidation', ['key_name' => 'Module_Cache'], 'key_name')),
     'planner stat4 boundary peer expression key uses generic key field' => static fn (TestRunner $t) => $t->same('module_auth', $callPrivate('expressionKeyStat4BoundaryPeer', ['key_name' => 'Module_Auth'], 'key_name')),
     'planner stat4 duplicate run expression key uses generic key field' => static fn (TestRunner $t) => $t->same('module_forms', $callPrivate('rowExpressionKeyCurrentSourceDuplicateRunValidation', ['key_name' => 'Module_Forms'], 'key_name')),

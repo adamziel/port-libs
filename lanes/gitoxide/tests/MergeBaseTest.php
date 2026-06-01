@@ -1449,6 +1449,10 @@ BASELINE;
         $t->same([], $example['objectDatabaseNonCommitParentBases']);
         $t->same([], $example['objectDatabaseNonCommitStartBases']);
         $t->same(true, $example['objectDatabaseSkipsNonCommitAncestors']);
+        $t->same(2, count($example['objectDatabaseGraphTailHeads']));
+        $t->same([$example['objectDatabaseGraphTailReleaseBaseline']], $example['objectDatabaseGraphTailBases']);
+        $t->same($example['objectDatabaseGraphTailReleaseBaseline'], $example['objectDatabaseGraphTailGraphWalkBase']);
+        $t->same(true, $example['objectDatabaseGraphReaderIgnoresMalformedTail']);
         $t->same(2, count($example['sha256ObjectDatabaseHeads']));
         $t->same(64, strlen($example['sha256ObjectDatabaseReleaseBaseline']));
         $t->same([$example['sha256ObjectDatabaseReleaseBaseline']], $example['sha256ObjectDatabaseBases']);
@@ -1519,6 +1523,40 @@ BASELINE;
 
         $t->same([$releaseOid], $mergeBase->mergeBases($pluginReviewOid, $themeReviewOid));
         $t->same($releaseOid, $mergeBase->mergeBaseAgainst($pluginReviewOid, [$themeReviewOid]));
+    },
+    'object database graph reader ignores malformed commit tail after committer' => static function (TestRunner $t): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-graph-tail-' . bin2hex(random_bytes(4)) . '/.git';
+        $store = new LooseObjectStore($gitDir);
+        $tree = str_repeat('f', 40);
+        $graphCommitBody = static function (array $parents, int $seconds, string $messageTail = "\nfixture\n") use ($tree): string {
+            $lines = ["tree {$tree}"];
+            foreach ($parents as $parent) {
+                $lines[] = "parent {$parent}";
+            }
+            $lines[] = "author Ada <ada@example.test> {$seconds} +0000";
+            $lines[] = "committer CI <ci@example.test> {$seconds} +0000";
+
+            return implode("\n", $lines) . "\n" . $messageTail;
+        };
+        $releaseObject = new GitObject(
+            'commit',
+            $graphCommitBody([], 1700000000, "malformed-tail-without-header-separator\n"),
+        );
+        $releaseOid = $store->write($releaseObject);
+        $pluginReviewOid = $store->write(new GitObject(
+            'commit',
+            $graphCommitBody([$releaseOid], 1700000100),
+        ));
+        $themeReviewOid = $store->write(new GitObject(
+            'commit',
+            $graphCommitBody([$releaseOid], 1700000200),
+        ));
+        $mergeBase = MergeBaseFinder::fromObjectDatabase(new ObjectDatabase($gitDir));
+
+        $t->throws(InvalidArgumentException::class, static fn () => Commit::parse($releaseObject->body));
+        $t->same([$releaseOid], $mergeBase->mergeBases($pluginReviewOid, $themeReviewOid));
+        $t->same($releaseOid, $mergeBase->mergeBaseAgainst($pluginReviewOid, [$themeReviewOid]));
+        $t->same([$releaseOid], $mergeBase->mergeBasesMany([$pluginReviewOid, $themeReviewOid]));
     },
     'object database reader honors sha256 commit object format during graph walk' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-sha256-db-' . bin2hex(random_bytes(4)) . '/.git';
