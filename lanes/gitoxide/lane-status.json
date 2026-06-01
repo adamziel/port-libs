@@ -1,17 +1,17 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 98,
-    "suiteProgress": "Supervisor-integrated Gitoxide merge-base non-commit object handling and URL/refspec validated fetch remote-ref matching. Verification passed changed PHP lint, git diff --check, focused MergeBase/UrlRefSpec gate 2 files / 1245 assertions / 0 failures, example smokes, and full Gitoxide lane 40 files / 9689 assertions / 0 failures.",
-    "phpPass": 9689,
+    "estimatedProgress": 98.1,
+  "suiteProgress": "Supervisor-integrated Gitoxide object-database pack-index/MIDX prefix ambiguity parity and reversed same-rename different-mode tree-merge fixture parity. Verification passed changed PHP lint, git diff --check, changed example smokes, and full Gitoxide lane 40 files / 9851 assertions / 0 failures.",
+  "phpPass": 9851,
     "phpFail": 0,
-    "wordpressScenarios": "Git-backed workflows remain covered; latest accepted source adds merge-base graph handling for non-commit objects plus validated fetch refspec remote-ref matching.",
+  "wordpressScenarios": "Git-backed workflows remain covered; latest accepted source adds object-database pack-index/MIDX prefix ambiguity parity and reversed same-rename different-mode tree-merge fixture parity.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 supervisor integration: source commit aece2a1f4b72444e22d88c2aacf346cdb42aa581 accepted merge-base non-commit object handling and URL/refspec validated fetch matching. Changed PHP lint passed; git diff --check passed; focused MergeBase/UrlRefSpec tests passed 2 files / 1245 assertions / 0 failures; wordpress-merge-base.php and wordpress-url-refspec-normalize.php example smokes passed; full Gitoxide PHP lane passed 40 files / 9689 assertions / 0 failures. Cargo workspace was not run.",
-    "currentWork": "Merge-base object-database graph walking now treats non-commit objects as absent, and URL/refspec handling now validates fetch remote-ref matches with normalized conflict reporting.",
+  "audit": "2026-06-01 14:47 UTC supervisor integration: source commit 876fa5fa7cf6d64f63d835af42faab4b410a05c3 accepted object-database pack-index/MIDX prefix ambiguity parity and reversed same-rename different-mode tree-merge fixture parity. Changed PHP lint passed; git diff --check passed; changed example smokes passed; full Gitoxide PHP lane passed 40 files / 9851 assertions / 0 failures. Cargo workspace was not run.",
+  "currentWork": "Object-database pack-index/MIDX prefix ambiguity parity and reversed same-rename different-mode tree-merge fixture parity integrated on current main.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "aece2a1f4b72444e22d88c2aacf346cdb42aa581",
+  "latestCommit": "876fa5fa7cf6d64f63d835af42faab4b410a05c3",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping reference transaction, partial-clone, credential/config, pack/index, object database, tree-merge, merge-base, protocol-v2, receive-pack/send-pack, smart-HTTP/SSH, sparse-checkout/pathspec, and URL/refspec parity slices.",
-    "commit": "aece2a1f4b72444e22d88c2aacf346cdb42aa581",
-    "latestFocusedSlice": "2026-06-01 supervisor batch: merge-base non-commit handling and URL/refspec validated fetch matching deepen represented Gitoxide graph/refspec clusters. Full Gitoxide lane passed 40 files / 9689 assertions / 0 failures; phpPass moves 9663 -> 9689; mapped coverage remains 1799 / 2886; full upstream Cargo workspace was not executed."
+  "commit": "876fa5fa7cf6d64f63d835af42faab4b410a05c3",
+  "latestFocusedSlice": "2026-06-01 supervisor batch: object-database pack-index/MIDX prefix ambiguity parity and reversed same-rename different-mode tree-merge fixture parity. Full Gitoxide lane passed 40 files / 9851 assertions / 0 failures; phpPass moves 9835 -> 9851; mapped coverage remains 1799 / 2886; full upstream Cargo workspace was not executed."
 }
