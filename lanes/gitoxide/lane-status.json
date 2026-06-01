@@ -1,17 +1,17 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 97.9,
-    "suiteProgress": "Supervisor-integrated Gitoxide pack-index/MIDX duplicate-prefix candidate-mode, reference transaction packed direct-symbolic, and tree-merge file/tree replacement resolve-tree parity. Verification passed changed PHP lint, git diff --check, three changed example smokes, and full Gitoxide lane 40 files / 9574 assertions / 0 failures.",
-    "phpPass": 9574,
+    "estimatedProgress": 98,
+    "suiteProgress": "Supervisor-integrated Gitoxide config includeIf realpath fallback, credential-helper action boundaries, and partial-clone empty promisor pack parity on current base. Verification passed changed PHP lint, git diff --check, changed example smokes, and full Gitoxide lane 40 files / 9626 assertions / 0 failures.",
+    "phpPass": 9626,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation and duplicate-prefix candidate-mode boundaries, commit/tree/tag parsing and writing, refs/reflogs/reference transactions including recursive symbolic reflog split behavior plus mixed direct-to-packed object refs with loose symbolic review pointers, config includeIf deployment conditions, attributes/pathspec filtering boundaries, sparse checkout, partial clone/promisor hydration, credential helpers, SSH receive-pack IPv6 argv boundaries, receive-pack/send-pack transport and status parsing including stream delimiter termination, same-port scheme-upgrade redirect, no-slash cookie-path proxy, and multi-report no-refname receive-status parity, protocol-v2 ref-in-want fetch exchange sideband parsing plus empty-error sideband handler cancellation, smart HTTP proxy/TLS/SOCKS boundaries, merge-base graph behavior including stable hydration after shallow/promisor parent discovery, URL/refspec canonical writing and fetch match-lhs mapping, tree-merge behavior including file/tree replacement resolve-tree parity, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 supervisor source 1a0db522af74: changed PHP lint passed; git diff --check passed; wordpress-object-database.php, wordpress-reference-transaction.php, and wordpress-recursive-tree-merge.php smokes passed; full Gitoxide PHP lane passed 40 files / 9574 assertions / 0 failures. Cargo workspace was not run.",
-    "currentWork": "Pack-index/MIDX duplicate-prefix candidate-mode, reference transaction packed direct-symbolic, and tree-merge file/tree replacement resolve-tree parity integrated on current base.",
+    "audit": "2026-06-01 supervisor integration: changed PHP lint passed; git diff --check passed; Gitoxide examples wordpress-config-include-conditional.php, wordpress-credential-context.php, and wordpress-lazy-promisor-fetch.php self-tests passed; full Gitoxide PHP lane passed 40 files / 9626 assertions / 0 failures after config includeIf realpath fallback, credential-helper action-boundary, and partial-clone empty promisor pack parity. Cargo workspace was not run.",
+    "currentWork": "Config includeIf realpath fallback, credential helper action boundaries, and partial-clone empty promisor pack no-op parity integrated on current base.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "1a0db522af743befb547f81889cff3320e672e68",
+    "latestCommit": "54e04a0ebdd61c1a4ea77d17412094979a5a09dd",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping reference transaction, partial-clone, credential/config, pack/index, object database, tree-merge, merge-base, protocol-v2, receive-pack/send-pack, smart-HTTP/SSH, sparse-checkout/pathspec, and URL/refspec parity slices.",
-    "commit": "1a0db522af743befb547f81889cff3320e672e68",
-    "latestFocusedSlice": "2026-06-01 supervisor batch: pack-index/MIDX duplicate-prefix candidate-mode and reference transaction packed direct-symbolic map +2 conservative upstream rows while tree-merge file/tree replacement deepens an existing cluster. Full Gitoxide lane passed 40 files / 9574 assertions / 0 failures; mapped coverage moves 1794 -> 1796 / 2886; full upstream Cargo workspace was not executed."
+    "commit": "54e04a0ebdd61c1a4ea77d17412094979a5a09dd",
+    "latestFocusedSlice": "2026-06-01 supervisor batch: config includeIf realpath fallback and credential helper action-boundary parity deepen represented clusters; partial-clone empty promisor pack no-op maps +1 conservative upstream row. Full Gitoxide lane passed 40 files / 9626 assertions / 0 failures; mapped coverage moves 1796 -> 1797 / 2886; full upstream Cargo workspace was not executed."
 }

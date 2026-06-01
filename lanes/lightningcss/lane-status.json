@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "library": "LightningCSS",
     "estimatedProgress": 99.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS bundle/import graph, CSS Modules local/global compose, custom at-rule returned declaration-list visitor, media query range/layer, property value color/font/grid, and source-map VLQ offset follow-ups. Verification passed changed PHP lint, git diff --check, six changed example smokes, and full LightningCSS lane 13 files / 8070 assertions / 0 failures.",
-    "phpPass": 8070,
+    "suiteProgress": "Supervisor-integrated LightningCSS CSSOM font-style oblique angle read/write, media-query redundant calc range/layer normalization, and print-color-adjust stale prefix pruning on current base. Verification passed changed PHP lint, git diff --check, changed example smokes, and full LightningCSS lane 13 files / 8108 assertions / 0 failures.",
+    "phpPass": 8108,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics including malformed supports import rejection, malformed inline source-map suppression, inline input source-map generated-offset parity, source-map pruning, VLQ offsets including middle generated-line insertion, CSS Modules exports with escaped custom idents, :lang() and :dir() local/global compose parity, terminal pseudo-element selector boundaries, local/global compose diagnostics, and composes-before-nested ordering, custom at-rule parser/selector/function visitors including returned media exit traversal and returned declaration-list visitors, import media range tails after layer modifiers, media range/layer fallbacks including invalid percentage range recovery, SVG paint advanced-color fallbacks for fill/stroke, font-stretch/property value minification, grid property-value minification, nesting, unicode-bidi/place-alignment target prefix browser boundaries, and selector/logical target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 supervisor source 1a0db522af74: changed PHP lint passed; git diff --check passed; six changed LightningCSS examples passed; full LightningCSS PHP lane passed 13 files / 8070 assertions / 0 failures. Rust/Node/WASM upstream runners were not run.",
-    "currentWork": "Bundle/import graph, CSS Modules local/global compose, custom at-rule returned declaration-list visitor, media query range/layer, property value color/font/grid, and source-map VLQ offset parity integrated on current base.",
+    "audit": "2026-06-01 supervisor integration: changed PHP lint passed; git diff --check passed; LightningCSS examples wordpress-font-cssom.php, wordpress-media-calc-range-layer-prefixer.php, and wordpress-print-color-adjust-prefixer.php self-tests passed; full LightningCSS PHP lane passed 13 files / 8108 assertions / 0 failures after CSSOM font-style oblique angle, media-query redundant calc range/layer, and print-color-adjust stale-prefix parity. Rust/Node/WASM runners were not run.",
+    "currentWork": "CSSOM font-style oblique angle read/write, media-query redundant calc range/layer normalization, and print-color-adjust stale prefix pruning integrated on current base.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "1a0db522af743befb547f81889cff3320e672e68",
+    "latestCommit": "54e04a0ebdd61c1a4ea77d17412094979a5a09dd",
     "nextTask": "Keep LightningCSS workers on current-base source maps, bundle/import graph, media query, property value, CSSOM, CSS Modules, custom-at-rule, and target-prefix slices, with emphasis on upstream Rust/Node/WASM parity gaps that can be expressed in PHP.",
-    "commit": "1a0db522af743befb547f81889cff3320e672e68",
-    "latestFocusedSlice": "2026-06-01 supervisor batch: bundle/import graph maps +1 conservative upstream row; CSS Modules, custom at-rule, media query, property values, and source-map follow-ups deepen represented clusters. Full LightningCSS lane passed 13 files / 8070 assertions / 0 failures; mapped coverage moves 2392 -> 2393 / 3532; Rust/Node/WASM upstream runners were not executed."
+    "commit": "54e04a0ebdd61c1a4ea77d17412094979a5a09dd",
+    "latestFocusedSlice": "2026-06-01 supervisor batch: CSSOM font-style oblique, media-query redundant calc range/layer, and print-color-adjust stale-prefix parity deepen represented clusters. Full LightningCSS lane passed 13 files / 8108 assertions / 0 failures; conservative mapped coverage remains 2393 / 3532; Rust/Node/WASM upstream runners were not executed."
 }
