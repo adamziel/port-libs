@@ -282,8 +282,6 @@ $html = <<<HTML
     a { color: LinkText; }
     .table-wrap { overflow-x: auto; }
     table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 13px; line-height: 1.32; }
-    caption { caption-side: top; text-align: left; font-weight: 600; padding: 0 0 10px; }
-    caption span { color: color-mix(in srgb, CanvasText 68%, Canvas); font-weight: 400; }
     th, td { border: 1px solid color-mix(in srgb, CanvasText 16%, Canvas); padding: 7px 8px; text-align: left; vertical-align: top; }
     thead th { background: color-mix(in srgb, CanvasText 8%, Canvas); position: sticky; top: 0; }
     tbody th { background: color-mix(in srgb, CanvasText 3%, Canvas); white-space: nowrap; }
@@ -294,8 +292,7 @@ $html = <<<HTML
 </head>
 <body>
   <div class="table-wrap">
-    <table>
-      <caption>Native PHP Porting Progress <span>generated {$escape($generated)} from source {$escape($sourceCommitShort)}; average {$escape(number_format($average, 1))}%</span></caption>
+    <table aria-label="Native PHP porting progress">
       <thead>
         <tr>
           <th>Project</th>
