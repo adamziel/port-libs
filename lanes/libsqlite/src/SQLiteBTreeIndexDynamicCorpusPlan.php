@@ -5124,6 +5124,170 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function withoutRowid4TriggerOrderCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite without_rowid4 trigger-order corpus requires at least one case');
+        }
+
+        $tableDefinitions = [
+            [
+                'definition' => 1,
+                'schema' => 'main',
+                'table_definition' => 'CREATE TABLE tbl (a INTEGER PRIMARY KEY, b) WITHOUT rowid',
+                'primary_key' => ['a'],
+                'secondary_index' => null,
+            ],
+            [
+                'definition' => 2,
+                'schema' => 'main',
+                'table_definition' => 'CREATE TABLE tbl (a, b PRIMARY KEY) WITHOUT rowid',
+                'primary_key' => ['b'],
+                'secondary_index' => null,
+            ],
+            [
+                'definition' => 3,
+                'schema' => 'main',
+                'table_definition' => 'CREATE TABLE tbl (a PRIMARY KEY, b) WITHOUT rowid; CREATE INDEX tbl_idx ON tbl(b)',
+                'primary_key' => ['a'],
+                'secondary_index' => 'tbl_idx ON tbl(b)',
+            ],
+            [
+                'definition' => 4,
+                'schema' => 'temp',
+                'table_definition' => 'CREATE TEMP TABLE tbl (a PRIMARY KEY, b) WITHOUT rowid; CREATE INDEX tbl_idx ON tbl(b)',
+                'primary_key' => ['a'],
+                'secondary_index' => 'tbl_idx ON tbl(b)',
+            ],
+            [
+                'definition' => 5,
+                'schema' => 'temp',
+                'table_definition' => 'CREATE TEMP TABLE tbl (a PRIMARY KEY, b) WITHOUT rowid',
+                'primary_key' => ['a'],
+                'secondary_index' => null,
+            ],
+            [
+                'definition' => 6,
+                'schema' => 'temp',
+                'table_definition' => 'CREATE TEMPORARY TABLE tbl (a INTEGER PRIMARY KEY, b) WITHOUT rowid',
+                'primary_key' => ['a'],
+                'secondary_index' => null,
+            ],
+        ];
+
+        $actions = [
+            [
+                'action' => 'update',
+                'action_index' => 1,
+                'statement' => 'UPDATE tbl SET a = a * 10, b = b * 10',
+                'pre_statement_sum' => ['a' => 4, 'b' => 6],
+                'final_sum' => ['a' => 40, 'b' => 60],
+                'final_rows' => [[10, 20], [30, 40]],
+                'trigger_events' => [
+                    self::withoutRowid4TriggerEvent('before_update_row', 1, [1, 2], [4, 6], [10, 20]),
+                    self::withoutRowid4TriggerEvent('after_update_row', 2, [1, 2], [13, 24], [10, 20]),
+                    self::withoutRowid4TriggerEvent('before_update_row', 3, [3, 4], [13, 24], [30, 40]),
+                    self::withoutRowid4TriggerEvent('after_update_row', 4, [3, 4], [40, 60], [30, 40]),
+                    self::withoutRowid4TriggerEvent('conditional_update_row', 1, [1, 2], [13, 24], [10, 20]),
+                ],
+                'conditional_event_count' => 1,
+            ],
+            [
+                'action' => 'delete',
+                'action_index' => 2,
+                'statement' => 'DELETE FROM tbl',
+                'pre_statement_sum' => ['a' => 400, 'b' => 300],
+                'final_sum' => ['a' => 0, 'b' => 0],
+                'final_rows' => [],
+                'trigger_events' => [
+                    self::withoutRowid4TriggerEvent('delete_before_row', 1, [100, 100], [400, 300], [0, 0]),
+                    self::withoutRowid4TriggerEvent('delete_after_row', 2, [100, 100], [300, 200], [0, 0]),
+                    self::withoutRowid4TriggerEvent('delete_before_row', 3, [300, 200], [300, 200], [0, 0]),
+                    self::withoutRowid4TriggerEvent('delete_after_row', 4, [300, 200], [0, 0], [0, 0]),
+                ],
+                'conditional_event_count' => 0,
+            ],
+            [
+                'action' => 'insert',
+                'action_index' => 3,
+                'statement' => 'INSERT INTO tbl VALUES(5, 6)',
+                'pre_statement_sum' => ['a' => 0, 'b' => 0],
+                'final_sum' => ['a' => 5, 'b' => 6],
+                'final_rows' => [[5, 6]],
+                'trigger_events' => [
+                    self::withoutRowid4TriggerEvent('insert_before_row', 1, [0, 0], [0, 0], [5, 6]),
+                    self::withoutRowid4TriggerEvent('insert_after_row', 2, [0, 0], [5, 6], [5, 6]),
+                ],
+                'conditional_event_count' => 0,
+            ],
+        ];
+
+        $templates = [];
+        foreach ($tableDefinitions as $tableDefinition) {
+            foreach ($actions as $action) {
+                $templates[] = [$tableDefinition, $action];
+            }
+        }
+
+        $rows = [];
+        $templateCount = count($templates);
+        for ($case = 1; $case <= $cases; $case++) {
+            [$tableDefinition, $action] = $templates[($case - 1) % $templateCount];
+            $batch = intdiv($case - 1, $templateCount) + 1;
+            $definition = $tableDefinition['definition'];
+            $actionIndex = $action['action_index'];
+            $upstreamSection = 'without_rowid4-1.' . $definition . '.' . $actionIndex;
+
+            $rows[] = [
+                'source' => 'without_rowid4.test section without_rowid4-1.1 through without_rowid4-1.6.3',
+                'upstream_file' => 'test/without_rowid4.test',
+                'case' => $case,
+                'batch' => $batch,
+                'upstream_section' => $upstreamSection,
+                'scenario' => 'WITHOUT ROWID ' . $action['action'] . ' trigger order for table definition ' . $definition . ' dynamic batch ' . $batch,
+                'statement' => $action['statement'],
+                'table_definition' => $tableDefinition['table_definition'],
+                'schema' => $tableDefinition['schema'],
+                'temp_table' => $tableDefinition['schema'] === 'temp',
+                'without_rowid' => true,
+                'primary_key' => $tableDefinition['primary_key'],
+                'secondary_index' => $tableDefinition['secondary_index'],
+                'action' => $action['action'],
+                'pre_statement_sum' => $action['pre_statement_sum'],
+                'final_sum' => $action['final_sum'],
+                'final_rows' => $action['final_rows'],
+                'trigger_events' => $action['trigger_events'],
+                'event_count' => count($action['trigger_events']),
+                'conditional_event_count' => $action['conditional_event_count'],
+                'recursive_triggers' => false,
+                'integrity' => 'ok',
+                'detail' => $upstreamSection . ' preserves BEFORE/AFTER row-trigger visibility on WITHOUT ROWID storage',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<int> $old
+     * @param list<int> $dbSum
+     * @param list<int> $new
+     * @return array{trigger:string,idx:int,old:array{a:int,b:int},db_sum:array{a:int,b:int},new:array{a:int,b:int}}
+     */
+    private static function withoutRowid4TriggerEvent(string $trigger, int $idx, array $old, array $dbSum, array $new): array
+    {
+        return [
+            'trigger' => $trigger,
+            'idx' => $idx,
+            'old' => ['a' => $old[0], 'b' => $old[1]],
+            'db_sum' => ['a' => $dbSum[0], 'b' => $dbSum[1]],
+            'new' => ['a' => $new[0], 'b' => $new[1]],
+        ];
+    }
+
+    /**
      * @return list<array{source:string,upstream_file:string,case:int,batch:int,upstream_section:string,scenario:string,statement:string,table:string,without_rowid:bool,primary_key:list<string>,keyword_variant:string|null,rowid_aliases_present:list<string>,selected_alias:string|null,result_code:int,error:string|null,result_rows:list<array<int,mixed>>,conflict_policy:string|null,integer_primary_key_is_rowid_alias:bool,autoincrement:bool,uses_incremental_blob:bool,integrity:string}>
      */
     public static function withoutRowid5RequirementsCases(int $cases = 1200): array

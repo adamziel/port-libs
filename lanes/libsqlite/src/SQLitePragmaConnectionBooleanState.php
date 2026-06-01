@@ -14,6 +14,7 @@ final class SQLitePragmaConnectionBooleanState
         'checkpoint_fullfsync' => false,
         'count_changes' => false,
         'defer_foreign_keys' => false,
+        'empty_result_callbacks' => false,
         'foreign_keys' => false,
         'full_column_names' => false,
         'fullfsync' => false,
