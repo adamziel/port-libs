@@ -225,6 +225,15 @@ return [
     'planner stat4 late current source fences are source neutral' => static fn (TestRunner $t) => $t->same([], $domainMatches($lateCurrentSourceFenceMethods)),
     'planner stat4 prepared handoff windows are source neutral' => static fn (TestRunner $t) => $t->same([], $domainMatches($preparedHandoffWindowMethods)),
     'planner stat4 prepared handoff key column uses generic metadata' => static fn (TestRunner $t) => $t->same('key_name', $callPrivate('keyColumnForPreparedHandoff', ['indexes' => [$genericIndex]])),
+    'planner stat4 selected key fields reject stale selected index name' => static fn (TestRunner $t) => $t->throws(
+        InvalidArgumentException::class,
+        static fn () => $callPrivate(
+            'keyColumnForStat4ExpressionPartialHandoff',
+            ['indexes' => [$genericIndex + ['name' => 'idx_app_settings_lower_name']]],
+            'source-neutral selected index',
+            'idx_missing_settings_key_fields'
+        )
+    ),
     'planner stat4 prepared handoff expression key uses generic row field' => static fn (TestRunner $t) => $t->same('module_zulu', $callPrivate('expressionKeyForPreparedHandoff', ['key_name' => 'Module_Zulu', 'tenant_id' => 1], 'key_name')),
     'planner stat4 current range expression uses generic lower key field' => static fn (TestRunner $t) => $t->same('module_zulu', $callPrivate('expressionValueStat4CurrentRange', ['key_name' => 'Module_Zulu'], 'lower(key_name)')),
     'planner stat4 current range json expression uses generic value field' => static fn (TestRunner $t) => $t->same('search', $callPrivate('expressionValueStat4CurrentRange', ['key_value' => '{"module":"search"}'], 'json_extract(key_value,$.module)')),

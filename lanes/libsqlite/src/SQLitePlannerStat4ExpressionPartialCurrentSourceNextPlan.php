@@ -33558,6 +33558,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     return $index;
                 }
             }
+
+            throw new \InvalidArgumentException("SQLite " . $label . " selected index key fields are missing");
         }
 
         foreach ($indexes as $index) {
