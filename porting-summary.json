@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 10:10:28 UTC",
-    "sourceCommit": "53e29b9d405a75f74b28b5e8c41caeb3029d908c",
-    "sourceCommitShort": "53e29b9d405a",
+    "generated": "2026-06-01 10:13:51 UTC",
+    "sourceCommit": "58c721daebd4b9ab9498cb7095f7367eed32186b",
+    "sourceCommitShort": "58c721daebd4",
     "sourceBranch": "unknown",
-    "dashboardCommit": "53e29b9d405a75f74b28b5e8c41caeb3029d908c",
-    "dashboardCommitShort": "53e29b9d405a",
+    "dashboardCommit": "58c721dae023fb7eda238f55c6a08eba56f1469a",
+    "dashboardCommitShort": "58c721dae023",
     "averageProgressPercent": "88.7",
     "lanes": [
         {
@@ -19,12 +19,12 @@
             "mapped": "1589",
             "coverage": "1,589 / 1,589",
             "php": "5,792,118 pass / 7 fail",
-            "phase": "source-neutral JSON UPSERT migration option-class cleanup accepted; b...",
-            "audit": "2026-06-01 supervisor batch: accepted source 53e29b9d405a with source...",
-            "currentWork": "Source-neutral JSON UPSERT migration defaults now use generic key_value, key_name, and load_policy rows on curren...",
+            "phase": "real upstream expression-affinity exprfault coverage accepted; broad...",
+            "audit": "2026-06-01 supervisor batch: accepted source 58c721dae with real upst...",
+            "currentWork": "Real upstream expression-affinity exprfault coverage integrated on current base.",
             "nextTarget": "Continue broad release/all parity blockers, source-neutral cl...",
             "remainingGate": "Broad release/all still has 7 known failures",
-            "commit": "53e29b9"
+            "commit": "58c721d"
         },
         {
             "lane": "lightningcss",
@@ -32,18 +32,18 @@
             "queue": "Active",
             "state": "PHP green; upstream gap",
             "progressPercent": "99.8",
-            "suite": "current-base LightningCSS source-map and target-prefix followup batch",
-            "benchmark": "current-base LightningCSS source-map and target-prefix followup batch",
+            "suite": "current-base LightningCSS media-query and CSS Modules followup batch",
+            "benchmark": "current-base LightningCSS media-query and CSS Modules followup batch",
             "denominator": "3532",
             "mapped": "2365",
             "coverage": "2,365 / 3,532",
-            "php": "7,334 pass / 0 fail",
+            "php": "7,365 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor batch: accepted source 53e29b9d405a with source...",
-            "currentWork": "Source-map rejected child merge parity and WebKit shape property target-prefix browser-boundary parity integrated...",
+            "audit": "2026-06-01 supervisor batch: accepted source 58c721dae with media-que...",
+            "currentWork": "Media-query range/layer parity and CSS Modules local/global compose parity integrated on current base.",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, CSS Mo...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "53e29b9"
+            "commit": "58c721d"
         },
         {
             "lane": "gitoxide",
