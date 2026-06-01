@@ -2,16 +2,16 @@
   "schemaVersion": 1,
   "library": "libsqlite",
   "estimatedProgress": 99.5,
-  "suiteProgress": "Supervisor-integrated libsqlite real upstream window1 mixed RANGE dynamic corpus coverage plus source-neutral STAT4 expression/key-field cleanup. Verification passed PHP lint, git diff --check, focused libsqlite gate 3 files / 6027 assertions / 0 failures, and no-domain guard coverage.",
-  "phpPass": 5630934,
+  "suiteProgress": "Supervisor-integrated libsqlite real upstream triggerC active-scan DROP TRIGGER dynamic corpus coverage plus no-domain guard evidence. Verification passed PHP lint, git diff --check, focused libsqlite gate 2 files / 8001 assertions / 0 failures, and no-domain guard coverage.",
+  "phpPass": 5638930,
   "phpFail": 7,
   "wordpressScenarios": "Generic application/self-test coverage now includes source-neutral application option/view defaults, skipscan2 optoverview people/height skip-scan thresholds, PRAGMA trusted_schema schema-function safety, e_select2 derived-source SELECT joins, expression-affinity comparison, IN-list semantics, and bound NaN/Inf truth coercion, WAL rollback JSON tails and checkpoint-followup tail recovery, key-value WAL import cleanup, FK parent-index diagnostics, row-value UPDATE/DELETE LIMIT execution including random() expressions, master-journal WAL pager behavior, PRAGMA lock_proxy_file and data_store_directory handling, SELECT/window planner behavior, trigger/fkey limits, date/time modifier behavior including timediff1 leap/common month overflow, B-tree left-join/index/delete guards, JSON/JSONB update/subtype/char-built validity behavior, VFS fallocate/shared-lock/batch-atomic lifecycle and win32lock retry behavior, pager WAL reused-log prefix recovery, pager crash recovery, and app-WAL post-checkpoint tail recovery. No domain-specific libsqlite API is accepted.",
   "phase": "focused real-corpus and source-neutral coverage accepted; broad full-lane and release/all parity remain open",
-  "audit": "2026-06-01 supervisor followup: accepted source 33cea199 with real upstream window1 mixed RANGE dynamic corpus coverage and source-neutral STAT4 expression/key-field cleanup. Focused libsqlite gate passed 3 files / 6027 assertions / 0 failures. Mapped denominator remains 1589 / 1589; cumulative selected pass count increases by 6017 focused PASS cases from this batch.",
-  "currentWork": "Real upstream window1 mixed RANGE dynamic corpus coverage and source-neutral STAT4 expression/key-field cleanup integrated on current base.",
+  "audit": "2026-06-01 supervisor followup: accepted source 811f5d6b with real upstream triggerC active-scan DROP TRIGGER dynamic corpus coverage. Focused libsqlite gate passed 2 files / 8001 assertions / 0 failures. Mapped denominator remains 1589 / 1589; cumulative selected pass count increases by 7996 focused PASS cases from this batch.",
+  "currentWork": "Real upstream triggerC active-scan DROP TRIGGER dynamic corpus coverage integrated on current base.",
   "blocker": "Broad libsqlite full-lane/release parity is not green: seven known failures remain in sampled broad gates, and release/all parity still needs a current clean run before libsqlite can be declared complete.",
   "nextTask": "Continue broad release/all parity blockers, source-neutral cleanup of remaining CurrentSourceNext/CurrentNext/numbered-plan names, PDO trust-underlying-lib cleanup, and non-overlapping real-corpus JSON, upsert, cast/LIKE, trigger, B-tree/index, STAT4, expression, VFS, WAL, pager, PRAGMA, and date/time coverage.",
-  "wordpressScenarioLatest": "Latest accepted batch adds generic real upstream window1 mixed RANGE dynamic coverage plus source-neutral STAT4 expression/key-field cleanup without adding domain-specific libsqlite APIs. No-domain guard coverage remains required before each libsqlite batch.",
-  "latestCommit": "33cea199fc65307dd614e23c3b9200fd3b055464",
-  "commit": "33cea199"
+  "wordpressScenarioLatest": "Latest accepted batch adds generic real upstream triggerC active-scan DROP TRIGGER dynamic coverage without adding domain-specific libsqlite APIs. No-domain guard coverage remains required before each libsqlite batch.",
+  "latestCommit": "811f5d6b83ee52b766cc41e0a53273a78acf91cd",
+  "commit": "811f5d6b"
 }

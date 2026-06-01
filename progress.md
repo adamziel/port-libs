@@ -55,6 +55,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor followup (credential/promisor/CSS/trigger replay intake):
+  accepted source commit `811f5d6b83ee52b766cc41e0a53273a78acf91cd`
+  (`Integrate credential promisor css sqlite handoffs`). Gitoxide added
+  credential helper outcome result parity and partial-clone promisor
+  external-delta recursion boundary parity; full Gitoxide verification passed
+  `40 files / 8026 assertions / 0 failures` and conservative mapped coverage
+  moves to `1763 / 2886`. LightningCSS added bundle import graph resolution
+  followup and source-map VLQ offset/sort boundary parity; full LightningCSS
+  verification passed `13 files / 6721 assertions / 0 failures`, mapped
+  coverage remains `2360 / 3532`. libsqlite added real upstream
+  `triggerC.test` active-scan `DROP TRIGGER` dynamic corpus coverage; focused
+  verification passed `2 files / 8001 assertions / 0 failures`, selected
+  evidence moves to `5638930 pass / 7 fail`, and mapped coverage remains
+  `1589 / 1589`. Full upstream Cargo/Rust/Node/WASM/release-all runners remain
+  honestly unclaimed. Four overlapping handoffs remain parked for reconcile:
+  LightningCSS custom-at-rules, property-values, source-map, and libsqlite
+  source-neutral encoding.
+
 - 2026-06-01 supervisor followup (pack/SSH/tree/CSS/window replay intake):
   accepted source commit `33cea199fc65307dd614e23c3b9200fd3b055464`
   (`Integrate git css sqlite parity handoffs`). Gitoxide added pack-index/MIDX
