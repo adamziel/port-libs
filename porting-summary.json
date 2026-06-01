@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 09:34:34 UTC",
-    "sourceCommit": "93ca7494c896f5d719fa34b29c45044d51d9751c",
-    "sourceCommitShort": "93ca7494c896",
+    "generated": "2026-06-01 09:36:58 UTC",
+    "sourceCommit": "5bccafbbc481bec60793bc62fb0fa0728a0d9355",
+    "sourceCommitShort": "5bccafbbc481",
     "sourceBranch": "unknown",
-    "dashboardCommit": "93ca7494c896f5d719fa34b29c45044d51d9751c",
-    "dashboardCommitShort": "93ca7494c896",
+    "dashboardCommit": "5bccafbbc481bec60793bc62fb0fa0728a0d9355",
+    "dashboardCommitShort": "5bccafbbc481",
     "averageProgressPercent": "88.6",
     "lanes": [
         {
@@ -18,13 +18,13 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1,589 / 1,589",
-            "php": "5,791,113 pass / 7 fail",
-            "phase": "json102 subtype, WAL checkpoint-boundary, and source-neutral cast/lik...",
-            "audit": "2026-06-01 supervisor batch: accepted source 87df2af69228 with json10...",
-            "currentWork": "json102 subtype SELECT SQL, WAL checkpoint-boundary real-corp...",
+            "php": "5,792,118 pass / 7 fail",
+            "phase": "upsert1-500 UPSERT RETURNING literal SELECT coverage accepted; broad...",
+            "audit": "2026-06-01 supervisor batch: accepted source 5bccafbbc481 with upstre...",
+            "currentWork": "Upstream upsert1-500 UPSERT RETURNING literal SELECT coverage...",
             "nextTarget": "Continue broad release/all parity blockers, source-neutral cl...",
             "remainingGate": "Broad release/all still has 7 known failures",
-            "commit": "87df2af"
+            "commit": "5bccafb"
         },
         {
             "lane": "lightningcss",
@@ -37,13 +37,13 @@
             "denominator": "3532",
             "mapped": "2365",
             "coverage": "2,365 / 3,532",
-            "php": "7,192 pass / 0 fail",
+            "php": "7,207 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor batch: accepted source 93ca7494c896 with media-...",
-            "currentWork": "Media-query range/layer calc multiplication/division parity a...",
+            "audit": "2026-06-01 supervisor batch: accepted source 5bccafbbc481 with CSSOM...",
+            "currentWork": "CSSOM text-decoration-skip-ink and text-emphasis-position rea...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, CSS Mo...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "93ca749"
+            "commit": "5bccafb"
         },
         {
             "lane": "gitoxide",

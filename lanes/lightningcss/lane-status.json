@@ -2,15 +2,15 @@
     "schemaVersion": 1,
     "library": "LightningCSS",
     "estimatedProgress": 99.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS media-query range/layer calc multiplication/division parity and unitless math fallback preservation. Verification passed changed PHP lint, git diff --cached --check, changed example smoke, and full LightningCSS lane 13 files / 7192 assertions / 0 failures.",
-    "phpPass": 7192,
+    "suiteProgress": "Supervisor-integrated LightningCSS CSSOM text-decoration-skip-ink and text-emphasis-position read/write canonicalization. Verification passed changed PHP lint, git diff --cached --check, changed example smoke, and full LightningCSS lane 13 files / 7207 assertions / 0 failures.",
+    "phpPass": 7207,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics including malformed supports import rejection, source-map pruning and rejected child merge behavior, CSS Modules exports with escaped custom idents and terminal pseudo-element selector boundaries, custom at-rule parser/selector/function visitors, media range/layer fallbacks, SVG paint advanced-color fallbacks for fill/stroke, stale selector prefix pruning for :read-only/:fullscreen boundaries, direct and legacy flex CSSOM declaration canonicalization, grid property-value minification, nesting, unicode-bidi target prefix browser boundaries, and selector/logical target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 supervisor batch: accepted source 93ca7494c896 with media-query range/layer calc multiplication/division parity and unitless math fallback preservation. Full LightningCSS lane passed 13 files / 7192 assertions / 0 failures; full upstream Rust/Node/WASM runners were not executed.",
-    "currentWork": "Media-query range/layer calc multiplication/division parity and unitless math fallback preservation integrated on current base.",
+    "audit": "2026-06-01 supervisor batch: accepted source 5bccafbbc481 with CSSOM text-decoration-skip-ink and text-emphasis-position read/write canonicalization. Full LightningCSS lane passed 13 files / 7207 assertions / 0 failures; full upstream Rust/Node/WASM runners were not executed.",
+    "currentWork": "CSSOM text-decoration-skip-ink and text-emphasis-position read/write canonicalization integrated on current base.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "93ca7494c896f5d719fa34b29c45044d51d9751c",
+    "latestCommit": "5bccafbbc481bec60793bc62fb0fa0728a0d9355",
     "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom-at-rule, and target-prefix slices; rebase stale overlapping handoffs before retry.",
-    "commit": "93ca7494c896f5d719fa34b29c45044d51d9751c"
+    "commit": "5bccafbbc481bec60793bc62fb0fa0728a0d9355"
 }
