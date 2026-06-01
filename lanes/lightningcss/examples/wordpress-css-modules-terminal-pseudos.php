@@ -1,0 +1,92 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\LightningCSS\CssModulesTransformer;
+
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+$css = <<<'CSS'
+.block {
+  composes: reset;
+  color: red;
+}
+
+.block::selection {
+  background: var(--wp--preset--color--contrast);
+  color: white;
+}
+
+:global(.wp-block-list)::marker {
+  color: currentColor;
+}
+
+.reset {
+  margin: 0;
+}
+CSS;
+
+$transformer = new CssModulesTransformer();
+$result = $transformer->transform($css, [
+    'hash' => 'BlockA',
+]);
+
+$invalid = [];
+foreach ([
+    '.block::selection .child { color: red }',
+    ':global(.wp-block-list::marker .child) .block { color: red }',
+] as $source) {
+    try {
+        $transformer->transform($source, [
+            'hash' => 'BlockA',
+        ]);
+        $invalid[$source] = 'accepted';
+    } catch (InvalidArgumentException $exception) {
+        $invalid[$source] = $exception->getMessage();
+    }
+}
+
+$actual = [
+    'code' => $result['code'],
+    'exports' => $result['exports'],
+    'blockClassList' => CssModulesTransformer::exportClassList($result['exports'], 'block'),
+    'invalid' => $invalid,
+];
+
+$expected = [
+    'code' => '.BlockA_block{color:red}.BlockA_block::selection{background:var(--wp--preset--color--contrast);color:#fff}.wp-block-list::marker{color:currentColor}.BlockA_reset{margin:0}',
+    'exports' => [
+        'block' => [
+            'name' => 'BlockA_block',
+            'composes' => [
+                [
+                    'type' => 'local',
+                    'name' => 'BlockA_reset',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
+        'reset' => [
+            'name' => 'BlockA_reset',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+    ],
+    'blockClassList' => 'BlockA_block BlockA_reset',
+    'invalid' => [
+        '.block::selection .child { color: red }' => 'CSS pseudo-elements cannot be followed by selectors',
+        ':global(.wp-block-list::marker .child) .block { color: red }' => 'CSS pseudo-elements cannot be followed by selectors',
+    ],
+];
+
+if (($argv[1] ?? null) === '--self-test') {
+    if ($actual !== $expected) {
+        fwrite(STDERR, "Unexpected CSS Modules terminal pseudo output:\n" . var_export($actual, true) . "\n");
+        exit(1);
+    }
+
+    echo "OK\n";
+    exit(0);
+}
+
+echo json_encode($actual, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

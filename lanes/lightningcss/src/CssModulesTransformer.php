@@ -2087,6 +2087,41 @@ final class CssModulesTransformer
             ];
         }
 
+        if ($colonLength === 2 && in_array($name, [
+            'details-content',
+            'target-text',
+            'search-text',
+            'selection',
+            '-moz-selection',
+            'placeholder',
+            '-webkit-input-placeholder',
+            '-moz-placeholder',
+            '-ms-input-placeholder',
+            'marker',
+            'backdrop',
+            '-webkit-backdrop',
+            'file-selector-button',
+            '-webkit-file-upload-button',
+            '-ms-browse',
+            '-webkit-scrollbar',
+            '-webkit-scrollbar-button',
+            '-webkit-scrollbar-track',
+            '-webkit-scrollbar-track-piece',
+            '-webkit-scrollbar-thumb',
+            '-webkit-scrollbar-corner',
+            '-webkit-resizer',
+            'picker-icon',
+            'checkmark',
+            'view-transition',
+            'grammar-error',
+            'spelling-error',
+        ], true)) {
+            return [
+                'end' => $token['end'],
+                'allowPseudoClasses' => true,
+            ];
+        }
+
         if (!in_array($name, ['before', 'after', 'first-letter', 'first-line'], true)) {
             return null;
         }

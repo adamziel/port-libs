@@ -29,6 +29,7 @@ $homeMirrorExpandedPath = GitUrl::expandHomePath(
 $relativeMirror = GitUrl::parse($fixture['relativeMirrorUrl']);
 $relativeMirrorCanonical = $relativeMirror->canonicalized($fixture['relativeMirrorCurrentDirectory']);
 $customHelperRemote = GitUrl::parse($fixture['customHelperRemoteUrl']);
+$unicodeRemote = GitUrl::parse($fixture['unicodeRemoteUrl']);
 $credentialRemote = GitUrl::parse($fixture['credentialRemoteUrl'])
     ->withUser($fixture['credentialRemoteUser'])
     ->withPassword($fixture['credentialRemotePassword']);
@@ -122,6 +123,7 @@ $summary = [
     'relativeMirrorCanonical' => $relativeMirrorCanonical->toArray(),
     'customHelperRemote' => $customHelperRemote->toArray(),
     'customHelperRemotePathArgumentSafe' => $customHelperRemote->pathArgumentSafe(),
+    'unicodeRemote' => $unicodeRemote->toArray(),
     'credentialRemote' => $credentialRemote->toArray(),
     'credentialRemoteDisplay' => $credentialRemote->display(),
     'credentialRemoteRoundtrip' => $credentialRemoteRoundtrip->toArray(),
@@ -212,6 +214,15 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if ($summary['customHelperRemotePathArgumentSafe'] !== $fixture['expectedCustomHelperRemotePathArgumentSafe']) {
         throw new RuntimeException('Unexpected custom helper remote path safety');
+    }
+    if ($summary['unicodeRemote']['user'] !== $fixture['expectedUnicodeRemoteUser']) {
+        throw new RuntimeException('Unexpected Unicode deployment remote user');
+    }
+    if ($summary['unicodeRemote']['path'] !== $fixture['expectedUnicodeRemotePath']) {
+        throw new RuntimeException('Unexpected Unicode deployment remote path');
+    }
+    if ($summary['unicodeRemote']['normalized'] !== $fixture['expectedUnicodeRemoteUrl']) {
+        throw new RuntimeException('Unexpected Unicode deployment remote normalized URL');
     }
     if ($summary['credentialRemote']['normalized'] !== $fixture['expectedCredentialRemoteUrl']) {
         throw new RuntimeException('Unexpected credential remote normalized URL');

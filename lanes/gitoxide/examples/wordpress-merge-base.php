@@ -96,6 +96,10 @@ $shallowPairwiseBase = $timeOnlyFinder->mergeBase(
     $fixture['shallowPluginReview'],
     $fixture['shallowThemeReview'],
 );
+$shallowStableIntersectionBases = $timeOnlyFinder->mergeBasesMany([
+    $fixture['shallowPluginReview'],
+    $fixture['shallowThemeReview'],
+]);
 $shallowMissingArchiveBase = $timeOnlyFinder->mergeBaseAgainst(
     $fixture['shallowPluginReview'],
     $fixture['shallowMissingArchiveGraphWalkOthers'],
@@ -246,11 +250,15 @@ return [
     'shallowGraphWalkBase' => $shallowGraphWalkBase,
     'shallowCommitGraphBase' => $shallowCommitGraphBase,
     'shallowPairwiseBase' => $shallowPairwiseBase,
+    'shallowStableIntersectionBases' => $shallowStableIntersectionBases,
     'shallowMissingArchiveBase' => $shallowMissingArchiveBase,
     'shallowReleaseBaseline' => $fixture['shallowReleaseBaseline'],
     'shallowGraphWalkStopsAtReleaseBaseline' => $shallowGraphWalkBase === $fixture['shallowReleaseBaseline'],
     'shallowCommitGraphUsesMetadata' => $shallowCommitGraphBase === $fixture['shallowReleaseBaseline'],
     'shallowPairwiseStopsAtReleaseBaseline' => $shallowPairwiseBase === $fixture['shallowReleaseBaseline'],
+    'shallowStableIntersectionSkipsMissingParent' => $shallowStableIntersectionBases === [
+        $fixture['shallowReleaseBaseline'],
+    ],
     'shallowMissingArchiveParentIsSkipped' => $shallowMissingArchiveBase === $fixture['shallowReleaseBaseline'],
     'timestampSkewHeads' => $fixture['timestampSkewHeads'],
     'timestampSkewBase' => $timestampSkewBase,

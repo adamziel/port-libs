@@ -1708,3 +1708,30 @@ URL/refspec from-parts parity slice prepared on 2026-06-01:
   `git diff --check -- lanes/gitoxide` passed. Full Gitoxide lane, root
   harness, and upstream Cargo workspace were not executed.
 - Expected mapped denominator movement: `1749 / 2886` to `1750 / 2886`.
+
+Merge-base stable shallow intersection slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-merge-base-graph-walk-parity-20260601T084859Z` on
+  accepted base `6c5f68290192c5bf57e0f3c2cca80b604bf38511` deepens the
+  represented `gix_revision::merge_base` missing-parent graph-walk behavior
+  for the PHP stable all-head helper.
+- Source truth: upstream Gitoxide
+  `gix-revision/src/merge_base/function.rs` only queues parents when
+  `Graph::get_or_insert_full_commit()` returns an inserted/existing commit;
+  `gix-revwalk/src/graph/mod.rs` documents missing parent commits being skipped
+  for shallow repositories.
+- Native PHP delta: `MergeBaseFinder::ancestorsWithDistance()` now confirms a
+  parent commit exists before recording it as reachable, so `mergeBasesMany()`
+  does not pin absent shallow/promisor parents into the all-head intersection.
+  The WordPress merge-base example now exposes the shallow plugin/theme stable
+  intersection and keeps the release baseline.
+- Verification: red-first one-line PHP probe failed with
+  `RuntimeException: Missing commit object: e0e0...`; after implementation,
+  focused `MergeBaseTest.php` passed `1 test files, 421 assertions, 0
+  failures`, full Gitoxide lane passed `40 test files, 8330 assertions, 0
+  failures`, changed PHP lint and example smoke passed, and
+  `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace runner was
+  not executed.
+- Expected mapped denominator movement: conservative mapped coverage remains
+  `1773 / 2886`; this deepens the already represented merge-base shallow graph
+  walk cluster.

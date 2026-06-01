@@ -1936,6 +1936,44 @@ return [
         $t->same([], $child->getSources());
         $t->same('', $child->writeVlq());
     },
+    'source map replaces parent lines with trailing empty child spans after kept mappings' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $entry = $parent->addSource('entry.css');
+        foreach ([0, 1, 2, 3, 4, 5] as $line) {
+            $parent->addMapping($line, 0, $entry, $line, 0, 'parent' . $line);
+        }
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('tail-child.css');
+        $child->setSourceContent($childSource, ".tail-a{}\n.tail-b{}\n");
+        $child->addMapping(0, 0, $childSource, 0, 0, 'tailA');
+        $child->addMapping(1, 0, $childSource, 1, 0, 'tailB');
+        $child->offsetLines(2, 2);
+
+        $t->same('AAAAA;AACAC;;', $child->writeVlq());
+
+        $parent->addSourceMap($child, 1);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $data = $parent->toArray(null, false);
+        $roundTrip = SourceMap::fromBuffer('/', $parent->toBuffer());
+
+        $t->same('AAAAA;ACAAM;AACAC;;;ADIAF', $parent->writeVlq());
+        $t->same([0, 1, 2, 5], array_column($decoded, 'generatedLine'));
+        $t->same([0, 0, 0, 0], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 1, 1, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 0, 1, 5], array_column($decoded, 'originalLine'));
+        $t->same([0, 0, 0, 0], array_column($decoded, 'originalColumn'));
+        $t->same([0, 6, 7, 5], array_column($decoded, 'nameIndex'));
+        $t->same(['entry.css', 'tail-child.css'], $data['sources']);
+        $t->same(['', ".tail-a{}\n.tail-b{}\n"], $data['sourcesContent']);
+        $t->same(['parent0', 'parent1', 'parent2', 'parent3', 'parent4', 'parent5', 'tailA', 'tailB'], $data['names']);
+        $t->same(null, $parent->findClosestMapping(3, 0));
+        $t->same(5, $parent->findClosestMapping(5, 0)['originalLine'] ?? null);
+        $t->same('AAAAA;ACAAM;AACAC;;;ADIAF', $roundTrip->writeVlq());
+        $t->same([], $child->getSources());
+        $t->same([], $child->getNames());
+        $t->same('', $child->writeVlq());
+    },
     'source map applies negative offsets to leading empty child spans before kept mappings' => static function (TestRunner $t): void {
         $parent = new SourceMap();
         $entry = $parent->addSource('entry.css');

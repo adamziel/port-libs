@@ -165,6 +165,16 @@ return [
         $t->same('/path/with spaces/file?token=abc#frag', $encodedPath->path());
         $t->same('https://example.com/path/with%20spaces/file?token=abc#frag', $encodedPath->toBytes());
 
+        $unicodePath = GitUrl::parse('https://example.com/wp-content/caf%C3%A9-plugin.git');
+        $t->same("/wp-content/caf\xC3\xA9-plugin.git", $unicodePath->path());
+        $t->same("https://example.com/wp-content/caf\xC3\xA9-plugin.git", $unicodePath->toBytes());
+
+        $unicodeCredentials = GitUrl::parse('https://deploy%C3%A9:p%C3%A4ss@example.com/repo.git');
+        $t->same("deploy\xC3\xA9", $unicodeCredentials->user());
+        $t->same("p\xC3\xA4ss", $unicodeCredentials->password());
+        $t->same("https://deploy\xC3\xA9:p\xC3\xA4ss@example.com/repo.git", $unicodeCredentials->toBytes());
+        $t->same("https://deploy\xC3\xA9:redacted@example.com/repo.git", $unicodeCredentials->display());
+
         $percent = GitUrl::parse('https://%20@%40:example.org/%20%25');
         $t->same(' ', $percent->user());
         $t->same('%40:example.org', $percent->host());
@@ -396,7 +406,7 @@ return [
     'git url rejects invalid utf8 in url and scp forms while keeping raw local paths byte-safe' => static function (TestRunner $t): void {
         $internationalPath = GitUrl::parse('https://example.com/caf%C3%A9');
         $t->same("/caf\xC3\xA9", $internationalPath->path());
-        $t->same('https://example.com/caf%C3%A9', $internationalPath->toBytes());
+        $t->same("https://example.com/caf\xC3\xA9", $internationalPath->toBytes());
 
         foreach ([
             'https://example.com/%FF',
@@ -1031,6 +1041,9 @@ return [
         $t->same(true, $summary['partsSshAlternate']['alternativeForm']);
         $t->same($fixture['expectedPartsSshPasswordUrl'], $summary['partsSshPassword']['normalized']);
         $t->same(false, $summary['partsSshPassword']['alternativeForm']);
+        $t->same($fixture['expectedUnicodeRemoteUser'], $summary['unicodeRemote']['user']);
+        $t->same($fixture['expectedUnicodeRemotePath'], $summary['unicodeRemote']['path']);
+        $t->same($fixture['expectedUnicodeRemoteUrl'], $summary['unicodeRemote']['normalized']);
         $t->same($fixture['expectedRemoteArgumentSafety'], $summary['remoteArgumentSafety']);
         $t->same($fixture['expectedUnsafeRemoteArgumentSafety'], $summary['unsafeRemoteArgumentSafety']);
         $t->same($fixture['expectedRootRemotePathIsRoot'], $summary['rootRemotePathIsRoot']);

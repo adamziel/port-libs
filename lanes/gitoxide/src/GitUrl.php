@@ -816,7 +816,7 @@ final class GitUrl
         for ($index = 0; $index < $length; $index++) {
             $byte = $input[$index];
             $ord = ord($byte);
-            if ($ord < 0x20 || $ord >= 0x7f || str_contains($encodeAscii, $byte)) {
+            if ($ord < 0x20 || $ord === 0x7f || str_contains($encodeAscii, $byte)) {
                 $out .= sprintf('%%%02X', $ord);
             } else {
                 $out .= $byte;

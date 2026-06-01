@@ -507,11 +507,19 @@ final class MergeBaseFinder
         $queue = [[$oid, 0]];
         for ($index = 0; $index < count($queue); $index++) {
             [$current, $distance] = $queue[$index];
-            foreach ($this->commit($current)->parents as $parent) {
+            $commit = $this->tryCommit($current);
+            if ($commit === null) {
+                continue;
+            }
+
+            foreach ($commit->parents as $parent) {
                 $parent = strtolower($parent);
                 self::assertSameObjectFormat($hashLength, $parent);
                 $parentDistance = $distance + 1;
                 if (isset($distances[$parent]) && $distances[$parent] <= $parentDistance) {
+                    continue;
+                }
+                if ($this->tryCommit($parent) === null) {
                     continue;
                 }
                 $distances[$parent] = $parentDistance;

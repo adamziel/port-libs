@@ -534,8 +534,9 @@ final class MediaQueryParser
             return $name . ':' . $this->minifyValue($matches[2], $this->knownMediaFeatureType($name));
         }
 
-        if (preg_match('/^[_a-zA-Z-][_a-zA-Z0-9-]*\(/', $feature) === 1) {
-            throw new \InvalidArgumentException("Unknown media query condition function: {$feature}");
+        $functionName = $this->cssFunctionName($feature);
+        if ($functionName !== null) {
+            throw new \InvalidArgumentException('Unknown media query condition function: ' . $functionName['decoded'] . substr($feature, strlen($functionName['raw'])));
         }
 
         $canonicalLegacyName = $this->canonicalLegacyMediaFeatureName($feature);
@@ -582,6 +583,11 @@ final class MediaQueryParser
                 continue;
             }
 
+            $functionName = $this->cssFunctionName(substr($query, $i));
+            if ($functionName !== null && strcasecmp($functionName['decoded'], 'not') !== 0) {
+                throw new \InvalidArgumentException('Unknown media query condition function: ' . $functionName['decoded'] . substr($query, $i + strlen($functionName['raw'])));
+            }
+
             $start = $i;
             while ($i < $length && preg_match('/[-_a-zA-Z0-9]/', $query[$i]) === 1) {
                 $i++;
@@ -594,6 +600,21 @@ final class MediaQueryParser
 
             $i--;
         }
+    }
+
+    /**
+     * @return array{raw:string,decoded:string}|null
+     */
+    private function cssFunctionName(string $value): ?array
+    {
+        if (preg_match('/^(' . $this->cssIdentifierPattern() . ')\(/', $value, $matches) !== 1) {
+            return null;
+        }
+
+        return [
+            'raw' => $matches[1],
+            'decoded' => $this->decodeCssIdentifier($matches[1]),
+        ];
     }
 
     private function validateRangeFeature(string $name, string $leftValue, ?string $rightValue, string $feature, bool $recoverInvalidFeatureValues = false): void

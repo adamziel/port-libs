@@ -948,6 +948,48 @@ BASELINE;
         $t->same(true, in_array($missingParent, $reads, true));
         $t->same(true, in_array($missingFirst, $reads, true));
     },
+    'maps upstream shallow parent skip in stable multi-head ancestor intersection' => static function (TestRunner $t) use ($oid): void {
+        $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            "Ada <ada@example.test> {$seconds} +0000",
+            "CI <ci@example.test> {$seconds} +0000",
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ["Ada <ada@example.test> {$seconds} +0000"],
+                'committer' => ["CI <ci@example.test> {$seconds} +0000"],
+            ],
+        );
+        $missingGrandparent = $oid('0');
+        $staleParent = $oid('1');
+        $release = $oid('2');
+        $pluginReview = $oid('3');
+        $themeReview = $oid('4');
+        $contentReview = $oid('5');
+        $reads = [];
+        $commits = [
+            $staleParent => $timedCommit(1699999900, [$missingGrandparent]),
+            $release => $timedCommit(1700000000, [$staleParent]),
+            $pluginReview => $timedCommit(1700000100, [$release]),
+            $themeReview => $timedCommit(1700000200, [$release]),
+            $contentReview => $timedCommit(1700000300, [$release]),
+        ];
+        $mergeBase = new MergeBaseFinder(
+            static function (string $oid) use ($commits, &$reads): ?Commit {
+                $reads[] = $oid;
+
+                return $commits[$oid] ?? null;
+            },
+            useCommitGraphGenerations: false,
+        );
+
+        $t->same([$release], $mergeBase->mergeBasesMany([$pluginReview, $themeReview]));
+        $t->same([$release], $mergeBase->mergeBasesMany([$pluginReview, $themeReview, $contentReview]));
+        $t->same(true, in_array($missingGrandparent, $reads, true));
+        $t->same([$release], $mergeBase->mergeBasesAgainst($pluginReview, [$themeReview, $contentReview]));
+    },
     'maps upstream graph reuse by not pinning missing commits after hydration' => static function (TestRunner $t) use ($oid): void {
         $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
             str_repeat('f', 40),
@@ -1102,11 +1144,13 @@ BASELINE;
         $t->same($fixture['shallowReleaseBaseline'], $example['shallowGraphWalkBase']);
         $t->same($fixture['shallowReleaseBaseline'], $example['shallowCommitGraphBase']);
         $t->same($fixture['shallowReleaseBaseline'], $example['shallowPairwiseBase']);
+        $t->same([$fixture['shallowReleaseBaseline']], $example['shallowStableIntersectionBases']);
         $t->same($fixture['shallowReleaseBaseline'], $timeOnlyFinder->mergeBaseAgainst($fixture['shallowPluginReview'], $fixture['shallowMissingArchiveGraphWalkOthers']));
         $t->same($fixture['shallowReleaseBaseline'], $example['shallowMissingArchiveBase']);
         $t->same(true, $example['shallowGraphWalkStopsAtReleaseBaseline']);
         $t->same(true, $example['shallowCommitGraphUsesMetadata']);
         $t->same(true, $example['shallowPairwiseStopsAtReleaseBaseline']);
+        $t->same(true, $example['shallowStableIntersectionSkipsMissingParent']);
         $t->same(true, $example['shallowMissingArchiveParentIsSkipped']);
         $t->same($fixture['timestampSkewExpectedBase'], $finder->mergeBase($fixture['timestampSkewLeftReview'], $fixture['timestampSkewRightReview']));
         $t->same($fixture['timestampSkewExpectedBase'], $timeOnlyFinder->mergeBase($fixture['timestampSkewLeftReview'], $fixture['timestampSkewRightReview']));

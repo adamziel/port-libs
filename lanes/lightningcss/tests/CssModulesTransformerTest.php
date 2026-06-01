@@ -364,6 +364,44 @@ CSS);
             $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
         }
     },
+    'css modules enforces upstream terminal pseudo-element boundaries while preserving local global composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card::selection,
+:global(.wp-block-list)::marker,
+.card::-webkit-input-placeholder,
+.card::file-selector-button:hover {
+  color: red;
+}
+
+.button {
+  composes: card;
+  color: blue;
+}
+
+.card {
+  color: green;
+}
+CSS);
+
+        $t->same('.EgL3uq_card::selection,.wp-block-list::marker,.EgL3uq_card::-webkit-input-placeholder,.EgL3uq_card::file-selector-button:hover{color:red}.EgL3uq_button{color:#00f}.EgL3uq_card{color:green}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+
+        foreach ([
+            '.card::selection .child { color: red }',
+            ':global(.legacy::marker .child) .card { color: red }',
+            ':local(.card::file-selector-button .child) { color: red }',
+            '.card::placeholder::before { color: red }',
+            '.card::-webkit-scrollbar-thumb .child { color: red }',
+            '.card::view-transition .child { color: red }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
+        }
+    },
     'css modules scopes upstream cue selectors while preserving local global composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card::cue(:global(.wp-caption) .captionTitle) {

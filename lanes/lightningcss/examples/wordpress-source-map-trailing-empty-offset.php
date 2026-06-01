@@ -21,12 +21,33 @@ $child->offsetLines(1, 2);
 $childBeforeMerge = $child->toJson(null, false);
 $parent->addSourceMap($child, -1);
 
+$positiveParent = new SourceMap();
+$positiveParentSource = $positiveParent->addSource('wp-content/themes/example/style.css');
+for ($line = 0; $line < 6; $line++) {
+    $positiveParent->addMapping($line, 0, $positiveParentSource, $line, 0, 'theme-tail-line-' . $line);
+}
+
+$positiveChild = new SourceMap();
+$positiveChildSource = $positiveChild->addSource('wp-content/themes/example/blocks/tail-span.css');
+$positiveChild->setSourceContent($positiveChildSource, ".wp-block-tail-a{}\n.wp-block-tail-b{}\n");
+$positiveChild->addMapping(0, 0, $positiveChildSource, 0, 0, 'tail-span-a');
+$positiveChild->addMapping(1, 0, $positiveChildSource, 1, 0, 'tail-span-b');
+$positiveChild->offsetLines(2, 2);
+
+$positiveChildBeforeMerge = $positiveChild->toJson(null, false);
+$positiveParent->addSourceMap($positiveChild, 1);
+
 $actual = [
     'childBeforeMerge' => $childBeforeMerge,
     'parentMap' => $parent->toJson(null, false),
     'parentMappings' => $parent->getMappings(),
     'clearedFirstLine' => $parent->findClosestMapping(0, 0),
     'childConsumed' => $child->toJson(null, false),
+    'positiveChildBeforeMerge' => $positiveChildBeforeMerge,
+    'positiveParentMap' => $positiveParent->toJson(null, false),
+    'positiveParentMappings' => $positiveParent->getMappings(),
+    'positiveClearedMiddleLine' => $positiveParent->findClosestMapping(3, 0),
+    'positiveChildConsumed' => $positiveChild->toJson(null, false),
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -39,6 +60,16 @@ if (($argv[1] ?? null) === '--self-test') {
         ],
         'clearedFirstLine' => null,
         'childConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'positiveChildBeforeMerge' => '{"version":3,"mappings":"AAAAA;AACAC;;","sources":["wp-content/themes/example/blocks/tail-span.css"],"sourcesContent":[".wp-block-tail-a{}\n.wp-block-tail-b{}\n"],"names":["tail-span-a","tail-span-b"]}',
+        'positiveParentMap' => '{"version":3,"mappings":"AAAAA;ACAAM;AACAC;;;ADIAF","sources":["wp-content/themes/example/style.css","wp-content/themes/example/blocks/tail-span.css"],"sourcesContent":["",".wp-block-tail-a{}\n.wp-block-tail-b{}\n"],"names":["theme-tail-line-0","theme-tail-line-1","theme-tail-line-2","theme-tail-line-3","theme-tail-line-4","theme-tail-line-5","tail-span-a","tail-span-b"]}',
+        'positiveParentMappings' => [
+            ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0],
+            ['generatedLine' => 1, 'generatedColumn' => 0, 'sourceIndex' => 1, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 6],
+            ['generatedLine' => 2, 'generatedColumn' => 0, 'sourceIndex' => 1, 'originalLine' => 1, 'originalColumn' => 0, 'nameIndex' => 7],
+            ['generatedLine' => 5, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 5, 'originalColumn' => 0, 'nameIndex' => 5],
+        ],
+        'positiveClearedMiddleLine' => null,
+        'positiveChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
     ];
 
     if ($actual !== $expected) {
