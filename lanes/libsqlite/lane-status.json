@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "library": "libsqlite",
     "estimatedProgress": 99.6,
-    "suiteProgress": "Supervisor-integrated libsqlite real upstream expression-affinity modulo casts, subselect scalar WHERE dynamic corpus, and source-neutral recursive trigger/upsert option-class cleanup. Verification passed PHP lint, git diff --check, changed example smokes, and changed libsqlite tests plus no-domain guard 14 files / 58234 assertions / 0 failures, adding 2263 accepted TestRunner PASS cases.",
+    "suiteProgress": "Supervisor-integrated libsqlite source-neutral SQLiteDatabase key-value helper cleanup. Verification passed PHP lint, git diff --check, changed example smokes, and SQLiteNoDomainSpecificApiTest 1 file / 5 assertions / 0 failures. No new PASS-row or mapped-coverage movement is claimed.",
     "phpPass": 5764881,
     "phpFail": 7,
     "wordpressScenarios": "Generic application/self-test coverage now includes real upstream expression-affinity modulo casts, subselect.test scalar WHERE subquery behavior, source-neutral recursive trigger/upsert settings defaults, JSON path strict/lax diagnostics, source-neutral row-value savepoint defaults, skipscan2 optoverview people/height skip-scan thresholds, PRAGMA trusted_schema schema-function safety, e_select2 derived-source SELECT joins, WAL rollback JSON tails and checkpoint-followup tail recovery, FK parent-index diagnostics, row-value UPDATE/DELETE LIMIT execution, pager/WAL recovery, and app-WAL post-checkpoint tail recovery. No domain-specific libsqlite API is accepted.",
     "phase": "focused real-corpus and source-neutral coverage accepted; broad full-lane and release/all parity remain open",
-    "audit": "2026-06-01 supervisor batch: accepted source 2922247b0307 with real upstream modulo cast and subselect scalar WHERE corpus plus source-neutral trigger/upsert cleanup. Added 2263 accepted TestRunner PASS cases; changed libsqlite tests plus no-domain guard passed 14 files / 58234 assertions / 0 failures. Broad release/all still has 7 known failures.",
-    "currentWork": "Real upstream expression-affinity modulo casts, subselect scalar WHERE corpus, and source-neutral recursive trigger/upsert option-class cleanup integrated without adding domain-specific libsqlite APIs.",
+    "audit": "2026-06-01 supervisor batch: accepted source c9f412583369 with source-neutral SQLiteDatabase key-value helper cleanup. No-domain guard passed 1 file / 5 assertions / 0 failures. Broad release/all still has 7 known failures.",
+    "currentWork": "Source-neutral SQLiteDatabase key-value write-index helper cleanup integrated without adding domain-specific libsqlite APIs.",
     "blocker": "Broad libsqlite full-lane/release parity is not green: seven known failures remain in sampled broad gates, and release/all parity still needs a current clean run before libsqlite can be declared complete.",
     "nextTask": "Continue broad release/all parity blockers, source-neutral cleanup of remaining CurrentSourceNext/CurrentNext production defaults and numbered-plan names, PDO trust-underlying-lib cleanup, and non-overlapping real-corpus upsert, VFS, WAL, pager, PRAGMA, B-tree/index, STAT4, expression, and date/time coverage.",
-    "wordpressScenarioLatest": "Latest real-corpus/source-neutral batch uses generic application tables to cover modulo and scalar subquery behavior without adding domain-specific libsqlite APIs; no-domain guard remains part of each batch.",
-    "latestCommit": "2922247b03074f14607f322e8189bd58ffb79540",
-    "commit": "2922247b03074f14607f322e8189bd58ffb79540"
+    "wordpressScenarioLatest": "Latest source-neutral batch removes the remaining mixed-case domain-specific key-value write-index helper name and keeps generic application setting/key naming. No-domain guard coverage remains required before each libsqlite batch.",
+    "latestCommit": "c9f4125833691346cec619e91e0e3588674de80f",
+    "commit": "c9f4125833691346cec619e91e0e3588674de80f"
 }

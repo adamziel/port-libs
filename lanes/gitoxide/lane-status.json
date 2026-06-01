@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 96.1,
-    "suiteProgress": "Supervisor-integrated Gitoxide pack-index empty/MIDX prefix lookup, reference transaction broken deref delete, and tree-merge change/delete resolve-tree fixture parity. Verification passed PHP lint, git diff --check, changed example smokes, and full Gitoxide lane 40 files / 8250 assertions / 0 failures.",
-    "phpPass": 8250,
+    "estimatedProgress": 96.2,
+    "suiteProgress": "Supervisor-integrated Gitoxide named-user config include interpolation and partial-clone promisor alternate-base hydration. Verification passed PHP lint, git diff --check, changed example smokes, and full Gitoxide lane 40 files / 8298 assertions / 0 failures.",
+    "phpPass": 8298,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions including caller-supplied environment-style key/value pairs, attributes/pathspec filtering including NUL-field boundaries, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 supervisor batch: accepted source 2922247b0307 with pack-index empty/MIDX prefix lookup, broken deref delete reference transactions, and change/delete tree-merge parity. Full Gitoxide lane passed 40 files / 8250 assertions / 0 failures; full Cargo workspace was not executed.",
-    "currentWork": "Pack-index empty/MIDX prefix lookup, reference transaction broken deref delete, and tree-merge change/delete resolve-tree fixture parity integrated on current base.",
+    "audit": "2026-06-01 supervisor batch: accepted source c9f412583369 with config include named-user interpolation and partial-clone alternate-base promisor hydration. Full Gitoxide lane passed 40 files / 8298 assertions / 0 failures; full Cargo workspace was not executed.",
+    "currentWork": "Named-user config include/gitdir interpolation and partial-clone promisor alternate-base hydration integrated on current base.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "2922247b03074f14607f322e8189bd58ffb79540",
-    "nextTask": "Keep Gitoxide workers on current-base non-overlapping config, credential, partial-clone, transport/protocol, pack/index, reference, tree-merge, and object-database parity slices; integrate only full-lane-green batches.",
-    "commit": "2922247b03074f14607f322e8189bd58ffb79540"
+    "latestCommit": "c9f4125833691346cec619e91e0e3588674de80f",
+    "nextTask": "Keep Gitoxide workers on current-base non-overlapping attributes/pathspec, credential, config, partial-clone, transport/protocol, pack/index, reference, tree-merge, and object-database parity slices; integrate only full-lane-green batches.",
+    "commit": "c9f4125833691346cec619e91e0e3588674de80f"
 }

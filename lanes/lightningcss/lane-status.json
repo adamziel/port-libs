@@ -2,15 +2,15 @@
     "schemaVersion": 1,
     "library": "LightningCSS",
     "estimatedProgress": 99.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS CSS Modules namespace-delimiter rejection, clip-path CSSOM read/write canonicalization, and SourceMap negative leading empty child-span offset parity. Verification passed PHP lint, git diff --check, changed example smokes, and full LightningCSS lane 13 files / 6942 assertions / 0 failures.",
-    "phpPass": 6942,
+    "suiteProgress": "Supervisor-integrated LightningCSS custom at-rule pseudo-element selector visitor parity and target-prefix selector-list/logical-fallback composition. Verification passed PHP lint, git diff --check, changed example smokes, and full LightningCSS lane 13 files / 6952 assertions / 0 failures.",
+    "phpPass": 6952,
     "phpFail": 0,
-    "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata including host/slotted compose boundaries and namespace-delimiter rejection, custom at-rule visitors and percentage preludes, media range fallbacks, source-map import/remap behavior including negative leading empty child spans, CSSOM declaration manipulation including text-spacing and clip-path reads/writes, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
+    "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule selector visitors including pseudo-element components, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and selector/logical target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 supervisor batch: accepted source 2922247b0307 with CSS Modules namespace-delimiter, clip-path CSSOM, and SourceMap negative leading empty child-span followups. Full LightningCSS lane passed 13 files / 6942 assertions / 0 failures; full upstream Rust/Node/WASM runners were not executed.",
-    "currentWork": "CSS Modules namespace-delimiter rejection, clip-path CSSOM read/write canonicalization, and SourceMap negative leading empty child-span offsets integrated on current base.",
+    "audit": "2026-06-01 supervisor batch: accepted source c9f412583369 with custom at-rule pseudo-element selector visitor and target-prefix selector/logical fallback followups. Full LightningCSS lane passed 13 files / 6952 assertions / 0 failures; full upstream Rust/Node/WASM runners were not executed.",
+    "currentWork": "Custom at-rule pseudo-element selector visitor parity and target-prefix selector-list/logical-fallback composition integrated on current base.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "2922247b03074f14607f322e8189bd58ffb79540",
-    "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom-at-rule, and target-prefix slices; prefer non-overlapping clusters with full-lane PHP evidence.",
-    "commit": "2922247b03074f14607f322e8189bd58ffb79540"
+    "latestCommit": "c9f4125833691346cec619e91e0e3588674de80f",
+    "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom-at-rule, and target-prefix slices; rebase stale media-query handoff before retry.",
+    "commit": "c9f4125833691346cec619e91e0e3588674de80f"
 }
