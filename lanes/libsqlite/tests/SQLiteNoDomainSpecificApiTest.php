@@ -29,8 +29,11 @@ $relativePath = static fn (string $path): string => str_replace($libsqliteRoot .
 $sourceFiles = $phpFiles($sourceRoot);
 $libsqlitePhpFiles = $phpFiles($libsqliteRoot);
 $keyValueSourceFiles = [
+    $sourceRoot . '/SQLiteAffinityRangeCurrentSourceCursor.php',
     $sourceRoot . '/SQLiteDatabase.php',
+    $sourceRoot . '/SQLiteEncodingCollationSourceCursor.php',
     $sourceRoot . '/SQLiteCurrentSmokePlan.php',
+    $sourceRoot . '/SQLiteGlobCursor.php',
     $sourceRoot . '/SQLiteImportTransactionErrorYieldPlan.php',
     $sourceRoot . '/SQLiteJsonUpsertMigrationPlan.php',
     $sourceRoot . '/SQLiteKeyValueRow.php',
@@ -38,12 +41,16 @@ $keyValueSourceFiles = [
     $sourceRoot . '/SQLiteKeyValueRowReplacementPlan.php',
     $sourceRoot . '/SQLiteKeyValueRowsWalImportPlan.php',
     $sourceRoot . '/SQLiteKeyValueRowWritePlan.php',
+    $sourceRoot . '/SQLiteLikeCurrentNextCursor.php',
     $sourceRoot . '/SQLiteMalformedTextCurrentNextCursor.php',
     $sourceRoot . '/SQLiteTenantImportSavepointPlan.php',
     $sourceRoot . '/SQLiteTenantJsonWalSavepointPlan.php',
-    $sourceRoot . '/SQLiteTenantKeyValueWalPlan.php',
+    $sourceRoot . '/SQLiteScopedKeyValueWalPlan.php',
     $sourceRoot . '/SQLiteUtf16CollationAffinityCursor.php',
     $sourceRoot . '/SQLiteUtf16CollationAffinitySourceSwitchPlan.php',
+    $sourceRoot . '/SQLiteUtf16GlobCurrentNextCursor.php',
+    $sourceRoot . '/SQLiteUtf16LikeGlobAffinityCurrentSourceCursor.php',
+    $sourceRoot . '/SQLiteUtf16LikeGlobCurrentNextCursor.php',
 ];
 $jsonbCurrentSourceFiles = [
     $sourceRoot . '/SQLiteGeneratedJsonPathIndexPlan.php',

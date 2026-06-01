@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteTenantKeyValueWalPlan
+final class SQLiteScopedKeyValueWalPlan
 {
     /**
      * @param list<array{tenant_id?:int,scope:string,setting_id?:int,key_name:string,key_value:string,load_policy?:string}> $currentRows
@@ -22,20 +22,20 @@ final class SQLiteTenantKeyValueWalPlan
         int $firstSettingPageNumber = 2,
     ): array {
         if ($databasePath === '') {
-            throw new \InvalidArgumentException('SQLite Application tenant settings WAL import requires a database path');
+            throw new \InvalidArgumentException('SQLite Application scoped settings WAL import requires a database path');
         }
         if ($importRows === []) {
-            throw new \InvalidArgumentException('SQLite Application tenant settings WAL import requires imported rows');
+            throw new \InvalidArgumentException('SQLite Application scoped settings WAL import requires imported rows');
         }
         if ($pageNumbers === []) {
-            throw new \InvalidArgumentException('SQLite Application tenant settings WAL import requires current/next page numbers');
+            throw new \InvalidArgumentException('SQLite Application scoped settings WAL import requires current/next page numbers');
         }
         if ($firstSettingPageNumber < 2) {
-            throw new \InvalidArgumentException('SQLite Application tenant settings pages must start after page one');
+            throw new \InvalidArgumentException('SQLite Application scoped settings pages must start after page one');
         }
         $pageSize = $wal->header->pageSize;
         if ($pageSize < 512) {
-            throw new \InvalidArgumentException('SQLite Application tenant settings WAL import requires a concrete WAL page size');
+            throw new \InvalidArgumentException('SQLite Application scoped settings WAL import requires a concrete WAL page size');
         }
 
         $current = self::normalizeRows($currentRows, true);
@@ -82,7 +82,7 @@ final class SQLiteTenantKeyValueWalPlan
         $nextReader = [];
         foreach ($pageNumbers as $pageNumber) {
             if (!is_int($pageNumber)) {
-                throw new \InvalidArgumentException('SQLite Application tenant settings WAL import pages must be integers');
+                throw new \InvalidArgumentException('SQLite Application scoped settings WAL import pages must be integers');
             }
             $currentReader[] = self::safeReaderVisibility($wal, $databaseBytes, $pageNumber, $currentEndFrame);
             $nextReader[] = self::safeReaderVisibility($nextWal, $databaseBytes, $pageNumber, $nextEndFrame);
@@ -90,7 +90,7 @@ final class SQLiteTenantKeyValueWalPlan
 
         return [
             'status' => 'planned',
-            'reason' => 'application_tenant_settings_wal_commit_current_next_visibility',
+            'reason' => 'application_scoped_settings_wal_commit_current_next_visibility',
             'database_path' => $databasePath,
             'wal_path' => $databasePath . '-wal',
             'current_rows' => array_values($current),
@@ -114,7 +114,7 @@ final class SQLiteTenantKeyValueWalPlan
             'append' => $append,
             'dependencies' => array_values(array_unique(array_merge(
                 $append['dependencies'],
-                ['application-tenant-settings-wal-current-next42']
+                ['application-scoped-settings-wal-current-next42']
             ))),
         ];
     }
@@ -129,21 +129,21 @@ final class SQLiteTenantKeyValueWalPlan
         foreach ($rows as $index => $row) {
             $scope = strtolower(trim((string) ($row['scope'] ?? '')));
             if (!in_array($scope, ['global', 'tenant'], true)) {
-                throw new \InvalidArgumentException('SQLite Application tenant setting scope must be global or tenant');
+                throw new \InvalidArgumentException('SQLite Application scoped setting scope must be global or tenant');
             }
             $tenantId = $scope === 'tenant' ? self::positiveInt($row['tenant_id'] ?? null, 'tenant_id') : null;
             $name = trim((string) ($row['key_name'] ?? ''));
             if ($name === '') {
-                throw new \InvalidArgumentException('SQLite Application tenant key_name must be non-empty');
+                throw new \InvalidArgumentException('SQLite Application scoped key_name must be non-empty');
             }
             $settingId = $row['setting_id'] ?? ($index + 1);
             if ($requireIds && (!is_int($settingId) || $settingId < 1)) {
-                throw new \InvalidArgumentException('SQLite Application tenant current rows require positive setting_id values');
+                throw new \InvalidArgumentException('SQLite Application scoped current rows require positive setting_id values');
             }
             $table = self::tableName($scope, $tenantId);
             $key = $table . ':' . $name;
             if (isset($normalized[$key])) {
-                throw new \InvalidArgumentException("Duplicate Application tenant setting row {$key}");
+                throw new \InvalidArgumentException("Duplicate Application scoped setting row {$key}");
             }
             $normalized[$key] = [
                 'key' => $key,
@@ -164,7 +164,7 @@ final class SQLiteTenantKeyValueWalPlan
     private static function positiveInt(mixed $value, string $label): int
     {
         if (!is_int($value) || $value < 1) {
-            throw new \InvalidArgumentException("SQLite Application tenant {$label} must be positive");
+            throw new \InvalidArgumentException("SQLite Application scoped {$label} must be positive");
         }
 
         return $value;
@@ -259,10 +259,10 @@ final class SQLiteTenantKeyValueWalPlan
             'load_policy' => $row['load_policy'],
         ], JSON_UNESCAPED_SLASHES);
         if (!is_string($json)) {
-            throw new \RuntimeException('Unable to encode Application tenant setting WAL row');
+            throw new \RuntimeException('Unable to encode Application scoped setting WAL row');
         }
         if (strlen($json) > $pageSize) {
-            throw new \InvalidArgumentException('SQLite Application tenant setting page exceeds page size');
+            throw new \InvalidArgumentException('SQLite Application scoped setting page exceeds page size');
         }
 
         return str_pad($json, $pageSize, "\0");
@@ -281,10 +281,10 @@ final class SQLiteTenantKeyValueWalPlan
             'key_names' => self::loadPolicyNamesForTable($rows, $table),
         ], JSON_UNESCAPED_SLASHES);
         if (!is_string($json)) {
-            throw new \RuntimeException('Unable to encode Application tenant load_policy WAL page');
+            throw new \RuntimeException('Unable to encode Application scoped load_policy WAL page');
         }
         if (strlen($json) > $pageSize) {
-            throw new \InvalidArgumentException('SQLite Application tenant load_policy page exceeds page size');
+            throw new \InvalidArgumentException('SQLite Application scoped load_policy page exceeds page size');
         }
 
         return str_pad($json, $pageSize, "\0");

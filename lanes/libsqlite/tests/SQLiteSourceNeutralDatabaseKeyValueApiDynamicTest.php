@@ -3,6 +3,10 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDatabase;
+use PortLibs\LibSqlite\SQLiteAffinityRangeCurrentSourceCursor;
+use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
+use PortLibs\LibSqlite\SQLiteUtf16LikeGlobAffinityCurrentSourceCursor;
+use PortLibs\LibSqlite\SQLiteUtf16LikeGlobCurrentNextCursor;
 use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 $libsqliteRoot = dirname(__DIR__);
@@ -35,7 +39,16 @@ $legacyDomainPattern = static function (): string {
 };
 
 $keyValueSourceFiles = static function () use ($sourceRoot): array {
-    $files = [$sourceRoot . '/SQLiteDatabase.php'];
+    $files = [
+        $sourceRoot . '/SQLiteAffinityRangeCurrentSourceCursor.php',
+        $sourceRoot . '/SQLiteDatabase.php',
+        $sourceRoot . '/SQLiteEncodingCollationSourceCursor.php',
+        $sourceRoot . '/SQLiteGlobCursor.php',
+        $sourceRoot . '/SQLiteLikeCurrentNextCursor.php',
+        $sourceRoot . '/SQLiteUtf16GlobCurrentNextCursor.php',
+        $sourceRoot . '/SQLiteUtf16LikeGlobAffinityCurrentSourceCursor.php',
+        $sourceRoot . '/SQLiteUtf16LikeGlobCurrentNextCursor.php',
+    ];
     foreach (glob($sourceRoot . '/SQLiteKeyValueRow*.php') ?: [] as $file) {
         $files[] = $file;
     }
@@ -43,6 +56,37 @@ $keyValueSourceFiles = static function () use ($sourceRoot): array {
 
     return array_values(array_unique($files));
 };
+
+$keyValueRangeCursorMethodNames = static function (): array {
+    $classes = [
+        SQLiteAffinityRangeCurrentSourceCursor::class,
+        SQLiteEncodingCollationSourceCursor::class,
+        SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::class,
+        SQLiteUtf16LikeGlobCurrentNextCursor::class,
+    ];
+    $methodsByClass = [];
+    foreach ($classes as $class) {
+        $reflection = new ReflectionClass($class);
+        $names = [];
+        foreach ($reflection->getMethods() as $method) {
+            if ($method->getDeclaringClass()->getName() !== $class) {
+                continue;
+            }
+            $name = $method->getName();
+            if (str_contains($name, 'keyValueRow')) {
+                $names[] = $name;
+            }
+        }
+        sort($names, SORT_STRING);
+        $methodsByClass[$class] = $names;
+    }
+
+    ksort($methodsByClass, SORT_STRING);
+
+    return $methodsByClass;
+};
+
+$keyValueSourceBasenames = static fn () => array_map('basename', $keyValueSourceFiles());
 
 $keyValueExampleFiles = [
     $libsqliteRoot . '/examples/application-json-setting-value-list.php',
@@ -148,6 +192,27 @@ return [
         $t->true(in_array('keyValueRowsByIndexedNameRange', $methods, true));
         $t->true(in_array('keyValueRowsByIndexedLoadPolicyAndNameRange', $methods, true));
     },
+    'source-neutral range cursor helpers have dynamic key-value method coverage' => static fn (TestRunner $t) => $t->same([
+        SQLiteAffinityRangeCurrentSourceCursor::class => ['keyValueRowRange'],
+        SQLiteEncodingCollationSourceCursor::class => ['keyValueRowKeyRangeScan', 'keyValueRowKeyScan'],
+        SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::class => ['keyValueRowValueScan'],
+        SQLiteUtf16LikeGlobCurrentNextCursor::class => ['keyValueRowKeyScan'],
+    ], $keyValueRangeCursorMethodNames()),
+    'source-neutral key-value source guard includes range cursor helpers' => static fn (TestRunner $t) => $t->same([
+        'SQLiteAffinityRangeCurrentSourceCursor.php',
+        'SQLiteDatabase.php',
+        'SQLiteEncodingCollationSourceCursor.php',
+        'SQLiteGlobCursor.php',
+        'SQLiteKeyValueRow.php',
+        'SQLiteKeyValueRowInsertOrReplacePlan.php',
+        'SQLiteKeyValueRowReplacementPlan.php',
+        'SQLiteKeyValueRowWritePlan.php',
+        'SQLiteKeyValueRowsWalImportPlan.php',
+        'SQLiteLikeCurrentNextCursor.php',
+        'SQLiteUtf16GlobCurrentNextCursor.php',
+        'SQLiteUtf16LikeGlobAffinityCurrentSourceCursor.php',
+        'SQLiteUtf16LikeGlobCurrentNextCursor.php',
+    ], $keyValueSourceBasenames()),
     'source-neutral database key-value API methods contain no legacy domain terms' => static fn (TestRunner $t) => $t->same([], $databaseMethodLegacyMatches()),
     'source-neutral key-value row helper files contain no legacy domain terms' => static fn (TestRunner $t) => $t->same([], $helperFileLegacyMatches()),
     'source-neutral key-value indexed lookup examples contain no legacy domain terms' => static fn (TestRunner $t) => $t->same([], $exampleLegacyMatches()),

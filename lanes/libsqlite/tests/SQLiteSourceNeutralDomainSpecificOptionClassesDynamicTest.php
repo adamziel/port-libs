@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteDmlTriggerCurrentNextPlan;
 use PortLibs\LibSqlite\SQLiteJsonUpsertMigrationPlan;
 use PortLibs\LibSqlite\SQLiteRecursiveUpsertConflictYieldPlan;
+use PortLibs\LibSqlite\SQLiteScopedKeyValueWalPlan;
 use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan;
@@ -18,6 +19,8 @@ use PortLibs\LibSqlite\SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteTriggerOrderPlan;
 use PortLibs\LibSqlite\SQLiteUpsertReturningTriggerPlan;
+use PortLibs\LibSqlite\SQLiteWal;
+use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $libsqliteRoot = dirname(__DIR__);
 $sourceRoot = $libsqliteRoot . '/src';
@@ -27,6 +30,7 @@ $sourceFiles = [
     $sourceRoot . '/SQLiteJsonUpsertMigrationPlan.php',
     $sourceRoot . '/SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteRecursiveUpsertConflictYieldPlan.php',
+    $sourceRoot . '/SQLiteScopedKeyValueWalPlan.php',
     $sourceRoot . '/SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan.php',
@@ -44,7 +48,9 @@ $sourceFiles = [
 ];
 $fixtureFiles = [
     $libsqliteRoot . '/examples/application-skipscan-expression-range-recheck.php',
+    $libsqliteRoot . '/examples/application-scoped-settings-wal-current-next42.php',
     $libsqliteRoot . '/examples/application-trigger-upsert-savepoint-current-next.php',
+    $libsqliteRoot . '/tests/SQLiteApplicationSettingsTenantWalCurrentNext42Test.php',
     $libsqliteRoot . '/tests/SQLitePlannerSkipScanExpressionRangeRecheckTest.php',
     $libsqliteRoot . '/tests/SQLiteTriggerUpsertSavepointCurrentNextTest.php',
 ];
@@ -60,6 +66,8 @@ $legacyDomainMatches = static function () use ($sourceFiles, $libsqliteRoot): ar
         'blog' . '_id',
         'blog' . 'Id',
         'Blog' . 'Id',
+        'SQLiteTenantKeyValueWalPlan',
+        'application-tenant-settings-wal-current-next42',
     ];
     $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
     $matches = [];
@@ -96,6 +104,11 @@ $legacyFixtureMatches = static function () use ($fixtureFiles, $libsqliteRoot): 
         'skip' . '_plugin',
         'blocked' . '-plugin-option',
         'ignored' . '-plugin-option',
+        'SQLiteTenantKeyValueWalPlan',
+        'application-options-multisite',
+        'wp-content',
+        'blog' . '_id',
+        'network',
     ];
     $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
     $matches = [];
@@ -318,6 +331,32 @@ return [
         $t->same('app_recursive_upsert_returning_145', $plan['savepoint']);
         $t->same('module_seed_child', $plan['rollback_barrier']['returning_key']);
         $t->same(true, $plan['recursive_summary']['next_replayed_current_key']);
+    },
+    'scoped key-value wal class exposes neutral dependency marker' => static function (TestRunner $t): void {
+        $pageSize = 512;
+        $salt1 = 0x11112222;
+        $salt2 = 0x33334444;
+        $page = static fn (string $label): string => str_pad($label, $pageSize, "\0");
+        $prefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 7, $salt1, $salt2);
+        $seed = SQLiteWal::checksumPair($prefix, false);
+        $walBytes = $prefix . pack('N*', $seed[0], $seed[1]);
+        $framePrefix = pack('N*', 2, 2, $salt1, $salt2);
+        $image = $page('committed scoped setting');
+        $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $image, false, $seed[0], $seed[1]);
+        $walBytes .= $framePrefix . pack('N*', $seed[0], $seed[1]) . $image;
+
+        $plan = SQLiteScopedKeyValueWalPlan::currentNext(
+            SQLiteWal::parse($walBytes, $pageSize, true),
+            $page('sqlite header scoped current') . $page('scoped setting page'),
+            'app-data/database/scoped.sqlite',
+            [['scope' => 'global', 'setting_id' => 1, 'key_name' => 'display_name', 'key_value' => 'Old', 'load_policy' => 'yes']],
+            [['scope' => 'global', 'key_name' => 'display_name', 'key_value' => 'New', 'load_policy' => 'yes']],
+            [2],
+        );
+
+        $t->same('application_scoped_settings_wal_commit_current_next_visibility', $plan['reason']);
+        $t->true(in_array('application-scoped-settings-wal-current-next42', $plan['dependencies'], true));
+        $t->same(['app_tenant_settings'], $plan['tables']);
     },
     'recursive view upsert defaults are application settings' => static function (TestRunner $t): void {
         $plan = SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan::execute(

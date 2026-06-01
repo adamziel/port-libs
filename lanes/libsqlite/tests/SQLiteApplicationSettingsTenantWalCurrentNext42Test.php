@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteTenantKeyValueWalPlan;
+use PortLibs\LibSqlite\SQLiteScopedKeyValueWalPlan;
 
 $tests = [];
 
@@ -58,7 +58,7 @@ $importRows = static fn (): array => [
     ['scope' => 'tenant', 'tenant_id' => 3, 'key_name' => 'primary_url', 'key_value' => 'https://new.example/tenant-three', 'load_policy' => 'yes'],
     ['scope' => 'global', 'key_name' => 'registration', 'key_value' => 'none', 'load_policy' => 'no'],
 ];
-$plan = static fn (): array => SQLiteTenantKeyValueWalPlan::currentNext(
+$plan = static fn (): array => SQLiteScopedKeyValueWalPlan::currentNext(
     $baseWal(),
     $databaseBytes,
     $databasePath,
@@ -70,7 +70,7 @@ $nextWal = static fn (): SQLiteWal => SQLiteWal::parse($plan()['append']['wal_by
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'planned'],
-    'reason' => [static fn (): mixed => $plan()['reason'], 'application_tenant_settings_wal_commit_current_next_visibility'],
+    'reason' => [static fn (): mixed => $plan()['reason'], 'application_scoped_settings_wal_commit_current_next_visibility'],
     'database path' => [static fn (): mixed => $plan()['database_path'], $databasePath],
     'wal path' => [static fn (): mixed => $plan()['wal_path'], $databasePath . '-wal'],
     'current row count' => [static fn (): mixed => count($plan()['current_rows']), 5],
@@ -125,7 +125,7 @@ $cases = [
     'tenant two load_policy index excludes route map' => [static fn (): mixed => !str_contains($plan()['next_reader'][8]['image'], 'route_map'), true],
     'tenant three load_policy index includes primary url' => [static fn (): mixed => str_contains($plan()['next_reader'][9]['image'], '"primary_url"'), true],
     'tenant load_policy index excludes registration' => [static fn (): mixed => !str_contains($plan()['next_reader'][10]['image'], 'registration'), true],
-    'dependency marker' => [static fn (): mixed => in_array('application-tenant-settings-wal-current-next42', $plan()['dependencies'], true), true],
+    'dependency marker' => [static fn (): mixed => in_array('application-scoped-settings-wal-current-next42', $plan()['dependencies'], true), true],
     'dependency includes wal append' => [static fn (): mixed => in_array('sqlite-wal-append-transaction', $plan()['dependencies'], true), true],
     'next wal frame count' => [static fn (): mixed => $nextWal()->frameCount(), 13],
     'next wal uncommitted count' => [static fn (): mixed => $nextWal()->uncommittedFrameCount(), 0],
@@ -160,7 +160,7 @@ $tests['application settings tenant wal current next42 applies append through vf
     }
     file_put_contents($localWal, $baseWalBytes());
 
-    $plan = SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), range(2, 12));
+    $plan = SQLiteScopedKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), range(2, 12));
     $plannedWal = SQLiteWal::parse($plan['append']['wal_bytes'], null, true);
     $applied = (new SQLiteVfsFileWriter($root))->applyWalAppendTransactions($baseWal(), $databasePath, [[
         'pages' => array_combine(
@@ -180,14 +180,14 @@ $tests['application settings tenant wal current next42 applies append through vf
 };
 
 $tests['application settings tenant wal current next42 rejects bad inputs'] = static function (TestRunner $t) use ($baseWal, $databaseBytes, $databasePath, $currentRows, $importRows): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, '', $currentRows(), $importRows(), [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [], [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), []));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['scope' => 'tenant', 'tenant_id' => 0, 'setting_id' => 1, 'key_name' => 'bad', 'key_value' => 'x']], $importRows(), [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['scope' => 'global', 'setting_id' => 0, 'key_name' => 'bad', 'key_value' => 'x']], $importRows(), [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['scope' => 'user', 'key_name' => 'bad', 'key_value' => 'x']], [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['scope' => 'tenant', 'tenant_id' => 2, 'key_name' => '', 'key_value' => 'x']], [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), ['2']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteScopedKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, '', $currentRows(), $importRows(), [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteScopedKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [], [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteScopedKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteScopedKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['scope' => 'tenant', 'tenant_id' => 0, 'setting_id' => 1, 'key_name' => 'bad', 'key_value' => 'x']], $importRows(), [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteScopedKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['scope' => 'global', 'setting_id' => 0, 'key_name' => 'bad', 'key_value' => 'x']], $importRows(), [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteScopedKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['scope' => 'user', 'key_name' => 'bad', 'key_value' => 'x']], [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteScopedKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['scope' => 'tenant', 'tenant_id' => 2, 'key_name' => '', 'key_value' => 'x']], [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteScopedKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), ['2']));
 };
 
 return $tests;

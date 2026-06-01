@@ -33,6 +33,85 @@ use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $libsqliteRoot = dirname(__DIR__);
 $sourceRoot = $libsqliteRoot . '/src';
+
+$phpFiles = static function (string $root): array {
+    $files = [];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)
+    );
+
+    foreach ($iterator as $fileInfo) {
+        if (!$fileInfo->isFile() || $fileInfo->getExtension() !== 'php') {
+            continue;
+        }
+
+        $files[] = $fileInfo->getPathname();
+    }
+
+    sort($files, SORT_STRING);
+
+    return $files;
+};
+
+$allSourceFiles = $phpFiles($sourceRoot);
+
+$legacyDefaultMatchesInFiles = static function (array $files, array $terms) use ($libsqliteRoot): array {
+    $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
+    $matches = [];
+
+    foreach ($files as $file) {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read {$file}");
+        }
+        if (preg_match_all($pattern, $contents, $fileMatches) < 1) {
+            continue;
+        }
+        $relative = str_replace($libsqliteRoot . '/', '', $file);
+        foreach ($fileMatches[0] as $match) {
+            $matches[] = "{$relative}: {$match}";
+        }
+    }
+
+    return $matches;
+};
+
+$sourceLegacyDefaultTerms = [
+    'WordPress',
+    'wordpress',
+    'wordPress',
+    'wp' . '_',
+    'wp' . '_options',
+    'wp' . '_option',
+    'wp.',
+    'wp-content',
+    'wp%20',
+    'wp-import',
+    'wp-json-schema',
+    '/tmp/wp',
+    '/srv/wp',
+    '/srv/www/wp',
+    'wp-',
+    'opt' . 'ion_id',
+    'opt' . 'ion_name',
+    'opt' . 'ion_value',
+    'auto' . 'load',
+    'blog' . '_id',
+    'blog' . 'Id',
+    'Blog' . 'Id',
+    'site' . 'url',
+    'active' . '_plugins',
+    'plug' . 'in_',
+    'Plugin' . '_',
+    'PLUGIN' . '_',
+    'theme' . '_',
+    'Theme' . '_',
+    'THEME' . '_',
+    'theme' . '_mods',
+    'ui' . '_theme',
+    'widget' . '_',
+];
+
 $optionTableDefaultSourceFiles = [
     $sourceRoot . '/SQLiteMultiColumnRangePlan.php',
     $sourceRoot . '/SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan.php',
@@ -343,6 +422,11 @@ $jsonSchemaImportLegacyDefaultMatches = static function () use ($jsonSchemaImpor
     return $matches;
 };
 
+$allSourceLegacyDefaultMatches = static fn (): array => $legacyDefaultMatchesInFiles(
+    $allSourceFiles,
+    $sourceLegacyDefaultTerms
+);
+
 $settingsRows = [
     ['setting_id' => 1, 'key_name' => 'base_url', 'load_policy' => 'yes'],
     ['setting_id' => 2, 'key_name' => 'site_title', 'load_policy' => 'yes'],
@@ -389,6 +473,11 @@ $triggerNewRow = [
 ];
 
 return [
+    'source-neutral option table defaults scan all libsqlite source files dynamically' => static function (TestRunner $t) use ($allSourceFiles, $optionTableDefaultSourceFiles): void {
+        $t->same(true, count($allSourceFiles) > count($optionTableDefaultSourceFiles));
+        $t->same(true, in_array(dirname(__DIR__) . '/src/SQLiteDatabase.php', $allSourceFiles, true));
+    },
+    'source-neutral option table defaults dynamic source inventory has no legacy defaults' => static fn (TestRunner $t) => $t->same([], $allSourceLegacyDefaultMatches()),
     'source-neutral option table default source files contain no hardcoded wp table defaults' => static fn (TestRunner $t) => $t->same([], $legacyOptionTableDefaultMatches()),
     'utf16 key value byte-order plan source uses neutral setting defaults' => static fn (TestRunner $t) => $t->same([], $utf16KeyValuePlanLegacyDefaultMatches()),
     'utf16 late key value source uses neutral setting defaults' => static fn (TestRunner $t) => $t->same([], $utf16LateKeyValuePlanLegacyDefaultMatches()),
