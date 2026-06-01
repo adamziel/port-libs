@@ -1390,6 +1390,28 @@ CSS
         );
         $t->same('.foo{font-palette:--Custom}', $minifier->minify('.foo { font-palette: --Custom; }'));
     },
+    'css minifier maps upstream position try anchoring rules' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@position-try --outside-right-to-bottom{left:anchor(left);margin:0;width:auto}',
+            $minifier->minify(
+                '@position-try --outside-right-to-bottom { left: anchor(left); margin: 0; width: auto; }'
+            )
+        );
+        $t->same(
+            '@supports (anchor-name:--foo){@position-try --bar{top:anchor(bottom)}}',
+            $minifier->minify(
+                '@supports (anchor-name: --foo) { @position-try --bar { top: anchor(bottom); } }'
+            )
+        );
+        $t->same(
+            '.wp-block-popover{position-try-fallbacks:--wp-popover-below,--wp-popover-above flip-block;position-anchor:--wp-toolbar}@supports (anchor-name:--wp-toolbar){@position-try --wp-popover-above{bottom:anchor(top);margin:0}}',
+            $minifier->minify(
+                '.wp-block-popover { position-try-fallbacks: --wp-popover-below, --wp-popover-above flip-block; position-anchor: --wp-toolbar; } @supports (anchor-name: --wp-toolbar) { @position-try --wp-popover-above { bottom: anchor(top); margin: 0; } }'
+            )
+        );
+    },
     'css minifier maps upstream font feature values minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

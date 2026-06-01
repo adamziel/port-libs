@@ -600,6 +600,29 @@ $duplicateColumnNegativeMap->addVlqMap(
 );
 $duplicateColumnNegativeMap->offsetColumns(0, 5, -5);
 
+$duplicateBoundaryBufferedRawMap = new SourceMap();
+$duplicateBoundaryBufferedRawMap->addVlqMap(
+    'AAAAAA,CACAC',
+    ['wp-content/themes/example/source-map-duplicate-buffered.css'],
+    ['.wp-block-duplicate-buffered{}'],
+    ['duplicate-buffered-first', 'duplicate-buffered-second']
+);
+$duplicateBoundaryBufferedBuffer = $duplicateBoundaryBufferedRawMap->toBuffer();
+$duplicateBoundaryBufferedRestored = SourceMap::fromBuffer('/', $duplicateBoundaryBufferedBuffer);
+$duplicateBoundaryBufferedReadOrder = array_column($duplicateBoundaryBufferedRestored->getMappings(), 'generatedColumn');
+$duplicateBoundaryBufferedRestored->offsetColumns(0, 0, 5);
+
+$duplicateBoundaryNestedParent = new SourceMap();
+$duplicateBoundaryNestedParentSource = $duplicateBoundaryNestedParent->addSource('wp-content/themes/example/source-map-duplicate-buffered-parent.css');
+$duplicateBoundaryNestedParent->setSourceContent($duplicateBoundaryNestedParentSource, ".wp-block-duplicate-buffered-parent{}\n");
+$duplicateBoundaryNestedParent->addMapping(0, 0, $duplicateBoundaryNestedParentSource, 0, 0, 'duplicate-buffered-parent-top');
+$duplicateBoundaryNestedParent->addMapping(1, 4, $duplicateBoundaryNestedParentSource, 1, 2, 'duplicate-buffered-parent-replaced');
+$duplicateBoundaryNestedChild = SourceMap::fromBuffer('/', $duplicateBoundaryBufferedBuffer);
+$duplicateBoundaryNestedParent->addSourceMap($duplicateBoundaryNestedChild, 1);
+$duplicateBoundaryNestedReadOrderBeforeOffset = array_column(array_slice($duplicateBoundaryNestedParent->getMappings(), 1), 'generatedColumn');
+$duplicateBoundaryNestedParent->offsetColumns(1, 0, 3);
+$duplicateBoundaryNestedChildConsumed = $duplicateBoundaryNestedChild->toJson(null, false);
+
 $duplicateBoundaryNegativeMap = SourceMap::fromJson(
     '{"version":3,"mappings":"AAAAA,EACAC,AACAC,GACAC","sources":["wp-content/themes/example/source-map-duplicate-boundary.css"],"sourcesContent":[".wp-block-duplicate-boundary{}"],"names":["first-boundary-rule","start-boundary-a","start-boundary-b","shifted-boundary-rule"]}'
 );
@@ -968,6 +991,11 @@ $actual = [
     'streamingRawVlqMap' => $streamingRawVlqMap->toJson(null, false),
     'duplicateColumnPositiveMap' => $duplicateColumnPositiveMap->toJson(null, false),
     'duplicateColumnNegativeMap' => $duplicateColumnNegativeMap->toJson(null, false),
+    'duplicateBoundaryBufferedReadOrder' => $duplicateBoundaryBufferedReadOrder,
+    'duplicateBoundaryBufferedOffsetMap' => $duplicateBoundaryBufferedRestored->toJson(null, false),
+    'duplicateBoundaryNestedReadOrderBeforeOffset' => $duplicateBoundaryNestedReadOrderBeforeOffset,
+    'duplicateBoundaryNestedOffsetMap' => $duplicateBoundaryNestedParent->toJson(null, false),
+    'duplicateBoundaryNestedChildConsumed' => $duplicateBoundaryNestedChildConsumed,
     'duplicateBoundaryNegativeMap' => $duplicateBoundaryNegativeMap->toJson(null, false),
     'duplicateBoundaryNegativeClosest' => $duplicateBoundaryNegativeClosest,
     'unsortedRawVlqMap' => $unsortedRawVlqMap->toJson(null, false),
@@ -1088,6 +1116,11 @@ if (($argv[1] ?? null) === '--self-test') {
         'streamingRawVlqMap' => '{"version":3,"mappings":";;IAAAA,A;K","sources":["wp-content/themes/example/source-map-stream.css"],"sourcesContent":[".wp-block-source-map-stream{}"],"names":["stream-rule"]}',
         'duplicateColumnPositiveMap' => '{"version":3,"mappings":"AAAAA,K,C","sources":["wp-content/themes/example/source-map-duplicate-column.css"],"sourcesContent":[".wp-block-duplicate-column{}"],"names":["duplicate-column-rule"]}',
         'duplicateColumnNegativeMap' => '{"version":3,"mappings":"AAAAA,A","sources":["wp-content/themes/example/source-map-duplicate-column.css"],"sourcesContent":[".wp-block-duplicate-column{}"],"names":["duplicate-column-rule"]}',
+        'duplicateBoundaryBufferedReadOrder' => [0, 0, 1],
+        'duplicateBoundaryBufferedOffsetMap' => '{"version":3,"mappings":"AAAAA,K,CACAC","sources":["wp-content/themes/example/source-map-duplicate-buffered.css"],"sourcesContent":[".wp-block-duplicate-buffered{}"],"names":["duplicate-buffered-first","duplicate-buffered-second"]}',
+        'duplicateBoundaryNestedReadOrderBeforeOffset' => [0, 0, 1],
+        'duplicateBoundaryNestedOffsetMap' => '{"version":3,"mappings":"AAAAA;ACAAE,G,CACAC","sources":["wp-content/themes/example/source-map-duplicate-buffered-parent.css","wp-content/themes/example/source-map-duplicate-buffered.css"],"sourcesContent":[".wp-block-duplicate-buffered-parent{}\n",".wp-block-duplicate-buffered{}"],"names":["duplicate-buffered-parent-top","duplicate-buffered-parent-replaced","duplicate-buffered-first","duplicate-buffered-second"]}',
+        'duplicateBoundaryNestedChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'duplicateBoundaryNegativeMap' => '{"version":3,"mappings":"AAAAA,EACAC,AAEAE","sources":["wp-content/themes/example/source-map-duplicate-boundary.css"],"sourcesContent":[".wp-block-duplicate-boundary{}"],"names":["first-boundary-rule","start-boundary-a","start-boundary-b","shifted-boundary-rule"]}',
         'duplicateBoundaryNegativeClosest' => ['generatedLine' => 0, 'generatedColumn' => 2, 'sourceIndex' => 0, 'originalLine' => 3, 'originalColumn' => 0, 'nameIndex' => 3],
         'unsortedRawVlqMap' => '{"version":3,"mappings":"EACAC,QADAD","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',

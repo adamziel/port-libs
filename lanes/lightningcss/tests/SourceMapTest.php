@@ -607,6 +607,54 @@ return [
         $t->same([0, null], array_column($negativeDecoded, 'sourceIndex'));
         $t->same([0, null], array_column($negativeDecoded, 'nameIndex'));
     },
+    'source map preserves duplicate-column offset boundaries through buffers and nested maps' => static function (TestRunner $t): void {
+        $raw = new SourceMap();
+        $raw->addVlqMap(
+            'AAAAAA,CACAC',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['first', 'second']
+        );
+
+        $buffer = $raw->toBuffer();
+        $restored = SourceMap::fromBuffer('/', $buffer);
+
+        $t->same([0, 0, 1], array_column($restored->getMappings(), 'generatedColumn'));
+        $t->same([0, null, 0], array_column($restored->getMappings(), 'sourceIndex'));
+        $t->same([0, null, 1], array_column($restored->getMappings(), 'nameIndex'));
+        $restored->offsetColumns(0, 0, 5);
+        $restoredDecoded = SourceMap::decodeVlq($restored->writeVlq());
+
+        $t->same('AAAAA,K,CACAC', $restored->writeVlq());
+        $t->same([0, 5, 6], array_column($restoredDecoded, 'generatedColumn'));
+        $t->same([0, null, 0], array_column($restoredDecoded, 'sourceIndex'));
+        $t->same([0, null, 1], array_column($restoredDecoded, 'originalLine'));
+        $t->same([0, null, 1], array_column($restoredDecoded, 'nameIndex'));
+
+        $parent = new SourceMap();
+        $entry = $parent->addSource('entry.css');
+        $parent->setSourceContent($entry, ".entry{}\n");
+        $parent->addMapping(0, 0, $entry, 0, 0, 'entryTop');
+        $parent->addMapping(1, 4, $entry, 1, 2, 'entryReplaced');
+        $child = SourceMap::fromBuffer('/', $buffer);
+
+        $parent->addSourceMap($child, 1);
+        $t->same([0, 0, 1], array_column(array_slice($parent->getMappings(), 1), 'generatedColumn'));
+        $t->same([], $child->getMappings());
+
+        $parent->offsetColumns(1, 0, 3);
+        $parentDecoded = SourceMap::decodeVlq($parent->writeVlq());
+        $parentData = $parent->toArray(null, false);
+
+        $t->same('AAAAA;ACAAE,G,CACAC', $parent->writeVlq());
+        $t->same([0, 1, 1, 1], array_column($parentDecoded, 'generatedLine'));
+        $t->same([0, 0, 3, 4], array_column($parentDecoded, 'generatedColumn'));
+        $t->same([0, 1, null, 1], array_column($parentDecoded, 'sourceIndex'));
+        $t->same([0, 2, null, 3], array_column($parentDecoded, 'nameIndex'));
+        $t->same(['entry.css', 'compiled.css'], $parentData['sources']);
+        $t->same([".entry{}\n", '.compiled{}'], $parentData['sourcesContent']);
+        $t->same(['entryTop', 'entryReplaced', 'first', 'second'], $parentData['names']);
+    },
     'source map applies upstream negative column-offset boundaries on duplicate vlq columns' => static function (TestRunner $t): void {
         $map = SourceMap::fromJson(
             '{"version":3,"mappings":"AAAAA,EACAC,AACAC,GACAC","sources":["compiled.css"],"sourcesContent":[".compiled{}"],"names":["first","start-a","start-b","boundary"]}'

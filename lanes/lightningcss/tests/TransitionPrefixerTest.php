@@ -2802,6 +2802,38 @@ CSS;
             $prefixer->prefixForTargets('@supports (print-color-adjust: exact) { .foo { print-color-adjust: exact; } }', ['chrome' => 135, 'firefox' => 96])
         );
         $t->same(
+            '@supports ((-webkit-font-feature-settings:"kern") or (-moz-font-feature-settings:"kern") or (font-feature-settings:"kern")){.foo{-webkit-font-feature-settings:"kern";-moz-font-feature-settings:"kern";font-feature-settings:"kern"}}',
+            $prefixer->prefixForTargets('@supports (font-feature-settings: "kern") { .foo { font-feature-settings: "kern"; } }', ['chrome' => 47, 'firefox' => 33])
+        );
+        $t->same(
+            '@supports (font-feature-settings:"kern"){.foo{font-feature-settings:"kern"}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-font-feature-settings: "kern") or (-moz-font-feature-settings: "kern") or (font-feature-settings: "kern")) { .foo { -webkit-font-feature-settings: "kern"; -moz-font-feature-settings: "kern"; font-feature-settings: "kern"; } }', ['chrome' => 48, 'firefox' => 34])
+        );
+        $t->same(
+            '@supports ((-webkit-font-variant-ligatures:no-common-ligatures) or (font-variant-ligatures:no-common-ligatures)){.foo{-webkit-font-variant-ligatures:no-common-ligatures;font-variant-ligatures:no-common-ligatures}}',
+            $prefixer->prefixForTargets('@supports (font-variant-ligatures: no-common-ligatures) { .foo { font-variant-ligatures: no-common-ligatures; } }', ['android' => '4.4.3', 'samsung' => 4])
+        );
+        $t->same(
+            '@supports (font-variant-ligatures:no-common-ligatures){.foo{font-variant-ligatures:no-common-ligatures}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-font-variant-ligatures: no-common-ligatures) or (font-variant-ligatures: no-common-ligatures)) { .foo { -webkit-font-variant-ligatures: no-common-ligatures; font-variant-ligatures: no-common-ligatures; } }', ['android' => '4.4.4', 'samsung' => 5])
+        );
+        $t->same(
+            '@supports ((-moz-font-language-override:"SRB") or (font-language-override:"SRB")){.foo{-moz-font-language-override:"SRB";font-language-override:"SRB"}}',
+            $prefixer->prefixForTargets('@supports (font-language-override: "SRB") { .foo { font-language-override: "SRB"; } }', ['firefox' => 33])
+        );
+        $t->same(
+            '@supports (font-language-override:"SRB"){.foo{font-language-override:"SRB"}}',
+            $prefixer->prefixForTargets('@supports ((-moz-font-language-override: "SRB") or (font-language-override: "SRB")) { .foo { -moz-font-language-override: "SRB"; font-language-override: "SRB"; } }', ['firefox' => 34])
+        );
+        $t->same(
+            '@supports ((-webkit-font-kerning:normal) or (font-kerning:normal)){.foo{-webkit-font-kerning:normal;font-kerning:normal}}',
+            $prefixer->prefixForTargets('@supports (font-kerning: normal) { .foo { font-kerning: normal; } }', ['safari' => 9])
+        );
+        $t->same(
+            '@supports (font-kerning:normal){.foo{font-kerning:normal}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-font-kerning: normal) or (font-kerning: normal)) { .foo { -webkit-font-kerning: normal; font-kerning: normal; } }', ['safari' => 10])
+        );
+        $t->same(
             '@supports ((-webkit-clip-path:circle(50%)) or (clip-path:circle(50%))){.foo{-webkit-clip-path:circle(50%);clip-path:circle(50%)}}',
             $prefixer->prefixForTargets('@supports (clip-path: circle(50%)) { .foo { clip-path: circle(50%); } }', ['chrome' => 54])
         );

@@ -31,6 +31,14 @@ $loosePrefixCandidateOid = (new LooseObjectStore($gitDir))->write(new GitObject(
 $contentPrefixCandidates = $database->lookupPrefix(substr($fixture['objectsByRole']['content']['oid'], 0, 4), true);
 $contentShortestPrefix = $database->disambiguatePrefix($fixture['objectsByRole']['content']['oid'], 4);
 $contentFullPrefix = $database->lookupPrefix($fixture['objectsByRole']['content']['oid'], true);
+$contentDirectoryCandidateOid = substr($fixture['objectsByRole']['content']['oid'], 0, 4)
+    . ($fixture['objectsByRole']['content']['oid'][4] === '0' ? '1' : '0')
+    . str_repeat('f', 35);
+$contentDirectoryCandidatePath = $gitDir . '/objects/' . substr($contentDirectoryCandidateOid, 0, 2) . '/' . substr($contentDirectoryCandidateOid, 2);
+if (!is_dir($contentDirectoryCandidatePath) && !mkdir($contentDirectoryCandidatePath, 0777, true) && !is_dir($contentDirectoryCandidatePath)) {
+    throw new RuntimeException("Unable to create loose directory prefix candidate: {$contentDirectoryCandidatePath}");
+}
+$contentDirectoryPrefixCandidates = $database->lookupPrefix(substr($fixture['objectsByRole']['content']['oid'], 0, 4), true);
 
 // Prefix disambiguation only needs the loose-object inventory, not object body reads.
 $syntheticSharedPrefix = str_repeat('c', 39);
@@ -63,6 +71,10 @@ return [
     'contentShortestPrefixAfterLooseCandidate' => $contentShortestPrefix,
     'contentFullPrefixStatus' => $contentFullPrefix['status'],
     'contentFullPrefixCandidates' => $contentFullPrefix['candidates'],
+    'contentDirectoryCandidateOid' => $contentDirectoryCandidateOid,
+    'contentDirectoryCandidateExists' => $database->contains($contentDirectoryCandidateOid),
+    'contentDirectoryPrefixStatus' => $contentDirectoryPrefixCandidates['status'],
+    'contentDirectoryPrefixCandidates' => $contentDirectoryPrefixCandidates['candidates'],
     'missingAmbiguousFullPrefix' => $database->disambiguatePrefix($syntheticMissingCandidate, 4),
     'missingAmbiguousFullPrefixExists' => $database->contains($syntheticMissingCandidate),
     'absentMediaCandidateShortestPrefix' => $database->disambiguatePrefix($absentMediaCandidate, 8),

@@ -308,10 +308,8 @@ final class ObjectDatabase
         }
 
         foreach ($this->looseStores() as $store) {
-            foreach ($store->objectIds() as $oid) {
-                if (str_starts_with($oid, $prefix)) {
-                    $matches[$oid] = true;
-                }
+            foreach ($store->prefixObjectIds($prefix) as $oid) {
+                $matches[$oid] = true;
             }
         }
 

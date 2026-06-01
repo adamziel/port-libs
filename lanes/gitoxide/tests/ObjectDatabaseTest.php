@@ -909,6 +909,29 @@ return [
         $t->same(null, $database->disambiguatePrefix($missingCandidate, 40));
         $t->same(['status' => 'missing', 'candidates' => []], $database->lookupPrefix($missingCandidate, true));
     },
+    'object database treats loose path candidates as MIDX prefix candidates like gix-odb' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture, $looseObjectPath): void {
+        [$gitDir, $fixture] = $writeWordPressMultiPackFixture();
+        $database = new ObjectDatabase($gitDir);
+        $contentOid = $fixture['objectsByRole']['content']['oid'];
+        $sharedPrefix = substr($contentOid, 0, 4);
+        $differentNibble = $contentOid[4] === '0' ? '1' : '0';
+        $directoryCandidateOid = $sharedPrefix . $differentNibble . str_repeat('f', 35);
+        $directoryCandidatePath = $looseObjectPath($gitDir, $directoryCandidateOid);
+        if (!is_dir($directoryCandidatePath) && !mkdir($directoryCandidatePath, 0777, true) && !is_dir($directoryCandidatePath)) {
+            throw new RuntimeException("Unable to create loose directory prefix candidate: {$directoryCandidatePath}");
+        }
+
+        $expectedCandidates = [$contentOid, $directoryCandidateOid];
+        sort($expectedCandidates, SORT_STRING);
+
+        $ambiguous = $database->lookupPrefix(strtoupper($sharedPrefix), true);
+        $t->same('ambiguous', $ambiguous['status']);
+        $t->same($expectedCandidates, $ambiguous['candidates']);
+        $t->same($expectedCandidates, $ambiguous['matches']);
+        $t->same(['status' => 'ambiguous', 'matches' => $expectedCandidates], $database->lookupPrefix($sharedPrefix));
+        $t->same(false, $database->contains($directoryCandidateOid));
+        $t->same(substr($contentOid, 0, 5), $database->disambiguatePrefix(strtoupper($contentOid), 4));
+    },
     'object database rejects multi-pack-index entries that reference missing packs' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
         [$gitDir] = $writeWordPressMultiPackFixture(true);
         $database = new ObjectDatabase($gitDir);
@@ -979,6 +1002,15 @@ return [
         $t->same([$summary['contentOid']], $summary['contentDuplicatePrefixCandidates']);
         $t->same('found', $summary['contentFullPrefixStatus']);
         $t->same([$summary['contentOid']], $summary['contentFullPrefixCandidates']);
+        $expectedDirectoryCandidates = [
+            $summary['contentOid'],
+            $summary['loosePrefixCandidateOid'],
+            $summary['contentDirectoryCandidateOid'],
+        ];
+        sort($expectedDirectoryCandidates, SORT_STRING);
+        $t->same(false, $summary['contentDirectoryCandidateExists']);
+        $t->same('ambiguous', $summary['contentDirectoryPrefixStatus']);
+        $t->same($expectedDirectoryCandidates, $summary['contentDirectoryPrefixCandidates']);
         $t->true(strlen($summary['contentShortestPrefixAfterLooseCandidate']) > 4);
         $t->same(
             substr($summary['contentOid'], 0, strlen($summary['contentShortestPrefixAfterLooseCandidate'])),

@@ -234,6 +234,55 @@ final class LooseObjectStore
     }
 
     /**
+     * Return loose object id path candidates matching a prefix.
+     *
+     * Gitoxide's loose prefix lookup works from path names first and only
+     * validates object contents when callers later read the object.
+     *
+     * @return list<string>
+     */
+    public function prefixObjectIds(string $prefix): array
+    {
+        $prefix = strtolower($prefix);
+        $length = self::hashHexLength($this->algorithm);
+        if (preg_match('/^[0-9a-f]{4,' . $length . '}$/', $prefix) !== 1) {
+            throw new \InvalidArgumentException("Loose object prefix must be 4 to {$length} hexadecimal characters");
+        }
+
+        $directoryPrefix = substr($prefix, 0, 2);
+        $directory = $this->objectsDirectory . '/' . $directoryPrefix;
+        if (!is_dir($directory)) {
+            return [];
+        }
+
+        $entries = scandir($directory);
+        if ($entries === false) {
+            throw new \RuntimeException("Unable to read loose object prefix directory: {$directory}");
+        }
+
+        $ids = [];
+        $suffixLength = $length - 2;
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            if (preg_match('/^[0-9a-fA-F]{' . $suffixLength . '}$/', $entry) !== 1) {
+                continue;
+            }
+
+            $oid = strtolower($directoryPrefix . $entry);
+            if (str_starts_with($oid, $prefix)) {
+                $ids[$oid] = true;
+            }
+        }
+
+        $ids = array_keys($ids);
+        sort($ids, SORT_STRING);
+
+        return $ids;
+    }
+
+    /**
      * @param null|callable(string,int):bool $shouldInterrupt
      * @return array{numObjects:int,verifiedObjectIds:list<string>}
      */

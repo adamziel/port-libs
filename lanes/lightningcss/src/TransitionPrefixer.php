@@ -881,6 +881,21 @@ final class TransitionPrefixer
             'box-decoration-break' => [
                 '-webkit-' => $targetOptions['boxDecorationBreakNeedsWebkit'] ?? false,
             ],
+            'font-feature-settings' => [
+                '-webkit-' => $targetOptions['fontFeatureSettingsNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['fontFeatureSettingsNeedsMoz'] ?? false,
+            ],
+            'font-variant-ligatures' => [
+                '-webkit-' => $targetOptions['fontFeatureSettingsNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['fontFeatureSettingsNeedsMoz'] ?? false,
+            ],
+            'font-language-override' => [
+                '-webkit-' => $targetOptions['fontFeatureSettingsNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['fontFeatureSettingsNeedsMoz'] ?? false,
+            ],
+            'font-kerning' => [
+                '-webkit-' => $targetOptions['fontKerningNeedsWebkit'] ?? false,
+            ],
         ];
     }
 
