@@ -1012,8 +1012,8 @@ final class SQLiteDatabase
             if ($cell->rowId === $rowId) {
                 throw new \InvalidArgumentException("SQLite app_settings rowid {$rowId} already exists");
             }
-            $option = SQLiteKeyValueRow::fromTableRow(SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding));
-            if ($option->keyName === $keyName) {
+            $setting = SQLiteKeyValueRow::fromTableRow(SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding));
+            if ($setting->keyName === $keyName) {
                 throw new \InvalidArgumentException("SQLite app_settings key_name {$keyName} already exists");
             }
 
@@ -1147,10 +1147,10 @@ final class SQLiteDatabase
         $deletedKeyNames = [];
         $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
         foreach (SQLiteTableLeafCell::parsePageCells($tablePage, $tableHeader, $this->usablePageSize(), $overflowReader) as $cell) {
-            $option = SQLiteKeyValueRow::fromTableRow(SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding));
-            if ($cell->rowId === $rowId || $option->keyName === $keyName) {
+            $setting = SQLiteKeyValueRow::fromTableRow(SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding));
+            if ($cell->rowId === $rowId || $setting->keyName === $keyName) {
                 $deletedRowIds[$cell->rowId] = true;
-                $deletedKeyNames[$option->keyName] = true;
+                $deletedKeyNames[$setting->keyName] = true;
                 continue;
             }
 
@@ -1586,8 +1586,8 @@ final class SQLiteDatabase
                 ];
 
                 $row = SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding);
-                $option = SQLiteKeyValueRow::fromTableRow($row);
-                if ($option->keyName !== $keyName) {
+                $setting = SQLiteKeyValueRow::fromTableRow($row);
+                if ($setting->keyName !== $keyName) {
                     continue;
                 }
                 if ($matched !== null || $target !== null) {
@@ -1604,7 +1604,7 @@ final class SQLiteDatabase
 
                 $matched = [
                     'rowid' => $cell->rowId,
-                    'load_policy' => $option->loadPolicy,
+                    'load_policy' => $setting->loadPolicy,
                     'values' => $row->values(),
                     'obsoleteOverflowPageNumbers' => $obsoleteOverflowPageNumbers,
                 ];
@@ -6360,12 +6360,12 @@ final class SQLiteDatabase
 
         $settings = [];
         foreach ($this->tableRowsByName('app_settings', null) as $row) {
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (!self::likeMatches($option->keyName, $pattern, $escape, $caseSensitive)) {
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            if (!self::likeMatches($setting->keyName, $pattern, $escape, $caseSensitive)) {
                 continue;
             }
 
-            $settings[] = $option;
+            $settings[] = $setting;
             if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
@@ -6395,12 +6395,12 @@ final class SQLiteDatabase
         }
 
         $settings = [];
-        foreach ($this->keyValueRowsByIndexedNameRange($bounds['lowerInclusive'], $bounds['upperBound']) as $option) {
-            if (!self::likeMatches($option->keyName, $pattern, $escape, true)) {
+        foreach ($this->keyValueRowsByIndexedNameRange($bounds['lowerInclusive'], $bounds['upperBound']) as $setting) {
+            if (!self::likeMatches($setting->keyName, $pattern, $escape, true)) {
                 continue;
             }
 
-            $settings[] = $option;
+            $settings[] = $setting;
             if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
@@ -6437,12 +6437,12 @@ final class SQLiteDatabase
             $bounds['upperBound'],
             'NOCASE',
             $compareNoCase,
-        ) as $option) {
-            if (!self::likeMatches($option->keyName, $pattern, $escape, false)) {
+        ) as $setting) {
+            if (!self::likeMatches($setting->keyName, $pattern, $escape, false)) {
                 continue;
             }
 
-            $settings[] = $option;
+            $settings[] = $setting;
             if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
@@ -6465,12 +6465,12 @@ final class SQLiteDatabase
 
         $settings = [];
         foreach ($this->tableRowsByName('app_settings', null) as $row) {
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (!self::globMatches($option->keyName, $pattern)) {
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            if (!self::globMatches($setting->keyName, $pattern)) {
                 continue;
             }
 
-            $settings[] = $option;
+            $settings[] = $setting;
             if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
@@ -6497,12 +6497,12 @@ final class SQLiteDatabase
         }
 
         $settings = [];
-        foreach ($this->keyValueRowsByIndexedNameRange($bounds['lowerInclusive'], $bounds['upperBound']) as $option) {
-            if (!self::globMatches($option->keyName, $pattern)) {
+        foreach ($this->keyValueRowsByIndexedNameRange($bounds['lowerInclusive'], $bounds['upperBound']) as $setting) {
+            if (!self::globMatches($setting->keyName, $pattern)) {
                 continue;
             }
 
-            $settings[] = $option;
+            $settings[] = $setting;
             if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
@@ -6520,14 +6520,14 @@ final class SQLiteDatabase
         };
     }
 
-    private static function keyValueRowOrderValue(SQLiteKeyValueRow $option, string $column): int|string|null
+    private static function keyValueRowOrderValue(SQLiteKeyValueRow $setting, string $column): int|string|null
     {
         return match ($column) {
-            'setting_id' => $option->settingId,
-            'key_name' => $option->keyName,
-            'key_value' => $option->keyValue,
-            'load_policy' => $option->loadPolicy,
-            'rowid' => $option->rowId,
+            'setting_id' => $setting->settingId,
+            'key_name' => $setting->keyName,
+            'key_value' => $setting->keyValue,
+            'load_policy' => $setting->loadPolicy,
+            'rowid' => $setting->rowId,
         };
     }
 
@@ -6558,12 +6558,12 @@ final class SQLiteDatabase
 
         $settings = [];
         foreach ($this->tableRowsByName('app_settings', null) as $row) {
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (!self::regexpMatches($option->keyName, $pattern, $regexp)) {
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            if (!self::regexpMatches($setting->keyName, $pattern, $regexp)) {
                 continue;
             }
 
-            $settings[] = $option;
+            $settings[] = $setting;
             if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
@@ -6832,9 +6832,9 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::inListContainsSQLiteScalar($lookupValues, self::asciiLower($option->keyName), $indexLookup['collation'])) {
-                $settings[] = $option;
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            if (self::inListContainsSQLiteScalar($lookupValues, self::asciiLower($setting->keyName), $indexLookup['collation'])) {
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -6891,9 +6891,9 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::inListContainsSQLiteScalar($lookupValues, self::asciiUpper($option->keyName), $indexLookup['collation'])) {
-                $settings[] = $option;
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            if (self::inListContainsSQLiteScalar($lookupValues, self::asciiUpper($setting->keyName), $indexLookup['collation'])) {
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -6931,12 +6931,12 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (
-                $option->loadPolicy === $loadPolicy
-                && self::compareSQLiteScalar($option->keyName, $keyName, $indexLookup['collation']) === 0
+                $setting->loadPolicy === $loadPolicy
+                && self::compareSQLiteScalar($setting->keyName, $keyName, $indexLookup['collation']) === 0
             ) {
-                return $option;
+                return $setting;
             }
         }
 
@@ -6970,9 +6970,9 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::compareSQLiteScalar(self::asciiLower($option->keyName), $lookupValue, $indexLookup['collation']) === 0) {
-                return $option;
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            if (self::compareSQLiteScalar(self::asciiLower($setting->keyName), $lookupValue, $indexLookup['collation']) === 0) {
+                return $setting;
             }
         }
 
@@ -7028,12 +7028,12 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::compareSQLiteScalarWithCustomTextCollation(self::asciiLower($option->keyName), $lookupValue, $compare) !== 0) {
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            if (self::compareSQLiteScalarWithCustomTextCollation(self::asciiLower($setting->keyName), $lookupValue, $compare) !== 0) {
                 continue;
             }
 
-            $settings[] = $option;
+            $settings[] = $setting;
             if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
@@ -7102,12 +7102,12 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (!self::inListContainsSQLiteScalarWithCustomTextCollation($lookupValues, self::asciiLower($option->keyName), $compare)) {
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            if (!self::inListContainsSQLiteScalarWithCustomTextCollation($lookupValues, self::asciiLower($setting->keyName), $compare)) {
                 continue;
             }
 
-            $settings[] = $option;
+            $settings[] = $setting;
             if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
@@ -7177,12 +7177,12 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (!self::customFirstValueIsInRange(self::asciiLower($option->keyName), $lowerKey, $upperKey, $upperInclusive, $compare)) {
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            if (!self::customFirstValueIsInRange(self::asciiLower($setting->keyName), $lowerKey, $upperKey, $upperInclusive, $compare)) {
                 continue;
             }
 
-            $settings[] = $option;
+            $settings[] = $setting;
             if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
@@ -7218,9 +7218,9 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::compareSQLiteScalar(self::asciiUpper($option->keyName), $lookupValue, $indexLookup['collation']) === 0) {
-                return $option;
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            if (self::compareSQLiteScalar(self::asciiUpper($setting->keyName), $lookupValue, $indexLookup['collation']) === 0) {
+                return $setting;
             }
         }
 
@@ -7257,13 +7257,13 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (self::compareSQLiteScalar(
-                self::sqliteTrim($option->keyName, $functionName, $characters),
+                self::sqliteTrim($setting->keyName, $functionName, $characters),
                 $lookupValue,
                 $indexLookup['collation'],
             ) === 0) {
-                return $option;
+                return $setting;
             }
         }
 
@@ -7316,15 +7316,15 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 self::compareSQLiteScalar(
-                    self::sqliteSubstring($option->keyName, 1, $length),
+                    self::sqliteSubstring($setting->keyName, 1, $length),
                     $prefix,
                     $indexLookup['collation'],
                 ) === 0
             ) {
-                $settings[] = $option;
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -7400,13 +7400,13 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (self::inListContainsSQLiteScalar(
                 $prefixes,
-                self::sqliteSubstring($option->keyName, 1, $prefixLength),
+                self::sqliteSubstring($setting->keyName, 1, $prefixLength),
                 $indexLookup['collation'],
             )) {
-                $settings[] = $option;
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -7462,15 +7462,15 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 self::compareSQLiteScalar(
-                    self::sqliteSubstring($option->keyName, $start, null),
+                    self::sqliteSubstring($setting->keyName, $start, null),
                     $suffix,
                     $indexLookup['collation'],
                 ) === 0
             ) {
-                $settings[] = $option;
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -7520,9 +7520,9 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::sqliteLength($option->keyName) === $length) {
-                $settings[] = $option;
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            if (self::sqliteLength($setting->keyName) === $length) {
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -7583,9 +7583,9 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::inListContainsSQLiteScalar($lengths, self::sqliteLength($option->keyName), $indexLookup['collation'])) {
-                $settings[] = $option;
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            if (self::inListContainsSQLiteScalar($lengths, self::sqliteLength($setting->keyName), $indexLookup['collation'])) {
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -7650,15 +7650,15 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (self::firstValueIsInRange(
-                self::sqliteLength($option->keyName),
+                self::sqliteLength($setting->keyName),
                 $lowerInclusive,
                 $upperBound,
                 $upperInclusive,
                 $indexLookup['collation'],
             )) {
-                $settings[] = $option;
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -7705,9 +7705,9 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::sqliteCastAsInteger($option->keyValue) === $value) {
-                $settings[] = $option;
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            if (self::sqliteCastAsInteger($setting->keyValue) === $value) {
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -7762,9 +7762,9 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::inListContainsSQLiteScalar($values, self::sqliteCastAsInteger($option->keyValue), $indexLookup['collation'])) {
-                $settings[] = $option;
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            if (self::inListContainsSQLiteScalar($values, self::sqliteCastAsInteger($setting->keyValue), $indexLookup['collation'])) {
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -7829,15 +7829,15 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (self::firstValueIsInRange(
-                self::sqliteCastAsInteger($option->keyValue),
+                self::sqliteCastAsInteger($setting->keyValue),
                 $lowerInclusive,
                 $upperBound,
                 $upperInclusive,
                 $indexLookup['collation'],
             )) {
-                $settings[] = $option;
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -7889,15 +7889,15 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 self::compareSQLiteScalar(
-                    self::sqliteJsonExtract($option->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null),
+                    self::sqliteJsonExtract($setting->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null),
                     $lookupValue,
                     $indexLookup['collation'],
                 ) === 0
             ) {
-                $settings[] = $option;
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -7949,15 +7949,15 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 self::compareSQLiteScalar(
-                    self::sqliteJsonValueOperator($option->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null),
+                    self::sqliteJsonValueOperator($setting->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null),
                     $lookupValue,
                     $indexLookup['collation'],
                 ) === 0
             ) {
-                $settings[] = $option;
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -8010,13 +8010,13 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            $fragment = self::sqliteJsonValueOperator($option->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null);
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            $fragment = self::sqliteJsonValueOperator($setting->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null);
             if (
                 $fragment !== null
                 && self::inListContainsSQLiteScalar($lookupValues, $fragment, $indexLookup['collation'])
             ) {
-                $settings[] = $option;
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -8089,8 +8089,8 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
-            $fragment = self::sqliteJsonValueOperator($option->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null);
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
+            $fragment = self::sqliteJsonValueOperator($setting->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null);
             if (
                 $fragment !== null
                 && self::firstValueIsInRange(
@@ -8101,7 +8101,7 @@ final class SQLiteDatabase
                     $indexLookup['collation'],
                 )
             ) {
-                $settings[] = $option;
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -8158,15 +8158,15 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 self::inListContainsSQLiteScalar(
                     $lookupValues,
-                    self::sqliteJsonExtract($option->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null),
+                    self::sqliteJsonExtract($setting->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null),
                     $indexLookup['collation'],
                 )
             ) {
-                $settings[] = $option;
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -8239,15 +8239,15 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (self::firstValueIsInRange(
-                self::sqliteJsonExtract($option->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null),
+                self::sqliteJsonExtract($setting->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null),
                 $lowerKey,
                 $upperKey,
                 $upperInclusive,
                 $indexLookup['collation'],
             )) {
-                $settings[] = $option;
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -8315,15 +8315,15 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (self::firstValueIsInRange(
-                self::asciiLower($option->keyName),
+                self::asciiLower($setting->keyName),
                 $lowerKey,
                 $upperKey,
                 $upperInclusive,
                 $indexLookup['collation'],
             )) {
-                $settings[] = $option;
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
@@ -8391,15 +8391,15 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteKeyValueRow::fromTableRow($row);
+            $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (self::firstValueIsInRange(
-                self::asciiUpper($option->keyName),
+                self::asciiUpper($setting->keyName),
                 $lowerKey,
                 $upperKey,
                 $upperInclusive,
                 $indexLookup['collation'],
             )) {
-                $settings[] = $option;
+                $settings[] = $setting;
                 if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }

@@ -64,6 +64,7 @@ final class TransitionPrefixer
         $cursor = 0;
         $length = strlen($css);
         $emittedKeyframes = [];
+        $lastMergeableStyleRule = null;
 
         while ($cursor < $length) {
             $open = $this->findNextTopLevel($css, '{', $cursor);
@@ -76,6 +77,7 @@ final class TransitionPrefixer
             $prelude = trim(substr($css, $cursor, $open - $cursor));
             $body = substr($css, $open + 1, $close - $open - 1);
             if (str_starts_with($prelude, '@')) {
+                $lastMergeableStyleRule = null;
                 $prelude = $this->rewriteMediaRangePrelude($prelude, $targetOptions);
                 $prelude = $this->rewriteSupportsBackdropFilterPrelude($prelude, $targetOptions);
                 if ($this->isKeyframesPrelude($prelude)) {
@@ -94,12 +96,85 @@ final class TransitionPrefixer
                     $targetOptions
                 ) . '}';
             } else {
-                $output .= $this->rewriteStyleRule($prelude, $body, $insideAdvancedColorSupports, $targetOptions);
+                $rewrittenStyleRule = $this->rewriteStyleRule($prelude, $body, $insideAdvancedColorSupports, $targetOptions);
+                $this->appendRewrittenStyleRule(
+                    $output,
+                    $rewrittenStyleRule,
+                    $rewrittenStyleRule !== $prelude . '{' . $body . '}',
+                    $lastMergeableStyleRule
+                );
             }
             $cursor = $close + 1;
         }
 
         return $output;
+    }
+
+    /**
+     * @param array{selectors:string, body:string, start:int, changed:bool}|null $lastMergeableStyleRule
+     */
+    private function appendRewrittenStyleRule(string &$output, string $rule, bool $changed, ?array &$lastMergeableStyleRule): void
+    {
+        $parsed = $this->parseSingleStyleRule($rule);
+        if ($parsed === null) {
+            $output .= $rule;
+            $lastMergeableStyleRule = null;
+            return;
+        }
+
+        if ($lastMergeableStyleRule !== null
+            && $lastMergeableStyleRule['body'] === $parsed['body']
+            && ($lastMergeableStyleRule['changed'] || $changed)
+        ) {
+            $selectors = $lastMergeableStyleRule['selectors'] . ',' . $parsed['selectors'];
+            $output = substr($output, 0, $lastMergeableStyleRule['start']) . $selectors . '{' . $parsed['body'] . '}';
+            $lastMergeableStyleRule = [
+                'selectors' => $selectors,
+                'body' => $parsed['body'],
+                'start' => $lastMergeableStyleRule['start'],
+                'changed' => true,
+            ];
+            return;
+        }
+
+        $start = strlen($output);
+        $output .= $rule;
+        $lastMergeableStyleRule = [
+            'selectors' => $parsed['selectors'],
+            'body' => $parsed['body'],
+            'start' => $start,
+            'changed' => $changed,
+        ];
+    }
+
+    /**
+     * @return array{selectors:string, body:string}|null
+     */
+    private function parseSingleStyleRule(string $rule): ?array
+    {
+        if ($rule === '' || str_starts_with($rule, '@')) {
+            return null;
+        }
+
+        $open = $this->findNextTopLevel($rule, '{', 0);
+        if ($open === null) {
+            return null;
+        }
+
+        $close = $this->findMatchingBrace($rule, $open);
+        if ($close !== strlen($rule) - 1) {
+            return null;
+        }
+
+        $selectors = substr($rule, 0, $open);
+        if ($selectors === '' || str_starts_with($selectors, '@')) {
+            return null;
+        }
+
+        return [
+            'selectors' => $selectors,
+            'body' => substr($rule, $open + 1, $close - $open - 1),
+        ];
     }
 
     private function isKeyframesPrelude(string $prelude): bool

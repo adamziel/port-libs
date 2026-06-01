@@ -9,6 +9,8 @@ $fixture = require __DIR__ . '/../fixtures/wordpress-credential-cascade.php';
 return [
     'identity' => $fixture['identity'],
     'contextPath' => $fixture['contextPath'],
+    'nextActionPath' => $fixture['nextActionContext']['path'],
+    'verbatimHelperPath' => $fixture['verbatimHelperContext']['path'],
     'storedCredentialContexts' => count($fixture['storePayloads']),
     'erasedCredentialContexts' => count($fixture['erasePayloads']),
     'completeQuitIdentity' => $fixture['completeQuitIdentity'],

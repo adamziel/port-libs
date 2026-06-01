@@ -57,6 +57,11 @@ $write($repo . '/bracket-url.config', <<<CFG
 bracketUrl = matched
 CFG);
 
+$write($repo . '/legacy-dot-remote.config', <<<CFG
+[wordpress]
+legacyDotRemote = matched
+CFG);
+
 $write($repo . '/posix-url.config', <<<CFG
 [wordpress]
 posixUrl = matched
@@ -210,6 +215,8 @@ url = "https://git.example.test/wp-content/blank-vtab-{$blankVerticalTab}.git"
 url = https://windows.example.test\wp-content.git
 [remote "nested-content"]
 url = https://git.example.test/wp/site/content.git
+[remote.legacyDot]
+url = https://git.example.test/wp-content/legacy-dot.git
 [remote "invalid-posix"]
 url = https://git.example.test/wp-content/site-[[:word:]].git
 [remote "unclosed-bracket"]
@@ -228,6 +235,8 @@ path = ../recursive-gitdir.config
 path = ../slash-class-rejected.config
 [includeIf "hasconfig:remote.*.url:https://git.example[.]test/**"]
 path = ../bracket-url.config
+[includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/legacy-dot.git"]
+path = ../legacy-dot-remote.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[[:digit:]].git"]
 path = ../posix-url.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[a\\\\-c].git"]
@@ -308,6 +317,7 @@ return [
     'recursiveGitdirPolicy' => $config->value('wordpress', null, 'recursiveGitdir'),
     'slashClassRejectedPolicy' => $config->value('wordpress', null, 'slashClassRejected'),
     'bracketUrlPolicy' => $config->value('wordpress', null, 'bracketUrl'),
+    'legacyDotRemotePolicy' => $config->value('wordpress', null, 'legacyDotRemote'),
     'posixUrlPolicy' => $config->value('wordpress', null, 'posixUrl'),
     'escapedHyphenUrlPolicy' => $config->value('wordpress', null, 'escapedHyphenUrl'),
     'reversedRangeStartUrlPolicy' => $config->value('wordpress', null, 'reversedRangeStartUrl'),

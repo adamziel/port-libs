@@ -10758,7 +10758,7 @@ final class DeclarationBlock
             }
 
             if (!$timelineSet && $this->isAnimationTimelineToken($token)) {
-                $components['animation-timeline'] = trim($token);
+                $components['animation-timeline'] = $this->normalizeAnimationTimelineValue($token);
                 $timelineSet = true;
                 continue;
             }
@@ -10868,8 +10868,158 @@ final class DeclarationBlock
             'animation-duration', 'animation-delay' => $this->canonicalAnimationTime($value),
             'animation-iteration-count' => $this->normalizeAnimationIterationCount($value),
             'animation-direction', 'animation-play-state', 'animation-fill-mode' => strtolower($value),
+            'animation-timeline' => $this->normalizeAnimationTimelineValue($value),
             default => $value,
         };
+    }
+
+    private function normalizeAnimationTimelineList(string $value): string
+    {
+        return implode(', ', array_map(
+            fn (string $part): string => $this->normalizeAnimationTimelineValue($part),
+            $this->animationComponentList($value)
+        ));
+    }
+
+    private function normalizeAnimationTimelineValue(string $value): string
+    {
+        $value = trim($value);
+        $lower = strtolower($value);
+        if ($lower === 'auto' || $lower === 'none') {
+            return $lower;
+        }
+
+        if (str_starts_with($lower, 'scroll(') && str_ends_with($value, ')')) {
+            return $this->normalizeScrollTimelineFunction($value);
+        }
+
+        if (str_starts_with($lower, 'view(') && str_ends_with($value, ')')) {
+            return $this->normalizeViewTimelineFunction($value);
+        }
+
+        return $value;
+    }
+
+    private function normalizeScrollTimelineFunction(string $value): string
+    {
+        $inner = substr(trim($value), strlen('scroll('), -1);
+        $scroller = 'nearest';
+        $axis = 'block';
+        $scrollerSet = false;
+        $axisSet = false;
+        foreach ($this->splitWhitespaceTopLevel($inner) as $token) {
+            $lower = strtolower($token);
+            if (in_array($lower, ['root', 'nearest', 'self'], true)) {
+                if ($scrollerSet) {
+                    return trim($value);
+                }
+                $scroller = $lower;
+                $scrollerSet = true;
+                continue;
+            }
+            if (in_array($lower, ['block', 'inline', 'x', 'y'], true)) {
+                if ($axisSet) {
+                    return trim($value);
+                }
+                $axis = $lower;
+                $axisSet = true;
+                continue;
+            }
+
+            return trim($value);
+        }
+
+        $parts = [];
+        if ($scroller !== 'nearest') {
+            $parts[] = $scroller;
+        }
+        if ($axis !== 'block') {
+            $parts[] = $axis;
+        }
+
+        return 'scroll(' . implode(' ', $parts) . ')';
+    }
+
+    private function normalizeViewTimelineFunction(string $value): string
+    {
+        $inner = substr(trim($value), strlen('view('), -1);
+        $axis = 'block';
+        $axisSet = false;
+        $tokens = $this->splitWhitespaceTopLevel($inner);
+        foreach ($tokens as $index => $token) {
+            $lower = strtolower($token);
+            if (!in_array($lower, ['block', 'inline', 'x', 'y'], true)) {
+                continue;
+            }
+            if ($axisSet) {
+                return trim($value);
+            }
+            $axis = $lower;
+            $axisSet = true;
+            unset($tokens[$index]);
+        }
+        $tokens = array_values($tokens);
+
+        $inset = $this->normalizeViewTimelineInset($tokens);
+        if ($inset === null) {
+            return trim($value);
+        }
+
+        $parts = [];
+        if ($axis !== 'block') {
+            $parts[] = $axis;
+        }
+        if ($inset !== null && $inset !== 'auto') {
+            $parts[] = $inset;
+        }
+
+        return 'view(' . implode(' ', $parts) . ')';
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function normalizeViewTimelineInset(array $tokens): ?string
+    {
+        if ($tokens === []) {
+            return 'auto';
+        }
+
+        if (count($tokens) > 2) {
+            return null;
+        }
+
+        $first = $this->normalizeViewTimelineInsetToken($tokens[0]);
+        if ($first === null) {
+            return null;
+        }
+
+        $second = $first;
+        if (isset($tokens[1])) {
+            $second = $this->normalizeViewTimelineInsetToken($tokens[1]);
+            if ($second === null) {
+                return null;
+            }
+        }
+
+        if ($first === 'auto' && $second === 'auto') {
+            return 'auto';
+        }
+
+        return $first === $second ? $first : $first . ' ' . $second;
+    }
+
+    private function normalizeViewTimelineInsetToken(string $token): ?string
+    {
+        $token = trim($token);
+        if (strcasecmp($token, 'auto') === 0) {
+            return 'auto';
+        }
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:%|[a-z][a-z0-9-]*)$/i', $token) === 1) {
+            return $token;
+        }
+
+        return null;
     }
 
     /**
@@ -13358,6 +13508,10 @@ final class DeclarationBlock
 
         if ($this->normalizeTransformDeclarations && $this->isTransformDeclarationProperty($property)) {
             return $this->normalizeTransformDeclarationValue($property, $value);
+        }
+
+        if ($property === 'animation-timeline') {
+            return $this->normalizeAnimationTimelineList($value);
         }
 
         return $value;

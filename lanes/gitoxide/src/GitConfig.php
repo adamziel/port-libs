@@ -155,9 +155,13 @@ final class GitConfig
             }
 
             if (preg_match('/^\s*\[([A-Za-z0-9_.-]+)(?:\s+"((?:\\\\.|[^"])*)")?\]\s*(?:[#;].*)?$/', $line, $matches) === 1) {
+                [$sectionName, $subsection] = self::parseSectionHeaderParts(
+                    $matches[1],
+                    array_key_exists(2, $matches) ? self::unquoteSubsection($matches[2]) : null,
+                );
                 $section = [
-                    'name' => strtolower($matches[1]),
-                    'subsection' => array_key_exists(2, $matches) ? self::unquoteSubsection($matches[2]) : null,
+                    'name' => strtolower($sectionName),
+                    'subsection' => $subsection,
                     'entries' => [],
                     'path' => $path,
                 ];
@@ -289,6 +293,23 @@ final class GitConfig
         }
 
         return $out;
+    }
+
+    /**
+     * @return array{string, ?string}
+     */
+    private static function parseSectionHeaderParts(string $name, ?string $quotedSubsection): array
+    {
+        if ($quotedSubsection !== null) {
+            return [$name, $quotedSubsection];
+        }
+
+        $dot = strpos($name, '.');
+        if ($dot === false) {
+            return [$name, null];
+        }
+
+        return [substr($name, 0, $dot), substr($name, $dot + 1)];
     }
 
     private static function unquoteSubsection(string $value): string

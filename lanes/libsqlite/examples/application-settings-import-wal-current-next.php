@@ -16,12 +16,12 @@ use PortLibs\LibSqlite\SQLiteKeyValueRowsWalImportPlan;
 $pageSize = 512;
 $salt1 = 0x34343434;
 $salt2 = 0x56565656;
-$databasePath = '/srv/www/wp-content/database/.ht.sqlite';
+$databasePath = '/srv/app/data/application.sqlite';
 $page = static fn (string $label): string => str_pad($label, $pageSize, "\0");
-$databaseBytes = $page('sqlite header and wp_options root before import')
-    . $page('current siteurl option before import')
-    . $page('current active_plugins option before import')
-    . $page('current autoload index before import');
+$databaseBytes = $page('sqlite header and app_settings root before import')
+    . $page('current primary_url setting before import')
+    . $page('current enabled_modules setting before import')
+    . $page('current load_policy index before import');
 
 $prefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 34, $salt1, $salt2);
 $seed = SQLiteWal::checksumPair($prefix, false);
@@ -32,8 +32,8 @@ $appendFrame = static function (string $bytes, array &$seed, int $pageNumber, in
 
     return $bytes . $framePrefix . pack('N*', $seed[0], $seed[1]) . $image;
 };
-$walBytes = $appendFrame($walBytes, $seed, 2, 0, $page('wal draft siteurl before import'));
-$walBytes = $appendFrame($walBytes, $seed, 3, 4, $page('wal committed active_plugins before import'));
+$walBytes = $appendFrame($walBytes, $seed, 2, 0, $page('wal draft primary_url before import'));
+$walBytes = $appendFrame($walBytes, $seed, 3, 4, $page('wal committed enabled_modules before import'));
 
 $wal = SQLiteWal::parse($walBytes, null, true);
 $plan = SQLiteKeyValueRowsWalImportPlan::currentNext(
@@ -41,14 +41,14 @@ $plan = SQLiteKeyValueRowsWalImportPlan::currentNext(
     $databaseBytes,
     $databasePath,
     [
-        ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.example', 'autoload' => 'yes'],
-        ['option_id' => 2, 'option_name' => 'active_plugins', 'option_value' => 'a:0:{}', 'autoload' => 'yes'],
-        ['option_id' => 3, 'option_name' => 'blog_public', 'option_value' => '1', 'autoload' => 'no'],
+        ['setting_id' => 1, 'key_name' => 'primary_url', 'key_value' => 'https://old.example', 'load_policy' => 'yes'],
+        ['setting_id' => 2, 'key_name' => 'enabled_modules', 'key_value' => '[]', 'load_policy' => 'yes'],
+        ['setting_id' => 3, 'key_name' => 'tenant_public', 'key_value' => '1', 'load_policy' => 'no'],
     ],
     [
-        ['option_name' => 'active_plugins', 'option_value' => 'a:1:{i:0;s:19:"akismet/akismet.php";}', 'autoload' => 'yes'],
-        ['option_name' => 'plugin_settings', 'option_value' => '{"enabled":true,"mode":"safe"}', 'autoload' => 'no'],
-        ['option_name' => 'siteurl', 'option_value' => 'https://new.example', 'autoload' => 'yes'],
+        ['key_name' => 'enabled_modules', 'key_value' => '["search","cache"]', 'load_policy' => 'yes'],
+        ['key_name' => 'module_settings', 'key_value' => '{"enabled":true,"mode":"safe"}', 'load_policy' => 'no'],
+        ['key_name' => 'primary_url', 'key_value' => 'https://new.example', 'load_policy' => 'yes'],
     ],
     [2, 3, 4, 5, 6],
 );
@@ -56,9 +56,9 @@ $plan = SQLiteKeyValueRowsWalImportPlan::currentNext(
 echo json_encode([
     'status' => $plan['status'],
     'reason' => $plan['reason'],
-    'updated' => $plan['updated_names'],
-    'inserted' => $plan['inserted_names'],
-    'autoload' => $plan['autoload_yes_names'],
+    'updated' => $plan['updated_key_names'],
+    'inserted' => $plan['inserted_key_names'],
+    'load_policy' => $plan['load_policy_yes_key_names'],
     'current_sources' => $plan['current_reader_sources'],
     'next_sources' => $plan['next_reader_sources'],
     'append_frames' => $plan['append']['appended_frame_count'],

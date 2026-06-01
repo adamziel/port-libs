@@ -1584,6 +1584,37 @@ CSS,
         throw new RuntimeException('Expected nested external import after bundled dependency exception');
     },
     'css bundler reports upstream resolver and layer errors with import locations' => static function (TestRunner $t) use ($bundle): void {
+        $resolved = [];
+        $nestedResolverRejected = false;
+        try {
+            $bundle([
+                '/theme.css' => '@import "blocks/card.css"; .theme { color: red; }',
+                '/blocks/card.css' => "\n  @import \"pkg:missing-tokens.css\";\n  .card { color: green; }",
+            ], '/theme.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+                if ($specifier === 'pkg:missing-tokens.css') {
+                    throw new RuntimeException("Oh noes! Failed to resolve `{$specifier}` from `{$originatingFile}`.");
+                }
+
+                return '/' . ltrim($specifier, '/');
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('Oh noes! Failed to resolve `pkg:missing-tokens.css` from `/blocks/card.css`.', $exception->getMessage());
+            $t->same('/blocks/card.css', $exception->sourceFile);
+            $t->same(2, $exception->sourceLine);
+            $t->same(3, $exception->sourceColumn);
+            $t->same([
+                ['blocks/card.css', '/theme.css'],
+                ['pkg:missing-tokens.css', '/blocks/card.css'],
+            ], $resolved);
+            $nestedResolverRejected = true;
+        }
+
+        if (!$nestedResolverRejected) {
+            throw new RuntimeException('Expected nested import resolver exception');
+        }
+
         try {
             $bundle([
                 '/a.css' => "\n  @import \"/b.css\";\n  .a { color: red; }",

@@ -3469,4 +3469,81 @@ CSS;
         $t->same('media', $seen['type']);
         $t->same('hover', $seen['feature']);
     },
+    'custom at-rules expose visited media children to generic RuleExit visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $result = (new CustomAtRuleTransformer())->transform('@media (hover) { .card { width: 16px; } }', [], [
+            'Length' => static function (array $length): ?array {
+                if (($length['unit'] ?? null) !== 'px') {
+                    return null;
+                }
+
+                return [
+                    'unit' => 'rem',
+                    'value' => ((float) $length['value']) / 16,
+                ];
+            },
+            'RuleExit' => static function (array $rule) use (&$seen): ?array {
+                if (($rule['type'] ?? null) !== 'media') {
+                    return null;
+                }
+
+                $seen['declaration'] = $rule['value']['rules'][0]['value']['declarations']['declarations'][0] ?? null;
+
+                return null;
+            },
+        ]);
+
+        $t->same('@media (hover){.card{width:1rem}}', $result);
+        $t->same([
+            'property' => 'width',
+            'raw' => '1rem',
+            'important' => false,
+        ], $seen['declaration']);
+    },
+    'custom at-rules preserve visited preludes and bodies without replacements' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@tokens theme {
+  .card {
+    width: 16px;
+  }
+}
+
+@alias accent;
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'rule-list',
+            ],
+            'alias' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ], [
+            'CustomIdent' => static fn (string $ident): string => 'wp-' . $ident,
+            'Length' => static function (array $length): ?array {
+                if (($length['unit'] ?? null) !== 'px') {
+                    return null;
+                }
+
+                return [
+                    'unit' => 'rem',
+                    'value' => ((float) $length['value']) / 16,
+                ];
+            },
+            'RuleExit' => [
+                'custom' => static function (array $rule) use (&$seen): ?array {
+                    $seen[$rule['name']] = $rule;
+
+                    return null;
+                },
+            ],
+        ]);
+
+        $t->same('@tokens wp-theme{.card{width:1rem}}@alias wp-accent;', $result);
+        $t->same('wp-theme', $seen['tokens']['prelude']);
+        $t->same('1rem', $seen['tokens']['bodyRules'][0]['value']['declarations']['declarations'][0]['raw']);
+        $t->same('wp-accent', $seen['alias']['prelude']);
+    },
 ];

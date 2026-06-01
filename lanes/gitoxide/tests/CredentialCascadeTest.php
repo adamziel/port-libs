@@ -73,6 +73,44 @@ return [
         $t->same('oauth-token', $result->oauthRefreshToken);
         $t->same(null, $result->context->passwordExpiryUtc);
     },
+    'credential cascade exposes upstream next action context precedence' => static function (TestRunner $t): void {
+        $directFields = new CredentialCascade([
+            static fn (): string => "protocol=ftp\nhost=example.com:8080\npath=/path/to/git/\n",
+            static fn (): string => "username=user-script\npassword=pass-script\n",
+        ], useHttpPath: true);
+        $directResult = $directFields->get(new CredentialContext(url: 'http://github.com'));
+        $directNext = $directResult->nextActionContext();
+
+        $t->same('ftp', $directNext->protocol);
+        $t->same('example.com:8080', $directNext->host);
+        $t->same('/path/to/git/', $directNext->path);
+        $t->same('user-script', $directNext->username);
+        $t->same('pass-script', $directNext->password);
+        $t->contains("path=/path/to/git/\n", $directResult->nextActionBytes());
+
+        $urlLast = new CredentialCascade([
+            static fn (): string => "protocol=ftp\nhost=github.com\npath=byron/gitoxide\nurl=http://example.com:8080/path/to/git/\n",
+            static fn (): string => "username=url-user\npassword=url-pass\n",
+        ], useHttpPath: true);
+        $urlLastResult = $urlLast->get(new CredentialContext(url: 'http://github.com'));
+        $urlLastNext = $urlLastResult->nextActionContext();
+
+        $t->same('http', $urlLastNext->protocol, 'helper-provided url is processed after direct fields');
+        $t->same('example.com:8080', $urlLastNext->host);
+        $t->same('path/to/git', $urlLastNext->path);
+
+        $urlUsername = new CredentialCascade([
+            static fn (): string => "password=pass\n",
+        ], useHttpPath: true);
+        $urlUsernameResult = $urlUsername->get(new CredentialContext(url: 'ssh://git@host.org/path'));
+        $urlUsernameNext = $urlUsernameResult->nextActionContext();
+
+        $t->same('git', $urlUsernameResult->username);
+        $t->same('pass', $urlUsernameResult->password);
+        $t->same('git', $urlUsernameNext->username);
+        $t->same('host.org', $urlUsernameNext->host);
+        $t->same('path', $urlUsernameNext->path);
+    },
     'credential cascade ignores overflowing password expiry fields' => static function (TestRunner $t): void {
         $cascade = new CredentialCascade([
             static fn (): string => "username=user\npassword=pass\npassword_expiry_utc=-9223372036854775809\n",
@@ -241,12 +279,19 @@ return [
         $t->same('wp-deploy-token', $fixture['identity']['password']);
         $t->same('wp-refresh-token', $fixture['identity']['oauthRefreshToken']);
         $t->same('wp-content.git', $fixture['contextPath']);
+        $t->same('wp-content.git', $fixture['nextActionContext']['path']);
+        $t->same('deploy-bot', $fixture['nextActionContext']['username']);
+        $t->same('ftp', $fixture['verbatimHelperContext']['protocol']);
+        $t->same('media.example.test:2121', $fixture['verbatimHelperContext']['host']);
+        $t->same('/srv/wp-content.git/', $fixture['verbatimHelperContext']['path']);
         $t->same(null, $fixture['passwordExpiryUtc']);
         $t->same(['username' => 'emergency-deploy', 'password' => 'emergency-token', 'oauthRefreshToken' => null], $fixture['completeQuitIdentity']);
         $t->same(false, $fixture['completeQuitPropagated']);
         $t->same(['cache:get', 'oauth:get', 'deploy:get', 'cache:store', 'oauth:store', 'deploy:store', 'cache:erase', 'oauth:erase', 'deploy:erase'], $fixture['actions']);
         $t->same(false, $fixture['secretsInDiagnosticLog']);
         $t->same($fixture['identity'], $summary['identity']);
+        $t->same($fixture['nextActionContext']['path'], $summary['nextActionPath']);
+        $t->same($fixture['verbatimHelperContext']['path'], $summary['verbatimHelperPath']);
         $t->same($fixture['completeQuitIdentity'], $summary['completeQuitIdentity']);
         $t->same(false, $summary['completeQuitPropagated']);
         $t->contains('credential cascade', $summary['wordpressUse']);

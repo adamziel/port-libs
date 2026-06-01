@@ -563,6 +563,22 @@ try {
     $shiftedColumnOverflowGuard = true;
 }
 
+$unsortedColumnOverflowMap = new SourceMap();
+$unsortedColumnOverflowMap->addVlqMap(
+    'UAAAA,RACAC',
+    ['wp-content/themes/example/source-map-unsorted-overflow.css'],
+    ['.wp-block-unsorted-overflow{}'],
+    ['later-overflow-rule', 'earlier-overflow-rule']
+);
+$unsortedColumnOverflowBeforeGuard = array_column($unsortedColumnOverflowMap->getMappings(), 'generatedColumn');
+$unsortedColumnOverflowGuard = false;
+try {
+    $unsortedColumnOverflowMap->offsetColumns(0, 4294967295, 1);
+} catch (InvalidArgumentException) {
+    $unsortedColumnOverflowGuard = true;
+}
+$unsortedColumnOverflowAfterGuard = array_column($unsortedColumnOverflowMap->getMappings(), 'generatedColumn');
+
 $invalidRelativeVlqGuard = true;
 foreach (['D', 'ADAA', 'AADA', 'AAAD', 'AAAAD', 'ggggggI', '//////////////D'] as $invalidVlqMapping) {
     try {
@@ -743,6 +759,9 @@ $actual = [
     'duplicateLookupExtendedMap' => $duplicateLookupExtendedMap->toJson(null, false),
     'maxUnsignedVlqDecode' => $maxUnsignedVlqDecode,
     'shiftedColumnOverflowGuard' => $shiftedColumnOverflowGuard && $shiftedColumnOverflowBeforeGuard === $shiftedColumnOverflowMap->toJson(null, false),
+    'unsortedColumnOverflowBeforeGuard' => $unsortedColumnOverflowBeforeGuard,
+    'unsortedColumnOverflowAfterGuard' => $unsortedColumnOverflowAfterGuard,
+    'unsortedColumnOverflowGuard' => $unsortedColumnOverflowGuard,
     'invalidRelativeVlqGuard' => $invalidRelativeVlqGuard,
     'invalidVlqVectorGuard' => $invalidVlqVectorGuard,
     'missingVlqVectorGuard' => $missingVlqVectorGuard,
@@ -823,6 +842,9 @@ if (($argv[1] ?? null) === '--self-test') {
         'duplicateLookupExtendedMap' => '{"version":3,"mappings":"A","sources":["wp-content/cache/duplicate-lookup.css","wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{color:red}",".wp-block-duplicate-lookup{}"],"names":["compiled-duplicate-lookup","duplicate-lookup-rule"]}',
         'maxUnsignedVlqDecode' => 4294967295,
         'shiftedColumnOverflowGuard' => true,
+        'unsortedColumnOverflowBeforeGuard' => [10, 2],
+        'unsortedColumnOverflowAfterGuard' => [10, 2],
+        'unsortedColumnOverflowGuard' => true,
         'invalidRelativeVlqGuard' => true,
         'invalidVlqVectorGuard' => true,
         'missingVlqVectorGuard' => true,

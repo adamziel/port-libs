@@ -15,8 +15,8 @@ $salt2 = 0x56565656;
 $databasePath = 'app-data/database/.ht.sqlite';
 $page = static fn (string $label): string => str_pad($label, $pageSize, "\0");
 $databaseBytes = $page('sqlite header and app_settings root before import')
-    . $page('current siteurl option before import')
-    . $page('current active_plugins option before import')
+    . $page('current primary_url setting before import')
+    . $page('current enabled_modules setting before import')
     . $page('current load_policy index before import');
 
 $walHeaderBytes = static function () use ($pageSize, $salt1, $salt2): string {
@@ -36,22 +36,22 @@ $appendFrame = static function (string $bytes, array &$seed, int $pageNumber, in
 $baseWalBytes = static function () use ($walHeaderBytes, $appendFrame, $page): string {
     $bytes = $walHeaderBytes();
     $seed = SQLiteWal::checksumPair(substr($bytes, 0, 24), false);
-    $bytes = $appendFrame($bytes, $seed, 2, 0, $page('wal draft siteurl before import'));
-    $bytes = $appendFrame($bytes, $seed, 3, 4, $page('wal committed active_plugins before import'));
+    $bytes = $appendFrame($bytes, $seed, 2, 0, $page('wal draft primary_url before import'));
+    $bytes = $appendFrame($bytes, $seed, 3, 4, $page('wal committed enabled_modules before import'));
 
     return $bytes;
 };
 
 $baseWal = static fn (): SQLiteWal => SQLiteWal::parse($baseWalBytes(), null, true);
 $currentRows = static fn (): array => [
-    ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://old.example', 'load_policy' => 'yes'],
-    ['setting_id' => 2, 'key_name' => 'active_plugins', 'key_value' => 'a:0:{}', 'load_policy' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'primary_url', 'key_value' => 'https://old.example', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'enabled_modules', 'key_value' => '[]', 'load_policy' => 'yes'],
     ['setting_id' => 3, 'key_name' => 'tenant_public', 'key_value' => '1', 'load_policy' => 'no'],
 ];
 $importRows = static fn (): array => [
-    ['key_name' => 'active_plugins', 'key_value' => 'a:1:{i:0;s:19:"akismet/akismet.php";}', 'load_policy' => 'yes'],
-    ['key_name' => 'plugin_settings', 'key_value' => '{"enabled":true,"mode":"safe"}', 'load_policy' => 'no'],
-    ['key_name' => 'siteurl', 'key_value' => 'https://new.example', 'load_policy' => 'yes'],
+    ['key_name' => 'enabled_modules', 'key_value' => '["search","cache"]', 'load_policy' => 'yes'],
+    ['key_name' => 'module_settings', 'key_value' => '{"enabled":true,"mode":"safe"}', 'load_policy' => 'no'],
+    ['key_name' => 'primary_url', 'key_value' => 'https://new.example', 'load_policy' => 'yes'],
 ];
 $plan = static fn (): array => SQLiteKeyValueRowsWalImportPlan::currentNext(
     $baseWal(),
@@ -70,14 +70,14 @@ $cases = [
     'wal path' => [static fn (): mixed => $plan()['wal_path'], $databasePath . '-wal'],
     'current row count' => [static fn (): mixed => count($plan()['current_rows']), 3],
     'next row count' => [static fn (): mixed => count($plan()['next_rows']), 4],
-    'inserted names' => [static fn (): mixed => $plan()['inserted_key_names'], ['plugin_settings']],
-    'updated names preserve import order' => [static fn (): mixed => $plan()['updated_key_names'], ['active_plugins', 'siteurl']],
+    'inserted names' => [static fn (): mixed => $plan()['inserted_key_names'], ['module_settings']],
+    'updated names preserve import order' => [static fn (): mixed => $plan()['updated_key_names'], ['enabled_modules', 'primary_url']],
     'deleted names empty' => [static fn (): mixed => $plan()['deleted_key_names'], []],
-    'load_policy names sorted' => [static fn (): mixed => $plan()['load_policy_yes_key_names'], ['active_plugins', 'siteurl']],
-    'setting page active plugins' => [static fn (): mixed => $plan()['setting_page_numbers']['active_plugins'], 2],
+    'load_policy names sorted' => [static fn (): mixed => $plan()['load_policy_yes_key_names'], ['enabled_modules', 'primary_url']],
+    'setting page enabled modules' => [static fn (): mixed => $plan()['setting_page_numbers']['enabled_modules'], 2],
     'setting page tenant public' => [static fn (): mixed => $plan()['setting_page_numbers']['tenant_public'], 5],
-    'setting page plugin settings' => [static fn (): mixed => $plan()['setting_page_numbers']['plugin_settings'], 3],
-    'setting page siteurl' => [static fn (): mixed => $plan()['setting_page_numbers']['siteurl'], 4],
+    'setting page module settings' => [static fn (): mixed => $plan()['setting_page_numbers']['module_settings'], 3],
+    'setting page primary url' => [static fn (): mixed => $plan()['setting_page_numbers']['primary_url'], 4],
     'database page count includes load_policy index' => [static fn (): mixed => $plan()['database_page_count'], 6],
     'append start frame' => [static fn (): mixed => $plan()['append']['start_frame'], 3],
     'append end frame' => [static fn (): mixed => $plan()['append']['end_frame'], 7],
@@ -96,16 +96,16 @@ $cases = [
     'next reader frame indexes' => [static fn (): mixed => $plan()['next_reader_frame_indexes'], [3, 4, 5, 6, 7]],
     'current errors count' => [static fn (): mixed => count($plan()['current_reader_errors']), 2],
     'next errors count' => [static fn (): mixed => count($plan()['next_reader_errors']), 0],
-    'current page three contains old plugins' => [static fn (): mixed => str_contains($plan()['current_reader'][1]['image'], 'active_plugins before import'), true],
-    'next page active plugins value' => [static fn (): mixed => str_contains($plan()['next_reader'][0]['image'], 'akismet/akismet.php'), true],
-    'next page active plugins id preserved' => [static fn (): mixed => str_contains($plan()['next_reader'][0]['image'], '"setting_id":2'), true],
+    'current page three contains old enabled modules' => [static fn (): mixed => str_contains($plan()['current_reader'][1]['image'], 'enabled_modules before import'), true],
+    'next page enabled modules value' => [static fn (): mixed => str_contains($plan()['next_reader'][0]['image'], 'search') && str_contains($plan()['next_reader'][0]['image'], 'cache'), true],
+    'next page enabled modules id preserved' => [static fn (): mixed => str_contains($plan()['next_reader'][0]['image'], '"setting_id":2'), true],
     'next page tenant public retained' => [static fn (): mixed => str_contains($plan()['next_reader'][3]['image'], '"tenant_public"'), true],
-    'next page plugin settings inserted' => [static fn (): mixed => str_contains($plan()['next_reader'][1]['image'], '"plugin_settings"'), true],
-    'next page plugin settings new id' => [static fn (): mixed => str_contains($plan()['next_reader'][1]['image'], '"setting_id":4'), true],
-    'next page siteurl updated' => [static fn (): mixed => str_contains($plan()['next_reader'][2]['image'], 'https://new.example'), true],
-    'next load_policy index names' => [static fn (): mixed => str_contains($plan()['next_reader'][4]['image'], '"key_names":["active_plugins","siteurl"]'), true],
-    'next load_policy excludes plugin settings' => [static fn (): mixed => !str_contains($plan()['next_reader'][4]['image'], 'plugin_settings'), true],
-    'dependency includes wp import' => [static fn (): mixed => in_array('application-settings-wal-import-current-next', $plan()['dependencies'], true), true],
+    'next page module settings inserted' => [static fn (): mixed => str_contains($plan()['next_reader'][1]['image'], '"module_settings"'), true],
+    'next page module settings new id' => [static fn (): mixed => str_contains($plan()['next_reader'][1]['image'], '"setting_id":4'), true],
+    'next page primary url updated' => [static fn (): mixed => str_contains($plan()['next_reader'][2]['image'], 'https://new.example'), true],
+    'next load_policy index names' => [static fn (): mixed => str_contains($plan()['next_reader'][4]['image'], '"key_names":["enabled_modules","primary_url"]'), true],
+    'next load_policy excludes module settings' => [static fn (): mixed => !str_contains($plan()['next_reader'][4]['image'], 'module_settings'), true],
+    'dependency includes application import' => [static fn (): mixed => in_array('application-settings-wal-import-current-next', $plan()['dependencies'], true), true],
     'dependency includes wal append' => [static fn (): mixed => in_array('sqlite-wal-append-transaction', $plan()['dependencies'], true), true],
     'next wal frame count' => [static fn (): mixed => $nextWal()->frameCount(), 7],
     'next wal uncommitted count' => [static fn (): mixed => $nextWal()->uncommittedFrameCount(), 0],

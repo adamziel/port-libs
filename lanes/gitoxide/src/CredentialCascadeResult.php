@@ -32,4 +32,9 @@ final class CredentialCascadeResult
     {
         return $this->nextActionBytes;
     }
+
+    public function nextActionContext(): CredentialContext
+    {
+        return CredentialContext::fromBytes($this->nextActionBytes);
+    }
 }

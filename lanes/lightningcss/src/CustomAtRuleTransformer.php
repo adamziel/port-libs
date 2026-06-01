@@ -2087,7 +2087,7 @@ final class CustomAtRuleTransformer
 
         $replacement = $this->callRuleVisitor($rule);
         if ($replacement === null) {
-            return $this->applyCustomRuleExit($rule, $parentSelectors) ?? $statement . ';';
+            return $this->applyCustomRuleExit($rule, $parentSelectors) ?? $this->emitVisitedCustomRule($rule);
         }
 
         return $this->emitReplacement($replacement, $parentSelectors);
@@ -2330,7 +2330,7 @@ final class CustomAtRuleTransformer
         $bodyCss = $parentSelectors === null
             ? $this->processRuleList($body)
             : $this->processStyleBody($body, $parentSelectors);
-        $exitReplacement = $this->applyMediaRuleExit($this->buildMediaRule($query, $body, $parentSelectors), $parentSelectors);
+        $exitReplacement = $this->applyMediaRuleExit($this->buildVisitedMediaRule($queryCss, $bodyCss, $parentSelectors), $parentSelectors);
         if ($exitReplacement !== null) {
             return $exitReplacement;
         }
@@ -2367,7 +2367,9 @@ final class CustomAtRuleTransformer
 
         $replacement = $this->callRuleVisitor($rule);
         if ($replacement === null) {
-            return $this->applyCustomRuleExit($rule, $parentSelectors) ?? $prelude . '{' . $body . '}';
+            $visitedRule = $this->processCustomRuleChildrenForExit($rule, $parentSelectors);
+
+            return $this->applyCustomRuleExit($visitedRule, $parentSelectors) ?? $this->emitVisitedCustomRule($visitedRule);
         }
 
         return $this->emitReplacement($replacement, $parentSelectors);
@@ -2428,6 +2430,42 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * @param array<string, mixed> $rule
+     * @param list<string>|null $parentSelectors
+     * @return array<string, mixed>
+     */
+    private function processCustomRuleChildrenForExit(array $rule, ?array $parentSelectors): array
+    {
+        $bodyType = $rule['bodyType'] ?? null;
+        if ($bodyType === null) {
+            return $rule;
+        }
+
+        $body = (string) ($rule['body'] ?? '');
+        if ($bodyType === 'declaration-list') {
+            $entries = $this->processDeclarationEntries($this->declarationBlock->parseEntries($body));
+            $rule['body'] = $this->emitDeclarationEntriesBody($entries);
+            $rule['declarations'] = $entries;
+            $rule['bodyRules'] = [];
+            $rule['bodyAst'] = $this->customBodyAst('declaration-list', $entries, []);
+
+            return $rule;
+        }
+
+        $bodyCss = $bodyType === 'style-block' && $parentSelectors !== null
+            ? $this->processStyleBody($body, $parentSelectors)
+            : $this->processRuleList($body);
+        $bodyRules = $this->parseReturnedRuleList($bodyCss, null);
+
+        $rule['body'] = $bodyCss;
+        $rule['bodyRules'] = $bodyRules;
+        $rule['declarations'] = [];
+        $rule['bodyAst'] = $this->customBodyAst((string) $bodyType, [], $bodyRules);
+
+        return $rule;
+    }
+
+    /**
      * @param list<string>|null $parentSelectors
      * @return array{name:string, prelude:string, preludeTokens:list<array{type:string,value:mixed}>, body:string, hasBlock:bool, context:string, parentSelectors:list<string>}
      */
@@ -2457,6 +2495,23 @@ final class CustomAtRuleTransformer
             'value' => [
                 'query' => $this->parseMediaQueryForVisitor($query),
                 'rules' => $this->parseReturnedRuleList($body, $parentSelectors),
+            ],
+            'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
+            'parentSelectors' => $parentSelectors ?? [],
+        ];
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     * @return array{type:string,value:array{query:array<string, mixed>,rules:list<array<string, mixed>>},context:string,parentSelectors:list<string>}
+     */
+    private function buildVisitedMediaRule(string $query, string $body, ?array $parentSelectors): array
+    {
+        return [
+            'type' => 'media',
+            'value' => [
+                'query' => $this->parseMediaQueryForVisitor($query),
+                'rules' => $this->parseReturnedRuleList($body, null),
             ],
             'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
             'parentSelectors' => $parentSelectors ?? [],
@@ -3714,6 +3769,25 @@ final class CustomAtRuleTransformer
         }
 
         return $head . '{' . $body . '}';
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     */
+    private function emitVisitedCustomRule(array $rule): string
+    {
+        $name = (string) ($rule['name'] ?? '');
+        if ($name === '') {
+            throw new \InvalidArgumentException('Custom at-rule is missing a name');
+        }
+
+        $prelude = trim((string) ($rule['prelude'] ?? ''));
+        $head = '@' . $name . ($prelude === '' ? '' : ' ' . $prelude);
+        if (($rule['bodyType'] ?? null) === null) {
+            return $head . ';';
+        }
+
+        return $head . '{' . (string) ($rule['body'] ?? '') . '}';
     }
 
     /**

@@ -625,6 +625,24 @@ return [
         $t->same([1, 0], array_column($offset->getMappings(), 'nameIndex'));
         $t->same('EACAC,WADAD', $offset->writeVlq());
     },
+    'source map rejects start-column overflow before upstream sort entrypoint' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $map->addVlqMap(
+            'UAAAA,RACAC',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['later', 'earlier']
+        );
+
+        $beforeMappings = $map->getMappings();
+
+        $t->same([10, 2], array_column($beforeMappings, 'generatedColumn'));
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->offsetColumns(0, 4294967295, 1);
+        });
+        $t->same($beforeMappings, $map->getMappings());
+        $t->same('EACAC,QADAD', $map->writeVlq());
+    },
     'source map preserves nested unsorted vlq line order until upstream sort entrypoints' => static function (TestRunner $t): void {
         $writeParent = new SourceMap();
         $writeChild = new SourceMap();

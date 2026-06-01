@@ -488,3 +488,68 @@ custom-definition parsing, smart HTTP proxy credentials, SSH credential
 context metadata, receive-pack, pack/index, object database, reference,
 sparse-checkout, pathspec, merge-base, or tree-merge behavior. The May 25
 smart HTTP receive-pack rework notes remain stale for this slice.
+
+---
+
+Slice: `gitoxide-credential-helper-context-parity-20260601T023322Z`
+Base accepted HEAD: `aae30af0e20a252fbc6d49ffeaf4400dbc5a6747`
+
+## Source Truth
+
+- Upstream `gix-credentials/src/helper/mod.rs` models `NextAction` as the
+  previously emitted helper context bytes and implements `TryFrom<&NextAction>
+  for Context` by decoding those bytes with `Context::from_bytes()`.
+- Upstream `gix-credentials/tests/helper/cascade.rs` depends on that stored
+  context for cascade parity: URL usernames are retained when helpers only
+  supply a password, direct helper `protocol`/`host`/`path` fields are copied
+  verbatim, and a helper-provided `url` is processed after direct fields so it
+  overwrites earlier protocol/host/path context.
+
+## PHP Delta
+
+- `CredentialCascadeResult` now exposes `nextActionContext()`, mirroring
+  upstream `NextAction -> Context` decoding without invoking `git credential`
+  or a credential store.
+- `CredentialCascadeTest` now covers the upstream next-action context
+  precedence cluster: direct helper paths remain verbatim, helper URLs are
+  destructured last, and usernames parsed from the original URL survive a
+  password-only helper.
+- The WordPress credential cascade fixture/example now records the decoded
+  next-action context and a verbatim helper context for deployment diagnostics.
+
+## Verification
+
+- Red-first probe before the patch:
+  `php -r 'require "tools/bootstrap.php"; var_export(method_exists(PortLibs\Gitoxide\CredentialCascadeResult::class, "nextActionContext")); echo "\n";'`
+  returned `false`.
+- `php -l lanes/gitoxide/src/CredentialCascadeResult.php`,
+  `php -l lanes/gitoxide/tests/CredentialCascadeTest.php`,
+  `php -l lanes/gitoxide/fixtures/wordpress-credential-cascade.php`, and
+  `php -l lanes/gitoxide/examples/wordpress-credential-cascade.php`:
+  no syntax errors.
+- `php tools/run-tests.php lanes/gitoxide/tests/CredentialCascadeTest.php`:
+  `1 test files, 98 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests/CredentialContextTest.php lanes/gitoxide/tests/CredentialCascadeTest.php lanes/gitoxide/tests/CredentialHelperExchangeTest.php lanes/gitoxide/tests/CredentialProgramTest.php`:
+  `4 test files, 286 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests`:
+  `40 test files, 6953 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-credential-cascade.php`: exited `0`.
+- `php -r` JSON validation passed for `lanes/gitoxide/lane-status.json`.
+- `git diff --check -- lanes/gitoxide`: exited `0`.
+
+## Dependency Closure
+
+No new support component is needed. This slice reuses the native PHP
+credential context parser and cascade result bytes; it does not read
+credential stores, invoke provider helpers, shell out to Git, run live-service
+tests, or require a shared support-library activation gate.
+
+## Non-Overlap
+
+This does not repeat accepted credential context URL destructuring,
+HTTP path clearing, signed i64/boolean parsing, parse-time UTF-8 validation,
+helper exchange action mapping, cascade quit ordering, platform helper
+selection, smart HTTP proxy credentials, SSH credential context metadata,
+receive-pack, pack/index, object database, reference, sparse-checkout,
+pathspec, merge-base, or tree-merge behavior. The old May 25 smart HTTP
+receive-pack rework notes remain stale for this slice.

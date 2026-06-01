@@ -174,6 +174,38 @@ if (
 
 echo 'source-map-string-literal: ignored' . PHP_EOL;
 
+$resolverTrace = [];
+$resolverRejected = false;
+try {
+    (new CssBundler())->bundle('/theme.css', [
+        '/theme.css' => '@import "blocks/card.css"; .wp-site-blocks { color: red }',
+        '/blocks/card.css' => "\n  @import \"pkg:missing-tokens.css\";\n  .wp-block-card { color: green }",
+    ], static function (string $specifier, string $originatingFile) use (&$resolverTrace): string {
+        $resolverTrace[] = [$specifier, $originatingFile];
+        if ($specifier === 'pkg:missing-tokens.css') {
+            throw new RuntimeException("Failed to resolve WP package `{$specifier}` from `{$originatingFile}`.");
+        }
+
+        return '/' . ltrim($specifier, '/');
+    });
+} catch (CssBundleException $exception) {
+    $resolverRejected = $exception->kind === 'resolver-error'
+        && $exception->sourceFile === '/blocks/card.css'
+        && $exception->sourceLine === 2
+        && $exception->sourceColumn === 3
+        && $resolverTrace === [
+            ['blocks/card.css', '/theme.css'],
+            ['pkg:missing-tokens.css', '/blocks/card.css'],
+        ];
+}
+
+if (!$resolverRejected) {
+    fwrite(STDERR, "Expected package resolver failure to report the imported block stylesheet location\n");
+    exit(1);
+}
+
+echo 'resolver-error-location: mapped' . PHP_EOL;
+
 $sharedPresetBundle = (new CssBundler())->bundle('style.css', [
     'style.css' => <<<'CSS'
 @import "../shared/presets.css";

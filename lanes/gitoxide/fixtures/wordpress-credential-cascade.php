@@ -65,6 +65,14 @@ $cascade = new CredentialCascade(
 $result = $cascade->get(new CredentialContext(url: 'https://git.example.test/wp-content.git'));
 $cascade->store($result);
 $cascade->erase($result);
+$nextActionContext = $result->nextActionContext();
+
+$verbatimHelperCascade = new CredentialCascade([
+    static fn (): string => "protocol=ftp\nhost=media.example.test:2121\npath=/srv/wp-content.git/\n",
+    static fn (): string => "username=ftp-deploy\npassword=ftp-token\n",
+], useHttpPath: true);
+$verbatimHelperResult = $verbatimHelperCascade->get(new CredentialContext(url: 'https://git.example.test/wp-content.git'));
+$verbatimHelperContext = $verbatimHelperResult->nextActionContext();
 
 $completeQuitCascade = new CredentialCascade([
     static fn (): string => "username=emergency-deploy\npassword=emergency-token\nquit=1\n",
@@ -80,6 +88,18 @@ $diagnosticBytes = $diagnosticContext->storageBytes();
 return [
     'identity' => $result->identity(),
     'contextPath' => $result->context->path,
+    'nextActionContext' => [
+        'protocol' => $nextActionContext->protocol,
+        'host' => $nextActionContext->host,
+        'path' => $nextActionContext->path,
+        'username' => $nextActionContext->username,
+    ],
+    'verbatimHelperContext' => [
+        'protocol' => $verbatimHelperContext->protocol,
+        'host' => $verbatimHelperContext->host,
+        'path' => $verbatimHelperContext->path,
+        'username' => $verbatimHelperContext->username,
+    ],
     'passwordExpiryUtc' => $result->context->passwordExpiryUtc,
     'nextActionBytes' => $result->nextActionBytes(),
     'actions' => $actions,

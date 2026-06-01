@@ -1313,7 +1313,15 @@ return [
         $t->same(['value' => 'reverse', 'important' => false], $block->getProperty($motion, 'animation-direction'));
         $t->same(['value' => 'both', 'important' => false], $block->getProperty($motion, 'animation-fill-mode'));
         $t->same(['value' => 'paused', 'important' => false], $block->getProperty($motion, 'animation-play-state'));
-        $t->same(['value' => 'scroll(block)', 'important' => false], $block->getProperty($motion, 'animation-timeline'));
+        $t->same(['value' => 'scroll()', 'important' => false], $block->getProperty($motion, 'animation-timeline'));
+        $t->same(
+            ['value' => 'scroll(root), view(), --wp-scroll', 'important' => false],
+            $block->getProperty('animation-timeline: scroll(root block), view(block auto auto), --wp-scroll', 'animation-timeline')
+        );
+        $t->same(
+            ['value' => 'view(inline auto 20%), scroll(self y)', 'important' => false],
+            $block->getProperty('animation-timeline: view(auto 20% inline), scroll(y self)', 'animation-timeline')
+        );
         $t->same(
             ['value' => 'ease, linear', 'important' => false],
             $block->getProperty('animation: fade 200ms, slide 300ms linear 50ms', 'animation-timing-function')
@@ -2239,8 +2247,20 @@ return [
             $block->setProperty('animation: fade 200ms, slide 300ms', 'animation-delay', '50ms')
         );
         $t->same(
-            'animation: 240ms wp-block-fade scroll(root block)',
+            'animation: 240ms wp-block-fade scroll(root)',
             $block->setProperty('animation: wp-block-fade 240ms scroll(block)', 'animation-timeline', 'scroll(root block)')
+        );
+        $t->same(
+            'animation: 240ms ease-out both core-block-fade view(inline auto 20%)',
+            $block->setProperty(
+                'animation: core-block-fade 240ms ease-out both scroll(nearest block)',
+                'animation-timeline',
+                'view(inline auto 20%)'
+            )
+        );
+        $t->same(
+            'animation-timeline: scroll(inline), view(10%)',
+            $block->setProperty('animation-timeline: scroll(root block)', 'animation-timeline', 'scroll(nearest inline), view(block 10% 10%)')
         );
         $t->same(
             'animation-duration: 320ms; animation: wp-block-fade 240ms !important',

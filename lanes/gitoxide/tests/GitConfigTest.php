@@ -222,6 +222,35 @@ return [
         $t->same('matched', $config->value('user', null, 'questionBackslash'));
     },
 
+    'hasconfig includeIf sees deprecated remote dot subsections like gix-config' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $root = $tmpDir();
+        $write($root . '/legacy-dot-url', "[user]\nlegacyDot = matched\n");
+        $write($root . '/nested-dot-url', "[user]\nnestedDot = matched\n");
+        $write($root . '/quoted-dot-url', "[user]\nquotedDot = should-not-load\n");
+        $write($root . '/config', <<<CFG
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/legacy-dot.git"]
+        path = "legacy-dot-url"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/nested-dot.git"]
+        path = "nested-dot-url"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/quoted-dot.git"]
+        path = "quoted-dot-url"
+        [remote.origin]
+        url = https://git.example.test/wp-content/legacy-dot.git
+        [remote.origin.extra]
+        url = https://git.example.test/wp-content/nested-dot.git
+        [remote.origin "quoted"]
+        url = https://git.example.test/wp-content/quoted-dot.git
+        CFG);
+
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same('matched', $config->value('user', null, 'legacyDot'));
+        $t->same('matched', $config->value('user', null, 'nestedDot'));
+        $t->same(null, $config->value('user', null, 'quotedDot'));
+        $t->same('https://git.example.test/wp-content/legacy-dot.git', $config->value('remote', 'origin', 'url'));
+        $t->same('https://git.example.test/wp-content/nested-dot.git', $config->value('remote', 'origin.extra', 'url'));
+        $t->same('https://git.example.test/wp-content/quoted-dot.git', $config->value('remote.origin', 'quoted', 'url'));
+    },
+
     'conditional include double-star only crosses slash at path component boundaries' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
         $root = $tmpDir();
         $worktree = $root . '/wp/site/content';
@@ -998,6 +1027,7 @@ return [
         $t->same('matched', $fixture['recursiveGitdirPolicy']);
         $t->same(null, $fixture['slashClassRejectedPolicy']);
         $t->same('matched', $fixture['bracketUrlPolicy']);
+        $t->same('matched', $fixture['legacyDotRemotePolicy']);
         $t->same('matched', $fixture['posixUrlPolicy']);
         $t->same('matched', $fixture['escapedHyphenUrlPolicy']);
         $t->same('matched', $fixture['reversedRangeStartUrlPolicy']);
@@ -1028,6 +1058,7 @@ return [
         $t->same($fixture['recursiveGitdirPolicy'], $summary['recursiveGitdirPolicy']);
         $t->same($fixture['slashClassRejectedPolicy'], $summary['slashClassRejectedPolicy']);
         $t->same($fixture['bracketUrlPolicy'], $summary['bracketUrlPolicy']);
+        $t->same($fixture['legacyDotRemotePolicy'], $summary['legacyDotRemotePolicy']);
         $t->same($fixture['posixUrlPolicy'], $summary['posixUrlPolicy']);
         $t->same($fixture['escapedHyphenUrlPolicy'], $summary['escapedHyphenUrlPolicy']);
         $t->same($fixture['reversedRangeStartUrlPolicy'], $summary['reversedRangeStartUrlPolicy']);

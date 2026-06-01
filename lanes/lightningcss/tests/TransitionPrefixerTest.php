@@ -2504,6 +2504,31 @@ CSS;
             $prefixer->prefixForTargets('.foo { transition: -webkit-backdrop-filter; }', ['safari' => $encoded(17, 6)])
         );
     },
+    'transition prefixer merges adjacent rules after target prefixing' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo,.bar{transition-property:-webkit-backdrop-filter,backdrop-filter}.baz{transition-property:-webkit-backdrop-filter}',
+            $prefixer->prefixForTargets(
+                '.foo { transition-property: -webkit-backdrop-filter, backdrop-filter; } .bar { transition-property: backdrop-filter; } .baz { transition-property: -webkit-backdrop-filter; }',
+                ['safari' => 15]
+            )
+        );
+        $t->same(
+            '.foo,.bar{transition:-webkit-backdrop-filter,backdrop-filter}.baz{transition:-webkit-backdrop-filter}',
+            $prefixer->prefixForTargets(
+                '.foo { transition: -webkit-backdrop-filter, backdrop-filter; } .bar { transition: backdrop-filter; } .baz { transition: -webkit-backdrop-filter; }',
+                ['safari' => 15]
+            )
+        );
+        $t->same(
+            '.foo,.bar{filter:blur(5px)}',
+            $prefixer->prefixForTargets(
+                '.foo { -webkit-filter: blur(5px); filter: blur(5px); } .bar { filter: blur(5px); }',
+                ['chrome' => 53]
+            )
+        );
+    },
     'transition prefixer maps upstream backdrop-filter supports conditions' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

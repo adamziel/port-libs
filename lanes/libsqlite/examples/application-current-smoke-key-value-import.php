@@ -14,7 +14,7 @@ $currentRows = [
 
 $stagedRows = [
     ['key_name' => 'siteurl', 'key_value' => 'https://current.example', 'load_policy' => 'yes'],
-    ['key_name' => 'blog_public', 'key_value' => '1', 'load_policy' => 'yes'],
+    ['key_name' => 'tenant_public', 'key_value' => '1', 'load_policy' => 'yes'],
     ['key_name' => 'home', 'key_value' => 'https://duplicate.example', 'load_policy' => 'yes', 'setting_id' => 8],
     ['key_name' => 'stylesheet', 'key_value' => 'twentytwentyfive', 'load_policy' => 'yes'],
 ];

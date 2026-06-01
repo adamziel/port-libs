@@ -458,17 +458,31 @@ final class SourceMap
             return;
         }
 
+        $lineHasMappings = false;
+        foreach ($this->mappings as $mapping) {
+            if ($mapping['generatedLine'] === $generatedLine) {
+                $lineHasMappings = true;
+                break;
+            }
+        }
+
+        $startColumn = null;
+        if ($generatedColumnOffset > 0 && $generatedLine < $this->generatedLineCount) {
+            $startColumn = $this->offsetNonNegative($generatedColumn, $generatedColumnOffset, 'column + column offset');
+        } elseif ($generatedColumnOffset < 0 && $lineHasMappings) {
+            $startColumn = $this->offsetNonNegative($generatedColumn, $generatedColumnOffset, 'column + column offset');
+        }
+
         $this->sortGeneratedLineMappingsInPlace($generatedLine);
         $lineMappings = $this->sortedLineMappingIndexes($generatedLine);
         if ($lineMappings === []) {
-            if ($generatedLine < $this->generatedLineCount && $generatedColumnOffset > 0) {
-                $this->offsetNonNegative($generatedColumn, $generatedColumnOffset, 'column + column offset');
-            }
-
             return;
         }
 
-        $startColumn = $this->offsetNonNegative($generatedColumn, $generatedColumnOffset, 'column + column offset');
+        if ($startColumn === null) {
+            $startColumn = $this->offsetNonNegative($generatedColumn, $generatedColumnOffset, 'column + column offset');
+        }
+
         $shiftStart = $this->rustBinarySearchGeneratedColumn($lineMappings, $generatedColumn);
         $shiftIndexes = [];
         for ($i = $shiftStart; $i < count($lineMappings); $i++) {

@@ -9,7 +9,7 @@ use PortLibs\LibSqlite\SQLiteWalHeader;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $savepoints = new SQLiteSavepointStack();
-$savepoints->beginTransaction('wp_option_import');
+$savepoints->beginTransaction('app_setting_import');
 $savepoints->recordPageWrite(1);
 $savepoints->recordPageWrite(2);
 
@@ -17,13 +17,13 @@ $savepoints->savepoint('plugin_settings');
 $savepoints->recordPageWrite(5);
 $savepoints->recordPageWrite(8);
 
-$savepoints->savepoint('single_option_row');
+$savepoints->savepoint('single_setting_row');
 $savepoints->recordPageWrite(9);
 
 $beforeRollback = $savepoints->toArray();
 $rollbackPlan = $savepoints->rollbackToPlan('plugin_settings');
 $rollbackPreview = $savepoints->rollbackToPageNumbers('plugin_settings');
-$singleOptionRollbackPreview = $savepoints->rollbackToPageNumbers('single_option_row');
+$singleSettingRollbackPreview = $savepoints->rollbackToPageNumbers('single_setting_row');
 $rollbackWithPlan = $savepoints->rollbackToWithPlan('plugin_settings');
 $afterRollback = $savepoints->toArray();
 
@@ -31,38 +31,38 @@ $savepoints->recordPageWrite(6);
 $releasePlan = $savepoints->releasePlan('plugin_settings');
 $releaseWithPlan = $savepoints->releaseWithPlan('plugin_settings');
 $afterRelease = $savepoints->toArray();
-$outerReleasePlan = $savepoints->releasePlan('wp_option_import');
-$outerReleaseWithPlan = $savepoints->releaseWithPlan('wp_option_import');
+$outerReleasePlan = $savepoints->releasePlan('app_setting_import');
+$outerReleaseWithPlan = $savepoints->releaseWithPlan('app_setting_import');
 
 $commitPreview = new SQLiteSavepointStack();
-$commitPreview->beginTransaction('wp_option_import_commit');
+$commitPreview->beginTransaction('app_setting_import_commit');
 $commitPreview->recordPageWrite(1);
 $commitPreview->savepoint('plugin_settings_commit');
 $commitPreview->recordPageWrite(5);
-$commitPreview->savepoint('single_option_row_commit');
+$commitPreview->savepoint('single_setting_row_commit');
 $commitPreview->recordPageWrite(7);
 $commitPlan = $commitPreview->commitPlan();
 $commitWithPlan = $commitPreview->commitWithPlan();
 
 $fullRollbackStack = new SQLiteSavepointStack();
-$fullRollbackStack->beginTransaction('wp_option_import_rollback');
+$fullRollbackStack->beginTransaction('app_setting_import_rollback');
 $fullRollbackStack->recordPageWrite(1);
 $fullRollbackStack->recordPageWrite(2);
 $fullRollbackStack->savepoint('plugin_settings_rollback');
 $fullRollbackStack->recordPageWrite(5);
-$fullRollbackStack->savepoint('single_option_row_rollback');
+$fullRollbackStack->savepoint('single_setting_row_rollback');
 $fullRollbackStack->recordPageWrite(9);
 $fullRollbackPlan = $fullRollbackStack->rollbackPlan();
 $fullRollbackWithPlan = $fullRollbackStack->rollbackWithPlan();
 
 $walSavepoints = new SQLiteSavepointStack();
-$walSavepoints->beginTransaction('wp_option_wal_import');
+$walSavepoints->beginTransaction('app_setting_wal_import');
 $walSavepoints->recordWalFrameWrite(1, 1);
 $walSavepoints->recordWalFrameWrite(2, 2, true);
 $walSavepoints->savepoint('plugin_settings_wal');
 $walSavepoints->recordWalFrameWrite(3, 2);
 $walSavepoints->recordWalFrameWrite(4, 5);
-$walSavepoints->savepoint('single_option_row_wal');
+$walSavepoints->savepoint('single_setting_row_wal');
 $walSavepoints->recordWalFrameWrite(5, 5);
 $walSavepoints->recordWalFrameWrite(6, 8, true);
 $walRollbackPlan = $walSavepoints->walRollbackToPlan('plugin_settings_wal');
@@ -85,42 +85,42 @@ $appendWalFrame = static function (string $bytes, array &$seed, int $pageNumber,
 
     return $bytes . $framePrefix . pack('N*', $seed[0], $seed[1]) . $pageImage;
 };
-$walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 1, 0, str_pad('wp-options-root-before-plugin', $walPageSize, "\0"));
-$walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 2, 2, str_pad('autoload-index-before-plugin', $walPageSize, "\0"));
+$walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 1, 0, str_pad('app-settings-root-before-plugin', $walPageSize, "\0"));
+$walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 2, 2, str_pad('load-policy-index-before-plugin', $walPageSize, "\0"));
 $walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 5, 0, str_pad('plugin-settings-draft-frame', $walPageSize, "\0"));
-$walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 8, 0, str_pad('single-option-draft-frame', $walPageSize, "\0"));
-$walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 8, 8, str_pad('single-option-commit-frame', $walPageSize, "\0"));
+$walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 8, 0, str_pad('single-setting-draft-frame', $walPageSize, "\0"));
+$walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 8, 8, str_pad('single-setting-commit-frame', $walPageSize, "\0"));
 $parsedWal = SQLiteWal::parse($walBytes, null, true);
 $walByteSavepoints = new SQLiteSavepointStack();
-$walByteSavepoints->beginTransaction('wp_option_wal_import');
+$walByteSavepoints->beginTransaction('app_setting_wal_import');
 $walByteSavepoints->recordWalFrameWrite(1, 1);
 $walByteSavepoints->recordWalFrameWrite(2, 2, true);
 $walByteSavepoints->savepoint('plugin_settings_wal');
 $walByteSavepoints->recordWalFrameWrite(3, 5);
-$walByteSavepoints->savepoint('single_option_row_wal');
+$walByteSavepoints->savepoint('single_setting_row_wal');
 $walByteSavepoints->recordWalFrameWrite(4, 8);
 $walByteSavepoints->recordWalFrameWrite(5, 8, true);
 $walTruncationPlan = $walByteSavepoints->walRollbackToByteTruncationPlan('plugin_settings_wal', $parsedWal, $walBytes);
 $truncatedWalBytes = $walByteSavepoints->walRollbackToWalBytes('plugin_settings_wal', $parsedWal, $walBytes);
 
 $pageSize = 512;
-$pageOneBefore = str_pad('wp-options-before-import', $pageSize, "\0");
-$pageTwoBefore = str_pad('autoload-index-before-import', $pageSize, "\0");
+$pageOneBefore = str_pad('app-settings-before-import', $pageSize, "\0");
+$pageTwoBefore = str_pad('load-policy-index-before-import', $pageSize, "\0");
 $settingsBeforePlugin = str_pad('plugin-settings-before-batch', $pageSize, "\0");
-$singleOptionBeforeRow = str_pad('single-option-before-row', $pageSize, "\0");
-$dirtyDatabase = str_pad('wp-options-dirty-root', $pageSize, "\0")
-    . str_pad('autoload-index-dirty', $pageSize, "\0")
+$singleSettingBeforeRow = str_pad('single-setting-before-row', $pageSize, "\0");
+$dirtyDatabase = str_pad('app-settings-dirty-root', $pageSize, "\0")
+    . str_pad('load-policy-index-dirty', $pageSize, "\0")
     . str_pad('plugin-settings-dirty', $pageSize, "\0")
-    . str_pad('single-option-dirty', $pageSize, "\0");
+    . str_pad('single-setting-dirty', $pageSize, "\0");
 
 $imageSavepoints = new SQLiteSavepointStack();
-$imageSavepoints->beginTransaction('wp_option_image_import');
+$imageSavepoints->beginTransaction('app_setting_image_import');
 $imageSavepoints->recordPageImageWrite(1, $pageOneBefore);
 $imageSavepoints->recordPageImageWrite(2, $pageTwoBefore);
 $imageSavepoints->savepoint('plugin_settings_image');
 $imageSavepoints->recordPageImageWrite(3, $settingsBeforePlugin);
-$imageSavepoints->savepoint('single_option_image');
-$imageSavepoints->recordPageImageWrite(4, $singleOptionBeforeRow);
+$imageSavepoints->savepoint('single_setting_image');
+$imageSavepoints->recordPageImageWrite(4, $singleSettingBeforeRow);
 $imageRollbackPlan = $imageSavepoints->rollbackToImagePlan('plugin_settings_image', $pageSize);
 $imageRollbackPreview = $imageSavepoints->rollbackToDatabaseImage('plugin_settings_image', $dirtyDatabase, $pageSize);
 $fullImageRollbackPlan = $imageSavepoints->rollbackImagePlan($pageSize);
@@ -130,7 +130,7 @@ echo json_encode([
     'beforeRollbackToPluginSettings' => $beforeRollback,
     'rollbackToPluginSettingsPlan' => $rollbackPlan,
     'rollbackToPluginSettingsPageNumbers' => $rollbackPreview,
-    'rollbackToSingleOptionRowPageNumbers' => $singleOptionRollbackPreview,
+    'rollbackToSingleSettingRowPageNumbers' => $singleSettingRollbackPreview,
     'rollbackToPluginSettingsWithPlan' => $rollbackWithPlan,
     'afterRollbackToPluginSettings' => $afterRollback,
     'releasePluginSettingsPlan' => $releasePlan,
@@ -146,7 +146,7 @@ echo json_encode([
     'fullRollbackTransactionActiveAfter' => $fullRollbackStack->transactionActive(),
     'walFrameStateBeforeRollback' => [
         [
-            'name' => 'wp_option_wal_import',
+            'name' => 'app_setting_wal_import',
             'transaction' => true,
             'wal_start_frame' => 0,
             'wal_frame_indexes' => [1, 2],
@@ -158,7 +158,7 @@ echo json_encode([
             'wal_frame_indexes' => [3, 4],
         ],
         [
-            'name' => 'single_option_row_wal',
+            'name' => 'single_setting_row_wal',
             'transaction' => false,
             'wal_start_frame' => 4,
             'wal_frame_indexes' => [5, 6],
@@ -175,8 +175,8 @@ echo json_encode([
         'bytes' => strlen($truncatedWalBytes),
         'frameCount' => SQLiteWal::parse($truncatedWalBytes, null, true)->frameCount(),
         'containsPluginDraftFrame' => str_contains($truncatedWalBytes, 'plugin-settings-draft-frame'),
-        'containsSingleOptionDraftFrame' => str_contains($truncatedWalBytes, 'single-option-draft-frame'),
-        'containsSingleOptionCommitFrame' => str_contains($truncatedWalBytes, 'single-option-commit-frame'),
+        'containsSingleSettingDraftFrame' => str_contains($truncatedWalBytes, 'single-setting-draft-frame'),
+        'containsSingleSettingCommitFrame' => str_contains($truncatedWalBytes, 'single-setting-commit-frame'),
     ],
     'pageImageRollbackToPluginSettingsPlan' => $imageRollbackPlan,
     'pageImageRollbackPreview' => [
@@ -196,5 +196,5 @@ echo json_encode([
     ],
     'pendingPageNumbers' => $savepoints->pendingPageNumbers(),
     'transactionActive' => $savepoints->transactionActive(),
-    'applicationUse' => 'Preview nested SAVEPOINT/ROLLBACK TO/RELEASE/ROLLBACK plans, page-dirty state, WAL frame truncation boundaries, concrete WAL sidecar byte truncation, bounded savepoint page-image restoration, and full transaction image recovery for wp_options imports without the SQLite extension, so recovery tooling can explain which database pages and WAL frames would roll back, merge upward, or remain pending after a failed option-row import.',
+    'applicationUse' => 'Preview nested SAVEPOINT/ROLLBACK TO/RELEASE/ROLLBACK plans, page-dirty state, WAL frame truncation boundaries, concrete WAL sidecar byte truncation, bounded savepoint page-image restoration, and full transaction image recovery for app_settings imports without the SQLite extension, so recovery tooling can explain which database pages and WAL frames would roll back, merge upward, or remain pending after a failed setting-row import.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
