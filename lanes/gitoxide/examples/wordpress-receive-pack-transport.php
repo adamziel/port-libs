@@ -39,6 +39,14 @@ return [
     'sshOptionLikeHostWithUserArguments' => $fixture['sshOptionLikeHostWithUserContext']['sshArguments'],
     'sshScpLikeAtUserArguments' => $fixture['sshScpLikeAtUserContext']['sshArguments'],
     'sshPlinkArguments' => $fixture['sshPlinkContext']['sshArguments'],
+    'sshExtensionStemKinds' => array_map(
+        static fn (array $context): string => $context['programKind'],
+        $fixture['sshExtensionStemContexts'],
+    ),
+    'sshExtensionStemArguments' => array_map(
+        static fn (array $context): array => $context['sshArguments'],
+        $fixture['sshExtensionStemContexts'],
+    ),
     'sshIdentityArguments' => $fixture['sshIdentityContext']['sshArguments'],
     'sshIdentityCredentialContext' => $fixture['sshIdentityContext']['redactedCredentialContext'],
     'sshIdentityClearedArguments' => $fixture['sshIdentityClearedContext']['sshArguments'],
@@ -95,6 +103,11 @@ return [
     'smartHttpVersion' => $fixture['smartHttpTransportOptionsBoundary']['httpVersion'],
     'smartHttpVerboseEnabled' => $fixture['smartHttpTransportOptionsBoundary']['verbose'],
     'smartHttpTransportOptionsPostBodyPreserved' => $fixture['smartHttpTransportOptionsBoundary']['postBodyPreserved'],
+    'smartHttpProtocolV2DiscoveryHeader' => $fixture['smartHttpProtocolHeaderBoundary']['v2DiscoveryGitProtocol'],
+    'smartHttpProtocolV2PostHeader' => $fixture['smartHttpProtocolHeaderBoundary']['v2PostGitProtocol'],
+    'smartHttpProtocolDowngradePostHeader' => $fixture['smartHttpProtocolHeaderBoundary']['downgradePostGitProtocol'],
+    'smartHttpProtocolPostBodyPreserved' => $fixture['smartHttpProtocolHeaderBoundary']['v2PostBodyPreserved']
+        && $fixture['smartHttpProtocolHeaderBoundary']['downgradePostBodyPreserved'],
     'streamWatchdogTimeoutReported' => $fixture['streamWatchdogTimeoutReported'],
     'advertisementErrorReported' => $fixture['advertisementErrorReported'],
     'oversizeAdvertisementRejected' => $fixture['oversizeAdvertisementRejected'],

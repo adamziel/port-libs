@@ -13,6 +13,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private bool $requestWritten = false;
     private bool $responseRead = false;
     private ?string $requestBytes = null;
+    private ?int $actualProtocolVersion = null;
     private readonly string $repositoryUrl;
     private ?string $effectiveRepositoryUrl = null;
     private readonly ?string $authorizationHeader;
@@ -21,7 +22,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private array $cookies = [];
     /** @var array<string, string> */
     private readonly array $extraHeaders;
-    /** @var array{proxyConfigured: bool, proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, httpsProxyConfigured: bool, httpsProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, allProxyConfigured: bool, allProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string, connectTimeout: ?float, lowSpeedLimit: int, lowSpeedTime: int, httpVersion: ?string, verbose: bool} */
+    /** @var array{proxyConfigured: bool, proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, httpsProxyConfigured: bool, httpsProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, allProxyConfigured: bool, allProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string, connectTimeout: ?float, lowSpeedLimit: int, lowSpeedTime: int, httpVersion: ?string, verbose: bool, protocolVersion: ?int} */
     private readonly array $httpOptions;
 
     /**
@@ -89,7 +90,10 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             true,
         );
 
-        return self::stripServiceAdvertisement($response['body']);
+        $advertisement = self::stripServiceAdvertisement($response['body']);
+        $this->actualProtocolVersion = self::protocolVersionFromAdvertisement($advertisement);
+
+        return $advertisement;
     }
 
     public function writeRequest(string $requestBytes): void
@@ -149,8 +153,9 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         if ($authorizationHeader !== null) {
             self::setHeader($headers, 'Authorization', $authorizationHeader);
         }
-        if ($this->extraParameters !== []) {
-            self::setHeader($headers, 'Git-Protocol', implode(':', $this->extraParameters));
+        $gitProtocolHeader = $this->advertisementGitProtocolHeader();
+        if ($gitProtocolHeader !== null) {
+            self::setHeader($headers, 'Git-Protocol', $gitProtocolHeader);
         }
         $cookieHeader = self::cookieHeader($this->cookies, self::infoRefsUrl($this->repositoryUrl), self::headerValue($headers, 'cookie'));
         if ($cookieHeader !== null) {
@@ -178,8 +183,9 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         if ($authorizationHeader !== null) {
             self::setHeader($headers, 'Authorization', $authorizationHeader);
         }
-        if ($this->extraParameters !== []) {
-            self::setHeader($headers, 'Git-Protocol', implode(':', $this->extraParameters));
+        $gitProtocolHeader = $this->requestGitProtocolHeader();
+        if ($gitProtocolHeader !== null) {
+            self::setHeader($headers, 'Git-Protocol', $gitProtocolHeader);
         }
         $cookieUrl = self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, self::receivePackUrl($this->repositoryUrl));
         $cookieHeader = self::cookieHeader($this->cookies, $cookieUrl, self::headerValue($headers, 'cookie'));
@@ -188,6 +194,35 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return $headers;
+    }
+
+    private function advertisementGitProtocolHeader(): ?string
+    {
+        if ($this->httpOptions['protocolVersion'] === null) {
+            return $this->extraParameters === [] ? null : implode(':', $this->extraParameters);
+        }
+
+        $parameters = [];
+        if ($this->httpOptions['protocolVersion'] !== 1) {
+            $parameters[] = 'version=' . $this->httpOptions['protocolVersion'];
+        }
+        array_push($parameters, ...$this->extraParameters);
+
+        return $parameters === [] ? null : implode(':', $parameters);
+    }
+
+    private function requestGitProtocolHeader(): ?string
+    {
+        if ($this->httpOptions['protocolVersion'] === null) {
+            return $this->extraParameters === [] ? null : implode(':', $this->extraParameters);
+        }
+
+        $version = $this->actualProtocolVersion ?? $this->httpOptions['protocolVersion'];
+        if ($version === 1) {
+            return null;
+        }
+
+        return 'version=' . $version;
     }
 
     /**
@@ -974,11 +1009,11 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param array<string, mixed> $httpOptions
-     * @return array{proxyConfigured: bool, proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, httpsProxyConfigured: bool, httpsProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, allProxyConfigured: bool, allProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string, connectTimeout: ?float, lowSpeedLimit: int, lowSpeedTime: int, httpVersion: ?string, verbose: bool}
+     * @return array{proxyConfigured: bool, proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, httpsProxyConfigured: bool, httpsProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, allProxyConfigured: bool, allProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string, connectTimeout: ?float, lowSpeedLimit: int, lowSpeedTime: int, httpVersion: ?string, verbose: bool, protocolVersion: ?int}
      */
     private static function normalizeHttpOptions(array $httpOptions): array
     {
-        $allowed = ['proxy', 'httpsProxy', 'allProxy', 'noProxy', 'proxyAuthorization', 'proxyAuthMethod', 'proxyCredentials', 'proxyCredentialHelper', 'proxyCredentialStore', 'proxyCredentialErase', 'sslCaInfo', 'sslVerify', 'followRedirects', 'connectTimeout', 'lowSpeedLimit', 'lowSpeedTime', 'httpVersion', 'verbose'];
+        $allowed = ['proxy', 'httpsProxy', 'allProxy', 'noProxy', 'proxyAuthorization', 'proxyAuthMethod', 'proxyCredentials', 'proxyCredentialHelper', 'proxyCredentialStore', 'proxyCredentialErase', 'sslCaInfo', 'sslVerify', 'followRedirects', 'connectTimeout', 'lowSpeedLimit', 'lowSpeedTime', 'httpVersion', 'verbose', 'protocolVersion'];
         foreach (array_keys($httpOptions) as $name) {
             if (!is_string($name) || !in_array($name, $allowed, true)) {
                 throw new \InvalidArgumentException('smart HTTP receive-pack HTTP option is not supported');
@@ -1075,7 +1110,20 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             'lowSpeedTime' => self::normalizeNonNegativeInteger($httpOptions['lowSpeedTime'] ?? null, 'lowSpeedTime'),
             'httpVersion' => self::normalizeHttpVersion($httpOptions['httpVersion'] ?? null),
             'verbose' => self::normalizeBoolean($httpOptions['verbose'] ?? null, 'verbose'),
+            'protocolVersion' => self::normalizeProtocolVersion($httpOptions['protocolVersion'] ?? null),
         ];
+    }
+
+    private static function normalizeProtocolVersion(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (!is_int($value) || ($value !== 1 && $value !== 2)) {
+            throw new \InvalidArgumentException('smart HTTP receive-pack protocolVersion must be 1 or 2');
+        }
+
+        return $value;
     }
 
     private static function normalizePositiveFloat(mixed $value, string $name): ?float
@@ -1656,6 +1704,25 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return substr($body, $length + 4);
+    }
+
+    private static function protocolVersionFromAdvertisement(string $advertisement): int
+    {
+        if (strlen($advertisement) < 4 || preg_match('/^[0-9a-fA-F]{4}$/', substr($advertisement, 0, 4)) !== 1) {
+            return 1;
+        }
+
+        $length = hexdec(substr($advertisement, 0, 4));
+        if ($length <= 4 || strlen($advertisement) < $length) {
+            return 1;
+        }
+
+        $payload = substr($advertisement, 4, $length - 4);
+        if (preg_match('/^version ([12])\n?$/', $payload, $matches) === 1) {
+            return (int) $matches[1];
+        }
+
+        return 1;
     }
 
     private static function packetLengthAt(string $bytes, int $offset, string $label): int

@@ -147,6 +147,28 @@ return [
         'ssh://deploy@git.example.test:2222/var/www/wp-content.git',
         ['protocolVersion' => 2, 'programKind' => 'plink'],
     ),
+    'sshExtensionStemContexts' => [
+        'plinkCmd' => SshReceivePackTransport::connectorContext(
+            'ssh://deploy@git.example.test:2226/var/www/wp-content.git',
+            ['protocolVersion' => 2, 'sshCommand' => '/opt/bin/plink.cmd'],
+        ),
+        'puttyWrapper' => SshReceivePackTransport::connectorContext(
+            'ssh://deploy@git.example.test:2226/var/www/wp-content.git',
+            ['protocolVersion' => 2, 'sshCommand' => '/opt/bin/putty.wrapper'],
+        ),
+        'sshCustom' => SshReceivePackTransport::connectorContext(
+            'ssh://deploy@git.example.test:2226/var/www/wp-content.git',
+            ['protocolVersion' => 2, 'sshCommand' => '/opt/bin/ssh.custom'],
+        ),
+        'tortoisePlinkBat' => SshReceivePackTransport::connectorContext(
+            'ssh://deploy@git.example.test:2226/var/www/wp-content.git',
+            ['protocolVersion' => 2, 'sshCommand' => '/opt/bin/tortoiseplink.bat'],
+        ),
+        'dotfileCommand' => SshReceivePackTransport::connectorContext(
+            'deploy@git.example.test:wp-content.git',
+            ['sshCommand' => '.ssh'],
+        ),
+    ],
     'sshIdentityContext' => SshReceivePackTransport::connectorContext(
         'ssh://stale@git.example.test/var/www/wp-content.git',
         ['protocolVersion' => 2, 'identityUsername' => 'deploy'],
@@ -584,6 +606,86 @@ return [
             'postCookie' => $requests[1]['headers']['Cookie'] ?? null,
             'postBodyPreserved' => $requests[1]['body'] === $request->requestBytes(),
             'responseSuccessful' => $response->isSuccessful(),
+        ];
+    })(),
+    'smartHttpProtocolHeaderBoundary' => (static function () use ($packet, $flush, $advertisementBytes): array {
+        $v2Advertisement = $packet("version 2\n") . $flush;
+        $v2Requests = [];
+        $v2Transport = new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body) use (&$v2Requests, $packet, $flush, $v2Advertisement): array {
+                $v2Requests[] = [
+                    'method' => $method,
+                    'url' => $url,
+                    'headers' => $headers,
+                    'body' => $body,
+                ];
+
+                if ($method === 'GET') {
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                        'body' => $packet("# service=git-receive-pack\n") . $flush . $v2Advertisement,
+                    ];
+                }
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                    'body' => $flush,
+                ];
+            },
+            ['session-id', 'object-format=sha1'],
+            30.0,
+            [],
+            ['protocolVersion' => 2],
+        );
+        $v2Transport->readAdvertisement();
+        $v2Transport->writeRequest('0000');
+        $v2Transport->readResponse();
+
+        $downgradeRequests = [];
+        $downgradeTransport = new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body) use (&$downgradeRequests, $packet, $flush, $advertisementBytes): array {
+                $downgradeRequests[] = [
+                    'method' => $method,
+                    'url' => $url,
+                    'headers' => $headers,
+                    'body' => $body,
+                ];
+
+                if ($method === 'GET') {
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                        'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                    ];
+                }
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                    'body' => $flush,
+                ];
+            },
+            ['session-id'],
+            30.0,
+            [],
+            ['protocolVersion' => 2],
+        );
+        $downgradeTransport->readAdvertisement();
+        $downgradeTransport->writeRequest('0000');
+        $downgradeTransport->readResponse();
+
+        return [
+            'v2RequestMethods' => array_column($v2Requests, 'method'),
+            'v2DiscoveryGitProtocol' => $v2Requests[0]['headers']['Git-Protocol'] ?? null,
+            'v2PostGitProtocol' => $v2Requests[1]['headers']['Git-Protocol'] ?? null,
+            'v2PostBodyPreserved' => $v2Requests[1]['body'] === '0000',
+            'downgradeDiscoveryGitProtocol' => $downgradeRequests[0]['headers']['Git-Protocol'] ?? null,
+            'downgradePostGitProtocol' => $downgradeRequests[1]['headers']['Git-Protocol'] ?? null,
+            'downgradePostBodyPreserved' => $downgradeRequests[1]['body'] === '0000',
         ];
     })(),
     'streamWatchdogTimeoutReported' => (static function (): bool {

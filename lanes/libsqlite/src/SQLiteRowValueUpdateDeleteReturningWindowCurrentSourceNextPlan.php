@@ -516,9 +516,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $partitionColumn = 'blog_id',
-        string $orderColumn = 'option_id',
-        string $rowIdColumn = 'option_id',
+        string $partitionColumn = 'tenant_id',
+        string $orderColumn = 'setting_id',
+        string $rowIdColumn = 'setting_id',
         string $savepoint = 'app_settings_rowvalue_returning_window_next234',
     ): array {
         self::validateTablesPartitionedRetryWindow($tables);
@@ -536,8 +536,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $attempt = self::runStatementsPartitionedRetryWindow($tables, $attemptStatements, $uniqueConstraints, $rowIdColumn, 'attempt-next234');
         $rollback = $savepointImage;
         $retry = self::runStatementsPartitionedRetryWindow($rollback, $retryStatements, $uniqueConstraints, $rowIdColumn, 'retry-next234');
-        $windowRows = self::windowRowsPartitionedRetryWindow($retry['returning_rows'], $partitionColumn, $orderColumn);
-        $partitionSummary = self::partitionSummaryPartitionedRetryWindow($windowRows, $partitionColumn);
+        $windowRows = self::windowRowsPartitionedRetryWindow($retry['returning_rows'], $partitionColumn, $orderColumn, $rowIdColumn, 'key_name');
+        $partitionSummary = self::partitionSummaryPartitionedRetryWindow($windowRows, $partitionColumn, $rowIdColumn);
 
         return [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next234',
@@ -632,7 +632,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function windowRowsPartitionedRetryWindow(array $rows, string $partitionColumn, string $orderColumn): array
+    private static function windowRowsPartitionedRetryWindow(array $rows, string $partitionColumn, string $orderColumn, string $rowIdColumn, string $labelColumn): array
     {
         $indexed = [];
         foreach ($rows as $index => $row) {
@@ -679,10 +679,10 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 $row['window_row_number'] = $position + 1;
                 $row['window_dense_rank'] = $denseRank;
                 $row['window_partition_size'] = $count;
-                $row['window_lag_option_name'] = $lag['option_name'] ?? null;
-                $row['window_lead_option_name'] = $lead['option_name'] ?? null;
+                $row['window_lag_key_name'] = $lag[$labelColumn] ?? null;
+                $row['window_lead_key_name'] = $lead[$labelColumn] ?? null;
                 $row['window_current_row'] = true;
-                $row['window_frame_rowids'] = self::frameRowidsPartitionedRetryWindow($partitionRows, max(0, $position - 1), min($count - 1, $position + 1));
+                $row['window_frame_row_ids'] = self::frameRowidsPartitionedRetryWindow($partitionRows, max(0, $position - 1), min($count - 1, $position + 1), $rowIdColumn);
                 $windowRows[] = $row;
             }
         }
@@ -694,12 +694,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<int|string>
      */
-    private static function frameRowidsPartitionedRetryWindow(array $rows, int $start, int $end): array
+    private static function frameRowidsPartitionedRetryWindow(array $rows, int $start, int $end, string $rowIdColumn): array
     {
         $ids = [];
         for ($i = $start; $i <= $end; $i++) {
-            if (array_key_exists($i, $rows) && array_key_exists('option_id', $rows[$i])) {
-                $id = $rows[$i]['option_id'];
+            if (array_key_exists($i, $rows) && array_key_exists($rowIdColumn, $rows[$i])) {
+                $id = $rows[$i][$rowIdColumn];
                 if (is_int($id) || is_string($id)) {
                     $ids[] = $id;
                 }
@@ -711,20 +711,20 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
 
     /**
      * @param list<array<string,mixed>> $rows
-     * @return array<string,array{count:int,row_numbers:list<int>,rowids:list<int|string>}>
+     * @return array<string,array{count:int,row_numbers:list<int>,row_ids:list<int|string>}>
      */
-    private static function partitionSummaryPartitionedRetryWindow(array $rows, string $partitionColumn): array
+    private static function partitionSummaryPartitionedRetryWindow(array $rows, string $partitionColumn, string $rowIdColumn): array
     {
         $summary = [];
         foreach ($rows as $row) {
             $key = self::valueKeyPartitionedRetryWindow($row[$partitionColumn] ?? null);
             if (!isset($summary[$key])) {
-                $summary[$key] = ['count' => 0, 'row_numbers' => [], 'rowids' => []];
+                $summary[$key] = ['count' => 0, 'row_numbers' => [], 'row_ids' => []];
             }
             $summary[$key]['count']++;
             $summary[$key]['row_numbers'][] = (int) $row['window_row_number'];
-            if (isset($row['option_id']) && (is_int($row['option_id']) || is_string($row['option_id']))) {
-                $summary[$key]['rowids'][] = $row['option_id'];
+            if (isset($row[$rowIdColumn]) && (is_int($row[$rowIdColumn]) || is_string($row[$rowIdColumn]))) {
+                $summary[$key]['row_ids'][] = $row[$rowIdColumn];
             }
         }
 
@@ -1147,9 +1147,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $partitionColumn = 'blog_id',
+        string $partitionColumn = 'tenant_id',
         string $orderColumn = 'bytes',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         string $savepoint = 'app_settings_rowvalue_returning_window_next237',
     ): array {
         self::validateTablesExcludeCurrentRetryWindow($tables);
@@ -1165,7 +1165,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $attempt = self::runStatementsExcludeCurrentRetryWindow($savepointImage, $attemptStatements, $uniqueConstraints, $rowIdColumn, 'attempt-before-rollback-next237');
         $rollback = $savepointImage;
         $retry = self::runStatementsExcludeCurrentRetryWindow($rollback, $retryStatements, $uniqueConstraints, $rowIdColumn, 'retry-after-rollback-next237');
-        $windowRows = self::excludeCurrentWindowRowsExcludeCurrentRetryWindow($retry['returning_rows'], $partitionColumn, $orderColumn, $rowIdColumn);
+        $windowRows = self::excludeCurrentWindowRowsExcludeCurrentRetryWindow($retry['returning_rows'], $partitionColumn, $orderColumn, $rowIdColumn, 'key_name');
 
         return [
             'status' => 'rowvalue-update-delete-returning-window-exclude-current-source-next237',
@@ -1250,11 +1250,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function excludeCurrentWindowRowsExcludeCurrentRetryWindow(array $rows, string $partitionColumn, string $orderColumn, string $rowIdColumn): array
+    private static function excludeCurrentWindowRowsExcludeCurrentRetryWindow(array $rows, string $partitionColumn, string $orderColumn, string $rowIdColumn, string $labelColumn): array
     {
         $indexed = [];
         foreach ($rows as $index => $row) {
-            foreach ([$partitionColumn, $orderColumn, $rowIdColumn] as $column) {
+            foreach ([$partitionColumn, $orderColumn, $rowIdColumn, $labelColumn] as $column) {
                 if (!array_key_exists($column, $row)) {
                     throw new \InvalidArgumentException("SQLite row-value RETURNING window next237 column {$column} is missing");
                 }
@@ -1299,11 +1299,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 $row['window_partition_size'] = $partitionSize;
                 $row['window_exclude_current'] = true;
                 $row['window_peer_count_excluding_current'] = count($frameRows);
-                $row['window_peer_rowids_excluding_current'] = self::rowIdsExcludeCurrentRetryWindow($frameRows, $rowIdColumn);
-                $row['window_peer_names_excluding_current'] = array_values(array_map(static fn (array $peer): string => (string) ($peer['option_name'] ?? ''), $frameRows));
+                $row['window_peer_row_ids_excluding_current'] = self::rowIdsExcludeCurrentRetryWindow($frameRows, $rowIdColumn);
+                $row['window_peer_key_names_excluding_current'] = array_values(array_map(static fn (array $peer): string => (string) ($peer[$labelColumn] ?? ''), $frameRows));
                 $row['window_peer_bytes_excluding_current'] = array_sum(array_map(static fn (array $peer): int => self::intValueExcludeCurrentRetryWindow($peer['bytes'] ?? 0), $frameRows));
-                $row['window_peer_first_name'] = $frameRows[0]['option_name'] ?? null;
-                $row['window_peer_last_name'] = $frameRows === [] ? null : ($frameRows[array_key_last($frameRows)]['option_name'] ?? null);
+                $row['window_peer_first_key_name'] = $frameRows[0][$labelColumn] ?? null;
+                $row['window_peer_last_key_name'] = $frameRows === [] ? null : ($frameRows[array_key_last($frameRows)][$labelColumn] ?? null);
                 $windowRows[] = $row;
             }
         }
@@ -1313,7 +1313,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
 
     /**
      * @param list<array<string,mixed>> $rows
-     * @return array<string,array{count:int,rowids:list<int|string>,peer_counts:list<int>,peer_rowids:list<list<int|string>>}>
+     * @return array<string,array{count:int,row_ids:list<int|string>,peer_counts:list<int>,peer_row_ids:list<list<int|string>>}>
      */
     private static function partitionSummaryExcludeCurrentRetryWindow(array $rows, string $partitionColumn, string $rowIdColumn): array
     {
@@ -1321,12 +1321,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         foreach ($rows as $row) {
             $key = self::valueKeyExcludeCurrentRetryWindow($row[$partitionColumn] ?? null);
             if (!isset($summary[$key])) {
-                $summary[$key] = ['count' => 0, 'rowids' => [], 'peer_counts' => [], 'peer_rowids' => []];
+                $summary[$key] = ['count' => 0, 'row_ids' => [], 'peer_counts' => [], 'peer_row_ids' => []];
             }
             $summary[$key]['count']++;
-            $summary[$key]['rowids'][] = $row[$rowIdColumn];
+            $summary[$key]['row_ids'][] = $row[$rowIdColumn];
             $summary[$key]['peer_counts'][] = (int) $row['window_peer_count_excluding_current'];
-            $summary[$key]['peer_rowids'][] = $row['window_peer_rowids_excluding_current'];
+            $summary[$key]['peer_row_ids'][] = $row['window_peer_row_ids_excluding_current'];
         }
 
         return $summary;

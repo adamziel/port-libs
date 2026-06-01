@@ -5125,4 +5125,46 @@ CSS;
             'style-exit:wp-dep-exit',
         ], $seen);
     },
+    'custom at-rules expose upstream source locations to custom and unknown visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@tokens accent;
+
+@dep "tokens.css";
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => ['prelude' => '<custom-ident>'],
+        ], [
+            'StyleSheet' => static function (array $stylesheet) use (&$seen): void {
+                $seen['sheetCustomLoc'] = $stylesheet['rules'][0]['value']['loc'] ?? null;
+                $seen['sheetUnknownLoc'] = $stylesheet['rules'][1]['value']['loc'] ?? null;
+            },
+            'Rule' => [
+                'custom' => [
+                    'tokens' => static function (array $rule) use (&$seen): array {
+                        $seen['customLoc'] = $rule['loc'] ?? null;
+
+                        return [];
+                    },
+                ],
+                'unknown' => [
+                    'dep' => static function (array $rule) use (&$seen): array {
+                        $seen['unknownLoc'] = $rule['loc'] ?? null;
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $expectedCustom = ['source_index' => 0, 'line' => 0, 'column' => 1];
+        $expectedUnknown = ['source_index' => 0, 'line' => 2, 'column' => 1];
+
+        $t->same('', $result);
+        $t->same($expectedCustom, $seen['sheetCustomLoc']);
+        $t->same($expectedUnknown, $seen['sheetUnknownLoc']);
+        $t->same($expectedCustom, $seen['customLoc']);
+        $t->same($expectedUnknown, $seen['unknownLoc']);
+    },
 ];

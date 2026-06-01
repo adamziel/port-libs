@@ -1275,6 +1275,7 @@ final class CustomAtRuleTransformer
             if ($cursor >= $length) {
                 break;
             }
+            $ruleLocation = $this->sourceLocationForOffset($css, $cursor);
 
             $nextBlock = $this->findNextTopLevel($css, '{', $cursor);
             $nextStatement = $this->findNextTopLevel($css, ';', $cursor);
@@ -1283,7 +1284,7 @@ final class CustomAtRuleTransformer
                 $statement = trim(substr($css, $cursor, $nextStatement - $cursor));
                 if ($statement !== '') {
                     $rules[] = str_starts_with($statement, '@')
-                        ? $this->stylesheetAtRuleStatement($statement)
+                        ? $this->stylesheetAtRuleStatement($statement, $ruleLocation)
                         : $this->stylesheetRawRule($statement . ';');
                 }
                 $cursor = $nextStatement + 1;
@@ -1294,7 +1295,7 @@ final class CustomAtRuleTransformer
                 $tail = trim(substr($css, $cursor));
                 if ($tail !== '') {
                     $rules[] = str_starts_with($tail, '@')
-                        ? $this->stylesheetAtRuleStatement($tail)
+                        ? $this->stylesheetAtRuleStatement($tail, $ruleLocation)
                         : $this->stylesheetRawRule($tail);
                 }
                 break;
@@ -1304,8 +1305,8 @@ final class CustomAtRuleTransformer
             $close = $this->findMatchingBrace($css, $nextBlock);
             $body = substr($css, $nextBlock + 1, $close - $nextBlock - 1);
             $rules[] = str_starts_with($prelude, '@')
-                ? $this->stylesheetAtRuleBlock($prelude, $body)
-                : $this->stylesheetStyleRule($prelude, $body);
+                ? $this->stylesheetAtRuleBlock($prelude, $body, $ruleLocation)
+                : $this->stylesheetStyleRule($prelude, $body, $ruleLocation);
             $cursor = $close + 1;
         }
 
@@ -1315,39 +1316,40 @@ final class CustomAtRuleTransformer
     /**
      * @return array<string, mixed>
      */
-    private function stylesheetAtRuleStatement(string $statement): array
+    private function stylesheetAtRuleStatement(string $statement, ?array $loc = null): array
     {
         [$name, $prelude] = $this->parseAtPrelude($statement);
         if ($this->isCustomAtRule($name)) {
-            return ['type' => 'custom', 'value' => $this->buildCustomRule($name, $prelude, null, null, false)];
+            return ['type' => 'custom', 'value' => $this->buildCustomRule($name, $prelude, null, null, false, $loc)];
         }
 
-        return ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $prelude, null, null)];
+        return ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $prelude, null, null, $loc)];
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function stylesheetAtRuleBlock(string $prelude, string $body): array
+    private function stylesheetAtRuleBlock(string $prelude, string $body, ?array $loc = null): array
     {
         [$name, $atPrelude] = $this->parseAtPrelude($prelude);
         if ($name === 'media') {
-            return $this->buildMediaRule($atPrelude, $body, null);
+            return $this->buildMediaRule($atPrelude, $body, null, $loc);
         }
         if ($name === 'supports') {
             return [
                 'type' => 'supports',
                 'value' => [
+                    'loc' => $loc ?? $this->defaultSourceLocation(),
                     'condition' => $this->parseSupportsConditionForVisitor($atPrelude),
                     'rules' => $this->parseReturnedRuleList($body, null),
                 ],
             ];
         }
         if ($this->isCustomAtRule($name)) {
-            return ['type' => 'custom', 'value' => $this->buildCustomRule($name, $atPrelude, $body, null, false)];
+            return ['type' => 'custom', 'value' => $this->buildCustomRule($name, $atPrelude, $body, null, false, $loc)];
         }
 
-        return ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $atPrelude, $body, null)];
+        return ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $atPrelude, $body, null, $loc)];
     }
 
     /**
@@ -1366,7 +1368,7 @@ final class CustomAtRuleTransformer
     /**
      * @return array<string, mixed>
      */
-    private function stylesheetStyleRule(string $selectorList, string $body): array
+    private function stylesheetStyleRule(string $selectorList, string $body, ?array $loc = null): array
     {
         $selectors = $this->splitTopLevel($selectorList, ',');
         if ($selectors === []) {
@@ -1395,6 +1397,7 @@ final class CustomAtRuleTransformer
             'selectors' => $selectors,
             'declarations' => $entries,
             'value' => [
+                'loc' => $loc ?? $this->defaultSourceLocation(),
                 'selectors' => array_map(fn (string $selector): array => $this->selectorComponentsFromString($selector), $selectors),
                 'declarations' => [
                     'declarations' => $normal,
@@ -2099,6 +2102,7 @@ final class CustomAtRuleTransformer
             if ($cursor >= $length) {
                 break;
             }
+            $ruleLocation = $this->sourceLocationForOffset($css, $cursor);
 
             $nextBlock = $this->findNextTopLevel($css, '{', $cursor);
             $nextStatement = $this->findNextTopLevel($css, ';', $cursor);
@@ -2106,7 +2110,7 @@ final class CustomAtRuleTransformer
             if ($nextStatement !== null && ($nextBlock === null || $nextStatement < $nextBlock)) {
                 $statement = trim(substr($css, $cursor, $nextStatement - $cursor));
                 if ($statement !== '') {
-                    $output .= $this->processStatement($statement, null);
+                    $output .= $this->processStatement($statement, null, $ruleLocation);
                 }
                 $cursor = $nextStatement + 1;
                 continue;
@@ -2127,13 +2131,13 @@ final class CustomAtRuleTransformer
             if (str_starts_with($prelude, '@')) {
                 [$name, $atPrelude] = $this->parseAtPrelude($prelude);
                 if ($name === 'media') {
-                    $output .= $this->processMediaRule($atPrelude, $body, null);
+                    $output .= $this->processMediaRule($atPrelude, $body, null, $ruleLocation);
                 } elseif ($name === 'supports') {
-                    $output .= $this->processSupportsRule($atPrelude, $body, null);
+                    $output .= $this->processSupportsRule($atPrelude, $body, null, $ruleLocation);
                 } elseif ($this->isCustomAtRule($name)) {
-                    $output .= $this->processCustomAtRule($prelude, $body, null);
+                    $output .= $this->processCustomAtRule($prelude, $body, null, $ruleLocation);
                 } else {
-                    $rule = $this->buildUnknownRule($name, $atPrelude, $body, null);
+                    $rule = $this->buildUnknownRule($name, $atPrelude, $body, null, $ruleLocation);
                     $genericReplacement = $this->callAnyRuleVisitor(['type' => 'unknown', 'value' => $rule]);
                     if ($genericReplacement !== null) {
                         $output .= $this->emitReplacement($genericReplacement, null);
@@ -2171,7 +2175,7 @@ final class CustomAtRuleTransformer
     /**
      * @param list<string>|null $parentSelectors
      */
-    private function processStatement(string $statement, ?array $parentSelectors): string
+    private function processStatement(string $statement, ?array $parentSelectors, ?array $loc = null): string
     {
         if (!str_starts_with($statement, '@')) {
             return $statement . ';';
@@ -2179,7 +2183,7 @@ final class CustomAtRuleTransformer
 
         [$name, $prelude] = $this->parseAtPrelude($statement);
         if (!$this->isCustomAtRule($name)) {
-            $rule = $this->buildUnknownRule($name, $prelude, null, $parentSelectors);
+            $rule = $this->buildUnknownRule($name, $prelude, null, $parentSelectors, $loc);
             $genericReplacement = $this->callAnyRuleVisitor(['type' => 'unknown', 'value' => $rule]);
             if ($genericReplacement !== null) {
                 return $this->emitReplacement($genericReplacement, $parentSelectors);
@@ -2194,7 +2198,7 @@ final class CustomAtRuleTransformer
             return $this->emitReplacement($replacement, $parentSelectors);
         }
 
-        $rule = $this->buildCustomRule($name, $prelude, null, $parentSelectors);
+        $rule = $this->buildCustomRule($name, $prelude, null, $parentSelectors, true, $loc);
         $genericReplacement = $this->callAnyRuleVisitor(['type' => 'custom', 'value' => $rule]);
         if ($genericReplacement !== null) {
             return $this->emitReplacement($genericReplacement, $parentSelectors);
@@ -2228,7 +2232,8 @@ final class CustomAtRuleTransformer
                     if (str_starts_with($statement, '@')) {
                         $output .= $this->emitDeclarationRule($selectors, $declarations);
                         $declarations = '';
-                        $output .= $this->processStatement($statement, $selectors);
+                        $ruleLocation = $this->sourceLocationForOffset($body, $this->skipWhitespace($body, $cursor));
+                        $output .= $this->processStatement($statement, $selectors, $ruleLocation);
                     } else {
                         $declarations .= $statement . ';';
                     }
@@ -2244,7 +2249,7 @@ final class CustomAtRuleTransformer
                     if ($this->isCustomAtRule($name)) {
                         $output .= $this->emitDeclarationRule($selectors, $declarations);
                         $declarations = '';
-                        $output .= $this->processStatement($tail, $selectors);
+                        $output .= $this->processStatement($tail, $selectors, $this->sourceLocationForOffset($body, $this->skipWhitespace($body, $cursor)));
                         break;
                     }
                 }
@@ -2269,17 +2274,18 @@ final class CustomAtRuleTransformer
 
             if (str_starts_with($nestedPrelude, '@')) {
                 [$name, $atPrelude] = $this->parseAtPrelude($nestedPrelude);
+                $nestedLocation = $this->sourceLocationForOffset($body, $this->skipWhitespace($body, $cursor + strlen($declarationPart)));
                 if ($name === 'media') {
-                    $output .= $this->processMediaRule($atPrelude, $nestedBody, $selectors);
+                    $output .= $this->processMediaRule($atPrelude, $nestedBody, $selectors, $nestedLocation);
                 } elseif ($name === 'supports') {
-                    $output .= $this->processSupportsRule($atPrelude, $nestedBody, $selectors);
+                    $output .= $this->processSupportsRule($atPrelude, $nestedBody, $selectors, $nestedLocation);
                 } elseif ($this->isCustomAtRule($name)) {
-                    $output .= $this->processCustomAtRule($nestedPrelude, $nestedBody, $selectors);
+                    $output .= $this->processCustomAtRule($nestedPrelude, $nestedBody, $selectors, $nestedLocation);
                 } elseif (str_starts_with($nestedPrelude, '@nest ')) {
                     $nestedSelectors = $this->resolveNestedSelectors($selectors, substr($nestedPrelude, 6));
                     $output .= $this->processStyleBody($nestedBody, $nestedSelectors);
                 } else {
-                    $rule = $this->buildUnknownRule($name, $atPrelude, $nestedBody, $selectors);
+                    $rule = $this->buildUnknownRule($name, $atPrelude, $nestedBody, $selectors, $nestedLocation);
                     $genericReplacement = $this->callAnyRuleVisitor(['type' => 'unknown', 'value' => $rule]);
                     if ($genericReplacement !== null) {
                         $output .= $this->emitReplacement($genericReplacement, $selectors);
@@ -2422,17 +2428,17 @@ final class CustomAtRuleTransformer
     /**
      * @param list<string>|null $parentSelectors
      */
-    private function processMediaRule(string $query, string $body, ?array $parentSelectors): string
+    private function processMediaRule(string $query, string $body, ?array $parentSelectors, ?array $loc = null): string
     {
         if ($this->ruleVisitor !== null) {
-            $replacement = $this->callAnyRuleVisitor($this->buildMediaRule($query, $body, $parentSelectors));
+            $replacement = $this->callAnyRuleVisitor($this->buildMediaRule($query, $body, $parentSelectors, $loc));
             if ($replacement !== null) {
                 return $this->emitReplacement($replacement, $parentSelectors);
             }
         }
 
         if ($this->mediaRuleVisitor !== null) {
-            $rule = $this->buildMediaRule($query, $body, $parentSelectors);
+            $rule = $this->buildMediaRule($query, $body, $parentSelectors, $loc);
             $replacement = ($this->mediaRuleVisitor)($rule, $this);
             if ($replacement !== null) {
                 return $this->emitReplacement($replacement, $parentSelectors);
@@ -2445,7 +2451,7 @@ final class CustomAtRuleTransformer
         $bodyCss = $parentSelectors === null
             ? $this->processRuleList($body)
             : $this->processStyleBody($body, $parentSelectors);
-        $exitReplacement = $this->applyMediaRuleExit($this->buildVisitedMediaRule($queryCss, $bodyCss, $parentSelectors), $parentSelectors);
+        $exitReplacement = $this->applyMediaRuleExit($this->buildVisitedMediaRule($queryCss, $bodyCss, $parentSelectors, $loc), $parentSelectors);
         if ($exitReplacement !== null) {
             return $exitReplacement;
         }
@@ -2456,7 +2462,7 @@ final class CustomAtRuleTransformer
     /**
      * @param list<string>|null $parentSelectors
      */
-    private function processSupportsRule(string $condition, string $body, ?array $parentSelectors): string
+    private function processSupportsRule(string $condition, string $body, ?array $parentSelectors, ?array $loc = null): string
     {
         $conditionCss = $this->supportsConditionVisitor !== null || $this->supportsConditionExitVisitor !== null
             ? $this->returnedSupportsConditionToCss($this->applySupportsConditionVisitors($this->parseSupportsConditionForVisitor($condition)))
@@ -2471,10 +2477,10 @@ final class CustomAtRuleTransformer
     /**
      * @param list<string>|null $parentSelectors
      */
-    private function processCustomAtRule(string $prelude, string $body, ?array $parentSelectors): string
+    private function processCustomAtRule(string $prelude, string $body, ?array $parentSelectors, ?array $loc = null): string
     {
         [$name, $atPrelude] = $this->parseAtPrelude($prelude);
-        $rule = $this->buildCustomRule($name, $atPrelude, $body, $parentSelectors);
+        $rule = $this->buildCustomRule($name, $atPrelude, $body, $parentSelectors, true, $loc);
         $genericReplacement = $this->callAnyRuleVisitor(['type' => 'custom', 'value' => $rule]);
         if ($genericReplacement !== null) {
             return $this->emitReplacement($genericReplacement, $parentSelectors);
@@ -2492,9 +2498,9 @@ final class CustomAtRuleTransformer
 
     /**
      * @param list<string>|null $parentSelectors
-     * @return array{name:string, prelude:string, preludeAst:mixed, bodyType:string|null, body:string, bodyAst:mixed, bodyRules:list<array<string, mixed>>, declarations:list<array{property:string, value:string, important:bool}>, context:string, parentSelectors:list<string>}
+     * @return array{name:string, prelude:string, preludeAst:mixed, bodyType:string|null, body:string, bodyAst:mixed, bodyRules:list<array<string, mixed>>, declarations:list<array{property:string, value:string, important:bool}>, loc:array{source_index:int,line:int,column:int}, context:string, parentSelectors:list<string>}
      */
-    private function buildCustomRule(string $name, string $prelude, ?string $body, ?array $parentSelectors, bool $visitPrelude = true): array
+    private function buildCustomRule(string $name, string $prelude, ?string $body, ?array $parentSelectors, bool $visitPrelude = true, ?array $loc = null): array
     {
         $definition = $this->customAtRules[$name] ?? [];
         $bodyType = null;
@@ -2542,6 +2548,7 @@ final class CustomAtRuleTransformer
             'bodyAst' => $this->customBodyAst($bodyType, $declarations, $bodyRules),
             'bodyRules' => $bodyRules,
             'declarations' => $declarations,
+            'loc' => $loc ?? $this->defaultSourceLocation(),
             'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
             'parentSelectors' => $parentSelectors ?? [],
         ];
@@ -2585,9 +2592,9 @@ final class CustomAtRuleTransformer
 
     /**
      * @param list<string>|null $parentSelectors
-     * @return array{name:string, prelude:string, preludeTokens:list<mixed>, block:list<mixed>|null, body:string, hasBlock:bool, context:string, parentSelectors:list<string>}
+     * @return array{name:string, prelude:string, preludeTokens:list<mixed>, block:list<mixed>|null, body:string, hasBlock:bool, loc:array{source_index:int,line:int,column:int}, context:string, parentSelectors:list<string>}
      */
-    private function buildUnknownRule(string $name, string $prelude, ?string $body, ?array $parentSelectors): array
+    private function buildUnknownRule(string $name, string $prelude, ?string $body, ?array $parentSelectors, ?array $loc = null): array
     {
         $prelude = trim($prelude);
 
@@ -2598,6 +2605,7 @@ final class CustomAtRuleTransformer
             'block' => $body === null ? null : $this->parseComponentValueList($body),
             'body' => $body ?? '',
             'hasBlock' => $body !== null,
+            'loc' => $loc ?? $this->defaultSourceLocation(),
             'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
             'parentSelectors' => $parentSelectors ?? [],
         ];
@@ -2605,13 +2613,14 @@ final class CustomAtRuleTransformer
 
     /**
      * @param list<string>|null $parentSelectors
-     * @return array{type:string,value:array{query:array<string, mixed>,rules:list<array<string, mixed>>},context:string,parentSelectors:list<string>}
+     * @return array{type:string,value:array{loc:array{source_index:int,line:int,column:int},query:array<string, mixed>,rules:list<array<string, mixed>>},context:string,parentSelectors:list<string>}
      */
-    private function buildMediaRule(string $query, string $body, ?array $parentSelectors): array
+    private function buildMediaRule(string $query, string $body, ?array $parentSelectors, ?array $loc = null): array
     {
         return [
             'type' => 'media',
             'value' => [
+                'loc' => $loc ?? $this->defaultSourceLocation(),
                 'query' => $this->parseMediaQueryForVisitor($query),
                 'rules' => $this->parseReturnedRuleList($body, $parentSelectors),
             ],
@@ -2622,13 +2631,14 @@ final class CustomAtRuleTransformer
 
     /**
      * @param list<string>|null $parentSelectors
-     * @return array{type:string,value:array{query:array<string, mixed>,rules:list<array<string, mixed>>},context:string,parentSelectors:list<string>}
+     * @return array{type:string,value:array{loc:array{source_index:int,line:int,column:int},query:array<string, mixed>,rules:list<array<string, mixed>>},context:string,parentSelectors:list<string>}
      */
-    private function buildVisitedMediaRule(string $query, string $body, ?array $parentSelectors): array
+    private function buildVisitedMediaRule(string $query, string $body, ?array $parentSelectors, ?array $loc = null): array
     {
         return [
             'type' => 'media',
             'value' => [
+                'loc' => $loc ?? $this->defaultSourceLocation(),
                 'query' => $this->parseMediaQueryForVisitor($query),
                 'rules' => $this->parseReturnedRuleList($body, null),
             ],
@@ -8433,6 +8443,7 @@ final class CustomAtRuleTransformer
             if ($cursor >= $length) {
                 break;
             }
+            $ruleLocation = $this->sourceLocationForOffset($css, $cursor);
 
             $nextBlock = $this->findNextTopLevel($css, '{', $cursor);
             $nextStatement = $this->findNextTopLevel($css, ';', $cursor);
@@ -8442,8 +8453,8 @@ final class CustomAtRuleTransformer
                 if ($statement !== '' && str_starts_with($statement, '@')) {
                     [$name, $prelude] = $this->parseAtPrelude($statement);
                     $rules[] = $this->isCustomAtRule($name)
-                        ? ['type' => 'custom', 'value' => $this->buildCustomRule($name, $prelude, null, $parentSelectors)]
-                        : ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $prelude, null, $parentSelectors)];
+                        ? ['type' => 'custom', 'value' => $this->buildCustomRule($name, $prelude, null, $parentSelectors, true, $ruleLocation)]
+                        : ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $prelude, null, $parentSelectors, $ruleLocation)];
                 }
                 $cursor = $nextStatement + 1;
                 continue;
@@ -8459,19 +8470,20 @@ final class CustomAtRuleTransformer
             if (str_starts_with($prelude, '@')) {
                 [$name, $atPrelude] = $this->parseAtPrelude($prelude);
                 if ($name === 'media') {
-                    $rules[] = $this->buildMediaRule($atPrelude, $body, $parentSelectors);
+                    $rules[] = $this->buildMediaRule($atPrelude, $body, $parentSelectors, $ruleLocation);
                 } elseif ($name === 'supports') {
                     $rules[] = [
                         'type' => 'supports',
                         'value' => [
+                            'loc' => $ruleLocation,
                             'condition' => $this->parseSupportsConditionForVisitor($atPrelude),
                             'rules' => $this->parseReturnedRuleList($body, $parentSelectors),
                         ],
                     ];
                 } elseif ($this->isCustomAtRule($name)) {
-                    $rules[] = ['type' => 'custom', 'value' => $this->buildCustomRule($name, $atPrelude, $body, $parentSelectors)];
+                    $rules[] = ['type' => 'custom', 'value' => $this->buildCustomRule($name, $atPrelude, $body, $parentSelectors, true, $ruleLocation)];
                 } else {
-                    $rules[] = ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $atPrelude, $body, $parentSelectors)];
+                    $rules[] = ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $atPrelude, $body, $parentSelectors, $ruleLocation)];
                 }
             } else {
                 $selectors = $parentSelectors === null
@@ -8480,6 +8492,7 @@ final class CustomAtRuleTransformer
                 $rules[] = [
                     'type' => 'style',
                     'value' => [
+                        'loc' => $ruleLocation,
                         'selectors' => array_map(fn (string $selector): array => $this->parseReturnedSelector($selector), $selectors),
                         'declarations' => [
                             'declarations' => $this->parseReturnedDeclarations($body),
@@ -9262,6 +9275,36 @@ final class CustomAtRuleTransformer
         }
 
         return $offset;
+    }
+
+    /**
+     * @return array{source_index:int,line:int,column:int}
+     */
+    private function defaultSourceLocation(): array
+    {
+        return [
+            'source_index' => 0,
+            'line' => 0,
+            'column' => 1,
+        ];
+    }
+
+    /**
+     * @return array{source_index:int,line:int,column:int}
+     */
+    private function sourceLocationForOffset(string $css, int $offset): array
+    {
+        $length = strlen($css);
+        $offset = max(0, min($length, $offset));
+        $prefix = substr($css, 0, $offset);
+        $line = substr_count($prefix, "\n");
+        $lastNewline = strrpos($prefix, "\n");
+
+        return [
+            'source_index' => 0,
+            'line' => $line,
+            'column' => $lastNewline === false ? $offset + 1 : $offset - $lastNewline,
+        ];
     }
 
     private function stripComments(string $css): string

@@ -13,6 +13,7 @@ $sourceFiles = [
     $sourceRoot . '/SQLiteCompoundSelectRecursiveAffinityLimitPlan.php',
     $sourceRoot . '/SQLiteWindowRowValueUpsertCurrentSourcePlan.php',
 ];
+$partitionedWindowSourceFile = $sourceRoot . '/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
 
 $compoundWindowSourceMatches = static function () use ($sourceFiles, $libsqliteRoot): array {
     $terms = [
@@ -49,6 +50,55 @@ $compoundWindowSourceMatches = static function () use ($sourceFiles, $libsqliteR
     return $matches;
 };
 
+$partitionedWindowSourceMatches = static function () use ($partitionedWindowSourceFile, $libsqliteRoot): array {
+    $contents = file_get_contents($partitionedWindowSourceFile);
+    if ($contents === false) {
+        throw new RuntimeException("Unable to read {$partitionedWindowSourceFile}");
+    }
+
+    $segments = [
+        [
+            'public static function executePartitionedRetryWindow(',
+            'private static function compareValuesPartitionedRetryWindow(',
+        ],
+        [
+            'public static function executeExcludeCurrentRetryWindow(',
+            'private static function compareValuesExcludeCurrentRetryWindow(',
+        ],
+    ];
+
+    $segment = '';
+    foreach ($segments as [$startMarker, $endMarker]) {
+        $start = strpos($contents, $startMarker);
+        $end = strpos($contents, $endMarker, $start === false ? 0 : $start);
+        if ($start === false || $end === false || $end <= $start) {
+            throw new RuntimeException("Unable to isolate row-value window source segment {$startMarker}");
+        }
+        $segment .= substr($contents, $start, $end - $start);
+    }
+    $terms = [
+        'wp' . '_',
+        'wp' . '_options',
+        'opt' . 'ion_id',
+        'opt' . 'ion_name',
+        'opt' . 'ion_value',
+        'auto' . 'load',
+        'Auto' . 'load',
+        'blog' . '_id',
+    ];
+    $pattern = '/(?:\bwp\b|' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
+    if (preg_match_all($pattern, $segment, $fileMatches, PREG_OFFSET_CAPTURE) < 1) {
+        return [];
+    }
+
+    $relative = str_replace($libsqliteRoot . '/', '', $partitionedWindowSourceFile);
+
+    return array_map(
+        static fn (array $match): string => "{$relative}: {$match[0]}",
+        $fileMatches[0],
+    );
+};
+
 $windowRowValueDefaults = static fn (): array => SQLiteWindowRowValueUpsertCurrentSourcePlan::execute(
     [
         ['key_name' => 'base_url', 'version' => 1, 'priority' => 10, 'load_policy' => 'yes', 'key_value' => 'old'],
@@ -71,6 +121,7 @@ $windowRowValueKeys = static function () use ($windowRowValueDefaults): array {
 
 return [
     'source-neutral compound window defaults dynamic source has no legacy setting table terms' => static fn (TestRunner $t) => $t->same([], $compoundWindowSourceMatches()),
+    'source-neutral partitioned row-value window source defaults use setting terms' => static fn (TestRunner $t) => $t->same([], $partitionedWindowSourceMatches()),
     'source-neutral row-value window defaults expose generic key names' => static fn (TestRunner $t) => $t->same([
         'action',
         'first_key_name',

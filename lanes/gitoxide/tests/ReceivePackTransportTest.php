@@ -810,6 +810,121 @@ return [
         $t->same(null, $requests[0]['body']);
         $t->same($request->requestBytes(), $requests[1]['body']);
     },
+    'smart http receive-pack scopes Git-Protocol headers to discovery and negotiated request version' => static function (TestRunner $t) use ($packet, $flush): void {
+        $v2Advertisement = $packet("version 2\n") . $flush;
+        $v2Requests = [];
+        $v2Transport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body) use (&$v2Requests, $packet, $flush, $v2Advertisement): array {
+                $v2Requests[] = [
+                    'method' => $method,
+                    'url' => $url,
+                    'headers' => $headers,
+                    'body' => $body,
+                ];
+
+                if ($method === 'GET') {
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                        'body' => $packet("# service=git-receive-pack\n") . $flush . $v2Advertisement,
+                    ];
+                }
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                    'body' => $flush,
+                ];
+            },
+            ['session-id', 'object-format=sha1'],
+            30.0,
+            [],
+            ['protocolVersion' => 2],
+        );
+
+        $t->same($v2Advertisement, $v2Transport->readAdvertisement());
+        $v2Transport->writeRequest('0000');
+        $t->same($flush, $v2Transport->readResponse());
+        $t->same(['GET', 'POST'], array_column($v2Requests, 'method'));
+        $t->same('version=2:session-id:object-format=sha1', $v2Requests[0]['headers']['Git-Protocol']);
+        $t->same('version=2', $v2Requests[1]['headers']['Git-Protocol']);
+        $t->same('0000', $v2Requests[1]['body']);
+
+        $v1Advertisement = $packet("58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a refs/heads/main\0report-status object-format=sha1\n") . $flush;
+        $downgradeRequests = [];
+        $downgradeTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body) use (&$downgradeRequests, $packet, $flush, $v1Advertisement): array {
+                $downgradeRequests[] = [
+                    'method' => $method,
+                    'url' => $url,
+                    'headers' => $headers,
+                    'body' => $body,
+                ];
+
+                if ($method === 'GET') {
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                        'body' => $packet("# service=git-receive-pack\n") . $flush . $v1Advertisement,
+                    ];
+                }
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                    'body' => $flush,
+                ];
+            },
+            ['session-id'],
+            30.0,
+            [],
+            ['protocolVersion' => 2],
+        );
+
+        $t->same($v1Advertisement, $downgradeTransport->readAdvertisement());
+        $downgradeTransport->writeRequest('0000');
+        $t->same($flush, $downgradeTransport->readResponse());
+        $t->same('version=2:session-id', $downgradeRequests[0]['headers']['Git-Protocol']);
+        $t->same(null, $downgradeRequests[1]['headers']['Git-Protocol'] ?? null);
+        $t->same('0000', $downgradeRequests[1]['body']);
+
+        $explicitV1Requests = [];
+        $explicitV1Transport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body) use (&$explicitV1Requests, $packet, $flush, $v1Advertisement): array {
+                $explicitV1Requests[] = ['headers' => $headers, 'body' => $body];
+
+                if ($method === 'GET') {
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                        'body' => $packet("# service=git-receive-pack\n") . $flush . $v1Advertisement,
+                    ];
+                }
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                    'body' => $flush,
+                ];
+            },
+            ['session-id'],
+            30.0,
+            [],
+            ['protocolVersion' => 1],
+        );
+        $explicitV1Transport->readAdvertisement();
+        $explicitV1Transport->writeRequest('0000');
+        $explicitV1Transport->readResponse();
+        $t->same('session-id', $explicitV1Requests[0]['headers']['Git-Protocol']);
+        $t->same(null, $explicitV1Requests[1]['headers']['Git-Protocol'] ?? null);
+
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['protocolVersion' => 0]));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['protocolVersion' => 3]));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['protocolVersion' => '2']));
+    },
     'smart http receive-pack urls headers and response validation follow git http protocol' => static function (TestRunner $t) use ($packet, $flush): void {
         $t->same(
             'https://example.test/repo.git/info/refs?service=git-receive-pack',
@@ -3016,6 +3131,123 @@ return [
         $t->same('wp_session=all-proxy', $allProxyRequests[1]['headers']['Cookie']);
         $t->same($allProxyRequest->requestBytes(), $allProxyRequests[1]['body']);
 
+        $httpsAllProxyRequests = [];
+        $httpsAllProxyHelperCalls = 0;
+        $httpsAllProxyBlob = new GitObject('blob', 'WordPress HTTPS all-proxy fallback payload');
+        $httpsAllProxyClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$httpsAllProxyRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $httpsAllProxyRequests[] = [
+                        'method' => $method,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_session=https-all-proxy; Path=/; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'allProxy' => 'http://all-proxy.example.test:8081',
+                    'proxyCredentialHelper' => static function () use (&$httpsAllProxyHelperCalls): array {
+                        $httpsAllProxyHelperCalls++;
+
+                        return ['username' => 'https-all-proxy-user', 'password' => 'https-all-proxy-pass'];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $httpsAllProxySession = $httpsAllProxyClient->handshake();
+        $httpsAllProxySession->createOrUpdate('refs/heads/main', $httpsAllProxyBlob->oid());
+        $httpsAllProxyRequest = $httpsAllProxySession->buildRequest([$httpsAllProxyBlob]);
+
+        $httpsAllProxyResponse = $httpsAllProxyClient->send($httpsAllProxyRequest);
+
+        $t->same(true, $httpsAllProxyResponse->isSuccessful());
+        $t->same(2, $httpsAllProxyHelperCalls);
+        $t->same('tcp://all-proxy.example.test:8081', $httpsAllProxyRequests[0]['httpOptions']['proxy']);
+        $t->same('tcp://all-proxy.example.test:8081', $httpsAllProxyRequests[1]['httpOptions']['proxy']);
+        $t->same('Basic ' . base64_encode('https-all-proxy-user:https-all-proxy-pass'), $httpsAllProxyRequests[0]['httpOptions']['proxyAuthorization']);
+        $t->same('wp_session=https-all-proxy', $httpsAllProxyRequests[1]['headers']['Cookie']);
+        $t->same($httpsAllProxyRequest->requestBytes(), $httpsAllProxyRequests[1]['body']);
+
+        $httpsProxyEmptyAllProxyRequests = [];
+        $httpsProxyEmptyAllProxyHelperCalls = 0;
+        $httpsProxyEmptyAllProxyBlob = new GitObject('blob', 'WordPress empty HTTPS proxy disables all-proxy payload');
+        $httpsProxyEmptyAllProxyClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$httpsProxyEmptyAllProxyRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $httpsProxyEmptyAllProxyRequests[] = [
+                        'method' => $method,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_session=https-proxy-empty; Path=/; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'httpsProxy' => '',
+                    'allProxy' => 'http://all-proxy.example.test:8081',
+                    'proxyCredentialHelper' => static function () use (&$httpsProxyEmptyAllProxyHelperCalls): array {
+                        $httpsProxyEmptyAllProxyHelperCalls++;
+
+                        return ['username' => 'empty-https-proxy-user', 'password' => 'empty-https-proxy-pass'];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $httpsProxyEmptyAllProxySession = $httpsProxyEmptyAllProxyClient->handshake();
+        $httpsProxyEmptyAllProxySession->createOrUpdate('refs/heads/main', $httpsProxyEmptyAllProxyBlob->oid());
+        $httpsProxyEmptyAllProxyRequest = $httpsProxyEmptyAllProxySession->buildRequest([$httpsProxyEmptyAllProxyBlob]);
+
+        $httpsProxyEmptyAllProxyResponse = $httpsProxyEmptyAllProxyClient->send($httpsProxyEmptyAllProxyRequest);
+
+        $t->same(true, $httpsProxyEmptyAllProxyResponse->isSuccessful());
+        $t->same(0, $httpsProxyEmptyAllProxyHelperCalls);
+        $t->same([[], []], array_column($httpsProxyEmptyAllProxyRequests, 'httpOptions'));
+        $t->same('wp_session=https-proxy-empty', $httpsProxyEmptyAllProxyRequests[1]['headers']['Cookie']);
+        $t->same($httpsProxyEmptyAllProxyRequest->requestBytes(), $httpsProxyEmptyAllProxyRequests[1]['body']);
+
         $disabledFallbackRequests = [];
         $disabledFallbackHelperCalls = 0;
         $disabledFallbackTransport = new SmartHttpReceivePackTransport(
@@ -3918,6 +4150,51 @@ return [
         $t->same(['-P', '2225', 'deploy@git.example.test'], $inferredPlinkContext['sshArguments']);
         $t->same(false, $inferredPlinkContext['useShell']);
 
+        $extensionStemContexts = [
+            [
+                'command' => '/opt/bin/plink.cmd',
+                'kind' => 'plink',
+                'arguments' => ['-P', '2226', 'deploy@git.example.test'],
+            ],
+            [
+                'command' => '/opt/bin/putty.wrapper',
+                'kind' => 'putty',
+                'arguments' => ['-P', '2226', 'deploy@git.example.test'],
+            ],
+            [
+                'command' => '/opt/bin/ssh.custom',
+                'kind' => 'ssh',
+                'arguments' => ['-o', 'SendEnv=GIT_PROTOCOL', '-p2226', 'deploy@git.example.test'],
+            ],
+            [
+                'command' => '/opt/bin/tortoiseplink.bat',
+                'kind' => 'tortoiseplink',
+                'arguments' => ['-batch', '-P', '2226', 'deploy@git.example.test'],
+            ],
+        ];
+        foreach ($extensionStemContexts as $expectedContext) {
+            $extensionContext = SshReceivePackTransport::connectorContext(
+                'ssh://deploy@git.example.test:2226/var/www/wp-content.git',
+                ['protocolVersion' => 2, 'sshCommand' => $expectedContext['command']],
+            );
+            $t->same($expectedContext['kind'], $extensionContext['programKind']);
+            $t->same($expectedContext['command'], $extensionContext['sshCommand']);
+            $t->same($expectedContext['arguments'], $extensionContext['sshArguments']);
+            $t->same(null, $extensionContext['sshFeatureProbe']);
+            $t->same(false, $extensionContext['useShell']);
+        }
+
+        $dotfileCommandContext = SshReceivePackTransport::connectorContext(
+            'deploy@git.example.test:wp-content.git',
+            ['sshCommand' => '.ssh'],
+        );
+        $t->same('simple', $dotfileCommandContext['programKind']);
+        $t->same([
+            'command' => '.ssh',
+            'arguments' => ['-G', 'git.example.test'],
+            'useShell' => false,
+        ], $dotfileCommandContext['sshFeatureProbe']);
+
         $simpleContext = SshReceivePackTransport::connectorContext(
             'deploy@git.example.test:wp-content.git',
             ['protocolVersion' => 2, 'programKind' => 'simple', 'sshCommand' => 'simple'],
@@ -4230,6 +4507,13 @@ return [
         $t->same('wp_transport_options=observed', $fixture['smartHttpTransportOptionsBoundary']['postCookie']);
         $t->same(true, $fixture['smartHttpTransportOptionsBoundary']['postBodyPreserved']);
         $t->same(true, $fixture['smartHttpTransportOptionsBoundary']['responseSuccessful']);
+        $t->same(['GET', 'POST'], $fixture['smartHttpProtocolHeaderBoundary']['v2RequestMethods']);
+        $t->same('version=2:session-id:object-format=sha1', $fixture['smartHttpProtocolHeaderBoundary']['v2DiscoveryGitProtocol']);
+        $t->same('version=2', $fixture['smartHttpProtocolHeaderBoundary']['v2PostGitProtocol']);
+        $t->same(true, $fixture['smartHttpProtocolHeaderBoundary']['v2PostBodyPreserved']);
+        $t->same('version=2:session-id', $fixture['smartHttpProtocolHeaderBoundary']['downgradeDiscoveryGitProtocol']);
+        $t->same(null, $fixture['smartHttpProtocolHeaderBoundary']['downgradePostGitProtocol']);
+        $t->same(true, $fixture['smartHttpProtocolHeaderBoundary']['downgradePostBodyPreserved']);
         $t->same(true, $fixture['advertisementErrorReported']);
         $t->same(true, $fixture['oversizeAdvertisementRejected']);
         $t->same(true, $fixture['unsafeSshHostDelimiterRejected']);
@@ -4255,6 +4539,16 @@ return [
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'user@name@host.xz'], $fixture['sshScpLikeAtUserContext']['sshArguments']);
         $t->same('plink', $fixture['sshPlinkContext']['programKind']);
         $t->same(['-P', '2222', 'deploy@git.example.test'], $fixture['sshPlinkContext']['sshArguments']);
+        $t->same('plink', $fixture['sshExtensionStemContexts']['plinkCmd']['programKind']);
+        $t->same(['-P', '2226', 'deploy@git.example.test'], $fixture['sshExtensionStemContexts']['plinkCmd']['sshArguments']);
+        $t->same('putty', $fixture['sshExtensionStemContexts']['puttyWrapper']['programKind']);
+        $t->same(['-P', '2226', 'deploy@git.example.test'], $fixture['sshExtensionStemContexts']['puttyWrapper']['sshArguments']);
+        $t->same('ssh', $fixture['sshExtensionStemContexts']['sshCustom']['programKind']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2226', 'deploy@git.example.test'], $fixture['sshExtensionStemContexts']['sshCustom']['sshArguments']);
+        $t->same('tortoiseplink', $fixture['sshExtensionStemContexts']['tortoisePlinkBat']['programKind']);
+        $t->same(['-batch', '-P', '2226', 'deploy@git.example.test'], $fixture['sshExtensionStemContexts']['tortoisePlinkBat']['sshArguments']);
+        $t->same('simple', $fixture['sshExtensionStemContexts']['dotfileCommand']['programKind']);
+        $t->same(['-G', 'git.example.test'], $fixture['sshExtensionStemContexts']['dotfileCommand']['sshFeatureProbe']['arguments']);
         $t->same('deploy', $fixture['sshIdentityContext']['user']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@git.example.test'], $fixture['sshIdentityContext']['sshArguments']);
         $t->same("path=var/www/wp-content.git\nprotocol=ssh\nhost=git.example.test\nusername=deploy\n", $fixture['sshIdentityContext']['credentialContext']->storageBytes());
@@ -4403,6 +4697,20 @@ return [
         $t->same(2, $summary['httpsProxyFallbackHelperCalls']);
         $t->same($fixture['httpsProxyFallbackAuthorizationSent'], $summary['httpsProxyFallbackAuthorizationSent']);
         $t->same($fixture['httpsProxyFallbackPostCookieHeader'], $summary['httpsProxyFallbackPostCookieHeader']);
+        $t->same(true, $fixture['httpsAllProxyUsedProxy']);
+        $t->same(2, $fixture['httpsAllProxyHelperCalls']);
+        $t->same('Basic ' . base64_encode('https-all-proxy-user:https-all-proxy-pass'), $fixture['httpsAllProxyAuthorizationSent']);
+        $t->same('wp_session=https-all-proxy', $fixture['httpsAllProxyPostCookieHeader']);
+        $t->same(true, $summary['httpsAllProxyUsedProxy']);
+        $t->same(2, $summary['httpsAllProxyHelperCalls']);
+        $t->same($fixture['httpsAllProxyAuthorizationSent'], $summary['httpsAllProxyAuthorizationSent']);
+        $t->same($fixture['httpsAllProxyPostCookieHeader'], $summary['httpsAllProxyPostCookieHeader']);
+        $t->same(true, $fixture['httpsProxyEmptyAllProxyBypassedProxy']);
+        $t->same(0, $fixture['httpsProxyEmptyAllProxyHelperCalls']);
+        $t->same('wp_session=https-proxy-empty', $fixture['httpsProxyEmptyAllProxyPostCookieHeader']);
+        $t->same(true, $summary['httpsProxyEmptyAllProxyBypassedProxy']);
+        $t->same(0, $summary['httpsProxyEmptyAllProxyHelperCalls']);
+        $t->same($fixture['httpsProxyEmptyAllProxyPostCookieHeader'], $summary['httpsProxyEmptyAllProxyPostCookieHeader']);
         $t->same(true, $fixture['upgradeRedirectResponseSuccessful']);
         $t->same(false, $fixture['upgradeRedirectUsedHttpsProxy']);
         $t->same(0, $fixture['upgradeRedirectHelperCalls']);

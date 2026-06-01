@@ -747,8 +747,9 @@ final class SshReceivePackTransport implements ReceivePackTransport
         $command = str_replace('\\', '/', $sshCommand);
         $basename = basename($command);
         $stem = strtolower($basename);
-        if (str_ends_with($stem, '.exe')) {
-            $stem = substr($stem, 0, -4);
+        $extensionSeparator = strrpos($stem, '.');
+        if ($extensionSeparator !== false && $extensionSeparator > 0) {
+            $stem = substr($stem, 0, $extensionSeparator);
         }
 
         return match ($stem) {

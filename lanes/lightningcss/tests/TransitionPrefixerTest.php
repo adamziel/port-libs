@@ -1382,6 +1382,39 @@ CSS;
             $prefixer->prefixForTargets('.foo { -o-object-fit: cover; object-fit: cover; -o-object-position: center; object-position: center; }', ['opera' => 12])
         );
     },
+    'transition prefixer maps upstream CSS Regions browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = '.foo { flow-into: article; flow-from: article; region-fragment: break; }';
+        $modern = '.foo{flow-into:article;flow-from:article;region-fragment:break}';
+        $webkit = '.foo{-webkit-flow-into:article;flow-into:article;-webkit-flow-from:article;flow-from:article;-webkit-region-fragment:break;region-fragment:break}';
+        $ms = '.foo{-ms-flow-into:article;flow-into:article;-ms-flow-from:article;flow-from:article;-ms-region-fragment:break;region-fragment:break}';
+        $webkitMs = '.foo{-webkit-flow-into:article;-ms-flow-into:article;flow-into:article;-webkit-flow-from:article;-ms-flow-from:article;flow-from:article;-webkit-region-fragment:break;-ms-region-fragment:break;region-fragment:break}';
+        $stalePrefixed = '.foo { -webkit-flow-into: article; -ms-flow-into: article; flow-into: article; -webkit-flow-from: article; -ms-flow-from: article; flow-from: article; -webkit-region-fragment: break; -ms-region-fragment: break; region-fragment: break; }';
+
+        $t->same($webkitMs, $prefixer->prefixForTargets($css, ['chrome' => 18, 'ie' => 10]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['chrome' => 14]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['chrome' => 15]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['chrome' => 18]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['chrome' => 19]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['edge' => 11]));
+        $t->same($ms, $prefixer->prefixForTargets($css, ['edge' => 12]));
+        $t->same($ms, $prefixer->prefixForTargets($css, ['edge' => 18]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['edge' => 19]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['ie' => 9]));
+        $t->same($ms, $prefixer->prefixForTargets($css, ['ie' => 10]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['safari' => 6]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['safari' => '6.1']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['safari' => 11]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['safari' => 12]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['ios_saf' => 6]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['ios_saf' => 7]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['ios_saf' => 11]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['ios_saf' => 12]));
+        $t->same($modern, $prefixer->prefixForTargets($stalePrefixed, ['chrome' => 19, 'edge' => 19, 'safari' => 12]));
+        $t->same($webkit, $prefixer->prefixForTargets($stalePrefixed, ['safari' => 11]));
+        $t->same($ms, $prefixer->prefixForTargets($stalePrefixed, ['ie' => 10]));
+        $t->same($webkitMs, $prefixer->prefixForTargets($stalePrefixed, ['chrome' => 18, 'ie' => 10]));
+    },
     'transition prefixer maps upstream border-image target boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $css = '.foo { border-image: url(border.png) 30 fill / 10px / 4px round; }';
