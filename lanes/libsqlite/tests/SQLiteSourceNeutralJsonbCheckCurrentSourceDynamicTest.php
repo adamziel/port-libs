@@ -179,6 +179,37 @@ SQL;
         $t->same([51, 52], array_column($plan['after'], 'record_id'));
         $t->same(7, SQLiteJsonB::decode($plan['after'][0]['payload_jsonb']->bytes)['rank']);
     },
+    'jsonb check plan validates mutation-level neutral json column names' => static function (TestRunner $t) use ($jsonb): void {
+        $schema = <<<'SQL'
+CREATE TABLE event_records(
+  record_id INTEGER PRIMARY KEY,
+  payload_jsonb BLOB,
+  CHECK(json_valid(payload_jsonb, 8)),
+  CHECK(json_extract(payload_jsonb, '$.rank') BETWEEN 1 AND 9)
+)
+SQL;
+        $plan = SQLiteJsonbCheckCurrentNextPlan::plan(
+            $schema,
+            [['record_id' => 61, 'payload_jsonb' => $jsonb(['rank' => 2])]],
+            [
+                ['op' => 'UPDATE', 'rowid' => 61, 'mutations' => [
+                    ['column' => 'payload_jsonb', 'function' => 'jsonb_set', 'path' => '$.rank', 'value' => 8],
+                ]],
+            ],
+        );
+
+        $t->same([61], array_column($plan['accepted'], 'rowid'));
+        $t->same(8, SQLiteJsonB::decode($plan['after'][0]['payload_jsonb']->bytes)['rank']);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbCheckCurrentNextPlan::plan(
+            $schema,
+            [['record_id' => 61, 'payload_jsonb' => $jsonb(['rank' => 2])]],
+            [
+                ['op' => 'UPDATE', 'rowid' => 61, 'mutations' => [
+                    ['column' => 'payload-jsonb', 'function' => 'jsonb_set', 'path' => '$.rank', 'value' => 8],
+                ]],
+            ],
+        ));
+    },
     'jsonb generated path btree records omit primary-key covering payload' => static function (TestRunner $t) use ($schema, $rows, $indexes): void {
         $covering = [
             ['name' => 'idx_app_module_slug_covering', 'rootPage' => 156, 'coveringColumns' => ['module_slug', 'key_name', 'setting_id'], 'sql' => 'CREATE INDEX idx_app_module_slug_covering ON app_settings(module_slug, key_name, setting_id) WHERE module_slug IS NOT NULL'],

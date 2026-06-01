@@ -353,11 +353,23 @@ final class SQLiteJsonbCheckCurrentNextPlan
             $row[$column] = $value;
         }
         foreach (($change['mutations'] ?? []) as $mutation) {
-            $column = $mutation['column'] ?? $jsonColumn;
+            $column = self::mutationJsonColumn($mutation['column'] ?? null, $jsonColumn);
             $row[$column] = SQLiteJsonMutation::mutateSqlFunction($mutation['function'], $row[$column] ?? null, $mutation['path'], $mutation['value']);
         }
 
         return $row;
+    }
+
+    private static function mutationJsonColumn(mixed $column, string $default): string
+    {
+        if ($column === null) {
+            return $default;
+        }
+        if (!is_string($column)) {
+            throw new \InvalidArgumentException('SQLite JSONB CHECK mutation JSON column must be an identifier');
+        }
+
+        return self::identifier($column, 'mutation JSON column');
     }
 
     private static function identifier(string $value, string $label): string
