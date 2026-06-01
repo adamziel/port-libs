@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 18:43:17 UTC",
-    "sourceCommit": "5b606528ca8102f62e6c82f6506bc2504c583161",
-    "sourceCommitShort": "5b606528ca81",
+    "generated": "2026-06-01 18:48:14 UTC",
+    "sourceCommit": "336a90701684fc3a8a3e7f1067d9e26424d462d8",
+    "sourceCommitShort": "336a90701684",
     "sourceBranch": "unknown",
-    "dashboardCommit": "5b606528ca8102f62e6c82f6506bc2504c583161",
-    "dashboardCommitShort": "5b606528ca81",
+    "dashboardCommit": "336a90701684fc3a8a3e7f1067d9e26424d462d8",
+    "dashboardCommitShort": "336a90701684",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -38,20 +38,20 @@
             "state": "PHP green, upstream gap",
             "progressPercent": "99.8",
             "completion": "99.8%",
-            "suite": "current-base LightningCSS source-map direct skipped-child table parity",
-            "benchmark": "current-base LightningCSS source-map direct skipped-child table parity",
+            "suite": "current-base LightningCSS source-map/bundle/media/CSSOM/value parity",
+            "benchmark": "current-base LightningCSS source-map/bundle/media/CSSOM/value parity",
             "denominator": "3532",
             "mapped": "2399",
             "coverage": "2,399 / 3,532 (67.9%)",
             "mapPercent": "67.9%",
             "unmapped": "1,133",
-            "php": "8,934 pass / 0 fail",
+            "php": "8,963 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 18:15 UTC supervisor integration: source commit 33c91c20d5...",
-            "currentWork": "CSSOM outline direct longhand read/write parity, direct source-map skipped child tabl...",
+            "audit": "2026-06-01 18:48 UTC supervisor integration: source commit 336a907016...",
+            "currentWork": "Source-map skipped-line underflow guards, repeated-media import graph position parity...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, bundle...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "33c91c2"
+            "commit": "336a907"
         },
         {
             "lane": "gitoxide",
