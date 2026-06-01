@@ -614,6 +614,44 @@ return [
         $t->same(1, $closest['nameIndex'] ?? null);
         $t->same([2, 10], array_column($lookupParent->getMappings(), 'generatedColumn'));
     },
+    'source map preserves unsorted vlq line order through direct line offsets' => static function (TestRunner $t): void {
+        $lineShift = new SourceMap();
+        $lineShift->addVlqMap(
+            'UAAAA,RACAC',
+            ['line-shift.css'],
+            ['.line-shift{}'],
+            ['later', 'earlier']
+        );
+        $lineShift->offsetLines(0, 2);
+
+        $t->same([2, 2], array_column($lineShift->getMappings(), 'generatedLine'));
+        $t->same([10, 2], array_column($lineShift->getMappings(), 'generatedColumn'));
+        $t->same([0, 1], array_column($lineShift->getMappings(), 'originalLine'));
+        $t->same(';;EACAC,QADAD', $lineShift->writeVlq());
+        $t->same([2, 10], array_column($lineShift->getMappings(), 'generatedColumn'));
+        $t->same([1, 0], array_column($lineShift->getMappings(), 'nameIndex'));
+
+        $negativeLineShift = new SourceMap();
+        $negativeLineShift->addVlqMap(
+            'UAAAA,RACAC',
+            ['line-shift.css'],
+            ['.line-shift{}'],
+            ['later', 'earlier']
+        );
+        $negativeLineShift->offsetLines(0, 2);
+        $negativeLineShift->offsetLines(2, -1);
+
+        $t->same([1, 1], array_column($negativeLineShift->getMappings(), 'generatedLine'));
+        $t->same([10, 2], array_column($negativeLineShift->getMappings(), 'generatedColumn'));
+
+        $closest = $negativeLineShift->findClosestMapping(1, 8);
+
+        $t->same(2, $closest['generatedColumn'] ?? null);
+        $t->same(1, $closest['originalLine'] ?? null);
+        $t->same([2, 10], array_column($negativeLineShift->getMappings(), 'generatedColumn'));
+        $t->same(';EACAC,QADAD', $negativeLineShift->writeVlq());
+        $t->same(['later', 'earlier'], $negativeLineShift->toArray(null, false)['names']);
+    },
     'source map closest lookup follows upstream duplicate generated-column search' => static function (TestRunner $t): void {
         $inputMap = SourceMap::fromJson(
             '{"version":3,"mappings":"AAAAAA","sources":["compiled.css"],"sourcesContent":[".compiled{}"],"names":["rule"]}'

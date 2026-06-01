@@ -458,6 +458,31 @@ $nestedUnsortedVlqMap = $nestedUnsortedVlqParent->toJson(null, false);
 $nestedUnsortedVlqReadOrderAfterWrite = array_column($nestedUnsortedVlqParent->getMappings(), 'generatedColumn');
 $nestedUnsortedVlqChildConsumed = $nestedUnsortedVlqChild->toJson(null, false);
 
+$lineOffsetUnsortedVlqMap = new SourceMap();
+$lineOffsetUnsortedVlqMap->addVlqMap(
+    'UAAAA,RACAC',
+    ['wp-content/themes/example/source-map-line-offset-unsorted.css'],
+    ['.wp-block-line-offset-unsorted{}'],
+    ['later-line-offset-rule', 'earlier-line-offset-rule']
+);
+$lineOffsetUnsortedVlqMap->offsetLines(0, 2);
+$lineOffsetUnsortedVlqReadOrderBeforeWrite = array_column($lineOffsetUnsortedVlqMap->getMappings(), 'generatedColumn');
+$lineOffsetUnsortedVlqJson = $lineOffsetUnsortedVlqMap->toJson(null, false);
+$lineOffsetUnsortedVlqReadOrderAfterWrite = array_column($lineOffsetUnsortedVlqMap->getMappings(), 'generatedColumn');
+
+$negativeLineOffsetUnsortedVlqMap = new SourceMap();
+$negativeLineOffsetUnsortedVlqMap->addVlqMap(
+    'UAAAA,RACAC',
+    ['wp-content/themes/example/source-map-negative-line-offset-unsorted.css'],
+    ['.wp-block-negative-line-offset-unsorted{}'],
+    ['later-negative-line-offset-rule', 'earlier-negative-line-offset-rule']
+);
+$negativeLineOffsetUnsortedVlqMap->offsetLines(0, 2);
+$negativeLineOffsetUnsortedVlqMap->offsetLines(2, -1);
+$negativeLineOffsetUnsortedVlqReadOrderBeforeLookup = array_column($negativeLineOffsetUnsortedVlqMap->getMappings(), 'generatedColumn');
+$negativeLineOffsetUnsortedVlqClosest = $negativeLineOffsetUnsortedVlqMap->findClosestMapping(1, 8);
+$negativeLineOffsetUnsortedVlqJson = $negativeLineOffsetUnsortedVlqMap->toJson(null, false);
+
 $duplicateLookupInputMap = SourceMap::fromJson(
     '{"version":3,"mappings":"AAAAAA","sources":["wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{}"],"names":["duplicate-lookup-rule"]}'
 );
@@ -645,6 +670,12 @@ $actual = [
     'nestedUnsortedVlqMap' => $nestedUnsortedVlqMap,
     'nestedUnsortedVlqReadOrderAfterWrite' => $nestedUnsortedVlqReadOrderAfterWrite,
     'nestedUnsortedVlqChildConsumed' => $nestedUnsortedVlqChildConsumed,
+    'lineOffsetUnsortedVlqReadOrderBeforeWrite' => $lineOffsetUnsortedVlqReadOrderBeforeWrite,
+    'lineOffsetUnsortedVlqMap' => $lineOffsetUnsortedVlqJson,
+    'lineOffsetUnsortedVlqReadOrderAfterWrite' => $lineOffsetUnsortedVlqReadOrderAfterWrite,
+    'negativeLineOffsetUnsortedVlqReadOrderBeforeLookup' => $negativeLineOffsetUnsortedVlqReadOrderBeforeLookup,
+    'negativeLineOffsetUnsortedVlqClosest' => $negativeLineOffsetUnsortedVlqClosest,
+    'negativeLineOffsetUnsortedVlqMap' => $negativeLineOffsetUnsortedVlqJson,
     'duplicateLookupExact' => $duplicateLookupExact,
     'duplicateLookupAfterLast' => $duplicateLookupAfterLast,
     'duplicateLookupExtendedMap' => $duplicateLookupExtendedMap->toJson(null, false),
@@ -712,6 +743,12 @@ if (($argv[1] ?? null) === '--self-test') {
         'nestedUnsortedVlqMap' => '{"version":3,"mappings":";;EACAC,QADAD","sources":["wp-content/themes/example/source-map-nested-unsorted.css"],"sourcesContent":[".wp-block-nested-unsorted{}"],"names":["later-rule","earlier-rule"]}',
         'nestedUnsortedVlqReadOrderAfterWrite' => [2, 10],
         'nestedUnsortedVlqChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'lineOffsetUnsortedVlqReadOrderBeforeWrite' => [10, 2],
+        'lineOffsetUnsortedVlqMap' => '{"version":3,"mappings":";;EACAC,QADAD","sources":["wp-content/themes/example/source-map-line-offset-unsorted.css"],"sourcesContent":[".wp-block-line-offset-unsorted{}"],"names":["later-line-offset-rule","earlier-line-offset-rule"]}',
+        'lineOffsetUnsortedVlqReadOrderAfterWrite' => [2, 10],
+        'negativeLineOffsetUnsortedVlqReadOrderBeforeLookup' => [10, 2],
+        'negativeLineOffsetUnsortedVlqClosest' => ['generatedLine' => 1, 'generatedColumn' => 2, 'sourceIndex' => 0, 'originalLine' => 1, 'originalColumn' => 0, 'nameIndex' => 1],
+        'negativeLineOffsetUnsortedVlqMap' => '{"version":3,"mappings":";EACAC,QADAD","sources":["wp-content/themes/example/source-map-negative-line-offset-unsorted.css"],"sourcesContent":[".wp-block-negative-line-offset-unsorted{}"],"names":["later-negative-line-offset-rule","earlier-negative-line-offset-rule"]}',
         'duplicateLookupExact' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
         'duplicateLookupAfterLast' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0],
         'duplicateLookupExtendedMap' => '{"version":3,"mappings":"A","sources":["wp-content/cache/duplicate-lookup.css","wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{color:red}",".wp-block-duplicate-lookup{}"],"names":["compiled-duplicate-lookup","duplicate-lookup-rule"]}',

@@ -2243,6 +2243,70 @@ return [
         $t->same([], $trailingDotPatternRequests[0]['httpOptions']);
         $t->same('https://git.example.test/wp-content.git/info/refs?service=git-receive-pack', $trailingDotPatternRequests[0]['url']);
 
+        $portQualifiedNoProxyRequests = [];
+        $portQualifiedNoProxyHelperCalls = 0;
+        $portQualifiedNoProxyClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$portQualifiedNoProxyRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $portQualifiedNoProxyRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_session=port-literal; Path=/; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'proxy' => 'http://proxy.example.test:8080',
+                    'noProxy' => 'git.example.test:443,.example.test:443',
+                    'proxyCredentialHelper' => static function () use (&$portQualifiedNoProxyHelperCalls): array {
+                        $portQualifiedNoProxyHelperCalls++;
+
+                        return ['username' => 'port-literal-user', 'password' => 'port-literal-pass'];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $portQualifiedNoProxySession = $portQualifiedNoProxyClient->handshake();
+        $portQualifiedNoProxySession->createOrUpdate('refs/heads/main', $blob->oid());
+        $portQualifiedNoProxyRequest = $portQualifiedNoProxySession->buildRequest([$blob]);
+
+        $portQualifiedNoProxyResponse = $portQualifiedNoProxyClient->send($portQualifiedNoProxyRequest);
+
+        $t->same(true, $portQualifiedNoProxyResponse->isSuccessful());
+        $t->same(2, $portQualifiedNoProxyHelperCalls);
+        $t->same(['GET', 'POST'], array_column($portQualifiedNoProxyRequests, 'method'));
+        $t->same('tcp://proxy.example.test:8080', $portQualifiedNoProxyRequests[0]['httpOptions']['proxy']);
+        $t->same('tcp://proxy.example.test:8080', $portQualifiedNoProxyRequests[1]['httpOptions']['proxy']);
+        $t->same('Basic ' . base64_encode('port-literal-user:port-literal-pass'), $portQualifiedNoProxyRequests[0]['httpOptions']['proxyAuthorization']);
+        $t->same('Basic ' . base64_encode('port-literal-user:port-literal-pass'), $portQualifiedNoProxyRequests[1]['httpOptions']['proxyAuthorization']);
+        $t->same(null, $portQualifiedNoProxyRequests[0]['headers']['Proxy-Authorization'] ?? null);
+        $t->same(null, $portQualifiedNoProxyRequests[1]['headers']['Proxy-Authorization'] ?? null);
+        $t->same('wp_session=port-literal', $portQualifiedNoProxyRequests[1]['headers']['Cookie']);
+        $t->same($portQualifiedNoProxyRequest->requestBytes(), $portQualifiedNoProxyRequests[1]['body']);
+
         $defaultPortRequests = [];
         $defaultPortTransport = new SmartHttpReceivePackTransport(
             'https://git.example.test/wp-content.git',
@@ -2967,6 +3031,18 @@ return [
         $t->same(['deploy@git.example.test'], $v1Context['sshArguments']);
         $t->same(false, $v1Context['useShell']);
         $t->same('ssh://deploy@git.example.test/wp-content.git', $v1Context['credentialContext']->toUrl());
+        $nonNumericPortContext = SshReceivePackTransport::connectorContext(
+            'ssh://deploy@git.example.test:tenant/wp-content.git',
+            ['protocolVersion' => 2],
+        );
+        $t->same('git.example.test:tenant', $nonNumericPortContext['host']);
+        $t->same(null, $nonNumericPortContext['port']);
+        $t->same('/wp-content.git', $nonNumericPortContext['path']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@git.example.test:tenant'], $nonNumericPortContext['sshArguments']);
+        $t->same(
+            "path=wp-content.git\nprotocol=ssh\nhost=git.example.test:tenant\nusername=deploy\n",
+            $nonNumericPortContext['credentialContext']->storageBytes()
+        );
         $optionLikeHostContext = SshReceivePackTransport::connectorContext('deploy@-git-proxy.example.test:wp-content.git', ['protocolVersion' => 2]);
         $t->same('-git-proxy.example.test', $optionLikeHostContext['host']);
         $t->same('deploy', $optionLikeHostContext['user']);
@@ -3145,6 +3221,18 @@ return [
             'path' => '~wp-content.git',
         ], SshReceivePackTransport::parseRepositoryUrl('git.example.test:/~wp-content.git'));
         $t->same([
+            'host' => 'host.xz:abc',
+            'user' => null,
+            'port' => null,
+            'path' => '/path',
+        ], SshReceivePackTransport::parseRepositoryUrl('ssh://host.xz:abc/path'));
+        $t->same([
+            'host' => 'git.example.test:tenant',
+            'user' => 'deploy',
+            'port' => null,
+            'path' => '/wp-content.git',
+        ], SshReceivePackTransport::parseRepositoryUrl('ssh://deploy@git.example.test:tenant/wp-content.git'));
+        $t->same([
             'host' => '-git-proxy.example.test',
             'user' => 'deploy',
             'port' => null,
@@ -3179,6 +3267,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://example.test/repo.git?service=git-receive-pack'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://-oProxyCommand=open$IFS-aCalculator/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://-deploy@example.test/repo.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://host.xz:65536/path'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://bad%20host.example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://bad%2fhost.example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('bad user@example.test:repo.git'));
@@ -3276,6 +3365,10 @@ return [
         $t->same('~/wp-content.git', $fixture['sshLegacySchemeTarget']['path']);
         $t->same('~wp-content.git', $fixture['sshLegacyGitSchemeTarget']['path']);
         $t->same('~wp-content.git', $fixture['sshScpLikeHomeTarget']['path']);
+        $t->same('git.example.test:tenant', $fixture['sshNonNumericPortTarget']['host']);
+        $t->same(null, $fixture['sshNonNumericPortTarget']['port']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@git.example.test:tenant'], $fixture['sshNonNumericPortContext']['sshArguments']);
+        $t->same(true, $fixture['unsafeSshNumericPortOverflowRejected']);
         $t->same('-git-proxy.example.test', $fixture['sshOptionLikeHostWithUserTarget']['host']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@-git-proxy.example.test'], $fixture['sshOptionLikeHostWithUserContext']['sshArguments']);
         $t->same('user@name', $fixture['sshScpLikeAtUserTarget']['user']);
@@ -3360,6 +3453,14 @@ return [
         $t->same(true, $summary['trailingDotNoProxyBypassedProxy']);
         $t->same(0, $summary['trailingDotNoProxyHelperCalls']);
         $t->same($fixture['trailingDotNoProxyPostCookieHeader'], $summary['trailingDotNoProxyPostCookieHeader']);
+        $t->same(true, $fixture['portQualifiedNoProxyUsedProxy']);
+        $t->same(2, $fixture['portQualifiedNoProxyHelperCalls']);
+        $t->same('Basic ' . base64_encode('port-literal-proxy-user:port-literal-proxy-pass'), $fixture['portQualifiedNoProxyAuthorizationSent']);
+        $t->same('wp_session=port-literal', $fixture['portQualifiedNoProxyPostCookieHeader']);
+        $t->same(true, $summary['portQualifiedNoProxyUsedProxy']);
+        $t->same(2, $summary['portQualifiedNoProxyHelperCalls']);
+        $t->same($fixture['portQualifiedNoProxyAuthorizationSent'], $summary['portQualifiedNoProxyAuthorizationSent']);
+        $t->same($fixture['portQualifiedNoProxyPostCookieHeader'], $summary['portQualifiedNoProxyPostCookieHeader']);
         $t->same([['http://stale-user:stale-pass@wp-proxy.example.test:8080', 'git.example.test']], $fixture['urlCredentialProxyHelperCalls']);
         $t->same('http://wp-proxy.example.test:8080', $fixture['urlCredentialProxyUrl']);
         $t->same('Basic ' . base64_encode('helper-proxy-user:helper-proxy-pass'), $fixture['urlCredentialProxyAuthorizationSent']);

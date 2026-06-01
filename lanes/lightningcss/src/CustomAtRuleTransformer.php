@@ -850,7 +850,12 @@ final class CustomAtRuleTransformer
         $this->dependencies = [];
         $this->configure($customAtRules, $visitor, $functionVisitors);
         $css = $this->stripComments($css);
-        $this->callStyleSheetVisitor($this->stylesheetVisitorFromCss($css));
+        if ($this->styleSheetVisitor !== null) {
+            $stylesheet = $this->callStyleSheetVisitor($this->stylesheetVisitorFromCss($css));
+            if ($stylesheet !== null) {
+                $css = $this->stylesheetVisitorToCss($stylesheet);
+            }
+        }
         $code = $this->minifier->minify($this->processRuleList($css));
         $code = $this->applyStyleSheetExitVisitor($code);
 
@@ -1221,17 +1226,23 @@ final class CustomAtRuleTransformer
 
     /**
      * @param array{rules:list<array<string, mixed>>} $stylesheet
+     * @return array{rules:list<array<string, mixed>>}|null
      */
-    private function callStyleSheetVisitor(array $stylesheet): void
+    private function callStyleSheetVisitor(array $stylesheet): ?array
     {
         if ($this->styleSheetVisitor === null) {
-            return;
+            return null;
         }
 
         $replacement = ($this->styleSheetVisitor)($stylesheet, $this);
-        if ($replacement !== null && !is_array($replacement)) {
+        if ($replacement === null) {
+            return null;
+        }
+        if (!is_array($replacement)) {
             throw new \InvalidArgumentException('StyleSheet visitor must return a stylesheet array or null');
         }
+
+        return $replacement;
     }
 
     private function applyStyleSheetExitVisitor(string $code): string
@@ -1273,7 +1284,9 @@ final class CustomAtRuleTransformer
             if ($nextStatement !== null && ($nextBlock === null || $nextStatement < $nextBlock)) {
                 $statement = trim(substr($css, $cursor, $nextStatement - $cursor));
                 if ($statement !== '') {
-                    $rules[] = $this->stylesheetRawRule($statement . ';');
+                    $rules[] = str_starts_with($statement, '@')
+                        ? $this->stylesheetAtRuleStatement($statement)
+                        : $this->stylesheetRawRule($statement . ';');
                 }
                 $cursor = $nextStatement + 1;
                 continue;
@@ -1282,7 +1295,9 @@ final class CustomAtRuleTransformer
             if ($nextBlock === null) {
                 $tail = trim(substr($css, $cursor));
                 if ($tail !== '') {
-                    $rules[] = $this->stylesheetRawRule($tail);
+                    $rules[] = str_starts_with($tail, '@')
+                        ? $this->stylesheetAtRuleStatement($tail)
+                        : $this->stylesheetRawRule($tail);
                 }
                 break;
             }
@@ -1291,12 +1306,50 @@ final class CustomAtRuleTransformer
             $close = $this->findMatchingBrace($css, $nextBlock);
             $body = substr($css, $nextBlock + 1, $close - $nextBlock - 1);
             $rules[] = str_starts_with($prelude, '@')
-                ? $this->stylesheetRawRule($prelude . '{' . $body . '}')
+                ? $this->stylesheetAtRuleBlock($prelude, $body)
                 : $this->stylesheetStyleRule($prelude, $body);
             $cursor = $close + 1;
         }
 
         return ['rules' => $rules];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function stylesheetAtRuleStatement(string $statement): array
+    {
+        [$name, $prelude] = $this->parseAtPrelude($statement);
+        if ($this->isCustomAtRule($name)) {
+            return ['type' => 'custom', 'value' => $this->buildCustomRule($name, $prelude, null, null, false)];
+        }
+
+        return ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $prelude, null, null)];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function stylesheetAtRuleBlock(string $prelude, string $body): array
+    {
+        [$name, $atPrelude] = $this->parseAtPrelude($prelude);
+        if ($name === 'media') {
+            return $this->buildMediaRule($atPrelude, $body, null);
+        }
+        if ($name === 'supports') {
+            return [
+                'type' => 'supports',
+                'value' => [
+                    'condition' => $this->parseSupportsConditionForVisitor($atPrelude),
+                    'rules' => $this->parseReturnedRuleList($body, null),
+                ],
+            ];
+        }
+        if ($this->isCustomAtRule($name)) {
+            return ['type' => 'custom', 'value' => $this->buildCustomRule($name, $atPrelude, $body, null, false)];
+        }
+
+        return ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $atPrelude, $body, null)];
     }
 
     /**
@@ -1547,6 +1600,21 @@ final class CustomAtRuleTransformer
         if (($rule['type'] ?? null) === 'raw' && isset($rule['raw']) && is_string($rule['raw'])) {
             return $rule['raw'];
         }
+        if (($rule['type'] ?? null) === 'ignored') {
+            return '';
+        }
+        if (($rule['type'] ?? null) === 'custom' && isset($rule['value']) && is_array($rule['value'])) {
+            return $this->stylesheetCustomRuleToCss($rule['value']);
+        }
+        if (($rule['type'] ?? null) === 'unknown' && isset($rule['value']) && is_array($rule['value'])) {
+            return $this->stylesheetUnknownRuleToCss($rule['value']);
+        }
+        if (($rule['type'] ?? null) === 'media' && isset($rule['value']) && is_array($rule['value'])) {
+            return $this->stylesheetMediaRuleToCss($rule['value']);
+        }
+        if (($rule['type'] ?? null) === 'supports' && isset($rule['value']) && is_array($rule['value'])) {
+            return $this->stylesheetSupportsRuleToCss($rule['value']);
+        }
         if (($rule['type'] ?? null) !== 'style' && ($rule['kind'] ?? null) !== 'style-rule') {
             return isset($rule['raw']) && is_string($rule['raw']) ? $rule['raw'] : '';
         }
@@ -1555,6 +1623,78 @@ final class CustomAtRuleTransformer
             $this->stylesheetVisitorRuleSelectors($rule),
             $this->stylesheetVisitorRuleDeclarations($rule)
         );
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     */
+    private function stylesheetCustomRuleToCss(array $rule): string
+    {
+        $name = (string) ($rule['name'] ?? '');
+        if ($name === '') {
+            throw new \InvalidArgumentException('Custom at-rule replacement is missing a name');
+        }
+
+        $prelude = trim((string) ($rule['prelude'] ?? ''));
+        $head = '@' . $name . ($prelude === '' ? '' : ' ' . $prelude);
+        if (($rule['bodyType'] ?? null) === null) {
+            return $head . ';';
+        }
+
+        return $head . '{' . (string) ($rule['body'] ?? '') . '}';
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     */
+    private function stylesheetUnknownRuleToCss(array $rule): string
+    {
+        $name = (string) ($rule['name'] ?? '');
+        if ($name === '') {
+            throw new \InvalidArgumentException('Unknown at-rule replacement is missing a name');
+        }
+
+        $prelude = trim((string) ($rule['prelude'] ?? ''));
+        $head = '@' . $name . ($prelude === '' ? '' : ' ' . $prelude);
+        if (empty($rule['hasBlock'])) {
+            return $head . ';';
+        }
+
+        return $head . '{' . (string) ($rule['body'] ?? '') . '}';
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function stylesheetMediaRuleToCss(array $value): string
+    {
+        $query = is_array($value['query'] ?? null)
+            ? $this->returnedMediaQueryToCss($value['query'])
+            : '';
+        $rules = is_array($value['rules'] ?? null) ? $value['rules'] : [];
+        $body = '';
+        foreach ($rules as $rule) {
+            $body .= $this->stylesheetVisitorRuleToCss($rule);
+        }
+
+        return '@media ' . $query . '{' . $body . '}';
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function stylesheetSupportsRuleToCss(array $value): string
+    {
+        $condition = is_array($value['condition'] ?? null)
+            ? $this->returnedSupportsConditionToCss($value['condition'])
+            : '';
+        $rules = is_array($value['rules'] ?? null) ? $value['rules'] : [];
+        $body = '';
+        foreach ($rules as $rule) {
+            $body .= $this->stylesheetVisitorRuleToCss($rule);
+        }
+
+        return '@supports ' . $condition . '{' . $body . '}';
     }
 
     /**
@@ -2209,7 +2349,7 @@ final class CustomAtRuleTransformer
      * @param list<string>|null $parentSelectors
      * @return array{name:string, prelude:string, preludeAst:mixed, bodyType:string|null, body:string, bodyAst:mixed, bodyRules:list<array<string, mixed>>, declarations:list<array{property:string, value:string, important:bool}>, context:string, parentSelectors:list<string>}
      */
-    private function buildCustomRule(string $name, string $prelude, ?string $body, ?array $parentSelectors): array
+    private function buildCustomRule(string $name, string $prelude, ?string $body, ?array $parentSelectors, bool $visitPrelude = true): array
     {
         $definition = $this->customAtRules[$name] ?? [];
         $bodyType = null;
@@ -2230,7 +2370,7 @@ final class CustomAtRuleTransformer
         $preludeGrammar = $definition['prelude'] ?? null;
         $preludeValue = $this->parseCustomPreludeValue($name, $prelude, is_string($preludeGrammar) ? $preludeGrammar : null);
         $preludeAst = $this->customPreludeAst($preludeValue, is_string($preludeGrammar) ? $preludeGrammar : null);
-        if ($preludeAst !== null) {
+        if ($preludeAst !== null && $visitPrelude) {
             $visitedPrelude = $this->visitCustomPreludeValue($preludeAst);
             if ($visitedPrelude['changed']) {
                 $preludeAst = $visitedPrelude['value'];

@@ -2408,6 +2408,106 @@ CSS;
         $t->same('.bar{width:80px}.foo{width:32px}', $result);
         $t->same(['enter-a:2', 'enter-b:2', 'exit-a:2', 'exit-b:2'], $seen);
     },
+    'custom at-rules apply upstream StyleSheet enter replacements before child visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $seenLengths = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'StyleSheet' => static function (array $stylesheet) use (&$seen): array {
+                    $seen['ruleTypes'] = array_map(
+                        static fn (array $rule): string => (string) ($rule['type'] ?? ''),
+                        $stylesheet['rules']
+                    );
+                    $customRule = $stylesheet['rules'][0]['value'] ?? [];
+                    $bodyAst = is_array($customRule) ? ($customRule['bodyAst'] ?? []) : [];
+                    $declaration = is_array($bodyAst)
+                        ? ($bodyAst['value']['declarations'][0] ?? [])
+                        : [];
+                    $accentTokens = is_array($declaration['value']['value'] ?? null)
+                        ? $declaration['value']['value']
+                        : [];
+                    $seen['customName'] = is_array($customRule) ? ($customRule['name'] ?? null) : null;
+                    $seen['customPreludeType'] = is_array($customRule) ? ($customRule['preludeAst']['type'] ?? null) : null;
+                    $seen['customBodyType'] = is_array($bodyAst) ? ($bodyAst['type'] ?? null) : null;
+                    $seen['customDeclarationName'] = $declaration['value']['name'] ?? null;
+                    $seen['customDeclarationTokenType'] = $accentTokens[0]['type'] ?? null;
+
+                    return [
+                        'rules' => [
+                            [
+                                'type' => 'style',
+                                'value' => [
+                                    'selectors' => [
+                                        [
+                                            ['type' => 'class', 'name' => 'tokens-from-sheet'],
+                                        ],
+                                    ],
+                                    'declarations' => [
+                                        'declarations' => [
+                                            [
+                                                'property' => 'unparsed',
+                                                'value' => [
+                                                    'propertyId' => ['property' => 'color'],
+                                                    'value' => $accentTokens,
+                                                ],
+                                            ],
+                                            [
+                                                'property' => 'width',
+                                                'value' => [
+                                                    'type' => 'length-percentage',
+                                                    'value' => [
+                                                        'type' => 'dimension',
+                                                        'value' => ['unit' => 'px', 'value' => 16],
+                                                    ],
+                                                ],
+                                            ],
+                                        ],
+                                        'importantDeclarations' => [],
+                                    ],
+                                ],
+                            ],
+                            $stylesheet['rules'][1],
+                        ],
+                    ];
+                },
+            ],
+            [
+                'Length' => static function (array $length) use (&$seenLengths): ?array {
+                    $seenLengths[] = $length['value'];
+
+                    return $length['unit'] === 'px'
+                        ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                        : null;
+                },
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@tokens 8px {
+  accent: yellow;
+}
+
+.card {
+  width: 32px;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<length>',
+                'body' => 'declaration-list',
+            ],
+        ], $visitor);
+
+        $t->same('.tokens-from-sheet{color:#ff0;width:1rem}.card{width:2rem}', $result);
+        $t->same(['custom', 'style'], $seen['ruleTypes']);
+        $t->same('tokens', $seen['customName']);
+        $t->same('length', $seen['customPreludeType']);
+        $t->same('declaration-list', $seen['customBodyType']);
+        $t->same('accent', $seen['customDeclarationName']);
+        $t->same('color', $seen['customDeclarationTokenType']);
+        $t->same([16.0, 32.0], $seenLengths);
+    },
     'custom at-rules serialize upstream StyleSheetExit style-rule replacements' => static function (TestRunner $t): void {
         $result = (new CustomAtRuleTransformer())->transform('.foo { color: red; }', [], [
             'StyleSheetExit' => static function (array $stylesheet): array {

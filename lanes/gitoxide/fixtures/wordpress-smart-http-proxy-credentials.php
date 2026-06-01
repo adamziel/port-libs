@@ -295,6 +295,62 @@ $trailingDotNoProxySession = $trailingDotNoProxyClient->handshake();
 $trailingDotNoProxySession->createOrUpdate('refs/heads/main', $trailingDotNoProxyBlob->oid());
 $trailingDotNoProxyResponse = $trailingDotNoProxyClient->send($trailingDotNoProxySession->buildRequest([$trailingDotNoProxyBlob]));
 
+$portQualifiedNoProxyRequests = [];
+$portQualifiedNoProxyHelperCalls = 0;
+$portQualifiedNoProxyBlob = new GitObject('blob', 'WordPress port-qualified no-proxy payload');
+$portQualifiedNoProxyResponseBytes = $packet("\x01" . $packet("unpack ok\n"))
+    . $packet("\x01" . $packet("ok refs/heads/main\n"))
+    . $packet("\x01" . $flush)
+    . $flush;
+$portQualifiedNoProxyClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://git.example.test/wp-content.git',
+        static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$portQualifiedNoProxyRequests, $packet, $flush, $advertisementBytes, $portQualifiedNoProxyResponseBytes): array {
+            $portQualifiedNoProxyRequests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'timeout' => $timeout,
+                'httpOptions' => $httpOptions,
+            ];
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'headers' => [
+                        'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                        'Set-Cookie' => 'wp_session=port-literal; Path=/; Secure',
+                    ],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                'body' => $portQualifiedNoProxyResponseBytes,
+            ];
+        },
+        [],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+        [
+            'proxy' => 'http://wp-proxy.example.test:8080',
+            'noProxy' => 'git.example.test:443,.example.test:443',
+            'proxyCredentialHelper' => static function () use (&$portQualifiedNoProxyHelperCalls): array {
+                $portQualifiedNoProxyHelperCalls++;
+
+                return ['username' => 'port-literal-proxy-user', 'password' => 'port-literal-proxy-pass'];
+            },
+        ],
+    ),
+    'port-libs/wordpress',
+);
+$portQualifiedNoProxySession = $portQualifiedNoProxyClient->handshake();
+$portQualifiedNoProxySession->createOrUpdate('refs/heads/main', $portQualifiedNoProxyBlob->oid());
+$portQualifiedNoProxyResponse = $portQualifiedNoProxyClient->send($portQualifiedNoProxySession->buildRequest([$portQualifiedNoProxyBlob]));
+
 $urlCredentialProxyRequests = [];
 $urlCredentialProxyHelperCalls = [];
 $urlCredentialProxyStores = [];
@@ -506,6 +562,12 @@ return [
         && ($trailingDotNoProxyRequests[1]['httpOptions'] ?? null) === [],
     'trailingDotNoProxyHelperCalls' => $trailingDotNoProxyHelperCalls,
     'trailingDotNoProxyPostCookieHeader' => $trailingDotNoProxyRequests[1]['headers']['Cookie'] ?? null,
+    'portQualifiedNoProxyUsedProxy' => $portQualifiedNoProxyResponse->isSuccessful()
+        && isset($portQualifiedNoProxyRequests[0]['httpOptions']['proxy'])
+        && isset($portQualifiedNoProxyRequests[1]['httpOptions']['proxy']),
+    'portQualifiedNoProxyHelperCalls' => $portQualifiedNoProxyHelperCalls,
+    'portQualifiedNoProxyAuthorizationSent' => $portQualifiedNoProxyRequests[0]['httpOptions']['proxyAuthorization'] ?? null,
+    'portQualifiedNoProxyPostCookieHeader' => $portQualifiedNoProxyRequests[1]['headers']['Cookie'] ?? null,
     'urlCredentialProxyAdvertisementBytes' => $urlCredentialProxyAdvertisement,
     'urlCredentialProxyHelperCalls' => $urlCredentialProxyHelperCalls,
     'urlCredentialProxyStores' => $urlCredentialProxyStores,
@@ -529,5 +591,5 @@ return [
     'notModifiedProxyPostCookieHeader' => $notModifiedProxyRequests[1]['headers']['Cookie'] ?? null,
     'proxyAuthorizationSent' => $requests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'originProxyHeaderLeaked' => isset($requests[0]['headers']['Proxy-Authorization']),
-    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass proxies for DNS-equivalent trailing-dot repository hosts, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
+    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, preserve proxy use for curl-style port-qualified noProxy literal tokens, bypass proxies for DNS-equivalent trailing-dot repository hosts, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
 ];

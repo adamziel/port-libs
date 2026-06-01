@@ -1040,6 +1040,30 @@ final class TransitionPrefixer
             || $this->targetInRange($normalized, 'opera', [0], [105, 255, 255])
             || $this->targetInRange($normalized, 'safari', [0], [16, 3, 255])
             || isset($normalized['ie']);
+        $fullscreenNeedsWebkit = $this->targetInRange($normalized, 'chrome', [15], [70])
+            || $this->targetInRange($normalized, 'opera', [15], [63])
+            || $this->targetInRange($normalized, 'safari', [5, 1], [16])
+            || $this->targetInRange($normalized, 'samsung', [4], [9]);
+        $fileSelectorButtonNeedsWebkit = $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
+            || $this->targetInRange($normalized, 'chrome', [4], [88])
+            || $this->targetInRange($normalized, 'edge', [79], [88])
+            || $this->targetInRange($normalized, 'ios_saf', [3, 2], [14])
+            || $this->targetInRange($normalized, 'opera', [15], [74])
+            || $this->targetInRange($normalized, 'safari', [3, 1], [14])
+            || $this->targetInRange($normalized, 'samsung', [4], [14]);
+        $autofillNeedsWebkit = $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
+            || $this->targetInRange($normalized, 'chrome', [4], [109])
+            || $this->targetInRange($normalized, 'edge', [79], [109])
+            || $this->targetInRange($normalized, 'ios_saf', [3, 2], [14, 5])
+            || $this->targetInRange($normalized, 'opera', [15], [95])
+            || $this->targetInRange($normalized, 'safari', [3, 1], [14, 1])
+            || $this->targetInRange($normalized, 'samsung', [4], [20]);
+        $anyLinkNeedsWebkit = $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
+            || $this->targetInRange($normalized, 'chrome', [15], [64])
+            || $this->targetInRange($normalized, 'ios_saf', [6], [8, 1])
+            || $this->targetInRange($normalized, 'opera', [15], [51])
+            || $this->targetInRange($normalized, 'safari', [6, 1], [8])
+            || $this->targetInRange($normalized, 'samsung', [5], [8, 2]);
 
         return [
             'boxShadowNeedsWebkit' => $needsWebkitBoxShadow,
@@ -1355,6 +1379,24 @@ final class TransitionPrefixer
             'placeholderNeedsMoz' => $this->targetInRange($normalized, 'firefox', [18], [50]),
             'placeholderNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [18])
                 || $this->targetAtLeast($normalized, 'ie', [10]),
+            'selectionNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [61]),
+            'placeholderShownNeedsMoz' => $this->targetInRange($normalized, 'firefox', [4], [50]),
+            'placeholderShownNeedsMs' => $this->targetAtLeast($normalized, 'ie', [10]),
+            'fullscreenNeedsWebkit' => $fullscreenNeedsWebkit,
+            'fullscreenNeedsMoz' => $this->targetInRange($normalized, 'firefox', [10], [63]),
+            'fullscreenNeedsMs' => $this->targetAtLeast($normalized, 'ie', [11]),
+            'backdropNeedsWebkit' => $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [32], [36])
+                || $this->targetInRange($normalized, 'opera', [19], [23]),
+            'backdropNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [18])
+                || isset($normalized['ie']),
+            'fileSelectorButtonNeedsWebkit' => $fileSelectorButtonNeedsWebkit,
+            'fileSelectorButtonNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [18])
+                || $this->targetAtLeast($normalized, 'ie', [10]),
+            'autofillNeedsWebkit' => $autofillNeedsWebkit,
+            'readWriteNeedsMoz' => $this->targetInRange($normalized, 'firefox', [3], [77]),
+            'anyLinkNeedsWebkit' => $anyLinkNeedsWebkit,
+            'anyLinkNeedsMoz' => $this->targetInRange($normalized, 'firefox', [3], [49]),
             'selectorLangListNeedsFallback' => $selectorLangListNeedsFallback,
             'selectorDirNeedsLangFallback' => $selectorDirNeedsLangFallback,
             'selectorDirFallbackNeedsIsWrapper' => $selectorLangListNeedsFallback,
@@ -2242,6 +2284,39 @@ final class TransitionPrefixer
         $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewriteLangSelectorVariants($selector, $targetOptions));
         $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewriteDirSelectorVariants($selector, $targetOptions));
         $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewriteNotSelectorVariants($selector, $targetOptions));
+        $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewritePseudoElementVariants($selector, 'selection', [
+            ...(($targetOptions['selectionNeedsMoz'] ?? false) ? ['::-moz-selection'] : []),
+        ]));
+        $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewritePseudoClassVariants($selector, 'placeholder-shown', [
+            ...(($targetOptions['placeholderShownNeedsMoz'] ?? false) ? [':-moz-placeholder-shown'] : []),
+            ...(($targetOptions['placeholderShownNeedsMs'] ?? false) ? [':-ms-input-placeholder'] : []),
+        ]));
+        $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewritePseudoClassVariants($selector, 'fullscreen', [
+            ...(($targetOptions['fullscreenNeedsWebkit'] ?? false) ? [':-webkit-full-screen'] : []),
+            ...(($targetOptions['fullscreenNeedsMoz'] ?? false) ? [':-moz-full-screen'] : []),
+            ...(($targetOptions['fullscreenNeedsMs'] ?? false) ? [':-ms-fullscreen'] : []),
+        ]));
+        $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewritePseudoElementVariants($selector, 'backdrop', [
+            ...(($targetOptions['backdropNeedsWebkit'] ?? false) ? ['::-webkit-backdrop'] : []),
+            ...(($targetOptions['backdropNeedsMs'] ?? false) ? ['::-ms-backdrop'] : []),
+        ]));
+        $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewritePseudoElementVariants($selector, 'file-selector-button', [
+            ...(($targetOptions['fileSelectorButtonNeedsWebkit'] ?? false) ? ['::-webkit-file-upload-button'] : []),
+            ...(($targetOptions['fileSelectorButtonNeedsMs'] ?? false) ? ['::-ms-browse'] : []),
+        ]));
+        $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewritePseudoClassVariants($selector, 'autofill', [
+            ...(($targetOptions['autofillNeedsWebkit'] ?? false) ? [':-webkit-autofill'] : []),
+        ]));
+        $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewritePseudoClassVariants($selector, 'read-only', [
+            ...(($targetOptions['readWriteNeedsMoz'] ?? false) ? [':-moz-read-only'] : []),
+        ]));
+        $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewritePseudoClassVariants($selector, 'read-write', [
+            ...(($targetOptions['readWriteNeedsMoz'] ?? false) ? [':-moz-read-write'] : []),
+        ]));
+        $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewritePseudoClassVariants($selector, 'any-link', [
+            ...(($targetOptions['anyLinkNeedsWebkit'] ?? false) ? [':-webkit-any-link'] : []),
+            ...(($targetOptions['anyLinkNeedsMoz'] ?? false) ? [':-moz-any-link'] : []),
+        ]));
         $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewritePlaceholderSelectorVariants($selector, $targetOptions));
         $variants = array_values(array_unique($variants));
 
@@ -2347,6 +2422,54 @@ final class TransitionPrefixer
     private function replacePlaceholderPseudo(string $selector, string $replacement): string
     {
         return preg_replace('/::placeholder(?![-_a-z0-9])/i', $replacement, $selector) ?? $selector;
+    }
+
+    /**
+     * @param list<string> $replacements
+     * @return list<string>
+     */
+    private function rewritePseudoClassVariants(string $selector, string $name, array $replacements): array
+    {
+        if ($replacements === [] || preg_match($this->pseudoClassPattern($name), $selector) !== 1) {
+            return [$selector];
+        }
+
+        $variants = [];
+        foreach ($replacements as $replacement) {
+            $variants[] = preg_replace($this->pseudoClassPattern($name), $replacement, $selector) ?? $selector;
+        }
+        $variants[] = $selector;
+
+        return array_values(array_unique($variants));
+    }
+
+    /**
+     * @param list<string> $replacements
+     * @return list<string>
+     */
+    private function rewritePseudoElementVariants(string $selector, string $name, array $replacements): array
+    {
+        if ($replacements === [] || preg_match($this->pseudoElementPattern($name), $selector) !== 1) {
+            return [$selector];
+        }
+
+        $variants = [];
+        foreach ($replacements as $replacement) {
+            $variants[] = preg_replace($this->pseudoElementPattern($name), $replacement, $selector) ?? $selector;
+        }
+        $variants[] = $selector;
+
+        return array_values(array_unique($variants));
+    }
+
+    private function pseudoClassPattern(string $name): string
+    {
+        return '/:' . preg_quote($name, '/') . '(?![-_a-z0-9])/i';
+    }
+
+    private function pseudoElementPattern(string $name): string
+    {
+        return '/::' . preg_quote($name, '/') . '(?![-_a-z0-9])/i';
     }
 
     private function selectorContainsSimpleListFunction(string $selector, string $name, bool $requiresList): bool

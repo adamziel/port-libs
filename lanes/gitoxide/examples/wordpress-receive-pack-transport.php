@@ -23,6 +23,8 @@ return [
     'sshLegacySchemeTarget' => $fixture['sshLegacySchemeTarget'],
     'sshLegacyGitSchemeTarget' => $fixture['sshLegacyGitSchemeTarget'],
     'sshScpLikeHomeTarget' => $fixture['sshScpLikeHomeTarget'],
+    'sshNonNumericPortTarget' => $fixture['sshNonNumericPortTarget'],
+    'sshNonNumericPortArguments' => $fixture['sshNonNumericPortContext']['sshArguments'],
     'sshOptionLikeHostWithUserTarget' => $fixture['sshOptionLikeHostWithUserTarget'],
     'sshScpLikeAtUserTarget' => $fixture['sshScpLikeAtUserTarget'],
     'sshCommand' => $fixture['sshCommand'],
@@ -79,5 +81,6 @@ return [
     'unsafeSshEncodedUserDelimiterRejected' => $fixture['unsafeSshEncodedUserDelimiterRejected'],
     'unsafeSshPasswordRejected' => $fixture['unsafeSshPasswordRejected'],
     'unsafeSshLegacyHostRejected' => $fixture['unsafeSshLegacyHostRejected'],
+    'unsafeSshNumericPortOverflowRejected' => $fixture['unsafeSshNumericPortOverflowRejected'],
     'unsafeSshFeatureProbeHostRejected' => $fixture['unsafeSshFeatureProbeHostRejected'],
 ];

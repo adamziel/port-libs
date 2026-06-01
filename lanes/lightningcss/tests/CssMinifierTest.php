@@ -959,6 +959,24 @@ CSS
             $t->same('.foo{color:' . $expected . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
         }
     },
+    'css minifier maps upstream hwb color-mix advanced origin normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            'color-mix(in hwb, color(display-p3 0 1 0) 100%, rgb(0, 0, 0) 0%)' => '#00f942',
+            'color-mix(in hwb, lab(100% 104.3 -50.9) 100%, rgb(0, 0, 0) 0%)' => '#fff',
+            'color-mix(in hwb, lab(0% 104.3 -50.9) 100%, rgb(0, 0, 0) 0%)' => '#2a0022',
+            'color-mix(in hwb, lch(100% 116 334) 100%, rgb(0, 0, 0) 0%)' => '#fff',
+            'color-mix(in hwb, lch(0% 116 334) 100%, rgb(0, 0, 0) 0%)' => '#2a0022',
+            'color-mix(in hwb, oklab(100% 0.365 -0.16) 100%, rgb(0, 0, 0) 0%)' => '#fff',
+            'color-mix(in hwb, oklab(0% 0.365 -0.16) 100%, rgb(0, 0, 0) 0%)' => '#000',
+            'color-mix(in hwb, oklch(100% 0.399 336.3) 100%, rgb(0, 0, 0) 0%)' => '#fff',
+            'color-mix(in hwb, oklch(0% 0.399 336.3) 100%, rgb(0, 0, 0) 0%)' => '#000',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same('.foo{color:' . $expected . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
+        }
+    },
     'css minifier maps upstream color function color-mix value normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
         $spaces = [

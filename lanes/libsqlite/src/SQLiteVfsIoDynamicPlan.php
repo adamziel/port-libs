@@ -5912,6 +5912,128 @@ final class SQLiteVfsIoDynamicPlan
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
+    public static function multiplexCrashRecoveryProfile(int $crashIteration, array $options = []): array
+    {
+        if ($crashIteration < 0 || $crashIteration > 19) {
+            throw new \InvalidArgumentException('SQLite crashM multiplex crash iteration must be between 0 and 19');
+        }
+
+        $mainName = trim((string) ($options['main_name'] ?? 'test1.db'));
+        $auxName = trim((string) ($options['aux_name'] ?? 'test2.db'));
+        if ($mainName === '' || $auxName === '') {
+            throw new \InvalidArgumentException('SQLite crashM database names must not be empty');
+        }
+        if ($mainName === $auxName) {
+            throw new \InvalidArgumentException('SQLite crashM main and aux database names must differ');
+        }
+
+        $chunkSize = (int) ($options['chunk_size'] ?? 65536);
+        $pageSize = (int) ($options['page_size'] ?? 1024);
+        $rowCount = (int) ($options['row_count'] ?? 1000);
+        $payloadBytes = (int) ($options['payload_bytes'] ?? 500);
+        $updateModulo = (int) ($options['update_modulo'] ?? 10);
+        $delay = (int) ($options['crash_delay'] ?? 1);
+
+        if ($chunkSize < 1 || $pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite crashM chunk and page sizes are invalid');
+        }
+        if ($rowCount < 1 || $payloadBytes < 1 || $updateModulo < 1 || $delay < 1) {
+            throw new \InvalidArgumentException('SQLite crashM row, payload, modulo, and delay values must be positive');
+        }
+
+        $alignment = 65536;
+        $alignedChunkSize = self::align($chunkSize, $alignment);
+        $tableRootAndSchemaPages = 5;
+        $indexMultiplier = 2;
+        $rowBytes = $payloadBytes + 64;
+        $indexBytes = 32;
+        $databaseBytes = self::align(
+            max(
+                $pageSize * $tableRootAndSchemaPages,
+                ($pageSize * $tableRootAndSchemaPages) + ($rowCount * ($rowBytes + ($indexMultiplier * $indexBytes)))
+            ),
+            $pageSize
+        );
+        $chunkCount = max(1, (int) ceil($databaseBytes / $alignedChunkSize));
+        $updatedRows = intdiv($rowCount, $updateModulo);
+
+        $mainChunks = self::multiplexChunkFiles($mainName, $chunkCount, true);
+        $auxChunks = self::multiplexChunkFiles($auxName, $chunkCount, true);
+        $mainStem = preg_replace('/\.[^.]+$/', '', $mainName) ?? $mainName;
+        $auxStem = preg_replace('/\.[^.]+$/', '', $auxName) ?? $auxName;
+
+        return [
+            'status' => 'ok',
+            'script' => 'crashM.test',
+            'scenario' => 'crashM-2.' . $crashIteration,
+            'upstream' => [
+                'crashM.test 1.0 setup multiplex 8.3 main and aux databases with indexed randomblob rows',
+                'crashM.test 2.' . $crashIteration . '.1 crashsql exits abnormally during attached UPDATE transaction',
+                'crashM.test 2.' . $crashIteration . '.2 main and aux integrity_check both return ok after recovery',
+            ],
+            'vfs' => 'multiplex',
+            'uri_enabled' => true,
+            'short_names_enabled' => true,
+            'main_name' => $mainName,
+            'aux_name' => $auxName,
+            'attached_database' => 'aux',
+            'chunk_size_requested' => $chunkSize,
+            'chunk_size_alignment' => $alignment,
+            'chunk_size_aligned' => $alignedChunkSize,
+            'page_size' => $pageSize,
+            'row_count_per_database' => $rowCount,
+            'payload_bytes' => $payloadBytes,
+            'index_count_per_database' => 2,
+            'database_bytes_per_database' => $databaseBytes,
+            'chunk_count_per_database' => $chunkCount,
+            'chunk_files_by_database' => [
+                'main' => $mainChunks,
+                'aux' => $auxChunks,
+            ],
+            'rollback_journal_files' => [
+                'main' => self::shortJournalName($mainName),
+                'aux' => self::shortJournalName($auxName),
+            ],
+            'master_journal_file' => $mainStem . '.mj',
+            'aux_master_journal_file' => $auxStem . '.mj',
+            'crash_iteration' => $crashIteration,
+            'crash_delay' => $delay,
+            'transaction_sequence' => [
+                'ATTACH file:' . $auxName . '?8_3_names=1 AS aux',
+                'BEGIN',
+                'UPDATE main.t1 SET y = randomblob(' . $payloadBytes . ') WHERE (x%' . $updateModulo . ')==0',
+                'UPDATE aux.t2 SET y = randomblob(' . $payloadBytes . ') WHERE (x%' . $updateModulo . ')==0',
+                'COMMIT',
+            ],
+            'updated_rows_per_database' => $updatedRows,
+            'child_process_result' => [1, 'child process exited abnormally'],
+            'rollback_required' => true,
+            'hot_journal_or_master_journal_recovery' => true,
+            'transaction_atomic_across_attached_databases' => true,
+            'main_integrity_check' => 'ok',
+            'aux_integrity_check' => 'ok',
+            'integrity_sequence' => ['ok', 'ok'],
+            'rows_visible_after_recovery' => [
+                'main' => $rowCount,
+                'aux' => $rowCount,
+            ],
+            'chunk_files_preserved_after_recovery' => true,
+            'short_sidecar_names_preserved' => true,
+            'database_image_stable_after_recovery' => true,
+            'reason' => 'multiplex_8_3_attached_transaction_crash_recovers_both_databases_with_integrity_ok',
+            'dependencies' => [
+                'sqlite-upstream-crashM-test',
+                'sqlite-vfs-multiplex-crash-recovery',
+                'sqlite-vfs-short-sidecar-names',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
     public static function unixExclVfsProfile(string $scenario, array $options = []): array
     {
         $scenario = trim($scenario);

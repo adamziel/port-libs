@@ -174,6 +174,9 @@ final class SshReceivePackTransport implements ReceivePackTransport
         } catch (\ValueError $error) {
             throw new \InvalidArgumentException('SSH receive-pack transport could not parse repository URL', 0, $error);
         }
+        if (!is_array($parts)) {
+            $parts = self::parseSshUrlWithNonNumericPort($url);
+        }
 
         if (!is_array($parts) || !self::isSshScheme((string) ($parts['scheme'] ?? ''))) {
             throw new \InvalidArgumentException('SSH receive-pack transport expects an ssh://, ssh+git://, git+ssh://, or scp-like SSH URL');
@@ -276,6 +279,100 @@ final class SshReceivePackTransport implements ReceivePackTransport
         }
 
         return $path;
+    }
+
+    /**
+     * PHP's URL parser rejects authorities such as "host.xz:abc" before a
+     * path, while gix-url treats the non-numeric port-looking suffix as part
+     * of the SSH host. Keep this fallback scoped to that upstream boundary so
+     * numeric overflow ports still fail.
+     *
+     * @return array{scheme: string, host: string, path: string, user?: string, pass?: string, query?: string, fragment?: string}|null
+     */
+    private static function parseSshUrlWithNonNumericPort(string $url): ?array
+    {
+        $schemeSeparator = strpos($url, '://');
+        if ($schemeSeparator === false) {
+            return null;
+        }
+
+        $scheme = substr($url, 0, $schemeSeparator);
+        if (!self::isSshScheme($scheme)) {
+            return null;
+        }
+
+        $remainder = substr($url, $schemeSeparator + 3);
+        $fragment = null;
+        $fragmentPosition = strpos($remainder, '#');
+        if ($fragmentPosition !== false) {
+            $fragment = substr($remainder, $fragmentPosition + 1);
+            $remainder = substr($remainder, 0, $fragmentPosition);
+        }
+
+        $query = null;
+        $queryPosition = strpos($remainder, '?');
+        if ($queryPosition !== false) {
+            $query = substr($remainder, $queryPosition + 1);
+            $remainder = substr($remainder, 0, $queryPosition);
+        }
+
+        $pathPosition = strpos($remainder, '/');
+        if ($pathPosition === false) {
+            return null;
+        }
+
+        $authority = substr($remainder, 0, $pathPosition);
+        $path = substr($remainder, $pathPosition);
+        if ($authority === '' || str_starts_with($authority, '[')) {
+            return null;
+        }
+
+        $hostPort = $authority;
+        $user = null;
+        $pass = null;
+        $userPosition = strrpos($authority, '@');
+        if ($userPosition !== false) {
+            $userInfo = substr($authority, 0, $userPosition);
+            $hostPort = substr($authority, $userPosition + 1);
+            if ($userInfo === '' || $hostPort === '') {
+                return null;
+            }
+            if (str_contains($userInfo, ':')) {
+                [$user, $pass] = explode(':', $userInfo, 2);
+            } else {
+                $user = $userInfo;
+            }
+        }
+
+        $colonPosition = strrpos($hostPort, ':');
+        if ($colonPosition === false) {
+            return null;
+        }
+
+        $afterColon = substr($hostPort, $colonPosition + 1);
+        if ($afterColon === '' || ctype_digit($afterColon)) {
+            return null;
+        }
+
+        $parts = [
+            'scheme' => $scheme,
+            'host' => $hostPort,
+            'path' => $path,
+        ];
+        if ($user !== null) {
+            $parts['user'] = $user;
+        }
+        if ($pass !== null) {
+            $parts['pass'] = $pass;
+        }
+        if ($query !== null) {
+            $parts['query'] = $query;
+        }
+        if ($fragment !== null) {
+            $parts['fragment'] = $fragment;
+        }
+
+        return $parts;
     }
 
     private static function isSshScheme(string $scheme): bool
@@ -586,12 +683,19 @@ final class SshReceivePackTransport implements ReceivePackTransport
 
     private static function authority(string $host, ?int $port): string
     {
-        $authority = str_contains($host, ':') && !str_starts_with($host, '[') ? "[{$host}]" : $host;
+        $authority = self::isIpv6Literal($host) ? "[{$host}]" : $host;
         if ($port !== null) {
             $authority .= ':' . $port;
         }
 
         return $authority;
+    }
+
+    private static function isIpv6Literal(string $host): bool
+    {
+        $packed = @inet_pton($host);
+
+        return $packed !== false && strlen($packed) === 16;
     }
 
     private static function shellQuote(string $value): string

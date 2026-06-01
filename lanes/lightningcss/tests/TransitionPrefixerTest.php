@@ -211,6 +211,37 @@ return [
             $prefixer->prefixForTargets('a:dir(rtl) div { color: red; }', ['safari' => 14])
         );
     },
+    'transition prefixer maps upstream selector pseudo browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same('.foo::-moz-selection{color:red}.foo::selection{color:red}', $prefixer->prefixForTargets('.foo::selection { color: red; }', ['firefox' => 61]));
+        $t->same('.foo::selection{color:red}', $prefixer->prefixForTargets('.foo::selection { color: red; }', ['firefox' => 62]));
+        $t->same('input:-moz-placeholder-shown{color:red}input:placeholder-shown{color:red}', $prefixer->prefixForTargets('input:placeholder-shown { color: red; }', ['firefox' => 50]));
+        $t->same('input:placeholder-shown{color:red}', $prefixer->prefixForTargets('input:placeholder-shown { color: red; }', ['firefox' => 51]));
+        $t->same('input:-ms-input-placeholder{color:red}input:placeholder-shown{color:red}', $prefixer->prefixForTargets('input:placeholder-shown { color: red; }', ['ie' => 11]));
+        $t->same('section:-webkit-full-screen{color:red}section:fullscreen{color:red}', $prefixer->prefixForTargets('section:fullscreen { color: red; }', ['chrome' => 70]));
+        $t->same('section:fullscreen{color:red}', $prefixer->prefixForTargets('section:fullscreen { color: red; }', ['chrome' => 71]));
+        $t->same('section:-moz-full-screen{color:red}section:fullscreen{color:red}', $prefixer->prefixForTargets('section:fullscreen { color: red; }', ['firefox' => 63]));
+        $t->same('section:fullscreen{color:red}', $prefixer->prefixForTargets('section:fullscreen { color: red; }', ['firefox' => 64]));
+        $t->same('section:-ms-fullscreen{color:red}section:fullscreen{color:red}', $prefixer->prefixForTargets('section:fullscreen { color: red; }', ['ie' => 11]));
+        $t->same('dialog::-webkit-backdrop{background:#000}dialog::backdrop{background:#000}', $prefixer->prefixForTargets('dialog::backdrop { background: black; }', ['chrome' => 36]));
+        $t->same('dialog::backdrop{background:#000}', $prefixer->prefixForTargets('dialog::backdrop { background: black; }', ['chrome' => 37]));
+        $t->same('dialog::-ms-backdrop{background:#000}dialog::backdrop{background:#000}', $prefixer->prefixForTargets('dialog::backdrop { background: black; }', ['edge' => 18]));
+        $t->same('input::-webkit-file-upload-button{color:red}input::file-selector-button{color:red}', $prefixer->prefixForTargets('input::file-selector-button { color: red; }', ['chrome' => 88]));
+        $t->same('input::file-selector-button{color:red}', $prefixer->prefixForTargets('input::file-selector-button { color: red; }', ['chrome' => 89]));
+        $t->same('input::-ms-browse{color:red}input::file-selector-button{color:red}', $prefixer->prefixForTargets('input::file-selector-button { color: red; }', ['edge' => 18]));
+        $t->same('input:-webkit-autofill{color:red}input:autofill{color:red}', $prefixer->prefixForTargets('input:autofill { color: red; }', ['chrome' => 109]));
+        $t->same('input:autofill{color:red}', $prefixer->prefixForTargets('input:autofill { color: red; }', ['chrome' => 110]));
+        $t->same('input:-webkit-autofill{color:red}input:autofill{color:red}', $prefixer->prefixForTargets('input:autofill { color: red; }', ['safari' => '14.1']));
+        $t->same('input:autofill{color:red}', $prefixer->prefixForTargets('input:autofill { color: red; }', ['safari' => '14.2']));
+        $t->same('input:-moz-read-only{color:red}input:read-only{color:red}', $prefixer->prefixForTargets('input:read-only { color: red; }', ['firefox' => 77]));
+        $t->same('input:read-only{color:red}', $prefixer->prefixForTargets('input:read-only { color: red; }', ['firefox' => 78]));
+        $t->same('textarea:-moz-read-write{color:red}textarea:read-write{color:red}', $prefixer->prefixForTargets('textarea:read-write { color: red; }', ['firefox' => 77]));
+        $t->same('a:-webkit-any-link{color:red}a:any-link{color:red}', $prefixer->prefixForTargets('a:any-link { color: red; }', ['chrome' => 64]));
+        $t->same('a:any-link{color:red}', $prefixer->prefixForTargets('a:any-link { color: red; }', ['chrome' => 65]));
+        $t->same('a:-moz-any-link{color:red}a:any-link{color:red}', $prefixer->prefixForTargets('a:any-link { color: red; }', ['firefox' => 49]));
+        $t->same('a:any-link{color:red}', $prefixer->prefixForTargets('a:any-link { color: red; }', ['firefox' => 50]));
+    },
     'transition prefixer maps upstream placeholder pseudo-element target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

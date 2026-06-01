@@ -14632,7 +14632,23 @@ final class CssMinifier
     private function parseHwbColorMixColor(string $token): ?array
     {
         if (preg_match('/^hwb\((.*)\)$/is', trim($token), $matches) !== 1) {
-            return null;
+            if (preg_match('/^(?:rgb|rgba|hsl|hsla?|hwb|color)\(.*\bnone\b/is', $token) === 1) {
+                return null;
+            }
+
+            $srgb = $this->parseRelativeSrgbOrigin($token);
+            if ($srgb === null) {
+                return null;
+            }
+
+            $channels = $this->relativeHwbChannelsFromSrgbOrigin($srgb);
+
+            return [
+                'hue' => $channels['h'],
+                'white' => $channels['w'] / 100,
+                'black' => $channels['b'] / 100,
+                'alpha' => $channels['alpha'],
+            ];
         }
 
         $parts = $this->parseColorFunctionParts($matches[1]);
