@@ -516,6 +516,76 @@ return [
             'responseSuccessful' => $response->isSuccessful(),
         ];
     })(),
+    'smartHttpTransportOptionsBoundary' => (static function () use ($packet, $flush, $advertisementBytes, $blob): array {
+        $responseBytes = $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $requests = [];
+        $client = new ReceivePackClient(
+            new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$requests, $packet, $flush, $advertisementBytes, $responseBytes): array {
+                    $requests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'timeout' => $timeout,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_transport_options=observed; Path=/; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                12.0,
+                [],
+                [
+                    'proxy' => 'http://proxy.example.test:8080',
+                    'connectTimeout' => 4.25,
+                    'lowSpeedLimit' => 512,
+                    'lowSpeedTime' => 7,
+                    'httpVersion' => 'HTTP/2',
+                    'verbose' => true,
+                ],
+            ),
+            'port-libs/wordpress',
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+        $request = $session->buildRequest([$blob]);
+        $response = $client->send($request);
+
+        return [
+            'requestMethods' => array_column($requests, 'method'),
+            'getConnectTimeout' => $requests[0]['httpOptions']['connectTimeout'] ?? null,
+            'postConnectTimeout' => $requests[1]['httpOptions']['connectTimeout'] ?? null,
+            'lowSpeedLimit' => $requests[0]['httpOptions']['lowSpeedLimit'] ?? null,
+            'lowSpeedTime' => $requests[0]['httpOptions']['lowSpeedTime'] ?? null,
+            'httpVersion' => $requests[0]['httpOptions']['httpVersion'] ?? null,
+            'verbose' => $requests[0]['httpOptions']['verbose'] ?? null,
+            'proxy' => $requests[0]['httpOptions']['proxy'] ?? null,
+            'timeout' => $requests[0]['timeout'] ?? null,
+            'postCookie' => $requests[1]['headers']['Cookie'] ?? null,
+            'postBodyPreserved' => $requests[1]['body'] === $request->requestBytes(),
+            'responseSuccessful' => $response->isSuccessful(),
+        ];
+    })(),
     'streamWatchdogTimeoutReported' => (static function (): bool {
         if (!function_exists('stream_socket_pair')) {
             return false;

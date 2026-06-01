@@ -2112,6 +2112,98 @@ return [
         $t->same(null, $requests[1]['headers']['Proxy-Authorization'] ?? null);
         $t->same($request->requestBytes(), $requests[1]['body']);
 
+        $transportOptionRequests = [];
+        $transportOptionBlob = new GitObject('blob', 'WordPress smart HTTP transport option payload');
+        $transportOptionClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$transportOptionRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $transportOptionRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'timeout' => $timeout,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_transport_options=observed; Path=/; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                12.0,
+                [],
+                [
+                    'proxy' => 'http://proxy.example.test:8080',
+                    'connectTimeout' => 4.25,
+                    'lowSpeedLimit' => 512,
+                    'lowSpeedTime' => '7',
+                    'httpVersion' => 'HTTP/2',
+                    'verbose' => true,
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $transportOptionSession = $transportOptionClient->handshake();
+        $transportOptionSession->createOrUpdate('refs/heads/main', $transportOptionBlob->oid());
+        $transportOptionRequest = $transportOptionSession->buildRequest([$transportOptionBlob]);
+
+        $transportOptionResponse = $transportOptionClient->send($transportOptionRequest);
+
+        $t->same(true, $transportOptionResponse->isSuccessful());
+        $t->same(['GET', 'POST'], array_column($transportOptionRequests, 'method'));
+        $t->same('wp_transport_options=observed', $transportOptionRequests[1]['headers']['Cookie']);
+        $t->same($transportOptionRequest->requestBytes(), $transportOptionRequests[1]['body']);
+        foreach ($transportOptionRequests as $transportOptionRequestRecord) {
+            $t->same(12.0, $transportOptionRequestRecord['timeout']);
+            $t->same(4.25, $transportOptionRequestRecord['httpOptions']['connectTimeout']);
+            $t->same(512, $transportOptionRequestRecord['httpOptions']['lowSpeedLimit']);
+            $t->same(7, $transportOptionRequestRecord['httpOptions']['lowSpeedTime']);
+            $t->same('2', $transportOptionRequestRecord['httpOptions']['httpVersion']);
+            $t->same(true, $transportOptionRequestRecord['httpOptions']['verbose']);
+            $t->same('tcp://proxy.example.test:8080', $transportOptionRequestRecord['httpOptions']['proxy']);
+        }
+
+        $incompleteLowSpeedRequests = [];
+        $incompleteLowSpeedTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$incompleteLowSpeedRequests, $packet, $flush): array {
+                $incompleteLowSpeedRequests[] = $httpOptions;
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
+                ];
+            },
+            [],
+            30.0,
+            [],
+            [
+                'lowSpeedLimit' => 512,
+                'lowSpeedTime' => 0,
+                'httpVersion' => 1,
+            ]
+        );
+        $incompleteLowSpeedTransport->readAdvertisement();
+        $t->same('1.1', $incompleteLowSpeedRequests[0]['httpVersion']);
+        $t->same(false, array_key_exists('lowSpeedLimit', $incompleteLowSpeedRequests[0]));
+        $t->same(false, array_key_exists('lowSpeedTime', $incompleteLowSpeedRequests[0]));
+
         $directRequests = [];
         $directTransport = new SmartHttpReceivePackTransport(
             'https://git.bypass.test/wp-content.git',
@@ -3328,6 +3420,14 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentialStore' => 'not callable']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['sslCaInfo' => __DIR__ . '/missing-ca.pem']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['sslVerify' => 'no']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['connectTimeout' => 0]));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['connectTimeout' => 'soon']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['connectTimeout' => "1\n"]));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['lowSpeedLimit' => -1]));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['lowSpeedTime' => 'slow']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['httpVersion' => 'HTTP/3']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['httpVersion' => "HTTP/2\n"]));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['verbose' => 'yes']));
     },
     'smart http default requester performs socks5h handshake with proxy credentials' => static function (TestRunner $t) use ($packet, $flush, $readExactFromStream, $writeAllToStream, $readHttpRequestHeader, $runLocalTcpServer): void {
         $advertisement = $packet("58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a refs/heads/main\0report-status side-band-64k object-format=sha1\n")
@@ -4118,6 +4218,18 @@ return [
         $t->same('', $fixture['smartHttpHeaderBoundary']['overridePostExpectHeader']);
         $t->same(true, $fixture['smartHttpHeaderBoundary']['overridePostBodyPreserved']);
         $t->same(true, $fixture['smartHttpHeaderBoundary']['responseSuccessful']);
+        $t->same(['GET', 'POST'], $fixture['smartHttpTransportOptionsBoundary']['requestMethods']);
+        $t->same(4.25, $fixture['smartHttpTransportOptionsBoundary']['getConnectTimeout']);
+        $t->same(4.25, $fixture['smartHttpTransportOptionsBoundary']['postConnectTimeout']);
+        $t->same(512, $fixture['smartHttpTransportOptionsBoundary']['lowSpeedLimit']);
+        $t->same(7, $fixture['smartHttpTransportOptionsBoundary']['lowSpeedTime']);
+        $t->same('2', $fixture['smartHttpTransportOptionsBoundary']['httpVersion']);
+        $t->same(true, $fixture['smartHttpTransportOptionsBoundary']['verbose']);
+        $t->same('tcp://proxy.example.test:8080', $fixture['smartHttpTransportOptionsBoundary']['proxy']);
+        $t->same(12.0, $fixture['smartHttpTransportOptionsBoundary']['timeout']);
+        $t->same('wp_transport_options=observed', $fixture['smartHttpTransportOptionsBoundary']['postCookie']);
+        $t->same(true, $fixture['smartHttpTransportOptionsBoundary']['postBodyPreserved']);
+        $t->same(true, $fixture['smartHttpTransportOptionsBoundary']['responseSuccessful']);
         $t->same(true, $fixture['advertisementErrorReported']);
         $t->same(true, $fixture['oversizeAdvertisementRejected']);
         $t->same(true, $fixture['unsafeSshHostDelimiterRejected']);

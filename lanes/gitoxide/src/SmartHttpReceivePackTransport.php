@@ -21,7 +21,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private array $cookies = [];
     /** @var array<string, string> */
     private readonly array $extraHeaders;
-    /** @var array{proxyConfigured: bool, proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, httpsProxyConfigured: bool, httpsProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, allProxyConfigured: bool, allProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string} */
+    /** @var array{proxyConfigured: bool, proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, httpsProxyConfigured: bool, httpsProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, allProxyConfigured: bool, allProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string, connectTimeout: ?float, lowSpeedLimit: int, lowSpeedTime: int, httpVersion: ?string, verbose: bool} */
     private readonly array $httpOptions;
 
     /**
@@ -641,6 +641,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         if (!$this->httpOptions['sslVerify']) {
             $options['sslVerify'] = false;
         }
+        $options += $this->transportBoundaryOptions();
 
         $request = self::httpUrlParts($url, 'smart HTTP receive-pack request URL');
         $proxySelection = $proxySelectionUrl === null
@@ -673,6 +674,29 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return [$options, $authorization['credentialAction']];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function transportBoundaryOptions(): array
+    {
+        $options = [];
+        if ($this->httpOptions['connectTimeout'] !== null) {
+            $options['connectTimeout'] = $this->httpOptions['connectTimeout'];
+        }
+        if ($this->httpOptions['lowSpeedLimit'] > 0 && $this->httpOptions['lowSpeedTime'] > 0) {
+            $options['lowSpeedLimit'] = $this->httpOptions['lowSpeedLimit'];
+            $options['lowSpeedTime'] = $this->httpOptions['lowSpeedTime'];
+        }
+        if ($this->httpOptions['httpVersion'] !== null) {
+            $options['httpVersion'] = $this->httpOptions['httpVersion'];
+        }
+        if ($this->httpOptions['verbose']) {
+            $options['verbose'] = true;
+        }
+
+        return $options;
     }
 
     /**
@@ -950,11 +974,11 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param array<string, mixed> $httpOptions
-     * @return array{proxyConfigured: bool, proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, httpsProxyConfigured: bool, httpsProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, allProxyConfigured: bool, allProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string}
+     * @return array{proxyConfigured: bool, proxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, httpsProxyConfigured: bool, httpsProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, allProxyConfigured: bool, allProxy: ?array{type: string, stream: string, url: string, credentialUrl: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string, connectTimeout: ?float, lowSpeedLimit: int, lowSpeedTime: int, httpVersion: ?string, verbose: bool}
      */
     private static function normalizeHttpOptions(array $httpOptions): array
     {
-        $allowed = ['proxy', 'httpsProxy', 'allProxy', 'noProxy', 'proxyAuthorization', 'proxyAuthMethod', 'proxyCredentials', 'proxyCredentialHelper', 'proxyCredentialStore', 'proxyCredentialErase', 'sslCaInfo', 'sslVerify', 'followRedirects'];
+        $allowed = ['proxy', 'httpsProxy', 'allProxy', 'noProxy', 'proxyAuthorization', 'proxyAuthMethod', 'proxyCredentials', 'proxyCredentialHelper', 'proxyCredentialStore', 'proxyCredentialErase', 'sslCaInfo', 'sslVerify', 'followRedirects', 'connectTimeout', 'lowSpeedLimit', 'lowSpeedTime', 'httpVersion', 'verbose'];
         foreach (array_keys($httpOptions) as $name) {
             if (!is_string($name) || !in_array($name, $allowed, true)) {
                 throw new \InvalidArgumentException('smart HTTP receive-pack HTTP option is not supported');
@@ -1046,7 +1070,82 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             'sslCaInfo' => $sslCaInfo,
             'sslVerify' => $sslVerify,
             'followRedirects' => self::normalizeFollowRedirects($httpOptions['followRedirects'] ?? null),
+            'connectTimeout' => self::normalizePositiveFloat($httpOptions['connectTimeout'] ?? null, 'connectTimeout'),
+            'lowSpeedLimit' => self::normalizeNonNegativeInteger($httpOptions['lowSpeedLimit'] ?? null, 'lowSpeedLimit'),
+            'lowSpeedTime' => self::normalizeNonNegativeInteger($httpOptions['lowSpeedTime'] ?? null, 'lowSpeedTime'),
+            'httpVersion' => self::normalizeHttpVersion($httpOptions['httpVersion'] ?? null),
+            'verbose' => self::normalizeBoolean($httpOptions['verbose'] ?? null, 'verbose'),
         ];
+    }
+
+    private static function normalizePositiveFloat(mixed $value, string $name): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_string($value) && self::containsControlByte($value)) {
+            throw new \InvalidArgumentException("smart HTTP receive-pack {$name} must be a positive number");
+        }
+        if (!is_int($value) && !is_float($value) && !(is_string($value) && is_numeric($value))) {
+            throw new \InvalidArgumentException("smart HTTP receive-pack {$name} must be a positive number");
+        }
+        $normalized = (float) $value;
+        if (!is_finite($normalized) || $normalized <= 0.0) {
+            throw new \InvalidArgumentException("smart HTTP receive-pack {$name} must be a positive number");
+        }
+
+        return $normalized;
+    }
+
+    private static function normalizeNonNegativeInteger(mixed $value, string $name): int
+    {
+        if ($value === null || $value === '') {
+            return 0;
+        }
+        if (is_int($value)) {
+            $normalized = $value;
+        } elseif (is_string($value) && preg_match('/^\d+$/', $value) === 1) {
+            $normalized = (int) $value;
+        } else {
+            throw new \InvalidArgumentException("smart HTTP receive-pack {$name} must be a non-negative integer");
+        }
+        if ($normalized < 0) {
+            throw new \InvalidArgumentException("smart HTTP receive-pack {$name} must be a non-negative integer");
+        }
+
+        return $normalized;
+    }
+
+    private static function normalizeHttpVersion(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_int($value)) {
+            $value = (string) $value;
+        }
+        if (!is_string($value) || self::containsControlByte($value)) {
+            throw new \InvalidArgumentException('smart HTTP receive-pack httpVersion must be HTTP/1.1 or HTTP/2');
+        }
+
+        $normalized = strtolower(trim($value));
+        return match ($normalized) {
+            '1', '1.1', 'http/1.1', 'v1.1', 'v1_1' => '1.1',
+            '2', '2.0', 'http/2', 'h2', 'v2' => '2',
+            default => throw new \InvalidArgumentException('smart HTTP receive-pack httpVersion must be HTTP/1.1 or HTTP/2'),
+        };
+    }
+
+    private static function normalizeBoolean(mixed $value, string $name): bool
+    {
+        if ($value === null || $value === '') {
+            return false;
+        }
+        if (!is_bool($value)) {
+            throw new \InvalidArgumentException("smart HTTP receive-pack {$name} must be a boolean");
+        }
+
+        return $value;
     }
 
     /**
@@ -1617,6 +1716,9 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         if ($body !== null) {
             $options['http']['content'] = $body;
         }
+        if (($httpOptions['httpVersion'] ?? null) === '1.1') {
+            $options['http']['protocol_version'] = 1.1;
+        }
         if (isset($httpOptions['proxy'])) {
             $options['http']['proxy'] = (string) $httpOptions['proxy'];
             $options['http']['request_fulluri'] = !empty($httpOptions['requestFullUri']);
@@ -1677,7 +1779,8 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         $context = stream_context_create(['ssl' => self::sslStreamContextOptions($target, $httpOptions)]);
-        $stream = @stream_socket_client($proxy, $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $context);
+        $connectTimeout = isset($httpOptions['connectTimeout']) ? (float) $httpOptions['connectTimeout'] : $timeout;
+        $stream = @stream_socket_client($proxy, $errno, $errstr, $connectTimeout, STREAM_CLIENT_CONNECT, $context);
         if (!is_resource($stream)) {
             throw new \RuntimeException("smart HTTP receive-pack SOCKS proxy connection failed for {$proxy}: {$errstr}", $errno);
         }
