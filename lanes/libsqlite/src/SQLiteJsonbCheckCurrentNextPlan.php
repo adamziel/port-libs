@@ -18,7 +18,9 @@ final class SQLiteJsonbCheckCurrentNextPlan
         if ($checks === []) {
             throw new \InvalidArgumentException('SQLite JSONB CHECK current/next plan requires CHECK constraints');
         }
-        $jsonColumn = self::identifier((string) ($options['jsonColumn'] ?? 'key_value'), 'JSON column');
+        $jsonColumn = isset($options['jsonColumn'])
+            ? self::identifier((string) $options['jsonColumn'], 'JSON column')
+            : self::defaultJsonColumn($checks);
         $rowidColumn = isset($options['rowidColumn'])
             ? self::identifier((string) $options['rowidColumn'], 'rowid column')
             : self::rowidColumn($createTableSql);
@@ -273,6 +275,74 @@ final class SQLiteJsonbCheckCurrentNextPlan
 
             return null;
         }
+    }
+
+    /**
+     * @param list<array{sql:string,terms:list<array<string,mixed>>}> $checks
+     */
+    private static function defaultJsonColumn(array $checks): string
+    {
+        foreach ($checks as $check) {
+            foreach ($check['terms'] as $term) {
+                $column = self::jsonColumnFromTerm($term);
+                if ($column !== null) {
+                    return $column;
+                }
+            }
+        }
+
+        return 'key_value';
+    }
+
+    /**
+     * @param array<string,mixed> $term
+     */
+    private static function jsonColumnFromTerm(array $term): ?string
+    {
+        $expr = $term['expr'] ?? null;
+        if (is_array($expr)) {
+            $column = self::jsonColumnFromExpr($expr);
+            if ($column !== null) {
+                return $column;
+            }
+        }
+
+        foreach (($term['terms'] ?? []) as $child) {
+            if (!is_array($child)) {
+                continue;
+            }
+            $column = self::jsonColumnFromTerm($child);
+            if ($column !== null) {
+                return $column;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed> $expr
+     */
+    private static function jsonColumnFromExpr(array $expr): ?string
+    {
+        if (($expr['kind'] ?? null) === 'function' && in_array($expr['name'] ?? null, ['json_valid', 'json_type', 'json_array_length', 'json_extract', 'jsonb_extract'], true)) {
+            $firstArg = $expr['args'][0] ?? null;
+            if (is_array($firstArg) && ($firstArg['kind'] ?? null) === 'column') {
+                return self::identifier((string) $firstArg['name'], 'JSON column');
+            }
+        }
+
+        foreach (($expr['args'] ?? []) as $arg) {
+            if (!is_array($arg)) {
+                continue;
+            }
+            $column = self::jsonColumnFromExpr($arg);
+            if ($column !== null) {
+                return $column;
+            }
+        }
+
+        return null;
     }
 
     private static function compare(mixed $actual, string $operator, mixed $expected): ?bool

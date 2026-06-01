@@ -179,6 +179,35 @@ SQL;
         $t->same([51, 52], array_column($plan['after'], 'record_id'));
         $t->same(7, SQLiteJsonB::decode($plan['after'][0]['payload_jsonb']->bytes)['rank']);
     },
+    'jsonb check plan derives neutral mutation json column from check expressions' => static function (TestRunner $t) use ($jsonb): void {
+        $schema = <<<'SQL'
+CREATE TABLE event_records(
+  record_id INTEGER PRIMARY KEY,
+  payload_jsonb BLOB,
+  CHECK(json_valid(payload_jsonb, 8)),
+  CHECK(json_extract(payload_jsonb, '$.rank') BETWEEN 1 AND 9)
+)
+SQL;
+        $plan = SQLiteJsonbCheckCurrentNextPlan::plan(
+            $schema,
+            [
+                ['record_id' => 71, 'payload_jsonb' => $jsonb(['rank' => 2])],
+                ['record_id' => 72, 'payload_jsonb' => $jsonb(['rank' => 4])],
+            ],
+            [
+                ['op' => 'UPDATE', 'rowid' => 71, 'mutations' => [
+                    ['function' => 'jsonb_set', 'path' => '$.rank', 'value' => 8],
+                ]],
+                ['op' => 'INSERT', 'row' => ['record_id' => 73, 'payload_jsonb' => $jsonb(['rank' => 12])]],
+            ],
+        );
+
+        $t->same([71], array_column($plan['accepted'], 'rowid'));
+        $t->same([73], array_column($plan['rejected'], 'rowid'));
+        $t->same([71, 72], array_column($plan['after'], 'record_id'));
+        $t->same(8, SQLiteJsonB::decode($plan['after'][0]['payload_jsonb']->bytes)['rank']);
+        $t->same(false, array_key_exists('key_value', $plan['after'][0]));
+    },
     'jsonb check plan validates mutation-level neutral json column names' => static function (TestRunner $t) use ($jsonb): void {
         $schema = <<<'SQL'
 CREATE TABLE event_records(
@@ -249,7 +278,7 @@ SQL;
         $t->same('setting_id', $plan['foreign_key']['rowid_column']);
     },
     'source-neutral jsonb check dependency closure' => static fn (TestRunner $t) => $t->same(
-        'no new support component needed; reuses JSONB mutation, generated-column evaluation, CHECK evaluation, schema-derived rowid handling, and generated-key cascade planning',
-        'no new support component needed; reuses JSONB mutation, generated-column evaluation, CHECK evaluation, schema-derived rowid handling, and generated-key cascade planning',
+        'no new support component needed; reuses JSONB mutation, generated-column evaluation, CHECK evaluation, schema-derived rowid and JSON column handling, and generated-key cascade planning',
+        'no new support component needed; reuses JSONB mutation, generated-column evaluation, CHECK evaluation, schema-derived rowid and JSON column handling, and generated-key cascade planning',
     ),
 ];
