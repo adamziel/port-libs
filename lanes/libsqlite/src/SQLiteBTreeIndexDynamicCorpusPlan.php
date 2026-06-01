@@ -11273,6 +11273,155 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,upstream_file:string,case:int,batch:int,upstream_section:string,scenario:string,statement:string,table:string,row_count:int,or_terms:list<string>,range_terms:list<string>,indexes:list<string>,fault:array{kind:string,attempt:int,checkpoint:string,recovered:bool},result_code:int,error:string|null,expected_count:int|null,expected_rows:list<array<int,mixed>>,uses_or_optimization:bool,uses_generated_columns:bool,uses_natural_join:bool,detail:string,integrity:string,dependencies:list<string>}>
+     */
+    public static function whereFaultOrOptimizationCases(int $cases = 800): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite wherefault dynamic corpus requires at least one recoverable OR-planner fault case');
+        }
+
+        $templates = [
+            [
+                'wherefault-1.1',
+                'wide OR equality chain on indexed a/b columns recovers from OOM during OR-clause planning',
+                'SELECT c FROM t1 WHERE a = 2 OR b = \'three\' OR a = 4 OR b = \'five\' OR a = 6 OR b = \'seven\' OR a = 8 OR b = \'nine\' OR a = 10 ORDER BY rowid',
+                't1',
+                0,
+                ['a = 2', "b = 'three'", 'a = 4', "b = 'five'", 'a = 6', "b = 'seven'", 'a = 8', "b = 'nine'", 'a = 10'],
+                [],
+                ['i1(a)', 'i2(b)'],
+                null,
+                [],
+                true,
+                false,
+                false,
+                'OR optimizer builds index-union probes for alternating a/b terms and releases partial allocations on OOM retry',
+                ['sqlite-wherefault-or-clause-oom-retry', 'sqlite-wherefault-empty-table-result-stable'],
+            ],
+            [
+                'wherefault-1.2',
+                'single-column OR equality chain on indexed a recovers without leaking partial WhereOrInfo state',
+                'SELECT c FROM t1 WHERE a = 1 OR a = 2 OR a = 3 OR a = 4 OR a = 5 OR a = 6',
+                't1',
+                0,
+                ['a = 1', 'a = 2', 'a = 3', 'a = 4', 'a = 5', 'a = 6'],
+                [],
+                ['i1(a)'],
+                null,
+                [],
+                true,
+                false,
+                false,
+                'OR optimizer keeps same-column equality terms retryable after simulated malloc failure',
+                ['sqlite-wherefault-or-clause-oom-retry', 'sqlite-wherefault-same-column-or-probes'],
+            ],
+            [
+                'wherefault-1.3',
+                'BETWEEN and inequality WHERE terms recover from OOM during range-planner setup',
+                'SELECT c FROM t1 WHERE a BETWEEN 1 AND 3 AND b < 5 AND b > 2 AND c = 4',
+                't1',
+                0,
+                [],
+                ['a BETWEEN 1 AND 3', 'b < 5', 'b > 2', 'c = 4'],
+                ['i1(a)', 'i2(b)'],
+                null,
+                [],
+                false,
+                false,
+                false,
+                'range constraints remain statement-retryable and leave the empty input table unchanged',
+                ['sqlite-wherefault-range-planner-oom-retry', 'sqlite-wherefault-empty-table-result-stable'],
+            ],
+            [
+                'wherefault-2',
+                'populated OR range count recovers from OOM and preserves 1000-row table contents',
+                'SELECT count(*) FROM t1 WHERE a BETWEEN 5 AND 995 OR b BETWEEN 5 AND 900000',
+                't1',
+                1000,
+                ['a BETWEEN 5 AND 995', 'b BETWEEN 5 AND 900000'],
+                ['a BETWEEN 5 AND 995', 'b BETWEEN 5 AND 900000'],
+                ['i1(a)', 'i2(b)'],
+                993,
+                [[993]],
+                true,
+                false,
+                false,
+                'OR range union covers row ordinals 3 through 995 once after retrying failed allocation',
+                ['sqlite-wherefault-or-range-count-retry', 'sqlite-wherefault-populated-table-preserved'],
+            ],
+            [
+                'wherefault-3.1',
+                'generated-column NATURAL JOIN query recovers from OOM while reopening the saved schema image',
+                'SELECT * FROM nested generated-column NATURAL JOIN query with IN subqueries and CASE expression',
+                't1',
+                0,
+                ['a IN (SELECT b FROM t1 ORDER BY b)'],
+                [],
+                ['t1a(a)'],
+                null,
+                [],
+                false,
+                true,
+                true,
+                'faultsim restore/reopen keeps generated-column schema usable for nested NATURAL JOIN planning',
+                ['sqlite-wherefault-generated-column-schema-reopen', 'sqlite-wherefault-natural-join-oom-retry'],
+            ],
+        ];
+
+        $checkpoints = [
+            'where-clause-normalization',
+            'or-term-classification',
+            'index-probe-candidate-build',
+            'range-loop-costing',
+            'order-by-rowid-planning',
+            'nested-select-reopen',
+        ];
+
+        $out = [];
+        $templateCount = count($templates);
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $statement, $table, $rowCount, $orTerms, $rangeTerms, $indexes, $expectedCount, $expectedRows, $usesOr, $usesGenerated, $usesNatural, $detail, $dependencies] = $templates[($case - 1) % $templateCount];
+            $batch = intdiv($case - 1, $templateCount) + 1;
+            $faultAttempt = (($case * 7) + count($orTerms) + count($rangeTerms)) % 97;
+            $checkpoint = $checkpoints[$faultAttempt % count($checkpoints)];
+
+            $out[] = [
+                'source' => 'wherefault.test sections wherefault-1, wherefault-2, and wherefault-3.1',
+                'upstream_file' => 'test/wherefault.test',
+                'case' => $case,
+                'batch' => $batch,
+                'upstream_section' => $section,
+                'scenario' => $scenario . ' dynamic batch ' . $batch,
+                'statement' => $statement,
+                'table' => $table,
+                'row_count' => $rowCount,
+                'or_terms' => $orTerms,
+                'range_terms' => $rangeTerms,
+                'indexes' => $indexes,
+                'fault' => [
+                    'kind' => 'oom',
+                    'attempt' => $faultAttempt,
+                    'checkpoint' => $checkpoint,
+                    'recovered' => true,
+                ],
+                'result_code' => 0,
+                'error' => null,
+                'expected_count' => $expectedCount,
+                'expected_rows' => $expectedRows,
+                'uses_or_optimization' => $usesOr,
+                'uses_generated_columns' => $usesGenerated,
+                'uses_natural_join' => $usesNatural,
+                'detail' => $detail,
+                'integrity' => 'ok',
+                'dependencies' => $dependencies,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,from_clause:string,analyzed:bool,t1_rows:int,t2_rows:int,t1_distinct_a:int,t2_distinct_z:int,result_rows:list<array<int,int>>,uses_t1_scan:bool,uses_t2_index:bool,index_name:string,detail:string,altered_columns:list<string>,join_terms:list<string>,batch:int}>
      */
     public static function whereEAlterTableJoinPlannerCases(int $cases = 1000): array

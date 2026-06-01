@@ -10,6 +10,44 @@ final class SQLiteSelectSql
     private const HIDDEN_WILDCARD_METADATA_PREFIX = '__sqlite_hidden_wildcard_columns';
     private const JSON_TABLE_SOURCE_COLUMNS = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'];
     private const JSON_TABLE_HIDDEN_WILDCARD_COLUMNS = ['json', 'root'];
+    private const WINDOW_FUNCTIONS = [
+        'row_number',
+        'rank',
+        'dense_rank',
+        'percent_rank',
+        'cume_dist',
+        'ntile',
+        'lag',
+        'lead',
+        'first_value',
+        'last_value',
+        'nth_value',
+        'count',
+        'sum',
+        'total',
+        'avg',
+        'min',
+        'max',
+        'group_concat',
+        'string_agg',
+        'json_group_array',
+        'jsonb_group_array',
+        'json_group_object',
+        'jsonb_group_object',
+    ];
+    private const WINDOW_ONLY_FUNCTIONS = [
+        'row_number',
+        'rank',
+        'dense_rank',
+        'percent_rank',
+        'cume_dist',
+        'ntile',
+        'lag',
+        'lead',
+        'first_value',
+        'last_value',
+        'nth_value',
+    ];
 
     /**
      * @param array<string,list<array<string,mixed>>> $tables
@@ -148,6 +186,9 @@ final class SQLiteSelectSql
         $where = isset($clauseOffsets['WHERE'])
             ? self::predicate(self::clauseText($tail, $clauseOffsets, 'WHERE'), $tables)
             : null;
+        if ($where !== null) {
+            self::assertPredicateHasNoWindowFunctions($where, 'WHERE');
+        }
         $groupBySql = isset($clauseOffsets['GROUP BY'])
             ? self::clauseText($tail, $clauseOffsets, 'GROUP BY')
             : null;
@@ -211,6 +252,9 @@ final class SQLiteSelectSql
         $having = isset($clauseOffsets['HAVING'])
             ? self::predicate(self::clauseText($tail, $clauseOffsets, 'HAVING'), $tables)
             : null;
+        if ($having !== null) {
+            self::assertPredicateHasNoWindowFunctions($having, 'HAVING');
+        }
         $aggregateExpressions = [];
         if ($having !== null) {
             array_push($aggregateExpressions, ...self::predicateExpressions($having));
@@ -396,7 +440,9 @@ final class SQLiteSelectSql
             $plan['distinct'] = true;
         }
         if (isset($clauseOffsets['WHERE'])) {
-            $plan['where'] = self::predicate(self::clauseText($sql, $clauseOffsets, 'WHERE'), $tables);
+            $where = self::predicate(self::clauseText($sql, $clauseOffsets, 'WHERE'), $tables);
+            self::assertPredicateHasNoWindowFunctions($where, 'WHERE');
+            $plan['where'] = $where;
         }
         if (isset($clauseOffsets['ORDER BY'])) {
             $plan['orderBy'] = self::orderBy(
@@ -4233,7 +4279,7 @@ final class SQLiteSelectSql
         if (self::isReservedProjectionAliasToken($alias)) {
             return null;
         }
-        if (preg_match('/(?:^|\s)(?:collate|escape|nulls|is|not)$/i', $expression) === 1) {
+        if (preg_match('/(?:^|\s)(?:collate|escape|nulls|is|not|over)$/i', $expression) === 1) {
             return null;
         }
         if (preg_match('/(?:\|\||->>|->|[+\-*\/%&|<>=~])$/', $expression) === 1) {
@@ -5037,6 +5083,10 @@ final class SQLiteSelectSql
         }
 
         if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)$/s', $sql, $match) === 1) {
+            $name = strtolower($match[1]);
+            if (self::isWindowOnlyFunctionName($name)) {
+                throw new \InvalidArgumentException("misuse of window function {$name}()");
+            }
             $argumentSql = trim($match[2]);
             $distinct = false;
             if (preg_match('/^distinct(?:\s+|$)(.+)$/is', $argumentSql, $distinctMatch) === 1) {
@@ -5570,6 +5620,9 @@ final class SQLiteSelectSql
         $functionSql = trim(substr($sql, 0, $overOffset));
         $overSql = trim(substr($sql, $overOffset + 4));
         if (!str_starts_with($overSql, '(') || !str_ends_with($overSql, ')')) {
+            if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)$/', $overSql, $windowMatch) === 1) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL named window {$windowMatch[1]} is not defined");
+            }
             throw new \InvalidArgumentException('SQLite SELECT SQL window OVER clause must be parenthesized');
         }
         $windowSql = self::unwrapParenthesizedExpression($overSql);
@@ -5659,9 +5712,8 @@ final class SQLiteSelectSql
             self::assertOrderedRangeOrGroupsFrame($orderBy, $frame);
         }
 
-        $supported = ['row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist', 'ntile', 'lag', 'lead', 'first_value', 'last_value', 'nth_value', 'count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat', 'string_agg', 'json_group_array', 'jsonb_group_array', 'json_group_object', 'jsonb_group_object'];
-        if (!in_array($name, $supported, true)) {
-            throw new \InvalidArgumentException("SQLite SELECT SQL window function {$name} is not supported");
+        if (!self::isWindowFunctionName($name)) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL {$name}() may not be used as a window function");
         }
         self::assertWindowFunctionArgumentCount($name, $arguments);
 
@@ -5718,7 +5770,7 @@ final class SQLiteSelectSql
     {
         $count = count($arguments);
         if (in_array($name, ['row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist'], true) && $count !== 0) {
-            throw new \InvalidArgumentException("SQLite SELECT SQL window function {$name} takes no arguments");
+            throw new \InvalidArgumentException("wrong number of arguments to function {$name}()");
         }
         if ($name === 'ntile' && $count !== 1) {
             throw new \InvalidArgumentException('SQLite SELECT SQL ntile() window function takes one argument');
@@ -5732,6 +5784,73 @@ final class SQLiteSelectSql
         if ($name === 'nth_value' && $count !== 2) {
             throw new \InvalidArgumentException('SQLite SELECT SQL nth_value() window function takes two arguments');
         }
+    }
+
+    private static function isWindowFunctionName(string $name): bool
+    {
+        return in_array(strtolower($name), self::WINDOW_FUNCTIONS, true);
+    }
+
+    private static function isWindowOnlyFunctionName(string $name): bool
+    {
+        return in_array(strtolower($name), self::WINDOW_ONLY_FUNCTIONS, true);
+    }
+
+    /**
+     * @param array<string,mixed> $predicate
+     */
+    private static function assertPredicateHasNoWindowFunctions(array $predicate, string $context): void
+    {
+        self::assertExpressionHasNoWindowFunctions($predicate, $context);
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     */
+    private static function assertExpressionHasNoWindowFunctions(array $expression, string $context): void
+    {
+        $name = self::windowMisuseFunctionName($expression);
+        if ($name !== null) {
+            throw new \InvalidArgumentException("misuse of window function {$name}()");
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $node
+     */
+    private static function windowMisuseFunctionName(array $node): ?string
+    {
+        if (($node['type'] ?? null) === 'window' && isset($node['function']) && is_string($node['function'])) {
+            return strtolower($node['function']);
+        }
+        if (($node['type'] ?? null) === 'function' && isset($node['name']) && is_string($node['name']) && self::isWindowOnlyFunctionName($node['name'])) {
+            return strtolower($node['name']);
+        }
+
+        foreach ($node as $value) {
+            if (!is_array($value)) {
+                continue;
+            }
+            if (array_is_list($value)) {
+                foreach ($value as $child) {
+                    if (!is_array($child)) {
+                        continue;
+                    }
+                    $name = self::windowMisuseFunctionName($child);
+                    if ($name !== null) {
+                        return $name;
+                    }
+                }
+                continue;
+            }
+
+            $name = self::windowMisuseFunctionName($value);
+            if ($name !== null) {
+                return $name;
+            }
+        }
+
+        return null;
     }
 
     private static function windowFrameOffset(string $sql): ?int
@@ -6149,6 +6268,7 @@ final class SQLiteSelectSql
                     continue;
                 }
 
+                self::assertExpressionHasNoWindowFunctions($ordinalExpression, 'GROUP BY');
                 $column = '__groupByExpression' . $index;
                 $columns[] = $column;
                 unset($ordinalExpression['alias'], $ordinalExpression['hiddenOrderColumn']);
@@ -6162,6 +6282,7 @@ final class SQLiteSelectSql
             if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $term) === 1) {
                 $aliasExpression = self::groupByAliasExpression($term, $select);
                 if ($aliasExpression !== null) {
+                    self::assertExpressionHasNoWindowFunctions($aliasExpression, 'GROUP BY');
                     $column = '__groupByExpression' . $index;
                     $columns[] = $column;
                     $expressions[] = [
@@ -6181,6 +6302,7 @@ final class SQLiteSelectSql
 
             $column = '__groupByExpression' . $index;
             $expression = self::valueExpression($term);
+            self::assertExpressionHasNoWindowFunctions($expression, 'GROUP BY');
             $columns[] = $column;
             $expressions[] = [
                 'column' => $column,
@@ -7713,6 +7835,7 @@ final class SQLiteSelectSql
     private static function limitInteger(string $sql, array $tables = []): int
     {
         $expression = self::valueExpression($sql, $tables);
+        self::assertExpressionHasNoWindowFunctions($expression, 'LIMIT');
         $value = SQLiteSelectExpression::evaluate([], $expression);
 
         if (is_bool($value) || is_int($value)) {

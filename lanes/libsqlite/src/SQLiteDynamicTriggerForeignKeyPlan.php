@@ -480,6 +480,324 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @return list<array{source:string,upstream_file:string,case:int,batch:int,upstream_section:string,scenario:string,operation:string,statement:string|null,table:string|null,parent_table:string|null,child_table:string|null,without_rowid_tables:list<string>,result_code:int,error:string|null,status:string,count_changes:bool,count_changes_rows:list<int>,deferred:bool,transaction_active:bool,foreign_key_check:list<array<string,mixed>>,parent_key:mixed,child_key:mixed,child_value_type:string|null,parent_value_type:string|null,parent_collation:string,child_collation:string,action:string|null,statement_rolled_back:bool,final_parent_keys:list<mixed>,final_child_keys:list<mixed>,detail:string,dependencies:list<string>}>
+     */
+    public static function withoutRowid3ForeignKeyRuntimeCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite without_rowid3 dynamic corpus requires at least one foreign-key runtime case');
+        }
+
+        $simpleStatements = [
+            ['1.1', 'INSERT INTO t2 VALUES(1, 3)', 't2', 't1', 1, 1, 1, 'FOREIGN KEY constraint failed', 'insert child before parent is rejected'],
+            ['1.2', 'INSERT INTO t1 VALUES(1, 2)', 't1', null, 1, null, 0, null, 'insert parent WITHOUT ROWID primary key succeeds'],
+            ['1.3', 'INSERT INTO t2 VALUES(1, 3)', 't2', 't1', 1, 1, 0, null, 'insert matching child succeeds after parent row exists'],
+            ['1.4', 'INSERT INTO t2 VALUES(2, 4)', 't2', 't1', 1, 2, 1, 'FOREIGN KEY constraint failed', 'insert child with missing parent is rejected'],
+            ['1.5', 'INSERT INTO t2 VALUES(NULL, 4)', 't2', 't1', 1, null, 0, null, 'NULL child key bypasses the parent lookup'],
+            ['1.6', 'UPDATE t2 SET c=2 WHERE d=4', 't2', 't1', 1, 2, 1, 'FOREIGN KEY constraint failed', 'update to missing parent is rejected'],
+            ['1.7', 'UPDATE t2 SET c=1 WHERE d=4', 't2', 't1', 1, 1, 0, null, 'update to existing parent succeeds'],
+            ['1.10', 'UPDATE t2 SET c=NULL WHERE d=4', 't2', 't1', 1, null, 0, null, 'update to NULL child key succeeds'],
+            ['1.11', 'DELETE FROM t1 WHERE a=1', 't1', 't2', 1, 1, 1, 'FOREIGN KEY constraint failed', 'delete referenced parent is blocked'],
+            ['1.12', 'UPDATE t1 SET a = 2', 't1', 't2', 1, 1, 1, 'FOREIGN KEY constraint failed', 'update referenced parent key is blocked'],
+            ['1.13', 'UPDATE t1 SET a = 1', 't1', 't2', 1, 1, 0, null, 'no-op parent key update succeeds'],
+            ['2.1', 'INSERT INTO t4 VALUES(1, 3)', 't4', 't3', 1, 1, 1, 'FOREIGN KEY constraint failed', 'implicit parent primary-key reference is rejected before parent exists'],
+            ['2.2', 'INSERT INTO t3 VALUES(1, 2)', 't3', null, 1, null, 0, null, 'insert implicit parent WITHOUT ROWID primary key succeeds'],
+            ['2.3', 'INSERT INTO t4 VALUES(1, 3)', 't4', 't3', 1, 1, 0, null, 'implicit parent primary-key reference succeeds after parent exists'],
+            ['4.1', 'INSERT INTO t8 VALUES(1, 3)', 't8', 't7', 1, 1, 1, 'FOREIGN KEY constraint failed', 'child references non-left WITHOUT ROWID primary-key column before parent exists'],
+            ['4.2', 'INSERT INTO t7 VALUES(2, 1)', 't7', null, 1, null, 0, null, 'insert parent with non-left primary-key column succeeds'],
+            ['4.3', 'INSERT INTO t8 VALUES(1, 3)', 't8', 't7', 1, 1, 0, null, 'child references non-left primary-key column after parent exists'],
+            ['4.4', 'INSERT INTO t8 VALUES(2, 4)', 't8', 't7', 1, 2, 1, 'FOREIGN KEY constraint failed', 'non-left primary-key child mismatch is rejected'],
+            ['4.5', 'INSERT INTO t8 VALUES(NULL, 4)', 't8', 't7', 1, null, 0, null, 'NULL child key bypasses non-left primary-key lookup'],
+            ['4.6', 'UPDATE t8 SET c=2 WHERE d=4', 't8', 't7', 1, 2, 1, 'FOREIGN KEY constraint failed', 'update to missing non-left parent key is rejected'],
+            ['4.7', 'UPDATE t8 SET c=1 WHERE d=4', 't8', 't7', 1, 1, 0, null, 'update to existing non-left parent key succeeds'],
+            ['4.10', 'UPDATE t8 SET c=NULL WHERE d=4', 't8', 't7', 1, null, 0, null, 'NULL update on non-left child key succeeds'],
+            ['4.11', 'DELETE FROM t7 WHERE b=1', 't7', 't8', 1, 1, 1, 'FOREIGN KEY constraint failed', 'delete non-left parent key is blocked'],
+            ['4.12', 'UPDATE t7 SET b = 2', 't7', 't8', 1, 1, 1, 'FOREIGN KEY constraint failed', 'update non-left parent key is blocked'],
+            ['4.13', 'UPDATE t7 SET b = 1', 't7', 't8', 1, 1, 0, null, 'no-op non-left parent update succeeds'],
+            ['4.14', "INSERT INTO t8 VALUES('a', 'b')", 't8', 't7', 1, 'a', 1, 'FOREIGN KEY constraint failed', 'text child key does not match integer parent key'],
+            ['4.15', 'UPDATE t7 SET b = 5', 't7', 't8', 1, 1, 1, 'FOREIGN KEY constraint failed', 'parent key update remains blocked by existing child'],
+            ['4.17', 'UPDATE t7 SET a = 10', 't7', null, 1, null, 0, null, 'updating non-key payload column succeeds'],
+            ['5.1', 'INSERT INTO t9 VALUES(1, 3)', 't9', 'nosuchtable', null, 1, 1, 'no such table: main.nosuchtable', 'missing parent table error is raised at DML time'],
+            ['5.2', 'INSERT INTO t10 VALUES(1, 3)', 't10', 't9', null, 1, 1, 'foreign key mismatch - "t10" referencing "t9"', 'mismatched parent key error is raised at DML time'],
+        ];
+
+        $modes = [
+            ['prefix' => 'without_rowid3-1.1', 'mode' => 'immediate', 'deferred' => false, 'count_changes' => false, 'transaction' => false],
+            ['prefix' => 'without_rowid3-1.2', 'mode' => 'deferrable-autocommit', 'deferred' => true, 'count_changes' => false, 'transaction' => false],
+            ['prefix' => 'without_rowid3-1.3', 'mode' => 'count-changes-autocommit', 'deferred' => false, 'count_changes' => true, 'transaction' => false],
+            ['prefix' => 'without_rowid3-1.4', 'mode' => 'count-changes-transaction', 'deferred' => false, 'count_changes' => true, 'transaction' => true],
+        ];
+
+        $templates = [];
+        foreach ($modes as $mode) {
+            foreach ($simpleStatements as $statement) {
+                [$suffix, $sql, $table, $parentTable, $parentKey, $childKey, $resultCode, $error, $detail] = $statement;
+                $templates[] = [
+                    'upstream_section' => $mode['prefix'] . '.' . $suffix,
+                    'operation' => 'without-rowid-simple-foreign-key-' . $mode['mode'],
+                    'statement' => $sql,
+                    'table' => $table,
+                    'parent_table' => $parentTable,
+                    'child_table' => in_array($table, ['t2', 't4', 't8', 't9', 't10'], true) ? $table : null,
+                    'without_rowid_tables' => ['t1', 't3', 't7'],
+                    'result_code' => $resultCode,
+                    'error' => $error,
+                    'count_changes' => $mode['count_changes'],
+                    'deferred' => $mode['deferred'],
+                    'transaction_active' => $mode['transaction'],
+                    'parent_key' => $parentKey,
+                    'child_key' => $childKey,
+                    'child_value_type' => is_string($childKey) ? 'text' : ($childKey === null ? null : 'integer'),
+                    'parent_value_type' => $parentKey === null ? null : 'integer',
+                    'parent_collation' => 'binary',
+                    'child_collation' => 'binary',
+                    'action' => null,
+                    'statement_rolled_back' => $resultCode !== 0,
+                    'final_parent_keys' => $resultCode === 0 && $table !== 't2' && $parentKey !== null ? [$parentKey] : [1],
+                    'final_child_keys' => $resultCode === 0 && $childKey !== null ? [$childKey] : [],
+                    'detail' => $detail,
+                    'dependencies' => [
+                        'sqlite-without-rowid3-primary-key-parent-lookup',
+                        'sqlite-without-rowid3-foreign-key-check-clean-after-each-statement',
+                        $mode['count_changes'] ? 'sqlite-without-rowid3-count-changes-success-yields-row-count' : 'sqlite-without-rowid3-catchsql-result-code-stable',
+                    ],
+                ];
+            }
+        }
+
+        $templates = array_merge($templates, [
+            [
+                'upstream_section' => 'without_rowid3-1.5.1',
+                'operation' => 'without-rowid-parent-int-affinity-preserves-child-text',
+                'statement' => "INSERT INTO i VALUES(35); INSERT INTO j VALUES('35.0')",
+                'table' => 'j',
+                'parent_table' => 'i',
+                'child_table' => 'j',
+                'without_rowid_tables' => ['i'],
+                'result_code' => 0,
+                'error' => null,
+                'count_changes' => false,
+                'deferred' => false,
+                'transaction_active' => false,
+                'parent_key' => 35,
+                'child_key' => '35.0',
+                'child_value_type' => 'text',
+                'parent_value_type' => 'integer',
+                'parent_collation' => 'binary',
+                'child_collation' => 'binary',
+                'action' => 'delete-parent-blocked',
+                'statement_rolled_back' => false,
+                'final_parent_keys' => [35],
+                'final_child_keys' => ['35.0'],
+                'detail' => 'WITHOUT ROWID INT primary-key parent affinity is used for FK comparison without coercing stored child text',
+                'dependencies' => ['sqlite-without-rowid3-parent-affinity-lookup', 'sqlite-without-rowid3-child-storage-class-preserved'],
+            ],
+            [
+                'upstream_section' => 'without_rowid3-1.6.1',
+                'operation' => 'rowid-unique-parent-int-affinity-preserves-child-text',
+                'statement' => "INSERT INTO i VALUES('35.0'); INSERT INTO j VALUES('35.0')",
+                'table' => 'j',
+                'parent_table' => 'i',
+                'child_table' => 'j',
+                'without_rowid_tables' => [],
+                'result_code' => 0,
+                'error' => null,
+                'count_changes' => false,
+                'deferred' => false,
+                'transaction_active' => false,
+                'parent_key' => 35,
+                'child_key' => '35.0',
+                'child_value_type' => 'text',
+                'parent_value_type' => 'integer',
+                'parent_collation' => 'binary',
+                'child_collation' => 'binary',
+                'action' => 'delete-parent-blocked',
+                'statement_rolled_back' => false,
+                'final_parent_keys' => [35],
+                'final_child_keys' => ['35.0'],
+                'detail' => 'ordinary UNIQUE parent affinity comparison matches the WITHOUT ROWID parent-affinity behavior',
+                'dependencies' => ['sqlite-without-rowid3-parent-affinity-lookup', 'sqlite-without-rowid3-rowid-unique-parent-comparison'],
+            ],
+            [
+                'upstream_section' => 'without_rowid3-1.7.1',
+                'operation' => 'without-rowid-parent-nocase-collation-blocks-delete',
+                'statement' => "INSERT INTO i VALUES('SQLite'); INSERT INTO j VALUES('sqlite'); DELETE FROM i",
+                'table' => 'j',
+                'parent_table' => 'i',
+                'child_table' => 'j',
+                'without_rowid_tables' => ['i'],
+                'result_code' => 1,
+                'error' => 'FOREIGN KEY constraint failed',
+                'count_changes' => false,
+                'deferred' => false,
+                'transaction_active' => false,
+                'parent_key' => 'SQLite',
+                'child_key' => 'sqlite',
+                'child_value_type' => 'text',
+                'parent_value_type' => 'text',
+                'parent_collation' => 'nocase',
+                'child_collation' => 'binary',
+                'action' => 'delete-parent-blocked',
+                'statement_rolled_back' => true,
+                'final_parent_keys' => ['SQLite'],
+                'final_child_keys' => ['sqlite'],
+                'detail' => 'parent NOCASE collation governs the FK lookup even when child collation is BINARY',
+                'dependencies' => ['sqlite-without-rowid3-parent-collation-governs-child-lookup', 'sqlite-without-rowid3-delete-parent-blocked'],
+            ],
+            [
+                'upstream_section' => 'without_rowid3-1.7.2',
+                'operation' => 'without-rowid-parent-binary-collation-rejects-child-nocase-match',
+                'statement' => "INSERT INTO i VALUES('SQLite'); INSERT INTO j VALUES('sqlite')",
+                'table' => 'j',
+                'parent_table' => 'i',
+                'child_table' => 'j',
+                'without_rowid_tables' => ['i'],
+                'result_code' => 1,
+                'error' => 'FOREIGN KEY constraint failed',
+                'count_changes' => false,
+                'deferred' => false,
+                'transaction_active' => false,
+                'parent_key' => 'SQLite',
+                'child_key' => 'sqlite',
+                'child_value_type' => 'text',
+                'parent_value_type' => 'text',
+                'parent_collation' => 'binary',
+                'child_collation' => 'nocase',
+                'action' => null,
+                'statement_rolled_back' => true,
+                'final_parent_keys' => ['SQLite'],
+                'final_child_keys' => [],
+                'detail' => 'child NOCASE collation does not override the parent BINARY key comparison',
+                'dependencies' => ['sqlite-without-rowid3-parent-collation-governs-child-lookup', 'sqlite-without-rowid3-binary-parent-rejects-case-folded-child'],
+            ],
+            [
+                'upstream_section' => 'without_rowid3-9.1.2',
+                'operation' => 'without-rowid-set-default-delete-action',
+                'statement' => 'DELETE FROM t1 WHERE a = 2',
+                'table' => 't2',
+                'parent_table' => 't1',
+                'child_table' => 't2',
+                'without_rowid_tables' => ['t1', 't2'],
+                'result_code' => 0,
+                'error' => null,
+                'count_changes' => false,
+                'deferred' => false,
+                'transaction_active' => false,
+                'parent_key' => 2,
+                'child_key' => 2,
+                'child_value_type' => 'integer',
+                'parent_value_type' => 'integer',
+                'parent_collation' => 'binary',
+                'child_collation' => 'binary',
+                'action' => 'SET DEFAULT',
+                'statement_rolled_back' => false,
+                'final_parent_keys' => [1],
+                'final_child_keys' => [1],
+                'detail' => 'ON DELETE SET DEFAULT rewrites the child key to the declared default that still matches a parent row',
+                'dependencies' => ['sqlite-without-rowid3-set-default-action', 'sqlite-without-rowid3-action-preserves-clean-foreign-key-check'],
+            ],
+            [
+                'upstream_section' => 'without_rowid3-11.1.1',
+                'operation' => 'without-rowid-update-cascade-action',
+                'statement' => 'UPDATE t1 SET a = 15',
+                'table' => 't2',
+                'parent_table' => 't1',
+                'child_table' => 't2',
+                'without_rowid_tables' => ['t1'],
+                'result_code' => 0,
+                'error' => null,
+                'count_changes' => false,
+                'deferred' => false,
+                'transaction_active' => false,
+                'parent_key' => 15,
+                'child_key' => 15,
+                'child_value_type' => 'integer',
+                'parent_value_type' => 'integer',
+                'parent_collation' => 'binary',
+                'child_collation' => 'binary',
+                'action' => 'CASCADE',
+                'statement_rolled_back' => false,
+                'final_parent_keys' => [15],
+                'final_child_keys' => [15],
+                'detail' => 'ON UPDATE CASCADE follows the WITHOUT ROWID parent primary-key update into the child row',
+                'dependencies' => ['sqlite-without-rowid3-cascade-action', 'sqlite-without-rowid3-action-preserves-clean-foreign-key-check'],
+            ],
+            [
+                'upstream_section' => 'without_rowid3-12.1.4',
+                'operation' => 'without-rowid-deferred-restrict-remains-immediate',
+                'statement' => "UPDATE t1 SET b = 'five' WHERE b = 'two'",
+                'table' => 't1',
+                'parent_table' => 't1',
+                'child_table' => 't2',
+                'without_rowid_tables' => ['t1'],
+                'result_code' => 1,
+                'error' => 'FOREIGN KEY constraint failed',
+                'count_changes' => false,
+                'deferred' => true,
+                'transaction_active' => true,
+                'parent_key' => 'two',
+                'child_key' => 'two',
+                'child_value_type' => 'text',
+                'parent_value_type' => 'text',
+                'parent_collation' => 'binary',
+                'child_collation' => 'binary',
+                'action' => 'RESTRICT',
+                'statement_rolled_back' => true,
+                'final_parent_keys' => ['one', 'two', 'three'],
+                'final_child_keys' => ['two'],
+                'detail' => 'RESTRICT is checked immediately even on a DEFERRABLE INITIALLY DEFERRED WITHOUT ROWID reference',
+                'dependencies' => ['sqlite-without-rowid3-restrict-action-is-immediate', 'sqlite-without-rowid3-deferred-transaction-remains-open'],
+            ],
+        ]);
+
+        $out = [];
+        $templateCount = count($templates);
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % $templateCount];
+            $batch = intdiv($case - 1, $templateCount) + 1;
+            $resultCode = (int) $template['result_code'];
+            $countChanges = (bool) $template['count_changes'];
+
+            $out[] = [
+                'source' => 'without_rowid3.test sections 1.1 through 1.7, 9.1, 11.1, and 12.1',
+                'upstream_file' => 'test/without_rowid3.test',
+                'case' => $case,
+                'batch' => $batch,
+                'upstream_section' => $template['upstream_section'],
+                'scenario' => $template['detail'] . ' dynamic batch ' . $batch,
+                'operation' => $template['operation'],
+                'statement' => $template['statement'],
+                'table' => $template['table'],
+                'parent_table' => $template['parent_table'],
+                'child_table' => $template['child_table'],
+                'without_rowid_tables' => $template['without_rowid_tables'],
+                'result_code' => $resultCode,
+                'error' => $template['error'],
+                'status' => $resultCode === 0 ? 'commit-ok' : 'constraint-failed',
+                'count_changes' => $countChanges,
+                'count_changes_rows' => $countChanges && $resultCode === 0 ? [1] : [],
+                'deferred' => (bool) $template['deferred'],
+                'transaction_active' => (bool) $template['transaction_active'],
+                'foreign_key_check' => [],
+                'parent_key' => $template['parent_key'],
+                'child_key' => $template['child_key'],
+                'child_value_type' => $template['child_value_type'],
+                'parent_value_type' => $template['parent_value_type'],
+                'parent_collation' => $template['parent_collation'],
+                'child_collation' => $template['child_collation'],
+                'action' => $template['action'],
+                'statement_rolled_back' => (bool) $template['statement_rolled_back'],
+                'final_parent_keys' => $template['final_parent_keys'],
+                'final_child_keys' => $template['final_child_keys'],
+                'detail' => $template['detail'],
+                'dependencies' => $template['dependencies'],
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return array<string,mixed>
      */
     public static function selfReferencingRowPlan(string $schemaKind, int $oldKey, int $oldParent, int $newKey, int $newParent): array
@@ -1019,6 +1337,87 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             'dependencies' => [
                 'sqlite-fkey2-count-changes-excludes-fk-action-rows',
                 'sqlite-fkey2-total-changes-includes-fk-action-rows',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{name:string,schema?:string,foreign_keys:list<array{table:string,from:list<string>,to?:list<string>,on_update?:string,on_delete?:string,match?:string}>}> $tables
+     * @return array<string,mixed>
+     */
+    public static function fkey1ForeignKeyListCatalogPlan(array $tables, ?string $targetTable = null): array
+    {
+        if ($tables === []) {
+            throw new \InvalidArgumentException('SQLite fkey1 foreign key catalog tables cannot be empty');
+        }
+
+        $targetTable = $targetTable === null ? null : self::identifier($targetTable, 'fkey1 target table');
+        $declaredTables = [];
+        $rowsByTable = [];
+        $rowCountByTable = [];
+        foreach ($tables as $table) {
+            $name = self::identifier((string) ($table['name'] ?? ''), 'fkey1 table name');
+            $declaredTables[] = $name;
+            if ($targetTable !== null && $targetTable !== $name) {
+                continue;
+            }
+
+            $foreignKeys = $table['foreign_keys'] ?? null;
+            if (!is_array($foreignKeys) || !array_is_list($foreignKeys)) {
+                throw new \InvalidArgumentException('SQLite fkey1 foreign key catalog definitions must be a list');
+            }
+
+            $rows = [];
+            foreach (array_reverse($foreignKeys) as $id => $foreignKey) {
+                $parent = self::identifier((string) ($foreignKey['table'] ?? ''), 'fkey1 referenced table');
+                $from = self::identifierList(array_values($foreignKey['from'] ?? []), 'fkey1 child columns');
+                $to = array_values($foreignKey['to'] ?? array_fill(0, count($from), ''));
+                if (count($from) !== count($to)) {
+                    throw new \InvalidArgumentException('SQLite fkey1 foreign key catalog column count mismatch');
+                }
+
+                foreach ($to as $seq => $parentColumn) {
+                    $parentColumn = (string) $parentColumn;
+                    if ($parentColumn !== '') {
+                        $parentColumn = self::identifier($parentColumn, 'fkey1 parent column');
+                    }
+
+                    $rows[] = [
+                        'id' => $id,
+                        'seq' => $seq,
+                        'table' => $parent,
+                        'from' => $from[$seq],
+                        'to' => $parentColumn,
+                        'on_update' => self::foreignKeyCatalogAction((string) ($foreignKey['on_update'] ?? 'NO ACTION')),
+                        'on_delete' => self::foreignKeyCatalogAction((string) ($foreignKey['on_delete'] ?? 'NO ACTION')),
+                        'match' => strtoupper((string) ($foreignKey['match'] ?? 'NONE')),
+                    ];
+                }
+            }
+
+            $rowsByTable[$name] = $rows;
+            $rowCountByTable[$name] = count($rows);
+        }
+
+        if ($targetTable !== null && !in_array($targetTable, $declaredTables, true)) {
+            throw new \InvalidArgumentException('SQLite fkey1 foreign key catalog target table is missing');
+        }
+
+        return [
+            'source' => 'fkey1.test fkey1-1.0..3.5',
+            'operation' => 'foreign-key-list-catalog',
+            'target_table' => $targetTable,
+            'declared_tables' => $declaredTables,
+            'table_count' => count($declaredTables),
+            'rows_by_table' => $rowsByTable,
+            'row_count_by_table' => $rowCountByTable,
+            'total_foreign_key_rows' => array_sum($rowCountByTable),
+            'deferred_fk_status' => ['current' => 0, 'highwater' => 0, 'reset' => false],
+            'dependencies' => [
+                'sqlite-fkey1-pragma-foreign-key-list-reverses-declaration-order',
+                'sqlite-fkey1-composite-foreign-key-list-preserves-sequence',
+                'sqlite-fkey1-implicit-parent-columns-render-empty-to-column',
+                'sqlite-fkey1-dbstatus-deferred-fks-zero-with-no-open-violations',
             ],
         ];
     }
@@ -10394,6 +10793,16 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return false;
+    }
+
+    private static function foreignKeyCatalogAction(string $action): string
+    {
+        $normalized = strtoupper(str_replace('_', ' ', trim($action)));
+        if (!in_array($normalized, ['NO ACTION', 'CASCADE', 'SET NULL', 'SET DEFAULT', 'RESTRICT'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey1 foreign key catalog action is unsupported');
+        }
+
+        return $normalized;
     }
 
     private static function identifier(string $value, string $label): string
