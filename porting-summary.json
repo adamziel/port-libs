@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 20:29:07 UTC",
-    "sourceCommit": "5409cac66e704a3a73127067a320ae0abfba227d",
-    "sourceCommitShort": "5409cac66e70",
+    "generated": "2026-06-01 20:33:55 UTC",
+    "sourceCommit": "e2b02d2d5304c46c730fddbe3ec15ab5d972bb4a",
+    "sourceCommitShort": "e2b02d2d5304",
     "sourceBranch": "unknown",
-    "dashboardCommit": "5409cac66e704a3a73127067a320ae0abfba227d",
-    "dashboardCommitShort": "5409cac66e70",
+    "dashboardCommit": "e2b02d2d5304c46c730fddbe3ec15ab5d972bb4a",
+    "dashboardCommitShort": "e2b02d2d5304",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,250,656 pass / 16 fail",
-            "phase": "current-base source integration accepted by supervisor with focused W...",
-            "audit": "2026-06-01 20:28 UTC supervisor integration: source commit 5409cac66e...",
-            "currentWork": "Application WAL rollback JSON checkpoint follow-up parity, real upstream VFS cacheflu...",
+            "php": "6,253,874 pass / 16 fail",
+            "phase": "current-base source integration accepted by supervisor with focused i...",
+            "audit": "2026-06-01 20:33 UTC supervisor integration: source commit e2b02d2d53...",
+            "currentWork": "Real upstream instr(), pager/WAL empty-journal cleanup, declared-collation selectA pa...",
             "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "5409cac"
+            "commit": "e2b02d2"
         },
         {
             "lane": "lightningcss",
