@@ -378,6 +378,7 @@ final class SQLitePDO extends \PDO
                 return ['rows' => [], 'changes' => 0];
             }
             if (SQLiteInsertValuesSql::startsWithInsertKeyword($sql)) {
+                $this->validateInsertPrepareSql($sql);
                 $result = $this->executeDataChangeAtomically(
                     fn (): array => ['rows' => [], 'changes' => $this->insertValues($sql, $parameters)],
                 );
@@ -386,6 +387,7 @@ final class SQLitePDO extends \PDO
                 return $result;
             }
             if (preg_match('/^update\b/i', $sql) === 1) {
+                $this->validateUpdatePrepareSql($sql);
                 $result = $this->executeDataChangeAtomically(
                     fn (): array => ['rows' => [], 'changes' => $this->updateRows($sql, $parameters)],
                 );
@@ -394,6 +396,7 @@ final class SQLitePDO extends \PDO
                 return $result;
             }
             if (preg_match('/^delete\b/i', $sql) === 1) {
+                $this->validateDeletePrepareSql($sql);
                 $result = $this->executeDataChangeAtomically(
                     fn (): array => ['rows' => [], 'changes' => $this->deleteRows($sql, $parameters)],
                 );
@@ -727,7 +730,184 @@ final class SQLitePDO extends \PDO
             foreach ($this->splitTopLevel($match[1], ',') as $argument) {
                 $this->assertPrepareScalarReferences($argument, $knownColumns);
             }
+
+            return;
         }
+
+        $this->assertPrepareExpressionReferences($expression, $knownColumns);
+    }
+
+    /** @param array<string,bool> $knownColumns */
+    private function assertPrepareExpressionReferences(string $expression, array $knownColumns): void
+    {
+        $length = strlen($expression);
+        $expectingTypeName = false;
+        $expectingCollationName = false;
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expression[$i];
+            if (($char === 'X' || $char === 'x') && ($expression[$i + 1] ?? null) === "'") {
+                $i = $this->skipSingleQuotedSql($expression, $i + 1);
+                continue;
+            }
+            if ($char === "'") {
+                $i = $this->skipSingleQuotedSql($expression, $i);
+                continue;
+            }
+            if ($char === '?') {
+                $end = $i + 1;
+                while ($end < $length && ctype_digit($expression[$end])) {
+                    $end++;
+                }
+                $token = substr($expression, $i, $end - $i);
+                if ($token !== '?') {
+                    $this->explicitParameterIndex($token);
+                }
+                $i = $end - 1;
+                continue;
+            }
+            if ($char === ':' || $char === '@' || $char === '$') {
+                $token = $this->namedParameterToken($expression, $i);
+                if ($token !== null) {
+                    $i += strlen($token) - 1;
+                }
+                continue;
+            }
+            if (!ctype_alpha($char) && $char !== '_') {
+                continue;
+            }
+
+            $start = $i;
+            $i++;
+            while ($i < $length && (ctype_alnum($expression[$i]) || $expression[$i] === '_')) {
+                $i++;
+            }
+            $identifier = substr($expression, $start, $i - $start);
+            $i--;
+            $lowerIdentifier = strtolower($identifier);
+            $next = $this->nextNonWhitespaceChar($expression, $i + 1);
+            $previous = $this->previousNonWhitespaceChar($expression, $start - 1);
+            if ($lowerIdentifier === 'as') {
+                $expectingTypeName = true;
+                continue;
+            }
+            if ($lowerIdentifier === 'collate') {
+                $expectingCollationName = true;
+                continue;
+            }
+            if ($expectingTypeName && $this->isPrepareExpressionTypeName($identifier)) {
+                $expectingTypeName = false;
+                continue;
+            }
+            if ($expectingCollationName) {
+                $expectingCollationName = false;
+                continue;
+            }
+            $expectingTypeName = false;
+            if ($next === '(' || $next === '.' || $this->isPrepareExpressionKeyword($identifier)) {
+                continue;
+            }
+            if (array_key_exists($identifier, $knownColumns)) {
+                continue;
+            }
+            if ($previous === '.' && array_key_exists($identifier, $knownColumns)) {
+                continue;
+            }
+
+            throw new \PDOException("no such column: {$identifier}");
+        }
+    }
+
+    private function skipSingleQuotedSql(string $sql, int $quoteOffset): int
+    {
+        $length = strlen($sql);
+        for ($i = $quoteOffset + 1; $i < $length; $i++) {
+            if ($sql[$i] === "'" && ($sql[$i + 1] ?? null) === "'") {
+                $i++;
+                continue;
+            }
+            if ($sql[$i] === "'") {
+                return $i;
+            }
+        }
+
+        return $length - 1;
+    }
+
+    private function nextNonWhitespaceChar(string $sql, int $offset): ?string
+    {
+        $length = strlen($sql);
+        while ($offset < $length) {
+            if (!ctype_space($sql[$offset])) {
+                return $sql[$offset];
+            }
+            $offset++;
+        }
+
+        return null;
+    }
+
+    private function previousNonWhitespaceChar(string $sql, int $offset): ?string
+    {
+        while ($offset >= 0) {
+            if (!ctype_space($sql[$offset])) {
+                return $sql[$offset];
+            }
+            $offset--;
+        }
+
+        return null;
+    }
+
+    private function isPrepareExpressionKeyword(string $identifier): bool
+    {
+        static $keywords = [
+            'and' => true,
+            'between' => true,
+            'case' => true,
+            'current_date' => true,
+            'current_time' => true,
+            'current_timestamp' => true,
+            'else' => true,
+            'end' => true,
+            'escape' => true,
+            'false' => true,
+            'glob' => true,
+            'in' => true,
+            'is' => true,
+            'like' => true,
+            'match' => true,
+            'not' => true,
+            'null' => true,
+            'or' => true,
+            'regexp' => true,
+            'then' => true,
+            'true' => true,
+            'when' => true,
+        ];
+
+        return isset($keywords[strtolower($identifier)]);
+    }
+
+    private function isPrepareExpressionTypeName(string $identifier): bool
+    {
+        static $types = [
+            'bigint' => true,
+            'blob' => true,
+            'boolean' => true,
+            'char' => true,
+            'clob' => true,
+            'date' => true,
+            'datetime' => true,
+            'double' => true,
+            'int' => true,
+            'integer' => true,
+            'numeric' => true,
+            'real' => true,
+            'text' => true,
+            'varchar' => true,
+        ];
+
+        return isset($types[strtolower($identifier)]);
     }
 
     private function isColumnResolutionError(string $message): bool
