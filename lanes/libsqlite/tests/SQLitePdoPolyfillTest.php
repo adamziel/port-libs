@@ -247,7 +247,10 @@ return [
 
         $cases = [
             'insert unknown target column' => ['exec', "INSERT INTO test (namedd) VALUES ('Other')"],
+            'insert unknown scalar column' => ['exec', "INSERT INTO test (name) VALUES (missing_column)"],
+            'insert second tuple unknown scalar column' => ['exec', "INSERT INTO test (name) VALUES ('queued'), (missing_column)"],
             'update unknown assignment column' => ['exec', "UPDATE test SET namedd = 'Other' WHERE id = 1"],
+            'update unknown scalar column' => ['exec', "UPDATE test SET name = missing_column WHERE id = 1"],
             'select unknown result column' => ['query', 'SELECT namedd FROM test'],
             'select unknown predicate column' => ['query', 'SELECT name FROM test WHERE namedd = 1'],
         ];
@@ -277,6 +280,7 @@ return [
                         'error_code' => $pdo->errorCode(),
                         'error_info' => $pdo->errorInfo(),
                         'file_unchanged' => hash('sha256', $before) === hash('sha256', $after),
+                        'rows_after_error' => $pdo->query('SELECT * FROM test')->fetchAll(PDO::FETCH_ASSOC),
                     ];
                 }
             }
@@ -302,7 +306,10 @@ return [
 
             $expectedMessages = [
                 'insert unknown target column' => 'table test has no column named namedd',
+                'insert unknown scalar column' => 'no such column: missing_column',
+                'insert second tuple unknown scalar column' => 'no such column: missing_column',
                 'update unknown assignment column' => 'no such column: namedd',
+                'update unknown scalar column' => 'no such column: missing_column',
                 'select unknown result column' => 'no such column: namedd',
                 'select unknown predicate column' => 'no such column: namedd',
             ];
@@ -314,10 +321,12 @@ return [
                 $t->same(1, $polyfill['errors'][$name]['error_info'][1]);
                 $t->same($expectedMessage, $polyfill['errors'][$name]['error_info'][2]);
                 $t->same(true, $polyfill['errors'][$name]['file_unchanged']);
+                $t->same([['id' => 1, 'name' => 'Janet']], $polyfill['errors'][$name]['rows_after_error']);
 
                 if ($native !== null) {
                     $t->same($native['errors'][$name]['error_info'][2], $polyfill['errors'][$name]['error_info'][2]);
                     $t->same(true, $native['errors'][$name]['file_unchanged']);
+                    $t->same($native['errors'][$name]['rows_after_error'], $polyfill['errors'][$name]['rows_after_error']);
                 }
             }
 

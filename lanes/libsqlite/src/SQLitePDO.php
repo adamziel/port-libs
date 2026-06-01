@@ -714,6 +714,9 @@ final class SQLitePDO extends \PDO
 
             return SQLiteJsonCanonical::jsonSqlFunctionArguments($match[1], $arguments);
         }
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $expression) === 1) {
+            throw new \PDOException("no such column: {$expression}");
+        }
 
         throw new \PDOException("SQLitePDO unsupported scalar expression: {$expression}");
     }
