@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 22:37:24 UTC",
-    "sourceCommit": "e76cce77b51694e2902420eaf0b84ee1d1259744",
-    "sourceCommitShort": "e76cce77b516",
+    "generated": "2026-06-01 22:45:55 UTC",
+    "sourceCommit": "9edcfb13f9a2a5edea9b3265595ec63252e7d4e7",
+    "sourceCommitShort": "9edcfb13f9a2",
     "sourceBranch": "unknown",
-    "dashboardCommit": "e76cce77b51694e2902420eaf0b84ee1d1259744",
-    "dashboardCommitShort": "e76cce77b516",
+    "dashboardCommit": "9edcfb13f9a2a5edea9b3265595ec63252e7d4e7",
+    "dashboardCommitShort": "9edcfb13f9a2",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,285,636 pass / 16 fail",
-            "phase": "current-base source integration accepted by supervisor with focused S...",
+            "php": "6,285,695 pass / 16 fail",
+            "phase": "current-base source integration accepted by supervisor with focused r...",
             "audit": "2026-06-01 21:15 UTC supervisor integration: source commit c3bf2f17bb...",
-            "currentWork": "SQLitePDO conflict-modifier invalid-DML native parity is integrated on top of real up...",
+            "currentWork": "Row-value UPDATE/DELETE dynamic LIMIT connection-status scalar parity is integrated o...",
             "nextTarget": "Continue reducing the 16 broad libsqlite failures, especially...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "e76cce7"
+            "commit": "9edcfb1"
         },
         {
             "lane": "lightningcss",
