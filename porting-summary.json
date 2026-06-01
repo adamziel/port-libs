@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 21:12:38 UTC",
-    "sourceCommit": "51f464f4a819911ce844f9277400e95202b06e0a",
-    "sourceCommitShort": "51f464f4a819",
+    "generated": "2026-06-01 21:14:53 UTC",
+    "sourceCommit": "c3bf2f17bba490ea2ed3f2ad50e91fffd3b01d67",
+    "sourceCommitShort": "c3bf2f17bba4",
     "sourceBranch": "unknown",
-    "dashboardCommit": "51f464f4a819911ce844f9277400e95202b06e0a",
-    "dashboardCommitShort": "51f464f4a819",
+    "dashboardCommit": "c3bf2f17bba490ea2ed3f2ad50e91fffd3b01d67",
+    "dashboardCommitShort": "c3bf2f17bba4",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,271,886 pass / 16 fail",
+            "php": "6,272,894 pass / 16 fail",
             "phase": "current-base source integration accepted by supervisor with focused i...",
-            "audit": "2026-06-01 21:12 UTC supervisor integration: source commit 51f464f4a8...",
-            "currentWork": "Real upstream JSON101 null-semantics select SQL and source-neutral JSONB CHECK defaul...",
+            "audit": "2026-06-01 21:15 UTC supervisor integration: source commit c3bf2f17bb...",
+            "currentWork": "Real upstream UPsert omitted target-column-list RETURNING is integrated on top of JSO...",
             "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "51f464f"
+            "commit": "c3bf2f1"
         },
         {
             "lane": "lightningcss",
