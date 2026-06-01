@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "library": "LightningCSS",
-  "estimatedProgress": 99.0,
-  "suiteProgress": "Supervisor-integrated LightningCSS CSS Modules single :is() local/global, property-value color/font/grid, and source-map VLQ skipped-state parity. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 6179 assertions / 0 failures, and touched example self-tests.",
-  "phpPass": 6179,
+  "estimatedProgress": 99.1,
+  "suiteProgress": "Supervisor-integrated LightningCSS bundle/import graph, CSSOM cursor read/write, and custom at-rule literal repetition parser/visitor parity. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 6198 assertions / 0 failures, and touched example self-tests.",
+  "phpPass": 6198,
   "phpFail": 0,
   "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
   "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-  "audit": "2026-06-01 supervisor batch: full LightningCSS lane passed 13 files / 6179 assertions / 0 failures after accepting CSS Modules single :is() local/global, property-value color/font/grid, and source-map VLQ skipped-state parity. Conservative mapped coverage moves to 2356 / 3532. Full upstream Rust/Node/WASM runners were not executed.",
-  "currentWork": "CSS Modules single :is() local/global, property-value color/font/grid, and source-map VLQ skipped-state parity integrated on current base.",
-  "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 6179 assertions; continue source-map, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices.",
-  "latestCommit": "96cca5011c5eadcf313fc456524b47b359b352dd",
+  "audit": "2026-06-01 supervisor batch: full LightningCSS lane passed 13 files / 6198 assertions / 0 failures after accepting bundle/import graph, CSSOM cursor read/write, and custom at-rule literal repetition parser/visitor parity. Conservative mapped coverage moves to 2359 / 3532. Full upstream Rust/Node/WASM runners were not executed.",
+  "currentWork": "Bundle/import graph, CSSOM cursor read/write, and custom at-rule literal repetition parser/visitor parity integrated on current base.",
+  "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 6198 assertions; continue source-map, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices.",
+  "latestCommit": "a16249a96ea85947279c114b89312e6e6ce1a2cf",
   "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media queries, property values, target prefixing, CSSOM, and custom at-rules with full-lane PHP gates.",
-  "commit": "96cca50"
+  "commit": "a16249a"
 }

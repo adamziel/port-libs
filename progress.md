@@ -55,6 +55,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (pathspec/url/CSS replay intake): kept
+  integration moving while preserving the live worker pool. The next ready
+  batch was source-applied on current main, but the libsqlite row-value handoff
+  was parked because it still changed `CurrentSourceNext` row-value plan
+  classes/files. Accepted the clean Gitoxide/LightningCSS subset as source
+  commit `a16249a96ea85947279c114b89312e6e6ce1a2cf` (`ports: integrate
+  pathspec url and css parity`). The batch adds Gitoxide tree/pathspec
+  malformed POSIX class fallback parity and URL from-bytes access-helper
+  parsing; LightningCSS bundle/import graph behavior, CSSOM cursor read/write
+  parity, and custom at-rule literal repetition parser/visitor parity.
+  Verification passed PHP lint, `git diff --check`, full Gitoxide `40 files /
+  7591 assertions / 0 failures`, full LightningCSS `13 files / 6198 assertions
+  / 0 failures`, touched examples, and no new libsqlite
+  WordPress/wp_/numbered `CurrentSourceNext` source changes were accepted.
+  Dashboard status should report Gitoxide `1748 / 2886` mapped and `7591 pass
+  / 0 fail`, LightningCSS `2359 / 3532` mapped and `6198 pass / 0 fail`, and
+  libsqlite unchanged at `1589 / 1589` mapped with `5591045 pass / 7 fail`.
+
 - 2026-06-01 supervisor continuation (loose/sparse/CSS/pager replay intake
   05:18 UTC): kept the cleanup policy bounded after the active-session audit:
   `main` is the only tmux session and the visible worker pool has live Codex
