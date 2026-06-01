@@ -2458,8 +2458,8 @@
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Source-neutral skip-scan/UTF-16 cleanup and real upstream postfix NULL predicate expression coverage integrated on current base; SQLitePDO invalid-column behavior remains covered and throws before mutation.",
-        "latestNativePhpVerification": "Source commit 54e04a0ebdd61c1a4ea77d17412094979a5a09dd: PHP lint, git diff --check, focused libsqlite gate 6 files / 3728 assertions / 0 failures, SQLitePDO polyfill gate 1 file / 204 assertions / 0 failures, exact invalid-column PDO repro, and changed examples passed."
+        "currentSlice": "Source-neutral SQLiteDatabase key-value API guard/example cleanup integrated on current base; no domain-specific libsqlite API is accepted.",
+        "latestNativePhpVerification": "Source commit 18442b10e6aa78567a12189b9dcc823243281ca0: PHP lint, git diff --check, SQLiteNoDomainSpecificApiTest.php 1 file / 6 assertions / 0 failures, and application-json-path-validation-preflight.php self-test passed."
     },
     "wordpressScenario": "SQLite fallback/read/write inspection tooling for Application hosts where the SQLite extension is unavailable, now including bounded wp_options row inspection, decoded ORDER BY result windows with LIMIT/OFFSET, option_id rowid range reads with table-interior branch pruning around unrelated damaged branches, large option_value overflow reads, generated overflow-page chain writes for large option fixtures and large replacements, secure-delete clearing for obsolete overflow pages returned as freelist leaves, auto-vacuum pointer-map updates for inserted and replaced large-option overflow chains plus planned table/index b-tree roots and child pages after splits or root growth, UTF-16LE/UTF-16BE record serialization for database images whose header text encoding is not UTF-8, non-contiguous reusable overflow-page fixtures that respect reserved bytes, actual freelist trunk/leaf inspection plus allocation-plan, free-plan, auto-vacuum pointer-map mutation preflight, bounded insert-plan, bounded single-leaf, root-growth, no-split multi-page, same-depth leaf-split, parent-root-split, and non-root parent-split secondary-index insert planning, bounded table-root leaf-growth replacement preflight plus multi-page table replacement preflight for rows stored below interior table pages including larger replacements that split target leaves and update roomy lower parents, grow a full table-interior root into two lower interior pages, or split a full non-root table-interior parent and promote the divider into its root, bounded sqlite_autoindex-backed UNIQUE/PRIMARY KEY option_name and autoload/option_name insert/replacement planning including parent-root split UNIQUE option_name inserts, bounded single-leaf and parent-root split composite autoload/option_name insert planning, multi-page no-rebalance, same-depth leaf-split, parent-root split, two-child root-collapse, multi-sibling source-leaf redistribution, root-parent source-leaf merge/free-listing, non-root-parent source-leaf merge/free-listing when the lower parent remains sufficiently populated, two-child-root collapse after non-root composite-index parent underflow, and multi-child-root adjacent interior-parent merge after non-root composite-index parent underflow during autoload replacement, plus bounded replacement-plan header/trunk/table/index/overflow/pointer-map page-image mutations for repair preflight, explicit and automatic index-backed option lookups, callback-backed custom-collation point/range and equality-prefix recovery paths, expression-index recovery for lower/upper/trim/substr/length/CAST/json_extract/JSON ->>/JSON -> paths, JSON5 and JSONB option-value verification and focused JSONB mutation/preflight helpers, bounded index traversal that avoids unrelated or damaged branches, native varint and record serialization preflight for generated wp_options payloads, table-leaf cell/page assembly and table-leaf rowid deletion plus table-interior, option_name, and composite index-leaf/interior page assembly for minimal fixture generation or repair planning, sqlite_sequence AUTOINCREMENT counter inspection, native next-ID/explicit-import sequence state for Application ID continuity checks, and b-tree page freeblock/free-space inspection for page-local Application database recovery diagnostics. Latest scenario examples/application-core-scalar-option-default.php reports random()/randomblob() token and nonce preview diagnostics for copied wp_options repair workflows. Latest scenario examples/application-autovacuum-index-page-move.php reports copied wp_options autoload-index page-move repair diagnostics.",
     "nextTask": "Prioritize fixing the broad full-lane memory exhaustion in SQLiteJsonImportSavepointPlan/rollback-WAL dynamic tests, then continue non-overlapping real-corpus JSON, VFS, WAL, pager, PRAGMA, B-tree/index, STAT4, expression, trigger/FK, row-value, date/time, cast/like, and upsert coverage plus source-neutral cleanup.",
@@ -2538,7 +2538,7 @@
         "focusedBatch102103CurrentSourceSubset": "Accepted implementation commit 04a264da4f1be4df0404eeca51f4e3ee3e697828 adds the batch102/103 clean current-source libsqlite subset. Verification: php -l for 44 changed/untracked PHP files; 14 Application examples/self-tests emitted valid JSON; git diff --check; focused changed/regression tests 25 files / 2642 assertions / 0 failures / 1478 PASS lines; full libsqlite 724 files / 82738 assertions / 0 failures / 40990 PASS lines; root 937 files / 107206 assertions / 0 failures / 44018 PASS lines with memory_limit=512M.",
         "focusedBatch104105CurrentSourceSubset": "Accepted implementation commit b3c4ecbf768d15d978a740cbb75a8109bca7e0f1 adds the batch104/105 clean current-source libsqlite subset. Verification: php -l for 44 changed/untracked PHP files; 14 Application examples/self-tests emitted valid JSON; git diff --check; focused changed tests 15 files / 1640 assertions / 0 failures / 895 PASS lines; full libsqlite 739 files / 84366 assertions / 0 failures / 41873 PASS lines; root 952 files / 108834 assertions / 0 failures / 44901 PASS lines with memory_limit=512M."
     },
-    "currentWork": "Source-neutral skip-scan/UTF-16 cleanup and real upstream postfix NULL predicate expression coverage integrated on current base; SQLitePDO invalid-column behavior remains covered and throws before mutation.",
+    "currentWork": "Source-neutral SQLiteDatabase key-value API guard/example cleanup integrated on current base; no domain-specific libsqlite API is accepted.",
     "upstreamRuns": {
         "focusedResults": {
             "focusedCoreConcatScalarFunction": "The 2026-05-26 isolated dependency-suite scalar slice adds concat()/concat_ws() dispatch for copied wp_options string assembly, reusing accepted SQL expression/scalar evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers concat() NULL-as-empty behavior, all-NULL empty-string output, BLOB byte text coercion, concat_ws() NULL separator propagation, skipped NULL fields, empty output when all fields are NULL, arity/type errors, and Application option-key assembly diagnostics without requiring ext/sqlite.",
@@ -3431,10 +3431,10 @@
             "focusedUpstreamVeryquickShardCurrentSourceNext431": "The 2026-05-28 isolated current-source next431 suite veryquick-shard runner slice maps one additional runner-countability blocker row for launcher Base accepted HEAD fca16e3d, current integration source 8a447f44, lane-local zero-error guarded runner artifact rows, duplicate-runner gates, exact 96 focused PASS-line admission, focused current-source veryquick shard scope, and no release/all parity claim."
         }
     },
-    "latestFocusedSlice": "2026-06-01 supervisor batch at source 54e04a0ebdd6: real-upstream postfix NULL predicate corpus adds 1734 focused PASS cases; source-neutral cleanup accepted; mapped coverage remains 1589 / 1589.",
-    "latestNativePhpVerification": "Source commit 54e04a0ebdd61c1a4ea77d17412094979a5a09dd: PHP lint, git diff --check, focused libsqlite gate 6 files / 3728 assertions / 0 failures, SQLitePDO polyfill gate 1 file / 204 assertions / 0 failures, exact invalid-column PDO repro, and changed examples passed.",
+    "latestFocusedSlice": "2026-06-01 supervisor batch at source 18442b10e6aa: source-neutral SQLiteDatabase key-value API cleanup accepted; no phpPass or mapped coverage delta.",
+    "latestNativePhpVerification": "Source commit 18442b10e6aa78567a12189b9dcc823243281ca0: PHP lint, git diff --check, SQLiteNoDomainSpecificApiTest.php 1 file / 6 assertions / 0 failures, and application-json-path-validation-preflight.php self-test passed.",
     "runnerStatus": "Focused libsqlite B-tree/no-domain gate passed 3 files / 84898 assertions / 0 failures. Broad release/all still has 7 known failures.",
-    "latestCommit": "54e04a0ebdd61c1a4ea77d17412094979a5a09dd",
+    "latestCommit": "18442b10e6aa78567a12189b9dcc823243281ca0",
     "latestFocusedCorpusBatch20260531T2250Z": {
         "sourceCommit": "48a678f72e367c869dc62452fbad34f36daa273b",
         "selectedPassIncrease": 2411,
@@ -3661,5 +3661,19 @@
         ],
         "nativeVerification": "Changed PHP lint passed; git diff --check passed; focused libsqlite gate 6 files / 3728 assertions / 0 failures; SQLitePDO polyfill gate 1 file / 204 assertions / 0 failures; changed libsqlite examples passed; exact invalid-column PDO repro throws and leaves zero rows.",
         "upstreamEvidence": "Worker notes cite SQLite upstream expr.test and e_expr.test postfix NULL predicate cases plus source-neutral guard evidence. Broad release/all remains blocked by seven known failures and the memory-limited full-lane run."
+    },
+    "focusedSourceNeutralDbApiBatch20260601T1348Z": {
+        "sourceCommit": "18442b10e6aa78567a12189b9dcc823243281ca0",
+        "phpPassDelta": 0,
+        "phpPassBefore": 5898964,
+        "phpPassAfter": 5898964,
+        "mappedSliceIncrease": 0,
+        "mappedBefore": 1589,
+        "mappedAfter": 1589,
+        "acceptedSlices": [
+            "source-neutral SQLiteDatabase key-value API guard/example cleanup"
+        ],
+        "nativeVerification": "Changed PHP lint passed; git diff --check passed; SQLiteNoDomainSpecificApiTest.php 1 file / 6 assertions / 0 failures; application-json-path-validation-preflight.php self-test passed.",
+        "upstreamEvidence": "Source-neutral guard evidence only; no new upstream corpus PASS delta. Broad release/all remains blocked by seven known failures and the memory-limited full-lane run."
     }
 }
