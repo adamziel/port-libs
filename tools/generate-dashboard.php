@@ -105,13 +105,17 @@ $numericCount = static function (mixed $value): int {
     return 0;
 };
 
-$shortCommit = static function (string $value): string {
+$shortCommit = static function (string $value) use ($shorten): string {
     $value = trim($value);
     if ($value === '' || $value === 'none') {
         return 'none';
     }
 
-    return substr($value, 0, 7);
+    if (preg_match('/^([0-9a-f]{7,40})\b/i', $value, $matches) === 1) {
+        return substr($matches[1], 0, 7);
+    }
+
+    return $shorten($value, 18);
 };
 
 $blockerSummary = static function (string $value) use ($firstSentence, $shorten): string {
@@ -177,6 +181,22 @@ $mapSummary = static function (string $mapped, string $denominator) use ($format
     return $formatCount($mapped) . ' mapped / ' . $formatCount($denominator) . ' upstream';
 };
 
+$mapPercent = static function (int $mapped, int $denominator): string {
+    if ($denominator <= 0) {
+        return 'n/a';
+    }
+
+    return number_format(($mapped / $denominator) * 100, 1) . '%';
+};
+
+$unmappedCount = static function (int $mapped, int $denominator) use ($formatCount): string {
+    if ($denominator <= 0) {
+        return 'n/a';
+    }
+
+    return $formatCount(max(0, $denominator - $mapped));
+};
+
 $rows = [];
 $totalProgress = 0.0;
 foreach ($laneDirs as $dir) {
@@ -193,6 +213,8 @@ foreach ($laneDirs as $dir) {
     $totalProgress += $progress;
     $mapped = $metricSummary($manifest['benchmarkDenominator']['mapped'] ?? null);
     $denominator = $metricSummary($manifest['benchmarkDenominator']['total'] ?? null);
+    $mappedCount = $numericCount($mapped);
+    $denominatorCount = $numericCount($denominator);
     $phpPass = $numericCount($status['phpPass'] ?? 0);
     $phpFail = $numericCount($status['phpFail'] ?? 0);
     $library = $stringValue($status['library'] ?? null, $lane);
@@ -228,6 +250,8 @@ foreach ($laneDirs as $dir) {
         'denominator' => $denominator,
         'mapped' => $mapped,
         'coverage' => $mapSummary($mapped, $denominator),
+        'mapPercent' => $mapPercent($mappedCount, $denominatorCount),
+        'unmapped' => $unmappedCount($mappedCount, $denominatorCount),
         'php' => $formatCount($phpPass) . ' pass / ' . $formatCount($phpFail) . ' fail',
         'phase' => $shorten($stringValue($status['phase'] ?? null, 'planning'), 72),
         'audit' => $shorten($stringValue($status['audit'] ?? null, 'not started'), 72),
@@ -269,7 +293,8 @@ foreach ($rows as $row) {
         . '<td class="num">' . $escape($row['progressPercent']) . '%</td>'
         . '<td class="num">' . $escape($row['php']) . '</td>'
         . '<td><a href="' . $escape($row['manifestPath']) . '">' . $escape($row['coverage']) . '</a></td>'
-        . '<td>' . $escape($row['currentWork']) . '</td>'
+        . '<td class="num">' . $escape($row['mapPercent']) . '</td>'
+        . '<td class="num">' . $escape($row['unmapped']) . '</td>'
         . '<td>' . $escape($row['remainingGate']) . '</td>'
         . '<td class="commit">' . $escape($row['commit']) . '</td>'
         . '</tr>' . "\n";
@@ -287,7 +312,7 @@ $html = <<<HTML
     body { margin: 0; padding: 16px; background: Canvas; color: CanvasText; }
     a { color: LinkText; }
     .table-wrap { overflow-x: auto; }
-    table { width: 100%; min-width: 960px; border-collapse: collapse; font-size: 13px; line-height: 1.3; }
+    table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 13px; line-height: 1.3; }
     th, td { border: 1px solid color-mix(in srgb, CanvasText 16%, Canvas); padding: 6px 8px; text-align: left; vertical-align: top; }
     thead th { background: color-mix(in srgb, CanvasText 8%, Canvas); position: sticky; top: 0; }
     tbody th { background: color-mix(in srgb, CanvasText 3%, Canvas); white-space: nowrap; }
@@ -307,7 +332,8 @@ $html = <<<HTML
           <th>Progress</th>
           <th>PHP Tests</th>
           <th>Upstream Map</th>
-          <th>Focus</th>
+          <th>Mapped</th>
+          <th>Unmapped</th>
           <th>Open Gate</th>
           <th>Commit</th>
         </tr>
@@ -336,14 +362,15 @@ foreach ($rows as $row) {
         . $markdownCell($row['progressPercent'] . '%') . ' | '
         . $markdownCell($row['php']) . ' | '
         . '[' . $markdownCell($row['coverage']) . '](' . $row['manifestPath'] . ') | '
-        . $markdownCell($row['currentWork']) . ' | '
+        . $markdownCell($row['mapPercent']) . ' | '
+        . $markdownCell($row['unmapped']) . ' | '
         . $markdownCell($row['remainingGate']) . ' | '
         . $markdownCell($row['commit']) . " |\n";
 }
 
 $progressMd = <<<MD
-| Project | Priority | Status | Progress | PHP Tests | Upstream Map | Focus | Open Gate | Commit |
-| --- | --- | --- | ---: | ---: | --- | --- | --- | --- |
+| Project | Priority | Status | Progress | PHP Tests | Upstream Map | Mapped | Unmapped | Open Gate | Commit |
+| --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- |
 {$progressRows}
 MD;
 
