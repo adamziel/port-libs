@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 03:03:43 UTC",
-    "sourceCommit": "d7e69cc2b6957550680f64bf150f695681d4610f",
-    "sourceCommitShort": "d7e69cc2b695",
+    "generated": "2026-06-01 03:11:24 UTC",
+    "sourceCommit": "2c6f6944dfb97e3e856bf480c1667d5e8c0211a3",
+    "sourceCommitShort": "2c6f6944dfb9",
     "sourceBranch": "main",
-    "dashboardCommit": "d7e69cc2b6957550680f64bf150f695681d4610f",
-    "dashboardCommitShort": "d7e69cc2b695",
+    "dashboardCommit": "2c6f6944dfb97e3e856bf480c1667d5e8c0211a3",
+    "dashboardCommitShort": "2c6f6944dfb9",
     "averageProgressPercent": "88.2",
     "lanes": [
         {
@@ -60,20 +60,20 @@
         },
         {
             "library": "gitoxide",
-            "progressPercent": "93.0",
-            "suite": "current-base-gitoxide-tree-pathspec-replay",
-            "benchmark": "current-base-gitoxide-tree-pathspec-replay",
+            "progressPercent": "93.1",
+            "suite": "current-base-gitoxide-merge-base-url-refspec-replay",
+            "benchmark": "current-base-gitoxide-merge-base-url-refspec-replay",
             "denominator": "2886",
-            "mapped": "1714",
-            "coverage": "1714 / 2886",
-            "php": "7097 pass / 0 fail",
+            "mapped": "1716",
+            "coverage": "1716 / 2886",
+            "php": "7134 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
             "audit": "2026-06-01 supervisor replay: full Gitoxi...",
-            "currentWork": "Tree pathspec newline-byte shell wildmatch parity integrated on current base.",
+            "currentWork": "Merge-base generation hydration and Git URL credential mutation/access-helper parity inte...",
             "nextTarget": "Keep three Gitoxide workers on current-base non-overlapping protocol, pack/object, refere...",
             "blocker": "Full upstream Cargo workspace remains unexecuted.",
-            "commit": "d7e69cc"
+            "commit": "2c6f694"
         },
         {
             "library": "libsqlite",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "97.8",
-            "suite": "current-base-lightningcss-cssom-media-target-replay",
-            "benchmark": "current-base-lightningcss-cssom-media-target-replay",
+            "progressPercent": "97.9",
+            "suite": "current-base-lightningcss-property-source-map-replay",
+            "benchmark": "current-base-lightningcss-property-source-map-replay",
             "denominator": "3532",
-            "mapped": "2315",
-            "coverage": "2315 / 3532",
-            "php": "5714 pass / 0 fail",
+            "mapped": "2320",
+            "coverage": "2320 / 3532",
+            "php": "5733 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
             "audit": "2026-06-01 supervisor replay: full Lightn...",
-            "currentWork": "CSSOM direct enum declaration parity, target-prefix print-color-adjust boundary cleanup,...",
+            "currentWork": "Relative HSL/HWB channel typing and separator-only raw VLQ source-map table import parity...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph,...",
             "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-            "commit": "d7e69cc"
+            "commit": "2c6f694"
         },
         {
             "library": "markerPDF",

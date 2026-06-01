@@ -1,15 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 4,
-    "suiteProgress": "static manifest seed; upstream suite not yet executed",
-    "phpPass": 3,
+    "estimatedProgress": 93.1,
+    "suiteProgress": "Supervisor-integrated Gitoxide merge-base and URL/refspec replay. Verification passed PHP lint, git diff --check, full Gitoxide lane 40 files / 7134 assertions / 0 failures, and touched examples.",
+    "phpPass": 7134,
     "phpFail": 0,
-    "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, and server-side repo primitives.",
-    "phase": "seed implementation",
-    "audit": "needs independent auditor review",
-    "currentWork": "Native loose Git object storage with canonical object headers and SHA-1 object IDs.",
-    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
-    "latestCommit": "079f990fce6d",
-    "nextTask": "Expand loose object store into tree/commit parsing and map gitoxide object tests."
+    "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
+    "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full Cargo runner not executed for isolated batch",
+    "audit": "2026-06-01 supervisor replay: full Gitoxide lane passed 40 files / 7134 assertions / 0 failures after accepting merge-base generation hydration and URL credential mutation/access-helper parity. Conservative mapped coverage moves to 1716 / 2886. Full upstream Cargo workspace was not executed.",
+    "currentWork": "Merge-base generation hydration and Git URL credential mutation/access-helper parity integrated on current base.",
+    "blocker": "Full upstream Cargo workspace remains unexecuted. Native PHP full-lane evidence is green at 7134 assertions; keep bounded Gitoxide workers on config/include, credential, object database, transport, tree/pathspec, partial-clone, protocol, URL/refspec, receive-pack, reference transaction, and merge-base slices.",
+    "latestCommit": "2c6f6944dfb97e3e856bf480c1667d5e8c0211a3",
+    "nextTask": "Keep three Gitoxide workers on current-base non-overlapping protocol, pack/object, reference transaction, config/include, credential, transport, tree/pathspec, sparse-checkout, URL/refspec, and merge-base slices with full-lane PHP gates after each accepted batch.",
+    "commit": "2c6f6944dfb97e3e856bf480c1667d5e8c0211a3"
 }
