@@ -3342,4 +3342,37 @@ return [
         $t->same(null, $parent->findClosestMapping(4, 0));
         $t->same('{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}', $child->toJson(null, false));
     },
+    'source map refreshes preserved reused child content before generated-offset append' => static function (TestRunner $t): void {
+        $parent = new SourceMap('/theme');
+        $parentSource = $parent->addSource('src/shared.scss');
+        $parent->setSourceContent($parentSource, ".wp-block-card{color:old}\n");
+        $parent->addMapping(0, 0, $parentSource, 0, 0, 'oldShared');
+
+        $child = new SourceMap('/theme');
+        $childSource = $child->addSource('src/./shared.scss');
+        $child->setSourceContent($childSource, ".wp-block-card{color:new}\n.wp-block-card__title{font-weight:600}\n");
+        $child->addGeneratedMapping(0, 2);
+        $child->addMapping(0, 6, $childSource, 8, 2, 'newShared');
+        $child->addMapping(1, 4, $childSource, 9, 4, 'newTitle');
+        $child->addName('unusedPreservedName');
+
+        $parent->appendSourceMapWithGeneratedOffset($child, 3, 11, true);
+
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $data = $parent->toArray(null, false);
+
+        $t->same('AAAAA;;;a,IAQEC;IACEC', $parent->writeVlq());
+        $t->same([0, 3, 3, 4], array_column($decoded, 'generatedLine'));
+        $t->same([0, 13, 17, 4], array_column($decoded, 'generatedColumn'));
+        $t->same([0, null, 0, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([0, null, 8, 9], array_column($decoded, 'originalLine'));
+        $t->same([0, null, 2, 4], array_column($decoded, 'originalColumn'));
+        $t->same([0, null, 1, 2], array_column($decoded, 'nameIndex'));
+        $t->same(['src/shared.scss'], $data['sources']);
+        $t->same([".wp-block-card{color:new}\n.wp-block-card__title{font-weight:600}\n"], $data['sourcesContent']);
+        $t->same(['oldShared', 'newShared', 'newTitle', 'unusedPreservedName'], $data['names']);
+        $t->same(null, $parent->findClosestMapping(3, 13)['sourceIndex'] ?? null);
+        $t->same(8, $parent->findClosestMapping(3, 17)['originalLine'] ?? null);
+        $t->same('{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}', $child->toJson(null, false));
+    },
 ];

@@ -288,6 +288,58 @@ CSS, $formatter->format('.foo{grid-template-columns:1fr 90px;grid-template-rows:
 }
 
 CSS, $formatter->format('.foo{grid-template-areas:none;grid-template-columns:none;grid-template-rows:none}'));
+
+        $t->same(<<<'CSS'
+.foo {
+  grid: [header-top] "a a a" [header-bottom]
+        [main-top] "b b b" 1fr [main-bottom]
+        / auto 1fr auto;
+}
+
+CSS, $formatter->format('.foo{grid-template-areas:"a a a" "b b b";grid-template-rows:[header-top] auto [header-bottom main-top] 1fr [main-bottom];grid-template-columns:auto 1fr auto;grid-auto-flow:row;grid-auto-rows:auto;grid-auto-columns:auto}'));
+
+        $t->same(<<<'CSS'
+.foo {
+  grid: repeat(2, 1fr) / auto 1fr auto;
+}
+
+CSS, $formatter->format('.foo{grid-template-areas:none;grid-template-columns:auto 1fr auto;grid-template-rows:repeat(2, 1fr);grid-auto-flow:row;grid-auto-rows:auto;grid-auto-columns:auto}'));
+
+        $t->same(<<<'CSS'
+.foo {
+  grid: auto-flow dense 1fr / auto 1fr auto;
+}
+
+CSS, $formatter->format('.foo{grid-template-rows:none;grid-template-columns:auto 1fr auto;grid-template-areas:none;grid-auto-flow:row dense;grid-auto-rows:1fr;grid-auto-columns:auto}'));
+
+        $t->same(<<<'CSS'
+.foo {
+  grid: auto 1fr auto / auto-flow dense 1fr;
+}
+
+CSS, $formatter->format('.foo{grid-template-rows:auto 1fr auto;grid-template-columns:none;grid-template-areas:none;grid-auto-flow:column dense;grid-auto-rows:auto;grid-auto-columns:1fr}'));
+
+        $t->same(<<<'CSS'
+.foo {
+  grid-template: [header-top] "a a a" [header-bottom]
+                 [main-top] "b b b" 1fr [main-bottom]
+                 / auto 1fr auto;
+  grid-auto-rows: 1fr;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+}
+
+CSS, $formatter->format('.foo{grid-template-areas:"a a a" "b b b";grid-template-rows:[header-top] auto [header-bottom main-top] 1fr [main-bottom];grid-template-columns:auto 1fr auto;grid-auto-flow:column;grid-auto-rows:1fr;grid-auto-columns:1fr}'));
+
+        $t->same(<<<'CSS'
+.foo {
+  grid-template: auto 1fr auto / none;
+  grid-auto-flow: var(--auto-flow);
+  grid-auto-rows: auto;
+  grid-auto-columns: 1fr;
+}
+
+CSS, $formatter->format('.foo{grid-template-rows:auto 1fr auto;grid-template-columns:none;grid-template-areas:none;grid-auto-flow:var(--auto-flow);grid-auto-rows:auto;grid-auto-columns:1fr}'));
     },
     'wordpress property registration formatting preserves design token blocks' => static function (TestRunner $t): void {
         $css = <<<'CSS'

@@ -121,6 +121,19 @@ if (
 
 echo 'source-map-sources: collected' . PHP_EOL;
 
+$backslashPathBundle = (new CssBundler())->bundle('/literal-backslash-entry.css', [
+    '/literal-backslash-entry.css' => '@import "blocks\\\\editor.css"; .wp-site-blocks { color: red }',
+    '/blocks\\editor.css' => '.wp-block-editor { color: purple }',
+    '/blocks/editor.css' => '.wp-block-editor { color: green }',
+]);
+
+if ($backslashPathBundle !== '.wp-block-editor{color:purple}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected decoded backslash block import path to preserve source-provider identity\n");
+    exit(1);
+}
+
+echo 'backslash-import-path: preserved' . PHP_EOL;
+
 $generatedBlockMap = 'data:application/json;base64,' . base64_encode(json_encode([
     'version' => 3,
     'mappings' => 'ACAA',

@@ -16,6 +16,15 @@ $css = <<<'CSS'
   grid-template-rows: auto 1fr;
   grid-template-columns: minmax(0, 1fr) auto;
 }
+
+.wp-block-gallery.is-style-masonry {
+  grid-template-areas: none;
+  grid-template-rows: none;
+  grid-template-columns: minmax(12rem, 1fr) minmax(12rem, 1fr);
+  grid-auto-flow: row dense;
+  grid-auto-rows: 1fr;
+  grid-auto-columns: auto;
+}
 CSS;
 
 $expected = <<<'CSS'
@@ -29,6 +38,10 @@ $expected = <<<'CSS'
   grid-template: "title title"
                  "meta excerpt" 1fr
                  / minmax(0, 1fr) auto;
+}
+
+.wp-block-gallery.is-style-masonry {
+  grid: auto-flow dense 1fr / minmax(12rem, 1fr) minmax(12rem, 1fr);
 }
 
 CSS;

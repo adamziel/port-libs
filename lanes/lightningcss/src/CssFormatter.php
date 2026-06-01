@@ -400,21 +400,29 @@ final class CssFormatter
      */
     private function composeGridStyleDeclarations(array $declarations): array
     {
-        $components = [
+        $templateComponents = [
             'areas' => 'grid-template-areas',
             'rows' => 'grid-template-rows',
             'columns' => 'grid-template-columns',
         ];
-        $componentByProperty = array_flip($components);
+        $autoComponents = [
+            'flow' => 'grid-auto-flow',
+            'rows' => 'grid-auto-rows',
+            'columns' => 'grid-auto-columns',
+        ];
+        $templateByProperty = array_flip($templateComponents);
+        $autoByProperty = array_flip($autoComponents);
         $latest = [];
+        $latestAuto = [];
         $indexes = [];
+        $autoIndexes = [];
 
         foreach ($declarations as $index => [$property, $value]) {
             if ($property === 'grid' || $property === 'grid-template') {
                 return $declarations;
             }
 
-            if (!isset($componentByProperty[$property])) {
+            if (!isset($templateByProperty[$property]) && !isset($autoByProperty[$property])) {
                 continue;
             }
 
@@ -422,12 +430,19 @@ final class CssFormatter
                 return $declarations;
             }
 
-            $component = $componentByProperty[$property];
-            $latest[$component] = $index;
-            $indexes[] = $index;
+            if (isset($templateByProperty[$property])) {
+                $component = $templateByProperty[$property];
+                $latest[$component] = $index;
+                $indexes[] = $index;
+                continue;
+            }
+
+            $component = $autoByProperty[$property];
+            $latestAuto[$component] = $index;
+            $autoIndexes[] = $index;
         }
 
-        foreach (array_keys($components) as $component) {
+        foreach (array_keys($templateComponents) as $component) {
             if (!isset($latest[$component])) {
                 return $declarations;
             }
@@ -442,12 +457,30 @@ final class CssFormatter
             return $declarations;
         }
 
+        $gridShorthand = null;
+        if (isset($latestAuto['flow'], $latestAuto['rows'], $latestAuto['columns'])) {
+            $gridShorthand = $this->composeGridShorthandWithAutoTracks(
+                $shorthand,
+                $declarations[$latest['areas']][1],
+                $declarations[$latest['rows']][1],
+                $declarations[$latest['columns']][1],
+                $declarations[$latestAuto['flow']][1],
+                $declarations[$latestAuto['rows']][1],
+                $declarations[$latestAuto['columns']][1]
+            );
+        }
+
+        $useGridShorthand = $gridShorthand !== null;
+        if ($useGridShorthand) {
+            $indexes = array_merge($indexes, $autoIndexes);
+        }
+
         $replaceAt = min($indexes);
         $gridIndexes = array_flip($indexes);
         $output = [];
         foreach ($declarations as $index => $declaration) {
             if ($index === $replaceAt) {
-                $output[] = ['grid-template', $shorthand];
+                $output[] = [$useGridShorthand ? 'grid' : 'grid-template', $gridShorthand ?? $shorthand];
                 continue;
             }
 
@@ -458,7 +491,131 @@ final class CssFormatter
             $output[] = $declaration;
         }
 
+        if (!$useGridShorthand && isset($latestAuto['flow'], $latestAuto['rows'], $latestAuto['columns'])) {
+            $output = $this->moveGridAutoFlowAfterAutoTracks($output);
+        }
+
         return $output;
+    }
+
+    private function composeGridShorthandWithAutoTracks(
+        string $templateShorthand,
+        string $areas,
+        string $rows,
+        string $columns,
+        string $flow,
+        string $autoRows,
+        string $autoColumns
+    ): ?string {
+        $flow = $this->canonicalGridAutoFlowForComposition($flow);
+        if ($flow === null) {
+            return null;
+        }
+
+        $areas = trim($areas);
+        $rows = trim($rows);
+        $columns = trim($columns);
+        $autoRows = trim($autoRows);
+        $autoColumns = trim($autoColumns);
+        $autoRowsIsDefault = strcasecmp($autoRows, 'auto') === 0;
+        $autoColumnsIsDefault = strcasecmp($autoColumns, 'auto') === 0;
+
+        if ($flow === 'row' && $autoRowsIsDefault && $autoColumnsIsDefault) {
+            return $templateShorthand;
+        }
+
+        if (strcasecmp($areas, 'none') !== 0) {
+            return null;
+        }
+
+        if (($flow === 'row' || $flow === 'dense')
+            && strcasecmp($rows, 'none') === 0
+            && $autoColumnsIsDefault
+        ) {
+            $autoFlow = $flow === 'dense' ? 'auto-flow dense' : 'auto-flow';
+            if (!$autoRowsIsDefault) {
+                $autoFlow .= ' ' . $this->formatDeclarationValue($autoRows);
+            }
+
+            return $autoFlow . ' / ' . $this->formatDeclarationValue($columns);
+        }
+
+        if (($flow === 'column' || $flow === 'column dense')
+            && strcasecmp($columns, 'none') === 0
+            && $autoRowsIsDefault
+        ) {
+            $autoFlow = $flow === 'column dense' ? 'auto-flow dense' : 'auto-flow';
+            if (!$autoColumnsIsDefault) {
+                $autoFlow .= ' ' . $this->formatDeclarationValue($autoColumns);
+            }
+
+            return $this->formatDeclarationValue($rows) . ' / ' . $autoFlow;
+        }
+
+        return null;
+    }
+
+    private function canonicalGridAutoFlowForComposition(string $value): ?string
+    {
+        $tokens = preg_split('/\s+/', strtolower(trim($this->formatDeclarationValue($value)))) ?: [];
+        $tokens = array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+        if ($tokens === []) {
+            return null;
+        }
+
+        foreach ($tokens as $token) {
+            if (!in_array($token, ['row', 'column', 'dense'], true)) {
+                return null;
+            }
+        }
+
+        $hasDense = in_array('dense', $tokens, true);
+        if (in_array('column', $tokens, true)) {
+            return $hasDense ? 'column dense' : 'column';
+        }
+
+        return $hasDense ? 'dense' : 'row';
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function moveGridAutoFlowAfterAutoTracks(array $declarations): array
+    {
+        $latest = [];
+        foreach ($declarations as $index => [$property]) {
+            if ($property === 'grid-auto-flow') {
+                $latest['flow'] = $index;
+            } elseif ($property === 'grid-auto-rows') {
+                $latest['rows'] = $index;
+            } elseif ($property === 'grid-auto-columns') {
+                $latest['columns'] = $index;
+            }
+        }
+
+        if (!isset($latest['flow'], $latest['rows'], $latest['columns'])) {
+            return $declarations;
+        }
+
+        if ($this->canonicalGridAutoFlowForComposition($declarations[$latest['flow']][1]) === null) {
+            return $declarations;
+        }
+
+        $positions = [$latest['flow'], $latest['rows'], $latest['columns']];
+        sort($positions);
+        if ($positions[2] - $positions[0] !== 2) {
+            return $declarations;
+        }
+
+        $rows = $declarations[$latest['rows']];
+        $columns = $declarations[$latest['columns']];
+        $flow = $declarations[$latest['flow']];
+        $declarations[$positions[0]] = $rows;
+        $declarations[$positions[1]] = $columns;
+        $declarations[$positions[2]] = $flow;
+
+        return $declarations;
     }
 
     private function composeGridTemplateLonghands(string $areas, string $rows, string $columns): ?string
@@ -836,6 +993,14 @@ final class CssFormatter
 
         $rows = $this->formatGridTemplateAreaRows(trim($parts[0]));
         if ($rows === null) {
+            if (count($parts) === 2) {
+                $left = $this->formatDeclarationValue(trim($parts[0]));
+                $right = $this->formatDeclarationValue(trim($parts[1]));
+                if ($left !== '' && $right !== '') {
+                    return $left . ' / ' . $right;
+                }
+            }
+
             return $this->formatDeclarationValue($value);
         }
 

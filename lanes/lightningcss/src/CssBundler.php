@@ -245,7 +245,15 @@ final class CssBundler
     {
         $this->files = [];
         foreach ($files as $path => $css) {
-            $this->files[$this->normalizePath((string) $path)] = $css;
+            $path = (string) $path;
+            if (str_contains($path, '\\')) {
+                $normalizedPath = $this->normalizePath($path);
+                $this->files[$this->normalizePathPreservingBackslashes($path)] = $css;
+                $this->files[$normalizedPath] ??= $css;
+                continue;
+            }
+
+            $this->files[$this->normalizePath($path)] = $css;
         }
 
         $this->resolver = $resolver;
@@ -2704,6 +2712,13 @@ final class CssBundler
             ];
         }
 
+        if (str_contains($file, '\\')) {
+            return [
+                'file' => $this->normalizePathPreservingBackslashes($file),
+                'preservePath' => true,
+            ];
+        }
+
         return ['file' => $this->normalizePath($file)];
     }
 
@@ -2715,6 +2730,13 @@ final class CssBundler
         if ($this->preserveResolverPaths) {
             return [
                 'file' => $file,
+                'preservePath' => true,
+            ];
+        }
+
+        if (str_contains($file, '\\')) {
+            return [
+                'file' => $this->normalizePathPreservingBackslashes($file),
                 'preservePath' => true,
             ];
         }
@@ -3763,7 +3785,16 @@ final class CssBundler
 
     private function normalizePath(string $path): string
     {
-        $path = str_replace('\\', '/', $path);
+        return $this->normalizePathSegments(str_replace('\\', '/', $path));
+    }
+
+    private function normalizePathPreservingBackslashes(string $path): string
+    {
+        return $this->normalizePathSegments($path);
+    }
+
+    private function normalizePathSegments(string $path): string
+    {
         $absolute = str_starts_with($path, '/');
         $parts = [];
         foreach (explode('/', $path) as $part) {

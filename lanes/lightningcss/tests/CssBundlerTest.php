@@ -2861,6 +2861,65 @@ CSS,
             );
         });
     },
+    'css bundler preserves decoded backslash import path identities like upstream' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '.literal{color:purple}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "blocks\\\\editor.css"; .entry { color: red }',
+                '/blocks\\editor.css' => '.literal { color: purple }',
+                '/blocks/editor.css' => '.slash { color: green }',
+            ], '/entry.css')
+        );
+        $t->same(
+            '.literal{color:purple}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "blocks\\\\editor.css"; .entry { color: red }',
+                '/blocks/editor.css' => '.slash { color: green }',
+                '/blocks\\editor.css' => '.literal { color: purple }',
+            ], '/entry.css')
+        );
+        $t->same(
+            '.slash{color:green}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "blocks/editor.css"; .entry { color: red }',
+                '/blocks/editor.css' => '.slash { color: green }',
+                '/blocks\\editor.css' => '.literal { color: purple }',
+            ], '/entry.css')
+        );
+
+        $resolved = [];
+        $t->same(
+            '.literal{color:purple}:root{--brand:blue}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "blocks\\\\editor.css"; @import "pkg:tokens.css"; .entry { color: red }',
+                '/blocks\\editor.css' => '.literal { color: purple }',
+                '/blocks/editor.css' => '.slash { color: green }',
+                '/tokens\\pkg.css' => ':root { --brand: blue }',
+                '/tokens/pkg.css' => ':root { --brand: red }',
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return match ($specifier) {
+                    'blocks\\editor.css' => '/blocks\\editor.css',
+                    'pkg:tokens.css' => '/tokens\\pkg.css',
+                    default => throw new RuntimeException("Unexpected backslash import specifier {$specifier}"),
+                };
+            })
+        );
+        $t->same([
+            ['blocks\\editor.css', '/entry.css'],
+            ['pkg:tokens.css', '/entry.css'],
+        ], $resolved);
+
+        $sourceMap = (new CssBundler())->bundleWithSourceMap('/entry.css', [
+            '/entry.css' => '@import "blocks\\\\editor.css"; .entry { color: red }',
+            '/blocks\\editor.css' => '.literal { color: purple }',
+            '/blocks/editor.css' => '.slash { color: green }',
+        ], null, '/');
+
+        $t->same('.literal{color:purple}.entry{color:red}', $sourceMap['code']);
+        $t->same(['entry.css', 'blocks/editor.css'], $sourceMap['sourceMap']->toArray(null, false)['sources']);
+    },
     'css bundler preserves resolver-returned reader paths like upstream' => static function (TestRunner $t): void {
         $files = [
             '/entry.css' => '@import "pkg:tokens.css"; @import "pkg:card.css"; .entry { color: red }',
