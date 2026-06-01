@@ -3434,9 +3434,9 @@
     }
   },
   "latestFocusedSlice": "2026-06-01 supervisor followup: date.test date-8 now-modifier corpus, wal.test wal-12 reused-log prefix recovery, and application WAL rollback JSON checkpoint-followup tail parity integrated. Focused gate passed 4 files / 41733 assertions / 0 failures; mapped denominator remains 1589 / 1589.",
-  "latestNativePhpVerification": "2026-06-01: git diff --check and PHP lint on changed/new PHP files passed; focused libsqlite gate passed 4 files / 41733 assertions / 0 failures, including the no-WordPress-specific source/API guard. Full broad libsqlite lane still has 7 known failures.",
+  "latestNativePhpVerification": "2026-06-01: source-neutral option table defaults passed PHP lint on changed/new PHP files, git diff --check, selected libsqlite gate 5 files / 532 assertions / 0 failures including SQLiteNoDomainSpecificApiTest, and touched application examples. Full broad libsqlite lane still has 7 known failures.",
   "runnerStatus": "2026-06-01 supervisor batch: focused libsqlite gate passed 3 files / 41204 assertions / 0 failures with memory_limit=2G. Mapped denominator remains 1589 / 1589; cumulative selected libsqlite evidence increases to 5310725 pass with 7 known broad-lane failures. Changed production source guard found no WordPress/wordpress/wp_/CurrentSourceNext/CurrentNext/Next[0-9]+Plan text.",
-  "latestCommit": "d29ad28c864d097d1ccab65c5a0bdf9c9a998987",
+  "latestCommit": "b701d7878f356e660f545ff27714cddd4c582300",
   "latestFocusedCorpusBatch20260531T2250Z": {
     "sourceCommit": "48a678f72e367c869dc62452fbad34f36daa273b",
     "selectedPassIncrease": 2411,
@@ -3533,5 +3533,20 @@
     ],
     "nativeVerification": "PHP lint on changed/new libsqlite PHP files; git diff --check; focused libsqlite gate 4 files / 41733 assertions / 0 failures; application WAL rollback JSON example self-test exit 0.",
     "upstreamEvidence": "hydrated SQLite date.test, wal.test, and application WAL/source-neutral worker evidence; broad release/all runner still not green."
+  },
+  "focusedSourceNeutralOptionDefaults20260601T0234Z": {
+    "sourceCommit": "b701d7878f356e660f545ff27714cddd4c582300",
+    "mappedSliceIncrease": 0,
+    "mappedBefore": 1589,
+    "mappedAfter": 1589,
+    "selectedPassIncrease": 8,
+    "acceptedSlices": [
+      "source-neutral option table defaults for pragma integrity partial index current-source paths",
+      "source-neutral option table defaults for compound window/EXCEPT current-source paths",
+      "source-neutral option table defaults for compound INTERSECT lag/lead recursive-limit current-source paths",
+      "source-neutral option table defaults for attach/temp WAL schema trigger preparation paths"
+    ],
+    "nativeVerification": "PHP lint on changed/new libsqlite PHP files; git diff --check; selected libsqlite gate 5 files / 532 assertions / 0 failures; three touched application examples exit 0.",
+    "upstreamEvidence": "Source-neutral API cleanup; mapped SQLite script denominator remains complete at 1589 / 1589. Full release/all runner still not green."
   }
 }

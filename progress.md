@@ -55,6 +55,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (LightningCSS/libsqlite intake 02:34 UTC):
+  accepted eight non-overlapping source handoffs on the clean integration
+  worktree after source-only replay, leaving the overlapping LightningCSS
+  property-value/TransitionPrefixer handoff queued for rework. Source commit
+  `b701d7878f35e3c6d820b19b8a6c80f3aaf1f4cbb` (`ports: extend lightningcss
+  parity and sqlite neutral defaults`) integrates LightningCSS source-map
+  skipped-index guards, bundle import source-map comment-boundary handling, CSS
+  Modules commented composes boundaries, font typography target-prefixing,
+  custom at-rule token-list preludes, CSSOM grid auto-flow, media range import
+  dedupe, and libsqlite source-neutral option-table defaults. Verification
+  passed PHP lint for 29 changed/new PHP files, `git diff --check`, full
+  LightningCSS `13 files / 5521 assertions / 0 failures`, focused
+  libsqlite/no-domain guard `5 files / 532 assertions / 0 failures`, and
+  touched examples. Dashboard/status should report LightningCSS `2303 / 3532`
+  mapped and `5521 pass / 0 fail`, plus libsqlite `1589 / 1589` mapped with
+  `5399389 pass / 7 fail`. Broad libsqlite full-lane/release parity, pre-
+  existing source-neutral cleanup debt, and full upstream LightningCSS
+  Rust/Node/WASM runners remain open.
+
 - 2026-06-01 supervisor continuation (Gitoxide/libsqlite intake 02:20 UTC):
   accepted seven current/recent source handoffs on the clean integration
   worktree after source-only apply checks and worker-log review. Source commit
