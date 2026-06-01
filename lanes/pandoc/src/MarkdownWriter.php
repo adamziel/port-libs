@@ -1208,11 +1208,6 @@ final class MarkdownWriter
                 continue;
             }
 
-            if ($i === 0 && $this->startsWithListMarker($text)) {
-                $escaped .= '\\' . $char;
-                continue;
-            }
-
             if ($i === 0 && $char === '@' && isset($text[$i + 1]) && preg_match('/[A-Za-z0-9_{]/', $text[$i + 1]) === 1) {
                 $escaped .= '\\@';
                 continue;
@@ -1297,11 +1292,6 @@ final class MarkdownWriter
         $offset = strspn($text, '#');
 
         return $offset > 0 && ($offset === strlen($text) || $text[$offset] === ' ' || $text[$offset] === "\t");
-    }
-
-    private function startsWithListMarker(string $text): bool
-    {
-        return preg_match('/^(?:[0-9]+[.)]|[*+-])(?:[ \t]|$)/', $text) === 1;
     }
 
     private function isIntrawordUnderscore(string $text, int $offset): bool

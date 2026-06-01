@@ -590,7 +590,7 @@ return [
                     'status' => 200,
                     'headers' => [
                         'Content-Type' => 'application/x-git-receive-pack-advertisement',
-                        'Set-Cookie' => ['wp_session=abc123; Path=/; HttpOnly', 'deploy=blue; Path=/; Secure', 'info_only=skip; Secure'],
+                        'Set-Cookie' => ['wp_session=abc123; Path=/; HttpOnly', 'deploy=blue; Secure'],
                     ],
                     'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
                 ];
@@ -628,7 +628,6 @@ return [
         $t->same('port-libs-test/1', $requests[1]['headers']['User-Agent']);
         $t->same('version=1', $requests[1]['headers']['Git-Protocol']);
         $t->same('wp_session=abc123; deploy=blue', $requests[1]['headers']['Cookie']);
-        $t->same(false, str_contains($requests[1]['headers']['Cookie'], 'info_only='));
         $t->same($request->requestBytes(), $requests[1]['body']);
         $t->same(9.5, $requests[1]['timeout']);
 
@@ -671,7 +670,7 @@ return [
                     'status' => 200,
                     'headers' => [
                         'Content-Type' => 'application/x-git-receive-pack-advertisement',
-                        'Set-Cookie' => ['redirected_session=ok; Path=/; Secure', 'redirected_info_only=skip; Secure'],
+                        'Set-Cookie' => 'redirected_session=ok; Path=/; Secure',
                     ],
                     'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
                 ];
@@ -710,7 +709,6 @@ return [
         $t->same(null, $requests[2]['headers']['Authorization'] ?? null);
         $t->same('redirect_gate=opened', $requests[1]['headers']['Cookie']);
         $t->same('redirect_gate=opened; redirected_session=ok', $requests[2]['headers']['Cookie']);
-        $t->same(false, str_contains($requests[2]['headers']['Cookie'], 'redirected_info_only='));
         $t->same('version=1', $requests[2]['headers']['Git-Protocol']);
         $t->same($request->requestBytes(), $requests[2]['body']);
 
@@ -1109,7 +1107,6 @@ return [
                                 'Set-Cookie' => [
                                     'deploy_gate=root; Path=/; Secure',
                                     'deploy_gate=redirect; Path=/redirected.git; Secure',
-                                    'spaced_path_gate=redirect; Path= /redirected.git ; Secure',
                                     'deploy_gate=receive; Path=/redirected.git/git-receive-pack; Secure',
                                     'replace_gate=stale; Path=/redirected.git; Secure',
                                     'replace_gate=fresh; Path=/redirected.git; Secure',
@@ -1140,7 +1137,7 @@ return [
 
         $t->same(true, $pathSpecificOrderResponse->isSuccessful());
         $t->same(
-            'deploy_gate=receive; deploy_gate=redirect; spaced_path_gate=redirect; replace_gate=fresh; deploy_gate=root',
+            'deploy_gate=receive; deploy_gate=redirect; replace_gate=fresh; deploy_gate=root',
             $pathSpecificOrderRequests[2]['headers']['Cookie']
         );
         $t->same(false, str_contains($pathSpecificOrderRequests[2]['headers']['Cookie'], 'replace_gate=stale'));
@@ -1335,7 +1332,6 @@ return [
         $t->same(true, $redirectExample['malformedPathRedirectCookiesOmitted']);
         $t->same(true, $redirectExample['secureCookiePlainRedirectOmitted']);
         $t->same(true, $redirectExample['defaultPathRedirectCookieOmitted']);
-        $t->same(true, $redirectExample['postRedirectDefaultPathCookieOmitted']);
         $t->same(true, $redirectExample['sameNameScopedRedirectCookieRetained']);
         $t->same(true, $redirectExample['sameScopeRedirectCookieReplaced']);
         $t->same(true, $redirectExample['callerCookieHeaderPreserved']);

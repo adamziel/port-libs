@@ -135,44 +135,6 @@ final class FolderScanScheduler
         ];
     }
 
-    /**
-     * @return array{folder:string, acknowledged:bool, revision:null|int}
-     */
-    public function clearFolderCheckpoint(string $folderId, ?int $expectedRevision = null, ?int $now = null): array
-    {
-        $service = $this->requireFolder($folderId);
-        $snapshot = $service->checkpoint($now);
-        $acknowledged = $service->clear($expectedRevision, $now);
-
-        return [
-            'folder' => $folderId,
-            'acknowledged' => $acknowledged,
-            'revision' => $snapshot?->revision,
-        ];
-    }
-
-    /**
-     * @return array{acknowledged:int, folders:array<string, array{folder:string, acknowledged:bool, revision:null|int}>}
-     */
-    public function clearFolderCheckpoints(?int $now = null): array
-    {
-        $folders = [];
-        $acknowledged = 0;
-        foreach ($this->folderIds() as $folderId) {
-            $result = $this->clearFolderCheckpoint($folderId, now: $now);
-            if ($result['acknowledged']) {
-                $acknowledged++;
-                $folders[$folderId] = $result;
-            }
-        }
-        ksort($folders, SORT_STRING);
-
-        return [
-            'acknowledged' => $acknowledged,
-            'folders' => $folders,
-        ];
-    }
-
     public function isPaused(string $folderId): bool
     {
         self::assertFolderId($folderId);

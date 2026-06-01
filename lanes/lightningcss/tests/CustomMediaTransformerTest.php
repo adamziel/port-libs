@@ -187,18 +187,6 @@ CSS;
             $transformAndMinify($css)
         );
     },
-    'custom media transformer ignores stale import modifier tokens inside comments' => static function (TestRunner $t) use ($transformAndMinify): void {
-        $css = <<<'CSS'
-@custom-media --wide (min-width: 782px);
-
-@import url(./blocks/cards.css) /* stale layer(old) supports((display:flex)) (--missing-import), ) */ layer(theme.blocks) supports((display: grid)) screen and (--wide);
-CSS;
-
-        $t->same(
-            '@import "./blocks/cards.css" layer(theme.blocks) supports((display:grid)) screen and (width>=782px);',
-            $transformAndMinify($css)
-        );
-    },
     'custom media transformer maps upstream negated range aliases' => static function (TestRunner $t) use ($transformAndMinify): void {
         $css = <<<'CSS'
 @custom-media --not-width not (min-width: 300px);

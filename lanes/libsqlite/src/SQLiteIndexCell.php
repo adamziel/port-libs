@@ -12,8 +12,6 @@ final class SQLiteIndexCell
         public readonly int $offset,
         public readonly int $bytesRead,
         public readonly ?int $leftChildPage,
-        public readonly int $localPayloadLength = 0,
-        public readonly ?int $firstOverflowPage = null,
     ) {
     }
 
@@ -116,7 +114,6 @@ final class SQLiteIndexCell
 
         $payload = substr($page, $payloadOffset, $localPayloadLength);
         $bytesRead = ($payloadOffset - $offset) + $localPayloadLength;
-        $firstOverflowPage = null;
         if ($localPayloadLength < $payloadLength) {
             if ($payloadOffset + $localPayloadLength + 4 > $usableSize) {
                 throw new \InvalidArgumentException('SQLite index cell overflow pointer extends beyond the page');
@@ -142,8 +139,6 @@ final class SQLiteIndexCell
             $offset,
             $bytesRead,
             $leftChildPage,
-            $localPayloadLength,
-            $firstOverflowPage,
         );
     }
 

@@ -151,16 +151,6 @@ return [
             'featureAvailable' => false,
             'walkError' => 'would not be reached',
         ]);
-        $blank = OneDriveCleanupCommand::run([
-            [
-                'remote' => 'exports/site.wxr',
-                'versions' => ['current', 'old-review'],
-            ],
-        ], [
-            'remoteArgs' => ['   '],
-            'featureAvailable' => false,
-            'walkError' => 'would not be reached',
-        ]);
         $missingWhileDisabled = OneDriveCleanupCommand::run([
             [
                 'remote' => 'exports/site.wxr',
@@ -194,17 +184,6 @@ return [
             'featureAvailable' => false,
             'walkError' => 'would not be reached',
         ]);
-        $blankWhileDisabled = OneDriveCleanupCommand::run([
-            [
-                'remote' => 'exports/site.wxr',
-                'versions' => ['current', 'old-review'],
-            ],
-        ], [
-            'remoteArgs' => ["\t"],
-            'noVersions' => false,
-            'featureAvailable' => false,
-            'walkError' => 'would not be reached',
-        ]);
 
         $t->same('cleanup command expects exactly one remote argument', $missing['error']);
         $t->same('command-arity', $missing['stoppedAt']);
@@ -219,11 +198,6 @@ return [
         $t->same(0, $empty['walkedObjects']);
         $t->same(0, $empty['versionRequests']);
         $t->same(false, $empty['providerCalled']);
-        $t->same('cleanup command expects exactly one remote argument', $blank['error']);
-        $t->same('command-arity', $blank['stoppedAt']);
-        $t->same(0, $blank['walkedObjects']);
-        $t->same(0, $blank['versionRequests']);
-        $t->same(false, $blank['providerCalled']);
         $t->same('cleanup command expects exactly one remote argument', $missingWhileDisabled['error']);
         $t->same('command-arity', $missingWhileDisabled['stoppedAt']);
         $t->same(0, $missingWhileDisabled['walkedObjects']);
@@ -239,11 +213,6 @@ return [
         $t->same(0, $emptyWhileDisabled['walkedObjects']);
         $t->same(0, $emptyWhileDisabled['versionRequests']);
         $t->same(false, $emptyWhileDisabled['providerCalled']);
-        $t->same('cleanup command expects exactly one remote argument', $blankWhileDisabled['error']);
-        $t->same('command-arity', $blankWhileDisabled['stoppedAt']);
-        $t->same(0, $blankWhileDisabled['walkedObjects']);
-        $t->same(0, $blankWhileDisabled['versionRequests']);
-        $t->same(false, $blankWhileDisabled['providerCalled']);
     },
     'onedrive cleanup command accepts one remote before disabled and feature-gated paths' => static function (TestRunner $t): void {
         $disabled = OneDriveCleanupCommand::run([
@@ -493,9 +462,6 @@ return [
         $t->same(false, $example['extraRemoteArgProviderCalled']);
         $t->same('cleanup command expects exactly one remote argument', $example['emptyRemoteArgError']);
         $t->same(false, $example['emptyRemoteArgProviderCalled']);
-        $t->same('cleanup command expects exactly one remote argument', $example['blankRemoteArgError']);
-        $t->same('command-arity', $example['blankRemoteArgStoppedAt']);
-        $t->same(false, $example['blankRemoteArgProviderCalled']);
         $t->same('cleanup command expects exactly one remote argument', $example['missingRemoteArgDisabledError']);
         $t->same('command-arity', $example['missingRemoteArgDisabledStoppedAt']);
         $t->same(false, $example['missingRemoteArgDisabledProviderCalled']);
@@ -503,8 +469,6 @@ return [
         $t->same(false, $example['extraRemoteArgDisabledProviderCalled']);
         $t->same('cleanup command expects exactly one remote argument', $example['emptyRemoteArgDisabledError']);
         $t->same(false, $example['emptyRemoteArgDisabledProviderCalled']);
-        $t->same('cleanup command expects exactly one remote argument', $example['blankRemoteArgDisabledError']);
-        $t->same(false, $example['blankRemoteArgDisabledProviderCalled']);
         $t->same(null, $example['validRemoteArgDisabledError']);
         $t->same('disabled-no-versions', $example['validRemoteArgDisabledStoppedAt']);
         $t->same(false, $example['validRemoteArgDisabledProviderCalled']);

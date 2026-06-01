@@ -52,7 +52,6 @@ final class SQLiteCreateTable
      */
     private static function automaticIndexColumns(string $sql, bool $includePrimaryKey): array
     {
-        $sql = self::stripSqlComments($sql);
         $body = self::tableBody($sql);
         if ($body === null) {
             return [];
@@ -96,7 +95,7 @@ final class SQLiteCreateTable
             if ($includePrimaryKey && self::startsWithPrimaryKey($constraint)) {
                 $list = self::parenthesizedBodyAfterPrimaryKey($constraint);
                 $primaryKeyColumns = $list === null ? [] : self::indexedColumnsInList($list, $columnCollations);
-                if ($withoutRowid || !self::isRowidAliasTablePrimaryKey($primaryKeyColumns, $columnTypes)) {
+                if (!$withoutRowid && !self::isRowidAliasTablePrimaryKey($primaryKeyColumns, $columnTypes)) {
                     $addConstraint($primaryKeyColumns);
                 }
 
@@ -123,8 +122,9 @@ final class SQLiteCreateTable
             }
             if (
                 $includePrimaryKey
+                && !$withoutRowid
                 && self::containsTopLevelPrimaryKey($tail)
-                && ($withoutRowid || !self::isRowidAliasColumnPrimaryKey($definition, $column[1], $tail))
+                && !self::isRowidAliasColumnPrimaryKey($definition, $column[1], $tail)
             ) {
                 $addConstraint([
                     self::indexedColumnForDeclaredColumn(
@@ -635,7 +635,6 @@ final class SQLiteCreateTable
 
     private static function isWithoutRowidTable(string $sql): bool
     {
-        $sql = self::stripSqlComments($sql);
         $open = strpos($sql, '(');
         if ($open === false) {
             return false;
@@ -646,57 +645,6 @@ final class SQLiteCreateTable
         }
 
         return preg_match('/\bWITHOUT\s+ROWID\b/i', substr($sql, $close + 1)) === 1;
-    }
-
-    private static function stripSqlComments(string $sql): string
-    {
-        $length = strlen($sql);
-        $result = '';
-        for ($i = 0; $i < $length; $i++) {
-            $char = $sql[$i];
-            if ($char === "'" || $char === '"' || $char === '`') {
-                $end = self::skipQuoted($sql, $i, $char);
-                $result .= substr($sql, $i, $end - $i + 1);
-                $i = $end;
-                continue;
-            }
-            if ($char === '[') {
-                $end = self::skipBracketQuoted($sql, $i);
-                $result .= substr($sql, $i, $end - $i + 1);
-                $i = $end;
-                continue;
-            }
-            if ($char === '-' && ($sql[$i + 1] ?? '') === '-') {
-                $result .= '  ';
-                $i += 2;
-                while ($i < $length && $sql[$i] !== "\n" && $sql[$i] !== "\r") {
-                    $result .= ' ';
-                    $i++;
-                }
-                if ($i < $length) {
-                    $result .= $sql[$i];
-                }
-                continue;
-            }
-            if ($char === '/' && ($sql[$i + 1] ?? '') === '*') {
-                $result .= '  ';
-                $i += 2;
-                while ($i < $length) {
-                    if ($sql[$i] === '*' && ($sql[$i + 1] ?? '') === '/') {
-                        $result .= '  ';
-                        $i++;
-                        break;
-                    }
-                    $result .= ($sql[$i] === "\n" || $sql[$i] === "\r") ? $sql[$i] : ' ';
-                    $i++;
-                }
-                continue;
-            }
-
-            $result .= $char;
-        }
-
-        return $result;
     }
 
     /**

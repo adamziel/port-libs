@@ -31,7 +31,6 @@ echo json_encode([
     'path' => $databasePath,
     'optionNames' => $optionNames,
     'wpOptionsOptionNameInListIndexRootPage' => $indexRootPage,
-    'plannerBehavior' => 'option_name IN-list lookups can use a partial option_name IN (...) index when all requested non-null names are covered by that partial predicate.',
     'limit' => $limit,
     'options' => $options,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

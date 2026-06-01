@@ -8,39 +8,6 @@ Worktree: `{{WORKTREE}}`
 Main repo for handoff artifacts only: `{{MAIN_REPO}}`
 Supervisor log: `{{LOG_FILE}}`
 
-Current supervisor override, 2026-05-28 00:55 UTC:
-
-- The launcher-printed `Base accepted HEAD` is authoritative. The current
-  shared `main` source is dashboard commit
-  `103fc00c42f1ff0580cae8a7768e4a3da0979c2d`, with status source
-  `5883f5e65ebfd2e9cf8c9acf617a2a818277909c` and latest integrated
-  libsqlite implementation source `21f1e38635e924df34f7be1aef3242b4b233710c`
-  (`Integrate libsqlite batch 68 remaining slices`). Raw GitHub dashboard
-  evidence reports libsqlite `26014 pass / 0 fail` and mapped coverage
-  `464 / 1589`.
-- Do not duplicate accepted batch68 remainder surfaces: ATTACH WAL/temp
-  rollback routing, JSONB CHECK optional-path and SQL NULL-admission
-  semantics, LIKE current/next cursor ranges, recursive JSON SELECT
-  materialization, accepted-head suite-denominator admission, VFS file-control
-  state transitions, and WAL reader-pin restart/truncate handoff. Batch69
-  handoffs for attach/json/pager/select/suite/vfs/wal are already ready, and
-  batch68 btree/pragma/trigger markers are still queued for supervisor
-  integration. Avoid those unless your slice names a narrower unhandled
-  behavior and adds fresh tests.
-- Produce one disjoint libsqlite behavior-backed patch with focused passing
-  `TestRunner` PASS lines and a WordPress smoke/example or a named upstream
-  runner/countability blocker removal. Preferred current surfaces are B-tree
-  delete/rebalance/write-apply details not covered by pointer-map vacuum,
-  pager hot-journal/super-journal recovery edges, WAL checksum/salt/read-mark
-  recovery not covered by reader-pin handoff, SQL executor DML/DDL semantics
-  not covered by the queued batch69 handoffs, JSON planner/constraint cases
-  not covered by optional CHECK admission, encoding/collation malformed text
-  comparisons, and release-runner/countability blockers that move mapped
-  evidence honestly.
-- Work immediately and exit with a lane patch. Do not sleep, wait for other
-  lanes, wait for publication, or produce status-only/manifest-only/note-only
-  handoffs.
-
 You are running in a detached clean git worktree created from accepted `HEAD`.
 Do not edit the shared checkout. Do not inspect secrets. Do not run live-service
 provider tests.

@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-28 03:55:36 UTC",
-    "sourceCommit": "1edf05734b9d44edd9e5be8ae6d29a999869e3d1",
-    "sourceCommitShort": "1edf05734b9d",
-    "sourceBranch": "main",
-    "dashboardCommit": "1edf05734b9d44edd9e5be8ae6d29a999869e3d1",
-    "dashboardCommitShort": "1edf05734b9d",
-    "averageProgressPercent": "86.3",
+    "generated": "2026-06-01 01:43:21 UTC",
+    "sourceCommit": "ca55a1e2ff59c7c5b05352d99d3ceb8062ec11d2",
+    "sourceCommitShort": "ca55a1e2ff59",
+    "sourceBranch": "unknown",
+    "dashboardCommit": "ca55a1e2ff59c7c5b05352d99d3ceb8062ec11d2",
+    "dashboardCommitShort": "ca55a1e2ff59",
+    "averageProgressPercent": "88.0",
     "lanes": [
         {
             "library": "difftastic",
@@ -22,7 +22,7 @@
             "currentWork": "C# syntax highlighting now maps upstream-style keyword/operator/type captures to keyword/...",
             "nextTarget": "Expand the next upstream-query-backed syntax highlight boundary outside the already mappe...",
             "blocker": "upstream runner parity unavailable",
-            "commit": "pending"
+            "commit": "cd2e8a0"
         },
         {
             "library": "dolt",
@@ -39,7 +39,7 @@
             "currentWork": "Native table diff classification, Dolt-style DOLT_DIFF_* rows, schema/tag/index/foreign-k...",
             "nextTarget": "Implementation worker: map the next bounded SQL merge visibility edge after allow-commit,...",
             "blocker": "upstream runner parity unavailable",
-            "commit": "pending"
+            "commit": "cd2e8a0"
         },
         {
             "library": "esbuild",
@@ -56,58 +56,58 @@
             "currentWork": "Added a bounded output-format preview slice for named ESM re-export clauses. The graph no...",
             "nextTarget": "After integrator/root acceptance, the next best lane task is a tiny bounded output-format...",
             "blocker": "Release-extra upstream `make test-all` coverage remains static-only.",
-            "commit": "6cb369f"
+            "commit": "cd2e8a0"
         },
         {
             "library": "gitoxide",
-            "progressPercent": "96.0",
-            "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
-            "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
+            "progressPercent": "91.9",
+            "suite": "current-base credential-helper-context-platform-and-con...",
+            "benchmark": "current-base credential-helper-context-platform-and-con...",
             "denominator": "2886",
-            "mapped": "1485",
-            "coverage": "1485 / 2886",
-            "php": "2841 pass / 0 fail",
+            "mapped": "1697",
+            "coverage": "1697 / 2886",
+            "php": "6760 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "targeted upstream inventory and native PHP behavior sli...",
-            "audit": "isolated micro-slice 2026-05-27 port-impl...",
-            "currentWork": "SmartHttpReceivePackTransport rejects unsafe receive-pack POST redirects before resolving...",
-            "nextTarget": "Run a controlled protocol/transport crate probe, deepen SSH channel/auth integration with...",
-            "blocker": "cargo runner not executed",
-            "commit": "pending"
+            "phase": "current-base source integration accepted by supervisor...",
+            "audit": "2026-06-01 supervisor batch: full Gitoxid...",
+            "currentWork": "Credential helper context/platform behavior and config include POSIX blank-boundary parit...",
+            "nextTarget": "Keep three Gitoxide workers on current-base non-overlapping protocol, pack/object, refere...",
+            "blocker": "Full upstream Cargo workspace remains unexecuted.",
+            "commit": "ca55a1e"
         },
         {
             "library": "libsqlite",
-            "progressPercent": "99.0",
-            "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
-            "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
+            "progressPercent": "99.4",
+            "suite": "full-upstream-sqlite-script-denominator-admitted-and-fo...",
+            "benchmark": "full-upstream-sqlite-script-denominator-admitted-and-fo...",
             "denominator": "1589",
-            "mapped": "540",
-            "coverage": "540 / 1589",
-            "php": "36750 pass / 0 fail",
+            "mapped": "1589",
+            "coverage": "1589 / 1589",
+            "php": "5310725 pass / 7 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch91 clean subset covering B-tree, encoding...",
-            "audit": "Implementation commit c2c71df0e560a17d547...",
-            "currentWork": "Accepted verified batch91 subset; dashboard/status publication and marker cleanup are nex...",
-            "nextTarget": "Publish dashboard/status for batch91, consume accepted marker triplets and inactive workt...",
-            "blocker": "No blocker for the accepted batch89 subset: focused, regression, full lib...",
-            "commit": "c2c71df"
+            "phase": "focused source integration accepted; broad full-lane an...",
+            "audit": "2026-06-01 supervisor batch: focused libs...",
+            "currentWork": "Real upstream pragma schema cache reload and btree skipscan dynamic corpora integrated on...",
+            "nextTarget": "Keep SQLite workers on broad full-lane failure triage and source-neutral cleanup, includi...",
+            "blocker": "Broad libsqlite full-lane/release parity is not green: sampled failures r...",
+            "commit": "ca55a1e"
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "72.0",
-            "suite": "static-upstream-inventory-plus-runner-evidence",
-            "benchmark": "static-upstream-inventory-plus-runner-evidence",
+            "progressPercent": "96.9",
+            "suite": "current-base-xyz-color-mix-bundle-import-source-map-tra...",
+            "benchmark": "current-base-xyz-color-mix-bundle-import-source-map-tra...",
             "denominator": "3532",
-            "mapped": "927",
-            "coverage": "927 / 3532",
-            "php": "1088 pass / 0 fail",
+            "mapped": "2290",
+            "coverage": "2290 / 3532",
+            "php": "5402 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "static upstream inventory plus upstream Rust/Node/WASM...",
-            "audit": "audited 2026-05-26",
-            "currentWork": "Native custom-media transformation now treats CSS comments as inert while collecting, del...",
-            "nextTarget": "Continue custom-media transformer parity around remaining preserve-mode and diagnostic ed...",
-            "blocker": "No current LightningCSS implementation blocker for this slice.",
-            "commit": "pending"
+            "phase": "current-base source integration accepted by supervisor...",
+            "audit": "2026-06-01 supervisor batch: full Lightni...",
+            "currentWork": "XYZ relative color-mix fallback, import graph custom-at-rule prelude handling, source-map...",
+            "nextTarget": "Keep four to six LightningCSS workers on source maps, CSS Modules, bundle/import graph, m...",
+            "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
+            "commit": "ca55a1e"
         },
         {
             "library": "markerPDF",
@@ -124,7 +124,7 @@
             "currentWork": "Reduced simple-font WinAnsiEncoding handoff. PdfTextExtractor now maps high-bit WinAnsiEn...",
             "nextTarget": "Choose the next bounded markerPDF text extraction gap, likely a small remaining PDF conte...",
             "blocker": "upstream runner parity unavailable",
-            "commit": "pending"
+            "commit": "cd2e8a0"
         },
         {
             "library": "pandoc",
@@ -141,7 +141,7 @@
             "currentWork": "Native MarkdownWriter keeps the accepted inline line-break, table, definition-list, under...",
             "nextTarget": "Map another bounded Markdown writer branch after block-start list-marker escaping, such a...",
             "blocker": "Pandoc-local PHP blocker: none; focused pandoc behavior count is 239 test...",
-            "commit": "pending"
+            "commit": "cd2e8a0"
         },
         {
             "library": "quadrable",
@@ -158,7 +158,7 @@
             "currentWork": "Pure-PHP Quadrable data structures and proof transport plus native file-backed `QuadbStor...",
             "nextTarget": "If accepted, continue reducing any remaining command-surface parity gaps only where upstr...",
             "blocker": "No current quadrable-specific upstream runner or focused PHP blocker.",
-            "commit": "pending"
+            "commit": "cd2e8a0"
         },
         {
             "library": "rclone",
@@ -175,7 +175,7 @@
             "currentWork": "Native PHP maps OneDrive CleanUp/no-versions command and RC wiring locally on top of acce...",
             "nextTarget": "Map another bounded credential-free OneDrive/provider lifecycle cluster, such as a featur...",
             "blocker": "No rclone-local PHP blocker after this slice.",
-            "commit": "pending"
+            "commit": "cd2e8a0"
         },
         {
             "library": "Readability/content rewrite engine",
@@ -192,7 +192,7 @@
             "currentWork": "The copied Mozilla base URL fixture family now has focused WordPress block evidence provi...",
             "nextTarget": "Map `lifehacker-working` or another remaining Kinja/comment-heavy fixture with a targeted...",
             "blocker": "No focused readability blocker.",
-            "commit": "pending"
+            "commit": "cd2e8a0"
         },
         {
             "library": "syncthing",
@@ -209,7 +209,7 @@
             "currentWork": "Native `FolderScanRouteRegistry::forScanApi()` now exposes `GET /syncthing/db/scan/status...",
             "nextTarget": "Map the next Syncthing closure edge: audit remaining route/status surfaces for acceptance...",
             "blocker": "No Syncthing lane-local PHP blocker for this micro-slice: focused route-r...",
-            "commit": "55605cb"
+            "commit": "cd2e8a0"
         }
     ],
     "dependencyBacklog": {

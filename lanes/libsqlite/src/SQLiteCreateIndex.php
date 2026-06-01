@@ -21,44 +21,6 @@ final class SQLiteCreateIndex
         return self::parseColumns($sql, null);
     }
 
-    /**
-     * @return list<SQLiteIndexColumn>
-     */
-    public static function columnsAfterFirstExpression(string $sql): array
-    {
-        $index = self::indexedTermsAndTail($sql);
-        if ($index === null || count($index['terms']) < 2) {
-            return [];
-        }
-        if (self::parseIndexedColumn($index['terms'][0]) !== null) {
-            return [];
-        }
-
-        $whereOffset = self::findTopLevelKeyword($index['tail'], 'WHERE');
-        $partial = $whereOffset !== null;
-        $partialPredicate = $whereOffset === null
-            ? null
-            : self::parsePartialPredicate(substr($index['tail'], $whereOffset + strlen('WHERE')));
-
-        $columns = [];
-        foreach (array_slice($index['terms'], 1) as $term) {
-            $column = self::parseIndexedColumn($term);
-            if ($column === null) {
-                break;
-            }
-
-            $columns[] = new SQLiteIndexColumn(
-                $column['name'],
-                $column['collation'],
-                $column['descending'],
-                $partial,
-                $partialPredicate,
-            );
-        }
-
-        return $columns;
-    }
-
     public static function firstLowerExpression(string $sql): ?SQLiteIndexColumn
     {
         $index = self::indexedTermsAndTail($sql);
@@ -251,7 +213,6 @@ final class SQLiteCreateIndex
             $expression['descending'],
             $partial,
             $partialPredicate,
-            $expression['functionName'],
         );
     }
 
@@ -285,7 +246,6 @@ final class SQLiteCreateIndex
             $expression['descending'],
             $partial,
             $partialPredicate,
-            '->>',
         );
     }
 
@@ -319,7 +279,6 @@ final class SQLiteCreateIndex
             $expression['descending'],
             $partial,
             $partialPredicate,
-            '->',
         );
     }
 
@@ -439,7 +398,7 @@ final class SQLiteCreateIndex
     private static function parseIndexedColumn(string $term): ?array
     {
         $term = trim($term);
-        $identifier = self::readPossiblyQualifiedIdentifier($term, 0);
+        $identifier = self::readIdentifier($term, 0);
         if ($identifier === null) {
             return null;
         }
@@ -482,7 +441,7 @@ final class SQLiteCreateIndex
      */
     private static function parseTrimExpressionColumn(string $term): ?array
     {
-        $term = self::normalizeExpressionIndexTerm($term);
+        $term = trim($term);
         $function = self::readIdentifier($term, 0);
         if (
             $function === null
@@ -544,7 +503,7 @@ final class SQLiteCreateIndex
      */
     private static function parseUnaryColumnFunctionExpression(string $term, string $functionName): ?array
     {
-        $term = self::normalizeExpressionIndexTerm($term);
+        $term = trim($term);
         $function = self::readIdentifier($term, 0);
         if ($function === null || strcasecmp($function[0], $functionName) !== 0) {
             return null;
@@ -587,7 +546,7 @@ final class SQLiteCreateIndex
      */
     private static function parseSubstringExpressionColumn(string $term): ?array
     {
-        $term = self::normalizeExpressionIndexTerm($term);
+        $term = trim($term);
         $function = self::readIdentifier($term, 0);
         if (
             $function === null
@@ -645,7 +604,7 @@ final class SQLiteCreateIndex
      */
     private static function parseLengthExpressionColumn(string $term): ?array
     {
-        $term = self::normalizeExpressionIndexTerm($term);
+        $term = trim($term);
         $function = self::readIdentifier($term, 0);
         if ($function === null || strcasecmp($function[0], 'length') !== 0) {
             return null;
@@ -688,7 +647,7 @@ final class SQLiteCreateIndex
      */
     private static function parseIntegerCastExpressionColumn(string $term): ?array
     {
-        $term = self::normalizeExpressionIndexTerm($term);
+        $term = trim($term);
         $function = self::readIdentifier($term, 0);
         if ($function === null || strcasecmp($function[0], 'cast') !== 0) {
             return null;
@@ -736,13 +695,13 @@ final class SQLiteCreateIndex
     }
 
     /**
-     * @return null|array{name:string,path:string,collation:string,descending:bool,functionName:string}
+     * @return null|array{name:string,path:string,collation:string,descending:bool}
      */
     private static function parseJsonExtractExpressionColumn(string $term): ?array
     {
-        $term = self::normalizeExpressionIndexTerm($term);
+        $term = trim($term);
         $function = self::readIdentifier($term, 0);
-        if ($function === null || !in_array(strtolower($function[0]), ['json_extract', 'jsonb_extract'], true)) {
+        if ($function === null || strcasecmp($function[0], 'json_extract') !== 0) {
             return null;
         }
 
@@ -789,7 +748,6 @@ final class SQLiteCreateIndex
             'path' => $path[0],
             'collation' => $modifiers['collation'],
             'descending' => $modifiers['descending'],
-            'functionName' => strtolower($function[0]),
         ];
     }
 
@@ -798,7 +756,7 @@ final class SQLiteCreateIndex
      */
     private static function parseJsonTextOperatorExpressionColumn(string $term): ?array
     {
-        $term = self::normalizeExpressionIndexTerm($term);
+        $term = trim($term);
         $column = self::readPossiblyQualifiedIdentifier($term, 0);
         if ($column === null) {
             return null;
@@ -837,7 +795,7 @@ final class SQLiteCreateIndex
      */
     private static function parseJsonValueOperatorExpressionColumn(string $term): ?array
     {
-        $term = self::normalizeExpressionIndexTerm($term);
+        $term = trim($term);
         $column = self::readPossiblyQualifiedIdentifier($term, 0);
         if ($column === null) {
             return null;
@@ -956,29 +914,6 @@ final class SQLiteCreateIndex
         ];
     }
 
-    private static function normalizeExpressionIndexTerm(string $term): string
-    {
-        $term = trim($term);
-        while (($term[0] ?? null) === '(') {
-            $close = self::matchingParen($term, 0);
-            if ($close === null) {
-                return $term;
-            }
-
-            $inner = trim(substr($term, 1, $close - 1));
-            $suffix = trim(substr($term, $close + 1));
-            if ($suffix !== '') {
-                $inner .= ' ' . $suffix;
-            }
-            if ($inner === $term) {
-                return $term;
-            }
-            $term = $inner;
-        }
-
-        return $term;
-    }
-
     /**
      * @return list<string>
      */
@@ -1053,12 +988,12 @@ final class SQLiteCreateIndex
     private static function parseSinglePartialPredicate(string $where): ?SQLiteIndexPredicate
     {
         $where = trim(self::stripOuterParens($where));
-        $operand = self::readPartialPredicateOperand($where, 0);
-        if ($operand === null) {
+        $identifier = self::readPossiblyQualifiedIdentifier($where, 0);
+        if ($identifier === null) {
             return null;
         }
 
-        $offset = self::skipWhitespace($where, $operand[1]);
+        $offset = self::skipWhitespace($where, $identifier[1]);
         $is = self::readIdentifier($where, $offset);
         if ($is !== null && strcasecmp($is[0], 'IS') === 0) {
             $not = self::readIdentifier($where, $is[1]);
@@ -1075,7 +1010,7 @@ final class SQLiteCreateIndex
                 return null;
             }
 
-            return new SQLiteIndexPredicate($operand[0], SQLiteIndexPredicate::IS_NOT_NULL);
+            return new SQLiteIndexPredicate($identifier[0], SQLiteIndexPredicate::IS_NOT_NULL);
         }
 
         $in = self::readIdentifier($where, $offset);
@@ -1103,7 +1038,7 @@ final class SQLiteCreateIndex
                 $values[] = $literal[0];
             }
 
-            return new SQLiteIndexPredicate($operand[0], SQLiteIndexPredicate::IN_LIST, $values);
+            return new SQLiteIndexPredicate($identifier[0], SQLiteIndexPredicate::IN_LIST, $values);
         }
 
         $between = self::readIdentifier($where, $offset);
@@ -1123,7 +1058,7 @@ final class SQLiteCreateIndex
                 return null;
             }
 
-            return new SQLiteIndexPredicate($operand[0], SQLiteIndexPredicate::BETWEEN, [
+            return new SQLiteIndexPredicate($identifier[0], SQLiteIndexPredicate::BETWEEN, [
                 'lower' => $lower[0],
                 'upper' => $upper[0],
             ]);
@@ -1138,76 +1073,7 @@ final class SQLiteCreateIndex
             return null;
         }
 
-        return new SQLiteIndexPredicate($operand[0], $comparison[0], $literal[0]);
-    }
-
-    /**
-     * @return null|array{0:string,1:int}
-     */
-    private static function readPartialPredicateOperand(string $where, int $offset): ?array
-    {
-        $expression = self::readPartialPredicateExpressionOperand($where, $offset);
-        if ($expression !== null) {
-            return $expression;
-        }
-
-        return self::readPossiblyQualifiedIdentifier($where, $offset);
-    }
-
-    /**
-     * @return null|array{0:string,1:int}
-     */
-    private static function readPartialPredicateExpressionOperand(string $where, int $offset): ?array
-    {
-        $function = self::readIdentifier($where, $offset);
-        if ($function === null) {
-            return null;
-        }
-
-        $functionName = strtolower($function[0]);
-        $open = self::skipWhitespace($where, $function[1]);
-        if (!isset($where[$open]) || $where[$open] !== '(') {
-            return null;
-        }
-
-        $close = self::matchingParen($where, $open);
-        if ($close === null) {
-            return null;
-        }
-
-        $body = trim(substr($where, $open + 1, $close - $open - 1));
-        if (in_array($functionName, ['lower', 'upper', 'length'], true)) {
-            $column = self::readPossiblyQualifiedIdentifier($body, 0);
-            if ($column === null || trim(substr($body, $column[1])) !== '') {
-                return null;
-            }
-
-            return [self::partialExpressionKey($functionName, $column[0]), $close + 1];
-        }
-
-        if ($functionName !== 'cast') {
-            return null;
-        }
-
-        $column = self::readPossiblyQualifiedIdentifier($body, 0);
-        if ($column === null) {
-            return null;
-        }
-        $as = self::readIdentifier($body, $column[1]);
-        if ($as === null || strcasecmp($as[0], 'as') !== 0) {
-            return null;
-        }
-        $type = self::readIdentifier($body, $as[1]);
-        if ($type === null || strcasecmp($type[0], 'integer') !== 0 || trim(substr($body, $type[1])) !== '') {
-            return null;
-        }
-
-        return [self::partialExpressionKey('integer-cast', $column[0]), $close + 1];
-    }
-
-    private static function partialExpressionKey(string $type, string $column): string
-    {
-        return '__expr__:' . $type . ':' . strtolower($column);
+        return new SQLiteIndexPredicate($identifier[0], $comparison[0], $literal[0]);
     }
 
     /**
@@ -1352,32 +1218,11 @@ final class SQLiteCreateIndex
 
         $body = substr($text, $offset + 1, $close - $offset - 1);
         $literal = self::readLiteral($body, 0);
-        if ($literal === null) {
-            return null;
-        }
-
-        $tailOffset = self::skipCollateClause($body, $literal[1]);
-        if (trim(substr($body, $tailOffset)) !== '') {
+        if ($literal === null || trim(substr($body, $literal[1])) !== '') {
             return null;
         }
 
         return [$literal[0], $close + 1];
-    }
-
-    private static function skipCollateClause(string $text, int $offset): int
-    {
-        $offset = self::skipWhitespace($text, $offset);
-        $collate = self::readIdentifier($text, $offset);
-        if ($collate === null || strcasecmp($collate[0], 'collate') !== 0) {
-            return $offset;
-        }
-
-        $name = self::readIdentifier($text, $collate[1]);
-        if ($name === null) {
-            return $offset;
-        }
-
-        return self::skipWhitespace($text, $name[1]);
     }
 
     /**

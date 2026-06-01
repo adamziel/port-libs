@@ -160,7 +160,7 @@ final class SQLiteBTreePageHeader
             if ($offset + $size > $usableSize) {
                 throw new \InvalidArgumentException('SQLite b-tree freeblock extends beyond usable page space');
             }
-            if ($nextOffset !== 0 && $nextOffset < $offset + $size) {
+            if ($nextOffset !== 0 && $nextOffset <= $offset + $size + 3) {
                 throw new \InvalidArgumentException('SQLite b-tree freeblock chain is not in ascending non-overlapping order');
             }
 
@@ -187,127 +187,6 @@ final class SQLiteBTreePageHeader
         }
 
         return $freeBytes - $cellContentFloor;
-    }
-
-    /**
-     * @return array{status:string,page_type:string,cell_count:int,cell_content_area_start:int,first_freeblock_offset:int,fragmented_free_bytes:int,freeblock_count:int,freeblock_bytes:int,free_space_bytes:?int,freeblocks:list<array{offset:int,size:int,end_offset:int,next_offset:?int}>,error:?string}
-     */
-    public function freeblockIntegrityReport(string $page, ?int $usableSize = null): array
-    {
-        $freeblocks = [];
-        $freeblockBytes = 0;
-        $freeSpaceBytes = null;
-        $error = null;
-
-        try {
-            foreach ($this->freeblocks($page, $usableSize) as $freeblock) {
-                $freeblocks[] = $freeblock->toArray();
-                $freeblockBytes += $freeblock->size;
-            }
-            $freeSpaceBytes = $this->freeSpaceBytes($page, $usableSize);
-        } catch (\InvalidArgumentException $exception) {
-            $error = $exception->getMessage();
-        }
-
-        return [
-            'status' => $error === null ? 'ok' : 'corrupt',
-            'page_type' => $this->pageType,
-            'cell_count' => $this->cellCount,
-            'cell_content_area_start' => $this->cellContentAreaStart,
-            'first_freeblock_offset' => $this->firstFreeblockOffset,
-            'fragmented_free_bytes' => $this->fragmentedFreeBytes,
-            'freeblock_count' => count($freeblocks),
-            'freeblock_bytes' => $freeblockBytes,
-            'free_space_bytes' => $freeSpaceBytes,
-            'freeblocks' => $freeblocks,
-            'error' => $error,
-        ];
-    }
-
-    /**
-     * @return array{status:string,page_type:string,fragmented_free_bytes:int,current_next_fragment_bytes:int,unaccounted_fragment_bytes:int,current_next_fragments:list<array{current_offset:int,current_end_offset:int,next_offset:int,fragment_bytes:int}>,error:?string}
-     */
-    public function freeblockCurrentNextFragmentReport(string $page, ?int $usableSize = null): array
-    {
-        $fragments = [];
-        $fragmentBytes = 0;
-        $error = null;
-
-        try {
-            $freeblocks = $this->freeblocks($page, $usableSize);
-            for ($i = 0, $count = count($freeblocks) - 1; $i < $count; $i++) {
-                $current = $freeblocks[$i];
-                $next = $freeblocks[$i + 1];
-                $gap = $next->offset - $current->endOffset();
-                if ($gap > 0 && $gap < 4) {
-                    $fragmentBytes += $gap;
-                    $fragments[] = [
-                        'current_offset' => $current->offset,
-                        'current_end_offset' => $current->endOffset(),
-                        'next_offset' => $next->offset,
-                        'fragment_bytes' => $gap,
-                    ];
-                }
-            }
-
-            if ($fragmentBytes > $this->fragmentedFreeBytes) {
-                throw new \InvalidArgumentException('SQLite b-tree current/next freeblock fragments exceed the page fragmented-byte count');
-            }
-        } catch (\InvalidArgumentException $exception) {
-            $error = $exception->getMessage();
-            $fragments = [];
-            $fragmentBytes = 0;
-        }
-
-        return [
-            'status' => $error === null ? 'ok' : 'corrupt',
-            'page_type' => $this->pageType,
-            'fragmented_free_bytes' => $this->fragmentedFreeBytes,
-            'current_next_fragment_bytes' => $fragmentBytes,
-            'unaccounted_fragment_bytes' => $error === null ? $this->fragmentedFreeBytes - $fragmentBytes : 0,
-            'current_next_fragments' => $fragments,
-            'error' => $error,
-        ];
-    }
-
-    /**
-     * @return array{status:string,page_type:string,freeblock_count:int,secure_delete_payload_zeroed:?bool,freeblocks:list<array{offset:int,size:int,payload_offset:int,payload_size:int,payload_zeroed:bool}>,error:?string}
-     */
-    public function freeblockSecureDeleteReport(string $page, ?int $usableSize = null): array
-    {
-        $freeblocks = [];
-        $allZeroed = null;
-        $error = null;
-
-        try {
-            $allZeroed = true;
-            foreach ($this->freeblocks($page, $usableSize) as $freeblock) {
-                $payloadOffset = $freeblock->offset + 4;
-                $payloadSize = max(0, $freeblock->size - 4);
-                $payload = $payloadSize === 0 ? '' : substr($page, $payloadOffset, $payloadSize);
-                $payloadZeroed = $payload === str_repeat("\0", $payloadSize);
-                $allZeroed = $allZeroed && $payloadZeroed;
-                $freeblocks[] = [
-                    'offset' => $freeblock->offset,
-                    'size' => $freeblock->size,
-                    'payload_offset' => $payloadOffset,
-                    'payload_size' => $payloadSize,
-                    'payload_zeroed' => $payloadZeroed,
-                ];
-            }
-        } catch (\InvalidArgumentException $exception) {
-            $error = $exception->getMessage();
-            $allZeroed = null;
-        }
-
-        return [
-            'status' => $error === null ? 'ok' : 'corrupt',
-            'page_type' => $this->pageType,
-            'freeblock_count' => count($freeblocks),
-            'secure_delete_payload_zeroed' => $allZeroed,
-            'freeblocks' => $freeblocks,
-            'error' => $error,
-        ];
     }
 
     public function isLeaf(): bool

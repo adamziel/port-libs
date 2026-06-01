@@ -123,7 +123,7 @@ final class OneDriveCleanupCommand
     public static function validateRemoteArgs(array $remoteArgs): ?string
     {
         $count = count($remoteArgs);
-        if ($count === 1 && trim($remoteArgs[0]) !== '') {
+        if ($count === 1 && $remoteArgs[0] !== '') {
             return null;
         }
 

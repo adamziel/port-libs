@@ -84,8 +84,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         self::assertContentType($response, 'application/x-git-receive-pack-advertisement', 'smart HTTP receive-pack advertisement');
         $this->rememberCookies(
             $response['headers'],
-            self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, self::infoRefsUrl($this->repositoryUrl)),
-            true,
+            self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, self::infoRefsUrl($this->repositoryUrl))
         );
 
         return self::stripServiceAdvertisement($response['body']);
@@ -125,8 +124,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         self::assertContentType($response, 'application/x-git-receive-pack-result', 'smart HTTP receive-pack result');
         $this->rememberCookies(
             $response['headers'],
-            self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, self::receivePackUrl($this->repositoryUrl)),
-            true,
+            self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, self::receivePackUrl($this->repositoryUrl))
         );
 
         return $response['body'];
@@ -1094,11 +1092,10 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
                 continue;
             }
             if ($name === 'path') {
-                $pathValue = trim($rawValue, " \t");
-                if ($pathValue === '' || !str_starts_with($pathValue, '/') || self::containsControlByte($pathValue)) {
+                if ($rawValue === '' || !str_starts_with($rawValue, '/') || self::containsControlByte($rawValue)) {
                     return null;
                 }
-                $path = $pathValue;
+                $path = $rawValue;
             }
         }
 

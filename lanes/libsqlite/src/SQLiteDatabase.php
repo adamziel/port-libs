@@ -37,11 +37,6 @@ final class SQLiteDatabase
         return intdiv(strlen($this->bytes), $this->header->pageSize);
     }
 
-    public function toBytes(): string
-    {
-        return $this->bytes;
-    }
-
     public function usablePageSize(): int
     {
         $usableSize = $this->header->pageSize - $this->header->reservedSpace;
@@ -230,130 +225,57 @@ final class SQLiteDatabase
      */
     public function freelistTrunkPages(): array
     {
-        $plan = $this->freelistTraversalPlan();
-        if (!$plan->isValid()) {
-            throw new \InvalidArgumentException($plan->errors[0]);
-        }
-
-        return $plan->trunkPages;
-    }
-
-    public function freelistTraversalPlan(): SQLiteFreelistTraversalPlan
-    {
         $expectedPageCount = $this->header->freelistPageCount;
         $firstTrunkPage = $this->header->firstFreelistTrunkPage;
-        $errors = [];
         if ($expectedPageCount === 0) {
             if ($firstTrunkPage !== 0) {
-                $errors[] = 'SQLite freelist header points at a trunk page but has zero free pages';
+                throw new \InvalidArgumentException('SQLite freelist header points at a trunk page but has zero free pages');
             }
 
-            return new SQLiteFreelistTraversalPlan(
-                $expectedPageCount,
-                $firstTrunkPage === 0 ? null : $firstTrunkPage,
-                [],
-                [],
-                [],
-                [],
-                [],
-                null,
-                [],
-                0,
-                $errors,
-            );
+            return [];
         }
         if ($firstTrunkPage < 2) {
-            return new SQLiteFreelistTraversalPlan(
-                $expectedPageCount,
-                null,
-                [],
-                [],
-                [],
-                [],
-                [],
-                null,
-                [],
-                0,
-                ['SQLite freelist header has free pages but no valid first trunk page'],
-            );
+            throw new \InvalidArgumentException('SQLite freelist header has free pages but no valid first trunk page');
         }
 
         $trunkPages = [];
-        $trunkPageNumbers = [];
-        $leafPageNumbers = [];
-        $pageNumbers = [];
-        $allocationOrder = [];
         $seenPages = [];
-        $path = [];
-        $cycleAtPage = null;
-        $cyclePath = [];
         $actualPageCount = 0;
         $pageNumber = $firstTrunkPage;
         while ($pageNumber !== 0) {
             if (isset($seenPages[$pageNumber])) {
-                $cycleAtPage = $pageNumber;
-                $cycleStart = array_search($pageNumber, $path, true);
-                $cyclePath = $cycleStart === false ? [$pageNumber] : array_slice($path, $cycleStart);
-                $cyclePath[] = $pageNumber;
-                $errors[] = "SQLite freelist loops at page {$pageNumber}";
-                break;
+                throw new \InvalidArgumentException("SQLite freelist loops at page {$pageNumber}");
             }
 
-            $path[] = $pageNumber;
-            try {
-                $trunkPage = SQLiteFreelistTrunkPage::parse(
-                    $pageNumber,
-                    $this->page($pageNumber),
-                    $this->usablePageSize(),
-                    $this->pageCount(),
-                );
-            } catch (\InvalidArgumentException $exception) {
-                $errors[] = $exception->getMessage();
-                break;
-            }
-
+            $trunkPage = SQLiteFreelistTrunkPage::parse(
+                $pageNumber,
+                $this->page($pageNumber),
+                $this->usablePageSize(),
+                $this->pageCount(),
+            );
             $trunkPages[] = $trunkPage;
-            $trunkPageNumbers[] = $trunkPage->pageNumber;
-            $pageNumbers[] = $trunkPage->pageNumber;
-            array_push($allocationOrder, ...$trunkPage->allocationOrder());
             $seenPages[$pageNumber] = 'trunk';
             $actualPageCount++;
 
             foreach ($trunkPage->leafPageNumbers as $leafPageNumber) {
                 if (isset($seenPages[$leafPageNumber])) {
-                    $errors[] = "SQLite freelist page {$leafPageNumber} appears more than once";
-                    break 2;
+                    throw new \InvalidArgumentException("SQLite freelist page {$leafPageNumber} appears more than once");
                 }
                 $seenPages[$leafPageNumber] = 'leaf';
-                $leafPageNumbers[] = $leafPageNumber;
-                $pageNumbers[] = $leafPageNumber;
                 $actualPageCount++;
             }
             if ($actualPageCount > $expectedPageCount) {
-                $errors[] = "SQLite freelist size is {$actualPageCount} but should be {$expectedPageCount}";
-                break;
+                throw new \InvalidArgumentException("SQLite freelist size is {$actualPageCount} but should be {$expectedPageCount}");
             }
 
             $pageNumber = $trunkPage->nextTrunkPage ?? 0;
         }
 
-        if ($errors === [] && $actualPageCount !== $expectedPageCount) {
-            $errors[] = "SQLite freelist size is {$actualPageCount} but should be {$expectedPageCount}";
+        if ($actualPageCount !== $expectedPageCount) {
+            throw new \InvalidArgumentException("SQLite freelist size is {$actualPageCount} but should be {$expectedPageCount}");
         }
 
-        return new SQLiteFreelistTraversalPlan(
-            $expectedPageCount,
-            $firstTrunkPage,
-            $trunkPages,
-            $trunkPageNumbers,
-            $leafPageNumbers,
-            $pageNumbers,
-            $allocationOrder,
-            $cycleAtPage,
-            $cyclePath,
-            $actualPageCount,
-            $errors,
-        );
+        return $trunkPages;
     }
 
     /**
@@ -416,7 +338,6 @@ final class SQLiteDatabase
         $updatedFreelistPages = [];
         $allocatedPageNumbers = [];
         $appendedPageNumbers = [];
-        $allocationSteps = [];
 
         for ($i = 0; $i < $count; $i++) {
             if ($freelistPageCount > 0) {
@@ -435,14 +356,6 @@ final class SQLiteDatabase
                 $freelistPageCount--;
                 if ($trunkPage->leafPageNumbers === []) {
                     $allocatedPageNumbers[] = $trunkPage->pageNumber;
-                    $allocationSteps[] = [
-                        'source' => 'freelist-trunk',
-                        'allocated_page' => $trunkPage->pageNumber,
-                        'trunk_page' => $trunkPage->pageNumber,
-                        'next_trunk_page_before' => $trunkPage->nextTrunkPage,
-                        'next_trunk_page_after' => $trunkPage->nextTrunkPage,
-                        'freelist_page_count_after' => $freelistPageCount,
-                    ];
                     unset($updatedFreelistPages[$trunkPage->pageNumber]);
                     $firstTrunkPage = $trunkPage->nextTrunkPage ?? 0;
                     continue;
@@ -451,16 +364,6 @@ final class SQLiteDatabase
                 $leafPageNumbers = $trunkPage->leafPageNumbers;
                 $allocatedPageNumbers[] = $leafPageNumbers[0];
                 $leafCount = count($leafPageNumbers);
-                $allocationSteps[] = [
-                    'source' => 'freelist-leaf',
-                    'allocated_page' => $leafPageNumbers[0],
-                    'trunk_page' => $trunkPage->pageNumber,
-                    'next_trunk_page_before' => $trunkPage->nextTrunkPage,
-                    'next_trunk_page_after' => $trunkPage->nextTrunkPage,
-                    'leaf_count_before' => $leafCount,
-                    'leaf_count_after' => $leafCount - 1,
-                    'freelist_page_count_after' => $freelistPageCount,
-                ];
                 if ($leafCount > 1) {
                     $trunkPageBytes = substr_replace($trunkPageBytes, pack('N', $leafPageNumbers[$leafCount - 1]), 8, 4);
                 }
@@ -476,14 +379,6 @@ final class SQLiteDatabase
             $databasePageCount = $this->nextAppendPageNumber($databasePageCount);
             $allocatedPageNumbers[] = $databasePageCount;
             $appendedPageNumbers[] = $databasePageCount;
-            $allocationSteps[] = [
-                'source' => 'append',
-                'allocated_page' => $databasePageCount,
-                'trunk_page' => null,
-                'next_trunk_page_before' => null,
-                'next_trunk_page_after' => null,
-                'freelist_page_count_after' => $freelistPageCount,
-            ];
         }
 
         if ($freelistPageCount === 0) {
@@ -502,338 +397,12 @@ final class SQLiteDatabase
             $databasePageCount,
             $firstTrunkPage,
             $freelistPageCount,
-            allocationSteps: $allocationSteps,
-        );
-    }
-
-    public function planBtreePageAllocation(
-        int $count,
-        ?int $parentPageNumber,
-        bool $allowAppend = true,
-    ): SQLiteFreelistAllocationPlan {
-        if ($parentPageNumber !== null && $parentPageNumber < 2) {
-            throw new \InvalidArgumentException('SQLite b-tree allocation parent page must be null or at page 2 or later');
-        }
-
-        $allocationPlan = $this->planPageAllocation($count, $allowAppend);
-        $updatedPointerMapPages = [];
-        $allocatedPointerMapEntries = [];
-        if ($this->isAutoVacuum() && $allocationPlan->allocatedPageNumbers !== []) {
-            $updates = [];
-            foreach ($allocationPlan->allocatedPageNumbers as $pageNumber) {
-                $updates[$pageNumber] = [
-                    'type' => $parentPageNumber === null
-                        ? SQLitePointerMapEntry::ROOT_PAGE
-                        : SQLitePointerMapEntry::BTREE_PAGE,
-                    'parent_page_number' => $parentPageNumber ?? 0,
-                ];
-            }
-            $updatedPointerMapPages = $this->pointerMapPageImagesForUpdates(
-                $allocationPlan->pageImages(),
-                $updates,
-                $allocationPlan->databasePageCount,
-            );
-            unset($updatedPointerMapPages[1]);
-            foreach (array_keys($allocationPlan->updatedFreelistPages) as $freelistPageNumber) {
-                unset($updatedPointerMapPages[$freelistPageNumber]);
-            }
-            $postPointerMapImages = $allocationPlan->pageImages();
-            foreach ($allocationPlan->allocatedPageNumbers as $pageNumber) {
-                if ($pageNumber > $this->pageCount()) {
-                    $postPointerMapImages[$pageNumber] = str_repeat("\0", $this->header->pageSize);
-                }
-            }
-            foreach ($updatedPointerMapPages as $pageNumber => $page) {
-                $postPointerMapImages[$pageNumber] = $page;
-            }
-            $postPointerMapDatabase = $this->withPageImages($postPointerMapImages);
-            foreach ($allocationPlan->allocatedPageNumbers as $pageNumber) {
-                if ($postPointerMapDatabase->isPointerMapPage($pageNumber)) {
-                    continue;
-                }
-
-                $allocatedPointerMapEntries[] = $postPointerMapDatabase->pointerMapEntryForPage($pageNumber)->toArray();
-            }
-        }
-
-        return new SQLiteFreelistAllocationPlan(
-            $allocationPlan->allocatedPageNumbers,
-            $allocationPlan->appendedPageNumbers,
-            $allocationPlan->firstPage,
-            $allocationPlan->updatedFreelistPages,
-            $allocationPlan->databasePageCount,
-            $allocationPlan->firstFreelistTrunkPage,
-            $allocationPlan->freelistPageCount,
-            $updatedPointerMapPages,
-            $allocationPlan->allocationSteps,
-            $allocatedPointerMapEntries,
-        );
-    }
-
-    /**
-     * @param array<int, string> $allocatedPageImages
-     */
-    public function applyPageAllocationPlan(
-        SQLiteFreelistAllocationPlan $allocationPlan,
-        array $allocatedPageImages = [],
-    ): self {
-        $allocated = array_fill_keys($allocationPlan->allocatedPageNumbers, true);
-        $pageImages = $allocationPlan->pageImages();
-
-        foreach ($allocationPlan->allocatedPageNumbers as $pageNumber) {
-            $pageImages[$pageNumber] = str_repeat("\0", $this->header->pageSize);
-        }
-
-        foreach ($allocatedPageImages as $pageNumber => $page) {
-            if (!isset($allocated[$pageNumber])) {
-                throw new \InvalidArgumentException('SQLite allocated page image was not part of the allocation plan');
-            }
-            if (!is_string($page) || strlen($page) !== $this->header->pageSize) {
-                throw new \InvalidArgumentException('SQLite allocated page image length does not match page size');
-            }
-            $pageImages[$pageNumber] = $page;
-        }
-
-        return $this->withPageImages($pageImages);
-    }
-
-    public function planOverflowPageAllocation(
-        int $count,
-        int $parentBtreePageNumber,
-        bool $allowAppend = true,
-    ): SQLiteFreelistAllocationPlan {
-        if ($parentBtreePageNumber < 2) {
-            throw new \InvalidArgumentException('SQLite overflow allocation parent b-tree page must be at page 2 or later');
-        }
-
-        $allocationPlan = $this->planPageAllocation($count, $allowAppend);
-        $updatedPointerMapPages = [];
-        $allocatedPointerMapEntries = [];
-        if ($this->isAutoVacuum() && $allocationPlan->allocatedPageNumbers !== []) {
-            $updates = [];
-            $previousOverflowPageNumber = null;
-            foreach ($allocationPlan->allocatedPageNumbers as $index => $pageNumber) {
-                $updates[$pageNumber] = [
-                    'type' => $index === 0
-                        ? SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE
-                        : SQLitePointerMapEntry::OVERFLOW_PAGE,
-                    'parent_page_number' => $index === 0
-                        ? $parentBtreePageNumber
-                        : $previousOverflowPageNumber,
-                ];
-                $previousOverflowPageNumber = $pageNumber;
-            }
-
-            $updatedPointerMapPages = $this->pointerMapPageImagesForUpdates(
-                $allocationPlan->pageImages(),
-                $updates,
-                $allocationPlan->databasePageCount,
-            );
-            unset($updatedPointerMapPages[1]);
-            foreach (array_keys($allocationPlan->updatedFreelistPages) as $freelistPageNumber) {
-                unset($updatedPointerMapPages[$freelistPageNumber]);
-            }
-
-            $postPointerMapImages = $allocationPlan->pageImages();
-            foreach ($allocationPlan->allocatedPageNumbers as $pageNumber) {
-                if ($pageNumber > $this->pageCount()) {
-                    $postPointerMapImages[$pageNumber] = str_repeat("\0", $this->header->pageSize);
-                }
-            }
-            foreach ($updatedPointerMapPages as $pageNumber => $page) {
-                $postPointerMapImages[$pageNumber] = $page;
-            }
-            $postPointerMapDatabase = $this->withPageImages($postPointerMapImages);
-            foreach ($allocationPlan->allocatedPageNumbers as $pageNumber) {
-                if ($postPointerMapDatabase->isPointerMapPage($pageNumber)) {
-                    continue;
-                }
-
-                $allocatedPointerMapEntries[] = $postPointerMapDatabase->pointerMapEntryForPage($pageNumber)->toArray();
-            }
-        }
-
-        return new SQLiteFreelistAllocationPlan(
-            $allocationPlan->allocatedPageNumbers,
-            $allocationPlan->appendedPageNumbers,
-            $allocationPlan->firstPage,
-            $allocationPlan->updatedFreelistPages,
-            $allocationPlan->databasePageCount,
-            $allocationPlan->firstFreelistTrunkPage,
-            $allocationPlan->freelistPageCount,
-            $updatedPointerMapPages,
-            $allocationPlan->allocationSteps,
-            $allocatedPointerMapEntries,
         );
     }
 
     public function planPageFree(int $pageNumber, bool $secureDelete = false): SQLiteFreelistFreePlan
     {
         return $this->planPageFreeList([$pageNumber], $secureDelete);
-    }
-
-    public function planFreelistTailTruncation(int $maxPages = 1): SQLiteFreelistTruncatePlan
-    {
-        if ($maxPages < 1) {
-            throw new \InvalidArgumentException('SQLite freelist tail truncation count must be positive');
-        }
-
-        $databasePageCount = max($this->pageCount(), $this->header->databaseSizePages);
-        $trunkPages = $this->freelistTrunkPages();
-        $freelistPages = array_fill_keys($this->freelistPageNumbers(), true);
-        $truncatedPageNumbers = [];
-        for ($pageNumber = $databasePageCount; $pageNumber >= 2 && count($truncatedPageNumbers) < $maxPages; $pageNumber--) {
-            if ($pageNumber === $this->pendingBytePageNumber()) {
-                break;
-            }
-            if ($this->isAutoVacuum() && $this->isPointerMapPage($pageNumber)) {
-                $truncatedPageNumbers[] = $pageNumber;
-                continue;
-            }
-            if (!isset($freelistPages[$pageNumber])) {
-                break;
-            }
-
-            $truncatedPageNumbers[] = $pageNumber;
-        }
-
-        $firstPage = $this->page(1);
-        if ($truncatedPageNumbers === []) {
-            $firstPage = substr_replace($firstPage, self::uint32Bytes($databasePageCount), 28, 4);
-
-            return new SQLiteFreelistTruncatePlan(
-                [],
-                $firstPage,
-                [],
-                $databasePageCount,
-                $this->header->firstFreelistTrunkPage,
-                $this->header->freelistPageCount,
-            );
-        }
-
-        $truncatedLookup = array_fill_keys($truncatedPageNumbers, true);
-        $truncatedPointerMapEntries = [];
-        if ($this->isAutoVacuum()) {
-            foreach ($truncatedPageNumbers as $pageNumber) {
-                if (!$this->isPointerMapPage($pageNumber)) {
-                    $entry = $this->pointerMapEntryForPageIfPresent($pageNumber);
-                    if ($entry !== null) {
-                        $truncatedPointerMapEntries[] = $entry->toArray();
-                    }
-                }
-            }
-        }
-        $previousTrunkByPage = [];
-        foreach ($trunkPages as $trunkPage) {
-            if ($trunkPage->nextTrunkPage !== null) {
-                $previousTrunkByPage[$trunkPage->nextTrunkPage] = $trunkPage->pageNumber;
-            }
-        }
-
-        $updatedFreelistPages = [];
-        $removedTrunkPages = [];
-        $firstTrunkPage = $this->header->firstFreelistTrunkPage;
-        foreach ($trunkPages as $trunkPage) {
-            if (isset($truncatedLookup[$trunkPage->pageNumber])) {
-                $removedTrunkPages[$trunkPage->pageNumber] = true;
-                if ($trunkPage->pageNumber === $firstTrunkPage) {
-                    $firstTrunkPage = $trunkPage->nextTrunkPage ?? 0;
-                } elseif (isset($previousTrunkByPage[$trunkPage->pageNumber])) {
-                    $previousTrunkPage = $previousTrunkByPage[$trunkPage->pageNumber];
-                    $previousBytes = $updatedFreelistPages[$previousTrunkPage] ?? $this->page($previousTrunkPage);
-                    $updatedFreelistPages[$previousTrunkPage] = substr_replace(
-                        $previousBytes,
-                        self::uint32Bytes($trunkPage->nextTrunkPage ?? 0),
-                        0,
-                        4,
-                    );
-                }
-                continue;
-            }
-
-            $leafPageNumbers = [];
-            foreach ($trunkPage->leafPageNumbers as $leafPageNumber) {
-                if (!isset($truncatedLookup[$leafPageNumber])) {
-                    $leafPageNumbers[] = $leafPageNumber;
-                }
-            }
-            if (count($leafPageNumbers) !== count($trunkPage->leafPageNumbers)) {
-                $updatedFreelistPages[$trunkPage->pageNumber] = SQLiteFreelistTrunkPage::assemble(
-                    $trunkPage->nextTrunkPage,
-                    $leafPageNumbers,
-                    $this->header->pageSize,
-                    $this->usablePageSize(),
-                );
-            }
-        }
-
-        foreach ($removedTrunkPages as $removedTrunkPage => $_) {
-            unset($updatedFreelistPages[$removedTrunkPage]);
-        }
-
-        $truncatedFreelistPageCount = 0;
-        foreach ($truncatedPageNumbers as $pageNumber) {
-            if (isset($freelistPages[$pageNumber])) {
-                $truncatedFreelistPageCount++;
-            }
-        }
-
-        $freelistPageCount = $this->header->freelistPageCount - $truncatedFreelistPageCount;
-        if ($freelistPageCount < 0) {
-            throw new \InvalidArgumentException('SQLite freelist tail truncation exceeds the freelist page count');
-        }
-        if ($freelistPageCount === 0) {
-            $firstTrunkPage = 0;
-            $updatedFreelistPages = [];
-        }
-
-        $newDatabasePageCount = $databasePageCount - count($truncatedPageNumbers);
-        $firstPage = substr_replace($firstPage, self::uint32Bytes($newDatabasePageCount), 28, 4);
-        $firstPage = substr_replace($firstPage, self::uint32Bytes($firstTrunkPage), 32, 4);
-        $firstPage = substr_replace($firstPage, self::uint32Bytes($freelistPageCount), 36, 4);
-
-        ksort($updatedFreelistPages);
-        $boundaryPointerMapEntry = null;
-        if ($this->isAutoVacuum() && $newDatabasePageCount >= 2 && !$this->isPointerMapPage($newDatabasePageCount)) {
-            $postImages = [1 => $firstPage];
-            foreach ($updatedFreelistPages as $pageNumber => $page) {
-                if ($pageNumber <= $newDatabasePageCount) {
-                    $postImages[$pageNumber] = $page;
-                }
-            }
-            $postPages = [];
-            for ($pageNumber = 1; $pageNumber <= $newDatabasePageCount; $pageNumber++) {
-                $postPages[$pageNumber] = $postImages[$pageNumber] ?? $this->page($pageNumber);
-            }
-            $postDatabase = self::fromBytes(implode('', $postPages));
-            $boundaryPointerMapEntry = $postDatabase->pointerMapEntryForPageIfPresent($newDatabasePageCount)?->toArray();
-        }
-
-        return new SQLiteFreelistTruncatePlan(
-            $truncatedPageNumbers,
-            $firstPage,
-            $updatedFreelistPages,
-            $newDatabasePageCount,
-            $firstTrunkPage,
-            $freelistPageCount,
-            $truncatedPointerMapEntries,
-            $boundaryPointerMapEntry,
-        );
-    }
-
-    private function pointerMapEntryForPageIfPresent(int $pageNumber): ?SQLitePointerMapEntry
-    {
-        $pointerMapPage = $this->pointerMapPageFor($pageNumber);
-        if ($pointerMapPage === null || $pointerMapPage === $pageNumber) {
-            return null;
-        }
-
-        $offset = $this->pointerMapOffsetFor($pageNumber);
-        if (ord($this->page($pointerMapPage)[$offset]) === 0) {
-            return null;
-        }
-
-        return $this->pointerMapEntryForPage($pageNumber);
     }
 
     /**
@@ -922,7 +491,6 @@ final class SQLiteDatabase
         }
 
         $updatedPointerMapPages = [];
-        $freedPointerMapEntries = [];
         if ($this->isAutoVacuum() && $pageNumbers !== []) {
             $pointerMapUpdates = [];
             foreach ($pageNumbers as $pageNumber) {
@@ -933,10 +501,6 @@ final class SQLiteDatabase
             }
 
             $updatedPointerMapPages = $this->pointerMapPageImagesForUpdates([], $pointerMapUpdates, $databasePageCount);
-            $postPointerMapDatabase = $this->withPageImages($updatedPointerMapPages);
-            foreach ($pageNumbers as $pageNumber) {
-                $freedPointerMapEntries[] = $postPointerMapDatabase->pointerMapEntryForPage($pageNumber)->toArray();
-            }
         }
 
         $firstPage = substr_replace($firstPage, self::uint32Bytes($firstTrunkPage), 32, 4);
@@ -954,7 +518,6 @@ final class SQLiteDatabase
             $updatedPointerMapPages,
             $clearedPageNumbers,
             $clearedPageImages,
-            $freedPointerMapEntries,
         );
     }
 
@@ -1094,103 +657,6 @@ final class SQLiteDatabase
         );
     }
 
-    public function planWordPressOptionInsertOrReplaceCurrent(
-        int $rowId,
-        string $optionName,
-        string $optionValue,
-        ?string $autoload = 'yes',
-        bool $allowAppend = true,
-    ): SQLiteWordPressOptionInsertOrReplacePlan {
-        if ($rowId < 1) {
-            throw new \InvalidArgumentException('SQLite wp_options insert-or-replace rowid must be positive');
-        }
-
-        $tableRootPage = $this->tableRootPage('wp_options');
-        if ($tableRootPage === null) {
-            throw new \InvalidArgumentException('SQLite wp_options table is not present');
-        }
-        if ($tableRootPage === 1) {
-            throw new \InvalidArgumentException('SQLite wp_options insert-or-replace planning requires a table root page separate from sqlite_schema');
-        }
-
-        $tablePage = $this->page($tableRootPage);
-        $tableHeader = SQLiteBTreePageHeader::parsePage(
-            $tablePage,
-            $this->header->pageSize,
-            0,
-        );
-        if ($tableHeader->pageType !== 'table-leaf') {
-            throw new \InvalidArgumentException('SQLite wp_options insert-or-replace planning currently requires a single table leaf root page');
-        }
-
-        $insertIndexes = $this->supportedWordPressOptionIndexesForInsert($optionName, $autoload);
-        $remainingCells = [];
-        $deletedRowIds = [];
-        $deletedOptionNames = [];
-        $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
-        foreach (SQLiteTableLeafCell::parsePageCells($tablePage, $tableHeader, $this->usablePageSize(), $overflowReader) as $cell) {
-            $option = SQLiteWordPressOption::fromTableRow(SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding));
-            if ($cell->rowId === $rowId || $option->optionName === $optionName) {
-                $deletedRowIds[$cell->rowId] = true;
-                $deletedOptionNames[$option->optionName] = true;
-                continue;
-            }
-
-            $remainingCells[] = [
-                'rowid' => $cell->rowId,
-                'cell' => substr($tablePage, $cell->offset, $cell->bytesRead),
-            ];
-        }
-
-        if ($deletedRowIds === []) {
-            return new SQLiteWordPressOptionInsertOrReplacePlan(
-                $this->planWordPressOptionInsert($rowId, $optionName, $optionValue, $autoload, $allowAppend),
-                [],
-                [],
-            );
-        }
-
-        $pageImages = [
-            $tableRootPage => SQLiteTableLeafPage::assemble(
-                array_map(static fn (array $entry): string => $entry['cell'], $remainingCells),
-                $this->header->pageSize,
-                0,
-                $tablePage,
-                $this->usablePageSize(),
-            ),
-        ];
-        $deletedRowIdSet = $deletedRowIds;
-        foreach ($insertIndexes as $index) {
-            $record = $index['record'];
-            $rootPage = $record->rootPage;
-            if ($rootPage === null) {
-                throw new \InvalidArgumentException('SQLite wp_options index root page is missing');
-            }
-            $indexPage = $this->page($rootPage);
-            $indexHeader = SQLiteBTreePageHeader::parsePage($indexPage, $this->header->pageSize, $rootPage === 1 ? 100 : 0);
-            if ($indexHeader->pageType !== 'index-leaf') {
-                throw new \InvalidArgumentException('SQLite wp_options insert-or-replace planning currently deletes conflicts from single-leaf indexes only');
-            }
-
-            $entries = array_values(array_filter(
-                $this->writableIndexLeafEntries($indexPage, $indexHeader, $index['columns']),
-                static fn (array $entry): bool => !isset($deletedRowIdSet[(int) ($entry['values'][count($index['columns'])] ?? 0)]),
-            ));
-            $pageImages[$rootPage] = $this->assembleWritableIndexLeafPage($entries, $rootPage === 1 ? 100 : 0, $indexPage);
-        }
-
-        ksort($pageImages);
-        $insertPlan = $this
-            ->withPageImages($pageImages)
-            ->planWordPressOptionInsert($rowId, $optionName, $optionValue, $autoload, $allowAppend);
-
-        return new SQLiteWordPressOptionInsertOrReplacePlan(
-            $insertPlan,
-            array_map('intval', array_keys($deletedRowIds)),
-            array_map('strval', array_keys($deletedOptionNames)),
-        );
-    }
-
     public function planWordPressOptionReplace(
         string $optionName,
         string $optionValue,
@@ -1292,18 +758,7 @@ final class SQLiteDatabase
             $matchedAutoload,
             $replacementAutoload,
             $allowAppend,
-            $obsoleteOverflowPageNumbers,
         );
-        $freedObsoletePages = $freePlan?->freedPageNumbers ?? [];
-        $pendingObsoletePages = array_values(array_diff($obsoleteOverflowPageNumbers, $freedObsoletePages));
-        if ($pendingObsoletePages !== []) {
-            $indexFreePlan = $this->withPageImages($pageImages)->planPageFreeList($pendingObsoletePages, $secureDelete);
-            foreach ($indexFreePlan->pageImages() as $pageNumber => $page) {
-                $pageImages[$pageNumber] = $page;
-            }
-            $freePlan = $indexFreePlan;
-            ksort($pageImages);
-        }
         $databasePageCount = max(
             $this->pageCount(),
             $this->header->databaseSizePages,
@@ -1345,164 +800,7 @@ final class SQLiteDatabase
             $replacementLocalPayloadLength,
             $databasePageCount,
             $pageImages,
-            $this->btreeRebalanceActionsForPageImages($pageImages),
         );
-    }
-
-    /**
-     * @param array<int, string> $pageImages
-     * @return list<array<string, mixed>>
-     */
-    private function btreeRebalanceActionsForPageImages(array $pageImages): array
-    {
-        $postDatabase = $this->withPageImages($pageImages);
-        $freelistPages = array_fill_keys($postDatabase->freelistPageNumbers(), true);
-        $actions = [];
-
-        $pageNumbers = array_unique(array_merge(array_keys($pageImages), array_keys($freelistPages)));
-        sort($pageNumbers);
-
-        foreach ($pageNumbers as $pageNumber) {
-            if ($pageNumber === 1) {
-                continue;
-            }
-
-            $before = $pageNumber <= $this->pageCount() ? $this->tryPageHeader($pageNumber) : null;
-            $after = !isset($freelistPages[$pageNumber]) ? $postDatabase->tryPageHeader($pageNumber) : null;
-            $beforeFreeBytes = $before === null ? null : $this->btreePageFreeSpaceBytes($this, $pageNumber, $before);
-            $afterFreeBytes = $after === null ? null : $this->btreePageFreeSpaceBytes($postDatabase, $pageNumber, $after);
-
-            if (isset($freelistPages[$pageNumber])) {
-                $actions[] = [
-                    'action' => 'free-page',
-                    'page' => $pageNumber,
-                    'before_type' => $before?->pageType,
-                    'before_free_space_bytes' => $beforeFreeBytes,
-                ];
-                continue;
-            }
-
-            if ($before === null || $after === null) {
-                continue;
-            }
-
-            if ($before->pageType !== $after->pageType) {
-                $actions[] = [
-                    'action' => 'page-type-change',
-                    'page' => $pageNumber,
-                    'before_type' => $before->pageType,
-                    'after_type' => $after->pageType,
-                    'before_cells' => $before->cellCount,
-                    'after_cells' => $after->cellCount,
-                    'before_free_space_bytes' => $beforeFreeBytes,
-                    'after_free_space_bytes' => $afterFreeBytes,
-                ];
-                continue;
-            }
-
-            if (
-                ($after->pageType === 'index-interior' || $after->pageType === 'table-interior')
-                && $before->rightMostPointer !== $after->rightMostPointer
-            ) {
-                $actions[] = [
-                    'action' => $after->pageType === 'index-interior'
-                        ? 'index-interior-rightmost-pointer-update'
-                        : 'table-interior-rightmost-pointer-update',
-                    'page' => $pageNumber,
-                    'page_type' => $after->pageType,
-                    'before_rightmost_pointer' => $before->rightMostPointer,
-                    'after_rightmost_pointer' => $after->rightMostPointer,
-                    'before_free_space_bytes' => $beforeFreeBytes,
-                    'after_free_space_bytes' => $afterFreeBytes,
-                ];
-            }
-
-            if ($before->cellCount === $after->cellCount) {
-                continue;
-            }
-
-            $delta = $after->cellCount - $before->cellCount;
-            $action = [
-                'action' => $this->btreeCellDeltaAction($after->pageType, $delta),
-                'page' => $pageNumber,
-                'page_type' => $after->pageType,
-                'before_cells' => $before->cellCount,
-                'after_cells' => $after->cellCount,
-                'delta_cells' => $delta,
-                'before_free_space_bytes' => $beforeFreeBytes,
-                'after_free_space_bytes' => $afterFreeBytes,
-                'delta_free_space_bytes' => $afterFreeBytes - $beforeFreeBytes,
-            ];
-            if ($after->pageType === 'index-interior' || $after->pageType === 'table-interior') {
-                $action['before_left_children'] = $this->btreeInteriorLeftChildPointers($this->page($pageNumber), $before, $pageNumber);
-                $action['after_left_children'] = $this->btreeInteriorLeftChildPointers($postDatabase->page($pageNumber), $after, $pageNumber);
-            }
-            $actions[] = $action;
-        }
-
-        return $actions;
-    }
-
-    private function btreePageFreeSpaceBytes(self $database, int $pageNumber, SQLiteBTreePageHeader $header): int
-    {
-        return $header->freeSpaceBytes(
-            $database->page($pageNumber),
-            $database->usablePageSize(),
-        );
-    }
-
-    /**
-     * @return list<int>
-     */
-    private function btreeInteriorLeftChildPointers(string $page, SQLiteBTreePageHeader $header, int $pageNumber): array
-    {
-        if ($header->pageType === 'index-interior') {
-            $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
-            $leftChildren = [];
-            foreach (SQLiteIndexCell::parsePageCells($page, $header, $this->usablePageSize(), $overflowReader) as $cell) {
-                if ($cell->leftChildPage === null) {
-                    throw new \InvalidArgumentException("SQLite index interior page {$pageNumber} has an invalid left child pointer");
-                }
-                $leftChildren[] = $cell->leftChildPage;
-            }
-
-            return $leftChildren;
-        }
-        if ($header->pageType === 'table-interior') {
-            return array_map(
-                static fn (SQLiteTableInteriorCell $cell): int => $cell->leftChildPage,
-                SQLiteTableInteriorCell::parsePageCells($page, $header),
-            );
-        }
-
-        throw new \InvalidArgumentException("SQLite page {$pageNumber} is not an interior b-tree page");
-    }
-
-    private function btreeCellDeltaAction(string $pageType, int $delta): string
-    {
-        if ($pageType === 'index-interior') {
-            return $delta < 0 ? 'index-interior-divider-removal' : 'index-interior-divider-insert';
-        }
-        if ($pageType === 'index-leaf') {
-            return $delta < 0 ? 'index-leaf-entry-removal' : 'index-leaf-entry-merge';
-        }
-        if ($pageType === 'table-interior') {
-            return $delta < 0 ? 'table-interior-divider-removal' : 'table-interior-divider-insert';
-        }
-        if ($pageType === 'table-leaf') {
-            return $delta < 0 ? 'table-leaf-entry-removal' : 'table-leaf-entry-insert';
-        }
-
-        return $delta < 0 ? 'btree-cell-removal' : 'btree-cell-insert';
-    }
-
-    private function tryPageHeader(int $pageNumber): ?SQLiteBTreePageHeader
-    {
-        try {
-            return $this->pageHeader($pageNumber);
-        } catch (\InvalidArgumentException) {
-            return null;
-        }
     }
 
     /**
@@ -2437,7 +1735,6 @@ final class SQLiteDatabase
         ?string $oldAutoload,
         ?string $newAutoload,
         bool $allowAppend,
-        array &$obsoleteOverflowPageNumbers,
     ): array
     {
         foreach ($indexes as $index) {
@@ -2468,15 +1765,6 @@ final class SQLiteDatabase
                 ) {
                     $found = true;
                     if ($mutatesKey) {
-                        if ($entry['firstOverflowPage'] !== null) {
-                            $obsoleteOverflowPageNumbers = array_values(array_unique(array_merge(
-                                $obsoleteOverflowPageNumbers,
-                                $this->overflowPageNumbers(
-                                    $entry['firstOverflowPage'],
-                                    $entry['payloadLength'] - $entry['localPayloadLength'],
-                                ),
-                            )));
-                        }
                         continue;
                     }
                 } elseif ($indexRowId === $rowId) {
@@ -3561,7 +2849,7 @@ final class SQLiteDatabase
 
     /**
      * @param non-empty-list<SQLiteIndexColumn> $columns
-     * @return list<array{values:list<mixed>,cell:string,payloadLength:int,localPayloadLength:int,firstOverflowPage:?int}>
+     * @return list<array{values:list<mixed>,cell:string}>
      */
     private function writableIndexLeafEntries(string $page, SQLiteBTreePageHeader $header, array $columns): array
     {
@@ -3575,9 +2863,6 @@ final class SQLiteDatabase
             $entries[] = [
                 'values' => $this->indexEntryValuesForColumns($cell, count($columns)),
                 'cell' => substr($page, $cell->offset, $cell->bytesRead),
-                'payloadLength' => $cell->payloadLength,
-                'localPayloadLength' => $cell->localPayloadLength,
-                'firstOverflowPage' => $cell->firstOverflowPage,
             ];
         }
 
@@ -4946,7 +4231,6 @@ final class SQLiteDatabase
                                 $equalityConstraints,
                                 $rangeConstraints,
                                 $allowEqualityPartialPredicate,
-                                [$firstColumn->columnName => $firstColumn->collation],
                             )
                         ) {
                             continue;
@@ -5011,7 +4295,6 @@ final class SQLiteDatabase
                                 [$columnName => $pointLookupValue],
                                 [],
                                 true,
-                                [$firstColumn->columnName => $firstColumn->collation],
                             )
                         )
                     ) {
@@ -5149,7 +4432,6 @@ final class SQLiteDatabase
                                 $firstColumn->partialPredicate,
                                 $columnName,
                                 $values,
-                                $firstColumn->collation,
                             )
                         )
                     ) {
@@ -5363,7 +4645,6 @@ final class SQLiteDatabase
                         [$columnName => $pointLookupValue],
                         [],
                         true,
-                        [$firstExpression->columnName => $firstExpression->collation],
                     )
                 )
             ) {
@@ -5416,7 +4697,6 @@ final class SQLiteDatabase
                         [$columnName => $pointLookupValue],
                         [],
                         true,
-                        [$firstExpression->columnName => $firstExpression->collation],
                     )
                 )
             ) {
@@ -6242,50 +5522,6 @@ final class SQLiteDatabase
     /**
      * @return list<SQLiteWordPressOption>
      */
-    public function wordpressOptionsOrdered(
-        string $orderBy,
-        bool $descending = false,
-        ?int $limit = null,
-        int $offset = 0,
-    ): array {
-        if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options ordered scan limit cannot be negative');
-        }
-        if ($offset < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options ordered scan offset cannot be negative');
-        }
-        if ($limit === 0) {
-            return [];
-        }
-
-        $column = self::normalizeWordPressOptionOrderColumn($orderBy);
-        $options = [];
-        foreach ($this->tableRowsByName('wp_options', null) as $row) {
-            $options[] = SQLiteWordPressOption::fromTableRow($row);
-        }
-
-        usort($options, static function (SQLiteWordPressOption $left, SQLiteWordPressOption $right) use ($column, $descending): int {
-            $comparison = self::compareWordPressOptionOrderValues(
-                self::wordPressOptionOrderValue($left, $column),
-                self::wordPressOptionOrderValue($right, $column),
-            );
-            if ($comparison === 0) {
-                return $left->rowId <=> $right->rowId;
-            }
-
-            return $descending ? -$comparison : $comparison;
-        });
-
-        if ($offset !== 0 || $limit !== null) {
-            $options = array_slice($options, $offset, $limit);
-        }
-
-        return $options;
-    }
-
-    /**
-     * @return list<SQLiteWordPressOption>
-     */
     public function wordpressOptionsByRowIdRange(
         ?int $lowerInclusive,
         ?int $upperBound,
@@ -6310,236 +5546,6 @@ final class SQLiteDatabase
             ) as $row
         ) {
             $options[] = SQLiteWordPressOption::fromTableRow($row);
-        }
-
-        return $options;
-    }
-
-    /**
-     * @return list<SQLiteWordPressOption>
-     */
-    public function wordpressOptionsByNameLike(
-        string $pattern,
-        ?string $escape = null,
-        ?int $limit = null,
-        bool $caseSensitive = false,
-    ): array {
-        if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options LIKE lookup limit cannot be negative');
-        }
-        if ($limit === 0) {
-            return [];
-        }
-
-        $options = [];
-        foreach ($this->tableRowsByName('wp_options', null) as $row) {
-            $option = SQLiteWordPressOption::fromTableRow($row);
-            if (!self::likeMatches($option->optionName, $pattern, $escape, $caseSensitive)) {
-                continue;
-            }
-
-            $options[] = $option;
-            if ($limit !== null && count($options) >= $limit) {
-                break;
-            }
-        }
-
-        return $options;
-    }
-
-    /**
-     * @return list<SQLiteWordPressOption>
-     */
-    public function wordpressOptionsByIndexedNameLikePrefixRange(
-        string $pattern,
-        ?string $escape = null,
-        ?int $limit = null,
-    ): array {
-        if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed LIKE prefix lookup limit cannot be negative');
-        }
-        if ($limit === 0) {
-            return [];
-        }
-
-        $bounds = self::likePrefixRangeBounds($pattern, $escape);
-        if ($bounds === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed LIKE prefix lookup requires a leading literal prefix');
-        }
-
-        $options = [];
-        foreach ($this->wordpressOptionsByIndexedNameRange($bounds['lowerInclusive'], $bounds['upperBound']) as $option) {
-            if (!self::likeMatches($option->optionName, $pattern, $escape, true)) {
-                continue;
-            }
-
-            $options[] = $option;
-            if ($limit !== null && count($options) >= $limit) {
-                break;
-            }
-        }
-
-        return $options;
-    }
-
-    /**
-     * @return list<SQLiteWordPressOption>
-     */
-    public function wordpressOptionsByIndexedNameLikePrefixRangeNoCase(
-        string $pattern,
-        ?string $escape = null,
-        ?int $limit = null,
-    ): array {
-        if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options NOCASE indexed LIKE prefix lookup limit cannot be negative');
-        }
-        if ($limit === 0) {
-            return [];
-        }
-
-        $bounds = self::likeNoCasePrefixRangeBounds($pattern, $escape);
-        if ($bounds === null) {
-            throw new \InvalidArgumentException('SQLite wp_options NOCASE indexed LIKE prefix lookup requires a leading literal prefix');
-        }
-
-        $compareNoCase = static fn (string $left, string $right): int => strcmp(self::asciiLower($left), self::asciiLower($right));
-
-        $options = [];
-        foreach ($this->wordpressOptionsByIndexedNameRangeWithCollation(
-            $bounds['lowerInclusive'],
-            $bounds['upperBound'],
-            'NOCASE',
-            $compareNoCase,
-        ) as $option) {
-            if (!self::likeMatches($option->optionName, $pattern, $escape, false)) {
-                continue;
-            }
-
-            $options[] = $option;
-            if ($limit !== null && count($options) >= $limit) {
-                break;
-            }
-        }
-
-        return $options;
-    }
-
-    /**
-     * @return list<SQLiteWordPressOption>
-     */
-    public function wordpressOptionsByNameGlob(string $pattern, ?int $limit = null): array
-    {
-        if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options GLOB lookup limit cannot be negative');
-        }
-        if ($limit === 0) {
-            return [];
-        }
-
-        $options = [];
-        foreach ($this->tableRowsByName('wp_options', null) as $row) {
-            $option = SQLiteWordPressOption::fromTableRow($row);
-            if (!self::globMatches($option->optionName, $pattern)) {
-                continue;
-            }
-
-            $options[] = $option;
-            if ($limit !== null && count($options) >= $limit) {
-                break;
-            }
-        }
-
-        return $options;
-    }
-
-    /**
-     * @return list<SQLiteWordPressOption>
-     */
-    public function wordpressOptionsByIndexedNameGlobPrefixRange(string $pattern, ?int $limit = null): array
-    {
-        if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed GLOB prefix lookup limit cannot be negative');
-        }
-        if ($limit === 0) {
-            return [];
-        }
-
-        $bounds = self::globPrefixRangeBounds($pattern);
-        if ($bounds === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed GLOB prefix lookup requires a leading literal prefix');
-        }
-
-        $options = [];
-        foreach ($this->wordpressOptionsByIndexedNameRange($bounds['lowerInclusive'], $bounds['upperBound']) as $option) {
-            if (!self::globMatches($option->optionName, $pattern)) {
-                continue;
-            }
-
-            $options[] = $option;
-            if ($limit !== null && count($options) >= $limit) {
-                break;
-            }
-        }
-
-        return $options;
-    }
-
-    private static function normalizeWordPressOptionOrderColumn(string $orderBy): string
-    {
-        $column = strtolower($orderBy);
-        return match ($column) {
-            'option_id', 'option_name', 'option_value', 'autoload', 'rowid' => $column,
-            default => throw new \InvalidArgumentException("SQLite wp_options ordered scan cannot order by {$orderBy}"),
-        };
-    }
-
-    private static function wordPressOptionOrderValue(SQLiteWordPressOption $option, string $column): int|string|null
-    {
-        return match ($column) {
-            'option_id' => $option->optionId,
-            'option_name' => $option->optionName,
-            'option_value' => $option->optionValue,
-            'autoload' => $option->autoload,
-            'rowid' => $option->rowId,
-        };
-    }
-
-    private static function compareWordPressOptionOrderValues(int|string|null $left, int|string|null $right): int
-    {
-        if ($left === null || $right === null) {
-            return $left === $right ? 0 : ($left === null ? -1 : 1);
-        }
-        if (is_int($left) && is_int($right)) {
-            return $left <=> $right;
-        }
-
-        return strcmp((string) $left, (string) $right);
-    }
-
-    /**
-     * @param callable(string, string): bool $regexp
-     * @return list<SQLiteWordPressOption>
-     */
-    public function wordpressOptionsByNameRegexp(string $pattern, callable $regexp, ?int $limit = null): array
-    {
-        if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options REGEXP lookup limit cannot be negative');
-        }
-        if ($limit === 0) {
-            return [];
-        }
-
-        $options = [];
-        foreach ($this->tableRowsByName('wp_options', null) as $row) {
-            $option = SQLiteWordPressOption::fromTableRow($row);
-            if (!self::regexpMatches($option->optionName, $pattern, $regexp)) {
-                continue;
-            }
-
-            $options[] = $option;
-            if ($limit !== null && count($options) >= $limit) {
-                break;
-            }
         }
 
         return $options;
@@ -10478,7 +9484,6 @@ final class SQLiteDatabase
         array $columnValues,
         array $rangeConstraints,
         bool $allowEqualityPredicate,
-        array $collationsByColumn = [],
     ): bool {
         if ($predicate->operator === SQLiteIndexPredicate::AND) {
             if (!is_array($predicate->value)) {
@@ -10493,7 +9498,6 @@ final class SQLiteDatabase
                         $columnValues,
                         $rangeConstraints,
                         $allowEqualityPredicate,
-                        $collationsByColumn,
                     )
                 ) {
                     return false;
@@ -10516,7 +9520,6 @@ final class SQLiteDatabase
                         $columnValues,
                         $rangeConstraints,
                         $allowEqualityPredicate,
-                        $collationsByColumn,
                     )
                 ) {
                     return true;
@@ -10531,21 +9534,18 @@ final class SQLiteDatabase
         }
 
         foreach ($columnValues as $columnName => $value) {
-            $columnName = (string) $columnName;
-            if ($predicate->isImpliedByPointLookup($columnName, $value, $collationsByColumn[$columnName] ?? 'BINARY')) {
+            if ($predicate->isImpliedByPointLookup((string) $columnName, $value)) {
                 return true;
             }
         }
         foreach ($rangeConstraints as $columnName => $bounds) {
-            $columnName = (string) $columnName;
             if (
                 is_array($bounds)
                 && $predicate->isImpliedByRangeLookup(
-                    $columnName,
+                    (string) $columnName,
                     $bounds['lowerInclusive'] ?? null,
                     $bounds['upperBound'] ?? null,
                     (bool) ($bounds['upperInclusive'] ?? false),
-                    $collationsByColumn[$columnName] ?? 'BINARY',
                 )
             ) {
                 return true;
@@ -10628,9 +9628,8 @@ final class SQLiteDatabase
         SQLiteIndexPredicate $predicate,
         string $columnName,
         array $values,
-        string $collation = 'BINARY',
     ): bool {
-        return $predicate->isImpliedByInListLookup($columnName, $values, $collation);
+        return $predicate->isImpliedByInListLookup($columnName, $values);
     }
 
     private static function lowerExpressionRangeImpliesPartialPredicate(
@@ -10901,429 +9900,9 @@ final class SQLiteDatabase
         return match (strtoupper($collation)) {
             'BINARY' => strcmp($left, $right),
             'NOCASE' => strcmp(self::asciiLower($left), self::asciiLower($right)),
-            'RTRIM' => strcmp(self::sqliteRtrimCollationKey($left), self::sqliteRtrimCollationKey($right)),
+            'RTRIM' => strcmp(rtrim($left, ' '), rtrim($right, ' ')),
             default => throw new \InvalidArgumentException("Unsupported SQLite index collation: {$collation}"),
         };
-    }
-
-    private static function sqliteRtrimCollationKey(string $value): string
-    {
-        return rtrim($value, ' ');
-    }
-
-    public static function likeMatches(
-        string $value,
-        string $pattern,
-        ?string $escape = null,
-        bool $caseSensitive = false,
-    ): bool {
-        if ($escape !== null && self::sqliteTextLength($escape) !== 1) {
-            throw new \InvalidArgumentException('SQLite LIKE ESCAPE expression must be a single character');
-        }
-
-        return self::likeMatchesAt(
-            self::sqlitePatternCharacters($value),
-            self::sqlitePatternCharacters($pattern),
-            self::sqlitePatternCharacters($escape ?? ''),
-            $caseSensitive,
-            0,
-            0,
-            [],
-        );
-    }
-
-    /**
-     * @return null|array{lowerInclusive:string,upperBound:?string}
-     */
-    public static function likePrefixRangeBounds(string $pattern, ?string $escape = null): ?array
-    {
-        $plan = self::likePatternPlan($pattern, $escape);
-        if ($plan['prefix'] === '') {
-            return null;
-        }
-
-        return $plan['binaryRange'];
-    }
-
-    /**
-     * @return array{
-     *   pattern:string,
-     *   escape:?string,
-     *   prefix:string,
-     *   prefixCharacters:int,
-     *   prefixIsAscii:bool,
-     *   hasWildcard:bool,
-     *   binaryRange:array{lowerInclusive:string,upperBound:?string},
-     *   noCaseRange:array{lowerInclusive:string,upperBound:?string}
-     * }
-     */
-    public static function likePatternPlan(string $pattern, ?string $escape = null): array
-    {
-        if ($escape !== null && self::sqliteTextLength($escape) !== 1) {
-            throw new \InvalidArgumentException('SQLite LIKE ESCAPE expression must be a single character');
-        }
-
-        $patternCharacters = self::sqlitePatternCharacters($pattern);
-        $escapeCharacters = self::sqlitePatternCharacters($escape ?? '');
-        $prefix = '';
-        $hasWildcard = false;
-        $count = count($patternCharacters);
-        for ($offset = 0; $offset < $count; $offset++) {
-            $character = $patternCharacters[$offset];
-            if ($escapeCharacters !== [] && $character === $escapeCharacters[0]) {
-                $offset++;
-                if ($offset >= $count) {
-                    break;
-                }
-                $prefix .= $patternCharacters[$offset];
-                continue;
-            }
-            if ($character === '%' || $character === '_') {
-                $hasWildcard = true;
-                break;
-            }
-            $prefix .= $character;
-        }
-
-        $lowerNoCase = self::asciiLower($prefix);
-
-        return [
-            'pattern' => $pattern,
-            'escape' => $escape,
-            'prefix' => $prefix,
-            'prefixCharacters' => self::sqliteTextLength($prefix),
-            'prefixIsAscii' => self::sqliteTextIsAscii($prefix),
-            'hasWildcard' => $hasWildcard,
-            'binaryRange' => [
-                'lowerInclusive' => $prefix,
-                'upperBound' => self::nextBinaryPrefixUpperBound($prefix),
-            ],
-            'noCaseRange' => [
-                'lowerInclusive' => $lowerNoCase,
-                'upperBound' => self::nextBinaryPrefixUpperBound($lowerNoCase),
-            ],
-        ];
-    }
-
-    /**
-     * @return null|array{lowerInclusive:string,upperBound:?string}
-     */
-    public static function likeNoCasePrefixRangeBounds(string $pattern, ?string $escape = null): ?array
-    {
-        $plan = self::likePatternPlan($pattern, $escape);
-        if ($plan['prefix'] === '') {
-            return null;
-        }
-
-        return $plan['noCaseRange'];
-    }
-
-    public static function globMatches(string $value, string $pattern): bool
-    {
-        return self::globMatchesAt(
-            self::sqlitePatternCharacters($value),
-            self::sqlitePatternCharacters($pattern),
-            0,
-            0,
-            [],
-        );
-    }
-
-    /**
-     * @return null|array{lowerInclusive:string,upperBound:?string}
-     */
-    public static function globPrefixRangeBounds(string $pattern): ?array
-    {
-        $patternCharacters = self::sqlitePatternCharacters($pattern);
-        $prefix = '';
-        foreach ($patternCharacters as $character) {
-            if ($character === '*' || $character === '?' || $character === '[') {
-                break;
-            }
-            $prefix .= $character;
-        }
-
-        if ($prefix === '') {
-            return null;
-        }
-
-        return [
-            'lowerInclusive' => $prefix,
-            'upperBound' => self::nextBinaryPrefixUpperBound($prefix),
-        ];
-    }
-
-    /**
-     * @param callable(string, string): bool $regexp
-     */
-    public static function regexpMatches(string $value, string $pattern, callable $regexp): bool
-    {
-        $matched = $regexp($pattern, $value);
-        if (!is_bool($matched)) {
-            throw new \InvalidArgumentException('SQLite REGEXP callback must return a boolean');
-        }
-
-        return $matched;
-    }
-
-    /**
-     * @param list<string> $value
-     * @param list<string> $pattern
-     * @param list<string> $escape
-     * @param array<string, bool> $seen
-     */
-    private static function likeMatchesAt(
-        array $value,
-        array $pattern,
-        array $escape,
-        bool $caseSensitive,
-        int $valueOffset,
-        int $patternOffset,
-        array $seen,
-    ): bool {
-        $state = $valueOffset . ':' . $patternOffset;
-        if (isset($seen[$state])) {
-            return false;
-        }
-        $seen[$state] = true;
-
-        $valueCount = count($value);
-        $patternCount = count($pattern);
-        while ($patternOffset < $patternCount) {
-            $patternCharacter = $pattern[$patternOffset];
-            if ($escape !== [] && $patternCharacter === $escape[0]) {
-                $patternOffset++;
-                if ($patternOffset >= $patternCount) {
-                    return false;
-                }
-                $patternCharacter = $pattern[$patternOffset];
-            } elseif ($patternCharacter === '%') {
-                while ($patternOffset + 1 < $patternCount && $pattern[$patternOffset + 1] === '%') {
-                    $patternOffset++;
-                }
-                if ($patternOffset + 1 >= $patternCount) {
-                    return true;
-                }
-                for ($nextValueOffset = $valueOffset; $nextValueOffset <= $valueCount; $nextValueOffset++) {
-                    if (self::likeMatchesAt($value, $pattern, $escape, $caseSensitive, $nextValueOffset, $patternOffset + 1, $seen)) {
-                        return true;
-                    }
-                }
-
-                return false;
-            } elseif ($patternCharacter === '_') {
-                if ($valueOffset >= $valueCount) {
-                    return false;
-                }
-                $valueOffset++;
-                $patternOffset++;
-                continue;
-            }
-
-            if ($valueOffset >= $valueCount || !self::sqlitePatternCharactersEqual($value[$valueOffset], $patternCharacter, $caseSensitive)) {
-                return false;
-            }
-
-            $valueOffset++;
-            $patternOffset++;
-        }
-
-        return $valueOffset === $valueCount;
-    }
-
-    /**
-     * @param list<string> $value
-     * @param list<string> $pattern
-     * @param array<string, bool> $seen
-     */
-    private static function globMatchesAt(array $value, array $pattern, int $valueOffset, int $patternOffset, array $seen): bool
-    {
-        $state = $valueOffset . ':' . $patternOffset;
-        if (isset($seen[$state])) {
-            return false;
-        }
-        $seen[$state] = true;
-
-        $valueCount = count($value);
-        $patternCount = count($pattern);
-        while ($patternOffset < $patternCount) {
-            $patternCharacter = $pattern[$patternOffset];
-            if ($patternCharacter === '*') {
-                while ($patternOffset + 1 < $patternCount && $pattern[$patternOffset + 1] === '*') {
-                    $patternOffset++;
-                }
-                if ($patternOffset + 1 >= $patternCount) {
-                    return true;
-                }
-                for ($nextValueOffset = $valueOffset; $nextValueOffset <= $valueCount; $nextValueOffset++) {
-                    if (self::globMatchesAt($value, $pattern, $nextValueOffset, $patternOffset + 1, $seen)) {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-            if ($valueOffset >= $valueCount) {
-                return false;
-            }
-            if ($patternCharacter === '?') {
-                $valueOffset++;
-                $patternOffset++;
-                continue;
-            }
-            if ($patternCharacter === '[') {
-                $class = self::readGlobCharacterClass($pattern, $patternOffset);
-                if ($class === null) {
-                    if ($value[$valueOffset] !== '[') {
-                        return false;
-                    }
-                    $valueOffset++;
-                    $patternOffset++;
-                    continue;
-                }
-                if (self::globCharacterClassContains($value[$valueOffset], $class) === $class['negated']) {
-                    return false;
-                }
-                $valueOffset++;
-                $patternOffset = $class['nextOffset'];
-                continue;
-            }
-            if ($value[$valueOffset] !== $patternCharacter) {
-                return false;
-            }
-
-            $valueOffset++;
-            $patternOffset++;
-        }
-
-        return $valueOffset === $valueCount;
-    }
-
-    /**
-     * @param list<string> $pattern
-     * @return null|array{characters:list<string>,ranges:list<array{0:string,1:string}>,negated:bool,nextOffset:int}
-     */
-    private static function readGlobCharacterClass(array $pattern, int $offset): ?array
-    {
-        $count = count($pattern);
-        if ($offset + 1 >= $count) {
-            return null;
-        }
-
-        $index = $offset + 1;
-        $negated = false;
-        if ($pattern[$index] === '^') {
-            $negated = true;
-            $index++;
-        }
-
-        $characters = [];
-        $ranges = [];
-        $first = true;
-        while ($index < $count) {
-            $character = $pattern[$index];
-            if ($character === ']' && !$first) {
-                return [
-                    'characters' => array_values(array_unique($characters)),
-                    'ranges' => $ranges,
-                    'negated' => $negated,
-                    'nextOffset' => $index + 1,
-                ];
-            }
-            if (
-                $index + 2 < $count
-                && $pattern[$index + 1] === '-'
-                && $pattern[$index + 2] !== ']'
-            ) {
-                if (self::sqliteCodepoint($character) <= self::sqliteCodepoint($pattern[$index + 2])) {
-                    $ranges[] = [$character, $pattern[$index + 2]];
-                } else {
-                    $characters[] = $character;
-                }
-                $index += 3;
-                $first = false;
-                continue;
-            }
-
-            $characters[] = $character;
-            $index++;
-            $first = false;
-        }
-
-        return null;
-    }
-
-    /**
-     * @param array{characters:list<string>,ranges:list<array{0:string,1:string}>,negated:bool,nextOffset:int} $class
-     */
-    private static function globCharacterClassContains(string $character, array $class): bool
-    {
-        if (in_array($character, $class['characters'], true)) {
-            return true;
-        }
-
-        $codepoint = self::sqliteCodepoint($character);
-        foreach ($class['ranges'] as [$start, $end]) {
-            if ($codepoint >= self::sqliteCodepoint($start) && $codepoint <= self::sqliteCodepoint($end)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static function sqliteCodepoint(string $character): int
-    {
-        $bytes = array_values(unpack('C*', $character) ?: []);
-        $length = count($bytes);
-        if ($length === 1) {
-            return $bytes[0];
-        }
-        if ($length === 2) {
-            return (($bytes[0] & 0x1f) << 6) | ($bytes[1] & 0x3f);
-        }
-        if ($length === 3) {
-            return (($bytes[0] & 0x0f) << 12) | (($bytes[1] & 0x3f) << 6) | ($bytes[2] & 0x3f);
-        }
-        if ($length === 4) {
-            return (($bytes[0] & 0x07) << 18) | (($bytes[1] & 0x3f) << 12) | (($bytes[2] & 0x3f) << 6) | ($bytes[3] & 0x3f);
-        }
-
-        return $bytes[0] ?? 0;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private static function sqlitePatternCharacters(string $value): array
-    {
-        return self::sqliteTextPatternCharacters($value);
-    }
-
-    private static function sqliteTextLength(string $value): int
-    {
-        return count(self::sqlitePatternCharacters($value));
-    }
-
-    private static function sqliteTextIsAscii(string $value): bool
-    {
-        $length = strlen($value);
-        for ($offset = 0; $offset < $length; $offset++) {
-            if (ord($value[$offset]) > 0x7f) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static function sqlitePatternCharactersEqual(string $left, string $right, bool $caseSensitive): bool
-    {
-        if ($caseSensitive) {
-            return $left === $right;
-        }
-
-        return self::asciiLower($left) === self::asciiLower($right);
     }
 
     private static function asciiLower(string $value): string
@@ -11338,20 +9917,6 @@ final class SQLiteDatabase
         }
 
         return $bytes;
-    }
-
-    private static function nextBinaryPrefixUpperBound(string $prefix): ?string
-    {
-        for ($offset = strlen($prefix) - 1; $offset >= 0; $offset--) {
-            $byte = ord($prefix[$offset]);
-            if ($byte === 0xff) {
-                continue;
-            }
-
-            return substr($prefix, 0, $offset) . chr($byte + 1);
-        }
-
-        return null;
     }
 
     private static function asciiUpper(string $value): string
@@ -11429,91 +9994,6 @@ final class SQLiteDatabase
         }
 
         return $characters;
-    }
-
-    /**
-     * Split LIKE/GLOB text as SQLite does for UTF-8 pattern matching: valid
-     * UTF-8 codepoints remain single characters, while malformed bytes are
-     * consumed one byte at a time instead of forcing the whole string into a
-     * byte split.
-     *
-     * @return list<string>
-     */
-    private static function sqliteTextPatternCharacters(string $value): array
-    {
-        $strict = self::sqliteTextCharacters($value);
-        if ($strict !== null) {
-            return $strict;
-        }
-
-        $characters = [];
-        $length = strlen($value);
-        for ($offset = 0; $offset < $length;) {
-            $byte = ord($value[$offset]);
-            $sequenceLength = match (true) {
-                $byte < 0x80 => 1,
-                $byte >= 0xc2 && $byte <= 0xdf => 2,
-                $byte >= 0xe0 && $byte <= 0xef => 3,
-                $byte >= 0xf0 && $byte <= 0xf4 => 4,
-                default => 1,
-            };
-
-            if ($sequenceLength === 1) {
-                $characters[] = $value[$offset];
-                $offset++;
-                continue;
-            }
-
-            $sequence = substr($value, $offset, $sequenceLength);
-            if (strlen($sequence) === $sequenceLength && self::sqliteUtf8SequenceIsWellFormed($sequence)) {
-                $characters[] = $sequence;
-                $offset += $sequenceLength;
-                continue;
-            }
-
-            $characters[] = $value[$offset];
-            $offset++;
-        }
-
-        return $characters;
-    }
-
-    private static function sqliteUtf8SequenceIsWellFormed(string $sequence): bool
-    {
-        $bytes = array_values(unpack('C*', $sequence) ?: []);
-        $length = count($bytes);
-        if ($length === 2) {
-            return $bytes[0] >= 0xc2
-                && $bytes[0] <= 0xdf
-                && self::sqliteUtf8ContinuationByte($bytes[1]);
-        }
-        if ($length === 3) {
-            if (!self::sqliteUtf8ContinuationByte($bytes[1]) || !self::sqliteUtf8ContinuationByte($bytes[2])) {
-                return false;
-            }
-
-            return ($bytes[0] !== 0xe0 || $bytes[1] >= 0xa0)
-                && ($bytes[0] !== 0xed || $bytes[1] <= 0x9f);
-        }
-        if ($length === 4) {
-            if (
-                !self::sqliteUtf8ContinuationByte($bytes[1])
-                || !self::sqliteUtf8ContinuationByte($bytes[2])
-                || !self::sqliteUtf8ContinuationByte($bytes[3])
-            ) {
-                return false;
-            }
-
-            return ($bytes[0] !== 0xf0 || $bytes[1] >= 0x90)
-                && ($bytes[0] !== 0xf4 || $bytes[1] <= 0x8f);
-        }
-
-        return $length === 1 && ($bytes[0] ?? 0) < 0x80;
-    }
-
-    private static function sqliteUtf8ContinuationByte(int $byte): bool
-    {
-        return $byte >= 0x80 && $byte <= 0xbf;
     }
 
     private static function sqliteTrimBytes(string $value, string $functionName, string $characters): string
@@ -12021,19 +10501,6 @@ final class SQLiteDatabase
         }
 
         return $payload;
-    }
-
-    /**
-     * @return list<int>
-     */
-    public function overflowPageChainNumbers(int $firstOverflowPage, int $byteCount): array
-    {
-        return $this->overflowPageNumbers($firstOverflowPage, $byteCount);
-    }
-
-    public function readOverflowPayloadForBtreePlan(int $firstOverflowPage, int $byteCount): string
-    {
-        return $this->readOverflowPayload($firstOverflowPage, $byteCount);
     }
 
     /**

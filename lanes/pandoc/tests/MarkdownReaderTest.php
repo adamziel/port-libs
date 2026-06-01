@@ -3206,42 +3206,6 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
-    'maps upstream markdown writer block-start list marker escaping in text' => static function (TestRunner $t): void {
-        $document = new AstNode('document', [], [
-            new AstNode('paragraph', [], [
-                new AstNode('text', ['text' => '1. Imported source line is literal']),
-            ]),
-            new AstNode('paragraph', [], [
-                new AstNode('text', ['text' => '- Audit item is prose']),
-                new AstNode('softbreak'),
-                new AstNode('text', ['text' => '+ Follow-up remains prose']),
-                new AstNode('softbreak'),
-                new AstNode('text', ['text' => '* Legacy marker remains prose']),
-                new AstNode('softbreak'),
-                new AstNode('text', ['text' => '2) Parenthesized source marker remains prose']),
-            ]),
-            new AstNode('blockquote', [], [
-                new AstNode('paragraph', [], [
-                    new AstNode('text', ['text' => '3. Quoted reviewer note is literal']),
-                ]),
-            ]),
-        ]);
-
-        $markdown = (new MarkdownWriter())->write($document);
-
-        $t->same(implode("\n\n", [
-            '\\1. Imported source line is literal',
-            '\\- Audit item is prose'
-                . "\n" . '\\+ Follow-up remains prose'
-                . "\n" . '\\* Legacy marker remains prose'
-                . "\n" . '\\2) Parenthesized source marker remains prose',
-            '> \\3. Quoted reviewer note is literal',
-        ]), $markdown);
-        $t->same(['paragraph', 'paragraph', 'blockquote'], array_map(
-            static fn (AstNode $node): string => $node->type,
-            (new MarkdownReader())->read($markdown)->children
-        ));
-    },
     'maps upstream markdown writer nested space softbreak and hard line break inlines' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [

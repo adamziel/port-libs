@@ -1,7 +1,0 @@
-# vfs-tempfile-open-lifecycle-current-next73
-
-- Scope: bounded SQLite VFS temporary-file xOpen lifecycle for current/next snapshots. The slice models deterministic temp names, `SQLITE_OPEN_TEMP_DB`, `SQLITE_OPEN_DELETEONCLOSE`, exclusive temp locks, memory fallback for `temp_store=memory` or unwritable temp directories, commit/rollback deferred close behavior, and deletion on close.
-- Focused evidence: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsTempFileOpenLifecycleCurrentNext73Test.php` passes with 1 test file, 61 assertions, 0 failures.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-vfs-tempfile-open-lifecycle-current-next73.php --self-test` covers copied `wp_options` import temp journal and sorter files across commit, close, and next-open snapshots without requiring ext/sqlite.
-- Non-overlap: avoids accepted ATTACH temp/VFS open planning, VFS file-control tempfilename state, VFS file writer/locked writer/sync/rollback-journal/super-journal paths, VFS lock-state/process-lock clusters, temp rollback-journal delete-on-commit transaction routing, WAL checkpoint/savepoint byte truncation, JSON table source/cursor/constraint work, SELECT SQL text clusters, and B-tree page/freelist clusters. This patch only adds the temp-file xOpen current/next lifecycle surface.
-- Dependency closure: no new support component is needed. The slice reuses lane-local VFS/open modeling patterns and adds a bounded native PHP helper under `lanes/libsqlite/src` for later pager/open consumers.

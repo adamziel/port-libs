@@ -16,7 +16,6 @@ $jsonbSettings = SQLiteJsonB::encode([
             ['name' => 'cache', 'enabled' => false],
         ],
         'dotted.key' => 'quoted',
-        'bracket[0]' => ['nested.label' => 'escaped'],
     ],
 ]);
 
@@ -32,27 +31,11 @@ foreach ($inputs as $name => $value) {
     $rootRows = SQLiteJsonTree::jsonTreeSqlFunction('JSON_TREE', $value);
     $pluginRows = SQLiteJsonTree::jsonTreeSqlFunctionArguments('JSON_TREE', [$value, '$.plugin']);
     $rulesRows = SQLiteJsonTree::jsonTreeSqlFunctionArguments('JSON_TREE', [$value, '$.plugin.rules']);
-    $quotedRows = SQLiteJsonTree::jsonTreeSqlFunctionArguments('JSON_TREE', [$value, '$.plugin."dotted.key"']);
-    $bracketLabelRows = SQLiteJsonTree::jsonTreeSqlFunctionArguments('JSON_TREE', [$value, '$.plugin."bracket[0]"."nested.label"']);
     $reports[] = [
         'name' => $name,
         'rootRows' => normalizeJsonTreeRows($rootRows),
         'pluginRows' => normalizeJsonTreeRows($pluginRows),
         'rulesRows' => normalizeJsonTreeRows($rulesRows),
-        'quotedRootRows' => normalizeJsonTreeRows($quotedRows),
-        'bracketLabelRows' => normalizeJsonTreeRows($bracketLabelRows),
-        'selectedRootShape' => $pluginRows === [] ? null : [
-            'key' => $pluginRows[0]['key'],
-            'fullkey' => $pluginRows[0]['fullkey'],
-            'path' => $pluginRows[0]['path'],
-            'root' => $pluginRows[0]['root'],
-        ],
-        'quotedRootShape' => $quotedRows === [] ? null : [
-            'key' => $quotedRows[0]['key'],
-            'fullkey' => $quotedRows[0]['fullkey'],
-            'path' => $quotedRows[0]['path'],
-            'root' => $quotedRows[0]['root'],
-        ],
         'hiddenColumns' => [
             'jsonColumnType' => $pluginRows === [] ? null : ($pluginRows[0]['json'] instanceof SQLiteBlobValue ? 'blob' : 'text'),
             'rootColumn' => $pluginRows[0]['root'] ?? null,
@@ -67,7 +50,7 @@ foreach ($inputs as $name => $value) {
 
 echo json_encode([
     'reports' => $reports,
-    'wordpressUse' => 'Local-only wp_options option_value recursive expansion that mirrors bounded SQLite json_tree() selected-root rows and hidden json/root columns for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
+    'wordpressUse' => 'Local-only wp_options option_value recursive expansion that mirrors bounded SQLite json_tree() rows and hidden json/root columns for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
 
 /**

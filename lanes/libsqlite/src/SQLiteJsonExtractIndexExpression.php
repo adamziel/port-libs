@@ -13,7 +13,6 @@ final class SQLiteJsonExtractIndexExpression
         public readonly bool $descending = false,
         public readonly bool $partial = false,
         public readonly ?SQLiteIndexPredicate $partialPredicate = null,
-        public readonly string $functionName = 'json_extract',
     ) {
     }
 }

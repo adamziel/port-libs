@@ -6,11 +6,7 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteJsonRemove
 {
-    public static function removeSqlFunction(
-        string $function,
-        string|int|float|bool|SQLiteBlobValue|null $value,
-        ?string ...$paths,
-    ): string|SQLiteBlobValue|null
+    public static function removeSqlFunction(string $function, string|SQLiteBlobValue|null $value, string ...$paths): string|SQLiteBlobValue|null
     {
         if (strcasecmp($function, 'json_remove') === 0) {
             return self::remove($value, ...$paths);
@@ -19,9 +15,6 @@ final class SQLiteJsonRemove
             throw new \InvalidArgumentException('SQLite JSON remove function must be json_remove or jsonb_remove');
         }
         if ($value === null) {
-            return null;
-        }
-        if (in_array(null, $paths, true)) {
             return null;
         }
 
@@ -43,12 +36,12 @@ final class SQLiteJsonRemove
         }
 
         $value = array_shift($arguments);
-        if (!$value instanceof SQLiteBlobValue && !is_string($value) && !is_int($value) && !is_float($value) && !is_bool($value) && $value !== null) {
-            throw new \InvalidArgumentException('SQLite json_remove() JSON argument must be text, numeric, BLOB, or NULL');
+        if (!$value instanceof SQLiteBlobValue && !is_string($value) && $value !== null) {
+            throw new \InvalidArgumentException('SQLite json_remove() JSON argument must be text, BLOB, or NULL');
         }
 
         foreach ($arguments as $path) {
-            if ($path !== null && !is_string($path)) {
+            if (!is_string($path)) {
                 throw new \InvalidArgumentException('SQLite json_remove() path arguments must be text');
             }
         }
@@ -56,12 +49,9 @@ final class SQLiteJsonRemove
         return self::removeSqlFunction($function, $value, ...$arguments);
     }
 
-    public static function remove(string|int|float|bool|SQLiteBlobValue|null $value, ?string ...$paths): ?string
+    public static function remove(string|SQLiteBlobValue|null $value, string ...$paths): ?string
     {
         if ($value === null) {
-            return null;
-        }
-        if (in_array(null, $paths, true)) {
             return null;
         }
 
@@ -73,7 +63,7 @@ final class SQLiteJsonRemove
         return $removed === null ? null : SQLiteJsonCanonical::encodeDecodedJson(SQLiteJsonB::decode($removed));
     }
 
-    private static function jsonbBytes(string|int|float|bool|SQLiteBlobValue $value): string
+    private static function jsonbBytes(string|SQLiteBlobValue $value): string
     {
         if ($value instanceof SQLiteBlobValue) {
             if (SQLiteJsonB::isSuperficiallyJsonB($value->bytes)) {
@@ -85,26 +75,7 @@ final class SQLiteJsonRemove
             return SQLiteJsonB::encode(self::decodeJsonText($value->bytes));
         }
 
-        return SQLiteJsonB::encode(self::decodeJsonInput($value));
-    }
-
-    private static function decodeJsonInput(string|int|float|bool $json): mixed
-    {
-        if (is_int($json)) {
-            return $json;
-        }
-        if (is_float($json)) {
-            if (!is_finite($json)) {
-                throw new \InvalidArgumentException('SQLite JSON numeric input must be finite');
-            }
-
-            return $json;
-        }
-        if (is_bool($json)) {
-            return $json ? 1 : 0;
-        }
-
-        return self::decodeJsonText($json);
+        return SQLiteJsonB::encode(self::decodeJsonText($value));
     }
 
     private static function decodeJsonText(string $json): mixed

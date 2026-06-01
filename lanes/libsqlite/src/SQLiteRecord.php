@@ -241,15 +241,14 @@ final class SQLiteRecord
         if ($bytes === '') {
             return '';
         }
-        self::assertValidUtf16Text($bytes, $textEncoding);
-        if (function_exists('mb_convert_encoding')) {
-            return match ($textEncoding) {
-                2 => mb_convert_encoding($bytes, 'UTF-8', 'UTF-16LE'),
-                3 => mb_convert_encoding($bytes, 'UTF-8', 'UTF-16BE'),
-            };
+        if (!function_exists('mb_convert_encoding')) {
+            throw new \InvalidArgumentException('UTF-16 SQLite text requires mbstring for decoding');
         }
 
-        return self::decodeUtf16TextWithoutMbstring($bytes, $textEncoding);
+        return match ($textEncoding) {
+            2 => mb_convert_encoding($bytes, 'UTF-8', 'UTF-16LE'),
+            3 => mb_convert_encoding($bytes, 'UTF-8', 'UTF-16BE'),
+        };
     }
 
     private static function encodeText(string $value, int $textEncoding): string
@@ -263,145 +262,13 @@ final class SQLiteRecord
         if ($value === '') {
             return '';
         }
-        self::assertValidUtf8Text($value);
-        if (function_exists('mb_convert_encoding')) {
-            return match ($textEncoding) {
-                2 => mb_convert_encoding($value, 'UTF-16LE', 'UTF-8'),
-                3 => mb_convert_encoding($value, 'UTF-16BE', 'UTF-8'),
-            };
+        if (!function_exists('mb_convert_encoding')) {
+            throw new \InvalidArgumentException('UTF-16 SQLite text requires mbstring for encoding');
         }
 
-        return self::encodeUtf16TextWithoutMbstring($value, $textEncoding);
-    }
-
-    private static function assertValidUtf8Text(string $value): void
-    {
-        if (preg_match('//u', $value) !== 1) {
-            throw new \InvalidArgumentException('Malformed UTF-8 SQLite text cannot be encoded as UTF-16');
-        }
-    }
-
-    private static function assertValidUtf16Text(string $bytes, int $textEncoding): void
-    {
-        if ((strlen($bytes) % 2) !== 0) {
-            throw new \InvalidArgumentException('Malformed UTF-16 SQLite text has an odd byte length');
-        }
-
-        $encoding = $textEncoding === 2 ? 'UTF-16LE' : 'UTF-16BE';
-        if (function_exists('mb_check_encoding') && !mb_check_encoding($bytes, $encoding)) {
-            throw new \InvalidArgumentException("Malformed {$encoding} SQLite text");
-        }
-
-        for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += 2) {
-            $unit = self::readUtf16Unit($bytes, $offset, $textEncoding);
-            if ($unit >= 0xd800 && $unit <= 0xdbff) {
-                if ($offset + 2 >= $length) {
-                    throw new \InvalidArgumentException("Malformed {$encoding} SQLite text");
-                }
-                $trail = self::readUtf16Unit($bytes, $offset + 2, $textEncoding);
-                if ($trail < 0xdc00 || $trail > 0xdfff) {
-                    throw new \InvalidArgumentException("Malformed {$encoding} SQLite text");
-                }
-                $offset += 2;
-                continue;
-            }
-
-            if ($unit >= 0xdc00 && $unit <= 0xdfff) {
-                throw new \InvalidArgumentException("Malformed {$encoding} SQLite text");
-            }
-        }
-    }
-
-    private static function decodeUtf16TextWithoutMbstring(string $bytes, int $textEncoding): string
-    {
-        $text = '';
-        for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += 2) {
-            $unit = self::readUtf16Unit($bytes, $offset, $textEncoding);
-            if ($unit >= 0xd800 && $unit <= 0xdbff) {
-                $trail = self::readUtf16Unit($bytes, $offset + 2, $textEncoding);
-                $codepoint = 0x10000 + ((($unit - 0xd800) << 10) | ($trail - 0xdc00));
-                $offset += 2;
-            } else {
-                $codepoint = $unit;
-            }
-
-            $text .= self::utf8FromCodepoint($codepoint);
-        }
-
-        return $text;
-    }
-
-    private static function encodeUtf16TextWithoutMbstring(string $value, int $textEncoding): string
-    {
-        self::assertValidUtf8Text($value);
-
-        preg_match_all('/./us', $value, $matches);
-        $bytes = '';
-        foreach ($matches[0] as $character) {
-            $codepoint = self::utf8Codepoint($character);
-            if ($codepoint < 0x10000) {
-                $bytes .= self::writeUtf16Unit($codepoint, $textEncoding);
-                continue;
-            }
-
-            $surrogateValue = $codepoint - 0x10000;
-            $bytes .= self::writeUtf16Unit(0xd800 + ($surrogateValue >> 10), $textEncoding);
-            $bytes .= self::writeUtf16Unit(0xdc00 + ($surrogateValue & 0x3ff), $textEncoding);
-        }
-
-        return $bytes;
-    }
-
-    private static function readUtf16Unit(string $bytes, int $offset, int $textEncoding): int
-    {
-        return $textEncoding === 2
-            ? ord($bytes[$offset]) | (ord($bytes[$offset + 1]) << 8)
-            : (ord($bytes[$offset]) << 8) | ord($bytes[$offset + 1]);
-    }
-
-    private static function writeUtf16Unit(int $unit, int $textEncoding): string
-    {
-        return $textEncoding === 2
-            ? chr($unit & 0xff) . chr(($unit >> 8) & 0xff)
-            : chr(($unit >> 8) & 0xff) . chr($unit & 0xff);
-    }
-
-    private static function utf8Codepoint(string $character): int
-    {
-        $first = ord($character[0]);
-        if ($first < 0x80) {
-            return $first;
-        }
-        if (($first & 0xe0) === 0xc0) {
-            return (($first & 0x1f) << 6) | (ord($character[1]) & 0x3f);
-        }
-        if (($first & 0xf0) === 0xe0) {
-            return (($first & 0x0f) << 12) | ((ord($character[1]) & 0x3f) << 6) | (ord($character[2]) & 0x3f);
-        }
-
-        return (($first & 0x07) << 18)
-            | ((ord($character[1]) & 0x3f) << 12)
-            | ((ord($character[2]) & 0x3f) << 6)
-            | (ord($character[3]) & 0x3f);
-    }
-
-    private static function utf8FromCodepoint(int $codepoint): string
-    {
-        if ($codepoint < 0x80) {
-            return chr($codepoint);
-        }
-        if ($codepoint < 0x800) {
-            return chr(0xc0 | ($codepoint >> 6)) . chr(0x80 | ($codepoint & 0x3f));
-        }
-        if ($codepoint < 0x10000) {
-            return chr(0xe0 | ($codepoint >> 12))
-                . chr(0x80 | (($codepoint >> 6) & 0x3f))
-                . chr(0x80 | ($codepoint & 0x3f));
-        }
-
-        return chr(0xf0 | ($codepoint >> 18))
-            . chr(0x80 | (($codepoint >> 12) & 0x3f))
-            . chr(0x80 | (($codepoint >> 6) & 0x3f))
-            . chr(0x80 | ($codepoint & 0x3f));
+        return match ($textEncoding) {
+            2 => mb_convert_encoding($value, 'UTF-16LE', 'UTF-8'),
+            3 => mb_convert_encoding($value, 'UTF-16BE', 'UTF-8'),
+        };
     }
 }

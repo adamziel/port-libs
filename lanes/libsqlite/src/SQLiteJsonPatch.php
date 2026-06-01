@@ -7,7 +7,7 @@ namespace PortLibs\LibSqlite;
 final class SQLiteJsonPatch
 {
     /**
-     * @param list<mixed> $arguments
+     * @param list<string|SQLiteBlobValue|null> $arguments
      */
     public static function patchSqlFunctionArguments(string $function, array $arguments): string|SQLiteBlobValue|null
     {
@@ -20,8 +20,8 @@ final class SQLiteJsonPatch
 
     public static function patchSqlFunction(
         string $function,
-        string|int|float|bool|SQLiteBlobValue|null $target,
-        string|int|float|bool|SQLiteBlobValue|null $patch,
+        string|SQLiteBlobValue|null $target,
+        string|SQLiteBlobValue|null $patch,
     ): string|SQLiteBlobValue|null {
         if (strcasecmp($function, 'json_patch') === 0) {
             return self::patch($target, $patch);
@@ -36,10 +36,7 @@ final class SQLiteJsonPatch
         return new SQLiteBlobValue(SQLiteJsonB::patch(self::jsonbBytes($target), self::jsonbBytes($patch)));
     }
 
-    public static function patch(
-        string|int|float|bool|SQLiteBlobValue|null $target,
-        string|int|float|bool|SQLiteBlobValue|null $patch,
-    ): ?string
+    public static function patch(string|SQLiteBlobValue|null $target, string|SQLiteBlobValue|null $patch): ?string
     {
         if ($target === null || $patch === null) {
             return null;
@@ -50,7 +47,7 @@ final class SQLiteJsonPatch
         );
     }
 
-    private static function jsonbBytes(string|int|float|bool|SQLiteBlobValue $value): string
+    private static function jsonbBytes(string|SQLiteBlobValue $value): string
     {
         if ($value instanceof SQLiteBlobValue) {
             if (SQLiteJsonB::isSuperficiallyJsonB($value->bytes)) {
@@ -62,26 +59,7 @@ final class SQLiteJsonPatch
             return SQLiteJsonB::encode(self::decodeJsonText($value->bytes));
         }
 
-        return SQLiteJsonB::encode(self::decodeJsonInput($value));
-    }
-
-    private static function decodeJsonInput(string|int|float|bool $json): mixed
-    {
-        if (is_int($json)) {
-            return $json;
-        }
-        if (is_float($json)) {
-            if (!is_finite($json)) {
-                throw new \InvalidArgumentException('SQLite JSON numeric input must be finite');
-            }
-
-            return $json;
-        }
-        if (is_bool($json)) {
-            return $json ? 1 : 0;
-        }
-
-        return self::decodeJsonText($json);
+        return SQLiteJsonB::encode(self::decodeJsonText($value));
     }
 
     private static function decodeJsonText(string $json): mixed

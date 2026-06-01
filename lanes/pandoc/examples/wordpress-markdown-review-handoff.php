@@ -186,11 +186,6 @@ $document = new AstNode('document', $document->attrs, [
     new AstNode('paragraph', [], [
         new AstNode('text', ['text' => '# Literal audit tokens: * _ ` | ^ ~ $ <review> &ouml; \\macro']),
     ]),
-    new AstNode('paragraph', [], [
-        new AstNode('text', ['text' => '1. Literal imported audit step']),
-        new AstNode('softbreak'),
-        new AstNode('text', ['text' => '- Literal imported bullet marker']),
-    ]),
     new AstNode('div', [
         'id' => 'migration-review-packet',
         'classes' => ['wp-import', 'needs-review'],

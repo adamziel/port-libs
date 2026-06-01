@@ -126,7 +126,6 @@ $mergedParentCells = SQLiteIndexCell::parsePageCells(
 echo json_encode([
     'wordpressUse' => 'Plan a wp_options autoload rewrite that merges an underfilled non-root composite-index parent under a multi-child root, keeping the index reachable without the SQLite extension.',
     'plan' => $plan->toArray(),
-    'btreeRebalanceActions' => $plan->btreeRebalanceActions(),
     'indexRoot' => [
         'page' => 3,
         'cellCount' => $postDatabase->pageHeader(3)->cellCount,

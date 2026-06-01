@@ -7,9 +7,9 @@ namespace PortLibs\LibSqlite;
 final class SQLiteJsonTree
 {
     /**
-     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue|SQLiteJsonSubtypeValue,root:string}>
+     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}>
      */
-    public static function jsonTreeSqlFunction(string $function, string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, string $path = '$'): array
+    public static function jsonTreeSqlFunction(string $function, string|SQLiteBlobValue|null $value, string $path = '$'): array
     {
         if (strcasecmp($function, 'json_tree') !== 0) {
             throw new \InvalidArgumentException('SQLite JSON table-valued function must be json_tree');
@@ -20,7 +20,7 @@ final class SQLiteJsonTree
 
     /**
      * @param list<mixed> $arguments
-     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue|SQLiteJsonSubtypeValue,root:string}>
+     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}>
      */
     public static function jsonTreeSqlFunctionArguments(string $function, array $arguments): array
     {
@@ -29,14 +29,11 @@ final class SQLiteJsonTree
         }
 
         $value = $arguments[0];
-        if (!$value instanceof SQLiteBlobValue && !$value instanceof SQLiteJsonSubtypeValue && $value !== null && !is_string($value)) {
-            throw new \InvalidArgumentException('SQLite json_tree() JSON argument must be text, BLOB, JSON subtype, or NULL');
+        if (!$value instanceof SQLiteBlobValue && $value !== null && !is_string($value)) {
+            throw new \InvalidArgumentException('SQLite json_tree() JSON argument must be text, BLOB, or NULL');
         }
 
-        $path = array_key_exists(1, $arguments) ? $arguments[1] : '$';
-        if ($path === null) {
-            return [];
-        }
+        $path = $arguments[1] ?? '$';
         if (!is_string($path)) {
             throw new \InvalidArgumentException('SQLite json_tree() path argument must be text');
         }
@@ -45,9 +42,9 @@ final class SQLiteJsonTree
     }
 
     /**
-     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue|SQLiteJsonSubtypeValue,root:string}>
+     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}>
      */
-    public static function jsonTree(string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, string $path = '$'): array
+    public static function jsonTree(string|SQLiteBlobValue|null $value, string $path = '$'): array
     {
         if ($value === null) {
             return [];
@@ -60,16 +57,15 @@ final class SQLiteJsonTree
 
         $rows = [];
         $nextId = 0;
-        $rootLocation = self::rootLocation($value, $path);
-        self::appendRows($rows, $nextId, $rootLocation['key'], $located['value'], $path, $rootLocation['path'], $value, $path);
+        self::appendRows($rows, $nextId, null, $located['value'], $path, $path, $value, $path);
 
         return $rows;
     }
 
     /**
-     * @param list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue|SQLiteJsonSubtypeValue,root:string}> $rows
+     * @param list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}> $rows
      */
-    private static function appendRows(array &$rows, int &$nextId, int|string|null $key, mixed $value, string $fullkey, string $path, string|SQLiteBlobValue|SQLiteJsonSubtypeValue $json, string $root, ?int $parent = null): void
+    private static function appendRows(array &$rows, int &$nextId, int|string|null $key, mixed $value, string $fullkey, string $path, string|SQLiteBlobValue $json, string $root, ?int $parent = null): void
     {
         $id = $nextId++;
         $rows[] = self::row($key, $value, $id, $parent, $fullkey, $path, $json, $root);
@@ -90,9 +86,9 @@ final class SQLiteJsonTree
     }
 
     /**
-     * @return array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue|SQLiteJsonSubtypeValue,root:string}
+     * @return array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}
      */
-    private static function row(int|string|null $key, mixed $value, int $id, ?int $parent, string $fullkey, string $path, string|SQLiteBlobValue|SQLiteJsonSubtypeValue $json, string $root): array
+    private static function row(int|string|null $key, mixed $value, int $id, ?int $parent, string $fullkey, string $path, string|SQLiteBlobValue $json, string $root): array
     {
         return [
             'key' => $key,
@@ -177,128 +173,5 @@ final class SQLiteJsonTree
         }
 
         return $path . '.' . SQLiteJsonQuote::jsonQuote($key);
-    }
-
-    /**
-     * @return array{key:int|string|null,path:string}
-     */
-    private static function rootLocation(string|SQLiteBlobValue|SQLiteJsonSubtypeValue $json, string $path): array
-    {
-        if ($path === '$') {
-            return ['key' => null, 'path' => '$'];
-        }
-
-        $segments = self::pathSegments($path);
-        if ($segments === []) {
-            return ['key' => null, 'path' => '$'];
-        }
-
-        $last = $segments[count($segments) - 1];
-        $parentPath = count($segments) === 1 ? '$' : substr($path, 0, $last['offset']);
-
-        if ($last['type'] === 'index') {
-            if (ctype_digit($last['token'])) {
-                return ['key' => (int) $last['token'], 'path' => $parentPath];
-            }
-
-            if (preg_match('/^#-(\d+)$/', $last['token'], $matches) === 1) {
-                $parent = SQLiteJsonInspection::locatePath($json, $parentPath);
-                if (!$parent['found'] || !is_array($parent['value']) || !array_is_list($parent['value'])) {
-                    return ['key' => null, 'path' => $parentPath];
-                }
-
-                return ['key' => count($parent['value']) - (int) $matches[1], 'path' => $parentPath];
-            }
-
-            return ['key' => null, 'path' => $parentPath];
-        }
-
-        if ($last['type'] !== 'member') {
-            return ['key' => null, 'path' => $path];
-        }
-
-        return ['key' => $last['label'], 'path' => $parentPath];
-    }
-
-    /**
-     * @return list<array{type:string,offset:int,label?:string,token?:string}>
-     */
-    private static function pathSegments(string $path): array
-    {
-        $segments = [];
-        $offset = 1;
-        $length = strlen($path);
-        while ($offset < $length) {
-            if ($path[$offset] === '.') {
-                $segmentOffset = $offset;
-                $offset++;
-                if ($offset >= $length) {
-                    return [];
-                }
-
-                if ($path[$offset] === '"') {
-                    $end = self::quotedMemberEnd($path, $offset);
-                    if ($end === null) {
-                        return [];
-                    }
-                    $label = SQLiteJson5Parser::decode(substr($path, $offset, $end - $offset + 1));
-                    if (!is_string($label)) {
-                        return [];
-                    }
-                    $segments[] = ['type' => 'member', 'offset' => $segmentOffset, 'label' => $label];
-                    $offset = $end + 1;
-                    continue;
-                }
-
-                $end = $offset;
-                while ($end < $length && $path[$end] !== '.' && $path[$end] !== '[') {
-                    $end++;
-                }
-                if ($end === $offset) {
-                    return [];
-                }
-                $label = SQLiteJsonPath::decodeBareMember(substr($path, $offset, $end - $offset));
-                if ($label === null) {
-                    return [];
-                }
-                $segments[] = ['type' => 'member', 'offset' => $segmentOffset, 'label' => $label];
-                $offset = $end;
-                continue;
-            }
-
-            if ($path[$offset] === '[') {
-                $segmentOffset = $offset;
-                $end = strpos($path, ']', $offset + 1);
-                if ($end === false) {
-                    return [];
-                }
-                $segments[] = ['type' => 'index', 'offset' => $segmentOffset, 'token' => substr($path, $offset + 1, $end - $offset - 1)];
-                $offset = $end + 1;
-                continue;
-            }
-
-            return [];
-        }
-
-        return $segments;
-    }
-
-    private static function quotedMemberEnd(string $path, int $offset): ?int
-    {
-        $length = strlen($path);
-        for ($cursor = $offset + 1; $cursor < $length; $cursor++) {
-            if ($path[$cursor] === '\\') {
-                if ($cursor + 1 >= $length) {
-                    return null;
-                }
-                $cursor++;
-                continue;
-            }
-            if ($path[$cursor] === '"') {
-                return $cursor;
-            }
-        }
-
-        return null;
     }
 }

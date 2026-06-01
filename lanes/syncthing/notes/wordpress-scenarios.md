@@ -43,14 +43,6 @@ single-folder filtering, state filtering, and bounded pagination. Dependency
 closure: no new support component is needed; this reuses the existing bounded
 scan scheduler, checkpoint store, and route-registry components.
 
-The route-registry scan-status acknowledgement slice adds `POST
-/syncthing/db/scan/status/ack` for WordPress REST clients that have consumed a
-retained folder checkpoint payload and want to prune it before the next scan. A
-client can acknowledge one folder with an `expectedRevision` compare-and-swap
-guard, or omit `folder` to clear all retained checkpoints after polling.
-Dependency closure: no new support component is needed; this reuses the existing
-bounded scan scheduler, checkpoint store, and route-registry components.
-
 ## Current Native Slice
 
 Native scanner-style content blocks now match Syncthing's `lib/scanner/blocks_test.go`

@@ -17,7 +17,6 @@ return [
     'malformedPathRedirectCookiesOmitted' => $fixture['malformedPathRedirectCookiesOmitted'],
     'secureCookiePlainRedirectOmitted' => $fixture['secureCookiePlainRedirectOmitted'],
     'defaultPathRedirectCookieOmitted' => $fixture['defaultPathRedirectCookieOmitted'],
-    'postRedirectDefaultPathCookieOmitted' => $fixture['postRedirectDefaultPathCookieOmitted'],
     'sameNameScopedRedirectCookieRetained' => $fixture['sameNameScopedRedirectCookieRetained'],
     'sameScopeRedirectCookieReplaced' => $fixture['sameScopeRedirectCookieReplaced'],
     'callerCookieHeaderPreserved' => $fixture['callerCookieHeaderPreserved'],

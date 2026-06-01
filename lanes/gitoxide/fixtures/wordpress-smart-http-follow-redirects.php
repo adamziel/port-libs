@@ -55,7 +55,6 @@ $requester = static function (string $method, string $url, array $headers, ?stri
                     'path_order=root; Path=/; Secure',
                     'path_order=redirect; Path=/redirected.git; Secure',
                     'path_order=receive; Path=/redirected.git/git-receive-pack; Secure',
-                    'info_only=skip; Secure',
                 ],
             ],
             'body' => '',
@@ -522,7 +521,6 @@ return [
     'defaultPathRedirectCookieOmitted' => $defaultPathResponse->isSuccessful()
         && str_contains($defaultPathRequests[2]['headers']['Cookie'] ?? '', 'redirect_root_gate=opened')
         && !str_contains($defaultPathRequests[2]['headers']['Cookie'] ?? '', 'redirect_default_gate='),
-    'postRedirectDefaultPathCookieOmitted' => !str_contains($redirectCookieHeader, 'info_only='),
     'sameNameScopedRedirectCookieRetained' => str_contains($redirectCookieHeader, 'deploy_gate=opened')
         && !str_contains($redirectCookieHeader, 'deploy_gate=admin'),
     'sameScopeRedirectCookieReplaced' => str_contains($redirectCookieHeader, 'replace_gate=fresh')
@@ -550,5 +548,5 @@ return [
     'missingLocationPostRedirectRejected' => $missingLocationRedirectRejected,
     'missingLocationRequestMethods' => array_map(static fn (array $request): string => $request['method'], $missingLocationRequests),
     'responseSuccessful' => $response->isSuccessful(),
-    'wordpressUse' => 'A WordPress deployment tool can opt into following a safe same-host receive-pack POST redirect while preserving the generated pack request body, caller-supplied WordPress cookies, and redirect-issued session cookie, honoring redirect-issued cookie expiration, default Path on discovery and redirected POST responses, explicit Domain/Path/Secure scope including same-name scoped cookies, same-scope replacement, malformed Path quarantine, and Max-Age precedence, and rejecting rewriting 301/302/303, wrong-endpoint, credential-bearing, fragment-bearing, or missing-Location POST redirects before replaying a generated pack.',
+    'wordpressUse' => 'A WordPress deployment tool can opt into following a safe same-host receive-pack POST redirect while preserving the generated pack request body, caller-supplied WordPress cookies, and redirect-issued session cookie, honoring redirect-issued cookie expiration, default Path, explicit Domain/Path/Secure scope including same-name scoped cookies, same-scope replacement, malformed Path quarantine, and Max-Age precedence, and rejecting rewriting 301/302/303, wrong-endpoint, credential-bearing, fragment-bearing, or missing-Location POST redirects before replaying a generated pack.',
 ];

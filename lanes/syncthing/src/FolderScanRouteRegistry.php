@@ -47,67 +47,6 @@ final class FolderScanRouteRegistry
             'queued' => false,
             'scanStatusCatalog' => true,
         ]);
-        $registry->register('POST', '/syncthing/db/scan/status/ack', static function (array $payload, ?int $now = null) use ($coordinator): FolderScanApiResponse {
-            try {
-                $folder = self::payloadFolder($payload);
-                $expectedRevision = self::payloadExpectedRevision($payload);
-
-                if ($folder === null && $expectedRevision !== null) {
-                    return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_BAD_REQUEST, [
-                        'ok' => false,
-                        'status' => 'error',
-                        'error' => 'invalid_request',
-                        'message' => 'expectedRevision requires a folder',
-                    ]);
-                }
-
-                $result = $folder === null
-                    ? $coordinator->scheduler()->clearFolderCheckpoints($now)
-                    : [
-                        'acknowledged' => 0,
-                        'folders' => [
-                            $folder => $coordinator->scheduler()->clearFolderCheckpoint($folder, $expectedRevision, $now),
-                        ],
-                    ];
-            } catch (FolderScanCheckpointConflictException $exception) {
-                return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_CONFLICT, [
-                    'ok' => false,
-                    'status' => 'conflict',
-                    'error' => 'checkpoint_revision_conflict',
-                    'message' => $exception->getMessage(),
-                ]);
-            } catch (\InvalidArgumentException $exception) {
-                return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_BAD_REQUEST, [
-                    'ok' => false,
-                    'status' => 'error',
-                    'error' => 'invalid_request',
-                    'message' => $exception->getMessage(),
-                ]);
-            } catch (\RuntimeException $exception) {
-                return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_NOT_FOUND, [
-                    'ok' => false,
-                    'status' => 'error',
-                    'error' => 'folder_missing',
-                    'message' => $exception->getMessage(),
-                ]);
-            }
-
-            if ($folder !== null && ($result['folders'][$folder]['acknowledged'] ?? false)) {
-                $result['acknowledged'] = 1;
-            }
-
-            return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_OK, [
-                'ok' => true,
-                'status' => $result['acknowledged'] > 0 ? 'acknowledged' : 'missing',
-                'acknowledged' => $result['acknowledged'],
-                'folders' => $result['folders'],
-            ]);
-        }, [
-            'upstreamRoute' => 'lib/model ScanResult checkpoint status consumption for WordPress REST clients',
-            'wordpressRoute' => $registry->wordpressRoute('/syncthing/db/scan/status/ack'),
-            'queued' => false,
-            'scanStatusAck' => true,
-        ]);
 
         if ($queue !== null) {
             $registry->register('POST', '/syncthing/db/scan/queue', $queue->enqueue(...), [
@@ -436,27 +375,6 @@ final class FolderScanRouteRegistry
         $folder = trim((string) $payload['folder']);
 
         return $folder === '' ? null : $folder;
-    }
-
-    /**
-     * @param array<string, mixed> $payload
-     */
-    private static function payloadExpectedRevision(array $payload): ?int
-    {
-        if (!array_key_exists('expectedRevision', $payload) || $payload['expectedRevision'] === null || $payload['expectedRevision'] === '') {
-            return null;
-        }
-
-        if (!is_numeric($payload['expectedRevision'])) {
-            throw new \InvalidArgumentException('expectedRevision must be numeric');
-        }
-
-        $expectedRevision = (int) $payload['expectedRevision'];
-        if ($expectedRevision < 0) {
-            throw new \InvalidArgumentException('expectedRevision must not be negative');
-        }
-
-        return $expectedRevision;
     }
 
     /**

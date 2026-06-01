@@ -1732,11 +1732,6 @@ return [
         $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
         $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
         $t->same($attributeValues($expected, '//img[@src]/@src'), $attributeValues($article->contentHtml, '//img[@src]/@src'));
-
-        $blocks = $extractor->toWordPressBlocks($article);
-        $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($blocks, '//a[@href]/@href'));
-        $t->same($attributeValues($expected, '//img[@src]/@src'), $attributeValues($blocks, '//img[@src]/@src'));
-        $t->same(5, count($attributeValues($blocks, '//img[@src]/@src')));
     },
     'maps Mozilla base URL fixture family including paragraphized div content' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $fixtureText, $normalizedText): void {
         $extractor = new ArticleExtractor();
@@ -1755,11 +1750,6 @@ return [
             $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
             $t->same($attributeValues($expected, '//img[@src]/@src'), $attributeValues($article->contentHtml, '//img[@src]/@src'));
             $t->same($elementChildTags($expected, '//article'), $elementChildTags($article->contentHtml, '//main'));
-
-            $blocks = $extractor->toWordPressBlocks($article);
-            $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($blocks, '//a[@href]/@href'));
-            $t->same($attributeValues($expected, '//img[@src]/@src'), $attributeValues($blocks, '//img[@src]/@src'));
-            $t->same(5, count($attributeValues($blocks, '//img[@src]/@src')));
         }
     },
     'maps Mozilla javascript link replacement fixture to inert span content' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $fixtureText, $normalizedText): void {

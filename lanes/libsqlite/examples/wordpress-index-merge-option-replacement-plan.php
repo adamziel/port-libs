@@ -100,8 +100,6 @@ $freelistTrunks = $postDatabase->freelistTrunkPages();
 echo json_encode([
     'wordpressUse' => 'Plan a wp_options replacement that disables autoload, merges an underfilled composite secondary-index leaf when sibling redistribution is impossible, and moves the obsolete index page onto the freelist without the SQLite extension.',
     'plan' => $plan->toArray(),
-    'rebalanceSummary' => $plan->btreeRebalanceSummary(),
-    'rebalanceActions' => $plan->btreeRebalanceActions(),
     'indexRootPageType' => $postDatabase->pageHeader(3)->pageType,
     'indexRootCellCount' => $postDatabase->pageHeader(3)->cellCount,
     'mergedIndexLeafPages' => [

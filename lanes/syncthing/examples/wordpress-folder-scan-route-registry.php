@@ -44,13 +44,6 @@ try {
     $scanStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/scan/status', [
         'limit' => 10,
     ], now: 1002);
-    $scanStatusAcknowledged = $registry->dispatch('POST', '/wp-json/local-first/v1/syncthing/db/scan/status/ack', [
-        'folder' => 'wordpress-media',
-        'expectedRevision' => $scanStatus->body['folders']['wordpress-media']['checkpoint']['revision'] ?? null,
-    ], now: 1003);
-    $scanStatusAfterAck = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/scan/status', [
-        'folder' => 'wordpress-media',
-    ], now: 1004);
     $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 1010);
     $pendingWatchStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/status', [], now: 1014);
     $pendingMediaWatchStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/status', [
@@ -87,8 +80,6 @@ try {
         'accepted' => $accepted->toArray(),
         'completed' => $completed?->toArray(),
         'scanStatus' => $scanStatus->toArray(),
-        'scanStatusAcknowledged' => $scanStatusAcknowledged->toArray(),
-        'scanStatusAfterAck' => $scanStatusAfterAck->toArray(),
         'pendingWatchStatus' => $pendingWatchStatus->toArray(),
         'pendingMediaWatchStatus' => $pendingMediaWatchStatus->toArray(),
         'restartStatus' => $restartStatus->toArray(),

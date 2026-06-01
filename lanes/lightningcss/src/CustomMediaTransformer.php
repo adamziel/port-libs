@@ -399,56 +399,7 @@ final class CustomMediaTransformer
 
     private function stripCustomMediaReferences(string $query): string
     {
-        $output = '';
-        $quote = null;
-        $length = strlen($query);
-
-        for ($i = 0; $i < $length; $i++) {
-            $char = $query[$i];
-            if ($quote !== null) {
-                $output .= $char;
-                if ($char === '\\' && $i + 1 < $length) {
-                    $output .= $query[++$i];
-                    continue;
-                }
-                if ($char === $quote) {
-                    $quote = null;
-                }
-                continue;
-            }
-
-            if ($char === '"' || $char === "'") {
-                $quote = $char;
-                $output .= $char;
-                continue;
-            }
-
-            if ($char === '/' && ($query[$i + 1] ?? '') === '*') {
-                $end = strpos($query, '*/', $i + 2);
-                if ($end === false) {
-                    throw new \InvalidArgumentException('Media query contains an unbalanced comment');
-                }
-                $output .= substr($query, $i, $end - $i + 2);
-                $i = $end + 1;
-                continue;
-            }
-
-            if ($char !== '(') {
-                $output .= $char;
-                continue;
-            }
-
-            $close = $this->findMatchingDelimiter($query, $i, '(', ')');
-            $inner = substr($query, $i + 1, $close - $i - 1);
-            if (preg_match('/^\s*--[-_a-zA-Z0-9]+\s*$/', $inner) === 1) {
-                $output .= '(custom-media)';
-            } else {
-                $output .= '(' . $this->stripCustomMediaReferences($inner) . ')';
-            }
-            $i = $close;
-        }
-
-        return $output;
+        return preg_replace('/\(\s*--[-_a-zA-Z0-9]+\s*\)/', '(custom-media)', $query) ?? $query;
     }
 
     /**

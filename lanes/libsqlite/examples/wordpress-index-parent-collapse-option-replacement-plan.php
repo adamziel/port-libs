@@ -110,8 +110,6 @@ $rootCells = SQLiteIndexCell::parsePageCells(
 echo json_encode([
     'wordpressUse' => 'Plan a wp_options autoload rewrite that merges an underfilled source leaf, collapses the underfilled non-root composite-index parent into the root, and keeps the rewritten option reachable without the SQLite extension.',
     'plan' => $plan->toArray(),
-    'rebalanceSummary' => $plan->btreeRebalanceSummary(),
-    'rebalanceActions' => $plan->btreeRebalanceActions(),
     'collapsedIndexRoot' => [
         'page' => 3,
         'cellCount' => $postDatabase->pageHeader(3)->cellCount,

@@ -13,18 +13,21 @@ final class SQLiteJsonValidity
 
     public static function jsonValidSqlFunction(
         string $function,
-        string|int|float|bool|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value,
-        string|int|float|bool|SQLiteBlobValue|null $flags = self::FLAG_STRICT_TEXT,
+        string|SQLiteBlobValue|null $value,
+        ?int $flags = self::FLAG_STRICT_TEXT,
     ): ?bool {
         if (strcasecmp($function, 'json_valid') !== 0) {
             throw new \InvalidArgumentException('SQLite JSON validity function must be json_valid');
         }
+        if ($flags === null) {
+            throw new \InvalidArgumentException('FLAGS parameter to json_valid() must be between 1 and 15');
+        }
 
-        return self::jsonValid($value, self::coerceFlags($flags));
+        return self::jsonValid($value, $flags);
     }
 
     /**
-     * @param list<string|int|float|bool|SQLiteBlobValue|SQLiteJsonSubtypeValue|null> $arguments
+     * @param list<string|SQLiteBlobValue|int|null> $arguments
      */
     public static function jsonValidSqlFunctionArguments(string $function, array $arguments): ?bool
     {
@@ -34,11 +37,14 @@ final class SQLiteJsonValidity
         }
 
         $flags = array_key_exists(1, $arguments) ? $arguments[1] : self::FLAG_STRICT_TEXT;
+        if ($flags !== null && !is_int($flags)) {
+            throw new \InvalidArgumentException('FLAGS parameter to json_valid() must be an integer between 1 and 15');
+        }
 
         return self::jsonValidSqlFunction($function, $arguments[0], $flags);
     }
 
-    public static function jsonValid(string|int|float|bool|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, int $flags = self::FLAG_STRICT_TEXT): ?bool
+    public static function jsonValid(string|SQLiteBlobValue|null $value, int $flags = self::FLAG_STRICT_TEXT): ?bool
     {
         if ($flags < 1 || $flags > 15) {
             throw new \InvalidArgumentException('FLAGS parameter to json_valid() must be between 1 and 15');
@@ -49,12 +55,6 @@ final class SQLiteJsonValidity
 
         if ($value instanceof SQLiteBlobValue) {
             return self::blobValid($value->bytes, $flags);
-        }
-        if ($value instanceof SQLiteJsonSubtypeValue) {
-            return self::subtypeValid($value->json, $flags);
-        }
-        if (is_int($value) || is_float($value) || is_bool($value)) {
-            return self::textValid(self::sqlScalarText($value), $flags);
         }
 
         return self::textValid($value, $flags);
@@ -111,58 +111,5 @@ final class SQLiteJsonValidity
         }
 
         return self::textValid($bytes, $flags);
-    }
-
-    private static function subtypeValid(string $json, int $flags): bool
-    {
-        if (($flags & (self::FLAG_STRICT_TEXT | self::FLAG_JSON5_TEXT)) === 0) {
-            return false;
-        }
-
-        return self::strictTextValid($json);
-    }
-
-    private static function coerceFlags(string|int|float|bool|SQLiteBlobValue|null $flags): int
-    {
-        if ($flags === null) {
-            throw new \InvalidArgumentException('FLAGS parameter to json_valid() must be between 1 and 15');
-        }
-        if ($flags instanceof SQLiteBlobValue) {
-            $flags = $flags->bytes;
-        }
-        if (is_bool($flags)) {
-            return $flags ? 1 : 0;
-        }
-        if (is_int($flags)) {
-            return $flags;
-        }
-        if (is_float($flags)) {
-            return (int) $flags;
-        }
-
-        $trimmed = ltrim($flags);
-        if ($trimmed === '') {
-            return 0;
-        }
-        if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)/', $trimmed, $matches) !== 1) {
-            return 0;
-        }
-
-        return (int) (float) $matches[0];
-    }
-
-    private static function sqlScalarText(int|float|bool $value): string
-    {
-        if (is_bool($value)) {
-            return $value ? '1' : '0';
-        }
-        if (is_int($value)) {
-            return (string) $value;
-        }
-        if (!is_finite($value)) {
-            return $value > 0 ? 'Inf' : '-Inf';
-        }
-
-        return json_encode($value, JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);
     }
 }
