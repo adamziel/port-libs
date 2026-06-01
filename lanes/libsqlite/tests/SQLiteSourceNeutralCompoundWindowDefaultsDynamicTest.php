@@ -11,10 +11,15 @@ $sourceFiles = [
     $sourceRoot . '/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteCompoundHavingWindowCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteCompoundSelectRecursiveAffinityLimitPlan.php',
     $sourceRoot . '/SQLiteWindowRowValueUpsertCurrentSourcePlan.php',
 ];
 $partitionedWindowSourceFile = $sourceRoot . '/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
+$compoundWindowFixtureFiles = [
+    $libsqliteRoot . '/tests/SQLiteCompoundHavingWindowCurrentSourceNext128Test.php',
+    $libsqliteRoot . '/examples/application-compound-having-window-current-source-next128.php',
+];
 
 $compoundWindowSourceMatches = static function () use ($sourceFiles, $libsqliteRoot): array {
     $terms = [
@@ -79,6 +84,42 @@ $partitionedWindowSourceMatches = static function () use ($partitionedWindowSour
         static fn (array $match): string => "{$relative}: {$match[0]}",
         $fileMatches[0],
     );
+};
+
+$compoundWindowFixtureMatches = static function () use ($compoundWindowFixtureFiles, $libsqliteRoot): array {
+    $terms = [
+        'wp' . '_',
+        'wp' . '_options',
+        'opt' . 'ion_id',
+        'opt' . 'ion_name',
+        'opt' . 'ion_value',
+        'auto' . 'load',
+        'blog' . '_id',
+        'site' . 'url',
+        'active' . '_plugins',
+        'plug' . 'in_',
+        'theme' . '_',
+    ];
+    $pattern = '/(?:\bhome\b|' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
+    $matches = [];
+
+    foreach ($compoundWindowFixtureFiles as $file) {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read {$file}");
+        }
+
+        if (preg_match_all($pattern, $contents, $fileMatches) < 1) {
+            continue;
+        }
+
+        $relative = str_replace($libsqliteRoot . '/', '', $file);
+        foreach ($fileMatches[0] as $match) {
+            $matches[] = "{$relative}: {$match}";
+        }
+    }
+
+    return $matches;
 };
 
 $rowValueWindowDefaultSignatureMatches = static function () use ($partitionedWindowSourceFile, $libsqliteRoot): array {
@@ -224,6 +265,7 @@ $yieldGateDefaultRows = static fn (): array => SQLiteRowValueUpdateDeleteReturni
 
 return [
     'source-neutral compound window defaults dynamic source has no legacy setting table terms' => static fn (TestRunner $t) => $t->same([], $compoundWindowSourceMatches()),
+    'source-neutral compound having window fixture defaults use setting terms' => static fn (TestRunner $t) => $t->same([], $compoundWindowFixtureMatches()),
     'source-neutral partitioned row-value window source defaults use setting terms' => static fn (TestRunner $t) => $t->same([], $partitionedWindowSourceMatches()),
     'source-neutral row-value window retry signatures default to setting ids' => static fn (TestRunner $t) => $t->same([], $rowValueWindowDefaultSignatureMatches()),
     'source-neutral row-value window defaults expose generic key names' => static fn (TestRunner $t) => $t->same([

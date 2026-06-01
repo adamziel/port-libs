@@ -29,6 +29,10 @@ $rowValueSourceFiles = static function () use ($sourceRoot): array {
 };
 
 $sourceFiles = $rowValueSourceFiles();
+$rowValueFixtureFiles = [
+    $libsqliteRoot . '/tests/SQLiteRowValueOrderedSubquerySavepointRetryTest.php',
+    $libsqliteRoot . '/examples/application-rowvalue-ordered-subquery-savepoint-retry.php',
+];
 
 $legacyRowValueDefaultMatches = static function () use ($sourceFiles, $libsqliteRoot): array {
     $terms = [
@@ -46,6 +50,45 @@ $legacyRowValueDefaultMatches = static function () use ($sourceFiles, $libsqlite
     $matches = [];
 
     foreach ($sourceFiles as $file) {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read {$file}");
+        }
+        if (preg_match_all($pattern, $contents, $fileMatches) < 1) {
+            continue;
+        }
+        $relative = str_replace($libsqliteRoot . '/', '', $file);
+        foreach ($fileMatches[0] as $match) {
+            $matches[] = "{$relative}: {$match}";
+        }
+    }
+
+    return $matches;
+};
+
+$legacyRowValueFixtureMatches = static function () use ($rowValueFixtureFiles, $libsqliteRoot): array {
+    $terms = [
+        'wp' . '_',
+        'wp' . '_options',
+        'wp' . '_optionmeta',
+        'opt' . 'ion_id',
+        'opt' . 'ion_name',
+        'opt' . 'ion_value',
+        'meta_' . 'option_id',
+        'meta_' . 'value',
+        'auto' . 'load',
+        'blog' . '_id',
+        'site' . 'url',
+        'rewrite_' . 'rules',
+        'plug' . 'in',
+        'theme',
+        'network',
+        '_transient',
+    ];
+    $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/i';
+    $matches = [];
+
+    foreach ($rowValueFixtureFiles as $file) {
         $contents = file_get_contents($file);
         if ($contents === false) {
             throw new RuntimeException("Unable to read {$file}");
@@ -132,6 +175,7 @@ return [
         $t->true(in_array($sourceRoot . '/SQLiteUpdateDeleteReturningSql.php', $sourceFiles, true));
     },
     'source-neutral row-value savepoint defaults contain no legacy domain strings' => static fn (TestRunner $t) => $t->same([], $legacyRowValueDefaultMatches()),
+    'source-neutral ordered subquery row-value fixtures contain no legacy domain strings' => static fn (TestRunner $t) => $t->same([], $legacyRowValueFixtureMatches()),
     'row-value update delete savepoint defaults use application settings' => static function (TestRunner $t) use ($updateDeleteDefaults): void {
         $plan = $updateDeleteDefaults();
 

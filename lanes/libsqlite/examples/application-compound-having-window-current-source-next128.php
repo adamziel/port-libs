@@ -7,49 +7,49 @@ require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteCompoundHavingWindowCurrentSourceNextPlan;
 
 $currentTables = [
-    'wp_options' => [
-        ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'bytes' => 10, 'enabled' => 1],
-        ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'bytes' => 20, 'enabled' => 1],
-        ['option_id' => 4, 'option_name' => 'active_plugins', 'autoload' => 'no', 'bytes' => 40, 'enabled' => 1],
+    'app_settings' => [
+        ['setting_id' => 1, 'key_name' => 'base_url', 'load_policy' => 'yes', 'bytes' => 10, 'enabled' => 1],
+        ['setting_id' => 2, 'key_name' => 'landing_url', 'load_policy' => 'yes', 'bytes' => 20, 'enabled' => 1],
+        ['setting_id' => 4, 'key_name' => 'module_registry', 'load_policy' => 'no', 'bytes' => 40, 'enabled' => 1],
     ],
-    'wp_options_stage' => [
-        ['stage_id' => 10, 'option_name' => 'siteurl', 'autoload' => 'yes', 'bytes' => 12, 'enabled' => 1],
-        ['stage_id' => 11, 'option_name' => 'plugin_cache', 'autoload' => 'no', 'bytes' => 24, 'enabled' => 1],
+    'app_settings_stage' => [
+        ['stage_id' => 10, 'key_name' => 'base_url', 'load_policy' => 'yes', 'bytes' => 12, 'enabled' => 1],
+        ['stage_id' => 11, 'key_name' => 'module_cache', 'load_policy' => 'no', 'bytes' => 24, 'enabled' => 1],
     ],
 ];
 $nextTables = $currentTables;
-$nextTables['wp_options'][] = ['option_id' => 5, 'option_name' => 'new_plugin_flag', 'autoload' => 'no', 'bytes' => 50, 'enabled' => 1];
-$nextTables['wp_options_stage'][] = ['stage_id' => 13, 'option_name' => 'new_plugin_flag', 'autoload' => 'no', 'bytes' => 42, 'enabled' => 1];
+$nextTables['app_settings'][] = ['setting_id' => 5, 'key_name' => 'new_module_flag', 'load_policy' => 'no', 'bytes' => 50, 'enabled' => 1];
+$nextTables['app_settings_stage'][] = ['stage_id' => 13, 'key_name' => 'new_module_flag', 'load_policy' => 'no', 'bytes' => 42, 'enabled' => 1];
 
 $sql = <<<'SQL'
-SELECT autoload,
+SELECT load_policy,
        sum(bytes) AS total_bytes,
        count(*) OVER (
-           ORDER BY autoload
+           ORDER BY load_policy
            ROWS BETWEEN CURRENT ROW AND CURRENT ROW
        ) AS source_enabled
-  FROM wp_options
- GROUP BY autoload
+  FROM app_settings
+ GROUP BY load_policy
 HAVING sum(bytes) >= (
-       SELECT count(*) * 15 FROM wp_options_stage
-        WHERE wp_options_stage.autoload = wp_options.autoload
-          AND wp_options_stage.enabled = 1
+       SELECT count(*) * 15 FROM app_settings_stage
+        WHERE app_settings_stage.load_policy = app_settings.load_policy
+          AND app_settings_stage.enabled = 1
        )
 UNION ALL
-SELECT autoload,
+SELECT load_policy,
        count(*) AS total_bytes,
        count(*) OVER (
-           ORDER BY autoload
+           ORDER BY load_policy
            ROWS BETWEEN CURRENT ROW AND CURRENT ROW
        ) AS source_enabled
-  FROM wp_options_stage
- GROUP BY autoload
+  FROM app_settings_stage
+ GROUP BY load_policy
 HAVING count(*) <= (
-       SELECT count(*) FROM wp_options
-        WHERE wp_options.autoload = wp_options_stage.autoload
-          AND wp_options.enabled = 1
+       SELECT count(*) FROM app_settings
+        WHERE app_settings.load_policy = app_settings_stage.load_policy
+          AND app_settings.enabled = 1
        )
- ORDER BY autoload, total_bytes DESC
+ ORDER BY load_policy, total_bytes DESC
 SQL;
 
 $plan = SQLiteCompoundHavingWindowCurrentSourceNextPlan::compareHavingWindow($sql, $currentTables, $nextTables);
@@ -73,7 +73,7 @@ if (in_array('--self-test', $argv, true)) {
 
 echo json_encode([
     'scenario' => 'application-compound-having-window-current-source-next128',
-    'applicationUse' => 'Preview copied wp_options current and staged rows through compound SELECT arms whose HAVING clauses use correlated aggregate gates while window projections preserve source order diagnostics.',
+    'applicationUse' => 'Preview copied app_settings current and staged rows through compound SELECT arms whose HAVING clauses use correlated aggregate gates while window projections preserve source order diagnostics.',
     'status' => $plan['status'],
     'currentTotals' => array_column($plan['currentRows'], 'total_bytes'),
     'nextTotals' => array_column($plan['nextRows'], 'total_bytes'),

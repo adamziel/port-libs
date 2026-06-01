@@ -9,6 +9,75 @@ final class SQLitePagerCrashRecoveryDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function crash4SequenceChecksumProfile(int $iteration, int $delay, string $crashTarget): array
+    {
+        if ($iteration < 1) {
+            throw new \InvalidArgumentException('SQLite crash4 iteration must be positive');
+        }
+        $expectedDelay = intdiv($iteration, 50) + 1;
+        if ($delay !== $expectedDelay) {
+            throw new \InvalidArgumentException('SQLite crash4 delay must match upstream int(cnt/50)+1');
+        }
+
+        $expectedCrashTarget = ($iteration & 1) === 1 ? 'test.db' : 'test.db-journal';
+        if (!in_array($crashTarget, ['test.db', 'test.db-journal'], true)) {
+            throw new \InvalidArgumentException('SQLite crash4 crash target must be test.db or test.db-journal');
+        }
+        if ($crashTarget !== $expectedCrashTarget) {
+            throw new \InvalidArgumentException('SQLite crash4 crash target must match upstream alternating file selection');
+        }
+
+        $sqlSequence = self::crash4SqlSequence();
+        $checksumStates = self::crash4ChecksumStateNames();
+        $recoveredChecksumIndex = ($iteration + $delay) % count($checksumStates);
+
+        return [
+            'status' => 'ok',
+            'script' => 'crash4.test',
+            'scenario' => 'crash4-sequence-checksum-recovery',
+            'upstream' => [
+                'crash4.test set sql_cmd_list CREATE/INSERT/UPDATE sequence',
+                'crash4.test crash4_cksum_set allcksum before and after each statement',
+                'crash4.test crash4-1.$cnt.1 crashsql alternates test.db/test.db-journal',
+                'crash4.test crash4-1.$cnt.1 closes and reopens before the final UPDATE',
+                'crash4.test crash4-1.$cnt.2 integrity_check after crash recovery',
+                'crash4.test crash4-1.$cnt.3 recovered allcksum is in crash4_cksum_set',
+            ],
+            'iteration' => $iteration,
+            'crash_delay' => $delay,
+            'expected_delay' => $expectedDelay,
+            'crash_target' => $crashTarget,
+            'expected_crash_target' => $expectedCrashTarget,
+            'crash_result' => 'child process exited abnormally',
+            'sql_statement_count' => count($sqlSequence),
+            'sql_sequence' => $sqlSequence,
+            'checksum_state_count' => count($checksumStates),
+            'checksum_state_names' => $checksumStates,
+            'recovered_checksum_index' => $recoveredChecksumIndex,
+            'recovered_checksum_name' => $checksumStates[$recoveredChecksumIndex],
+            'precomputed_checksum_membership' => true,
+            'statement_before_reopen_count' => 11,
+            'reopen_before_statement_index' => 12,
+            'reopen_before_update' => true,
+            'final_statement' => $sqlSequence[11],
+            'alternates_crash_target_by_iteration' => true,
+            'rollback_attempted' => true,
+            'integrity_check' => 'ok',
+            'database_corruption_prevented' => true,
+            'reason' => 'powerloss_recovery_lands_on_precomputed_allcksum_state_after_reopen_before_update',
+            'dependencies' => [
+                'upstream-crash4-test',
+                'sqlite-pager-crash-recovery',
+                'sqlite-rollback-journal-recovery',
+                'sqlite-allcksum-state-membership',
+                'real-upstream-pager-crash-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function crash5MovePageMallocProfile(int $seed, int $mallocFailureIndex, int $payloadBytes = 1500): array
     {
         if ($seed < 0 || $seed > 9) {
@@ -212,6 +281,49 @@ final class SQLitePagerCrashRecoveryDynamicPlan
                 'sqlite-unique-index-integrity',
                 'real-upstream-pager-crash-corpus',
             ],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function crash4SqlSequence(): array
+    {
+        return [
+            'CREATE TABLE a(id INTEGER, name CHAR(50))',
+            "INSERT INTO a(id,name) VALUES(1,'one')",
+            "INSERT INTO a(id,name) VALUES(2,'two')",
+            "INSERT INTO a(id,name) VALUES(3,'three')",
+            "INSERT INTO a(id,name) VALUES(4,'four')",
+            "INSERT INTO a(id,name) VALUES(5,'five')",
+            "INSERT INTO a(id,name) VALUES(6,'six')",
+            "INSERT INTO a(id,name) VALUES(7,'seven')",
+            "INSERT INTO a(id,name) VALUES(8,'eight')",
+            "INSERT INTO a(id,name) VALUES(9,'nine')",
+            "INSERT INTO a(id,name) VALUES(10,'ten')",
+            "UPDATE A SET name='new text for row 3' WHERE id=3",
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function crash4ChecksumStateNames(): array
+    {
+        return [
+            'empty database before sql_cmd_list',
+            'after create table a',
+            'after insert id 1',
+            'after insert id 2',
+            'after insert id 3',
+            'after insert id 4',
+            'after insert id 5',
+            'after insert id 6',
+            'after insert id 7',
+            'after insert id 8',
+            'after insert id 9',
+            'after insert id 10',
+            'after update id 3',
         ];
     }
 

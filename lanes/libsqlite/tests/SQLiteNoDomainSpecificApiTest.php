@@ -114,6 +114,10 @@ $keyValueFixtureFiles = [
     $libsqliteRoot . '/tests/SQLiteUtf16CollationAffinityCurrentSourceNext85Test.php',
     $libsqliteRoot . '/tests/SQLiteUtf16CollationAffinitySourceSwitchCurrentSourceNext100Test.php',
 ];
+$rowValueFixtureFiles = [
+    $libsqliteRoot . '/tests/SQLiteRowValueOrderedSubquerySavepointRetryTest.php',
+    $libsqliteRoot . '/examples/application-rowvalue-ordered-subquery-savepoint-retry.php',
+];
 $forbiddenNamePattern = 'WordPress|wordpress|wordPress|WP|Wp|wp_|wpError|wp_error|OptionRow|optionRow|optionImport|optionsWalRows|upsertRecursiveViewSourceOption|Multisite|Network|Autoload|autoload|BlogId|blogId|OptionsTable|optionsTable|(?<!Compile)OptionName|(?<!compile)optionName|(?<!Compile)OptionValue|(?<!compile)optionValue|(?<!Compile)OptionId|(?<!compile)optionId';
 
 $sourceTextMatches = static function () use ($sourceFiles, $relativePath): array {
@@ -246,6 +250,26 @@ $keyValueFixtureTermMatches = static function () use ($keyValueFixtureFiles, $re
     return $matches;
 };
 
+$rowValueFixtureTermMatches = static function () use ($rowValueFixtureFiles, $relativePath): array {
+    $matches = [];
+    $pattern = '/wp_|wp_options|wp_optionmeta|blog_id|blogId|BlogId|option_id|option_name|option_value|meta_option_id|meta_value|Autoload|autoload|siteurl|rewrite_rules|plugin|Plugin|theme|network|_transient|\bhome\b/';
+
+    foreach ($rowValueFixtureFiles as $file) {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read {$file}");
+        }
+
+        if (preg_match_all($pattern, $contents, $fileMatches) > 0) {
+            foreach ($fileMatches[0] as $match) {
+                $matches[] = $relativePath($file) . ': ' . $match;
+            }
+        }
+    }
+
+    return $matches;
+};
+
 $keyValueFixtureFilenameMatches = static function () use ($keyValueFixtureFiles, $relativePath): array {
     $matches = [];
     $pattern = '/wp_|wp_options|wp_sitemeta|blog_id|blogId|BlogId|option_id|option_name|option_value|option|OptionRow|optionRow|optionName|optionValue|optionId|Autoload|autoload/';
@@ -271,4 +295,5 @@ return [
     'libsqlite row-value source API uses neutral setting names' => static fn (TestRunner $t) => $t->same([], $rowValueSourceTermMatches()),
     'libsqlite key-value test and example filenames use neutral setting names' => static fn (TestRunner $t) => $t->same([], $keyValueFixtureFilenameMatches()),
     'libsqlite key-value tests and examples use neutral fixtures' => static fn (TestRunner $t) => $t->same([], $keyValueFixtureTermMatches()),
+    'libsqlite row-value ordered subquery fixtures use neutral setting names' => static fn (TestRunner $t) => $t->same([], $rowValueFixtureTermMatches()),
 ];
