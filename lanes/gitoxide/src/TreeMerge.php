@@ -2834,7 +2834,7 @@ final class TreeMerge
             array $keptSideEntries,
             array $renames,
             bool $renamedByOurs,
-        ) use (&$mergedEntries, &$conflicts, $baseEntries, $pathPrefix, $targetPath): void {
+        ) use (&$mergedEntries, &$conflicts, $baseEntries, $baseEntry, $pathPrefix, $targetPath): void {
             foreach ($renames as $sourcePath => $rename) {
                 $targetName = $rename['path'];
                 $baseSource = $baseEntries[$sourcePath] ?? null;
@@ -2858,12 +2858,19 @@ final class TreeMerge
                 }
 
                 $mergedEntries[$sourcePath] = new TreeEntry($mergedTarget->mode, $sourcePath, $mergedTarget->oid);
+                $conflictPath = self::joinPath($pathPrefix, self::joinPath($targetPath, $sourcePath));
+                $renamedTargetPath = self::joinPath($pathPrefix, self::joinPath($targetPath, $targetName));
+                $ancestorPath = self::joinPath($pathPrefix, self::joinPath($baseEntry->filename, $sourcePath));
                 $conflicts[] = new TreeMergeConflict(
-                    self::joinPath($pathPrefix, self::joinPath($targetPath, $sourcePath)),
+                    $conflictPath,
                     'nested-directory-rename',
                     $baseSource,
                     $renamedByOurs ? $renamedTarget : $keptSource,
                     $renamedByOurs ? $keptSource : $renamedTarget,
+                    [
+                        'sourcePath' => $renamedTargetPath,
+                        'ancestorEntries' => [$ancestorPath => $baseSource],
+                    ],
                 );
             }
         };

@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\Gitoxide\CommitSignature;
+use PortLibs\Gitoxide\PackedReferences;
 use PortLibs\Gitoxide\ReferenceName;
 use PortLibs\Gitoxide\ReferenceStore;
 use PortLibs\Gitoxide\ReferenceTarget;
@@ -123,6 +124,29 @@ try {
 }
 $preparedPackedRollbackEdits = $preparedPackedLock->rollback();
 $preparedPackedLockCleanedRollback = !is_file($packedLockDir . '/packed-refs.lock');
+
+$packedDeleteDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-packed-delete-' . bin2hex(random_bytes(4));
+mkdir($packedDeleteDir, 0777, true);
+file_put_contents(
+    $packedDeleteDir . '/packed-refs',
+    "{$fixture['reviewCommit']} {$fixture['preparedPackedDeleteRef']}\n"
+    . "{$fixture['productionCommit']} {$fixture['preparedPackedDeleteSideRef']}\n",
+);
+$packedDeleteStore = ReferenceStore::at($packedDeleteDir);
+$preparedPackedDelete = $packedDeleteStore->prepareLooseDeleteTransaction(
+    [$fixture['preparedPackedDeleteRef']],
+    ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+    ReferenceTarget::object($fixture['reviewCommit']),
+);
+$preparedPackedDeletePath = $packedDeleteDir . '/' . $fixture['preparedPackedDeleteRef'];
+$preparedPackedDeleteHadLocks = is_file($packedDeleteDir . '/packed-refs.lock')
+    && is_file($preparedPackedDeletePath . '.lock');
+$preparedPackedDeleteEdits = $preparedPackedDelete->commit();
+$preparedPackedDeleteCleanedLocks = !is_file($packedDeleteDir . '/packed-refs.lock')
+    && !is_file($preparedPackedDeletePath . '.lock');
+$preparedPackedDeletePackedNames = is_file($packedDeleteDir . '/packed-refs')
+    ? PackedReferences::open($packedDeleteDir . '/packed-refs')->names()
+    : [];
 
 $logOnlyDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-log-only-lock-' . bin2hex(random_bytes(4));
 mkdir($logOnlyDir, 0777, true);
@@ -343,6 +367,12 @@ return [
     'preparedPackedLockHeld' => $preparedPackedLockHeld,
     'preparedPackedLockBlocked' => $preparedPackedLockBlocked,
     'preparedPackedLockCleanedRollback' => $preparedPackedLockCleanedRollback,
+    'preparedPackedDeleteEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedPackedDeleteEdits),
+    'preparedPackedDeleteHadLocks' => $preparedPackedDeleteHadLocks,
+    'preparedPackedDeleteCleanedLocks' => $preparedPackedDeleteCleanedLocks,
+    'preparedPackedDeletePackedNames' => $preparedPackedDeletePackedNames,
+    'preparedPackedDeleteRefStillExists' => $packedDeleteStore->tryFind($fixture['preparedPackedDeleteRef']) !== null,
+    'preparedPackedDeleteSideRefStillExists' => $packedDeleteStore->tryFind($fixture['preparedPackedDeleteSideRef']) !== null,
     'preparedLogOnlyDeleteEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedLogOnlyDeleteEdits),
     'preparedLogOnlyPackedLockPreserved' => is_file($logOnlyDir . '/packed-refs.lock')
         && file_get_contents($logOnlyDir . '/packed-refs.lock') === 'held by packed ref compaction',

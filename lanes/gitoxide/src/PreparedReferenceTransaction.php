@@ -14,11 +14,13 @@ final class PreparedReferenceTransaction
 
     /**
      * @param list<array{action?:string,lockPath?:string,edit:ReferenceTransactionEdit,reflog?:array{physicalName:string,previousTarget:?ReferenceTarget,newTarget:ReferenceTarget,committer:?CommitSignature,message:string,forceCreate:bool,algorithm:string,writeMode?:string}|null,delete?:array{physicalName:string,deleteReference:bool,deleteReflog:bool}}> $locks
+     * @param ?array{deletions:list<string>,algorithm:string} $packedRefsDeletionPlan
      */
     public function __construct(
         private readonly string $gitDirectory,
         private readonly array $locks,
         private ?string $packedRefsLockPath = null,
+        private ?array $packedRefsDeletionPlan = null,
     ) {
         foreach ($locks as $lock) {
             if (!$lock['edit'] instanceof ReferenceTransactionEdit) {
@@ -67,6 +69,18 @@ final class PreparedReferenceTransaction
                 ) {
                     throw new \InvalidArgumentException('Prepared reference deletes must contain validated reference names and deletion modes');
                 }
+            }
+        }
+
+        if ($packedRefsDeletionPlan !== null) {
+            if (!is_array($packedRefsDeletionPlan['deletions'] ?? null) || !is_string($packedRefsDeletionPlan['algorithm'] ?? null)) {
+                throw new \InvalidArgumentException('Prepared packed-ref deletion plans must contain deletions and an algorithm');
+            }
+            foreach ($packedRefsDeletionPlan['deletions'] as $deletion) {
+                if (!is_string($deletion)) {
+                    throw new \InvalidArgumentException('Prepared packed-ref deletion names must be strings');
+                }
+                ReferenceName::assertValid($deletion);
             }
         }
     }
@@ -153,6 +167,7 @@ final class PreparedReferenceTransaction
                     $this->commitDeleteReflog($lock);
                 }
             }
+            $this->commitPackedReferenceDeletions();
             foreach ($this->locks as $lock) {
                 if (($lock['action'] ?? self::ACTION_UPDATE) === self::ACTION_DELETE) {
                     $this->commitDeleteReference($lock);
@@ -163,6 +178,63 @@ final class PreparedReferenceTransaction
         }
 
         return $this->edits();
+    }
+
+    private function commitPackedReferenceDeletions(): void
+    {
+        if ($this->packedRefsDeletionPlan === null || $this->packedRefsDeletionPlan['deletions'] === []) {
+            return;
+        }
+
+        $packedPath = $this->packedRefsPath();
+        if (!is_file($packedPath)) {
+            $this->packedRefsDeletionPlan = null;
+            return;
+        }
+
+        $packed = PackedReferences::open($packedPath, $this->packedRefsDeletionPlan['algorithm']);
+        $byName = [];
+        foreach ($packed->all() as $reference) {
+            $byName[$reference->name] = $reference;
+        }
+
+        foreach ($this->packedRefsDeletionPlan['deletions'] as $name) {
+            unset($byName[$name]);
+        }
+
+        if ($byName === []) {
+            if (!unlink($packedPath)) {
+                throw new \RuntimeException('Unable to remove empty prepared packed-refs file');
+            }
+            $this->packedRefsDeletionPlan = null;
+            return;
+        }
+
+        ksort($byName, SORT_STRING);
+
+        $contents = "# pack-refs with: peeled fully-peeled sorted \n";
+        foreach ($byName as $reference) {
+            $contents .= $reference->target->value . ' ' . $reference->name . "\n";
+            if ($reference->peeledObjectId !== null) {
+                $contents .= '^' . $reference->peeledObjectId . "\n";
+            }
+        }
+
+        $lockPath = $this->packedRefsLockPath ?? $this->packedRefsLockPath();
+        if (is_dir($lockPath)) {
+            throw new \RuntimeException("Prepared packed-refs lock is a directory: {$lockPath}");
+        }
+        if (file_put_contents($lockPath, $contents, LOCK_EX) === false) {
+            throw new \RuntimeException('Unable to write prepared packed-refs lock file');
+        }
+        if (!rename($lockPath, $packedPath)) {
+            throw new \RuntimeException('Unable to commit prepared packed-refs lock file');
+        }
+
+        if ($this->packedRefsLockPath === $lockPath) {
+            $this->packedRefsLockPath = null;
+        }
+        $this->packedRefsDeletionPlan = null;
     }
 
     public function isOpen(): bool
@@ -339,6 +411,16 @@ final class PreparedReferenceTransaction
         ReferenceName::assertValid($physicalName);
 
         return rtrim($this->gitDirectory, '/\\') . '/logs/' . $physicalName;
+    }
+
+    private function packedRefsPath(): string
+    {
+        return rtrim($this->gitDirectory, '/\\') . '/packed-refs';
+    }
+
+    private function packedRefsLockPath(): string
+    {
+        return $this->packedRefsPath() . '.lock';
     }
 
     private function releasePackedRefsLock(): void

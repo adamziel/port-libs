@@ -260,6 +260,17 @@ CSS,
 CSS,
         ['safari' => 15, 'firefox' => 10]
     ),
+    'caseSensitiveCustomRangeFallback' => $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (Theme-Breakpoint >= 2) and (--WP-Breakpoint >= 3) { .wp-block-query.is-custom-case { color: yellow; } } }',
+        ['firefox' => 60]
+    ),
+    'caseSensitiveCustomRangeModern' => $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media Speech and (--WP-Breakpoint >= 2) { .wp-block-query.is-custom-speech { color: yellow; } } }',
+        [
+            'firefox' => 60,
+            'exclude' => ['MediaRangeSyntax'],
+        ]
+    ),
 ];
 
 try {
@@ -363,6 +374,8 @@ $expected = [
     'negatedIntervalWithHover' => '@layer theme.blocks{@media (hover) and (not ((min-width:200px) and (not (min-width:500px)))){.wp-block-query.is-not-middle-hover{color:#ff0}}}',
     'upstreamIntervalPrefixFallbacks' => '@layer theme.blocks{@media not ((min-width:100px) and (max-width:200px)){.wp-block-query.is-not-compact-range{color:#ff0}}@media (hover) and (min-width:100px) and (max-width:200px){.wp-block-query.is-hover-compact-range{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:200px)){.wp-block-query.is-open-range{color:#ff0}}@media not ((not (max-width:100px)) and (not (min-width:200px))){.wp-block-query.is-not-open-range{color:#ff0}}@media (max-width:200px) and (min-width:100px){.wp-block-query.is-descending-range{color:#ff0}}@media not (max-color:2){.wp-block-query.is-rich-color{color:#ff0}}@media not (min-color:2){.wp-block-query.is-low-color{color:#ff0}}}',
     'scientificRangeFallbacks' => '@layer theme.blocks{@media (min-width:1000px){.wp-block-query.is-scientific-wide{color:#ff0}}@media (min-width:100px) and (max-width:200px){.wp-block-query.is-scientific-window{color:#ff0}}@media (min-aspect-ratio:16/9){.wp-block-query.is-scientific-ratio{color:#ff0}}@media (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query.is-scientific-density{color:#ff0}}@media (min-theme-breakpoint:100px){.wp-block-query.is-scientific-token{color:#ff0}}}',
+    'caseSensitiveCustomRangeFallback' => '@layer theme.blocks{@media (min-Theme-Breakpoint:2) and (min---WP-Breakpoint:3){.wp-block-query.is-custom-case{color:#ff0}}}',
+    'caseSensitiveCustomRangeModern' => '@layer theme.blocks{@media Speech and (--WP-Breakpoint>=2){.wp-block-query.is-custom-speech{color:#ff0}}}',
     'invalidRangeGuard' => 'invalid-media-query',
     'invalidIntervalGuard' => 'invalid-media-query',
     'invalidFunctionGuard' => 'invalid-media-query',

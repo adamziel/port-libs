@@ -1152,6 +1152,7 @@ final class TransitionPrefixer
             ),
             'boxShadowSupportsAdvancedColor' => $supportsAdvancedColor,
             'boxShadowDropOverriddenFallbacks' => $supportsAdvancedColor,
+            'advancedColorSupportsNative' => $supportsAdvancedColor,
             'advancedColorNeedsSrgbFallback' => $needsSrgbFallback,
             'advancedColorUsesP3Fallback' => $usesP3Fallback,
             'alphaHexNeedsRgbaFallback' => $alphaHexNeedsRgbaFallback,
@@ -8286,7 +8287,10 @@ final class TransitionPrefixer
      */
     private function rewriteAdvancedColorFallbackEntries(array &$entries, string $selectors, array &$supportRules, array $targetOptions): bool
     {
-        if (!($targetOptions['advancedColorNeedsSrgbFallback'] ?? false)) {
+        $needsSrgbFallback = $targetOptions['advancedColorNeedsSrgbFallback'] ?? false;
+        $usesP3Fallback = $targetOptions['advancedColorUsesP3Fallback'] ?? false;
+        $supportsNative = $targetOptions['advancedColorSupportsNative'] ?? false;
+        if (!$needsSrgbFallback && !$usesP3Fallback && !$supportsNative) {
             return false;
         }
 
@@ -8294,7 +8298,6 @@ final class TransitionPrefixer
         $rewritten = [];
         $p3SupportEntries = [];
         $labSupportEntries = [];
-        $useP3Fallback = $targetOptions['advancedColorUsesP3Fallback'] ?? false;
 
         foreach ($entries as $entry) {
             $isCustomProperty = str_starts_with($entry['property'], '--');
@@ -8302,7 +8305,7 @@ final class TransitionPrefixer
                 ? $entry['value']
                 : $this->normalizeBackgroundFallbackValue($entry['value']);
 
-            if (!$isCustomProperty && !$this->propertySupportsAdvancedColorFallback($entry['property'], $normalized)) {
+            if ($entry['important'] || (!$isCustomProperty && !$this->propertySupportsAdvancedColorFallback($entry['property'], $normalized))) {
                 $rewritten[] = $entry;
                 continue;
             }
@@ -8314,8 +8317,32 @@ final class TransitionPrefixer
             }
 
             $hasCustomPropertyReference = $this->containsCustomPropertyReference($normalized);
-            $p3Fallback = $useP3Fallback ? $this->advancedColorP3FallbackValue($normalized, $isCustomProperty) : null;
+            if ($supportsNative && !$needsSrgbFallback) {
+                [$rewritten, $dropped] = $this->dropPreviousSamePropertyFallbacks($rewritten, $entry['property']);
+                $rewritten[] = $entry;
+                $changed = $changed || $dropped;
+                continue;
+            }
+
+            $p3Fallback = $usesP3Fallback ? $this->advancedColorP3FallbackValue($normalized, $isCustomProperty) : null;
             $labFallback = $this->advancedColorLabFallbackValue($normalized, $isCustomProperty || $hasCustomPropertyReference);
+
+            if (!$needsSrgbFallback) {
+                if ($hasCustomPropertyReference && $p3Fallback !== null) {
+                    [$rewritten, $dropped] = $this->dropPreviousSamePropertyFallbacks($rewritten, $entry['property']);
+                    $rewritten[] = $this->entryWithValue($entry, $p3Fallback);
+                    $changed = true;
+                    if ($labFallback !== null && $labFallback !== $p3Fallback) {
+                        $labSupportEntries[] = $this->entryWithValue($entry, $labFallback);
+                    }
+                    $changed = $changed || $dropped;
+                    continue;
+                }
+
+                $rewritten[] = $entry;
+                continue;
+            }
+
             $rewritten[] = $this->entryWithValue($entry, $srgbFallback);
             $changed = true;
 
@@ -8347,6 +8374,26 @@ final class TransitionPrefixer
         $entries = $rewritten;
 
         return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @return array{0:list<array{property:string,name:string,value:string,important:bool}>,1:bool}
+     */
+    private function dropPreviousSamePropertyFallbacks(array $entries, string $property): array
+    {
+        $rewritten = [];
+        $dropped = false;
+        foreach ($entries as $entry) {
+            if (!$entry['important'] && $entry['property'] === $property) {
+                $dropped = true;
+                continue;
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        return [$rewritten, $dropped];
     }
 
     private function propertySupportsAdvancedColorFallback(string $property, string $value): bool

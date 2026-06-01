@@ -7,6 +7,7 @@ use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\LooseObjectStore;
 use PortLibs\Gitoxide\LooseReferenceStore;
 use PortLibs\Gitoxide\ObjectDatabase;
+use PortLibs\Gitoxide\PackBuilder;
 
 $writeWordPressPackFixture = static function (): array {
     $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-data.php';
@@ -816,6 +817,30 @@ return [
         ], $full);
         $t->same(['status' => 'missing', 'candidates' => []], $database->lookupPrefix('0000000', true));
     },
+    'object database de-duplicates MIDX prefix candidates repeated in loose and standalone pack indexes like gix-odb' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
+        [$gitDir, $fixture] = $writeWordPressMultiPackFixture();
+        $content = $fixture['objectsByRole']['content'];
+        $contentObject = new GitObject('blob', $content['body']);
+        $duplicateLooseOid = (new LooseObjectStore($gitDir))->write($contentObject);
+
+        $duplicatePack = PackBuilder::build([$contentObject]);
+        $packDir = $gitDir . '/objects/pack';
+        $duplicatePackName = 'pack-duplicate-' . $duplicatePack->packChecksum();
+        file_put_contents($packDir . '/' . $duplicatePackName . '.pack', $duplicatePack->packBytes());
+        file_put_contents($packDir . '/' . $duplicatePackName . '.idx', $duplicatePack->indexBytes());
+
+        $database = new ObjectDatabase($gitDir);
+        $prefix = strtoupper(substr($content['oid'], 0, 8));
+        $lookup = $database->lookupPrefix($prefix, true);
+
+        $t->same($content['oid'], $duplicateLooseOid);
+        $t->same($content['oid'], $duplicatePack->entries()[0]['oid']);
+        $t->same('found', $lookup['status']);
+        $t->same($content['oid'], $lookup['oid']);
+        $t->same([$content['oid']], $lookup['candidates']);
+        $t->same(['status' => 'found', 'oid' => $content['oid']], $database->lookupPrefix(substr($content['oid'], 0, 4)));
+        $t->same(substr($content['oid'], 0, 4), $database->disambiguatePrefix(strtoupper($content['oid']), 4));
+    },
     'object database returns full prefix after every shorter loose candidate prefix remains ambiguous like gix-odb' => static function (TestRunner $t) use ($looseObjectPath): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-odb-prefix-full-fallthrough-' . bin2hex(random_bytes(4)) . '/.git';
         $sharedThirtyNine = str_repeat('c', 39);
@@ -903,6 +928,9 @@ return [
             $summary['contentOid'],
             $summary['loosePrefixCandidateOid'],
         ], $summary['contentPrefixCandidates']);
+        $t->same($summary['contentOid'], $summary['duplicateLooseContentOid']);
+        $t->same('found', $summary['contentDuplicatePrefixStatus']);
+        $t->same([$summary['contentOid']], $summary['contentDuplicatePrefixCandidates']);
         $t->same('found', $summary['contentFullPrefixStatus']);
         $t->same([$summary['contentOid']], $summary['contentFullPrefixCandidates']);
         $t->true(strlen($summary['contentShortestPrefixAfterLooseCandidate']) > 4);

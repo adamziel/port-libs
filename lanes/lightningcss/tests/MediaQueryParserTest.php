@@ -102,6 +102,10 @@ return [
         $t->same('(theme-state=expanded)', $parser->minifyList('(theme-state = expanded)'));
         $t->same('(--wp-breakpoint>env(--wp-breakpoint))', $parser->minifyList('(--wp-breakpoint > env(--wp-breakpoint))'));
         $t->same('(min-theme-breakpoint:2)', $parser->minifyList('(min-theme-breakpoint: 2)'));
+        $t->same('(Theme-Breakpoint>=2)', $parser->minifyList('(Theme-Breakpoint >= 2)'));
+        $t->same('(--WP-Breakpoint>=2)', $parser->minifyList('(--WP-Breakpoint >= 2)'));
+        $t->same('(Theme-State=Expanded)', $parser->minifyList('(Theme-State = Expanded)'));
+        $t->same('Speech and (--WP-Breakpoint>=2)', $parser->minifyList('Speech and (--WP-Breakpoint >= 2)'));
     },
     'media query parser decodes escaped range feature identifiers like upstream' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
@@ -393,6 +397,10 @@ return [
         $t->same('(min-resolution:2dppx)', $parser->lowerRangeSyntaxList('(resolution >= 2e0dppx)'));
         $t->same('(min-theme-breakpoint:100px)', $parser->lowerRangeSyntaxList('(theme-breakpoint >= 1e2px)'));
         $t->same('(-webkit-min-device-pixel-ratio:2)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio >= 2e0)'));
+        $t->same('(min-Theme-Breakpoint:2)', $parser->lowerRangeSyntaxList('(Theme-Breakpoint >= 2)'));
+        $t->same('(min---WP-Breakpoint:2)', $parser->lowerRangeSyntaxList('(--WP-Breakpoint >= 2)'));
+        $t->same('(Theme-State:Expanded)', $parser->lowerRangeSyntaxList('(Theme-State = Expanded)'));
+        $t->same('Speech and (min---WP-Breakpoint:2)', $parser->lowerRangeSyntaxList('Speech and (--WP-Breakpoint >= 2)'));
         $t->same('not screen and not (min-width:240px)', $parser->lowerRangeSyntaxList('not screen and (width < 240px)'));
         $t->same('only screen and (min-width:240px)', $parser->lowerRangeSyntaxList('only screen and (width >= 240px)'));
         $t->same('(min-width:240px)', $parser->lowerRangeSyntaxList('all and (width >= 240px)'));
@@ -465,6 +473,7 @@ return [
         $t->same('@layer blocks{@media only screen and (width>=240px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media \\6f nly scr\\65 en a\\6e d (w\\69 dth >= 240px) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (hover) or (100px<=width<=200px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (hover) o\\72 (100px <= w\\69 dth <= 200px) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (theme-state=expanded){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (theme\\2d state = exp\\61 nded) { .foo { color: yellow } } }'));
+        $t->same('@layer blocks{@media (Theme-Breakpoint>=2) and (--WP-Breakpoint>=3){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (Theme-Breakpoint >= 2) and (--WP-Breakpoint >= 3) { .foo { color: yellow } } }'));
     },
     'css minifier treats comments as media query token separators inside layers' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

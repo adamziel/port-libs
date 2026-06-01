@@ -153,7 +153,7 @@ final class MediaQueryParser
             return;
         }
 
-        $type = $this->canonicalMediaIdentifier($matches[2]);
+        $type = $this->canonicalMediaTypeIdentifier($matches[2]);
         $tail = ltrim($matches[3]);
         if ($type === 'not' && str_starts_with($tail, '(')) {
             return;
@@ -370,14 +370,14 @@ final class MediaQueryParser
             if (!$this->isValidIntervalComparisonPair($matches[2], $matches[4])) {
                 throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
             }
-            $name = $this->canonicalMediaIdentifier($matches[3]);
+            $name = $this->canonicalMediaFeatureIdentifier($matches[3]);
             $this->validateRangeFeature($name, $matches[1], $matches[5], $feature);
 
             return $this->minifyValue($matches[1]) . $matches[2] . $name . $matches[4] . $this->minifyValue($matches[5]);
         }
 
         if (preg_match('/^(' . $ident . ')\s*(<=|>=|<|>|=)\s*(.+)$/', $feature, $matches) === 1) {
-            $name = $this->canonicalMediaIdentifier($matches[1]);
+            $name = $this->canonicalMediaFeatureIdentifier($matches[1]);
             if ($matches[2] === '=' && !$this->isRangeComparableMediaFeature($name)) {
                 throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
             }
@@ -387,7 +387,7 @@ final class MediaQueryParser
         }
 
         if (preg_match('/^(.+?)\s*(<=|>=|<|>|=)\s*(' . $ident . ')$/', $feature, $matches) === 1) {
-            $name = $this->canonicalMediaIdentifier($matches[3]);
+            $name = $this->canonicalMediaFeatureIdentifier($matches[3]);
             if ($matches[2] === '=' && !$this->isRangeComparableMediaFeature($name)) {
                 throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
             }
@@ -397,7 +397,7 @@ final class MediaQueryParser
         }
 
         if (preg_match('/^(' . $ident . ')\s*:\s*(.+)$/', $feature, $matches) === 1) {
-            $name = $this->canonicalMediaIdentifier($matches[1]);
+            $name = $this->canonicalMediaFeatureIdentifier($matches[1]);
             if (preg_match('/^-webkit-(min|max)-(.+)$/', $name, $legacyMatches) === 1) {
                 $canonical = '-webkit-' . $legacyMatches[2];
                 $type = $this->knownMediaFeatureType($canonical);
@@ -441,7 +441,7 @@ final class MediaQueryParser
             return $canonicalLegacyName;
         }
 
-        return strtolower(str_replace(' ', '', $feature));
+        return $this->canonicalMediaFeatureIdentifier(str_replace(' ', '', $feature));
     }
 
     private function validateTopLevelConditionFunctions(string $query): void
@@ -579,7 +579,7 @@ final class MediaQueryParser
 
     private function canonicalLegacyMediaFeatureName(string $name): ?string
     {
-        $name = $this->canonicalMediaIdentifier($name);
+        $name = $this->canonicalMediaFeatureIdentifier($name);
         if (preg_match('/^-webkit-(?:min|max)-(.+)$/', $name, $matches) === 1) {
             $canonical = '-webkit-' . $matches[1];
 
@@ -1046,14 +1046,44 @@ final class MediaQueryParser
         return preg_match('/^' . $this->cssNumberPattern() . '$/', $value) === 1 && (float) $value === 0.0;
     }
 
-    private function canonicalMediaIdentifier(string $identifier): string
+    private function canonicalMediaTypeIdentifier(string $identifier): string
     {
         $decoded = $this->decodeCssIdentifier($identifier);
-        if ($this->isSafeCssIdentifier($decoded)) {
-            return strtolower($decoded);
+        if (!$this->isSafeCssIdentifier($decoded)) {
+            return strtolower(trim($identifier));
         }
 
-        return strtolower(trim($identifier));
+        $lower = strtolower($decoded);
+
+        return in_array($lower, ['all', 'print', 'screen'], true) ? $lower : $decoded;
+    }
+
+    private function canonicalMediaFeatureIdentifier(string $identifier): string
+    {
+        $decoded = $this->decodeCssIdentifier($identifier);
+        if (!$this->isSafeCssIdentifier($decoded)) {
+            return strtolower(trim($identifier));
+        }
+
+        $lower = strtolower($decoded);
+        if ($this->knownMediaFeatureType($lower) !== null) {
+            return $lower;
+        }
+
+        if (preg_match('/^-webkit-(min|max)-(.+)$/i', $decoded, $matches) === 1) {
+            $canonical = '-webkit-' . strtolower($matches[2]);
+            if ($this->knownMediaFeatureType($canonical) !== null) {
+                return '-webkit-' . strtolower($matches[1]) . '-' . strtolower($matches[2]);
+            }
+        }
+
+        if (preg_match('/^(min|max)-(.+)$/i', $decoded, $matches) === 1
+            && $this->knownMediaFeatureType(strtolower($matches[2])) !== null
+        ) {
+            return strtolower($matches[1]) . '-' . strtolower($matches[2]);
+        }
+
+        return $decoded;
     }
 
     private function canonicalMediaIdentifierValue(string $identifier): string
@@ -1309,7 +1339,7 @@ final class MediaQueryParser
         if (preg_match('/^(?:(not|only)\s+)?(' . $this->cssIdentifierPattern() . ')(?:\s+and\s+(.+))?$/i', $query, $matches) === 1) {
             return [
                 'qualifier' => isset($matches[1]) && $matches[1] !== '' ? strtolower($matches[1]) : null,
-                'type' => $this->canonicalMediaIdentifier($matches[2]),
+                'type' => $this->canonicalMediaTypeIdentifier($matches[2]),
                 'condition' => isset($matches[3]) && trim($matches[3]) !== '' ? trim($matches[3]) : null,
             ];
         }
@@ -1651,7 +1681,7 @@ final class MediaQueryParser
 
         return [
             'qualifier' => isset($matches[1]) && $matches[1] !== '' ? strtolower($matches[1]) : null,
-            'type' => $this->canonicalMediaIdentifier($matches[2]),
+            'type' => $this->canonicalMediaTypeIdentifier($matches[2]),
             'condition' => $condition,
         ];
     }
@@ -1861,7 +1891,7 @@ final class MediaQueryParser
                 return null;
             }
 
-            $name = $this->canonicalMediaIdentifier($matches[3]);
+            $name = $this->canonicalMediaFeatureIdentifier($matches[3]);
             if (!$this->isLegacyRangeFeature($name)) {
                 return null;
             }
@@ -1894,7 +1924,7 @@ final class MediaQueryParser
             return null;
         }
 
-        $name = $this->canonicalMediaIdentifier($matches[1]);
+        $name = $this->canonicalMediaFeatureIdentifier($matches[1]);
         if (!$this->isLegacyRangeFeature($name)) {
             return null;
         }

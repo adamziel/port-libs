@@ -419,6 +419,10 @@ final class TreeMergeResult
         }
 
         $resolved = self::removeEntryAtPath($tree, $conflict->path, $readObject, $writeObject);
+        $sourcePath = self::sourcePathForResolvedRename($conflict, $conflict->path);
+        if ($sourcePath !== null) {
+            $resolved = self::removeEntryAtPath($resolved, $sourcePath, $readObject, $writeObject);
+        }
         $paths = array_keys($ancestorEntries);
         sort($paths, SORT_STRING);
         $applied = false;
@@ -427,7 +431,7 @@ final class TreeMergeResult
             if (!is_string($path) || $path === '' || !$entry instanceof TreeEntry) {
                 continue;
             }
-            $resolved = self::setEntryAtPath($resolved, $path, $entry, $readObject, $writeObject);
+            $resolved = self::addEntryAtPath($resolved, $path, $entry, $readObject, $writeObject);
             $applied = true;
         }
 

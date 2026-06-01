@@ -20,7 +20,7 @@ final class CssMinifier
         ];
     }
 
-    public function minify(string $css, bool $preserveFontTargetFallbacks = false): string
+    public function minify(string $css, bool $preserveFontTargetFallbacks = false, bool $allowNamespaceAfterStyleRules = false): string
     {
         [$css, $licenseComments] = $this->stripComments($css);
         $output = '';
@@ -107,7 +107,7 @@ final class CssMinifier
         $css = $this->canonicalizeImplicitNestedSelectors($css);
         $css = $this->minifyImportRules($css);
         $css = $this->minifyLayerRules($css);
-        $css = $this->minifyNamespaceRules($css);
+        $css = $this->minifyNamespaceRules($css, $allowNamespaceAfterStyleRules);
         $css = $this->normalizeNamespaceAttributeSelectors($css);
         $css = $this->minifySupportsRules($css);
         $css = $this->minifyFontFeatureValuesRules($css);
@@ -752,7 +752,7 @@ final class CssMinifier
         return $output;
     }
 
-    private function minifyNamespaceRules(string $css): string
+    private function minifyNamespaceRules(string $css, bool $allowNamespaceAfterStyleRules = false): string
     {
         $output = '';
         $quote = null;
@@ -783,7 +783,7 @@ final class CssMinifier
             }
 
             if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0 && $this->startsAtKeyword($css, $i, '@namespace')) {
-                if ($seenTopLevelRuleBlock) {
+                if ($seenTopLevelRuleBlock && !$allowNamespaceAfterStyleRules) {
                     throw new \InvalidArgumentException('Unexpected @namespace rule after style rules');
                 }
 

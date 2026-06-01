@@ -2413,6 +2413,30 @@ CSS;
             $prefixer->prefixForTargets('.foo { background-color: lab(40% 56.6 39) }', ['safari' => 15])
         );
     },
+    'transition prefixer maps upstream advanced color fallback cleanup targets' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{color:red;color:lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { color: red; color: lab(40% 56.6 39); }', ['safari' => 14])
+        );
+        $t->same(
+            '.foo{color:lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { color: red; color: lab(40% 56.6 39); }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{color:lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { color: var(--fallback); color: lab(40% 56.6 39); }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{color:var(--foo,color(display-p3 .643308 .192455 .167712))}@supports (color:lab(0% 0 0)){.foo{color:var(--foo,lab(40% 56.6 39))}}',
+            $prefixer->prefixForTargets('.foo { color: red; color: var(--foo, lab(40% 56.6 39)); }', ['safari' => 14])
+        );
+        $t->same(
+            '@supports (color:lab(0% 0 0)){.foo{color:var(--foo,lab(40% 56.6 39))}}',
+            $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { color: var(--foo, lab(40% 56.6 39)); } }', ['safari' => 14])
+        );
+    },
     'transition prefixer maps upstream xyz color mix target fallback' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -3439,6 +3463,25 @@ CSS;
         $t->same(
             '@layer blocks{@media (theme-state:expanded){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (theme-state = expanded) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-Theme-Breakpoint:2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (Theme-Breakpoint >= 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min---WP-Breakpoint:2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (--WP-Breakpoint >= 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media Speech and (min---WP-Breakpoint:2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media Speech and (--WP-Breakpoint >= 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (Theme-Breakpoint>=2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (Theme-Breakpoint >= 2) { .wp-block-query { color: yellow; } } }', [
+                'firefox' => 60,
+                'exclude' => ['MediaRangeSyntax'],
+            ])
         );
         $t->same(
             '@layer blocks{@media (--wp-breakpoint:env(--wp-breakpoint)){.wp-block-query{color:#ff0}}}',

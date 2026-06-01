@@ -1555,3 +1555,32 @@ URL/refspec credential mutation parity slice prepared on 2026-06-01:
   `php lanes/gitoxide/examples/wordpress-url-refspec-normalize.php --self-test`
   exited 0. Full Cargo workspace runner was not executed.
 - Expected mapped denominator movement: `1711 / 2886` to `1712 / 2886`.
+
+Reference transaction packed-delete parity slice prepared on 2026-06-01:
+
+- Worker slice
+  `gitoxide-reference-transaction-lock-reflog-parity-20260601T032258Z` on
+  accepted base `639880c48c54d40c3ed0188758af6aee8d8d2712` maps the prepared
+  delete transaction behavior where packed refs are consulted for previous
+  values, packed-only deletes remove packed entries, loose-over-packed deletes
+  remove both stores, and all-contained deletes remove `packed-refs`.
+- Source truth: upstream Gitoxide
+  `gix-ref/src/store/file/transaction/{prepare.rs,commit.rs}` and
+  `gix-ref/tests/refs/file/transaction/prepare_and_commit/delete.rs` at commit
+  `87433ed33eee9ba974111d20b854f6acb07cd4a6`, specifically
+  `packed_refs_are_consulted_when_determining_previous_value_of_ref_to_be_deleted_and_are_deleted_from_packed_ref_file`,
+  `a_loose_ref_with_old_value_check_and_outdated_packed_refs_value_deletes_both_refs`,
+  and `all_contained_references_deletes_the_packed_ref_file_too`.
+- Native PHP delta: `ReferenceStore::prepareLooseDeleteTransaction()` now
+  records packed refs affected by prepared `RefLog::AndReference` deletes, and
+  `PreparedReferenceTransaction::commit()` deletes reflogs, commits packed-ref
+  deletions, then removes loose refs and locks. The WordPress reference
+  transaction fixture/example now covers prepared packed review-ref pruning.
+- Verification: red-first focused `ReferenceStoreTest.php` failed because a
+  prepared delete left `refs/heads/main` resolved from `packed-refs`. After
+  implementation, focused `ReferenceStoreTest.php` passed `1 file / 615
+  assertions / 0 failures`, full Gitoxide lane verification passed `40 files /
+  7158 assertions / 0 failures`, changed PHP lints passed, and
+  `php lanes/gitoxide/examples/wordpress-reference-transaction.php` exited 0.
+  Full Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1716 / 2886` to `1717 / 2886`.

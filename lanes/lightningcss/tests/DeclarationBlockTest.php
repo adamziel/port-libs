@@ -268,6 +268,54 @@ return [
             $block->removeProperty($declarations, 'color-scheme')
         );
     },
+    'declaration block canonicalizes upstream ui direct enum cssom declarations' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'resize: Horizontal; user-select: Text; -webkit-user-select: NONE; appearance: SearchField; -moz-appearance: Menulist-Button; -ms-appearance: Button-Bevel; --Editor-Appearance: SearchField';
+
+        $t->same(
+            [
+                'resize' => 'horizontal',
+                'user-select' => 'text',
+                '-webkit-user-select' => 'none',
+                'appearance' => 'searchfield',
+                '-moz-appearance' => 'menulist-button',
+                '-ms-appearance' => 'Button-Bevel',
+                '--Editor-Appearance' => 'SearchField',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'horizontal', 'important' => false], $block->getProperty($declarations, 'resize'));
+        $t->same(['value' => 'text', 'important' => false], $block->getProperty($declarations, 'user-select'));
+        $t->same(['value' => 'none', 'important' => false], $block->getProperty($declarations, '-webkit-user-select'));
+        $t->same(['value' => 'searchfield', 'important' => false], $block->getProperty($declarations, 'appearance'));
+        $t->same(['value' => 'menulist-button', 'important' => false], $block->getProperty($declarations, '-moz-appearance'));
+        $t->same(['value' => 'Button-Bevel', 'important' => false], $block->getProperty($declarations, '-ms-appearance'));
+        $t->same(['value' => 'SearchField', 'important' => false], $block->getProperty($declarations, '--Editor-Appearance'));
+        $t->same(
+            'resize: block; user-select: text; -webkit-user-select: none; appearance: searchfield; -moz-appearance: menulist-button; -ms-appearance: Button-Bevel; --Editor-Appearance: SearchField',
+            $block->setProperty($declarations, 'resize', 'Block')
+        );
+        $t->same(
+            'resize: horizontal; -webkit-user-select: none; appearance: searchfield; -moz-appearance: menulist-button; -ms-appearance: Button-Bevel; --Editor-Appearance: SearchField; user-select: all !important',
+            $block->setProperty($declarations, 'user-select', 'ALL', true)
+        );
+        $t->same(
+            'resize: horizontal; user-select: text; -webkit-user-select: contain; appearance: searchfield; -moz-appearance: menulist-button; -ms-appearance: Button-Bevel; --Editor-Appearance: SearchField',
+            $block->setProperty($declarations, '-webkit-user-select', 'Contain')
+        );
+        $t->same(
+            'resize: horizontal; user-select: text; -webkit-user-select: none; appearance: textarea; -moz-appearance: menulist-button; -ms-appearance: Button-Bevel; --Editor-Appearance: SearchField',
+            $block->setProperty($declarations, 'appearance', 'TextArea')
+        );
+        $t->same(
+            'appearance: Button-Bevel',
+            $block->setProperty('appearance: SearchField', 'appearance', 'Button-Bevel')
+        );
+        $t->same(
+            'resize: horizontal; user-select: text; -webkit-user-select: none; -moz-appearance: menulist-button; -ms-appearance: Button-Bevel; --Editor-Appearance: SearchField',
+            $block->removeProperty($declarations, 'appearance')
+        );
+    },
     'declaration block canonicalizes upstream border spacing cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

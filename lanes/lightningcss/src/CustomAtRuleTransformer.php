@@ -6,6 +6,8 @@ namespace PortLibs\LightningCSS;
 
 final class CustomAtRuleTransformer
 {
+    private const CUSTOM_PRELUDE_TOKEN_REVISIT_LIMIT = 8;
+
     /** @var array<string, array<string, mixed>> */
     private array $customAtRules = [];
 
@@ -6356,13 +6358,13 @@ final class CustomAtRuleTransformer
      * @param list<mixed> $components
      * @return array{value:list<mixed>,changed:bool}
      */
-    private function visitCustomPreludeTokenList(array $components): array
+    private function visitCustomPreludeTokenList(array $components, int $depth = 0, ?string $skipTokenType = null): array
     {
         $visitedComponents = [];
         $changed = false;
 
         foreach ($components as $component) {
-            $visited = $this->visitCustomPreludeTokenListComponent($component);
+            $visited = $this->visitCustomPreludeTokenListComponent($component, $depth, $skipTokenType);
             foreach ($visited['value'] as $replacement) {
                 $visitedComponents[] = $replacement;
             }
@@ -6378,7 +6380,7 @@ final class CustomAtRuleTransformer
     /**
      * @return array{value:list<mixed>,changed:bool}
      */
-    private function visitCustomPreludeTokenListComponent(mixed $component): array
+    private function visitCustomPreludeTokenListComponent(mixed $component, int $depth = 0, ?string $skipTokenType = null): array
     {
         if (!is_array($component)) {
             return ['value' => [$component], 'changed' => false];
@@ -6395,18 +6397,18 @@ final class CustomAtRuleTransformer
 
             $structuredReplacement = $this->callStructuredValueVisitor($name, $argumentsCss, $raw);
             if ($structuredReplacement !== null) {
-                return $this->customPreludeTokenListReplacement($structuredReplacement, $originalCss);
+                return $this->customPreludeTokenListReplacement($structuredReplacement, $originalCss, $depth);
             }
 
             $replacement = $this->callFunctionVisitor($name, $this->parseFunctionArguments($argumentsCss), $raw);
             if ($replacement !== null) {
-                return $this->customPreludeTokenListCssReplacement($replacement, $originalCss);
+                return $this->customPreludeTokenListCssReplacement($replacement, $originalCss, $depth);
             }
 
             $visited = $this->visitFunctionExit($name, $argumentsCss, $raw);
             $visitedCss = $this->serializeVisitorValue($visited);
             if ($visitedCss !== $originalCss) {
-                return $this->customPreludeTokenListCssReplacement($visitedCss, $originalCss);
+                return $this->customPreludeTokenListCssReplacement($visitedCss, $originalCss, $depth);
             }
 
             return ['value' => [$component], 'changed' => false];
@@ -6417,7 +6419,7 @@ final class CustomAtRuleTransformer
             $raw = 'var(' . $argumentsCss . ')';
             $replacement = $this->callStructuredValueVisitor('var', $argumentsCss, $raw);
             if ($replacement !== null) {
-                return $this->customPreludeTokenListReplacement($replacement, $originalCss);
+                return $this->customPreludeTokenListReplacement($replacement, $originalCss, $depth);
             }
         }
 
@@ -6426,27 +6428,27 @@ final class CustomAtRuleTransformer
             $raw = 'env(' . $argumentsCss . ')';
             $replacement = $this->callStructuredValueVisitor('env', $argumentsCss, $raw);
             if ($replacement !== null) {
-                return $this->customPreludeTokenListReplacement($replacement, $originalCss);
+                return $this->customPreludeTokenListReplacement($replacement, $originalCss, $depth);
             }
         }
 
         if ($type === 'token' && isset($component['value']) && is_array($component['value'])) {
             $token = $component['value'];
             $tokenType = (string) ($token['type'] ?? '');
-            if ($tokenType !== '' && $this->tokenVisitorEnabled($tokenType)) {
+            if ($tokenType !== '' && $tokenType !== $skipTokenType && $this->tokenVisitorEnabled($tokenType)) {
                 $token['raw'] = isset($component['raw']) && is_string($component['raw'])
                     ? $component['raw']
                     : $originalCss;
                 $replacement = $this->callTokenVisitor($tokenType, $token);
                 if ($replacement !== null) {
-                    return $this->customPreludeTokenListCssReplacement($replacement, $originalCss);
+                    return $this->customPreludeTokenListCssReplacement($replacement, $originalCss, $depth, $tokenType);
                 }
             }
         }
 
         $visited = $this->applyValueVisitors($component);
         if ($visited !== $component) {
-            return $this->customPreludeTokenListReplacement($visited, $originalCss);
+            return $this->customPreludeTokenListReplacement($visited, $originalCss, $depth);
         }
 
         return ['value' => [$component], 'changed' => false];
@@ -6496,21 +6498,31 @@ final class CustomAtRuleTransformer
     /**
      * @return array{value:list<mixed>,changed:bool}
      */
-    private function customPreludeTokenListReplacement(mixed $replacement, string $originalCss): array
+    private function customPreludeTokenListReplacement(mixed $replacement, string $originalCss, int $depth = 0, ?string $skipTokenType = null): array
     {
-        return $this->customPreludeTokenListCssReplacement($this->serializeVisitorValue($replacement), $originalCss);
+        return $this->customPreludeTokenListCssReplacement($this->serializeVisitorValue($replacement), $originalCss, $depth, $skipTokenType);
     }
 
     /**
      * @return array{value:list<mixed>,changed:bool}
      */
-    private function customPreludeTokenListCssReplacement(string $replacementCss, string $originalCss): array
+    private function customPreludeTokenListCssReplacement(string $replacementCss, string $originalCss, int $depth = 0, ?string $skipTokenType = null): array
     {
         $replacementCss = trim($replacementCss);
+        $changed = $replacementCss !== $originalCss;
+        $components = $replacementCss === '' ? [] : $this->parseComponentValueList($replacementCss);
+
+        if ($changed && $components !== [] && $depth < self::CUSTOM_PRELUDE_TOKEN_REVISIT_LIMIT) {
+            $visited = $this->visitCustomPreludeTokenList($components, $depth + 1, $skipTokenType);
+            if ($visited['changed']) {
+                $components = $visited['value'];
+            }
+            $changed = true;
+        }
 
         return [
-            'value' => $replacementCss === '' ? [] : $this->parseComponentValueList($replacementCss),
-            'changed' => $replacementCss !== $originalCss,
+            'value' => $components,
+            'changed' => $changed,
         ];
     }
 

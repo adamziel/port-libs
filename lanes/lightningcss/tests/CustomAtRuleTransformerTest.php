@@ -989,6 +989,108 @@ CSS;
             $seen['rule']['preludeAst']['value']
         ));
     },
+    'custom at-rules revisit upstream token-list prelude replacements before custom rule visitors' => static function (TestRunner $t): void {
+        $events = [];
+        $seenRule = null;
+        $css = <<<'CSS'
+@plugin 3--wp-fluid-step;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'dimension' => static function (array $token) use (&$events): array {
+                        $events[] = 'token:' . $token['raw'];
+
+                        return [
+                            'type' => 'function',
+                            'value' => [
+                                'name' => 'fluid',
+                                'arguments' => [
+                                    [
+                                        'type' => 'token',
+                                        'value' => [
+                                            'type' => 'number',
+                                            'value' => $token['value'],
+                                        ],
+                                    ],
+                                    [
+                                        'type' => 'var',
+                                        'value' => [
+                                            'name' => [
+                                                'ident' => $token['unit'],
+                                            ],
+                                            'fallback' => null,
+                                            'raw' => 'var(' . $token['unit'] . ')',
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Variable' => [
+                    '--wp-fluid-step' => static function (array $variable) use (&$events): array {
+                        $events[] = 'variable:' . ($variable['name']['ident'] ?? '');
+
+                        return [
+                            'unit' => 'rem',
+                            'value' => 0.25,
+                        ];
+                    },
+                ],
+                'FunctionExit' => [
+                    'fluid' => static function (array $function) use (&$events): array {
+                        $argument = $function['arguments'][1] ?? [];
+                        $events[] = 'function-exit:' . ($function['name'] ?? '') . ':' . ($argument['type'] ?? '') . ':' . ($argument['unit'] ?? '');
+
+                        return [
+                            'unit' => 'rem',
+                            'value' => 2.0,
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'plugin' => static function (array $rule) use (&$events, &$seenRule): array {
+                            $events[] = 'rule:' . $rule['prelude'];
+                            $seenRule = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'plugin' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'token:3--wp-fluid-step',
+            'variable:--wp-fluid-step',
+            'function-exit:fluid:length:rem',
+            'rule:2rem',
+        ], $events);
+        $t->same('2rem', $seenRule['prelude']);
+        $t->same('length', $seenRule['preludeAst']['value'][0]['type'] ?? null);
+        $t->same(['unit' => 'rem', 'value' => 2.0], $seenRule['preludeAst']['value'][0]['value'] ?? null);
+    },
     'custom at-rules map upstream bundler mixin visitor after import resolution' => static function (TestRunner $t) use ($customDefinitions, $mixinVisitor): void {
         $mixins = [];
         $result = (new CustomAtRuleTransformer())->bundle('/apply.css', [

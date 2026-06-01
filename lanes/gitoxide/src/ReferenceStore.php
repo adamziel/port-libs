@@ -224,6 +224,7 @@ final class ReferenceStore
         }
         $locks = [];
         $preparedNames = [];
+        $packedRefDeletions = [];
         $packedRefsLockPath = $reflogMode === ReferenceTransactionEdit::REFLOG_AND_REFERENCE
             ? $this->preparePackedRefsLockForLooseTransaction()
             : null;
@@ -271,6 +272,13 @@ final class ReferenceStore
                             'deleteReflog' => true,
                         ],
                     ];
+
+                    if (
+                        $edit->reflogMode === ReferenceTransactionEdit::REFLOG_AND_REFERENCE
+                        && $this->packedHasPhysical($editPhysicalName, $algorithm)
+                    ) {
+                        $packedRefDeletions[$editPhysicalName] = true;
+                    }
                 }
             }
         } catch (\Throwable $throwable) {
@@ -279,7 +287,14 @@ final class ReferenceStore
             throw $throwable;
         }
 
-        return new PreparedReferenceTransaction($this->gitDirectory, $locks, $packedRefsLockPath);
+        $packedRefsDeletionPlan = $packedRefDeletions === []
+            ? null
+            : [
+                'deletions' => array_keys($packedRefDeletions),
+                'algorithm' => $algorithm,
+            ];
+
+        return new PreparedReferenceTransaction($this->gitDirectory, $locks, $packedRefsLockPath, $packedRefsDeletionPlan);
     }
 
     public function update(

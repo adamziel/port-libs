@@ -1490,6 +1490,64 @@ return [
         $t->same(false, is_file($dir . '/refs/heads/review/plugin-b/broken.lock'));
         $t->same(false, is_dir($dir . '/refs'));
     },
+    'prepared reference transaction deletes packed refs through packed refs file like upstream' => static function (TestRunner $t) use ($old, $new, $other): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-delete-packed-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . '/packed-refs', "{$old} refs/heads/main\n{$other} refs/heads/side\n");
+        $store = ReferenceStore::at($dir);
+
+        $transaction = $store->prepareLooseDeleteTransaction(
+            ['refs/heads/main'],
+            ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+            ReferenceTarget::object($old),
+        );
+
+        $t->same(true, is_file($dir . '/packed-refs.lock'));
+        $t->same(true, is_file($dir . '/refs/heads/main.lock'));
+
+        $edits = $transaction->commit();
+
+        $t->same(['refs/heads/main'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same(false, is_file($dir . '/packed-refs.lock'));
+        $t->same(false, is_file($dir . '/refs/heads/main.lock'));
+        $t->same(null, $store->tryFind('refs/heads/main'));
+        $t->same($other, $store->find('refs/heads/side')->targetObjectId());
+        $t->same(['refs/heads/side'], PackedReferences::open($dir . '/packed-refs')->names());
+
+        $overlayDir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-delete-packed-overlay-' . bin2hex(random_bytes(4));
+        mkdir($overlayDir, 0777, true);
+        file_put_contents($overlayDir . '/packed-refs', "{$old} refs/heads/main\n{$other} refs/heads/side\n");
+        $overlayStore = ReferenceStore::at($overlayDir);
+        $overlayStore->looseStore()->writeDirect('refs/heads/main', $new);
+
+        $overlayDelete = $overlayStore->prepareLooseDeleteTransaction(
+            ['refs/heads/main'],
+            ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+            ReferenceTarget::object($new),
+        );
+        $overlayDelete->commit();
+
+        $t->same(null, $overlayStore->tryFind('refs/heads/main'));
+        $t->same($other, $overlayStore->find('refs/heads/side')->targetObjectId());
+        $t->same(['refs/heads/side'], PackedReferences::open($overlayDir . '/packed-refs')->names());
+        $t->same(false, is_file($overlayDir . '/refs/heads/main'));
+        $t->same(false, is_file($overlayDir . '/refs/heads/main.lock'));
+
+        $allPackedDir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-delete-all-packed-' . bin2hex(random_bytes(4));
+        mkdir($allPackedDir, 0777, true);
+        file_put_contents($allPackedDir . '/packed-refs', "{$old} refs/heads/main\n{$new} refs/heads/side\n");
+        $allPackedStore = ReferenceStore::at($allPackedDir);
+        $allPackedDelete = $allPackedStore->prepareLooseDeleteTransaction(
+            ['refs/heads/main', 'refs/heads/side'],
+            ReferenceStore::PREVIOUS_MUST_EXIST,
+        );
+        $allPackedDelete->commit();
+
+        $t->same(false, is_file($allPackedDir . '/packed-refs'));
+        $t->same(false, is_file($allPackedDir . '/packed-refs.lock'));
+        $t->same(null, $allPackedStore->tryFind('refs/heads/main'));
+        $t->same(null, $allPackedStore->tryFind('refs/heads/side'));
+    },
     'prepared reference transaction lock collision rolls back already prepared locks' => static function (TestRunner $t) use ($old, $new): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-lock-collision-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -1712,6 +1770,12 @@ return [
             substr((string) $summary['preparedPackedLockBlocked'], 0, strlen($fixture['expectedPreparedPackedLockBlockedPrefix'])),
         );
         $t->same($fixture['expectedPreparedPackedLockCleanedRollback'], $summary['preparedPackedLockCleanedRollback']);
+        $t->same($fixture['expectedPreparedPackedDeleteEditNames'], $summary['preparedPackedDeleteEditNames']);
+        $t->same($fixture['expectedPreparedPackedDeleteHadLocks'], $summary['preparedPackedDeleteHadLocks']);
+        $t->same($fixture['expectedPreparedPackedDeleteCleanedLocks'], $summary['preparedPackedDeleteCleanedLocks']);
+        $t->same($fixture['expectedPreparedPackedDeletePackedNames'], $summary['preparedPackedDeletePackedNames']);
+        $t->same($fixture['expectedPreparedPackedDeleteRefStillExists'], $summary['preparedPackedDeleteRefStillExists']);
+        $t->same($fixture['expectedPreparedPackedDeleteSideRefStillExists'], $summary['preparedPackedDeleteSideRefStillExists']);
         $t->same($fixture['expectedPreparedLogOnlyDeleteEditNames'], $summary['preparedLogOnlyDeleteEditNames']);
         $t->same($fixture['expectedPreparedLogOnlyPackedLockPreserved'], $summary['preparedLogOnlyPackedLockPreserved']);
         $t->same($fixture['expectedPreparedLogOnlyRefStillExists'], $summary['preparedLogOnlyRefStillExists']);
@@ -1774,6 +1838,7 @@ return [
         $t->same($fixture['expectedPreparedPhasedDeleteLocksPreserved'], $summary['preparedPhasedDeleteLocksPreserved']);
         $t->contains('idempotent prepared writes', $summary['wordpressUse']);
         $t->contains('packed-ref transaction locks', $summary['wordpressUse']);
+        $t->contains('prepared packed-refs commit phase', $summary['wordpressUse']);
         $t->contains('clone-style symbolic review pointer', $summary['wordpressUse']);
         $t->contains('dereferenced symbolic HEAD publish', $summary['wordpressUse']);
         $t->contains('direct production referent publish', $summary['wordpressUse']);

@@ -143,6 +143,19 @@ $nestedPlugins = Tree::fromObject($read($nestedContent->entryNamed('plugins', tr
 $nestedPlugin = Tree::fromObject($read($nestedPlugins->entryNamed('acme-pro', true)?->oid ?? ''));
 $nestedIncludes = Tree::fromObject($read($nestedPlugin->entryNamed('includes', true)?->oid ?? ''));
 $nestedSrc = Tree::fromObject($read($nestedPlugin->entryNamed('src', true)?->oid ?? ''));
+$nestedAncestorResolved = $nestedResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+$nestedOursResolved = $nestedResult->resolveTreeConflicts(
+    $read,
+    $write,
+    TreeMergeResult::RESOLVE_OURS,
+    TreeMergeResult::RESOLVE_OURS,
+);
+$nestedAncestorPlugins = $treeAtPath($nestedAncestorResolved->tree, 'wp-content/plugins');
+$nestedAncestorAcme = $treeAtPath($nestedAncestorResolved->tree, 'wp-content/plugins/acme');
+$nestedAncestorIncludes = $treeAtPath($nestedAncestorResolved->tree, 'wp-content/plugins/acme/includes');
+$nestedAncestorAcmePro = $treeAtPath($nestedAncestorResolved->tree, 'wp-content/plugins/acme-pro');
+$nestedOursPlugin = $treeAtPath($nestedOursResolved->tree, 'wp-content/plugins/acme-pro');
+$nestedOursIncludes = $treeAtPath($nestedOursResolved->tree, 'wp-content/plugins/acme-pro/includes');
 $sameTargetBase = new Tree([
     $tree('wp-content', new Tree([
         $tree('plugins', new Tree([
@@ -510,6 +523,17 @@ echo json_encode([
             'includes' => $read($nestedIncludes->entryNamed('rest.php')?->oid ?? '')->body,
             'src' => $read($nestedSrc->entryNamed('rest.php')?->oid ?? '')->body,
         ],
+        'ancestorResolvedClean' => $nestedAncestorResolved->isClean(),
+        'ancestorPluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $nestedAncestorPlugins->entries),
+        'ancestorAcmeEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $nestedAncestorAcme->entries),
+        'ancestorAcmeProEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $nestedAncestorAcmePro->entries),
+        'ancestorRouteCopy' => $read($nestedAncestorIncludes->entryNamed('rest.php')?->oid ?? '')->body,
+        'ancestorIndexStages' => count(MergeIndexFile::entriesForResult($nestedAncestorResolved, $read)),
+        'oursResolvedClean' => $nestedOursResolved->isClean(),
+        'oursResolvedPluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $nestedOursPlugin->entries),
+        'oursResolvedIncludesEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $nestedOursIncludes->entries),
+        'oursRouteCopy' => $read($nestedOursIncludes->entryNamed('rest.php')?->oid ?? '')->body,
+        'oursIndexStages' => count(MergeIndexFile::entriesForResult($nestedOursResolved, $read)),
     ],
     'sameTargetNestedRename' => [
         'clean' => $sameTargetNestedResult->isClean(),

@@ -543,6 +543,61 @@ if ($supportsGraphBundle !== '@supports ((display:grid) or (display:flex)) and (
 
 echo 'supports-import-graph: grouped' . PHP_EOL;
 
+$namespaceAfterImportReads = [];
+$namespaceAfterImportBundle = (new CssBundler())->bundleWithReader(
+    '/namespace-entry.css',
+    static function (string $file) use (&$namespaceAfterImportReads): string {
+        $namespaceAfterImportReads[] = $file;
+
+        return match ($file) {
+            '/namespace-entry.css' => '@import "blocks/svg-icon.css"; @namespace svg url(http://www.w3.org/2000/svg); svg|path { fill: currentColor }',
+            '/blocks/svg-icon.css' => '.wp-block-icon { color: green; }',
+            default => throw new RuntimeException("Missing namespace import fixture {$file}"),
+        };
+    }
+);
+
+if (
+    $namespaceAfterImportBundle !== '.wp-block-icon{color:green}@namespace svg "http://www.w3.org/2000/svg";svg|path{fill:currentColor}'
+    || $namespaceAfterImportReads !== ['/namespace-entry.css', '/blocks/svg-icon.css']
+) {
+    fwrite(STDERR, "Expected namespace statements after imports to survive resolved block graph bundling\n");
+    exit(1);
+}
+
+echo 'namespace-after-import: preserved' . PHP_EOL;
+
+$lateNamespaceReads = [];
+try {
+    (new CssBundler())->bundleWithReader(
+        '/late-namespace.css',
+        static function (string $file) use (&$lateNamespaceReads): string {
+            $lateNamespaceReads[] = $file;
+
+            return $file === '/late-namespace.css'
+                ? '@import "blocks/svg-icon.css"; .wp-site-blocks { color: red } @namespace svg "http://www.w3.org/2000/svg";'
+                : '.wp-block-icon { color: green; }';
+        }
+    );
+
+    fwrite(STDERR, "Expected late namespace diagnostic before reading imported block CSS\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== '@namespaces rules must precede all rules aside from @charset, @import, and @layer statements'
+        || $exception->sourceFile !== '/late-namespace.css'
+        || $exception->sourceLine !== 1
+        || $exception->sourceColumn !== 73
+        || $lateNamespaceReads !== ['/late-namespace.css']
+    ) {
+        fwrite(STDERR, 'Unexpected late namespace diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'late-namespace: rejected-before-read' . PHP_EOL;
+}
+
 $charsetGraphBundle = (new CssBundler())->bundle('/charset-entry.css', [
     '/charset-entry.css' => '@import "blocks/card.css" screen; .wp-site-blocks { color: red }',
     '/blocks/card.css' => '@charset "UTF-8"; @import "../tokens.css"; .wp-block-card { color: green }',

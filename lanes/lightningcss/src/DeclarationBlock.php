@@ -63,6 +63,85 @@ final class DeclarationBlock
         'view-transition-class' => ['none'],
         'view-transition-group' => ['normal', 'contain', 'nearest'],
     ];
+    private const UI_DIRECT_ENUM_KEYWORDS = [
+        'resize' => ['none', 'both', 'horizontal', 'vertical', 'block', 'inline'],
+        'user-select' => ['auto', 'text', 'none', 'contain', 'all'],
+        '-webkit-user-select' => ['auto', 'text', 'none', 'contain', 'all'],
+        '-moz-user-select' => ['auto', 'text', 'none', 'contain', 'all'],
+        '-ms-user-select' => ['auto', 'text', 'none', 'contain', 'all'],
+        'appearance' => [
+            'none',
+            'auto',
+            'textfield',
+            'menulist-button',
+            'button',
+            'checkbox',
+            'listbox',
+            'menulist',
+            'meter',
+            'progress-bar',
+            'push-button',
+            'radio',
+            'searchfield',
+            'slider-horizontal',
+            'square-button',
+            'textarea',
+        ],
+        '-webkit-appearance' => [
+            'none',
+            'auto',
+            'textfield',
+            'menulist-button',
+            'button',
+            'checkbox',
+            'listbox',
+            'menulist',
+            'meter',
+            'progress-bar',
+            'push-button',
+            'radio',
+            'searchfield',
+            'slider-horizontal',
+            'square-button',
+            'textarea',
+        ],
+        '-moz-appearance' => [
+            'none',
+            'auto',
+            'textfield',
+            'menulist-button',
+            'button',
+            'checkbox',
+            'listbox',
+            'menulist',
+            'meter',
+            'progress-bar',
+            'push-button',
+            'radio',
+            'searchfield',
+            'slider-horizontal',
+            'square-button',
+            'textarea',
+        ],
+        '-ms-appearance' => [
+            'none',
+            'auto',
+            'textfield',
+            'menulist-button',
+            'button',
+            'checkbox',
+            'listbox',
+            'menulist',
+            'meter',
+            'progress-bar',
+            'push-button',
+            'radio',
+            'searchfield',
+            'slider-horizontal',
+            'square-button',
+            'textarea',
+        ],
+    ];
 
     private const BACKGROUND_LONGHANDS = [
         'background-color',
@@ -13514,6 +13593,10 @@ final class DeclarationBlock
 
         if (isset(self::VIEW_TRANSITION_KEYWORDS[$property])) {
             return $this->normalizeKeywordDeclarationValue($value, self::VIEW_TRANSITION_KEYWORDS[$property]);
+        }
+
+        if (isset(self::UI_DIRECT_ENUM_KEYWORDS[$property])) {
+            return $this->normalizeKeywordDeclarationValue($value, self::UI_DIRECT_ENUM_KEYWORDS[$property]);
         }
 
         if ($property === 'border-spacing') {

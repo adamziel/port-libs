@@ -28,7 +28,7 @@ final class CssBundler
 
     private bool $cssModules = false;
 
-    /** @var array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,grid?:bool,container?:bool,projectRoot?:string,project_root?:string} */
+    /** @var array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,pure?:bool,unusedSymbols?:list<string>,unused_symbols?:list<string>,pseudoClasses?:array<string,string>,pseudo_classes?:array<string,string>,projectRoot?:string,project_root?:string} */
     private array $cssModuleOptions = [];
 
     /**
@@ -121,7 +121,7 @@ final class CssBundler
      *
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,projectRoot?:string,project_root?:string} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,pure?:bool,unusedSymbols?:list<string>,unused_symbols?:list<string>,pseudoClasses?:array<string,string>,pseudo_classes?:array<string,string>,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModules(string $entry, array $files, ?callable $resolver = null, array $options = []): array
     {
@@ -137,7 +137,7 @@ final class CssBundler
      *
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,projectRoot?:string,project_root?:string} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,pure?:bool,unusedSymbols?:list<string>,unused_symbols?:list<string>,pseudoClasses?:array<string,string>,pseudo_classes?:array<string,string>,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModulesWithSourceMap(
         string $entry,
@@ -157,7 +157,7 @@ final class CssBundler
      *
      * @param callable(string): string $reader
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,projectRoot?:string,project_root?:string} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,pure?:bool,unusedSymbols?:list<string>,unused_symbols?:list<string>,pseudoClasses?:array<string,string>,pseudo_classes?:array<string,string>,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModulesWithReader(string $entry, callable $reader, ?callable $resolver = null, array $options = []): array
     {
@@ -173,7 +173,7 @@ final class CssBundler
      *
      * @param callable(string): string $reader
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,projectRoot?:string,project_root?:string} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,pure?:bool,unusedSymbols?:list<string>,unused_symbols?:list<string>,pseudoClasses?:array<string,string>,pseudo_classes?:array<string,string>,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModulesWithReaderSourceMap(
         string $entry,
@@ -192,7 +192,7 @@ final class CssBundler
      * }
      *
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,projectRoot?:string,project_root?:string} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,pure?:bool,unusedSymbols?:list<string>,unused_symbols?:list<string>,pseudoClasses?:array<string,string>,pseudo_classes?:array<string,string>,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModulesFile(string $entry, ?callable $resolver = null, array $options = []): array
     {
@@ -207,7 +207,7 @@ final class CssBundler
      *
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,projectRoot?:string,project_root?:string} $cssModuleOptions
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,pure?:bool,unusedSymbols?:list<string>,unused_symbols?:list<string>,pseudoClasses?:array<string,string>,pseudo_classes?:array<string,string>,projectRoot?:string,project_root?:string} $cssModuleOptions
      * @param (callable(string): string)|null $reader
      */
     private function bundleInternal(
@@ -254,7 +254,7 @@ final class CssBundler
         $raw = $this->licenseCommentPrefix() . $this->inline(0, []);
         $raw = (new CustomMediaTransformer())->transform($raw);
 
-        $code = (new CssMinifier())->minify($raw);
+        $code = (new CssMinifier())->minify($raw, false, true);
         $exports = $cssModules ? $this->resolvedCssModuleExports(0) : [];
 
         return [
@@ -978,6 +978,7 @@ final class CssBundler
         $length = strlen($css);
         $cursor = 0;
         $importsAllowed = true;
+        $namespacesAllowed = true;
         $seenImport = false;
 
         while (true) {
@@ -1018,11 +1019,29 @@ final class CssBundler
                         'type' => 'layer-statement',
                         'raw' => $raw,
                     ];
+                } elseif ($this->startsAtKeyword($css, $cursor, '@namespace')) {
+                    if (!$namespacesAllowed) {
+                        $loc = $this->sourceLocation($css, $this->atKeywordEndOffset($css, $cursor, '@namespace') ?? $cursor + strlen('@namespace'));
+                        throw new CssBundleException(
+                            'parser-error',
+                            '@namespaces rules must precede all rules aside from @charset, @import, and @layer statements',
+                            $file,
+                            $loc['line'],
+                            $loc['column'],
+                        );
+                    }
+
+                    $importsAllowed = false;
+                    $items[] = [
+                        'type' => 'other',
+                        'raw' => $raw,
+                    ];
                 } elseif ($this->startsAtKeyword($css, $cursor, '@charset')) {
                     $this->validateCharsetStatement($raw, $file, $this->sourceLocation($css, $cursor));
                 } else {
                     if (!$this->startsAtKeyword($css, $cursor, '@charset')) {
                         $importsAllowed = false;
+                        $namespacesAllowed = false;
                     }
 
                     $items[] = [
@@ -1060,6 +1079,25 @@ final class CssBundler
 
                     if ($this->startsAtKeyword($css, $cursor, '@charset')) {
                         $this->validateCharsetStatement(substr($css, $cursor), $file, $this->sourceLocation($css, $cursor));
+                        break;
+                    }
+
+                    if ($this->startsAtKeyword($css, $cursor, '@namespace')) {
+                        if (!$namespacesAllowed) {
+                            $loc = $this->sourceLocation($css, $this->atKeywordEndOffset($css, $cursor, '@namespace') ?? $cursor + strlen('@namespace'));
+                            throw new CssBundleException(
+                                'parser-error',
+                                '@namespaces rules must precede all rules aside from @charset, @import, and @layer statements',
+                                $file,
+                                $loc['line'],
+                                $loc['column'],
+                            );
+                        }
+
+                        $items[] = [
+                            'type' => 'other',
+                            'raw' => substr($css, $cursor),
+                        ];
                         break;
                     }
 
@@ -1102,6 +1140,7 @@ final class CssBundler
             $close = $this->findMatchingDelimiter($css, $blockOpen, '{', '}');
             $this->assertNoNestedImportRules($css, $blockOpen + 1, $close, $file);
             $importsAllowed = false;
+            $namespacesAllowed = false;
             $items[] = [
                 'type' => 'other',
                 'raw' => substr($css, $cursor, $close - $cursor + 1),
@@ -2173,7 +2212,7 @@ final class CssBundler
     }
 
     /**
-     * @return array{hash?:string,filename:string,projectRoot?:string,pattern:string,minify:bool,dashedIdents:bool,animation:bool,grid:bool,container:bool,customIdents:bool,preserveDependencyComposesDuplicates:bool}
+     * @return array{hash?:string,filename:string,projectRoot?:string,pattern:string,minify:bool,dashedIdents:bool,animation:bool,grid:bool,container:bool,customIdents:bool,pure:bool,unusedSymbols?:list<string>,pseudoClasses?:array<string,string>,preserveDependencyComposesDuplicates:bool}
      */
     private function cssModuleTransformOptions(string $file): array
     {
@@ -2186,8 +2225,19 @@ final class CssBundler
             'grid' => ($this->cssModuleOptions['grid'] ?? true) !== false,
             'container' => ($this->cssModuleOptions['container'] ?? true) !== false,
             'customIdents' => ($this->cssModuleOptions['customIdents'] ?? $this->cssModuleOptions['custom_idents'] ?? true) !== false,
+            'pure' => ($this->cssModuleOptions['pure'] ?? false) === true,
             'preserveDependencyComposesDuplicates' => true,
         ];
+
+        $unusedSymbols = $this->cssModuleOptions['unusedSymbols'] ?? $this->cssModuleOptions['unused_symbols'] ?? null;
+        if (is_array($unusedSymbols)) {
+            $options['unusedSymbols'] = array_values(array_filter($unusedSymbols, 'is_string'));
+        }
+
+        $pseudoClasses = $this->cssModuleOptions['pseudoClasses'] ?? $this->cssModuleOptions['pseudo_classes'] ?? null;
+        if (is_array($pseudoClasses)) {
+            $options['pseudoClasses'] = array_filter($pseudoClasses, 'is_string');
+        }
 
         $projectRoot = $this->cssModuleProjectRoot();
         if ($projectRoot !== null) {

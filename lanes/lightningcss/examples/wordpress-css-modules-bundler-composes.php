@@ -120,6 +120,106 @@ if ($optionResult !== $expectedOptionResult) {
     exit(1);
 }
 
+$advancedOptionResult = (new CssBundler())->bundleCssModules('/entry.module.css', [
+    '/entry.module.css' => <<<'CSS'
+.entry:hover {
+  color: red;
+}
+
+.entry {
+  composes: card from "./card.module.css";
+  color: blue;
+}
+
+.entryUnused {
+  color: green;
+}
+CSS,
+    '/card.module.css' => <<<'CSS'
+.card:hover {
+  color: yellow;
+}
+
+.card {
+  color: white;
+}
+
+.cardUnused {
+  color: purple;
+}
+CSS,
+], null, [
+    'hashes' => [
+        '/entry.module.css' => 'entry',
+        '/card.module.css' => 'card',
+    ],
+    'pseudoClasses' => [
+        'hover' => 'is-hovered',
+    ],
+    'unusedSymbols' => [
+        'entryUnused',
+        'cardUnused',
+    ],
+]);
+
+$expectedAdvancedOptionResult = [
+    'code' => '.card_card.card_is-hovered{color:#ff0}.card_card{color:#fff}.entry_entry.entry_is-hovered{color:red}.entry_entry{color:#00f}',
+    'exports' => [
+        'entry' => [
+            'name' => 'entry_entry',
+            'composes' => [
+                ['type' => 'local', 'name' => 'card_card'],
+            ],
+            'isReferenced' => false,
+        ],
+        'is-hovered' => [
+            'name' => 'entry_is-hovered',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+    ],
+];
+
+if ($advancedOptionResult !== $expectedAdvancedOptionResult) {
+    fwrite(STDERR, "Unexpected CSS Modules advanced bundled option output:\n" . var_export($advancedOptionResult, true) . "\n");
+    exit(1);
+}
+
+$pureRejected = false;
+try {
+    (new CssBundler())->bundleCssModules('/entry.module.css', [
+        '/entry.module.css' => <<<'CSS'
+.entry {
+  composes: card from "./card.module.css";
+  color: red;
+}
+CSS,
+        '/card.module.css' => <<<'CSS'
+:global(.legacy) {
+  color: blue;
+}
+
+.card {
+  color: green;
+}
+CSS,
+    ], null, [
+        'hashes' => [
+            '/entry.module.css' => 'entry',
+            '/card.module.css' => 'card',
+        ],
+        'pure' => true,
+    ]);
+} catch (InvalidArgumentException) {
+    $pureRejected = true;
+}
+
+if (!$pureRejected) {
+    fwrite(STDERR, "Expected CSS Modules bundled pure mode to reject impure dependency selectors.\n");
+    exit(1);
+}
+
 echo $result['code'] . PHP_EOL;
 echo 'source-index-composes: preserved' . PHP_EOL;
 echo 'css-module-options: forwarded' . PHP_EOL;
+echo 'css-module-advanced-options: forwarded' . PHP_EOL;

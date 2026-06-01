@@ -376,6 +376,45 @@ CSS,
 
         throw new RuntimeException('Expected late @import after @namespace exception');
     },
+    'css bundler preserves upstream namespace statements after resolved imports' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '.b{color:green}@namespace svg "http://www.w3.org/2000/svg";svg|path{fill:red}',
+            $bundle([
+                '/a.css' => '@import "b.css"; @namespace svg url(http://www.w3.org/2000/svg); svg|path { fill: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@layer reset;.b{color:green}@namespace svg "http://www.w3.org/2000/svg";svg|path{fill:red}',
+            $bundle([
+                '/a.css' => '@layer reset; @import "b.css"; @namespace svg "http://www.w3.org/2000/svg"; svg|path { fill: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $reads = [];
+        try {
+            (new CssBundler())->bundleWithReader('/a.css', static function (string $file) use (&$reads): string {
+                $reads[] = $file;
+
+                return $file === '/a.css'
+                    ? '@import "b.css"; .entry { color: red } @namespace svg "http://www.w3.org/2000/svg"; svg|path { fill: red }'
+                    : '.b { color: green }';
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('parser-error', $exception->kind);
+            $t->same('@namespaces rules must precede all rules aside from @charset, @import, and @layer statements', $exception->getMessage());
+            $t->same('/a.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(50, $exception->sourceColumn);
+            $t->same(['/a.css'], $reads);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected late namespace parser exception before dependency reads');
+    },
     'css bundler treats post-import layer statements as import prelude barriers' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@layer base;.base{color:green}@layer components;.entry{color:red}',
@@ -2683,6 +2722,106 @@ CSS,
                 'isReferenced' => true,
             ],
         ], $result['exports']);
+    },
+    'css bundler passes upstream css module pseudo classes through compose graph' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleLocal): void {
+        $result = $bundleModules([
+            '/entry.css' => <<<'CSS'
+.entry:hover {
+  color: red;
+}
+
+.entry {
+  composes: card from "./card.css";
+  color: blue;
+}
+CSS,
+            '/card.css' => <<<'CSS'
+.card:hover {
+  color: yellow;
+}
+
+.card {
+  color: white;
+}
+CSS,
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/card.css' => 'dep',
+            ],
+            'pseudoClasses' => [
+                'hover' => 'is-hovered',
+            ],
+        ]);
+
+        $t->same('.dep_card.dep_is-hovered{color:#ff0}.dep_card{color:#fff}.entry_entry.entry_is-hovered{color:red}.entry_entry{color:#00f}', $result['code']);
+        $t->same([
+            'entry' => $moduleExport('entry_entry', [
+                $moduleLocal('dep_card'),
+            ]),
+            'is-hovered' => $moduleExport('entry_is-hovered'),
+        ], $result['exports']);
+    },
+    'css bundler passes upstream css module unused symbols through compose graph' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleLocal): void {
+        $result = $bundleModules([
+            '/entry.css' => <<<'CSS'
+.entry {
+  composes: card from "./card.css";
+  color: red;
+}
+
+.drop {
+  color: blue;
+}
+CSS,
+            '/card.css' => <<<'CSS'
+.card {
+  color: green;
+}
+
+.drop {
+  color: yellow;
+}
+CSS,
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/card.css' => 'dep',
+            ],
+            'unusedSymbols' => ['drop'],
+        ]);
+
+        $t->same('.dep_card{color:green}.entry_entry{color:red}', $result['code']);
+        $t->same([
+            'entry' => $moduleExport('entry_entry', [
+                $moduleLocal('dep_card'),
+            ]),
+        ], $result['exports']);
+    },
+    'css bundler passes upstream css module pure option through compose graph' => static function (TestRunner $t) use ($bundleModules): void {
+        $t->throws(InvalidArgumentException::class, static fn () => $bundleModules([
+            '/entry.css' => <<<'CSS'
+.entry {
+  composes: card from "./card.css";
+  color: red;
+}
+CSS,
+            '/card.css' => <<<'CSS'
+:global(.legacy) {
+  color: blue;
+}
+
+.card {
+  color: green;
+}
+CSS,
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/card.css' => 'dep',
+            ],
+            'pure' => true,
+        ]));
     },
     'css bundler maps upstream file-backed css modules import graph' => static function (TestRunner $t) use ($withTempFiles, $moduleExport, $moduleLocal): void {
         $withTempFiles([
