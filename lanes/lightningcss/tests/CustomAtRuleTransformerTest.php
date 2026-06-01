@@ -814,6 +814,56 @@ CSS;
         $t->same('compact compact', $seen['rules']['mode']['prelude']);
         $t->same(['compact', 'compact'], array_column($seen['rules']['mode']['preludeAst']['value']['components'], 'value'));
     },
+    'custom at-rules parse upstream unicode SyntaxString identifiers before visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@slot café;
+@tokens --wp-échelle --wp-accent;
+@mode édition édition;
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'slot' => ['prelude' => '<custom-ident>'],
+            'tokens' => ['prelude' => '<dashed-ident>+'],
+            'mode' => ['prelude' => 'édition+'],
+        ], [
+            'CustomIdent' => static fn (string $ident): string => 'wp-' . $ident,
+            'DashedIdent' => static fn (string $ident): string => str_starts_with($ident, '--wp-')
+                ? '--theme-' . substr($ident, 5)
+                : $ident,
+            'Rule' => [
+                'custom' => static function (array $rule) use (&$seen): array {
+                    $seen[$rule['name']] = [
+                        'prelude' => $rule['prelude'],
+                        'preludeAst' => $rule['preludeAst'],
+                    ];
+
+                    return [];
+                },
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same('wp-café', $seen['slot']['prelude']);
+        $t->same(['type' => 'custom-ident', 'value' => 'wp-café'], $seen['slot']['preludeAst']);
+        $t->same('--theme-échelle --theme-accent', $seen['tokens']['prelude']);
+        $t->same(['--theme-échelle', '--theme-accent'], array_column(
+            $seen['tokens']['preludeAst']['value']['components'],
+            'value'
+        ));
+        $t->same('édition édition', $seen['mode']['prelude']);
+        $t->same(['literal', 'literal'], array_column($seen['mode']['preludeAst']['value']['components'], 'type'));
+        $t->same(['édition', 'édition'], array_column($seen['mode']['preludeAst']['value']['components'], 'value'));
+
+        $transformer = new CustomAtRuleTransformer();
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@slot default;', [
+            'slot' => ['prelude' => '<custom-ident>'],
+        ]));
+    },
     'custom at-rules decode upstream escaped at-rule names before parser lookup' => static function (TestRunner $t): void {
         $mixins = [];
         $seen = [];

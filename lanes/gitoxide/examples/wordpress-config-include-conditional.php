@@ -58,5 +58,6 @@ return [
     'environmentNamedUserPolicy' => $fixture['environmentNamedUserPolicy'],
     'namedUserPathPolicy' => $fixture['namedUserPathPolicy'],
     'namedUserGitdirPolicy' => $fixture['namedUserGitdirPolicy'],
+    'mixedCaseIncludeIfPolicy' => $fixture['mixedCaseIncludeIfPolicy'],
     'sectionsLoaded' => $fixture['sectionsLoaded'],
 ];

@@ -17,6 +17,11 @@ $css = <<<'CSS'
   color: white;
 }
 
+.block::part(media):hover,
+.block::picker(select):open {
+  color: var(--wp--preset--color--contrast);
+}
+
 :global(.wp-block-list)::marker {
   color: currentColor;
 }
@@ -34,7 +39,10 @@ $result = $transformer->transform($css, [
 $invalid = [];
 foreach ([
     '.block::selection .child { color: red }',
+    '.block::part(media) .child { color: red }',
+    '.block::picker(select) .child { color: red }',
     ':global(.wp-block-list::marker .child) .block { color: red }',
+    ':global(.wp-block-navigation::part(label) .child) .block { color: red }',
 ] as $source) {
     try {
         $transformer->transform($source, [
@@ -54,7 +62,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '.BlockA_block{color:red}.BlockA_block::selection{background:var(--wp--preset--color--contrast);color:#fff}.wp-block-list::marker{color:currentColor}.BlockA_reset{margin:0}',
+    'code' => '.BlockA_block{color:red}.BlockA_block::selection{background:var(--wp--preset--color--contrast);color:#fff}.BlockA_block::part(media):hover,.BlockA_block::picker(select):open{color:var(--wp--preset--color--contrast)}.wp-block-list::marker{color:currentColor}.BlockA_reset{margin:0}',
     'exports' => [
         'block' => [
             'name' => 'BlockA_block',
@@ -75,7 +83,10 @@ $expected = [
     'blockClassList' => 'BlockA_block BlockA_reset',
     'invalid' => [
         '.block::selection .child { color: red }' => 'CSS pseudo-elements cannot be followed by selectors',
+        '.block::part(media) .child { color: red }' => 'CSS pseudo-elements cannot be followed by selectors',
+        '.block::picker(select) .child { color: red }' => 'CSS pseudo-elements cannot be followed by selectors',
         ':global(.wp-block-list::marker .child) .block { color: red }' => 'CSS pseudo-elements cannot be followed by selectors',
+        ':global(.wp-block-navigation::part(label) .child) .block { color: red }' => 'CSS pseudo-elements cannot be followed by selectors',
     ],
 ];
 

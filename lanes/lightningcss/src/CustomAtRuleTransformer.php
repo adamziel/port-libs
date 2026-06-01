@@ -3149,7 +3149,7 @@ final class CustomAtRuleTransformer
             return $this->tryCustomComponentValueAst($prelude, $type);
         }
 
-        if (preg_match('/^(-?[_a-zA-Z][-_a-zA-Z0-9]*)([+#]?)$/', $grammar, $matches) === 1) {
+        if (preg_match('/^(-?(?:[_a-zA-Z\x{0080}-\x{10FFFF}])[-_a-zA-Z0-9\x{0080}-\x{10FFFF}]*)([+#]?)$/u', $grammar, $matches) === 1) {
             $literal = $matches[1];
             $multiplier = $matches[2] ?? '';
             if ($multiplier === '+') {
@@ -3262,7 +3262,7 @@ final class CustomAtRuleTransformer
             'custom-ident' => $identifier !== null && $this->isCustomIdentToken($identifier)
                 ? ['matched' => true, 'value' => ['type' => 'custom-ident', 'value' => $identifier]]
                 : ['matched' => false, 'value' => null],
-            'dashed-ident' => $identifier !== null && preg_match('/^--[-_a-zA-Z0-9]+$/', $identifier) === 1
+            'dashed-ident' => $identifier !== null && str_starts_with($identifier, '--') && $this->isCssIdentifierToken($identifier)
                 ? ['matched' => true, 'value' => ['type' => 'dashed-ident', 'value' => $identifier]]
                 : ['matched' => false, 'value' => null],
             'length' => $this->tryCustomLengthPreludeAst($value),
@@ -6469,8 +6469,20 @@ final class CustomAtRuleTransformer
 
     private function isCustomIdentToken(string $token): bool
     {
-        return preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', trim($token)) === 1
-            && !in_array(strtolower(trim($token)), ['inherit', 'initial', 'revert', 'revert-layer', 'unset'], true);
+        $token = trim($token);
+
+        return $this->isCssIdentifierToken($token)
+            && !in_array(strtolower($token), ['inherit', 'initial', 'revert', 'revert-layer', 'unset', 'default'], true);
+    }
+
+    private function isCssIdentifierToken(string $token): bool
+    {
+        $token = trim($token);
+        if ($token === '' || preg_match('/\s/', $token) === 1) {
+            return false;
+        }
+
+        return preg_match('/^(?:-?[_a-zA-Z\x{0080}-\x{10FFFF}][-_a-zA-Z0-9\x{0080}-\x{10FFFF}]*|--[-_a-zA-Z0-9\x{0080}-\x{10FFFF}]*)$/u', $token) === 1;
     }
 
     private function applyDashedIdentVisitor(string $ident): string
@@ -6483,7 +6495,7 @@ final class CustomAtRuleTransformer
         if ($replacement === null) {
             return $ident;
         }
-        if (!is_string($replacement) || !str_starts_with($replacement, '--')) {
+        if (!is_string($replacement) || !str_starts_with($replacement, '--') || !$this->isCssIdentifierToken($replacement)) {
             throw new \InvalidArgumentException('DashedIdent visitor must return a dashed identifier string');
         }
 

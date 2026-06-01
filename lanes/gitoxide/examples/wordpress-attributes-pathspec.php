@@ -34,6 +34,11 @@ $doubleStarAttributes = GitAttributes::fromString(
     . "wp-content/plugins/**/block.json recursive-block\n",
     withBuiltInMacros: false,
 );
+$lfByteAttributes = GitAttributes::fromString(
+    "wp-content/uploads/** lf-upload\n"
+    . "wp-content/uploads/exact.jpg exact-upload\n",
+    withBuiltInMacros: false,
+);
 $backslashAttributes = GitAttributes::fromString(
     'wp-content/plugins/f\\\\oo/block.json backslash-plugin' . "\n"
     . 'wp-content/plugins/f/oo/block.json slash-plugin' . "\n",
@@ -126,6 +131,15 @@ $topLevelDoubleStarSearch = PathspecSearch::fromSpecs([
 $recursiveDoubleStarSearch = PathspecSearch::fromSpecs([
     ':(glob,attr:recursive-block)wp-content/plugins/**/block.json',
 ]);
+$lfByteShellStarSearch = PathspecSearch::fromSpecs([
+    ':(attr:lf-upload)wp-content/uploads/*hero.jpg',
+]);
+$lfBytePathAwareQuestionSearch = PathspecSearch::fromSpecs([
+    ':(glob,attr:lf-upload)wp-content/uploads/?hero.jpg',
+]);
+$trailingLfWildcardSearch = PathspecSearch::fromSpecs([
+    'wp-content/uploads/*.jpg',
+]);
 $nestedDeploymentSearch = PathspecSearch::fromSpecs([
     ':(attr:deploy=plugin)wp-content/plugins/**',
     ':(attr:deploy=theme)wp-content/themes/**',
@@ -137,6 +151,9 @@ $quotedFormFeedPath = "wp-content/uploads/form\x0chero.jpg";
 $formFeedOnlyPath = "\f";
 $spacedFormFeedOnlyPath = " \f ";
 $embeddedFormFeedPath = "wp-content/uploads/slot\fhero.jpg";
+$lfBytePath = "wp-content/uploads/line\nhero.jpg";
+$lfByteQuestionPath = "wp-content/uploads/\nhero.jpg";
+$trailingLfPath = "wp-content/uploads/exact.jpg\n";
 $quotedSpaceSearch = PathspecSearch::fromSpecs([':(attr:quoted-space)wp-content/uploads/**']);
 $quotedFormFeedSearch = PathspecSearch::fromSpecs([':(attr:formfeed-upload)wp-content/uploads/**']);
 $valueTabRequirementRejected = false;
@@ -301,6 +318,45 @@ return [
         'wp-content/plugins/nested/xblock.json',
         false,
         $doubleStarAttributes,
+    ),
+    'lfByteUploadAttributes' => $lfByteAttributes->attributesForPath(
+        $lfBytePath,
+        ['lf-upload'],
+    ),
+    'lfByteShellStarPathspecMatches' => PathspecMatcher::matchesOne(
+        ':(attr:lf-upload)wp-content/uploads/*hero.jpg',
+        $lfBytePath,
+        false,
+        $lfByteAttributes,
+    ),
+    'lfByteShellQuestionPathspecMatches' => PathspecMatcher::matchesOne(
+        ':(attr:lf-upload)wp-content/uploads/?hero.jpg',
+        $lfByteQuestionPath,
+        false,
+        $lfByteAttributes,
+    ),
+    'lfByteSearchShellStarMatches' => $lfByteShellStarSearch->isIncluded(
+        $lfBytePath,
+        false,
+        $lfByteAttributes,
+    ),
+    'lfBytePathAwareQuestionMatches' => $lfBytePathAwareQuestionSearch->isIncluded(
+        $lfByteQuestionPath,
+        false,
+        $lfByteAttributes,
+    ),
+    'trailingLfExactAttributeSkipped' => $lfByteAttributes->attributesForPath(
+        $trailingLfPath,
+        ['exact-upload'],
+    ),
+    'trailingLfWildcardPathspecSkipped' => !PathspecMatcher::matchesOne(
+        'wp-content/uploads/*.jpg',
+        $trailingLfPath,
+        false,
+    ),
+    'trailingLfSearchPathspecSkipped' => !$trailingLfWildcardSearch->isIncluded(
+        $trailingLfPath,
+        false,
     ),
     'backslashPathAttributes' => $backslashAttributes->attributesForPath(
         $backslashPath,

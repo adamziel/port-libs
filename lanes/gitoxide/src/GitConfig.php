@@ -7,7 +7,7 @@ namespace PortLibs\Gitoxide;
 final class GitConfig
 {
     /**
-     * @param list<array{name:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}> $sections
+     * @param list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}> $sections
      */
     private function __construct(private array $sections)
     {
@@ -120,7 +120,15 @@ final class GitConfig
      */
     public function sections(): array
     {
-        return $this->sections;
+        return array_map(
+            static fn (array $section): array => [
+                'name' => $section['name'],
+                'subsection' => $section['subsection'],
+                'entries' => $section['entries'],
+                'path' => $section['path'],
+            ],
+            $this->sections,
+        );
     }
 
     /**
@@ -180,7 +188,7 @@ final class GitConfig
     }
 
     /**
-     * @return array{sections:list<array{name:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}>,path:?string}
+     * @return array{sections:list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}>,path:?string}
      */
     private static function parseFile(string $path): array
     {
@@ -193,7 +201,7 @@ final class GitConfig
     }
 
     /**
-     * @return array{sections:list<array{name:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}>,path:?string}
+     * @return array{sections:list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}>,path:?string}
      */
     private static function parse(string $contents, ?string $path): array
     {
@@ -214,6 +222,7 @@ final class GitConfig
                 );
                 $section = [
                     'name' => strtolower($sectionName),
+                    'rawName' => $sectionName,
                     'subsection' => $subsection,
                     'entries' => [],
                     'path' => $path,
@@ -242,7 +251,7 @@ final class GitConfig
 
     /**
      * @param array<int|string, array{key?:string,value?:string,0?:string,1?:string}|string> $entries
-     * @return array{sections:list<array{name:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}>,path:?string}
+     * @return array{sections:list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}>,path:?string}
      */
     private static function parseEnvironmentPairs(array $entries): array
     {
@@ -275,6 +284,7 @@ final class GitConfig
             if ($sectionIndex === null) {
                 $sections[] = [
                     'name' => $parsed['name'],
+                    'rawName' => $parsed['rawName'],
                     'subsection' => $parsed['subsection'],
                     'entries' => [],
                     'path' => null,
@@ -292,7 +302,7 @@ final class GitConfig
     }
 
     /**
-     * @return array{name:string,subsection:?string,key:string}|null
+     * @return array{name:string,rawName:string,subsection:?string,key:string}|null
      */
     private static function parseEnvironmentKey(string $key): ?array
     {
@@ -325,6 +335,7 @@ final class GitConfig
 
         return [
             'name' => strtolower($sectionName),
+            'rawName' => $sectionName,
             'subsection' => $subsection,
             'key' => strtolower($valueName),
         ];
@@ -475,8 +486,8 @@ final class GitConfig
     }
 
     /**
-     * @param array{sections:list<array{name:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}>,path:?string} $target
-     * @param list<array{name:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}>|null $searchSections
+     * @param array{sections:list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}>,path:?string} $target
+     * @param list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}>|null $searchSections
      * @param array{
      *     gitDir: ?string,
      *     branchName: ?string,
@@ -529,18 +540,20 @@ final class GitConfig
     }
 
     /**
-     * @param array{name:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string} $section
-     * @param list<array{name:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}> $searchSections
+     * @param array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string} $section
+     * @param list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}> $searchSections
      * @param array<string, mixed> $options
      * @return list<string>
      */
     private static function includePathsForSection(array $section, array $searchSections, array $options): array
     {
-        if ($section['name'] === 'include' && $section['subsection'] === null) {
+        $rawName = $section['rawName'] ?? $section['name'];
+
+        if ($rawName === 'include' && $section['subsection'] === null) {
             return self::sectionValues($section, 'path');
         }
 
-        if ($section['name'] !== 'includeif' || $section['subsection'] === null) {
+        if ($rawName !== 'includeIf' || $section['subsection'] === null) {
             return [];
         }
 
@@ -552,7 +565,7 @@ final class GitConfig
     }
 
     /**
-     * @param array{name:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string} $section
+     * @param array{name:string,rawName?:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string} $section
      * @return list<string>
      */
     private static function sectionValues(array $section, string $key): array
@@ -568,7 +581,7 @@ final class GitConfig
     }
 
     /**
-     * @param list<array{name:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}> $searchSections
+     * @param list<array{name:string,rawName?:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}> $searchSections
      * @param array<string, mixed> $options
      */
     private static function includeConditionMatches(string $condition, ?string $targetConfigPath, array $searchSections, array $options): bool

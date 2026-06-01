@@ -25,15 +25,15 @@ final class SQLiteJsonUpsertMigrationPlan
         $plan = SQLiteUpsertDoUpdateWherePlan::execute(
             $rows,
             $preparedIncoming,
-            ['option_name'],
+            ['key_name'],
             [
-                'option_value' => static fn (array $current, array $excluded): string => self::applyJsonSetValues(
-                    self::requireString($current, 'option_value', 'current'),
+                'key_value' => static fn (array $current, array $excluded): string => self::applyJsonSetValues(
+                    self::requireString($current, 'key_value', 'current'),
                     $excluded,
                     $jsonSetValues,
                     $current,
                 ),
-                'autoload' => static fn (array $current, array $excluded): mixed => $excluded['autoload'] ?? ($current['autoload'] ?? null),
+                'load_policy' => static fn (array $current, array $excluded): mixed => $excluded['load_policy'] ?? ($current['load_policy'] ?? null),
                 'migration_generation' => static fn (array $current, array $excluded): int => max(
                     (int) ($current['migration_generation'] ?? 0),
                     (int) ($excluded['migration_generation'] ?? 0),
@@ -57,8 +57,8 @@ final class SQLiteJsonUpsertMigrationPlan
      */
     private static function prepareIncoming(array $row, array $jsonSetValues): array
     {
-        $row['option_value'] = self::applyJsonSetValues(
-            self::requireString($row, 'option_value', 'incoming'),
+        $row['key_value'] = self::applyJsonSetValues(
+            self::requireString($row, 'key_value', 'incoming'),
             $row,
             $jsonSetValues,
             null,
@@ -115,7 +115,7 @@ final class SQLiteJsonUpsertMigrationPlan
         }
         if (array_key_exists('excluded_json', $value)) {
             return SQLiteJsonExtract::extractJsonArgument(
-                self::requireString($excluded, 'option_value', 'excluded'),
+                self::requireString($excluded, 'key_value', 'excluded'),
                 self::requireJsonPath($value['excluded_json']),
             );
         }
@@ -125,7 +125,7 @@ final class SQLiteJsonUpsertMigrationPlan
             }
 
             return SQLiteJsonExtract::extractJsonArgument(
-                self::requireString($current, 'option_value', 'current'),
+                self::requireString($current, 'key_value', 'current'),
                 self::requireJsonPath($value['current_json']),
             );
         }
@@ -139,12 +139,12 @@ final class SQLiteJsonUpsertMigrationPlan
      */
     private static function decodeReturningRow(array $row): array
     {
-        $decoded = json_decode(self::requireString($row, 'option_value', 'returning'), true, 512, JSON_THROW_ON_ERROR);
+        $decoded = json_decode(self::requireString($row, 'key_value', 'returning'), true, 512, JSON_THROW_ON_ERROR);
         if (!is_array($decoded)) {
-            throw new \InvalidArgumentException('SQLite Application JSON UPSERT migration option_value must decode to an object or array');
+            throw new \InvalidArgumentException('SQLite Application JSON UPSERT migration key_value must decode to an object or array');
         }
 
-        return $row + ['decoded_option_value' => $decoded];
+        return $row + ['decoded_key_value' => $decoded];
     }
 
     /**

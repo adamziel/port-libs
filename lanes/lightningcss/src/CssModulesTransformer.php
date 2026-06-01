@@ -2063,6 +2063,15 @@ final class CssModulesTransformer
             ];
         }
 
+        if ($colonLength === 2 && in_array($name, ['part', 'picker'], true) && ($selector[$token['end']] ?? '') === '(') {
+            $close = $this->findMatchingParen($selector, $token['end']);
+
+            return [
+                'end' => $close + 1,
+                'allowPseudoClasses' => true,
+            ];
+        }
+
         if ($name === 'slotted' && ($selector[$token['end']] ?? '') === '(') {
             $close = $this->findMatchingParen($selector, $token['end']);
 

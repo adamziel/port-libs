@@ -269,6 +269,44 @@ return [
         $shellGlob = PathspecSearch::fromSpecs(['wp-content/plugins/**.php']);
         $t->same(true, $shellGlob->isIncluded('wp-content/plugins/nested/index.php', false));
     },
+    'attribute pathspec filters treat LF bytes and true end anchors like gix wildmatch' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString(
+            "wp-content/uploads/** lf-upload\n"
+            . "wp-content/uploads/exact.jpg exact-upload\n",
+            withBuiltInMacros: false,
+        );
+        $lfPath = "wp-content/uploads/line\nhero.jpg";
+        $lfQuestionPath = "wp-content/uploads/\nhero.jpg";
+        $trailingLfPath = "wp-content/uploads/exact.jpg\n";
+
+        $t->same(['lf-upload' => true], $attributes->attributesForPath($lfPath, ['lf-upload']));
+        $t->same(['lf-upload' => true], $attributes->attributesForPath($lfQuestionPath, ['lf-upload']));
+        $t->same(['exact-upload' => null], $attributes->attributesForPath($trailingLfPath, ['exact-upload']));
+
+        $t->same(true, PathspecMatcher::matchesOne(
+            ':(attr:lf-upload)wp-content/uploads/*hero.jpg',
+            $lfPath,
+            false,
+            $attributes,
+        ));
+        $t->same(true, PathspecMatcher::matchesOne(
+            ':(attr:lf-upload)wp-content/uploads/?hero.jpg',
+            $lfQuestionPath,
+            false,
+            $attributes,
+        ));
+        $t->same(false, PathspecMatcher::matchesOne('wp-content/uploads/*.jpg', $trailingLfPath, false));
+
+        $t->same(true, PathspecSearch::fromSpecs([
+            ':(attr:lf-upload)wp-content/uploads/*hero.jpg',
+        ])->isIncluded($lfPath, false, $attributes));
+        $t->same(true, PathspecSearch::fromSpecs([
+            ':(glob,attr:lf-upload)wp-content/uploads/?hero.jpg',
+        ])->isIncluded($lfQuestionPath, false, $attributes));
+        $t->same(false, PathspecSearch::fromSpecs([
+            'wp-content/uploads/*.jpg',
+        ])->isIncluded($trailingLfPath, false));
+    },
     'malformed bracket pathspecs fall back verbatim while attributes keep gix wildmatch aborts' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString(
             "wp-content/uploads/foo[ malformed\n"
@@ -747,6 +785,14 @@ return [
         $t->same(true, $example['quotedSpaceUploadOctalTextSkipped']);
         $t->same(true, $example['quotedFormFeedUploadPathspecMatches']);
         $t->same(true, $example['invalidQuotedEscapeAttributeSkipped']);
+        $t->same(['lf-upload' => true], $example['lfByteUploadAttributes']);
+        $t->same(true, $example['lfByteShellStarPathspecMatches']);
+        $t->same(true, $example['lfByteShellQuestionPathspecMatches']);
+        $t->same(true, $example['lfByteSearchShellStarMatches']);
+        $t->same(true, $example['lfBytePathAwareQuestionMatches']);
+        $t->same(['exact-upload' => null], $example['trailingLfExactAttributeSkipped']);
+        $t->same(true, $example['trailingLfWildcardPathspecSkipped']);
+        $t->same(true, $example['trailingLfSearchPathspecSkipped']);
         $t->same(['backslash-plugin' => true], $example['backslashPathAttributes']);
         $t->same(['backslash-plugin' => null], $example['slashPathDoesNotMatchBackslashAttribute']);
         $t->same(true, $example['backslashPathspecMatchesByte']);

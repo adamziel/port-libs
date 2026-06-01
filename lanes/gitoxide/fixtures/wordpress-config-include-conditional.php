@@ -235,6 +235,11 @@ $write($repo . '/named-user-gitdir.config', <<<CFG
 namedUserGitdir = matched
 CFG);
 
+$write($repo . '/mixed-case-includeif.config', <<<CFG
+[wordpress]
+mixedCaseIncludeIf = should-not-load
+CFG);
+
 $write($root . '/environment-named-user.config', <<<CFG
 [wordpress]
 environmentNamedUser = matched
@@ -362,6 +367,8 @@ path = ../absolute-worktree-glob.config
 path = ~{$namedDeployUser}/named-user-path.config
 [includeIf "gitdir:~{$namedDeployUser}/sites/wp-content.git/"]
 path = ../named-user-gitdir.config
+[includeif "gitdir:wp-content.git/"]
+path = ../mixed-case-includeif.config
 CFG);
 
 $config = GitConfig::fromFile($gitDir . '/config', [
@@ -500,6 +507,7 @@ return [
     'environmentNamedUserPolicy' => $environmentConfig->value('wordpress', null, 'environmentNamedUser'),
     'namedUserPathPolicy' => $config->value('wordpress', null, 'namedUserPath'),
     'namedUserGitdirPolicy' => $config->value('wordpress', null, 'namedUserGitdir'),
+    'mixedCaseIncludeIfPolicy' => $config->value('wordpress', null, 'mixedCaseIncludeIf'),
     'sectionsLoaded' => array_map(
         static fn (array $section): string => $section['subsection'] === null
             ? $section['name']

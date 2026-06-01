@@ -369,7 +369,9 @@ CSS);
 .card::selection,
 :global(.wp-block-list)::marker,
 .card::-webkit-input-placeholder,
-.card::file-selector-button:hover {
+.card::file-selector-button:hover,
+.card::part(icon):hover,
+.card::picker(select):open {
   color: red;
 }
 
@@ -383,7 +385,7 @@ CSS);
 }
 CSS);
 
-        $t->same('.EgL3uq_card::selection,.wp-block-list::marker,.EgL3uq_card::-webkit-input-placeholder,.EgL3uq_card::file-selector-button:hover{color:red}.EgL3uq_button{color:#00f}.EgL3uq_card{color:green}', $result['code']);
+        $t->same('.EgL3uq_card::selection,.wp-block-list::marker,.EgL3uq_card::-webkit-input-placeholder,.EgL3uq_card::file-selector-button:hover,.EgL3uq_card::part(icon):hover,.EgL3uq_card::picker(select):open{color:red}.EgL3uq_button{color:#00f}.EgL3uq_card{color:green}', $result['code']);
         $t->same([
             'card' => $export('EgL3uq_card'),
             'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
@@ -398,6 +400,12 @@ CSS);
             '.card::placeholder::before { color: red }',
             '.card::-webkit-scrollbar-thumb .child { color: red }',
             '.card::view-transition .child { color: red }',
+            '.card::part(icon) .child { color: red }',
+            ':global(.legacy::part(icon) .child) .card { color: red }',
+            ':local(.card::picker(select) .child) { color: red }',
+            '.card::picker(select) .child { color: red }',
+            '.card::part(icon) { composes: base; color: red }',
+            '.card::picker(select) { composes: base; color: red }',
         ] as $css) {
             $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
         }

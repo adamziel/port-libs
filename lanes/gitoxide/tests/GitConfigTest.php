@@ -1204,6 +1204,70 @@ return [
         $t->same('works', $config->value('user', null, 'name'));
     },
 
+    'include directive section names stay exact case like gix-config resolution' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $root = $tmpDir();
+        $worktree = $root . '/worktree';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+
+        $write($root . '/mixed-include.config', "[case]\nmixedInclude = should-not-load\n");
+        $write($root . '/exact-include.config', "[case]\nexactInclude = matched\n");
+        $write($root . '/lower-includeif.config', "[case]\nlowerIncludeIf = should-not-load\n");
+        $write($root . '/mixed-includeif.config', "[case]\nmixedIncludeIf = should-not-load\n");
+        $write($root . '/exact-includeif.config', "[case]\nexactIncludeIf = matched\n");
+        $write($root . '/config', <<<CFG
+        [Include]
+        path = mixed-include.config
+        [include]
+        path = exact-include.config
+        [includeif "gitdir:worktree/"]
+        path = lower-includeif.config
+        [IncludeIf "gitdir:worktree/"]
+        path = mixed-includeif.config
+        [includeIf "gitdir:worktree/"]
+        path = exact-includeif.config
+        CFG);
+
+        $config = GitConfig::fromFile($root . '/config', [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+        ]);
+
+        $t->same(null, $config->value('case', null, 'mixedInclude'));
+        $t->same('matched', $config->value('case', null, 'exactInclude'));
+        $t->same(null, $config->value('case', null, 'lowerIncludeIf'));
+        $t->same(null, $config->value('case', null, 'mixedIncludeIf'));
+        $t->same('matched', $config->value('case', null, 'exactIncludeIf'));
+
+        $write($root . '/env-mixed-include.config', "[envcase]\nmixedInclude = should-not-load\n");
+        $write($root . '/env-lower-includeif.config', "[envcase]\nlowerIncludeIf = should-not-load\n");
+
+        $config = GitConfig::fromEnvironmentPairs([
+            ['key' => 'Include.path', 'value' => $root . '/env-mixed-include.config'],
+            ['key' => 'includeif.gitdir:' . $gitDir . '.path', 'value' => $root . '/env-lower-includeif.config'],
+        ], [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+        ]);
+
+        $t->same(null, $config->value('envcase', null, 'mixedInclude'));
+        $t->same(null, $config->value('envcase', null, 'lowerIncludeIf'));
+
+        $write($root . '/env-exact-include.config', "[envcase]\nexactInclude = matched\n");
+        $write($root . '/env-exact-includeif.config', "[envcase]\nexactIncludeIf = matched\n");
+
+        $config = GitConfig::fromEnvironmentPairs([
+            ['key' => 'include.path', 'value' => $root . '/env-exact-include.config'],
+            ['key' => 'includeIf.gitdir:' . $gitDir . '.path', 'value' => $root . '/env-exact-includeif.config'],
+        ], [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+        ]);
+
+        $t->same('matched', $config->value('envcase', null, 'exactInclude'));
+        $t->same('matched', $config->value('envcase', null, 'exactIncludeIf'));
+    },
+
     'environment-style includeIf keys resolve dotted conditional subsections like gix-config' => static function (TestRunner $t) use ($tmpDir, $write): void {
         $root = $tmpDir();
         $worktree = $root . '/sites/wp-content';
@@ -1324,6 +1388,7 @@ return [
         $t->same('matched', $fixture['environmentNamedUserPolicy']);
         $t->same('matched', $fixture['namedUserPathPolicy']);
         $t->same('matched', $fixture['namedUserGitdirPolicy']);
+        $t->same(null, $fixture['mixedCaseIncludeIfPolicy']);
         $t->same($fixture['preview'], $summary['preview']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
         $t->same($fixture['escapedGitdirPolicy'], $summary['escapedGitdirPolicy']);
@@ -1371,6 +1436,7 @@ return [
         $t->same($fixture['environmentNamedUserPolicy'], $summary['environmentNamedUserPolicy']);
         $t->same($fixture['namedUserPathPolicy'], $summary['namedUserPathPolicy']);
         $t->same($fixture['namedUserGitdirPolicy'], $summary['namedUserGitdirPolicy']);
+        $t->same($fixture['mixedCaseIncludeIfPolicy'], $summary['mixedCaseIncludeIfPolicy']);
         $t->same($fixture['sectionsLoaded'], $summary['sectionsLoaded']);
     },
 ];

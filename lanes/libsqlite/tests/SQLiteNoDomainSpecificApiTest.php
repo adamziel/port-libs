@@ -32,6 +32,7 @@ $keyValueSourceFiles = [
     $sourceRoot . '/SQLiteDatabase.php',
     $sourceRoot . '/SQLiteCurrentSmokePlan.php',
     $sourceRoot . '/SQLiteImportTransactionErrorYieldPlan.php',
+    $sourceRoot . '/SQLiteJsonUpsertMigrationPlan.php',
     $sourceRoot . '/SQLiteKeyValueRow.php',
     $sourceRoot . '/SQLiteKeyValueRowInsertOrReplacePlan.php',
     $sourceRoot . '/SQLiteKeyValueRowReplacementPlan.php',
@@ -45,6 +46,7 @@ $keyValueSourceFiles = [
 ];
 $keyValueFixtureFiles = [
     $libsqliteRoot . '/examples/application-current-smoke-key-value-import.php',
+    $libsqliteRoot . '/examples/application-json-upsert-migration-current-next27.php',
     $libsqliteRoot . '/examples/application-malformed-text-current-next70.php',
     $libsqliteRoot . '/examples/application-savepoint-key-value-import-diagnostics.php',
     $libsqliteRoot . '/examples/application-settings-import-wal-current-next.php',
@@ -52,6 +54,7 @@ $keyValueFixtureFiles = [
     $libsqliteRoot . '/examples/application-utf16-affinity-source-switch-current-source-next100.php',
     $libsqliteRoot . '/examples/application-utf16-collation-affinity-current-source-next85.php',
     $libsqliteRoot . '/tests/SQLiteApplicationCurrentSmokePlanTest.php',
+    $libsqliteRoot . '/tests/SQLiteApplicationJsonUpsertMigrationCurrentNext27Test.php',
     $libsqliteRoot . '/tests/SQLiteApplicationSettingsImportWalCurrentNext34Test.php',
     $libsqliteRoot . '/tests/SQLiteApplicationSettingsTenantWalCurrentNext42Test.php',
     $libsqliteRoot . '/tests/SQLiteMalformedTextCurrentNext70Test.php',

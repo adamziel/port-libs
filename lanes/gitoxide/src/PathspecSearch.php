@@ -357,7 +357,7 @@ final class PathspecSearch
         );
         $modifiers = 's' . ($pattern->ignoreCase ? 'i' : '');
 
-        return preg_match('#^' . $regex . '$#' . $modifiers, $relativePath) === 1;
+        return preg_match('#^' . $regex . '\z#' . $modifiers, $relativePath) === 1;
     }
 
     private function patternCouldMatchPath(PathspecPattern $pattern, string $relativePath, ?bool $isDirectory): bool
