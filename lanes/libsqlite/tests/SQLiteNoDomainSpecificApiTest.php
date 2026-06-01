@@ -59,6 +59,7 @@ $jsonbCurrentSourceFiles = [
     $sourceRoot . '/SQLiteJsonTablePlan.php',
 ];
 $rowValueSourceFiles = [
+    $sourceRoot . '/SQLiteRowValueUpdateDeleteReturningSavepointPlan.php',
     $sourceRoot . '/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php',
 ];
 $keyValueFixtureFiles = [
@@ -103,7 +104,7 @@ $sourceTextMatches = static function () use ($sourceFiles, $relativePath): array
             throw new RuntimeException("Unable to read {$file}");
         }
 
-        if (preg_match('/WordPress|wordpress|wordPress|wp_|wp-content|wp%20|wp-import|wp-json-schema|\/srv\/wp|\/srv\/www\/wp|wp-/', $contents) === 1) {
+        if (preg_match('/WordPress|wordpress|wordPress|wp_|wp\.|wp-content|wp%20|wp-import|wp-json-schema|\/srv\/wp|\/srv\/www\/wp|wp-/', $contents) === 1) {
             $matches[] = $relativePath($file);
         }
     }
@@ -186,7 +187,7 @@ $jsonbCurrentSourceTermMatches = static function () use ($jsonbCurrentSourceFile
 
 $rowValueSourceTermMatches = static function () use ($rowValueSourceFiles, $relativePath): array {
     $matches = [];
-    $pattern = '/WordPress|wordpress|wordPress|wp_|wp_options|wp_sitemeta|blog_id|blogId|BlogId|option_id|option_name|option name|option_value|OptionRow|optionRow|optionName|optionValue|optionId|Autoload|autoload/';
+    $pattern = '/WordPress|wordpress|wordPress|wp_|wp\.|wp-|wp_options|wp_sitemeta|blog_id|blogId|BlogId|option_id|option_name|option name|option_value|optionmeta|OptionRow|optionRow|optionName|optionValue|optionId|Autoload|autoload/';
 
     foreach ($rowValueSourceFiles as $file) {
         $contents = file_get_contents($file);
@@ -246,7 +247,7 @@ return [
     'libsqlite php declarations have no WordPress-specific class or method names' => static fn (TestRunner $t) => $t->same([], $domainSpecificDeclarationMatches()),
     'libsqlite key-value source API uses neutral setting names' => static fn (TestRunner $t) => $t->same([], $keyValueSourceTermMatches()),
     'libsqlite jsonb current-source API uses neutral setting names' => static fn (TestRunner $t) => $t->same([], $jsonbCurrentSourceTermMatches()),
-    'libsqlite row-value window source API uses neutral setting names' => static fn (TestRunner $t) => $t->same([], $rowValueSourceTermMatches()),
+    'libsqlite row-value source API uses neutral setting names' => static fn (TestRunner $t) => $t->same([], $rowValueSourceTermMatches()),
     'libsqlite key-value test and example filenames use neutral setting names' => static fn (TestRunner $t) => $t->same([], $keyValueFixtureFilenameMatches()),
     'libsqlite key-value tests and examples use neutral fixtures' => static fn (TestRunner $t) => $t->same([], $keyValueFixtureTermMatches()),
 ];

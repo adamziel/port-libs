@@ -6259,6 +6259,131 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     /**
      * @param list<array<string,mixed>> $parents
      * @param list<array<string,mixed>> $children
+     * @param array{action:string,row?:array<string,mixed>,where?:array<string,mixed>,parent_key?:mixed,value?:mixed} $statement
+     * @return array<string,mixed>
+     */
+    public static function fkey2IntegerPrimaryKeyChildPlan(array $parents, array $children, array $statement): array
+    {
+        $action = strtolower(trim((string) ($statement['action'] ?? '')));
+        if (!in_array($action, ['insert-child', 'update-child-key', 'update-child-rowid', 'delete-parent', 'update-parent-key'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2-7 integer primary key child action is unsupported');
+        }
+
+        $parents = self::fkey2IntegerPrimaryKeyParentRows($parents);
+        $children = self::fkey2IntegerPrimaryKeyChildRows($children);
+        $beforeViolations = self::fkey2IntegerPrimaryKeyViolations($parents, $children);
+        $attemptedParents = $parents;
+        $attemptedChildren = $children;
+        $affected = [];
+        $targetParentKey = $statement['parent_key'] ?? null;
+        $newValue = null;
+
+        if ($action === 'insert-child') {
+            $row = $statement['row'] ?? null;
+            if (!is_array($row)) {
+                throw new \InvalidArgumentException('SQLite fkey2-7 child insert row is required');
+            }
+            $childRows = self::fkey2IntegerPrimaryKeyChildRows([$row]);
+            $attemptedChildren[] = $childRows[0];
+            $affected[] = $childRows[0];
+        } elseif ($action === 'update-child-key' || $action === 'update-child-rowid') {
+            if (!array_key_exists('value', $statement) || $statement['value'] === null) {
+                throw new \InvalidArgumentException('SQLite fkey2-7 child key update value is required');
+            }
+            $newValue = $statement['value'];
+            $where = $statement['where'] ?? [];
+            foreach ($attemptedChildren as $index => $child) {
+                if ($where !== [] && !self::rowMatches($child, $where)) {
+                    continue;
+                }
+                $attemptedChildren[$index]['c'] = $newValue;
+                $affected[] = $attemptedChildren[$index];
+            }
+        } elseif ($action === 'delete-parent') {
+            if (!array_key_exists('parent_key', $statement) || $statement['parent_key'] === null) {
+                throw new \InvalidArgumentException('SQLite fkey2-7 parent delete key is required');
+            }
+            foreach ($attemptedParents as $index => $parent) {
+                if ($parent['a'] !== $statement['parent_key']) {
+                    continue;
+                }
+                $affected[] = $parent;
+                unset($attemptedParents[$index]);
+            }
+            $attemptedParents = array_values($attemptedParents);
+        } else {
+            if (!array_key_exists('parent_key', $statement) || $statement['parent_key'] === null || !array_key_exists('value', $statement) || $statement['value'] === null) {
+                throw new \InvalidArgumentException('SQLite fkey2-7 parent update key and value are required');
+            }
+            $newValue = $statement['value'];
+            foreach ($attemptedParents as $index => $parent) {
+                if ($parent['a'] !== $statement['parent_key']) {
+                    continue;
+                }
+                $attemptedParents[$index]['a'] = $newValue;
+                $affected[] = $attemptedParents[$index];
+            }
+        }
+
+        $attemptedParents = self::fkey2IntegerPrimaryKeyParentRows($attemptedParents);
+        $attemptedChildren = self::fkey2IntegerPrimaryKeyChildRows($attemptedChildren);
+        $violations = self::fkey2IntegerPrimaryKeyViolations($attemptedParents, $attemptedChildren);
+        $status = $violations === [] ? 'commit-ok' : 'constraint-failed';
+        $parentsAfter = $status === 'commit-ok' ? $attemptedParents : $parents;
+        $childrenAfter = $status === 'commit-ok' ? $attemptedChildren : $children;
+        $failedChildKey = $violations[0]['child_key'] ?? null;
+        $referencingChildKeys = [];
+        foreach ($violations as $violation) {
+            $token = self::fkey2ScalarToken($violation['child_key']);
+            $referencingChildKeys[$token] = $violation['child_key'];
+        }
+
+        return [
+            'source' => 'fkey2.test fkey2-7.1..7.9',
+            'operation' => 'integer-primary-key-child-foreign-key',
+            'status' => $status,
+            'action' => $action,
+            'error' => $status === 'commit-ok' ? null : 'FOREIGN KEY constraint failed',
+            'child_key_column' => 'c',
+            'parent_key_column' => 'a',
+            'child_rowid_alias' => 'rowid',
+            'rowid_alias_matches_child_key' => true,
+            'foreign_key_checked' => true,
+            'before_violation_count' => count($beforeViolations),
+            'violation_count' => count($violations),
+            'violations' => $violations,
+            'failed_child_key' => $failedChildKey,
+            'referencing_child_keys' => array_values($referencingChildKeys),
+            'target_parent_key' => $targetParentKey,
+            'new_key_value' => $newValue,
+            'affected_count' => count($affected),
+            'affected_rows' => $affected,
+            'parents_before' => $parents,
+            'children_before' => $children,
+            'attempted_parents' => $attemptedParents,
+            'attempted_children' => $attemptedChildren,
+            'parents_after' => $parentsAfter,
+            'children_after' => $childrenAfter,
+            'parent_keys_before' => self::fkey2IntegerPrimaryKeyColumnValues($parents, 'a'),
+            'parent_keys_after' => self::fkey2IntegerPrimaryKeyColumnValues($parentsAfter, 'a'),
+            'child_keys_before' => self::fkey2IntegerPrimaryKeyColumnValues($children, 'c'),
+            'child_keys_after' => self::fkey2IntegerPrimaryKeyColumnValues($childrenAfter, 'c'),
+            'child_rowids_before' => self::fkey2IntegerPrimaryKeyColumnValues($children, 'c'),
+            'child_rowids_after' => self::fkey2IntegerPrimaryKeyColumnValues($childrenAfter, 'c'),
+            'statement_rolled_back' => $status !== 'commit-ok',
+            'non_overlap' => 'covers fkey2.test fkey2-7 integer-primary-key child key and rowid alias checks; not fkey2-5 incremental blob, not fkey2-8 pragma toggles, not fkey2-9 SET DEFAULT, not fkey2-12 actions, not fkey2-17 count_changes, not fkey2-20 conflict policy',
+            'dependency_closure' => 'no new support component needed; reuses SQLiteDynamicTriggerForeignKeyPlan against hydrated upstream fkey2.test',
+            'dependencies' => [
+                'sqlite-fkey2-child-integer-primary-key-is-foreign-key',
+                'sqlite-fkey2-child-rowid-update-checks-parent-key',
+                'sqlite-fkey2-parent-delete-and-update-check-child-ipk',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
      * @param array{parent_table?:string,child_table?:string,parent_key?:string,child_key?:string,copy_order?:list<string>,foreign_keys?:bool,page_count_before?:int,page_count_after?:int} $statement
      * @return array<string,mixed>
      */
@@ -8548,6 +8673,115 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return $violations;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @return list<array<string,mixed>>
+     */
+    private static function fkey2IntegerPrimaryKeyParentRows(array $parents): array
+    {
+        $rows = [];
+        foreach ($parents as $parent) {
+            if (!array_key_exists('a', $parent) || $parent['a'] === null) {
+                throw new \InvalidArgumentException('SQLite fkey2-7 parent row is missing primary key a');
+            }
+            $rows[] = $parent;
+        }
+
+        return self::fkey2SortRowsByColumn($rows, 'a');
+    }
+
+    /**
+     * @param list<array<string,mixed>> $children
+     * @return list<array<string,mixed>>
+     */
+    private static function fkey2IntegerPrimaryKeyChildRows(array $children): array
+    {
+        $rows = [];
+        foreach ($children as $child) {
+            if (!array_key_exists('c', $child) || $child['c'] === null) {
+                throw new \InvalidArgumentException('SQLite fkey2-7 child row is missing integer primary key c');
+            }
+            if (array_key_exists('rowid', $child) && $child['rowid'] !== $child['c']) {
+                throw new \InvalidArgumentException('SQLite fkey2-7 child rowid alias must match integer primary key c');
+            }
+            unset($child['rowid']);
+            $rows[] = $child;
+        }
+
+        return self::fkey2SortRowsByColumn($rows, 'c');
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @return list<array{child_index:int,child_key:mixed,child_rowid:mixed,parent_key:mixed,reason:string}>
+     */
+    private static function fkey2IntegerPrimaryKeyViolations(array $parents, array $children): array
+    {
+        $parentKeys = [];
+        foreach ($parents as $parent) {
+            $parentKeys[self::fkey2ScalarToken($parent['a'])] = true;
+        }
+
+        $violations = [];
+        foreach ($children as $index => $child) {
+            $token = self::fkey2ScalarToken($child['c']);
+            if (isset($parentKeys[$token])) {
+                continue;
+            }
+
+            $violations[] = [
+                'child_index' => $index,
+                'child_key' => $child['c'],
+                'child_rowid' => $child['c'],
+                'parent_key' => $child['c'],
+                'reason' => 'missing-parent-for-integer-primary-key-child',
+            ];
+        }
+
+        return $violations;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function fkey2SortRowsByColumn(array $rows, string $column): array
+    {
+        usort($rows, static function (array $left, array $right) use ($column): int {
+            return self::fkey2ScalarCompare($left[$column], $right[$column]);
+        });
+
+        return array_values($rows);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<mixed>
+     */
+    private static function fkey2IntegerPrimaryKeyColumnValues(array $rows, string $column): array
+    {
+        return array_values(array_map(static fn (array $row): mixed => $row[$column], $rows));
+    }
+
+    private static function fkey2ScalarCompare(mixed $left, mixed $right): int
+    {
+        if ((is_int($left) || is_float($left)) && (is_int($right) || is_float($right))) {
+            return $left <=> $right;
+        }
+
+        return strcmp((string) $left, (string) $right);
+    }
+
+    private static function fkey2ScalarToken(mixed $value): string
+    {
+        if ($value === null || is_scalar($value)) {
+            return get_debug_type($value) . ':' . (string) $value;
+        }
+
+        return get_debug_type($value) . ':' . serialize($value);
     }
 
     /**

@@ -35,7 +35,9 @@ $sourceFiles = [
 $legacyRowValueDefaultMatches = static function () use ($sourceFiles, $libsqliteRoot): array {
     $terms = [
         'wp' . '_',
+        'wp' . '.',
         'wp' . '_options',
+        'opt' . 'ionmeta',
         'opt' . 'ion_id',
         'opt' . 'ion_name',
         'opt' . 'ion_value',

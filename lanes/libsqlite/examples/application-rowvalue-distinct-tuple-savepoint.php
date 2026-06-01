@@ -9,36 +9,37 @@ require_once dirname(__DIR__) . '/src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
+require_once dirname(__DIR__) . '/src/SQLiteRowIdColumn.php';
 require_once dirname(__DIR__) . '/src/SQLiteUpdateDeleteLimitPlan.php';
 require_once dirname(__DIR__) . '/src/SQLiteUpdateDeleteReturningSql.php';
 require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningSavepointPlan.php';
 
-$options = [
-    ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://one.test'],
-    ['option_id' => 2, 'blog_id' => 1, 'option_name' => 'home', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 21, 'option_value' => 'https://home.test'],
-    ['option_id' => 3, 'blog_id' => 1, 'option_name' => '_transient_feed', 'autoload' => 'no', 'status' => 'stale', 'bytes' => 12, 'option_value' => 'feed'],
-    ['option_id' => 7, 'blog_id' => 2, 'option_name' => 'pending_theme', 'autoload' => 'no', 'status' => 'queued', 'bytes' => 7, 'option_value' => 'theme'],
-    ['option_id' => 8, 'blog_id' => 3, 'option_name' => 'rewrite_rules', 'autoload' => 'yes', 'status' => 'queued', 'bytes' => 9, 'option_value' => 'rules'],
-    ['option_id' => 9, 'blog_id' => 3, 'option_name' => 'plugin_batch', 'autoload' => 'no', 'status' => 'queued', 'bytes' => 11, 'option_value' => 'plugin'],
+$settings = [
+    ['setting_id' => 1, 'tenant_id' => 1, 'key_name' => 'base_url', 'load_policy' => 'yes', 'status' => 'live', 'bytes' => 20, 'key_value' => 'https://one.test'],
+    ['setting_id' => 2, 'tenant_id' => 1, 'key_name' => 'homepage', 'load_policy' => 'yes', 'status' => 'live', 'bytes' => 21, 'key_value' => 'https://homepage.test'],
+    ['setting_id' => 3, 'tenant_id' => 1, 'key_name' => 'cache_feed', 'load_policy' => 'no', 'status' => 'stale', 'bytes' => 12, 'key_value' => 'feed'],
+    ['setting_id' => 7, 'tenant_id' => 2, 'key_name' => 'pending_profile', 'load_policy' => 'no', 'status' => 'queued', 'bytes' => 7, 'key_value' => 'profile'],
+    ['setting_id' => 8, 'tenant_id' => 3, 'key_name' => 'route_rules', 'load_policy' => 'yes', 'status' => 'queued', 'bytes' => 9, 'key_value' => 'rules'],
+    ['setting_id' => 9, 'tenant_id' => 3, 'key_name' => 'module_batch', 'load_policy' => 'no', 'status' => 'queued', 'bytes' => 11, 'key_value' => 'module'],
 ];
 
-$meta = [
-    ['meta_id' => 1, 'blog_id' => 2, 'option_name' => 'pending_theme', 'meta_key' => 'import_touch', 'priority' => 10],
-    ['meta_id' => 2, 'blog_id' => 2, 'option_name' => 'pending_theme', 'meta_key' => 'import_touch', 'priority' => 20],
-    ['meta_id' => 3, 'blog_id' => 3, 'option_name' => 'rewrite_rules', 'meta_key' => 'import_touch', 'priority' => 30],
-    ['meta_id' => 4, 'blog_id' => 3, 'option_name' => 'rewrite_rules', 'meta_key' => 'import_touch', 'priority' => 40],
-    ['meta_id' => 5, 'blog_id' => 1, 'option_name' => '_transient_feed', 'meta_key' => 'delete_touch', 'priority' => 50],
-    ['meta_id' => 6, 'blog_id' => 1, 'option_name' => '_transient_feed', 'meta_key' => 'delete_touch', 'priority' => 60],
-    ['meta_id' => 7, 'blog_id' => 3, 'option_name' => 'plugin_batch', 'meta_key' => 'retry_touch', 'priority' => 70],
-    ['meta_id' => 8, 'blog_id' => 3, 'option_name' => 'plugin_batch', 'meta_key' => 'retry_touch', 'priority' => 80],
+$targets = [
+    ['target_id' => 1, 'tenant_id' => 2, 'key_name' => 'pending_profile', 'target_key' => 'import_touch', 'priority' => 10],
+    ['target_id' => 2, 'tenant_id' => 2, 'key_name' => 'pending_profile', 'target_key' => 'import_touch', 'priority' => 20],
+    ['target_id' => 3, 'tenant_id' => 3, 'key_name' => 'route_rules', 'target_key' => 'import_touch', 'priority' => 30],
+    ['target_id' => 4, 'tenant_id' => 3, 'key_name' => 'route_rules', 'target_key' => 'import_touch', 'priority' => 40],
+    ['target_id' => 5, 'tenant_id' => 1, 'key_name' => 'cache_feed', 'target_key' => 'delete_touch', 'priority' => 50],
+    ['target_id' => 6, 'tenant_id' => 1, 'key_name' => 'cache_feed', 'target_key' => 'delete_touch', 'priority' => 60],
+    ['target_id' => 7, 'tenant_id' => 3, 'key_name' => 'module_batch', 'target_key' => 'retry_touch', 'priority' => 70],
+    ['target_id' => 8, 'tenant_id' => 3, 'key_name' => 'module_batch', 'target_key' => 'retry_touch', 'priority' => 80],
 ];
 
-$tables = ['wp_options' => $options, 'wp_optionmeta' => $meta];
-$unique = [['blog_id', 'option_name']];
-$attemptUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('attempttuple', option_value || ':attempttuple', bytes + 2) WHERE (blog_id, option_name) IN (SELECT DISTINCT blog_id, option_name FROM wp_optionmeta WHERE meta_key = 'import_touch' ORDER BY priority LIMIT -1 OFFSET 1) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
-$attemptDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (SELECT DISTINCT blog_id, option_name FROM wp_optionmeta WHERE meta_key = 'delete_touch' ORDER BY priority) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
-$retryUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('retrytuple', option_value || ':retrytuple', bytes + 1) WHERE (blog_id, option_name) IN (SELECT DISTINCT blog_id, option_name FROM wp_optionmeta WHERE meta_key = 'import_touch' ORDER BY priority) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
-$retryDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (SELECT DISTINCT blog_id, option_name FROM wp_optionmeta WHERE meta_key = 'retry_touch' ORDER BY priority) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
+$tables = ['app_settings' => $settings, 'app_setting_targets' => $targets];
+$unique = [['tenant_id', 'key_name']];
+$attemptUpdate = "UPDATE app_settings SET (status, key_value, bytes) = ('attempttuple', key_value || ':attempttuple', bytes + 2) WHERE (tenant_id, key_name) IN (SELECT DISTINCT tenant_id, key_name FROM app_setting_targets WHERE target_key = 'import_touch' ORDER BY priority LIMIT -1 OFFSET 1) RETURNING setting_id, tenant_id, key_name, status ORDER BY setting_id";
+$attemptDelete = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT DISTINCT tenant_id, key_name FROM app_setting_targets WHERE target_key = 'delete_touch' ORDER BY priority) RETURNING setting_id, tenant_id, key_name, status ORDER BY setting_id";
+$retryUpdate = "UPDATE app_settings SET (status, key_value, bytes) = ('retrytuple', key_value || ':retrytuple', bytes + 1) WHERE (tenant_id, key_name) IN (SELECT DISTINCT tenant_id, key_name FROM app_setting_targets WHERE target_key = 'import_touch' ORDER BY priority) RETURNING setting_id, tenant_id, key_name, status ORDER BY setting_id";
+$retryDelete = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT DISTINCT tenant_id, key_name FROM app_setting_targets WHERE target_key = 'retry_touch' ORDER BY priority) RETURNING setting_id, tenant_id, key_name, status ORDER BY setting_id";
 
 $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctTupleSavepointRollback(
     $tables,
@@ -56,7 +57,7 @@ if (($argv[1] ?? null) === '--self-test') {
         fwrite(STDERR, "Expected three retry rows\n");
         exit(1);
     }
-    if (array_column($plan['retry_rows'], 'option_id') !== [7, 8, 9]) {
+    if (array_column($plan['retry_rows'], 'setting_id') !== [7, 8, 9]) {
         fwrite(STDERR, "Unexpected retry row ids\n");
         exit(1);
     }
@@ -70,6 +71,6 @@ echo json_encode([
     'status' => $plan['status'],
     'suppressed_returning_count' => $plan['suppressed_returning_count'],
     'retry_returning_count' => $plan['retry_returning_count'],
-    'retry_ids' => array_column($plan['retry_rows'], 'option_id'),
+    'retry_ids' => array_column($plan['retry_rows'], 'setting_id'),
     'dependencies' => $plan['dependencies'],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

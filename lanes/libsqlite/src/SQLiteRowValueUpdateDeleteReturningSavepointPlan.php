@@ -8552,9 +8552,9 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
             throw new \InvalidArgumentException('SQLite row-value release release_followup_read savepoint must be an identifier');
         }
 
-        $releaseToken = self::tokenReleaseFollowupReadSavepoint((string) ($options['release_token'] ?? 'wp.rowvalue.release.followup.read'), 'release token');
+        $releaseToken = self::tokenReleaseFollowupReadSavepoint((string) ($options['release_token'] ?? 'app.rowvalue.release.followup.read'), 'release token');
         $expectedReleaseToken = self::tokenReleaseFollowupReadSavepoint((string) ($options['expected_release_token'] ?? $releaseToken), 'expected release token');
-        $nextCursor = self::tokenReleaseFollowupReadSavepoint((string) ($options['next_cursor'] ?? 'wp.rowvalue.followup.cursor'), 'next cursor');
+        $nextCursor = self::tokenReleaseFollowupReadSavepoint((string) ($options['next_cursor'] ?? 'app.rowvalue.followup.cursor'), 'next cursor');
         $expectedNextCursor = self::tokenReleaseFollowupReadSavepoint((string) ($options['expected_next_cursor'] ?? $nextCursor), 'expected next cursor');
 
         $savepointImage = self::normalizeTablesReleaseFollowupReadSavepoint($tables);
@@ -15269,7 +15269,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
             'dependencies' => [
                 'sqlite-rowvalue-distinct-subquery-tuples',
                 'sqlite-rowvalue-returning-rollback-retries-distinct-tuples',
-                'application-rowvalue-distinct-optionmeta-savepoint',
+                'application-rowvalue-distinct-setting-targets-savepoint',
             ],
             'non_overlap' => 'adds SELECT DISTINCT tuple-source de-duplication inside row-value UPDATE/DELETE RETURNING savepoint rollback and retry; avoids accepted LIMIT -1 OFFSET tuple sources, nested savepoint release rollback, OR FAIL/ABORT/ROLLBACK conflict slices, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
