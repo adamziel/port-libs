@@ -55,6 +55,30 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (config/CSS/trigger replay intake
+  05:10 UTC): audited the cleanup complaint with live evidence. `main` is the
+  only tmux session; there are 10 visible isolated development windows plus the
+  supervisor, all with live Codex child processes and 0 long sleepers, so no
+  active worker session was killed. Dirty scratch apply-check worktrees were
+  preserved pending integration/parking rather than discarded. Accepted 8
+  source-changing handoffs as source commit
+  `4fbc50ac3aa0fbe3e6031cb136f3f168e7e8266e` (`ports: integrate config css
+  modules and sqlite trigger corpus`). The batch adds Gitoxide config include
+  drive-prefix relative path parity, credential helper context CR-byte parity,
+  and partial-clone promisor pack bundle hydration parity; LightningCSS
+  bundle/import graph behavior, CSS Modules local/global/commented selector
+  composes parity, and custom at-rule parser/visitor parity; and libsqlite real
+  upstream `e_fkey` runtime intro dynamic corpus coverage plus source-neutral
+  STAT4 planner key-field cleanup. Verification passed PHP lint,
+  `git diff --check`, full Gitoxide `40 files / 7538 assertions / 0 failures`,
+  full LightningCSS `13 files / 6124 assertions / 0 failures`, focused
+  libsqlite `3 files / 10270 assertions / 0 failures`, touched examples, and
+  no new WordPress/wp_/numbered `CurrentSourceNext` strings in changed
+  libsqlite source. Dashboard status should report Gitoxide `1743 / 2886`
+  mapped and `7538 pass / 0 fail`, LightningCSS `2351 / 3532` mapped and
+  `6124 pass / 0 fail`, and libsqlite `1589 / 1589` mapped with `5548966 pass
+  / 7 fail`.
+
 - 2026-06-01 supervisor continuation (pack/tree/CSS/window replay intake
   05:00 UTC): audited current state from the live repo rather than memory:
   `main` is still the only tmux session, the visible pool is 11 isolated
