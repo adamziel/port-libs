@@ -233,6 +233,9 @@ return [
         . $packet("\x01packfile\n")
         . $packet("\x01" . $binaryPackData)
         . $flush,
+    'leadingStopSidebandAllResponse' => $packet("\x02remote: advertised an empty WordPress fetch response\n")
+        . $packet("\x01")
+        . $flush,
     'delimiterPackResponse' => $packet("packfile\n")
         . $packet("\x02Counting objects: 100% (1/1)\n")
         . $packet("\x01" . $packData)
@@ -285,4 +288,5 @@ return [
     'noNewlineSidebandAllUse' => 'Protocol v2 fetch response sideband-all channel-1 section lines do not require trailing LF bytes, so WordPress deployment tooling can parse compact upload-pack responses before importing pack data.',
     'invalidUtf8ProtocolLineUse' => 'Protocol v2 fetch response section lines with invalid UTF-8 are rejected before WordPress deployment tooling trusts wanted refs or imports the following pack bytes.',
     'binarySidebandUse' => 'Protocol v2 fetch sideband progress/error and pack bytes remain binary-safe while only response section lines are UTF-8 validated.',
+    'leadingStopUse' => 'A protocol v2 fetch response that only yields sideband progress or a stop packet before any section headline is rejected before WordPress deployment tooling treats it as a successful empty fetch.',
 ];

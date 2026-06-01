@@ -48,11 +48,8 @@ final class FetchResponse
             if ($packet === null) {
                 throw new \RuntimeException('fetch response: could not read message headline');
             }
-            if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
-                return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $packet['kind'], $sidebandEvents, $offset);
-            }
-            if ($packet['kind'] === 'delimiter') {
-                continue;
+            if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end' || $packet['kind'] === 'delimiter') {
+                throw new \RuntimeException('fetch response: could not read message headline');
             }
             if (!$sidebandAll && self::isUploadPackErrorPacket($packet['payload'])) {
                 self::throwUploadPackError($packet['payload']);

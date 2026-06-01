@@ -107,6 +107,33 @@ return [
         $t->same(FetchAcknowledgement::NAK, $response->acknowledgements()[0]->kind);
         $t->same('', $response->packData());
     },
+    'rejects protocol v2 leading stop packets before a response headline' => static function (TestRunner $t) use ($packet, $delimiter, $flush, $runtimeMessage): void {
+        foreach ([$flush, $delimiter, '0002'] as $stopPacket) {
+            $t->same(
+                'fetch response: could not read message headline',
+                $runtimeMessage(static fn () => FetchResponse::fromV2PacketLines($stopPacket))
+            );
+        }
+
+        $sidebandAllCalls = [];
+        $t->same(
+            'fetch response: could not read message headline',
+            $runtimeMessage(static function () use ($packet, $flush, &$sidebandAllCalls): void {
+                FetchResponse::fromV2PacketLines(
+                    $packet("\x02remote: advertised an empty fetch response\n")
+                    . $packet("\x01")
+                    . $flush,
+                    true,
+                    static function (bool $isError, string $text) use (&$sidebandAllCalls): bool {
+                        $sidebandAllCalls[] = [$isError, $text];
+
+                        return true;
+                    }
+                );
+            })
+        );
+        $t->same([[false, 'remote: advertised an empty fetch response']], $sidebandAllCalls);
+    },
     'rejects unknown protocol v2 response sections and invalid sidebands' => static function (TestRunner $t) use ($packet, $flush): void {
         $t->throws(InvalidArgumentException::class, static fn () => FetchResponse::fromV2PacketLines($packet("mystery\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => FetchResponse::fromV2PacketLines($packet("packfile\n") . $packet("\x09bad band") . $flush));
@@ -1300,6 +1327,11 @@ return [
         $t->same('fetch response: invalid UTF-8 protocol line', $summary['invalidUtf8ProtocolLineError']);
         $t->same(true, $summary['binarySidebandPayloadsPreserved']);
         $t->same('ff7369646562616e642d6279746573', $summary['binarySidebandPackSuffix']);
+        $t->same(true, $summary['leadingStopRejected']);
+        $t->same('fetch response: could not read message headline', $summary['leadingStopError']);
+        $t->same([
+            ['isError' => false, 'text' => 'remote: advertised an empty WordPress fetch response'],
+        ], $summary['leadingStopMessages']);
         $t->same($fixture['packData'], $smartHttpUploadPackResponse->packData());
         $t->same(['Counting objects: 100% (1/1)' . "\r" . 'Counting objects: 100% (1/1), done.'], $smartHttpUploadPackResponse->progressMessages());
         $t->same(true, $summary['smartHttpUploadPackParsed']);

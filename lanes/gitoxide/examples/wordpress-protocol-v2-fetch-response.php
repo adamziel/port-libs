@@ -78,6 +78,21 @@ $unicodeWhitespaceResponse = FetchResponse::fromV2PacketLines($fixture['unicodeW
 $noNewlineSidebandAllResponse = FetchResponse::fromV2PacketLines($fixture['noNewlineSidebandAllResponse'], true);
 $binarySidebandResponse = FetchResponse::fromV2PacketLines($fixture['binarySidebandResponse'], true);
 $smartHttpUploadPackResponse = FetchResponse::fromSmartHttpUploadPackResult($fixture['smartHttpUploadPackResponse']);
+$leadingStopMessages = [];
+$leadingStopError = null;
+try {
+    FetchResponse::fromV2PacketLines(
+        $fixture['leadingStopSidebandAllResponse'],
+        true,
+        static function (bool $isError, string $text) use (&$leadingStopMessages): bool {
+            $leadingStopMessages[] = ['isError' => $isError, 'text' => $text];
+
+            return true;
+        }
+    );
+} catch (RuntimeException $error) {
+    $leadingStopError = $error->getMessage();
+}
 $uploadPackError = null;
 try {
     FetchResponse::fromV2PacketLines($fixture['rawUploadPackErrorResponse'], true);
@@ -297,6 +312,9 @@ return [
         && $binarySidebandResponse->progressMessages() === ["remote: byte \xFF progress"]
         && $binarySidebandResponse->errorMessages() === ["remote: byte \xFE warning"],
     'binarySidebandPackSuffix' => bin2hex(substr($binarySidebandResponse->packData(), -15)),
+    'leadingStopRejected' => $leadingStopError === 'fetch response: could not read message headline',
+    'leadingStopError' => $leadingStopError,
+    'leadingStopMessages' => $leadingStopMessages,
     'smartHttpUploadPackParsed' => $smartHttpUploadPackResponse->packData() === $fixture['packData']
         && count($smartHttpUploadPackResponse->acknowledgements()) === 3
         && $smartHttpUploadPackResponse->progressMessages() === ['Counting objects: 100% (1/1)' . "\r" . 'Counting objects: 100% (1/1), done.'],
