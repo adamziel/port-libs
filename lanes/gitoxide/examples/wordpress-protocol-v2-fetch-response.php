@@ -28,6 +28,21 @@ try {
 } catch (RuntimeException $error) {
     $truncatedPackError = rtrim($error->getMessage());
 }
+$progressCancelMessages = [];
+$progressCancelError = null;
+try {
+    FetchResponse::fromV2PacketLines(
+        $fixture['progressCancelResponse'],
+        false,
+        static function (bool $isError, string $text) use (&$progressCancelMessages): bool {
+            $progressCancelMessages[] = ['isError' => $isError, 'text' => $text];
+
+            return false;
+        }
+    );
+} catch (RuntimeException $error) {
+    $progressCancelError = rtrim($error->getMessage());
+}
 
 return [
     'acknowledgements' => array_map(
@@ -61,6 +76,9 @@ return [
     'uploadPackError' => $uploadPackError,
     'truncatedPackRejected' => $truncatedPackError === 'fetch response: missing sideband flush packet',
     'truncatedPackError' => $truncatedPackError,
+    'progressCancellationRejected' => $progressCancelError === 'fetch response: interrupted by user',
+    'progressCancellationError' => $progressCancelError,
+    'progressCancellationMessages' => $progressCancelMessages,
     'emptyErrorKeepaliveIgnored' => $emptyErrorSidebandResponse->errorMessages() === []
         && $emptyErrorSidebandResponse->packData() === $fixture['packData'],
     'overflowProgress' => array_map(

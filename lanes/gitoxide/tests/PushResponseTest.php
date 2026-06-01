@@ -181,6 +181,31 @@ return [
         $t->same(strtolower($newSha256), $status->newObject);
         $t->same(true, $status->hasReportOption());
     },
+    'accepts valueless report-status-v2 options like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
+        $response = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/wp-release accepted without rewrite details\n")
+            . $packet("option refname\n")
+            . $packet("option old-oid\n")
+            . $packet("option new-oid \n")
+            . $packet("option unknown-future-extension\n")
+            . $flush
+        );
+        $filtered = $response->forExpectedRefNames(['refs/for/wp-release']);
+        $status = $filtered->refStatuses()[0];
+
+        $t->same(true, $response->isSuccessful());
+        $t->same(true, $filtered->isSuccessful());
+        $t->same(1, count($filtered->refStatuses()));
+        $t->same('refs/for/wp-release', $status->refName);
+        $t->same('refs/for/wp-release', $status->effectiveRefName());
+        $t->same('accepted without rewrite details', $status->message);
+        $t->same(null, $status->reportedRefName);
+        $t->same(null, $status->oldObject);
+        $t->same(null, $status->newObject);
+        $t->same(false, $status->forcedUpdate);
+        $t->same(true, $status->hasReportOption());
+    },
     'filters send-pack receive-status reports to requested refs like upstream Git' => static function (TestRunner $t) use ($packet, $flush): void {
         $old = str_repeat('4', 40);
         $new = str_repeat('5', 40);
@@ -524,6 +549,9 @@ return [
         $compatibility = PushResponse::fromReportStatusPacketLines($fixture['compatibilityResponse']);
         $compatibilityAccepted = $compatibility->refStatuses()[0];
         $compatibilityRejected = $compatibility->refStatuses()[1];
+        $valuelessOption = PushResponse::fromReportStatusPacketLines($fixture['valuelessOptionResponse'])
+            ->forExpectedRefNames([$fixture['valuelessOptionRef']['requested']])
+            ->refStatuses()[0];
 
         $t->same(true, $response->isSuccessful());
         $t->same('ok', $response->unpackStatus());
@@ -548,6 +576,12 @@ return [
         $t->same(true, $compatibilityAccepted->forcedUpdate);
         $t->same('refs/heads/protected', $compatibilityRejected->refName);
         $t->same('failed', $compatibilityRejected->message);
+        $t->same($fixture['valuelessOptionRef']['requested'], $valuelessOption->refName);
+        $t->same($fixture['valuelessOptionRef']['requested'], $valuelessOption->effectiveRefName());
+        $t->same($fixture['valuelessOptionRef']['message'], $valuelessOption->message);
+        $t->same(null, $valuelessOption->oldObject);
+        $t->same(null, $valuelessOption->newObject);
+        $t->same(true, $valuelessOption->hasReportOption());
 
         $summary = require dirname(__DIR__) . '/examples/wordpress-protocol-v1-push-response.php';
         $t->same($fixture['expectedFilteredRefs'], array_map(
@@ -588,5 +622,6 @@ return [
         $t->same(true, $summary['emptyErrorSidebandAccepted']);
         $t->same(true, $summary['responseEndTerminatedAccepted']);
         $t->same(true, $summary['delimiterTerminatedAccepted']);
+        $t->same(true, $summary['valuelessReportStatusOptionsAccepted']);
     },
 ];

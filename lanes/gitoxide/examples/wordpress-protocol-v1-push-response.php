@@ -12,6 +12,8 @@ $response = PushResponse::fromSidebandPacketLines($fixture['response']);
 $rewrittenResponse = PushResponse::fromReportStatusPacketLines($fixture['rewrittenResponse']);
 $fallThroughResponse = PushResponse::fromReportStatusPacketLines($fixture['fallThroughResponse']);
 $compatibilityResponse = PushResponse::fromReportStatusPacketLines($fixture['compatibilityResponse']);
+$valuelessOptionResponse = PushResponse::fromReportStatusPacketLines($fixture['valuelessOptionResponse'])
+    ->forExpectedRefNames([$fixture['valuelessOptionRef']['requested']]);
 $expectedFilteredResponse = PushResponse::fromReportStatusPacketLines($fixture['expectedFilterResponse'])
     ->forExpectedRefNames($fixture['expectedRefNames']);
 $multiReportResponse = PushResponse::fromReportStatusPacketLines($fixture['multiReportResponse'])
@@ -111,6 +113,18 @@ return [
         ],
         $compatibilityResponse->refStatuses()
     ),
+    'valuelessOptionRefs' => array_map(
+        static fn (PushRefStatus $status): array => [
+            'requestedRef' => $status->refName,
+            'effectiveRef' => $status->effectiveRefName(),
+            'status' => $status->status,
+            'message' => $status->message,
+            'oldObject' => $status->oldObject,
+            'newObject' => $status->newObject,
+            'hasReportOption' => $status->hasReportOption(),
+        ],
+        $valuelessOptionResponse->refStatuses()
+    ),
     'expectedFilteredRefs' => array_map(
         static fn (PushRefStatus $status): array => [
             'requestedRef' => $status->refName,
@@ -161,6 +175,11 @@ return [
     'compatibilityTrailingObjectDiagnosticsIgnored' => $compatibilityResponse->refStatuses()[0]->oldObject === $fixture['compatibilityRef']['oldObject']
         && $compatibilityResponse->refStatuses()[0]->newObject === $fixture['compatibilityRef']['newObject'],
     'compatibilityBareRejectionDefaulted' => $compatibilityResponse->refStatuses()[1]->message === 'failed',
+    'valuelessReportStatusOptionsAccepted' => $valuelessOptionResponse->isSuccessful()
+        && $valuelessOptionResponse->refStatuses()[0]->effectiveRefName() === $fixture['valuelessOptionRef']['requested']
+        && $valuelessOptionResponse->refStatuses()[0]->oldObject === null
+        && $valuelessOptionResponse->refStatuses()[0]->newObject === null
+        && $valuelessOptionResponse->refStatuses()[0]->hasReportOption(),
     'expectedUnknownStatusIgnored' => count($expectedFilteredResponse->refStatuses()) === 2,
     'expectedLastStatusWon' => $expectedFilteredResponse->refStatuses()[0]->message === 'post-update hook accepted',
     'multiReportStatusPreserved' => array_map(

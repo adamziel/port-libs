@@ -6,6 +6,25 @@ namespace PortLibs\Gitoxide;
 
 final class SshReceivePackTransport implements ReceivePackTransport
 {
+    private const ENVIRONMENT_VARIABLES_TO_REMOVE = [
+        'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+        'GIT_CONFIG',
+        'GIT_CONFIG_PARAMETERS',
+        'GIT_OBJECT_DIRECTORY',
+        'GIT_DIR',
+        'GIT_WORK_TREE',
+        'GIT_IMPLICIT_WORK_TREE',
+        'GIT_GRAFT_FILE',
+        'GIT_INDEX_FILE',
+        'GIT_NO_REPLACE_OBJECTS',
+        'GIT_REPLACE_REF_BASE',
+        'GIT_PREFIX',
+        'GIT_INTERNAL_SUPER_PREFIX',
+        'GIT_SHALLOW_FILE',
+        'GIT_COMMON_DIR',
+        'GIT_CONFIG_COUNT',
+    ];
+
     private readonly StreamReceivePackTransport $streamTransport;
 
     /**
@@ -76,6 +95,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
      *     useShell: bool,
      *     sshFeatureProbe: array{command: string, arguments: list<string>, useShell: bool}|null,
      *     environment: array<string, string>,
+     *     environmentRemovals: list<string>,
      *     sshArguments: list<string>,
      *     credentialContext: CredentialContext,
      *     redactedCredentialContext: string,
@@ -513,6 +533,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
      *     useShell: bool,
      *     sshFeatureProbe: array{command: string, arguments: list<string>, useShell: bool}|null,
      *     environment: array<string, string>,
+     *     environmentRemovals: list<string>,
      *     sshArguments: list<string>,
      *     credentialContext: CredentialContext,
      *     redactedCredentialContext: string,
@@ -550,6 +571,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
             'useShell' => $options['useShell'],
             'sshFeatureProbe' => $featureProbe,
             'environment' => $environment,
+            'environmentRemovals' => self::ENVIRONMENT_VARIABLES_TO_REMOVE,
             'sshArguments' => $sshArguments,
             'credentialContext' => $credentialContext,
             'redactedCredentialContext' => $credentialContext->redacted()->storageBytes(),

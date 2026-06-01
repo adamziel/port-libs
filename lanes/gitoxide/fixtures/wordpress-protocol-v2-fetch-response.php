@@ -98,6 +98,10 @@ return [
         . $packet("\x02Counting objects: 4294967296% (5/10)\r")
         . $packet("\x01" . $packData)
         . $flush,
+    'progressCancelResponse' => $packet("packfile\n")
+        . $packet("\x02remote: WordPress deployment fetch can be cancelled\n")
+        . $packet("\x01" . $packData)
+        . $flush,
     'smartHttpUploadPackResponse' => "HTTP/1.1 200 OK\r\n"
         . "Content-Type: application/x-git-upload-pack-result\r\n"
         . 'Content-Length: ' . strlen($smartHttpUploadPackBody) . "\r\n"
@@ -123,6 +127,7 @@ return [
     'emptyErrorSidebandUse' => 'Empty channel-3 sideband keepalive/error packets are ignored instead of creating a blank deployment error, matching Gitoxide remote-progress handling.',
     'truncatedPackUse' => 'A truncated protocol v2 sideband pack response without a flush is rejected before WordPress deployment tooling can import a partial pack.',
     'overflowProgressUse' => 'Remote progress percentages larger than Gitoxide u32 progress bounds are ignored while step and maximum counters are retained for WordPress deployment diagnostics.',
+    'progressCancelUse' => 'A WordPress deployment fetch can abort while reading sideband progress, matching Gitoxide sideband reader interruption behavior before pack bytes are imported.',
     'suffixlessAckUse' => 'Suffixless protocol v2 ACK lines are treated as common acknowledgements before the packfile, matching Gitoxide fetch.response fixture behavior for deployment fetch negotiation.',
     'refInWantUse' => 'A WordPress deployment fetch using ref-in-want can parse the wanted-refs section and still hand the following sideband pack bytes to object import without requiring a separate ls-refs advertisement.',
     'cloneExchangeUse' => 'A WordPress deployment fetch can parse a persistent protocol v2 upload-pack exchange from capability advertisement through ls-refs and the following sidebanded fetch response before importing pack bytes.',

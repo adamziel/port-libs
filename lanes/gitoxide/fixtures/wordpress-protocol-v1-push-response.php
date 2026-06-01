@@ -70,6 +70,17 @@ return [
         . $packet("option forced-update true\n")
         . $packet("ng refs/heads/protected\n")
         . $flush,
+    'valuelessOptionRef' => [
+        'requested' => 'refs/for/wp-release',
+        'message' => 'accepted without rewrite details',
+    ],
+    'valuelessOptionResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/for/wp-release accepted without rewrite details\n")
+        . $packet("option refname\n")
+        . $packet("option old-oid\n")
+        . $packet("option new-oid \n")
+        . $packet("option unknown-future-extension\n")
+        . $flush,
     'expectedRefNames' => [
         'refs/heads/main',
         'refs/for/wp-release',

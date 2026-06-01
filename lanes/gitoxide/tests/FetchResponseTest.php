@@ -171,6 +171,90 @@ return [
         $t->same('PACKtiny', $keepalive->packData());
         $t->same([], $keepalive->errorMessages());
     },
+    'passes sideband progress and errors to caller handlers like gix-packetline readers' => static function (TestRunner $t) use ($packet, $flush, $runtimeMessage): void {
+        $calls = [];
+        $response = FetchResponse::fromV2PacketLines(
+            $packet("packfile\n")
+            . $packet("\x02Counting objects: 100% (1/1)\n")
+            . $packet("\x03remote: retained warning\n")
+            . $packet("\x01PACKhandler")
+            . $flush,
+            false,
+            static function (bool $isError, string $text) use (&$calls): bool {
+                $calls[] = [$isError, $text];
+
+                return true;
+            }
+        );
+
+        $t->same('PACKhandler', $response->packData());
+        $t->same([
+            [false, 'Counting objects: 100% (1/1)'],
+            [true, 'remote: retained warning'],
+        ], $calls);
+        $t->same(['Counting objects: 100% (1/1)'], $response->progressMessages());
+        $t->same(['remote: retained warning'], $response->errorMessages());
+
+        $abortedCalls = [];
+        $t->same(
+            'fetch response: interrupted by user',
+            $runtimeMessage(static function () use ($packet, $flush, &$abortedCalls): void {
+                FetchResponse::fromV2PacketLines(
+                    $packet("packfile\n")
+                    . $packet("\x02Resolving deltas:  50% (1/2)\r")
+                    . $packet("\x01PACKhandler")
+                    . $flush,
+                    false,
+                    static function (bool $isError, string $text) use (&$abortedCalls): bool {
+                        $abortedCalls[] = [$isError, $text];
+
+                        return false;
+                    }
+                );
+            })
+        );
+        $t->same([[false, "Resolving deltas:  50% (1/2)\r"]], $abortedCalls);
+
+        $sidebandAllCalls = [];
+        $sidebandAll = FetchResponse::fromV2PacketLines(
+            $packet("\x02remote: negotiating sideband-all\n")
+            . $packet("\x01acknowledgments\n")
+            . $packet("\x01NAK\n")
+            . $flush,
+            true,
+            static function (bool $isError, string $text) use (&$sidebandAllCalls): bool {
+                $sidebandAllCalls[] = [$isError, $text];
+
+                return true;
+            }
+        );
+
+        $t->same(false, $sidebandAll->hasPack());
+        $t->same(FetchAcknowledgement::NAK, $sidebandAll->acknowledgements()[0]->kind);
+        $t->same([[false, 'remote: negotiating sideband-all']], $sidebandAllCalls);
+
+        $body = $packet("packfile\n")
+            . $packet("\x02Enumerating objects: 1, done.\n")
+            . $packet("\x01PACKhttp")
+            . $flush;
+        $httpCalls = [];
+        $smartHttp = FetchResponse::fromSmartHttpUploadPackResult(
+            "HTTP/1.1 200 OK\r\n"
+            . "Content-Type: application/x-git-upload-pack-result\r\n"
+            . 'Content-Length: ' . strlen($body) . "\r\n"
+            . "\r\n"
+            . $body,
+            false,
+            static function (bool $isError, string $text) use (&$httpCalls): bool {
+                $httpCalls[] = [$isError, $text];
+
+                return true;
+            }
+        );
+
+        $t->same('PACKhttp', $smartHttp->packData());
+        $t->same([[false, 'Enumerating objects: 1, done.']], $httpCalls);
+    },
     'rejects truncated fetch response sections and sideband streams before flush' => static function (TestRunner $t) use ($packet, $runtimeMessage): void {
         $t->contains(
             'fetch response: missing section terminator',
@@ -569,6 +653,11 @@ return [
         $t->same('fetch response: upload-pack error raw WordPress fetch failure', $summary['uploadPackError']);
         $t->same(true, $summary['truncatedPackRejected']);
         $t->same('fetch response: missing sideband flush packet', $summary['truncatedPackError']);
+        $t->same(true, $summary['progressCancellationRejected']);
+        $t->same('fetch response: interrupted by user', $summary['progressCancellationError']);
+        $t->same([
+            ['isError' => false, 'text' => 'remote: WordPress deployment fetch can be cancelled'],
+        ], $summary['progressCancellationMessages']);
         $t->same(true, $summary['emptyErrorKeepaliveIgnored']);
         $t->same(4294967295, $overflowProgressResponse->remoteProgress()[0]->percent);
         $t->same(null, $overflowProgressResponse->remoteProgress()[1]->percent);

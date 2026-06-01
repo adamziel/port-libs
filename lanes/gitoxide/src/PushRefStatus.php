@@ -75,22 +75,22 @@ final class PushRefStatus
         }
 
         if ($name === 'refname') {
-            if ($value === null) {
-                throw new \InvalidArgumentException('push response: refname option requires a value');
+            if ($value === null || $value === '') {
+                return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
             }
 
             return new self($this->status, $this->refName, $this->message, $value, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
         }
         if ($name === 'old-oid') {
-            if ($value === null) {
-                throw new \InvalidArgumentException('push response: old-oid option requires a value');
+            if ($value === null || $value === '') {
+                return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
             }
 
             return new self($this->status, $this->refName, $this->message, $this->reportedRefName, self::normalizeObjectIdOption($value), $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
         }
         if ($name === 'new-oid') {
-            if ($value === null) {
-                throw new \InvalidArgumentException('push response: new-oid option requires a value');
+            if ($value === null || $value === '') {
+                return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
             }
 
             return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, self::normalizeObjectIdOption($value), $this->forcedUpdate, $this->fallThrough, true);

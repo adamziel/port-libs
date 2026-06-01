@@ -6189,6 +6189,140 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    public static function win32AntivirusLockRetryProfile(string $scenario, array $options = []): array
+    {
+        $scenario = strtolower(trim($scenario));
+        if (!in_array($scenario, ['win32lock-1.2', 'win32lock-2.0', 'win32lock-2.1', 'win32lock-2.2', 'win32lock-3.2', 'win32lock-3.4'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite win32lock scenario: {$scenario}");
+        }
+
+        $retryCount = (int) ($options['retry_count'] ?? (in_array($scenario, ['win32lock-2.1', 'win32lock-2.2'], true) ? 1 : 10));
+        $retryDelayMs = (int) ($options['retry_delay_ms'] ?? (in_array($scenario, ['win32lock-2.1', 'win32lock-2.2'], true) ? 1 : 25));
+        $lockDelayMs = (int) ($options['lock_delay_ms'] ?? ($scenario === 'win32lock-2.2' ? 3 : 250));
+        $rowCount = (int) ($options['row_count'] ?? 4);
+        $basePayloadBytes = (int) ($options['base_payload_bytes'] ?? 100000);
+
+        if ($retryCount < 0 || $retryDelayMs < 0 || $lockDelayMs < 0) {
+            throw new \InvalidArgumentException('SQLite win32lock retry and delay values must be non-negative');
+        }
+        if ($rowCount < 1) {
+            throw new \InvalidArgumentException('SQLite win32lock profile requires at least one row');
+        }
+        if ($basePayloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite win32lock profile requires a positive payload size');
+        }
+
+        $rows = [];
+        for ($row = 1; $row <= $rowCount; $row++) {
+            $rows[] = [$row, max(1, intdiv($basePayloadBytes, 1 << min(5, $row - 1)))];
+        }
+
+        $profile = [
+            'status' => 'ok',
+            'script' => 'win32lock.test',
+            'scenario' => $scenario,
+            'platform' => 'windows',
+            'mmap_disabled' => true,
+            'cache_size' => 10,
+            'setup_rows' => $rows,
+            'default_av_retry_control' => ['rc' => 0, 'retry_count' => 10, 'retry_delay_ms' => 25],
+            'retry_count' => $retryCount,
+            'retry_delay_ms' => $retryDelayMs,
+            'lock_delay_ms' => $lockDelayMs,
+            'retry_budget_ms' => $retryCount * $retryDelayMs,
+            'dependencies' => [
+                'sqlite-upstream-win32lock-antivirus-retry',
+                'sqlite-vfs-win32-lock-retry',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+
+        if (in_array($scenario, ['win32lock-1.2', 'win32lock-2.2'], true)) {
+            $budget = $retryCount * $retryDelayMs;
+            $readSucceeds = $lockDelayMs <= $budget;
+            $attempts = $retryDelayMs === 0 ? ($lockDelayMs === 0 ? 0 : $retryCount) : min($retryCount, (int) ceil($lockDelayMs / max(1, $retryDelayMs)));
+
+            return $profile + [
+                'upstream' => [
+                    'win32lock.test win32lock-1.1 setup table with large payload rows and mmap disabled',
+                    'win32lock.test win32lock-1.2 transient lock loop returns both ok reads and disk I/O errors',
+                    'win32lock.test win32lock-2.0 default file_control_win32_av_retry reports 10 retries at 25ms',
+                    'win32lock.test win32lock-2.1 setting file_control_win32_av_retry to 1 retry at 1ms succeeds',
+                    'win32lock.test win32lock-2.2 short retry loop still returns both ok reads and disk I/O errors',
+                ],
+                'av_retry_control_after_set' => $scenario === 'win32lock-2.2'
+                    ? ['rc' => 0, 'retry_count' => $retryCount, 'retry_delay_ms' => $retryDelayMs]
+                    : $profile['default_av_retry_control'],
+                'retry_attempts_planned' => $attempts,
+                'transient_lock_cleared_before_budget' => $readSucceeds,
+                'select_result_code' => $readSucceeds ? 'SQLITE_OK' : 'SQLITE_IOERR_LOCK',
+                'select_result_message' => $readSucceeds ? 'ok' : 'disk I/O error',
+                'select_rows' => $readSucceeds ? $rows : [],
+                'log_message_normalized' => $readSucceeds && $lockDelayMs > 0 ? 'delayed #ms for lock/sharing conflict' : null,
+                'both_ok_and_error_possible_in_loop' => true,
+                'database_image_stable_after_retry' => true,
+                'reason' => $readSucceeds
+                    ? 'win32_antivirus_retry_waits_out_transient_lock'
+                    : 'win32_antivirus_retry_budget_exhaustion_surfaces_disk_io_error',
+            ];
+        }
+
+        if ($scenario === 'win32lock-2.0' || $scenario === 'win32lock-2.1') {
+            return $profile + [
+                'upstream' => [
+                    'win32lock.test win32lock-2.0 default file_control_win32_av_retry reports 10 retries at 25ms',
+                    'win32lock.test win32lock-2.1 file_control_win32_av_retry db 1 1 reports 1 retry at 1ms',
+                ],
+                'file_control_result' => $scenario === 'win32lock-2.0'
+                    ? ['rc' => 0, 'retry_count' => 10, 'retry_delay_ms' => 25]
+                    : ['rc' => 0, 'retry_count' => $retryCount, 'retry_delay_ms' => $retryDelayMs],
+                'file_control_mutates_connection' => $scenario === 'win32lock-2.1',
+                'reason' => $scenario === 'win32lock-2.0'
+                    ? 'win32_av_retry_file_control_reports_default_retry_window'
+                    : 'win32_av_retry_file_control_updates_retry_window',
+            ];
+        }
+
+        if ($scenario === 'win32lock-3.2') {
+            return $profile + [
+                'upstream' => [
+                    'win32lock.test win32lock-3.0 setup two ordinary win32 handles',
+                    'win32lock.test win32lock-3.1 first connection opens an exclusive transaction',
+                    'win32lock.test win32lock-3.2 second connection BEGIN EXCLUSIVE is database locked',
+                    'win32lock.test win32lock-3.3 first connection COMMIT releases the exclusive lock',
+                ],
+                'primary_handle' => 'db',
+                'peer_handle' => 'db2',
+                'primary_transaction' => ['begin' => 'exclusive', 'inserted_row' => 4, 'status' => 'open'],
+                'peer_transaction_attempt' => ['begin' => 'exclusive', 'inserted_row' => 5, 'code' => 1, 'message' => 'database is locked'],
+                'primary_commit_result' => ['code' => 0, 'message' => 'ok'],
+                'peer_blocked_by_primary_exclusive' => true,
+                'rows_after_primary_commit' => [1, 2, 3, 4],
+                'reason' => 'ordinary_win32_handles_enforce_exclusive_transaction_contention',
+            ];
+        }
+
+        return $profile + [
+            'upstream' => [
+                'win32lock.test win32lock-3.4 file_control_win32_set_handle 0 makes lock acquisition fail',
+                'win32lock.test win32lock-3.4 restores the original handle and reports SQLITE_IOERR_LOCK',
+            ],
+            'primary_handle' => 'db',
+            'saved_handle_available' => true,
+            'handle_set_to_zero' => true,
+            'write_attempt' => ['begin' => 'exclusive', 'inserted_row' => 6, 'commit' => true],
+            'write_result' => ['code' => 1, 'message' => 'disk I/O error'],
+            'restore_handle_result' => ['rc' => 0, 'handle_restored' => true],
+            'extended_errcode' => 'SQLITE_IOERR_LOCK',
+            'database_image_stable_after_failed_lock' => true,
+            'reason' => 'invalid_win32_file_handle_maps_lock_failure_to_sqlite_ioerr_lock',
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     private static function multiplexChunkFiles(string $baseName, int $chunkCount, bool $shortNames): array

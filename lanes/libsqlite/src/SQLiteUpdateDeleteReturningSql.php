@@ -979,7 +979,7 @@ final class SQLiteUpdateDeleteReturningSql
         $scalarFunction = self::wholeLimitScalarFunction($expression);
         if (
             $scalarFunction !== null
-            && in_array($scalarFunction['name'], ['coalesce', 'ifnull', 'nullif', 'min', 'max', 'round', 'sign', 'ceil', 'ceiling', 'floor', 'trunc', 'sqrt', 'pow', 'power', 'exp', 'ln', 'log', 'log10', 'log2', 'mod', 'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'pi', 'upper', 'lower', 'trim', 'ltrim', 'rtrim', 'substr', 'substring', 'instr', 'replace', 'concat', 'concat_ws', 'char', 'unicode', 'octet_length', 'hex', 'unhex', 'unistr', 'unistr_quote', 'quote', 'typeof', 'printf', 'format', 'iif', 'if', 'likely', 'unlikely', 'likelihood', 'zeroblob', 'randomblob', 'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime', 'timediff', 'sqlite_version', 'sqlite_source_id', 'sqlite_compileoption_get', 'sqlite_compileoption_used', 'json', 'jsonb', 'json_array', 'jsonb_array', 'json_object', 'jsonb_object', 'json_valid', 'json_error_position', 'json_type', 'json_array_length', 'json_extract', 'jsonb_extract', 'json_quote'], true)
+            && in_array($scalarFunction['name'], ['coalesce', 'ifnull', 'nullif', 'min', 'max', 'round', 'sign', 'ceil', 'ceiling', 'floor', 'trunc', 'sqrt', 'pow', 'power', 'exp', 'ln', 'log', 'log10', 'log2', 'mod', 'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'pi', 'upper', 'lower', 'trim', 'ltrim', 'rtrim', 'substr', 'substring', 'instr', 'replace', 'concat', 'concat_ws', 'char', 'unicode', 'octet_length', 'hex', 'unhex', 'unistr', 'unistr_quote', 'quote', 'typeof', 'printf', 'format', 'iif', 'if', 'likely', 'unlikely', 'likelihood', 'zeroblob', 'random', 'randomblob', 'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime', 'timediff', 'sqlite_version', 'sqlite_source_id', 'sqlite_compileoption_get', 'sqlite_compileoption_used', 'json', 'jsonb', 'json_array', 'jsonb_array', 'json_object', 'jsonb_object', 'json_valid', 'json_error_position', 'json_type', 'json_array_length', 'json_extract', 'jsonb_extract', 'json_quote'], true)
         ) {
             return self::evaluateLimitScalarFunction($scalarFunction['name'], $scalarFunction['arguments']);
         }
@@ -1373,6 +1373,9 @@ final class SQLiteUpdateDeleteReturningSql
         if ($function === 'char' && count($parts) < 1) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT char() needs at least one argument');
         }
+        if ($function === 'random' && count($parts) !== 0) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT random() needs no arguments');
+        }
         if (($function === 'zeroblob' || $function === 'randomblob') && count($parts) !== 1) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
         }
@@ -1494,6 +1497,14 @@ final class SQLiteUpdateDeleteReturningSql
             }
 
             return self::limitExpressionValue($parts[0]);
+        }
+        if ($function === 'random') {
+            $value = SQLiteCoreScalarFunction::sqlFunctionArguments($function, []);
+            if (!is_int($value)) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT random() returned an unsupported value');
+            }
+
+            return $value;
         }
 
         $values = array_map(static fn (string $part): int|float|string|SQLiteBlobValue|null => self::limitExpressionValue($part), $parts);
