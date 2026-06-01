@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 23:12:43 UTC",
-    "sourceCommit": "f30bb1f7aeed8c868a03a9a7518ef918794f32c6",
-    "sourceCommitShort": "f30bb1f7aeed",
+    "generated": "2026-06-01 23:19:29 UTC",
+    "sourceCommit": "aa258090076d078082e1c905d881e044d3b3f22e",
+    "sourceCommitShort": "aa258090076d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "f30bb1f7aeed8c868a03a9a7518ef918794f32c6",
-    "dashboardCommitShort": "f30bb1f7aeed",
+    "dashboardCommit": "aa258090076d078082e1c905d881e044d3b3f22e",
+    "dashboardCommitShort": "aa258090076d",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -45,13 +45,13 @@
             "coverage": "2,439 / 3,532 (69.1%)",
             "mapPercent": "69.1%",
             "unmapped": "1,093",
-            "php": "9,102 pass / 0 fail",
+            "php": "9,106 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
             "audit": "2026-06-01 isolated worker on base 4891303774c9ca404591d2f3a4d35bc9e1...",
-            "currentWork": "SourceMap empty generated-line negative column offset parity is corrected on current...",
+            "currentWork": "CSS Modules :has(:scope ...) relative selector serialization after local/global rewri...",
             "nextTarget": "Wrap up LightningCSS by integrating only current-base, produc...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "4e808df"
+            "commit": "aa25809"
         },
         {
             "lane": "gitoxide",
