@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 23:36:32 UTC",
-    "sourceCommit": "51442325d10cf04f04a80cc9168d70f103f49a8d",
-    "sourceCommitShort": "51442325d10c",
+    "generated": "2026-06-01 23:38:46 UTC",
+    "sourceCommit": "1603aff15d56672d8c048bc151a382b8071f86ff",
+    "sourceCommitShort": "1603aff15d56",
     "sourceBranch": "unknown",
-    "dashboardCommit": "51442325d10cf04f04a80cc9168d70f103f49a8d",
-    "dashboardCommitShort": "51442325d10c",
+    "dashboardCommit": "1603aff15d56672d8c048bc151a382b8071f86ff",
+    "dashboardCommitShort": "1603aff15d56",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -59,8 +59,8 @@
             "priority": "Active",
             "queue": "Active",
             "state": "High coverage",
-            "progressPercent": "98.6",
-            "completion": "98.6%",
+            "progressPercent": "98.7",
+            "completion": "98.7%",
             "suite": "current-base Gitoxide Cargo workspace evidence wrap-up",
             "benchmark": "current-base Gitoxide Cargo workspace evidence wrap-up",
             "denominator": "2886",
@@ -68,13 +68,13 @@
             "coverage": "1,819 / 2,886 (63.0%)",
             "mapPercent": "63.0%",
             "unmapped": "1,067",
-            "php": "10,840 pass / 0 fail",
-            "phase": "wrap-up runner evidence accepted by supervisor with full Gitoxide PHP...",
+            "php": "10,848 pass / 0 fail",
+            "phase": "wrap-up PHP parity and runner-evidence consolidation; full Cargo work...",
             "audit": "2026-06-01 20:36 UTC supervisor integration: source commit e5958190df...",
-            "currentWork": "Cargo workspace evidence is now recorded on current base, alongside accepted config w...",
+            "currentWork": "Protocol v2 fetch stop-packet parity is now accepted on current base, alongside Cargo...",
             "nextTarget": "Hydrate the missing upstream target files or run against a co...",
             "remainingGate": "Cargo workspace blocked by sparse target files",
-            "commit": "7b04c0a"
+            "commit": "1603aff"
         },
         {
             "lane": "readability",
