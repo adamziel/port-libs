@@ -3430,7 +3430,7 @@
             "focusedUpstreamVeryquickShardCurrentSourceNext431": "The 2026-05-28 isolated current-source next431 suite veryquick-shard runner slice maps one additional runner-countability blocker row for launcher Base accepted HEAD fca16e3d, current integration source 8a447f44, lane-local zero-error guarded runner artifact rows, duplicate-runner gates, exact 96 focused PASS-line admission, focused current-source veryquick shard scope, and no release/all parity claim."
         }
     },
-    "latestFocusedSlice": "2026-06-01 supervisor batch three: row-value UPDATE/DELETE LIMIT cast-affinity dynamic coverage plus application WAL rollback JSON final recovery-checkpoint follow-up parity. Focused libsqlite gate passed 2 files / 960 assertions / 0 failures; phpPass moves to 5878793 with broad release/all still at 7 known failures; mapped coverage remains 1589 / 1589.",
+    "latestFocusedSlice": "2026-06-01 supervisor batch nine: pragma writable-schema index-rootpage swap integrity diagnostics, wherelimit3 B-tree/index LIMIT-sensitive planner coverage, source-neutral trigger/upsert defaults cleanup, source-neutral encoding default-source cleanup, UTF-16 NOCASE/RTRIM consolidation, and SQLitePDO unknown-column error parity. Focused libsqlite/domain gate passed 22 files / 238773 assertions / 0 failures; SQLitePdoPolyfillTest passed 1 file / 106 assertions / 0 failures; phpPass moves to 5889968 with broad release/all still at 7 known failures; mapped coverage remains 1589 / 1589.",
     "latestNativePhpVerification": "2026-06-01 current-base integration: changed PHP lint passed; git diff --cached --check passed; focused trigger/rowvalue/no-domain gate passed 8 files / 47501 assertions / 0 failures.",
     "runnerStatus": "Focused libsqlite B-tree/no-domain gate passed 3 files / 84898 assertions / 0 failures. Broad release/all still has 7 known failures.",
     "latestCommit": "3ec6eca5d768da593338507a6f68979d67b734cf",
@@ -3603,7 +3603,7 @@
         "nativeVerification": "PHP lint on changed/new libsqlite PHP files; git diff --check; focused libsqlite gate 3 files / 10270 assertions / 0 failures; no new WordPress/wp_/numbered CurrentSourceNext strings in changed libsqlite source",
         "upstreamEvidence": "hydrated SQLite upstream e_fkey runtime intro source sections plus source-neutral STAT4 planner handoff evidence; full release/all runner not executed for this micro-batch"
     },
-    "latestMappedAddition": "2026-06-01 source 9b57a0640eb0: B-tree/index skipscan STAT4 dynamic corpus adds 1003 PHP assertions without changing the already-complete conservative mapped denominator.",
+    "latestMappedAddition": "2026-06-01 source fc8328e83: pragma writable-schema and wherelimit3 B-tree/index dynamic corpora add 2006 focused PHP PASS cases without changing the already-complete conservative mapped denominator.",
     "audit": "2026-06-01 supervisor accepted source 9b57a0640eb0 with focused B-tree/no-domain gate 3 files / 84898 assertions / 0 failures; broad release/all remains at 7 known failures.",
     "latestFocusedCorpusBatch20260601T0820Z": {
         "sourceCommit": "2922247b0e6dda4df9c4afc836a7272ae2b0136e",
