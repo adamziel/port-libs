@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 12:43:08 UTC",
+    "generated": "2026-06-01 12:46:06 UTC",
     "sourceCommit": "23c0a23f219b4dafa33ebcd8faf8b5041ba1f821",
     "sourceCommitShort": "23c0a23f219b",
     "sourceBranch": "unknown",
-    "dashboardCommit": "23c0a23f219b4dafa33ebcd8faf8b5041ba1f821",
-    "dashboardCommitShort": "23c0a23f219b",
+    "dashboardCommit": "687c594e4d06eca0127679aada46331adea32e3c",
+    "dashboardCommitShort": "687c594e4d06",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -15,8 +15,8 @@
             "state": "7 open failures",
             "progressPercent": "99.6",
             "completion": "99.6%",
-            "suite": "current-base libsqlite JSON SELECT and source-neutral row-id batch",
-            "benchmark": "current-base libsqlite JSON SELECT and source-neutral row-id batch",
+            "suite": "current-base libsqlite window trigger STAT4 row-value parity batch",
+            "benchmark": "current-base libsqlite window trigger STAT4 row-value parity batch",
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1,589 / 1,589 (100.0%)",
