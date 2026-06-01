@@ -294,6 +294,9 @@ final class SQLitePreparedStatementSchemaExpiry
             case 'set_authorizer':
                 $reason = 'authorizer_changed';
                 break;
+            case 'clear_authorizer':
+                $reason = 'authorizer_cleared';
+                break;
             case 'set_authorizer_deny':
                 $reason = 'authorizer_denied';
                 $terminalCode = 'SQLITE_AUTH';

@@ -35,44 +35,44 @@ $schemaCell = static fn (array $values, int $rowId): string => SQLiteTableLeafCe
 );
 $indexCell = static fn (array $values): string => SQLiteIndexCell::encode(SQLiteRecord::encode($values));
 $textPath = static fn (string $expression): ?string => SQLiteCreateIndex::firstJsonTextOperatorExpression(
-    'CREATE INDEX fixture ON wp_options(' . $expression . ') WHERE option_value IS NOT NULL',
+    'CREATE INDEX fixture ON app_settings(' . $expression . ') WHERE key_value IS NOT NULL',
 )?->path;
 
 $schemaPage = SQLiteTableLeafPage::assemble([
     $schemaCell([
         'table',
-        'wp_options',
-        'wp_options',
+        'app_settings',
+        'app_settings',
         2,
-        'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+        'CREATE TABLE app_settings(setting_id integer primary key, key_name text, key_value text, load_policy text)',
     ], 1),
     $schemaCell([
         'index',
-        'wp_options_json_min_cache',
-        'wp_options',
+        'app_settings_json_min_cache',
+        'app_settings',
         3,
-        "CREATE INDEX wp_options_json_min_cache ON wp_options(option_value ->> min('seo', 'cache')) WHERE option_value IS NOT NULL",
+        "CREATE INDEX app_settings_json_min_cache ON app_settings(key_value ->> min('search', 'cache')) WHERE key_value IS NOT NULL",
     ], 2),
     $schemaCell([
         'index',
-        'wp_options_json_max_plugin_enabled',
-        'wp_options',
+        'app_settings_json_max_module_enabled',
+        'app_settings',
         4,
-        "CREATE INDEX wp_options_json_max_plugin_enabled ON wp_options(option_value ->> max('plugin.enabled', 'plugin.disabled')) WHERE option_value IS NOT NULL",
+        "CREATE INDEX app_settings_json_max_module_enabled ON app_settings(key_value ->> max('module.enabled', 'module.disabled')) WHERE key_value IS NOT NULL",
     ], 3),
     $schemaCell([
         'index',
-        'wp_options_json_min_slot',
-        'wp_options',
+        'app_settings_json_min_slot',
+        'app_settings',
         5,
-        'CREATE INDEX wp_options_json_min_slot ON wp_options(option_value ->> min(2, 1)) WHERE option_value IS NOT NULL',
+        'CREATE INDEX app_settings_json_min_slot ON app_settings(key_value ->> min(2, 1)) WHERE key_value IS NOT NULL',
     ], 4),
 ], $pageSize, 100, $makeFirstPage(5));
 
 $tablePage = SQLiteTableLeafPage::assemble([
-    $schemaCell([null, 'plugin_min_cache_settings', '{"cache":"hit"}', 'no'], 1),
-    $schemaCell([null, 'plugin_max_enabled_settings', '{"plugin.enabled":"yes"}', 'no'], 2),
-    $schemaCell([null, 'plugin_min_slot_settings', '["zero","one","two"]', 'no'], 3),
+    $schemaCell([null, 'module_min_cache_settings', '{"cache":"hit"}', 'no'], 1),
+    $schemaCell([null, 'module_max_enabled_settings', '{"module.enabled":"yes"}', 'no'], 2),
+    $schemaCell([null, 'module_min_slot_settings', '["zero","one","two"]', 'no'], 3),
 ], $pageSize);
 
 $database = SQLiteDatabase::fromBytes(
@@ -85,26 +85,26 @@ $database = SQLiteDatabase::fromBytes(
 
 $matches = [
     'minCache' => $database->keyValueRowsByIndexedJsonValue('$.cache', 'hit'),
-    'maxPluginEnabled' => $database->keyValueRowsByIndexedJsonValue('$."plugin.enabled"', 'yes'),
+    'maxModuleEnabled' => $database->keyValueRowsByIndexedJsonValue('$."module.enabled"', 'yes'),
     'minSlot' => $database->keyValueRowsByIndexedJsonValue('$[1]', 'one'),
 ];
 
 echo json_encode([
-    'applicationUse' => 'Preflight copied wp_options JSON operator indexes whose RHS constants use reduced SQLite min()/max() string or numeric literals without requiring the SQLite extension.',
+    'applicationUse' => 'Preflight copied app_settings JSON operator indexes whose RHS constants use reduced SQLite min()/max() string or numeric literals without requiring the SQLite extension.',
     'normalizedExpressionPaths' => [
-        'minCache' => $textPath("option_value ->> min('seo', 'cache')"),
-        'maxPluginEnabled' => $textPath("option_value ->> max('plugin.enabled', 'plugin.disabled')"),
-        'minSlot' => $textPath('option_value ->> min(2, 1)'),
-        'mixedTypeUnsupported' => $textPath("option_value ->> min('1', 2)"),
-        'singleArgumentUnsupported' => $textPath('option_value ->> max(2)'),
+        'minCache' => $textPath("key_value ->> min('search', 'cache')"),
+        'maxModuleEnabled' => $textPath("key_value ->> max('module.enabled', 'module.disabled')"),
+        'minSlot' => $textPath('key_value ->> min(2, 1)'),
+        'mixedTypeUnsupported' => $textPath("key_value ->> min('1', 2)"),
+        'singleArgumentUnsupported' => $textPath('key_value ->> max(2)'),
     ],
     'nativeRootPages' => [
-        'minCache' => $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.cache', 'hit'),
-        'maxPluginEnabled' => $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."plugin.enabled"', 'yes'),
-        'minSlot' => $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$[1]', 'one'),
+        'minCache' => $database->indexRootPageForJsonExtractPointLookup('app_settings', 'key_value', '$.cache', 'hit'),
+        'maxModuleEnabled' => $database->indexRootPageForJsonExtractPointLookup('app_settings', 'key_value', '$."module.enabled"', 'yes'),
+        'minSlot' => $database->indexRootPageForJsonExtractPointLookup('app_settings', 'key_value', '$[1]', 'one'),
     ],
     'matches' => array_map(
-        static fn (array $options): array => array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options),
+        static fn (array $settings): array => array_map(static fn (SQLiteKeyValueRow $setting): string => $setting->keyName, $settings),
         $matches,
     ),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

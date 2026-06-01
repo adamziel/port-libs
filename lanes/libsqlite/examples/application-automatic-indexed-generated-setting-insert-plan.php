@@ -29,30 +29,30 @@ $firstPage = substr_replace($firstPage, pack('N', 1), 56, 4);
 $schemaPage = SQLiteTableLeafPage::assemble([
     SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
         'table',
-        'wp_options',
-        'wp_options',
+        'app_settings',
+        'app_settings',
         2,
-        'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+        'CREATE TABLE app_settings(setting_id integer primary key, key_name text UNIQUE, key_value text, load_policy text)',
     ])),
     SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
         'index',
-        'wp_options_option_name',
-        'wp_options',
+        'sqlite_autoindex_app_settings_1',
+        'app_settings',
         3,
-        'CREATE INDEX wp_options_option_name ON wp_options(option_name)',
+        null,
     ])),
 ], $pageSize, 100, $firstPage);
 
 $tablePage = SQLiteTableLeafPage::assemble([
-    SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+    SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'base_url', 'https://example.test', 'yes'])),
 ], $pageSize);
 $indexPage = SQLiteIndexLeafPage::assemble([
-    SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 1])),
+    SQLiteIndexCell::encode(SQLiteRecord::encode(['base_url', 1])),
 ], $pageSize);
 
 $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
-$optionValue = $argv[1] ?? 'https://example.test/blog';
-$plan = $database->planKeyValueRowInsert(2, 'home', $optionValue, 'yes');
+$settingValue = $argv[1] ?? 'https://example.test/landing';
+$plan = $database->planKeyValueRowInsert(2, 'landing_url', $settingValue, 'yes');
 
 $pages = [
     1 => $database->page(1),
@@ -64,8 +64,8 @@ foreach ($plan->pageImages() as $pageNumber => $page) {
 }
 
 $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
-$options = array_map(
-    static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+$settings = array_map(
+    static fn (SQLiteKeyValueRow $setting): array => $setting->toArray(),
     $postDatabase->keyValueRows(),
 );
 $indexRecords = array_map(
@@ -74,10 +74,10 @@ $indexRecords = array_map(
 );
 
 echo json_encode([
-    'applicationUse' => 'Plan a bounded generated wp_options row insert while maintaining a single-leaf option_name index, without the SQLite extension.',
+    'applicationUse' => 'Plan a bounded generated app_settings row insert while maintaining a sqlite_autoindex-backed UNIQUE(key_name) constraint, without the SQLite extension.',
     'plan' => $plan->toArray(),
     'updatedPageNumbers' => array_keys($plan->pageImages()),
-    'indexRecords' => $indexRecords,
-    'indexedHomeOption' => $postDatabase->keyValueRowByIndexedName('home')?->toArray(),
-    'options' => $options,
+    'automaticIndexRecords' => $indexRecords,
+    'indexedLandingSetting' => $postDatabase->keyValueRowByIndexedName('landing_url')?->toArray(),
+    'settings' => $settings,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

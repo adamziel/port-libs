@@ -63,8 +63,12 @@ $rowValueSourceFiles = [
 ];
 $keyValueFixtureFiles = [
     $libsqliteRoot . '/examples/application-current-smoke-key-value-import.php',
+    $libsqliteRoot . '/examples/application-automatic-indexed-generated-setting-insert-plan.php',
     $libsqliteRoot . '/examples/application-composite-indexed-generated-setting-insert-plan.php',
+    $libsqliteRoot . '/examples/application-generated-setting-insert-plan.php',
     $libsqliteRoot . '/examples/application-index-split-setting-replacement-plan.php',
+    $libsqliteRoot . '/examples/application-indexed-generated-setting-insert-plan.php',
+    $libsqliteRoot . '/examples/application-json-operator-minmax-rhs.php',
     $libsqliteRoot . '/examples/application-json-operator-json-quote-rhs-forms.php',
     $libsqliteRoot . '/examples/application-json-schema-wal-current-next43.php',
     $libsqliteRoot . '/examples/application-json-upsert-migration-current-next27.php',
@@ -72,6 +76,8 @@ $keyValueFixtureFiles = [
     $libsqliteRoot . '/examples/application-malformed-text-current-next70.php',
     $libsqliteRoot . '/examples/application-savepoint-key-value-import-diagnostics.php',
     $libsqliteRoot . '/examples/application-settings-import-wal-current-next.php',
+    $libsqliteRoot . '/examples/application-partial-indexed-generated-setting-insert-plan.php',
+    $libsqliteRoot . '/examples/application-table-leaf-page-assembly.php',
     $libsqliteRoot . '/examples/application-tenant-keyvalue-import-savepoint-current-next37.php',
     $libsqliteRoot . '/examples/application-utf16-affinity-source-switch-current-source-next100.php',
     $libsqliteRoot . '/examples/application-utf16-collation-affinity-current-source-next85.php',

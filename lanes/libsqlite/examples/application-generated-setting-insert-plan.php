@@ -28,19 +28,19 @@ $firstPage = substr_replace($firstPage, pack('N', 1), 56, 4);
 $schemaPage = SQLiteTableLeafPage::assemble([
     SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
         'table',
-        'wp_options',
-        'wp_options',
+        'app_settings',
+        'app_settings',
         2,
-        'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+        'CREATE TABLE app_settings(setting_id integer primary key, key_name text, key_value text, load_policy text)',
     ])),
 ], $pageSize, 100, $firstPage);
 $tablePage = SQLiteTableLeafPage::assemble([
-    SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+    SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'base_url', 'https://example.test', 'yes'])),
 ]);
 
 $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage);
-$optionValue = $argv[1] ?? str_repeat('generated-cache-fragment:', 56) . 'done';
-$plan = $database->planKeyValueRowInsert(2, 'generated_cache_fixture', $optionValue, 'no');
+$settingValue = $argv[1] ?? str_repeat('generated-cache-fragment:', 56) . 'done';
+$plan = $database->planKeyValueRowInsert(2, 'generated_cache_fixture', $settingValue, 'no');
 
 $pages = [
     1 => $database->page(1),
@@ -54,14 +54,14 @@ foreach ($plan->pageImages() as $pageNumber => $page) {
 }
 
 $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
-$options = array_map(
-    static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+$settings = array_map(
+    static fn (SQLiteKeyValueRow $setting): array => $setting->toArray(),
     $postDatabase->keyValueRows(),
 );
 
 echo json_encode([
-    'applicationUse' => 'Plan a bounded generated wp_options row insert as page images, including overflow page allocation, without the SQLite extension.',
+    'applicationUse' => 'Plan a bounded generated app_settings row insert as page images, including overflow page allocation, without the SQLite extension.',
     'plan' => $plan->toArray(),
     'updatedPageNumbers' => array_keys($plan->pageImages()),
-    'options' => $options,
+    'settings' => $settings,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

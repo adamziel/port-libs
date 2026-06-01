@@ -27,13 +27,19 @@ $sourceFiles = [
     $sourceRoot . '/SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteUpsertTriggerForeignKeyYieldPlan.php',
+    $sourceRoot . '/SQLiteViewUpsertReturningSavepointPlan.php',
 ];
 $fixtureFiles = [
     $libsqliteRoot . '/examples/application-trigger-returning-upsert-view-current-next52.php',
     $libsqliteRoot . '/examples/application-trigger-upsert-returning-view-unique-current-source-next140.php',
+    $libsqliteRoot . '/examples/application-trigger-view-returning-savepoint-recursive-current-source-next123.php',
+    $libsqliteRoot . '/examples/application-view-upsert-returning-savepoint-current-next49.php',
     $libsqliteRoot . '/tests/SQLiteTriggerReturningUpsertViewCurrentNext52Test.php',
     $libsqliteRoot . '/tests/SQLiteTriggerUpsertReturningViewUniqueCurrentSourceNext140Test.php',
+    $libsqliteRoot . '/tests/SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNext123Test.php',
+    $libsqliteRoot . '/tests/SQLiteViewUpsertReturningSavepointCurrentNext49Test.php',
 ];
 
 $legacyTriggerViewDefaultMatches = static function () use ($sourceFiles, $libsqliteRoot): array {
