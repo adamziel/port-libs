@@ -2964,6 +2964,75 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules decodes escaped custom idents before animation and view transition scoping while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  animation: c\61 rd-pop 1s;
+  view-transition-name: c\61 rd-enter;
+  view-transition-class: nav\2d menu;
+  view-transition-group: n\65 arest;
+  composes: base;
+  color: red;
+}
+
+:root:active-view-transition-type(c\61 rd-enter, nav\2d menu) {
+  color: yellow;
+}
+
+:root::view-transition-group(c\61 rd-enter.t\68 umb) {
+  opacity: .5;
+}
+
+:root::view-transition-new(.t\68 umb) {
+  opacity: .25;
+}
+
+@keyframes c\61 rd-pop {
+  from { opacity: 0 }
+  to { opacity: 1 }
+}
+
+.base {
+  color: blue;
+}
+CSS);
+
+        $t->same('.EgL3uq_card{animation:1s EgL3uq_card-pop;view-transition-name:EgL3uq_card-enter;view-transition-class:EgL3uq_nav-menu;view-transition-group:nearest;color:red}:root:active-view-transition-type(EgL3uq_card-enter,EgL3uq_nav-menu){color:#ff0}:root::view-transition-group(EgL3uq_card-enter.EgL3uq_thumb){opacity:.5}:root::view-transition-new(.EgL3uq_thumb){opacity:.25}@keyframes EgL3uq_card-pop{0%{opacity:0}to{opacity:1}}.EgL3uq_base{color:#00f}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'card-pop' => [
+                'name' => 'EgL3uq_card-pop',
+                'composes' => [],
+                'isReferenced' => true,
+            ],
+            'card-enter' => $export('EgL3uq_card-enter'),
+            'nav-menu' => $export('EgL3uq_nav-menu'),
+            'thumb' => $export('EgL3uq_thumb'),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_card EgL3uq_base', CssModulesTransformer::exportClassList($result['exports'], 'card'));
+
+        $keywordResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  view-transition-name: a\75 to;
+  view-transition-class: n\6f ne;
+  view-transition-group: n\6f rmal;
+  color: red;
+}
+
+.panel {
+  view-transition-group: c\6f ntain;
+  color: blue;
+}
+CSS);
+
+        $t->same('.EgL3uq_card{view-transition-name:auto;view-transition-class:none;view-transition-group:normal;color:red}.EgL3uq_panel{view-transition-group:contain;color:#00f}', $keywordResult['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'panel' => $export('EgL3uq_panel'),
+        ], $keywordResult['exports']);
+    },
     'css modules rejects local global pseudos inside upstream view transition selector functions' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card {

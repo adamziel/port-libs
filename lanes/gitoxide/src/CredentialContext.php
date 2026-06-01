@@ -17,6 +17,15 @@ final class CredentialContext
         public readonly ?string $url = null,
         public readonly ?bool $quit = null,
     ) {
+        foreach ([
+            'protocol' => $this->protocol,
+            'host' => $this->host,
+            'username' => $this->username,
+            'password' => $this->password,
+            'oauth_refresh_token' => $this->oauthRefreshToken,
+        ] as $key => $value) {
+            self::validateUtf8StringField($key, $value);
+        }
     }
 
     public static function fromBytes(string $input): self
@@ -274,6 +283,13 @@ final class CredentialContext
             throw new \InvalidArgumentException('Credential context keys must be valid UTF-8');
         }
         if ($valueMustBeUtf8 && preg_match('//u', $value) !== 1) {
+            throw new \InvalidArgumentException("Credential context field {$key} must be valid UTF-8");
+        }
+    }
+
+    private static function validateUtf8StringField(string $key, ?string $value): void
+    {
+        if ($value !== null && preg_match('//u', $value) !== 1) {
             throw new \InvalidArgumentException("Credential context field {$key} must be valid UTF-8");
         }
     }

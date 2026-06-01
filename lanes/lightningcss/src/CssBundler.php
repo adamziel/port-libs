@@ -563,7 +563,7 @@ final class CssBundler
         $sourceMapUrl = $this->sourceMapUrl($source);
         if ($sourceMapUrl !== null && str_starts_with(strtolower($sourceMapUrl), 'data:')) {
             try {
-                $this->sourceMap->addSourceMap(SourceMap::fromDataUrl($sourceMapUrl, $this->sourceMapProjectRoot));
+                $this->sourceMap->addSourceMap(SourceMap::fromDataUrl($sourceMapUrl, $this->sourceMapProjectRoot), 0, false);
 
                 return;
             } catch (\Throwable) {

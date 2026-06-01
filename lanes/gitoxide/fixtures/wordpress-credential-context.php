@@ -64,6 +64,16 @@ try {
 } catch (InvalidArgumentException) {
     $duplicateInvalidStringRejected = true;
 }
+$constructorInvalidStringRejected = false;
+try {
+    new CredentialContext(username: "deploy-bot\xff");
+} catch (InvalidArgumentException) {
+    $constructorInvalidStringRejected = true;
+}
+$constructorByteContext = new CredentialContext(
+    url: "file:///srv/wp-content\xff.git",
+    path: "srv/wp-content\xff.git",
+);
 $duplicateBytePath = CredentialContext::fromBytes("path=wp-content\xff.git\npath=wp-content.git\n");
 $bareCarriageReturnPath = CredentialContext::fromBytes("path=wp-content\r");
 $crlfTerminatedPath = CredentialContext::fromBytes("path=wp-content\r\n");
@@ -204,6 +214,11 @@ return [
         'path' => $hostlessExtensionContext->path,
     ],
     'duplicateInvalidStringRejected' => $duplicateInvalidStringRejected,
+    'constructorInvalidStringRejected' => $constructorInvalidStringRejected,
+    'constructorByteFieldsPreserved' => $constructorByteContext->path === "srv/wp-content\xff.git"
+        && $constructorByteContext->url === "file:///srv/wp-content\xff.git"
+        && str_contains($constructorByteContext->storageBytes(), "path=srv/wp-content\xff.git\n")
+        && str_contains($constructorByteContext->storageBytes(), "url=file:///srv/wp-content\xff.git\n"),
     'duplicateBytePath' => $duplicateBytePath->path,
     'bareCarriageReturnPathPreserved' => $bareCarriageReturnPath->path === "wp-content\r",
     'crlfPathTerminatorStripped' => $crlfTerminatedPath->path === 'wp-content',
@@ -225,5 +240,5 @@ return [
     'redactedBytes' => $redacted->storageBytes(),
     'clearedPassword' => $cleared->password,
     'clearedOauthRefreshToken' => $cleared->oauthRefreshToken,
-    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, destructure local mirror and extension-scheme remotes, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs.',
+    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, destructure local mirror and extension-scheme remotes, enforce string-field UTF-8 boundaries, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs.',
 ];

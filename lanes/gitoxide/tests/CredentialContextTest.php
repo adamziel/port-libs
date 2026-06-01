@@ -101,6 +101,28 @@ return [
         $crlfTerminated = CredentialContext::fromBytes("path=wp-content\r\n");
         $t->same('wp-content', $crlfTerminated->path);
     },
+    'credential context constructor preserves upstream string and byte field boundary' => static function (TestRunner $t): void {
+        $badUtf8 = "bad\xff";
+        foreach ([
+            static fn () => new CredentialContext(protocol: $badUtf8),
+            static fn () => new CredentialContext(host: $badUtf8),
+            static fn () => new CredentialContext(username: $badUtf8),
+            static fn () => new CredentialContext(password: $badUtf8),
+            static fn () => new CredentialContext(oauthRefreshToken: $badUtf8),
+        ] as $factory) {
+            $t->throws(InvalidArgumentException::class, $factory);
+        }
+
+        $byteContext = new CredentialContext(
+            url: "file:///srv/wp-content\xff.git",
+            path: "srv/wp-content\xff.git",
+        );
+
+        $t->same("file:///srv/wp-content\xff.git", $byteContext->url);
+        $t->same("srv/wp-content\xff.git", $byteContext->path);
+        $t->contains("url=file:///srv/wp-content\xff.git\n", $byteContext->storageBytes());
+        $t->contains("path=srv/wp-content\xff.git\n", $byteContext->storageBytes());
+    },
     'credential context url and prompt helpers match gix credentials context' => static function (TestRunner $t): void {
         $t->same(null, (new CredentialContext())->toUrl());
         $t->same('https://', (new CredentialContext(protocol: 'https'))->toUrl());
@@ -292,6 +314,8 @@ return [
         $t->contains('password=<redacted>', $fixture['redactedBytes']);
         $t->same(true, $fixture['rootHttpPathCleared']);
         $t->same(true, $fixture['duplicateInvalidStringRejected']);
+        $t->same(true, $fixture['constructorInvalidStringRejected']);
+        $t->same(true, $fixture['constructorByteFieldsPreserved']);
         $t->same('wp-content.git', $fixture['duplicateBytePath']);
         $t->same(true, $fixture['bareCarriageReturnPathPreserved']);
         $t->same(true, $fixture['crlfPathTerminatorStripped']);
@@ -335,6 +359,8 @@ return [
         $t->same($fixture['helperQuitMessage'], $summary['helperQuitMessage']);
         $t->same(true, $summary['bareCarriageReturnPathPreserved']);
         $t->same(true, $summary['crlfPathTerminatorStripped']);
+        $t->same(true, $summary['constructorInvalidStringRejected']);
+        $t->same(true, $summary['constructorByteFieldsPreserved']);
         $t->same(false, $summary['emptyQuitFalse']);
         $t->same(true, $summary['overflowExpiryIgnored']);
         $t->same(true, $summary['overflowQuitIgnored']);

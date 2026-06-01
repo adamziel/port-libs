@@ -615,7 +615,7 @@ final class SQLitePragmaSchemaCatalog
      */
     public static function parsePragma(string $sql): array
     {
-        $trimmed = rtrim(trim($sql), ';');
+        $trimmed = self::firstSqlStatement($sql);
         $identifier = '(?:\"(?:\"\"|[^\"])*\"|`[^`]*`|\[[^\]]*\]|\'(?:\'\'|[^\'])*\'|[A-Za-z_][A-Za-z0-9_]*)';
         if (preg_match('/^pragma\s+(?:(?<schema>' . $identifier . ')\s*\.\s*)?(?<pragma>function_list|module_list|collation_list|pragma_list|table_list)(?:\s*(?:\(\s*(?<target>' . $identifier . ')?\s*\)|=\s*(?<equals>' . $identifier . '))?)?$/i', $trimmed, $matches) === 1) {
             return [
@@ -652,7 +652,7 @@ final class SQLitePragmaSchemaCatalog
      */
     public static function parseTableValuedPragma(string $sql): array
     {
-        $trimmed = rtrim(trim($sql), ';');
+        $trimmed = self::firstSqlStatement($sql);
         if (preg_match('/^pragma_(?<pragma>function_list|module_list|collation_list|pragma_list)\s*\(\s*\)$/i', $trimmed, $matches) === 1) {
             return [
                 'pragma' => strtolower($matches['pragma']),
@@ -697,6 +697,50 @@ final class SQLitePragmaSchemaCatalog
             'schema' => isset($args[1]) ? strtolower(self::unquoteIdentifier($args[1])) : null,
             'target' => $target,
         ];
+    }
+
+    private static function firstSqlStatement(string $sql): string
+    {
+        $trimmed = trim($sql);
+        $length = strlen($trimmed);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $trimmed[$i];
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $quote = $char;
+                for ($i++; $i < $length; $i++) {
+                    if ($trimmed[$i] !== $quote) {
+                        continue;
+                    }
+                    if (isset($trimmed[$i + 1]) && $trimmed[$i + 1] === $quote) {
+                        $i++;
+                        continue;
+                    }
+                    break;
+                }
+                continue;
+            }
+            if ($char === '[') {
+                $end = strpos($trimmed, ']', $i + 1);
+                $i = $end === false ? $length : $end;
+                continue;
+            }
+            if ($char === '-' && ($trimmed[$i + 1] ?? '') === '-') {
+                $newline = strcspn($trimmed, "\r\n", $i + 2);
+                $i += $newline + 1;
+                continue;
+            }
+            if ($char === '/' && ($trimmed[$i + 1] ?? '') === '*') {
+                $end = strpos($trimmed, '*/', $i + 2);
+                $i = $end === false ? $length : $end + 1;
+                continue;
+            }
+            if ($char === ';') {
+                return trim(substr($trimmed, 0, $i));
+            }
+        }
+
+        return rtrim($trimmed, ';');
     }
 
     /**

@@ -137,16 +137,15 @@ if (
     $generatedSourceBundle['code'] !== '.wp-block-card{color:green}.wp-site-blocks{color:red}'
     || $generatedSourceBundle['sourceMap']->toArray(null, false)['sources'] !== [
         'theme.css',
-        'blocks/_tokens.scss',
         'blocks/generated-card.scss',
     ]
 ) {
-    fwrite(STDERR, "Expected inline input source map to replace generated block CSS source\n");
+    fwrite(STDERR, "Expected inline input source map to replace generated block CSS source and prune unused originals\n");
     exit(1);
 }
 
 echo 'source-map-input: remapped' . PHP_EOL;
-echo 'source-map-input-unused: preserved' . PHP_EOL;
+echo 'source-map-input-unused: pruned' . PHP_EOL;
 
 $literalSourceMap = 'data:application/json;base64,' . base64_encode(json_encode([
     'version' => 3,

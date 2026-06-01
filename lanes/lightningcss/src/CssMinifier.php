@@ -9724,7 +9724,7 @@ final class CssMinifier
 
     private function composeGridDeclarationList(string $body): string
     {
-        if (stripos($body, 'grid-') === false) {
+        if (stripos($body, 'grid-') === false && preg_match('/(?:^|;)\s*grid\s*:/i', $body) !== 1) {
             return $body;
         }
 
@@ -9737,8 +9737,67 @@ final class CssMinifier
         $this->rewriteGridShorthandRowOverrideGroup($entries);
         $this->rewriteGridTemplateGroup($entries);
         $this->rewriteGridPlacementGroups($entries);
+        $this->rewriteGridDefaultAutoFlowRowsGroup($entries);
 
         return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteGridDefaultAutoFlowRowsGroup(array &$entries): void
+    {
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || $entry['important'] || $entry['property'] !== 'grid') {
+                continue;
+            }
+
+            $replacement = $this->defaultGridAutoFlowRowsShorthandValue($entry['value']);
+            if ($replacement === null || $this->hasFollowingGridTemplateAreas($entries, $index)) {
+                continue;
+            }
+
+            $entries[$index]['value'] = $replacement;
+        }
+    }
+
+    private function defaultGridAutoFlowRowsShorthandValue(string $value): ?string
+    {
+        $parts = $this->splitTopLevel($value, '/');
+        if (count($parts) !== 2) {
+            return null;
+        }
+
+        $rows = trim($parts[0]);
+        $columns = trim($parts[1]);
+        if ($columns === '' || preg_match('/^auto-flow(?:\s+auto)?$/i', $rows) !== 1) {
+            return null;
+        }
+
+        return strcasecmp($columns, 'none') === 0 ? 'none' : 'none/' . $columns;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function hasFollowingGridTemplateAreas(array $entries, int $gridIndex): bool
+    {
+        for ($index = $gridIndex + 1, $count = count($entries); $index < $count; $index++) {
+            $entry = $entries[$index];
+            if ($entry['drop']) {
+                continue;
+            }
+
+            if ($entry['property'] === 'grid' || $entry['property'] === 'grid-template') {
+                return false;
+            }
+
+            if ($entry['property'] === 'grid-template-areas') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

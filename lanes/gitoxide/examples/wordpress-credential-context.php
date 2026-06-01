@@ -23,6 +23,8 @@ return [
     'pathlessExtensionContext' => $fixture['pathlessExtensionContext'],
     'hostlessExtensionContext' => $fixture['hostlessExtensionContext'],
     'duplicateInvalidStringRejected' => $fixture['duplicateInvalidStringRejected'],
+    'constructorInvalidStringRejected' => $fixture['constructorInvalidStringRejected'],
+    'constructorByteFieldsPreserved' => $fixture['constructorByteFieldsPreserved'],
     'duplicateBytePath' => $fixture['duplicateBytePath'],
     'bareCarriageReturnPathPreserved' => $fixture['bareCarriageReturnPathPreserved'],
     'crlfPathTerminatorStripped' => $fixture['crlfPathTerminatorStripped'],

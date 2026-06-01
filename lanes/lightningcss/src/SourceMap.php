@@ -281,21 +281,23 @@ final class SourceMap
         $this->addMapping($generatedLine, $generatedColumn, $sourceIndex, $sourceLine, $sourceColumnOneBased - 1, $name);
     }
 
-    public function addSourceMap(SourceMap $sourceMap, int $lineOffset = 0): void
+    public function addSourceMap(SourceMap $sourceMap, int $lineOffset = 0, bool $preserveUnusedTables = true): void
     {
         $sourceIndexes = [];
         $nameIndexes = [];
 
-        foreach ($sourceMap->sources as $index => $source) {
-            $mappedIndex = $this->addSource($source);
-            $sourceIndexes[$index] = $mappedIndex;
-            if (array_key_exists($index, $sourceMap->sourcesContent)) {
-                $this->setSourceContent($mappedIndex, $sourceMap->sourcesContent[$index]);
+        if ($preserveUnusedTables) {
+            foreach ($sourceMap->sources as $index => $source) {
+                $mappedIndex = $this->addSource($source);
+                $sourceIndexes[$index] = $mappedIndex;
+                if (array_key_exists($index, $sourceMap->sourcesContent)) {
+                    $this->setSourceContent($mappedIndex, $sourceMap->sourcesContent[$index]);
+                }
             }
-        }
 
-        foreach ($sourceMap->names as $index => $name) {
-            $nameIndexes[$index] = $this->addName($name);
+            foreach ($sourceMap->names as $index => $name) {
+                $nameIndexes[$index] = $this->addName($name);
+            }
         }
 
         $childMaxLine = null;
@@ -316,7 +318,7 @@ final class SourceMap
                     throw new InvalidArgumentException('Source map mapping references unknown name index: ' . $mapping['nameIndex']);
                 }
 
-                $nameIndex = $nameIndexes[$mapping['nameIndex']];
+                $nameIndex = $nameIndexes[$mapping['nameIndex']] ??= $this->addName($sourceMap->names[$mapping['nameIndex']]);
             }
 
             $sourceIndex = null;
@@ -325,7 +327,11 @@ final class SourceMap
                     throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $mapping['sourceIndex']);
                 }
 
-                $sourceIndex = $sourceIndexes[$mapping['sourceIndex']];
+                $sourceIndex = $sourceIndexes[$mapping['sourceIndex']] ??= $this->addSource($sourceMap->sources[$mapping['sourceIndex']]);
+
+                if (!$preserveUnusedTables && array_key_exists($mapping['sourceIndex'], $sourceMap->sourcesContent)) {
+                    $this->setSourceContent($sourceIndex, $sourceMap->sourcesContent[$mapping['sourceIndex']]);
+                }
             }
 
             $remappedByLine[$generatedLine][] = [

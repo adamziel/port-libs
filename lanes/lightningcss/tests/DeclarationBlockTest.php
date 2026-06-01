@@ -751,6 +751,35 @@ return [
             $block->removeProperty('fill: url("#wp-gradient") currentColor; stroke: rgba(255,0,0,.4); stroke-dasharray: 0px, 2px 4px', 'fill')
         );
     },
+    'declaration block canonicalizes upstream svg color and image rendering cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'color-rendering: optimizeSpeed; image-rendering: optimizeQuality !important; color: red; --Raster-Mode: optimizeSpeed';
+
+        $t->same(
+            [
+                'color-rendering' => 'optimizespeed',
+                'image-rendering' => 'optimizequality !important',
+                'color' => 'red',
+                '--Raster-Mode' => 'optimizeSpeed',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'optimizespeed', 'important' => false], $block->getProperty($declarations, 'color-rendering'));
+        $t->same(['value' => 'optimizequality', 'important' => true], $block->getProperty($declarations, 'image-rendering'));
+        $t->same(['value' => 'optimizeSpeed', 'important' => false], $block->getProperty($declarations, '--Raster-Mode'));
+        $t->same(
+            'color-rendering: optimizequality; color: red; --Raster-Mode: optimizeSpeed; image-rendering: optimizequality !important',
+            $block->setProperty($declarations, 'color-rendering', 'optimizeQuality')
+        );
+        $t->same(
+            'color-rendering: optimizespeed; color: red; --Raster-Mode: optimizeSpeed; image-rendering: optimizespeed !important',
+            $block->setProperty($declarations, 'image-rendering', 'optimizeSpeed', true)
+        );
+        $t->same(
+            'color: red; --Raster-Mode: optimizeSpeed; image-rendering: optimizequality !important',
+            $block->removeProperty($declarations, 'color-rendering')
+        );
+    },
     'declaration block canonicalizes upstream clip path cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'clip-path: padding-box circle(50px at 0 100px) !important; -webkit-clip-path: url("clip.svg#star"); --Clip-Path: padding-box circle(50px at 0 100px)';

@@ -1570,7 +1570,11 @@ CSS
         $t->same('.foo{grid:200px/auto-flow}', $minifier->minify('.foo { grid: 200px / auto-flow; }'));
         $t->same('.foo{grid:30%/auto-flow dense}', $minifier->minify('.foo { grid: 30% / dense auto-flow; }'));
         $t->same('.foo{grid:none/auto-flow 1fr}', $minifier->minify('.foo { grid: none / auto-flow 1fr; }'));
-        $t->same('.foo{grid:auto-flow/200px}', $minifier->minify('.foo { grid: auto-flow / 200px; }'));
+        $t->same('.foo{grid:none/200px}', $minifier->minify('.foo { grid: auto-flow / 200px; }'));
+        $t->same('.foo{grid:none/100px}', $minifier->minify('.foo { grid: auto-flow auto / 100px; }'));
+        $t->same('.foo{grid:none/auto}', $minifier->minify('.foo { grid: auto-flow / auto; }'));
+        $t->same('.foo{grid:none}', $minifier->minify('.foo { grid: auto-flow / none; }'));
+        $t->same('.foo{grid:none/minmax(0,1fr)}', $minifier->minify('.foo { grid: auto-flow / minmax(0, 1fr); }'));
         $t->same(
             '.foo{grid:auto-flow 300px/repeat(3,[line1 line2 line3]200px)}',
             $minifier->minify('.foo { grid: auto-flow 300px / repeat(3, [line1 line2 line3] 200px); }')

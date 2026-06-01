@@ -149,8 +149,10 @@ final class DeclarationBlock
         'stroke-linejoin' => ['miter', 'round', 'bevel', 'arcs'],
         'color-interpolation' => ['auto', 'srgb', 'linearrgb'],
         'color-interpolation-filters' => ['auto', 'srgb', 'linearrgb'],
+        'color-rendering' => ['auto', 'optimizespeed', 'optimizequality'],
         'shape-rendering' => ['auto', 'optimizespeed', 'crispedges', 'geometricprecision'],
         'text-rendering' => ['auto', 'optimizespeed', 'optimizelegibility', 'geometricprecision'],
+        'image-rendering' => ['auto', 'optimizespeed', 'optimizequality'],
     ];
     private const PRINT_COLOR_ADJUST_PROPERTIES = ['print-color-adjust', '-webkit-print-color-adjust', '-moz-print-color-adjust'];
     private const DIRECT_KEYWORD_PROPERTIES = [

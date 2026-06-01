@@ -2031,6 +2031,43 @@ return [
         $t->same([], $child->getNames());
         $t->same('', $child->writeVlq());
     },
+    'source map replaces parent lines with trailing empty child spans after skipped negative offsets' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $parentSource = $parent->addSource('parent.css');
+        foreach ([0, 1, 2, 3] as $line) {
+            $parent->addMapping($line, 0, $parentSource, $line, 0, 'parent' . $line);
+        }
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('blocks/skipped-trailing.css');
+        $child->setSourceContent($childSource, ".skipped-trailing{}\n");
+        $child->addMapping(0, 5, $childSource, 4, 1, 'skippedTrailing');
+        $child->offsetLines(1, 2);
+
+        $t->same(
+            '{"version":3,"mappings":"KAICA;;","sources":["blocks/skipped-trailing.css"],"sourcesContent":[".skipped-trailing{}\n"],"names":["skippedTrailing"]}',
+            $child->toJson(null, false)
+        );
+
+        $parent->addSourceMap($child, -1);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $roundTrip = SourceMap::fromBuffer('/', $parent->toBuffer());
+        $data = $parent->toArray(null, false);
+
+        $t->same(';;AAEAE;AACAC', $parent->writeVlq());
+        $t->same([2, 3], array_column($decoded, 'generatedLine'));
+        $t->same([2, 3], array_column($decoded, 'originalLine'));
+        $t->same([2, 3], array_column($decoded, 'nameIndex'));
+        $t->same(['parent.css', 'blocks/skipped-trailing.css'], $data['sources']);
+        $t->same(['', ".skipped-trailing{}\n"], $data['sourcesContent']);
+        $t->same(['parent0', 'parent1', 'parent2', 'parent3', 'skippedTrailing'], $data['names']);
+        $t->same(null, $parent->findClosestMapping(0, 0));
+        $t->same(2, $parent->findClosestMapping(2, 0)['originalLine'] ?? null);
+        $t->same(';;AAEAE;AACAC', $roundTrip->writeVlq());
+        $t->same([], $child->getSources());
+        $t->same([], $child->getNames());
+        $t->same('', $child->writeVlq());
+    },
     'source map preserves partial skipped child tables during upstream offset merge' => static function (TestRunner $t): void {
         $parent = new SourceMap();
 

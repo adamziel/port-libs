@@ -724,7 +724,7 @@ final class CssModulesTransformer
             'grid-row-end', 'grid-column', 'grid-column-start', 'grid-column-end' => $this->rewriteGridValue($property, $value),
             'view-transition-name' => $this->rewriteViewTransitionNameValue($value),
             'view-transition-class' => $this->rewriteViewTransitionIdentList($value, ['none']),
-            'view-transition-group' => $this->rewriteViewTransitionNameValue($value, ['contain']),
+            'view-transition-group' => $this->rewriteViewTransitionNameValue($value, ['contain', 'nearest', 'normal']),
             'position-try-fallbacks' => $this->dashedIdents ? $this->rewritePositionTryFallbacksValue($value) : null,
             'font-palette' => $this->dashedIdents ? $this->rewriteFontPaletteValue($value) : null,
             default => null,
@@ -1339,16 +1339,17 @@ final class CssModulesTransformer
             return $value;
         }
 
-        $lower = strtolower($trimmed);
+        $token = $this->readCssIdentifierToken($trimmed, 0);
+        if ($token === null || $token['end'] !== strlen($trimmed)) {
+            return $value;
+        }
+
+        $lower = strtolower($token['decoded']);
         if (in_array($lower, array_merge(['none', 'auto'], $additionalKeywords), true)) {
             return $lower;
         }
 
-        if (!$this->isPlainCssIdent($trimmed)) {
-            return $value;
-        }
-
-        return $this->scopeCustomIdent($trimmed);
+        return $this->escapeCssIdentifier($this->scopeCustomIdent($token['decoded']));
     }
 
     /**
@@ -1363,13 +1364,19 @@ final class CssModulesTransformer
 
         $rewritten = [];
         foreach ($tokens as $token) {
-            $lower = strtolower($token);
-            if (in_array($lower, $keywords, true) || !$this->isPlainCssIdent($token)) {
+            $parsed = $this->readCssIdentifierToken($token, 0);
+            if ($parsed === null || $parsed['end'] !== strlen($token)) {
                 $rewritten[] = $token;
                 continue;
             }
 
-            $rewritten[] = $this->scopeCustomIdent($token);
+            $lower = strtolower($parsed['decoded']);
+            if (in_array($lower, $keywords, true)) {
+                $rewritten[] = $lower;
+                continue;
+            }
+
+            $rewritten[] = $this->escapeCssIdentifier($this->scopeCustomIdent($parsed['decoded']));
         }
 
         return implode(' ', $rewritten);
@@ -4158,19 +4165,51 @@ final class CssModulesTransformer
 
     private function rewriteViewTransitionSelectorIdentSequence(string $value): string
     {
-        return preg_replace_callback(
-            '/(?<![A-Za-z0-9_-])(\\.?)(-?[A-Za-z_][A-Za-z0-9_-]*)/',
-            function (array $matches): string {
-                $prefix = $matches[1];
-                $name = $matches[2];
-                if (in_array(strtolower($name), ['none', 'auto'], true)) {
-                    return $prefix . $name;
+        $value = trim($value);
+        $length = strlen($value);
+        if ($value === '') {
+            return $value;
+        }
+
+        $output = '';
+        $cursor = 0;
+
+        if ($value[$cursor] === '*') {
+            $output .= '*';
+            $cursor++;
+        } elseif ($value[$cursor] !== '.') {
+            $token = $this->readCssIdentifierToken($value, $cursor);
+            if ($token === null) {
+                return $value;
+            }
+
+            $output .= $this->escapeCssIdentifier($this->scopeCustomIdent($token['decoded']));
+            $cursor = $token['end'];
+        }
+
+        while ($cursor < $length) {
+            if (ctype_space($value[$cursor])) {
+                if (trim(substr($value, $cursor)) === '') {
+                    break;
                 }
 
-                return $prefix . $this->scopeCustomIdent($name);
-            },
-            trim($value)
-        ) ?? trim($value);
+                return $value;
+            }
+
+            if ($value[$cursor] !== '.') {
+                return $value;
+            }
+
+            $token = $this->readCssIdentifierToken($value, $cursor + 1);
+            if ($token === null) {
+                return $value;
+            }
+
+            $output .= '.' . $this->escapeCssIdentifier($this->scopeCustomIdent($token['decoded']));
+            $cursor = $token['end'];
+        }
+
+        return $output;
     }
 
     private function ensureExport(string $local): void
@@ -4860,6 +4899,15 @@ final class CssModulesTransformer
                 $quote = $char;
                 $current .= $char;
                 continue;
+            }
+
+            if ($char === '\\') {
+                $escapeEnd = $this->cssEscapeEnd($value, $i);
+                if ($escapeEnd !== null) {
+                    $current .= substr($value, $i, $escapeEnd - $i + 1);
+                    $i = $escapeEnd;
+                    continue;
+                }
             }
 
             if ($char === '(') {
