@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 18:36:10 UTC",
-    "sourceCommit": "54701d0db70a1ce05e5814f9752c98d6736b381f",
-    "sourceCommitShort": "54701d0db70a",
+    "generated": "2026-06-01 18:38:05 UTC",
+    "sourceCommit": "f5019909c9fbe6f6f32454fbb2daab90be91bfd2",
+    "sourceCommitShort": "f5019909c9fb",
     "sourceBranch": "unknown",
-    "dashboardCommit": "54701d0db70a1ce05e5814f9752c98d6736b381f",
-    "dashboardCommitShort": "54701d0db70a",
+    "dashboardCommit": "f5019909c9fbe6f6f32454fbb2daab90be91bfd2",
+    "dashboardCommitShort": "f5019909c9fb",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -15,8 +15,8 @@
             "state": "16 open failures",
             "progressPercent": "99.6",
             "completion": "99.6%",
-            "suite": "current-base libsqlite json101 duplicate-path JSON/JSONB coverage plu...",
-            "benchmark": "current-base libsqlite json101 duplicate-path JSON/JSONB coverage plu...",
+            "suite": "current-base libsqlite source-neutral JSONB CHECK cleanup after json1...",
+            "benchmark": "current-base libsqlite source-neutral JSONB CHECK cleanup after json1...",
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1,589 / 1,589 (100.0%)",
@@ -24,11 +24,11 @@
             "unmapped": "0",
             "php": "6,186,144 pass / 16 fail",
             "phase": "current-base source integration accepted; broad full-lane/release par...",
-            "audit": "2026-06-01 18:50 UTC supervisor integration: source commit 54701d0db7...",
-            "currentWork": "Real upstream json101 duplicate-path JSON/JSONB tree coverage, source-neutral CAST/LI...",
+            "audit": "2026-06-01 18:58 UTC supervisor integration: source commit f5019909c9...",
+            "currentWork": "Source-neutral JSONB CHECK fixture cleanup, real upstream json101 duplicate-path JSON...",
             "nextTarget": "Keep SQLitePDO native exception/silent/persistence regression...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "54701d0"
+            "commit": "f501990"
         },
         {
             "lane": "lightningcss",
