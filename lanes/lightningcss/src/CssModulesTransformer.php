@@ -10,6 +10,7 @@ final class CssModulesTransformer
     private const PRESERVE_EMPTY_COMPOSES_DECLARATION = '--__lightningcss-cssmodules-preserve-empty-composes:0';
     private const RAW_AT_RULE_BODY_DECLARATION_PREFIX = '--__lightningcss-cssmodules-raw-at-rule-body-';
     private const COMMENT_IDENTIFIER_BOUNDARY = "\x1f";
+    private const HAS_SCOPE_DESCENDANT_MARKER = "\x1e";
     private const HASH_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_-';
     private const U32_MASK = 0xffffffff;
     private const U32_BASE = 4294967296;
@@ -95,6 +96,7 @@ final class CssModulesTransformer
             $code = $this->restoreEmptyNthChildOfSelectorLists($code);
         }
         $code = $this->restoreRawAtRuleBodies($code);
+        $code = str_replace(self::HAS_SCOPE_DESCENDANT_MARKER, ' ', $code);
 
         if ($minify && $this->unusedSymbols !== []) {
             $code = $this->pruneUnusedSymbolsFromCss(
@@ -2955,9 +2957,13 @@ final class CssModulesTransformer
                     $forgivingSelectorFunction['open'] + 1,
                     $forgivingSelectorFunction['close'] - $forgivingSelectorFunction['open'] - 1
                 );
-                $rewrittenSelectors = $afterPseudoElement
-                    ? $this->rewritePseudoElementForgivingSelectorListParts($inner)
-                    : $this->rewriteForgivingSelectorListParts($inner, $mode, $locals);
+                if ($afterPseudoElement) {
+                    $rewrittenSelectors = $this->rewritePseudoElementForgivingSelectorListParts($inner);
+                } elseif ($forgivingSelectorFunction['decodedName'] === 'has') {
+                    $rewrittenSelectors = $this->rewriteHasSelectorListParts($inner, $mode, $locals);
+                } else {
+                    $rewrittenSelectors = $this->rewriteForgivingSelectorListParts($inner, $mode, $locals);
+                }
                 if (
                     $forgivingSelectorFunction['decodedName'] === 'is'
                     && count($rewrittenSelectors) === 1
@@ -3434,6 +3440,40 @@ final class CssModulesTransformer
 
     /**
      * @param array<string, true> $locals
+     * @return list<string>
+     */
+    private function rewriteHasSelectorListParts(string $selectorList, string $mode, array &$locals): array
+    {
+        $rewritten = [];
+
+        foreach ($this->splitTopLevel($selectorList, ',') as $selector) {
+            if (trim($selector) === '') {
+                continue;
+            }
+
+            $candidateLocals = [];
+            try {
+                $rewrittenSelector = $this->rewriteSelectorFragment($selector, $mode, $candidateLocals);
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+
+            $rewrittenSelector = $this->stripLeadingScopeFromHasSelector($rewrittenSelector);
+
+            foreach ($candidateLocals as $local => $enabled) {
+                if ($enabled) {
+                    $locals[(string) $local] = true;
+                }
+            }
+
+            $rewritten[] = $rewrittenSelector;
+        }
+
+        return $rewritten;
+    }
+
+    /**
+     * @param array<string, true> $locals
      */
     private function rewriteStrictSelectorList(string $selectorList, string $mode, array &$locals): string
     {
@@ -3503,6 +3543,35 @@ final class CssModulesTransformer
 
         return !$this->selectorHasTopLevelCombinator($selector)
             && !$this->selectorStartsWithTypeSelector($selector);
+    }
+
+    private function stripLeadingScopeFromHasSelector(string $selector): string
+    {
+        $selector = ltrim($selector);
+        if (!str_starts_with($selector, ':scope')) {
+            return $selector;
+        }
+
+        $tail = substr($selector, strlen(':scope'));
+        $first = $tail[0] ?? '';
+        if ($first !== '' && (ctype_alnum($first) || $first === '-' || $first === '_' || $first === '\\')) {
+            return $selector;
+        }
+
+        if ($tail === '') {
+            return '';
+        }
+
+        if (ctype_space($tail[0])) {
+            $tail = ltrim($tail);
+            if ($tail === '') {
+                return '';
+            }
+
+            return in_array($tail[0], ['>', '+', '~'], true) ? $tail : self::HAS_SCOPE_DESCENDANT_MARKER . $tail;
+        }
+
+        return $tail;
     }
 
     private function isTransparentCssModulesModeSelectorFunction(string $selectorList): bool

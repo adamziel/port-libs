@@ -962,6 +962,49 @@ CSS);
             throw new RuntimeException('Expected upstream dangling local/global selector exception');
         }
     },
+    'css modules strips upstream scope from has relative selectors while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:has(:scope > :global(.legacy)) {
+  color: red;
+}
+
+.card:has(:scope + :local(.child)) {
+  color: blue;
+}
+
+.card:has(:scope ~ .sibling) {
+  color: yellow;
+}
+
+.card:has(:scope .desc) {
+  color: green;
+}
+
+.card:has(:scope) {
+  color: black;
+}
+
+.card:has(:scope:is(:global(.legacy)), :scope > .child) {
+  border-color: white;
+}
+
+.button {
+  composes: card;
+  color: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_card:has(>.legacy){color:red}.EgL3uq_card:has(+.EgL3uq_child){color:#00f}.EgL3uq_card:has(~.EgL3uq_sibling){color:#ff0}.EgL3uq_card:has( .EgL3uq_desc){color:green}.EgL3uq_card:has(){color:#000}.EgL3uq_card:has(.legacy,>.EgL3uq_child){border-color:#fff}.EgL3uq_button{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'child' => $export('EgL3uq_child'),
+            'sibling' => $export('EgL3uq_sibling'),
+            'desc' => $export('EgL3uq_desc'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+    },
     'css modules unwraps upstream single is selector after local global rewriting while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card:is(:local(.featured)) {
