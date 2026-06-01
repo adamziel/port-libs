@@ -92,6 +92,14 @@ $slashLiteralMatchedFetchRefs = RefSpec::matchFetchRemoteRefs(
     $fixture['slashLiteralFetchRefspecs'],
     $fixture['slashLiteralRemoteAdvertisedRefs']
 );
+$validatedFetchRefs = RefSpec::validatedFetchRemoteRefs(
+    $fixture['validatedFetchRefspecs'],
+    $fixture['validatedRemoteAdvertisedRefs']
+);
+$conflictingFetchRefs = RefSpec::validatedFetchRemoteRefs(
+    $fixture['conflictingFetchRefspecs'],
+    $fixture['validatedRemoteAdvertisedRefs']
+);
 $oversizedRemoteRejected = false;
 try {
     GitUrl::parse($fixture['oversizedRemoteUrl']);
@@ -160,6 +168,8 @@ $summary = [
     'push' => $push,
     'matchedFetchRefs' => $matchedFetchRefs,
     'slashLiteralMatchedFetchRefs' => $slashLiteralMatchedFetchRefs,
+    'validatedFetchRefs' => $validatedFetchRefs,
+    'conflictingFetchRefs' => $conflictingFetchRefs,
     'pushInstructionIdentityUniqueCount' => count(array_unique($pushInstructionIdentityKeys)),
     'sameNamedPushEquivalent' => $pushInstructionIdentitySpecs[0]->equivalentTo($pushInstructionIdentitySpecs[1]),
     'deleteForceEquivalent' => $pushInstructionIdentitySpecs[2]->equivalentTo($pushInstructionIdentitySpecs[3]),
@@ -331,6 +341,27 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if (array_column($summary['slashLiteralMatchedFetchRefs'], 'remote') !== $fixture['expectedSlashLiteralMatchedFetchRemotes']) {
         throw new RuntimeException('Unexpected slash-literal fetch remote refs');
+    }
+    if ($summary['validatedFetchRefs']['ok'] !== $fixture['expectedValidatedFetchOk']) {
+        throw new RuntimeException('Unexpected validated fetch status');
+    }
+    if (array_column($summary['validatedFetchRefs']['mappings'], 'remote') !== $fixture['expectedValidatedFetchRemotes']) {
+        throw new RuntimeException('Unexpected validated fetch remote refs');
+    }
+    if (array_column($summary['validatedFetchRefs']['mappings'], 'local') !== $fixture['expectedValidatedFetchLocals']) {
+        throw new RuntimeException('Unexpected validated fetch local refs');
+    }
+    if (array_column($summary['validatedFetchRefs']['fixes'], 'name') !== $fixture['expectedValidatedFetchFixNames']) {
+        throw new RuntimeException('Unexpected validated fetch fixes');
+    }
+    if ($summary['conflictingFetchRefs']['ok'] !== $fixture['expectedConflictingFetchOk']) {
+        throw new RuntimeException('Unexpected conflicting fetch status');
+    }
+    if (($summary['conflictingFetchRefs']['issues'][0]['destination'] ?? null) !== $fixture['expectedConflictingFetchIssueDestination']) {
+        throw new RuntimeException('Unexpected conflicting fetch destination');
+    }
+    if (($summary['conflictingFetchRefs']['issues'][0]['sources'] ?? null) !== $fixture['expectedConflictingFetchIssueSources']) {
+        throw new RuntimeException('Unexpected conflicting fetch sources');
     }
     if (array_column($summary['push'], 'instruction') !== $fixture['expectedPushInstructions']) {
         throw new RuntimeException('Unexpected push refspec instructions');

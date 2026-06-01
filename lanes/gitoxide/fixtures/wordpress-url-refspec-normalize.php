@@ -143,6 +143,36 @@ return [
         'refs/heads/plugin/release/stable',
         'refs/heads/theme/release/candidate',
     ],
+    'validatedFetchRefspecs' => [
+        'refs/heads/wp*:deployments/wp*',
+        'wp-content:wp-content',
+    ],
+    'validatedRemoteAdvertisedRefs' => [
+        ['name' => 'refs/heads/wp-content', 'target' => str_repeat('9', 40)],
+        ['name' => 'refs/heads/wp-theme', 'target' => str_repeat('a', 40)],
+        ['name' => 'refs/heads/main', 'target' => str_repeat('b', 40)],
+    ],
+    'expectedValidatedFetchOk' => true,
+    'expectedValidatedFetchRemotes' => [
+        'refs/heads/wp-content',
+    ],
+    'expectedValidatedFetchLocals' => [
+        'refs/heads/wp-content',
+    ],
+    'expectedValidatedFetchFixNames' => [
+        'deployments/wp-content',
+        'deployments/wp-theme',
+    ],
+    'conflictingFetchRefspecs' => [
+        'refs/heads/wp-content:refs/remotes/origin/wp-current',
+        'refs/heads/wp-theme:refs/remotes/origin/wp-current',
+    ],
+    'expectedConflictingFetchOk' => false,
+    'expectedConflictingFetchIssueDestination' => 'refs/remotes/origin/wp-current',
+    'expectedConflictingFetchIssueSources' => [
+        'refs/heads/wp-content',
+        'refs/heads/wp-theme',
+    ],
     'pushRefspecs' => [
         '+refs/heads/release:refs/heads/wp-release',
         '+:refs/heads/stale-preview',

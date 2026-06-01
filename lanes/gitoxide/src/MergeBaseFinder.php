@@ -78,7 +78,7 @@ final class MergeBaseFinder
                 throw $exception;
             }
             if ($object->type !== 'commit') {
-                throw new \InvalidArgumentException("Expected a commit object for {$oid}, got {$object->type}");
+                return null;
             }
 
             return Commit::parse($object->body, $algorithm);

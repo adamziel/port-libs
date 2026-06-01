@@ -2581,6 +2581,53 @@ return [
             )
         );
     },
+    'declaration block canonicalizes upstream direct font longhand cssom declarations' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $direct = 'font-family: "Inter var", system-ui; font-size: +016.00PX; line-height: +001.500; font-weight: +0700; font-stretch: 125.0%; font-variant-caps: All-Small-Caps; --Font-Size: +016.00PX';
+
+        $t->same(
+            [
+                'font-family' => 'Inter var, system-ui',
+                'font-size' => '16px',
+                'line-height' => '1.5',
+                'font-weight' => '700',
+                'font-stretch' => '125%',
+                'font-variant-caps' => 'all-small-caps',
+                '--Font-Size' => '+016.00PX',
+            ],
+            $block->parse($direct)
+        );
+        $t->same(['value' => 'Inter var, system-ui', 'important' => false], $block->getProperty($direct, 'font-family'));
+        $t->same(['value' => '16px', 'important' => false], $block->getProperty($direct, 'font-size'));
+        $t->same(['value' => '1.5', 'important' => false], $block->getProperty($direct, 'line-height'));
+        $t->same(['value' => '700', 'important' => false], $block->getProperty($direct, 'font-weight'));
+        $t->same(['value' => '125%', 'important' => false], $block->getProperty($direct, 'font-stretch'));
+        $t->same(['value' => 'all-small-caps', 'important' => false], $block->getProperty($direct, 'font-variant-caps'));
+        $t->same(
+            'color: red; font-size: 18px',
+            $block->setProperty('color: red', 'font-size', '+018.00PX')
+        );
+        $t->same(
+            'color: red; font-family: "Source Serif 4", serif',
+            $block->setProperty('color: red', 'font-family', '"Source Serif 4", serif')
+        );
+        $t->same(
+            'color: red; font-weight: 700',
+            $block->setProperty('color: red', 'font-weight', '+0700')
+        );
+        $t->same(
+            'color: red; font-stretch: 87.5%',
+            $block->setProperty('color: red', 'font-stretch', '+087.500%')
+        );
+        $t->same(
+            'color: red; line-height: 1.25',
+            $block->setProperty('color: red', 'line-height', '+001.250')
+        );
+        $t->same(
+            'color: red; font-variant-caps: petite-caps',
+            $block->setProperty('color: red', 'font-variant-caps', 'Petite-Caps')
+        );
+    },
     'declaration block canonicalizes upstream font palette cssom dashed idents' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'font-palette: --\\43 ooler; --Font-Palette: --\\43 ooler; color: red';

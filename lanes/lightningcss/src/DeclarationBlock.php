@@ -9504,7 +9504,8 @@ final class DeclarationBlock
             'font-weight' => $this->normalizeFontWeightValue($value),
             'font-stretch' => $this->normalizeFontStretchValue($value),
             'font-variant-caps' => strtolower($value),
-            'font-size', 'line-height' => $this->normalizeFontNumericValue($value),
+            'font-size' => $this->normalizeFontSizeValue($value),
+            'line-height' => $this->normalizeLineHeightValue($value),
             default => $value,
         };
     }
@@ -9580,8 +9581,11 @@ final class DeclarationBlock
     private function normalizeFontWeightValue(string $value): string
     {
         $value = strtolower(trim($value));
-        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))\.0+$/', $value, $matches) === 1) {
-            return $matches[1];
+        if (in_array($value, ['normal', 'bold', 'bolder', 'lighter'], true)) {
+            return $value;
+        }
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $value) === 1) {
+            return $this->normalizeCssNumericLiteral($value);
         }
 
         return $value;
@@ -9590,21 +9594,46 @@ final class DeclarationBlock
     private function normalizeFontStretchValue(string $value): string
     {
         $value = strtolower(trim($value));
-        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))\.0+%$/', $value, $matches) === 1) {
-            return $matches[1] . '%';
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $value, $matches) === 1) {
+            return $this->normalizeCssNumericLiteral($matches[1]) . '%';
         }
 
         return $value;
     }
 
-    private function normalizeFontNumericValue(string $value): string
+    private function normalizeFontSizeValue(string $value): string
     {
         $value = trim($value);
-        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))\.0+([a-z%]+)?$/i', $value, $matches) === 1) {
-            return $matches[1] . strtolower($matches[2] ?? '');
+        $lower = strtolower($value);
+        if (in_array($lower, self::FONT_SIZE_KEYWORDS, true)) {
+            return $lower;
         }
 
-        return strtolower($value) === 'normal' ? 'normal' : $value;
+        $normalized = $this->normalizeLengthPercentageDeclarationToken($value);
+        if ($normalized !== null) {
+            return $normalized;
+        }
+
+        return $value;
+    }
+
+    private function normalizeLineHeightValue(string $value): string
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'normal') === 0) {
+            return 'normal';
+        }
+
+        $normalized = $this->normalizeLengthPercentageDeclarationToken($value);
+        if ($normalized !== null) {
+            return $normalized;
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $value) === 1) {
+            return $this->normalizeCssNumericLiteral($value);
+        }
+
+        return $value;
     }
 
     private function normalizeFontFamilyList(string $value): string
@@ -14133,8 +14162,8 @@ final class DeclarationBlock
             return $this->normalizeFontShorthandValue($value);
         }
 
-        if ($property === 'font-style') {
-            return $this->normalizeFontStyleValue($value);
+        if ($this->isFontLonghand($property)) {
+            return $this->normalizeFontLonghandValue($property, $value);
         }
 
         if ($property === 'font-palette') {

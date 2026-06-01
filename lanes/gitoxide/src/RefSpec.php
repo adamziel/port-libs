@@ -400,6 +400,59 @@ final class RefSpec
         return $out;
     }
 
+    /**
+     * Validate fetch match output like `gix_refspec::match_lhs().validated()`.
+     *
+     * Conflicting full local destinations are reported as terminal issues.
+     * Partial glob destinations are removed and returned as non-terminal fixes.
+     *
+     * @param list<string|self> $fetchRefspecs
+     * @param list<string|array{name: string, target?: ?string, object?: ?string}> $remoteRefs
+     * @return array{ok: bool, mappings: list<array{remote: string, local: ?string, specIndex: int, itemIndex: ?int}>, fixes: list<array{type: string, name: string, spec: string, specIndex: int}>, issues: list<array{type: string, destination: string, sources: list<string>, specs: list<string>, specIndexes: list<int>}>}
+     */
+    public static function validatedFetchRemoteRefs(array $fetchRefspecs, array $remoteRefs): array
+    {
+        $specs = [];
+        foreach ($fetchRefspecs as $index => $candidate) {
+            $specs[] = self::fetchSpecForMatch($candidate, $index);
+        }
+
+        $mappings = self::matchFetchRemoteRefs($specs, $remoteRefs);
+        $issues = self::validatedFetchConflictIssues($mappings, $specs);
+        if ($issues !== []) {
+            return [
+                'ok' => false,
+                'mappings' => $mappings,
+                'fixes' => [],
+                'issues' => $issues,
+            ];
+        }
+
+        $validated = [];
+        $fixes = [];
+        foreach ($mappings as $mapping) {
+            $local = $mapping['local'];
+            if ($local !== null && $local !== 'HEAD' && !str_starts_with($local, 'refs/')) {
+                $fixes[] = [
+                    'type' => 'partial-destination-removed',
+                    'name' => $local,
+                    'spec' => $specs[$mapping['specIndex']]->toString(),
+                    'specIndex' => $mapping['specIndex'],
+                ];
+                continue;
+            }
+
+            $validated[] = $mapping;
+        }
+
+        return [
+            'ok' => true,
+            'mappings' => $validated,
+            'fixes' => $fixes,
+            'issues' => [],
+        ];
+    }
+
     public function toString(): string
     {
         if ($this->operation === self::OP_FETCH && $this->destination === null && $this->mode !== self::MODE_NEGATIVE && $this->source !== null) {
@@ -585,6 +638,58 @@ final class RefSpec
             'refs/remotes/' . $name,
             'refs/remotes/' . $name . '/HEAD',
         ];
+    }
+
+    /**
+     * @param list<array{remote: string, local: ?string, specIndex: int, itemIndex: ?int}> $mappings
+     * @param list<self> $specs
+     * @return list<array{type: string, destination: string, sources: list<string>, specs: list<string>, specIndexes: list<int>}>
+     */
+    private static function validatedFetchConflictIssues(array $mappings, array $specs): array
+    {
+        $byDestination = [];
+        foreach ($mappings as $mapping) {
+            $local = $mapping['local'];
+            if ($local === null) {
+                continue;
+            }
+
+            $source = $mapping['remote'];
+            if (!isset($byDestination[$local])) {
+                $byDestination[$local] = [
+                    'sources' => [],
+                    'specs' => [],
+                    'specIndexes' => [],
+                    'seenSources' => [],
+                ];
+            }
+            if (isset($byDestination[$local]['seenSources'][$source])) {
+                continue;
+            }
+
+            $byDestination[$local]['seenSources'][$source] = true;
+            $byDestination[$local]['sources'][] = $source;
+            $byDestination[$local]['specs'][] = $specs[$mapping['specIndex']]->toString();
+            $byDestination[$local]['specIndexes'][] = $mapping['specIndex'];
+        }
+
+        ksort($byDestination);
+        $issues = [];
+        foreach ($byDestination as $destination => $entry) {
+            if (count($entry['sources']) < 2) {
+                continue;
+            }
+
+            $issues[] = [
+                'type' => 'conflicting-destination',
+                'destination' => $destination,
+                'sources' => $entry['sources'],
+                'specs' => $entry['specs'],
+                'specIndexes' => $entry['specIndexes'],
+            ];
+        }
+
+        return $issues;
     }
 
     private static function mustUsePatternMatching(string $pattern): bool

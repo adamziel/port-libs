@@ -1145,6 +1145,73 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => RefSpec::matchFetchRemoteRefs([RefSpec::parsePush('refs/heads/main')], $remoteRefs));
         $t->throws(InvalidArgumentException::class, static fn () => RefSpec::matchFetchRemoteRefs([123], $remoteRefs));
     },
+    'refspec validated fetch outcome reports conflicts and partial-destination fixes like gix-refspec' => static function (TestRunner $t): void {
+        $remoteRefs = [
+            ['name' => 'refs/heads/f1', 'target' => str_repeat('1', 40)],
+            ['name' => 'refs/heads/f2', 'target' => str_repeat('2', 40)],
+            ['name' => 'refs/heads/f3', 'target' => str_repeat('3', 40)],
+            ['name' => 'refs/heads/main', 'target' => str_repeat('4', 40)],
+        ];
+
+        $fixed = RefSpec::validatedFetchRemoteRefs([
+            'refs/heads/f*:foo/f*',
+            'f1:f1',
+        ], $remoteRefs);
+
+        $t->same(true, $fixed['ok']);
+        $t->same(['refs/heads/f1'], array_column($fixed['mappings'], 'remote'));
+        $t->same(['refs/heads/f1'], array_column($fixed['mappings'], 'local'));
+        $t->same([], $fixed['issues']);
+        $t->same([
+            [
+                'type' => 'partial-destination-removed',
+                'name' => 'foo/f1',
+                'spec' => 'refs/heads/f*:foo/f*',
+                'specIndex' => 0,
+            ],
+            [
+                'type' => 'partial-destination-removed',
+                'name' => 'foo/f2',
+                'spec' => 'refs/heads/f*:foo/f*',
+                'specIndex' => 0,
+            ],
+            [
+                'type' => 'partial-destination-removed',
+                'name' => 'foo/f3',
+                'spec' => 'refs/heads/f*:foo/f*',
+                'specIndex' => 0,
+            ],
+        ], $fixed['fixes']);
+
+        $conflict = RefSpec::validatedFetchRemoteRefs([
+            'refs/heads/f1:refs/remotes/origin/conflict',
+            'refs/heads/f2:refs/remotes/origin/conflict',
+        ], $remoteRefs);
+
+        $t->same(false, $conflict['ok']);
+        $t->same([], $conflict['fixes']);
+        $t->same(['refs/heads/f1', 'refs/heads/f2'], array_column($conflict['mappings'], 'remote'));
+        $t->same([
+            [
+                'type' => 'conflicting-destination',
+                'destination' => 'refs/remotes/origin/conflict',
+                'sources' => ['refs/heads/f1', 'refs/heads/f2'],
+                'specs' => [
+                    'refs/heads/f1:refs/remotes/origin/conflict',
+                    'refs/heads/f2:refs/remotes/origin/conflict',
+                ],
+                'specIndexes' => [0, 1],
+            ],
+        ], $conflict['issues']);
+
+        $sameSource = RefSpec::validatedFetchRemoteRefs([
+            'refs/heads/f1:refs/remotes/origin/f1',
+            'refs/heads/f1:refs/remotes/origin/f1',
+        ], $remoteRefs);
+        $t->same(true, $sameSource['ok']);
+        $t->same(1, count($sameSource['mappings']));
+        $t->same([], $sameSource['issues'], 'duplicate source/destination mappings are deduplicated before validation');
+    },
     'wordpress fixture normalizes deployment remote and fetch push refspecs without git binary' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-url-refspec-normalize.php';
         $summary = require dirname(__DIR__) . '/examples/wordpress-url-refspec-normalize.php';
@@ -1208,6 +1275,13 @@ return [
         $t->same($fixture['expectedMatchedFetchRemotes'], array_column($summary['matchedFetchRefs'], 'remote'));
         $t->same($fixture['expectedMatchedFetchLocals'], array_column($summary['matchedFetchRefs'], 'local'));
         $t->same($fixture['expectedSlashLiteralMatchedFetchRemotes'], array_column($summary['slashLiteralMatchedFetchRefs'], 'remote'));
+        $t->same($fixture['expectedValidatedFetchOk'], $summary['validatedFetchRefs']['ok']);
+        $t->same($fixture['expectedValidatedFetchRemotes'], array_column($summary['validatedFetchRefs']['mappings'], 'remote'));
+        $t->same($fixture['expectedValidatedFetchLocals'], array_column($summary['validatedFetchRefs']['mappings'], 'local'));
+        $t->same($fixture['expectedValidatedFetchFixNames'], array_column($summary['validatedFetchRefs']['fixes'], 'name'));
+        $t->same($fixture['expectedConflictingFetchOk'], $summary['conflictingFetchRefs']['ok']);
+        $t->same($fixture['expectedConflictingFetchIssueDestination'], $summary['conflictingFetchRefs']['issues'][0]['destination']);
+        $t->same($fixture['expectedConflictingFetchIssueSources'], $summary['conflictingFetchRefs']['issues'][0]['sources']);
         $t->same($fixture['expectedPushInstructionIdentityUniqueCount'], $summary['pushInstructionIdentityUniqueCount']);
         $t->same($fixture['expectedSameNamedPushEquivalent'], $summary['sameNamedPushEquivalent']);
         $t->same($fixture['expectedDeleteForceEquivalent'], $summary['deleteForceEquivalent']);

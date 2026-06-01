@@ -1329,25 +1329,50 @@ BASELINE;
         $t->same([], $example['objectDatabaseShallowBeforeBases']);
         $t->same([$example['objectDatabaseReleaseBaseline']], $example['objectDatabaseShallowAfterBases']);
         $t->same(true, $example['objectDatabaseFinderReusesHydratedParent']);
+        $t->same([], $example['objectDatabaseNonCommitParentBases']);
+        $t->same([], $example['objectDatabaseNonCommitStartBases']);
+        $t->same(true, $example['objectDatabaseSkipsNonCommitAncestors']);
         $t->same(2, count($example['sha256ObjectDatabaseHeads']));
         $t->same(64, strlen($example['sha256ObjectDatabaseReleaseBaseline']));
         $t->same([$example['sha256ObjectDatabaseReleaseBaseline']], $example['sha256ObjectDatabaseBases']);
         $t->same($example['sha256ObjectDatabaseReleaseBaseline'], $example['sha256ObjectDatabaseGraphWalkBase']);
         $t->same(true, $example['sha256ObjectDatabaseBaseIsReleaseBaseline']);
     },
-    'object database reader requires commit objects' => static function (TestRunner $t): void {
+    'object database reader skips non-commit objects during graph walk' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-' . bin2hex(random_bytes(4)) . '/.git';
         $store = new LooseObjectStore($gitDir);
-        $blobOid = $store->write(new GitObject('blob', 'not a commit'));
+        $blobOid = $store->write(new GitObject('blob', 'not a commit parent'));
         $commitBody = "tree " . str_repeat('f', 40) . "\n"
             . "author Ada <ada@example.test> 1700000000 +0000\n"
             . "committer CI <ci@example.test> 1700000000 +0000\n"
             . "\n"
             . "fixture\n";
         $commitOid = $store->write(new GitObject('commit', $commitBody));
+        $leftOid = $store->write(new GitObject(
+            'commit',
+            "tree " . str_repeat('f', 40) . "\n"
+                . "parent {$blobOid}\n"
+                . "author Ada <ada@example.test> 1700000100 +0000\n"
+                . "committer CI <ci@example.test> 1700000100 +0000\n"
+                . "\n"
+                . "left fixture\n",
+        ));
+        $rightOid = $store->write(new GitObject(
+            'commit',
+            "tree " . str_repeat('f', 40) . "\n"
+                . "parent {$blobOid}\n"
+                . "author Ada <ada@example.test> 1700000200 +0000\n"
+                . "committer CI <ci@example.test> 1700000200 +0000\n"
+                . "\n"
+                . "right fixture\n",
+        ));
 
         $mergeBase = MergeBaseFinder::fromObjectDatabase(new ObjectDatabase($gitDir));
-        $t->throws(InvalidArgumentException::class, static fn () => $mergeBase->mergeBase($blobOid, $commitOid));
+        $t->same([], $mergeBase->mergeBases($blobOid, $commitOid));
+        $t->same(null, $mergeBase->mergeBase($leftOid, $blobOid));
+        $t->same([], $mergeBase->mergeBases($leftOid, $rightOid));
+        $t->same([], $mergeBase->mergeBasesAgainst($leftOid, [$rightOid, $blobOid]));
+        $t->same([], $mergeBase->mergeBasesMany([$leftOid, $rightOid]));
     },
     'object database reader skips missing shallow parents and reuses hydrated parent' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-shallow-db-' . bin2hex(random_bytes(4)) . '/.git';

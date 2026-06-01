@@ -234,6 +234,23 @@ $objectDatabaseShallowAfterBases = $objectDatabaseFinder->mergeBases(
     $objectDatabasePluginReview,
     $objectDatabaseThemeReview,
 );
+$objectDatabaseAssetBlob = $objectDatabaseStore->write(new GitObject('blob', 'cached plugin asset payload'));
+$objectDatabaseAssetPluginReview = $objectDatabaseStore->write(new GitObject(
+    'commit',
+    $objectDatabaseCommitBody([$objectDatabaseAssetBlob], 1700006050, 'object database asset-backed plugin review'),
+));
+$objectDatabaseAssetThemeReview = $objectDatabaseStore->write(new GitObject(
+    'commit',
+    $objectDatabaseCommitBody([$objectDatabaseAssetBlob], 1700006060, 'object database asset-backed theme review'),
+));
+$objectDatabaseNonCommitParentBases = $objectDatabaseFinder->mergeBases(
+    $objectDatabaseAssetPluginReview,
+    $objectDatabaseAssetThemeReview,
+);
+$objectDatabaseNonCommitStartBases = $objectDatabaseFinder->mergeBases(
+    $objectDatabaseAssetBlob,
+    $objectDatabaseAssetPluginReview,
+);
 $sha256ObjectDatabaseGitDir = sys_get_temp_dir() . '/port-libs-wp-merge-base-sha256-db-' . bin2hex(random_bytes(4)) . '/.git';
 $sha256ObjectDatabaseStore = new LooseObjectStore($sha256ObjectDatabaseGitDir, false, 'sha256');
 $sha256ObjectDatabaseCommitBody = static function (array $parents, int $seconds, string $message): string {
@@ -384,6 +401,10 @@ return [
     'objectDatabaseShallowAfterBases' => $objectDatabaseShallowAfterBases,
     'objectDatabaseFinderReusesHydratedParent' => $objectDatabaseShallowBeforeBases === []
         && $objectDatabaseShallowAfterBases === [$objectDatabaseReleaseBaseline],
+    'objectDatabaseNonCommitParentBases' => $objectDatabaseNonCommitParentBases,
+    'objectDatabaseNonCommitStartBases' => $objectDatabaseNonCommitStartBases,
+    'objectDatabaseSkipsNonCommitAncestors' => $objectDatabaseNonCommitParentBases === []
+        && $objectDatabaseNonCommitStartBases === [],
     'sha256ObjectDatabaseHeads' => [$sha256ObjectDatabasePluginReview, $sha256ObjectDatabaseThemeReview],
     'sha256ObjectDatabaseReleaseBaseline' => $sha256ObjectDatabaseReleaseBaseline,
     'sha256ObjectDatabaseBases' => $sha256ObjectDatabaseBases,
