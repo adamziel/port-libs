@@ -421,6 +421,9 @@ final class SQLiteSelectExpression
         if ($value instanceof SQLiteBlobValue) {
             return self::numericPrefix($value->bytes) != 0;
         }
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return self::numericPrefix($value->json) != 0;
+        }
         if (is_bool($value) || is_int($value) || is_float($value)) {
             return (float) $value !== 0.0;
         }
@@ -503,15 +506,13 @@ final class SQLiteSelectExpression
         if ($normalized === 'implies_nonnull_row') {
             return self::impliesNonNullRow($row, $arguments);
         }
+        if ($normalized === 'if' || $normalized === 'iif') {
+            return self::conditionalFunctionValue($row, $normalized, $arguments);
+        }
 
         $evaluated = [];
         foreach ($arguments as $argument) {
-            if (is_array($argument)) {
-                $evaluated[] = self::evaluate($row, $argument);
-                continue;
-            }
-
-            $evaluated[] = $argument;
+            $evaluated[] = self::functionArgumentValue($row, $argument);
         }
 
         if ($normalized === 'json' || $normalized === 'jsonb') {
@@ -630,6 +631,38 @@ final class SQLiteSelectExpression
         }
 
         return SQLiteCoreScalarFunction::sqlFunctionArguments($function, $evaluated);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function functionArgumentValue(array $row, mixed $argument): mixed
+    {
+        return is_array($argument) ? self::evaluate($row, $argument) : $argument;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<mixed> $arguments
+     */
+    private static function conditionalFunctionValue(array $row, string $functionName, array $arguments): mixed
+    {
+        if (count($arguments) < 2) {
+            throw new \InvalidArgumentException("SQLite {$functionName}() expects at least two arguments");
+        }
+
+        $lastIndex = count($arguments) - 1;
+        for ($index = 0; $index + 1 <= $lastIndex; $index += 2) {
+            if (self::isSqlTrue(self::functionArgumentValue($row, $arguments[$index]))) {
+                return self::functionArgumentValue($row, $arguments[$index + 1]);
+            }
+        }
+
+        if (count($arguments) % 2 === 1) {
+            return self::functionArgumentValue($row, $arguments[$lastIndex]);
+        }
+
+        return null;
     }
 
     /**
@@ -906,6 +939,9 @@ final class SQLiteSelectExpression
         if ($value instanceof SQLiteBlobValue) {
             return self::integerPrefix($value->bytes);
         }
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return self::integerPrefix($value->json);
+        }
         if (is_string($value)) {
             return self::integerPrefix($value);
         }
@@ -923,6 +959,9 @@ final class SQLiteSelectExpression
         }
         if ($value instanceof SQLiteBlobValue) {
             return self::numericPrefix($value->bytes);
+        }
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return self::numericPrefix($value->json);
         }
         if (is_string($value)) {
             return self::numericPrefix($value);
@@ -1030,6 +1069,9 @@ final class SQLiteSelectExpression
     {
         if ($value instanceof SQLiteBlobValue) {
             return $value->bytes;
+        }
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return $value->json;
         }
         if (is_bool($value)) {
             return $value ? '1' : '0';

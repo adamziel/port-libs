@@ -1100,6 +1100,11 @@ final class SQLiteUpsertReturningSql
     private static function evaluateExpression(string $expression, string $target, ?string $targetAlias, array $current, array $excluded): mixed
     {
         $expression = trim(self::stripOuterParens($expression));
+        if (preg_match('/^(.+?)\s+IS\s+(NOT\s+)?NULL$/is', $expression, $match) === 1) {
+            $isNull = self::evaluateExpression($match[1], $target, $targetAlias, $current, $excluded) === null;
+
+            return isset($match[2]) && trim($match[2]) !== '' ? ($isNull ? 0 : 1) : ($isNull ? 1 : 0);
+        }
         $andTerms = self::splitTopLevelKeyword($expression, 'AND');
         if (count($andTerms) > 1) {
             $hasNull = false;
@@ -1148,6 +1153,14 @@ final class SQLiteUpsertReturningSql
             }
 
             return $selected;
+        }
+        if (preg_match('/^quote\((.*)\)$/is', $expression, $functionMatch) === 1) {
+            $arguments = array_map(
+                static fn (string $part): mixed => self::evaluateExpression($part, $target, $targetAlias, $current, $excluded),
+                self::splitComma($functionMatch[1]),
+            );
+
+            return SQLiteCoreScalarFunction::sqlFunctionArguments('quote', $arguments);
         }
         foreach (['+', '-'] as $operator) {
             $parts = self::splitBinaryOperator($expression, $operator);
