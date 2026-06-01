@@ -55,6 +55,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (attributes/media/target replay intake
+  05:20 UTC): continued the cleanup/integration pass from the current
+  `origin/main`. The CSSOM handoff did not apply on current main
+  (`lanes/lightningcss/src/DeclarationBlock.php:155`) and was excluded for
+  repair rather than forcing a merge. Accepted the clean subset as source
+  commit `1c7bb51783f8dd4b6698db08adef5c2967b833eb` (`ports: integrate
+  attributes media and target parity`). The batch adds Gitoxide
+  attributes/pathspec ASCII whitespace field splitting parity plus
+  LightningCSS media-query range/comment trivia through layered imports and
+  target-prefix mask/browser-boundary parity. Verification passed PHP lint,
+  `git diff --check`, full Gitoxide `40 files / 7554 assertions / 0 failures`,
+  full LightningCSS `13 files / 6135 assertions / 0 failures`, and touched
+  examples. Dashboard status should report Gitoxide `1744 / 2886` mapped and
+  `7554 pass / 0 fail`, LightningCSS `2353 / 3532` mapped and `6135 pass / 0
+  fail`, and unchanged libsqlite `1589 / 1589` mapped with `5548966 pass / 7
+  fail`.
+
 - 2026-06-01 supervisor continuation (config/CSS/trigger replay intake
   05:10 UTC): audited the cleanup complaint with live evidence. `main` is the
   only tmux session; there are 10 visible isolated development windows plus the

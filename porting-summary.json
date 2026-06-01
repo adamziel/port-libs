@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 05:07:59 UTC",
-    "sourceCommit": "4fbc50ac3aa0fbe3e6031cb136f3f168e7e8266e",
-    "sourceCommitShort": "4fbc50ac3aa0",
+    "generated": "2026-06-01 05:12:34 UTC",
+    "sourceCommit": "1c7bb51783f8dd4b6698db08adef5c2967b833eb",
+    "sourceCommitShort": "1c7bb51783f8",
     "sourceBranch": "unknown",
-    "dashboardCommit": "4fbc50ac3aa0fbe3e6031cb136f3f168e7e8266e",
-    "dashboardCommitShort": "4fbc50ac3aa0",
+    "dashboardCommit": "1c7bb51783f8dd4b6698db08adef5c2967b833eb",
+    "dashboardCommitShort": "1c7bb51783f8",
     "averageProgressPercent": "88.4",
     "lanes": [
         {
@@ -61,19 +61,19 @@
         {
             "library": "gitoxide",
             "progressPercent": "94.1",
-            "suite": "current-base Gitoxide config/credential/partial-clone r...",
-            "benchmark": "current-base Gitoxide config/credential/partial-clone r...",
+            "suite": "current-base Gitoxide attributes/pathspec replay",
+            "benchmark": "current-base Gitoxide attributes/pathspec replay",
             "denominator": "2886",
-            "mapped": "1743",
-            "coverage": "1743 / 2886",
-            "php": "7538 pass / 0 fail",
+            "mapped": "1744",
+            "coverage": "1744 / 2886",
+            "php": "7554 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
             "audit": "2026-06-01 supervisor batch: full Gitoxid...",
-            "currentWork": "Config include drive-prefix relative path parity, credential helper context CR-byte parit...",
+            "currentWork": "Attributes/pathspec ASCII whitespace field splitting parity integrated on current base.",
             "nextTarget": "Keep three Gitoxide workers on current-base non-overlapping pack-index, SSH/receive-pack,...",
             "blocker": "Full upstream Cargo workspace remains unexecuted.",
-            "commit": "4fbc50a"
+            "commit": "1c7bb51"
         },
         {
             "library": "libsqlite",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "98.8",
-            "suite": "current-base LightningCSS bundle/modules/custom-at-rule...",
-            "benchmark": "current-base LightningCSS bundle/modules/custom-at-rule...",
+            "progressPercent": "98.9",
+            "suite": "current-base LightningCSS media/target-prefix replay",
+            "benchmark": "current-base LightningCSS media/target-prefix replay",
             "denominator": "3532",
-            "mapped": "2351",
-            "coverage": "2351 / 3532",
-            "php": "6124 pass / 0 fail",
+            "mapped": "2353",
+            "coverage": "2353 / 3532",
+            "php": "6135 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
             "audit": "2026-06-01 supervisor batch: full Lightni...",
-            "currentWork": "Bundle/import graph, CSS Modules local/global/commented selector composes, and custom at-...",
+            "currentWork": "Media-query range/comment trivia through layered imports and target-prefix mask/browser-b...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph,...",
             "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-            "commit": "4fbc50a"
+            "commit": "1c7bb51"
         },
         {
             "library": "markerPDF",
