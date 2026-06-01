@@ -123,6 +123,26 @@ return [
         $t->same(0x12345678, $first->crc32);
         $t->same([12, 96, 8589934597], $index->sortedOffsets());
     },
+    'returns pack-index entries in pack-offset traversal order like gix-pack util' => static function (TestRunner $t) use ($buildIndex, $packChecksum): void {
+        $index = PackIndex::fromBytes($buildIndex([
+            ['oid' => '9000111111111111111111111111111111111111', 'offset' => 48, 'crc32' => 9],
+            ['oid' => '3000333333333333333333333333333333333333', 'offset' => 12, 'crc32' => 3],
+            ['oid' => '1000111111111111111111111111111111111111', 'offset' => 12, 'crc32' => 1],
+            ['oid' => '2000222222222222222222222222222222222222', 'offset' => 24, 'crc32' => 2],
+        ], $packChecksum));
+
+        $traversal = $index->entriesSortedByPackOffset();
+
+        $t->same([12, 12, 24, 48], array_map(static fn ($entry): int => $entry->packOffset, $traversal));
+        $t->same([0, 2, 1, 3], array_map(static fn ($entry): int => $entry->index, $traversal));
+        $t->same([
+            '1000111111111111111111111111111111111111',
+            '3000333333333333333333333333333333333333',
+            '2000222222222222222222222222222222222222',
+            '9000111111111111111111111111111111111111',
+        ], array_map(static fn ($entry): string => $entry->oid, $traversal));
+        $t->same([1, 3, 2, 9], array_map(static fn ($entry): ?int => $entry->crc32, $traversal));
+    },
     'honors pack index large-offset threshold boundaries like gix-pack' => static function (TestRunner $t) use ($buildIndex, $packChecksum): void {
         $boundaryEntries = [
             ['oid' => '1000111111111111111111111111111111111111', 'offset' => 0x7fffffff, 'crc32' => 1],

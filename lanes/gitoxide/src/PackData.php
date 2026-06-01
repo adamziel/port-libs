@@ -256,6 +256,103 @@ final class PackData
         return PackBuilder::buildWithOffsetDeltas($objects);
     }
 
+    /**
+     * @return array{objects:list<array{oid:string,type:string,size:int,numDeltas:int,packOffset:int,nextOffset:int,compressedSize:int,decompressedEntrySize:int,crc32:?int,index:int}>,statistics:array{objectCount:int,objectsPerChainLength:array<int,int>,totalCompressedEntriesSize:int,totalDecompressedEntriesSize:int,totalObjectSize:int,packSize:int,numCommits:int,numTrees:int,numTags:int,numBlobs:int,average:array{compressedSize:int,decompressedEntrySize:int,objectSize:int,numDeltas:int}}}
+     */
+    public function traverseObjectsWithIndex(PackIndex $index): array
+    {
+        $this->assertIndexMatchesPackData($index);
+        if ($index->count() !== $this->objectCount) {
+            throw new \RuntimeException('Pack index object count does not match pack data object count');
+        }
+
+        $indexEntries = $index->entriesSortedByPackOffset();
+        $objects = [];
+        $statistics = [
+            'objectCount' => 0,
+            'objectsPerChainLength' => [],
+            'totalCompressedEntriesSize' => 0,
+            'totalDecompressedEntriesSize' => 0,
+            'totalObjectSize' => 0,
+            'packSize' => strlen($this->bytes),
+            'numCommits' => 0,
+            'numTrees' => 0,
+            'numTags' => 0,
+            'numBlobs' => 0,
+            'average' => [
+                'compressedSize' => 0,
+                'decompressedEntrySize' => 0,
+                'objectSize' => 0,
+                'numDeltas' => 0,
+            ],
+        ];
+
+        foreach ($indexEntries as $position => $indexEntry) {
+            $nextOffset = $indexEntries[$position + 1]->packOffset ?? $this->dataEndOffset();
+            $packEntry = $this->entryAtOffset($indexEntry->packOffset, $nextOffset);
+            $object = $this->resolveEntry($index, $packEntry);
+            if ($object->oid($index->objectHash()) !== $indexEntry->oid) {
+                throw new \RuntimeException('Pack traversal object id does not match index entry');
+            }
+
+            $header = $this->resolveEntryHeader(
+                $index,
+                $this->entryMetadataAtOffset($indexEntry->packOffset, $nextOffset),
+            );
+            $compressedSize = $nextOffset - $packEntry->dataOffset;
+            $objectSize = strlen($object->body);
+
+            $objects[] = [
+                'oid' => $indexEntry->oid,
+                'type' => $object->type,
+                'size' => $objectSize,
+                'numDeltas' => $header['numDeltas'],
+                'packOffset' => $indexEntry->packOffset,
+                'nextOffset' => $nextOffset,
+                'compressedSize' => $compressedSize,
+                'decompressedEntrySize' => $packEntry->decompressedSize,
+                'crc32' => $indexEntry->crc32,
+                'index' => $indexEntry->index,
+            ];
+
+            $statistics['objectCount']++;
+            $statistics['objectsPerChainLength'][$header['numDeltas']] = ($statistics['objectsPerChainLength'][$header['numDeltas']] ?? 0) + 1;
+            $statistics['totalCompressedEntriesSize'] += $compressedSize;
+            $statistics['totalDecompressedEntriesSize'] += $packEntry->decompressedSize;
+            $statistics['totalObjectSize'] += $objectSize;
+
+            match ($object->type) {
+                'commit' => $statistics['numCommits']++,
+                'tree' => $statistics['numTrees']++,
+                'tag' => $statistics['numTags']++,
+                'blob' => $statistics['numBlobs']++,
+                default => null,
+            };
+        }
+
+        ksort($statistics['objectsPerChainLength']);
+        if ($statistics['objectCount'] > 0) {
+            $statistics['average'] = [
+                'compressedSize' => intdiv($statistics['totalCompressedEntriesSize'], $statistics['objectCount']),
+                'decompressedEntrySize' => intdiv($statistics['totalDecompressedEntriesSize'], $statistics['objectCount']),
+                'objectSize' => intdiv($statistics['totalObjectSize'], $statistics['objectCount']),
+                'numDeltas' => intdiv(
+                    array_sum(array_map(
+                        static fn (int $level, int $count): int => $level * $count,
+                        array_keys($statistics['objectsPerChainLength']),
+                        array_values($statistics['objectsPerChainLength']),
+                    )),
+                    $statistics['objectCount'],
+                ),
+            ];
+        }
+
+        return [
+            'objects' => $objects,
+            'statistics' => $statistics,
+        ];
+    }
+
     public function readObjectAtOffset(PackIndex $index, string $oid, int $packOffset): GitObject
     {
         $entry = $index->lookup($oid);

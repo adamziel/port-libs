@@ -243,6 +243,39 @@ return [
             $t->same($entry['oid'], $object->oid());
         }
     },
+    'traverses pack-index objects in pack-offset order with upstream-style statistics' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-data.php';
+        $pack = PackData::fromBytes($fixture['packBytes']);
+        $index = PackIndex::fromBytes($fixture['indexBytes']);
+
+        $traversal = $pack->traverseObjectsWithIndex($index);
+        $objects = $traversal['objects'];
+        $statistics = $traversal['statistics'];
+        $expectedSizes = array_map(static fn (array $entry): int => strlen($entry['body']), $fixture['objects']);
+
+        $t->same(array_column($fixture['objects'], 'oid'), array_column($objects, 'oid'));
+        $t->same(array_column($fixture['objects'], 'type'), array_column($objects, 'type'));
+        $t->same($expectedSizes, array_column($objects, 'size'));
+        $t->same([0, 0, 1], array_column($objects, 'numDeltas'));
+        $t->same(array_column($fixture['objects'], 'offset'), array_column($objects, 'packOffset'));
+        $t->same([
+            $fixture['objects'][1]['offset'],
+            $fixture['objects'][2]['offset'],
+            strlen($fixture['packBytes']) - 20,
+        ], array_column($objects, 'nextOffset'));
+        $t->same([1, 2, 0], array_column($objects, 'index'));
+        $t->same(3, $statistics['objectCount']);
+        $t->same([0 => 2, 1 => 1], $statistics['objectsPerChainLength']);
+        $t->same(1, $statistics['numCommits']);
+        $t->same(2, $statistics['numBlobs']);
+        $t->same(0, $statistics['numTrees']);
+        $t->same(0, $statistics['numTags']);
+        $t->same(array_sum($expectedSizes), $statistics['totalObjectSize']);
+        $t->same(strlen($fixture['packBytes']), $statistics['packSize']);
+        $t->true($statistics['totalCompressedEntriesSize'] > 0);
+        $t->true($statistics['totalDecompressedEntriesSize'] > 0);
+        $t->same(intdiv(array_sum($expectedSizes), 3), $statistics['average']['objectSize']);
+    },
     'parses multi-byte entry size headers' => static function (TestRunner $t) use ($buildPackFixture): void {
         [$packBytes, , $entries] = $buildPackFixture([
             ['type' => 'blob', 'typeId' => 3, 'body' => str_repeat('x', 200)],
@@ -613,6 +646,10 @@ return [
         $t->same(true, $summary['deltaResultBufferGuard']);
         $t->same(true, $summary['packEntryMetadataGuard']);
         $t->same(['type' => 'blob', 'size' => strlen($deltaBlob->body), 'numDeltas' => 1], $summary['deltaHeaderProbe']);
+        $t->same(array_column($fixture['objects'], 'oid'), $summary['traversalOids']);
+        $t->same(array_column($fixture['objects'], 'offset'), $summary['traversalPackOffsets']);
+        $t->same(3, $summary['traversalStatistics']['objectCount']);
+        $t->same([0 => 2, 1 => 1], $summary['traversalStatistics']['objectsPerChainLength']);
     },
     'wordpress fixture resolves and repairs thin content packs' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-thin-pack-repair.php';

@@ -341,6 +341,21 @@ final class PackIndex
     }
 
     /**
+     * @return list<PackIndexEntry>
+     */
+    public function entriesSortedByPackOffset(): array
+    {
+        $entries = $this->entries();
+        usort(
+            $entries,
+            static fn (PackIndexEntry $a, PackIndexEntry $b): int => $a->packOffset <=> $b->packOffset
+                ?: $a->index <=> $b->index
+        );
+
+        return $entries;
+    }
+
+    /**
      * @param list<int> $fanout
      */
     private static function assertMonotonicFanout(array $fanout): void

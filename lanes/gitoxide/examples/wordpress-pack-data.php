@@ -15,6 +15,7 @@ $commit = $pack->readObject($index, $fixture['objects'][0]['oid']);
 $blob = $pack->readObject($index, $fixture['objects'][1]['oid']);
 $deltaBlob = $pack->readObject($index, $fixture['objects'][2]['oid']);
 $deltaHeader = $pack->readObjectHeader($index, $fixture['objects'][2]['oid']);
+$traversal = $pack->traverseObjectsWithIndex($index);
 
 $strictDeclaredSizeGuard = false;
 try {
@@ -135,6 +136,9 @@ return [
     'blobPreview' => strtok($blob->body, "\n"),
     'deltaBlobHasPackedEdit' => str_contains($deltaBlob->body, 'reconstructed packed edit'),
     'deltaHeaderProbe' => $deltaHeader,
+    'traversalOids' => array_column($traversal['objects'], 'oid'),
+    'traversalPackOffsets' => array_column($traversal['objects'], 'packOffset'),
+    'traversalStatistics' => $traversal['statistics'],
     'strictDeclaredSizeGuard' => $strictDeclaredSizeGuard,
     'oversizedDeltaHeaderGuard' => $oversizedDeltaHeaderGuard,
     'deltaResultBufferGuard' => $deltaResultBufferGuard,
