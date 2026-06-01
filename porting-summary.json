@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 22:48:47 UTC",
-    "sourceCommit": "ebad5fddf3e7e1ac8c914aec41101cfe86fcdf97",
-    "sourceCommitShort": "ebad5fddf3e7",
+    "generated": "2026-06-01 22:51:14 UTC",
+    "sourceCommit": "0a0f9810ef453dc2d8243da815d2b3a93b52926e",
+    "sourceCommitShort": "0a0f9810ef45",
     "sourceBranch": "unknown",
-    "dashboardCommit": "ebad5fddf3e7e1ac8c914aec41101cfe86fcdf97",
-    "dashboardCommitShort": "ebad5fddf3e7",
+    "dashboardCommit": "0a0f9810ef453dc2d8243da815d2b3a93b52926e",
+    "dashboardCommitShort": "0a0f9810ef45",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -23,12 +23,12 @@
             "mapPercent": "100.0%",
             "unmapped": "0",
             "php": "6,286,898 pass / 16 fail",
-            "phase": "current-base source integration accepted by supervisor with real upst...",
+            "phase": "current-base source integration accepted by supervisor with source-ne...",
             "audit": "2026-06-01 21:15 UTC supervisor integration: source commit c3bf2f17bb...",
-            "currentWork": "Real upstream atof1.test random REAL ordinals 7201..8400 are integrated on top of row...",
+            "currentWork": "Source-neutral cast/LIKE/GLOB cleanup is integrated on top of real upstream atof1.tes...",
             "nextTarget": "Continue reducing the 16 broad libsqlite failures and accept...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "ebad5fd"
+            "commit": "0a0f981"
         },
         {
             "lane": "lightningcss",
