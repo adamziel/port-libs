@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 21:02:51 UTC",
-    "sourceCommit": "3648b9eb117ce2475c29b58b2b17d4376a5e6b02",
-    "sourceCommitShort": "3648b9eb117c",
+    "generated": "2026-06-01 21:08:13 UTC",
+    "sourceCommit": "b5cc83e4d916dba038981e6b493de8649af6d9ab",
+    "sourceCommitShort": "b5cc83e4d916",
     "sourceBranch": "unknown",
-    "dashboardCommit": "3648b9eb117ce2475c29b58b2b17d4376a5e6b02",
-    "dashboardCommitShort": "3648b9eb117c",
+    "dashboardCommit": "b5cc83e4d916dba038981e6b493de8649af6d9ab",
+    "dashboardCommitShort": "b5cc83e4d916",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,269,881 pass / 16 fail",
+            "php": "6,270,884 pass / 16 fail",
             "phase": "current-base source integration accepted by supervisor with focused i...",
-            "audit": "2026-06-01 21:05 UTC supervisor integration: source commit 3648b9eb11...",
-            "currentWork": "Real upstream fkey1 catalog/deferred-status, without_rowid3 runtime FK, wherefault OR...",
+            "audit": "2026-06-01 21:07 UTC supervisor integration: source commit b5cc83e4d9...",
+            "currentWork": "Real upstream pager1 hot-journal checksum-stop/read-only recovery is integrated on to...",
             "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "3648b9e"
+            "commit": "b5cc83e"
         },
         {
             "lane": "lightningcss",
