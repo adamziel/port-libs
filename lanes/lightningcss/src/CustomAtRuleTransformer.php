@@ -3172,7 +3172,7 @@ final class CustomAtRuleTransformer
                 'matched' => true,
                 'value' => [
                     'type' => 'token-list',
-                    'value' => $this->parseComponentValueList($prelude),
+                    'value' => $this->parseComponentValueList($prelude, true),
                 ],
             ];
         }
@@ -5800,7 +5800,7 @@ final class CustomAtRuleTransformer
                 $output = rtrim($output) . ',';
                 continue;
             }
-            if ($output !== '' && !str_ends_with($output, ',') && !$this->componentCssStartsWithoutSpace($css)) {
+            if ($output !== '' && !str_ends_with($output, ',') && !$this->componentCssStartsWithoutSpace($css) && !$this->componentCssEndsWithoutSpace($output)) {
                 $output .= ' ';
             }
             $output .= $css;
@@ -5828,19 +5828,219 @@ final class CustomAtRuleTransformer
     {
         return str_starts_with($css, ')')
             || str_starts_with($css, ']')
+            || str_starts_with($css, '}')
             || str_starts_with($css, ',')
-            || str_starts_with($css, '/');
+            || str_starts_with($css, '/')
+            || str_starts_with($css, '=')
+            || str_starts_with($css, ':')
+            || str_starts_with($css, ';')
+            || str_starts_with($css, '~=')
+            || str_starts_with($css, '|=')
+            || str_starts_with($css, '^=')
+            || str_starts_with($css, '$=')
+            || str_starts_with($css, '*=');
+    }
+
+    private function componentCssEndsWithoutSpace(string $css): bool
+    {
+        return str_ends_with($css, '(')
+            || str_ends_with($css, '[')
+            || str_ends_with($css, '{')
+            || str_ends_with($css, '/')
+            || str_ends_with($css, '=')
+            || str_ends_with($css, ':')
+            || str_ends_with($css, ';')
+            || str_ends_with($css, '~=')
+            || str_ends_with($css, '|=')
+            || str_ends_with($css, '^=')
+            || str_ends_with($css, '$=')
+            || str_ends_with($css, '*=');
     }
 
     /**
      * @return list<mixed>
      */
-    private function parseComponentValueList(string $value): array
+    private function parseComponentValueList(string $value, bool $parseNestedBlocks = false): array
     {
+        if ($parseNestedBlocks) {
+            $cursor = 0;
+            $parsed = $this->parseNestedComponentValueList($value, $cursor, null);
+
+            return $parsed['components'];
+        }
+
         return array_map(
             fn (string $token): mixed => $this->parseComponentValue($token),
             $this->splitComponentValueTokens($value)
         );
+    }
+
+    /**
+     * @return array{components:list<mixed>,closed:bool}
+     */
+    private function parseNestedComponentValueList(string $value, int &$cursor, ?string $closing): array
+    {
+        $components = [];
+        $current = '';
+        $quote = null;
+        $length = strlen($value);
+
+        while ($cursor < $length) {
+            $char = $value[$cursor];
+            if ($quote !== null) {
+                $current .= $char;
+                if ($char === '\\' && $cursor + 1 < $length) {
+                    $current .= $value[++$cursor];
+                    $cursor++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                $cursor++;
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $current .= $char;
+                $cursor++;
+                continue;
+            }
+
+            if ($char === '\\') {
+                $escapeEnd = $this->consumeCssIdentifierEscape($value, $cursor);
+                if ($escapeEnd !== null) {
+                    $current .= substr($value, $cursor, $escapeEnd - $cursor);
+                    $cursor = $escapeEnd;
+                    continue;
+                }
+
+                $current .= $char;
+                $cursor++;
+                continue;
+            }
+
+            if ($closing !== null && $char === $closing) {
+                $this->flushComponentValueToken($components, $current);
+                $cursor++;
+
+                return ['components' => $components, 'closed' => true];
+            }
+
+            if ($char === ',' || ctype_space($char)) {
+                $this->flushComponentValueToken($components, $current);
+                if ($char === ',') {
+                    $components[] = $this->parseComponentValue(',');
+                }
+                $cursor++;
+                continue;
+            }
+
+            if ($char === '(' && $this->currentComponentIsFunctionName($current)) {
+                $close = $this->findMatchingParen($value, $cursor);
+                if ($close !== null) {
+                    $current .= substr($value, $cursor, $close - $cursor + 1);
+                    $cursor = $close + 1;
+                    continue;
+                }
+            }
+
+            $delimiter = $this->componentValueDelimiterAt($value, $cursor);
+            if ($delimiter !== null) {
+                $this->flushComponentValueToken($components, $current);
+                $components[] = $this->parseComponentValue($delimiter);
+                $cursor += strlen($delimiter);
+                continue;
+            }
+
+            $block = $this->componentValueBlockToken($char);
+            if ($block !== null) {
+                $this->flushComponentValueToken($components, $current);
+                $components[] = $this->componentValueStructuralToken($block['open'], $char);
+                $cursor++;
+
+                $inner = $this->parseNestedComponentValueList($value, $cursor, $block['closeChar']);
+                foreach ($inner['components'] as $component) {
+                    $components[] = $component;
+                }
+                if ($inner['closed']) {
+                    $components[] = $this->componentValueStructuralToken($block['close'], $block['closeChar']);
+                }
+                continue;
+            }
+
+            $current .= $char;
+            $cursor++;
+        }
+
+        $this->flushComponentValueToken($components, $current);
+
+        return ['components' => $components, 'closed' => false];
+    }
+
+    /**
+     * @param list<mixed> $components
+     */
+    private function flushComponentValueToken(array &$components, string &$current): void
+    {
+        $token = trim($current);
+        if ($token !== '') {
+            $components[] = $this->parseComponentValue($token);
+        }
+        $current = '';
+    }
+
+    private function currentComponentIsFunctionName(string $component): bool
+    {
+        $component = trim($component);
+        if ($component === '') {
+            return false;
+        }
+
+        $identifier = $this->readCssIdentifierRaw($component, 0);
+
+        return $identifier !== null && $identifier['end'] === strlen($component);
+    }
+
+    private function componentValueDelimiterAt(string $value, int $cursor): ?string
+    {
+        foreach (['~=', '|=', '^=', '$=', '*='] as $operator) {
+            if (substr($value, $cursor, 2) === $operator) {
+                return $operator;
+            }
+        }
+
+        $char = $value[$cursor] ?? '';
+
+        return in_array($char, ['=', '/', ':', ';'], true) ? $char : null;
+    }
+
+    /**
+     * @return array{open:string,close:string,closeChar:string}|null
+     */
+    private function componentValueBlockToken(string $char): ?array
+    {
+        return match ($char) {
+            '(' => ['open' => 'parenthesis-block', 'close' => 'close-parenthesis', 'closeChar' => ')'],
+            '[' => ['open' => 'square-bracket-block', 'close' => 'close-square-bracket', 'closeChar' => ']'],
+            '{' => ['open' => 'curly-bracket-block', 'close' => 'close-curly-bracket', 'closeChar' => '}'],
+            default => null,
+        };
+    }
+
+    /**
+     * @return array{type:string,raw:string,value:array{type:string}}
+     */
+    private function componentValueStructuralToken(string $type, string $raw): array
+    {
+        return [
+            'type' => 'token',
+            'raw' => $raw,
+            'value' => [
+                'type' => $type,
+            ],
+        ];
     }
 
     /**
@@ -5954,6 +6154,17 @@ final class CustomAtRuleTransformer
                 'value' => [
                     'type' => 'delim',
                     'value' => ',',
+                ],
+            ];
+        }
+
+        if (in_array($token, ['=', '/', ':', ';', '~=', '|=', '^=', '$=', '*='], true)) {
+            return [
+                'type' => 'token',
+                'raw' => $token,
+                'value' => [
+                    'type' => 'delim',
+                    'value' => $token,
                 ],
             ];
         }
@@ -7314,7 +7525,7 @@ final class CustomAtRuleTransformer
     {
         $replacementCss = trim($replacementCss);
         $changed = $replacementCss !== $originalCss;
-        $components = $replacementCss === '' ? [] : $this->parseComponentValueList($replacementCss);
+        $components = $replacementCss === '' ? [] : $this->parseComponentValueList($replacementCss, true);
 
         if ($changed && $components !== [] && $depth < self::CUSTOM_PRELUDE_TOKEN_REVISIT_LIMIT) {
             $visited = $this->visitCustomPreludeTokenList($components, $depth + 1, $skipTokenType);
@@ -7917,6 +8128,33 @@ final class CustomAtRuleTransformer
             }
             if (($token['type'] ?? null) === 'delim') {
                 return (string) ($token['value'] ?? '');
+            }
+            if (($token['type'] ?? null) === 'parenthesis-block') {
+                return '(';
+            }
+            if (($token['type'] ?? null) === 'close-parenthesis') {
+                return ')';
+            }
+            if (($token['type'] ?? null) === 'square-bracket-block') {
+                return '[';
+            }
+            if (($token['type'] ?? null) === 'close-square-bracket') {
+                return ']';
+            }
+            if (($token['type'] ?? null) === 'curly-bracket-block') {
+                return '{';
+            }
+            if (($token['type'] ?? null) === 'close-curly-bracket') {
+                return '}';
+            }
+            if (($token['type'] ?? null) === 'colon') {
+                return ':';
+            }
+            if (($token['type'] ?? null) === 'semicolon') {
+                return ';';
+            }
+            if (($token['type'] ?? null) === 'comma') {
+                return ',';
             }
             if (($token['type'] ?? null) === 'number' && (is_int($token['value'] ?? null) || is_float($token['value'] ?? null))) {
                 return $this->formatNumber($token['value']);
@@ -8952,7 +9190,7 @@ final class CustomAtRuleTransformer
      */
     private function parseUnknownPreludeTokens(string $prelude): array
     {
-        return $this->parseComponentValueList($prelude);
+        return $this->parseComponentValueList($prelude, true);
     }
 
     /**

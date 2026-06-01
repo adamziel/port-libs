@@ -14,6 +14,12 @@ $css = <<<'CSS'
     }
   }
 
+  @media n\6f t(color) {
+    .wp-block-query.is-compact-not {
+      color: red;
+    }
+  }
+
   @media (hover: 1) {
     .wp-block-query.is-invalid-value {
       color: chartreuse;
@@ -50,8 +56,13 @@ $expected = [
             'column' => 14,
         ],
         [
-            'message' => 'Invalid media query',
+            'message' => 'Unexpected token Function("not")',
             'line' => 8,
+            'column' => 9,
+        ],
+        [
+            'message' => 'Invalid media query',
+            'line' => 14,
             'column' => 9,
         ],
     ],

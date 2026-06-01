@@ -399,12 +399,12 @@ final class SparseCheckoutSpec
             return false;
         }
 
-        if (!$included && $isDirectory === true) {
+        if (!$included && !$matched && $isDirectory === true) {
             foreach ($this->patterns as $rule) {
-                if ($rule['negative'] || !($rule['pathspec'] ?? false)) {
+                if ($rule['negative']) {
                     continue;
                 }
-                if ($this->pathspecRuleCanMatchDescendant($rule, $path)) {
+                if ($this->ruleCanMatchDescendant($rule, $path)) {
                     return true;
                 }
             }
@@ -443,7 +443,7 @@ final class SparseCheckoutSpec
             if ($rule['negative'] || !($rule['pathspec'] ?? false)) {
                 continue;
             }
-            if ($this->pathspecRuleCanMatchDescendant($rule, $path)) {
+            if ($this->ruleCanMatchDescendant($rule, $path)) {
                 return true;
             }
         }
@@ -527,7 +527,7 @@ final class SparseCheckoutSpec
     /**
      * @param array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal?:bool,matchSlash?:bool,ignoreCase?:bool,pathspec?:bool,always?:bool,caseSensitivePrefix?:string} $rule
      */
-    private function pathspecRuleCanMatchDescendant(array $rule, string $path): bool
+    private function ruleCanMatchDescendant(array $rule, string $path): bool
     {
         if ($path === '' || ($rule['always'] ?? false)) {
             return true;
@@ -549,12 +549,12 @@ final class SparseCheckoutSpec
         }
 
         if ($rule['literal'] ?? false) {
-            return $patternForCompare === $candidate || str_starts_with($patternForCompare, $candidate . '/');
+            return $patternForCompare === $candidate || self::patternDescendsBelowPath($patternForCompare, $candidate);
         }
 
         if (!self::pathspecRuleHasActiveWildcard($rule)) {
             return self::pathStartsWithDirectoryPrefix($candidate, $patternForCompare)
-                || str_starts_with($patternForCompare, $candidate . '/');
+                || self::patternDescendsBelowPath($patternForCompare, $candidate);
         }
 
         $literalPrefix = self::literalPrefixBeforeWildcard($patternForCompare);
@@ -573,12 +573,24 @@ final class SparseCheckoutSpec
         }
 
         return self::pathStartsWithDirectoryPrefix($candidate, $literalPrefix)
-            || str_starts_with($literalPrefix, $candidate . '/');
+            || self::patternDescendsBelowPath($literalPrefix, $candidate);
     }
 
     private static function pathStartsWithDirectoryPrefix(string $path, string $prefix): bool
     {
         return $path === $prefix || str_starts_with($path, $prefix . '/');
+    }
+
+    private static function patternDescendsBelowPath(string $pattern, string $path): bool
+    {
+        $prefix = $path . '/';
+        if (!str_starts_with($pattern, $prefix)) {
+            return false;
+        }
+
+        $next = $pattern[strlen($prefix)] ?? null;
+
+        return $next !== null && $next !== '/';
     }
 
     /**

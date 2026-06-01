@@ -2396,6 +2396,46 @@ CSS;
             $prefixer->prefixForTargets('.foo{ display: flex }', ['ie' => 11])
         );
     },
+    'transition prefixer maps upstream display grid ms browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{display:-ms-grid;display:grid}',
+            $prefixer->prefixForTargets('.foo { display: grid; }', ['ie' => 10])
+        );
+        $t->same(
+            '.foo{display:-ms-grid;display:grid}',
+            $prefixer->prefixForTargets('.foo { display: grid; }', ['ie' => 11])
+        );
+        $t->same(
+            '.foo{display:-ms-grid;display:grid}',
+            $prefixer->prefixForTargets('.foo { display: grid; }', ['edge' => 15])
+        );
+        $t->same(
+            '.foo{display:grid}',
+            $prefixer->prefixForTargets('.foo { display: grid; }', ['edge' => 16])
+        );
+        $t->same(
+            '.foo{display:-ms-inline-grid;display:inline-grid}',
+            $prefixer->prefixForTargets('.foo { display: inline-grid; }', ['edge' => 15])
+        );
+        $t->same(
+            '.foo{display:inline-grid}',
+            $prefixer->prefixForTargets('.foo { display: inline-grid; }', ['edge' => 16])
+        );
+        $t->same(
+            '.foo{display:grid}',
+            $prefixer->prefixForTargets('.foo { display: -ms-grid; display: grid; }', ['edge' => 16])
+        );
+        $t->same(
+            '.foo{display:-ms-grid;display:grid}',
+            $prefixer->prefixForTargets('.foo { display: -ms-grid; display: grid; }', ['ie' => 11])
+        );
+        $t->same(
+            '.foo{display:inline-grid}',
+            $prefixer->prefixForTargets('.foo { display: -ms-inline-grid; display: inline-grid; }', ['chrome' => 120])
+        );
+    },
     'transition prefixer maps upstream flex longhand target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $targets = [

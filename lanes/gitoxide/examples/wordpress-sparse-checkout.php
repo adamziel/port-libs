@@ -31,6 +31,9 @@ $nonConeExtraSlashPathspec = SparseCheckoutSpec::fromNonConePatternFile(
     . "wp-content/generated///\n"
     . "/wp-content/plugins/\n"
 );
+$nonConeLiteralAncestorPathspec = SparseCheckoutSpec::fromNonConePatternFile(
+    "wp-content/plugins/gutenberg/src\n"
+);
 $wildmatchPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)wp-content/plugins/[ag]*/block.[jt]son',
     ':(exclude,glob)wp-content/cache/**',
@@ -217,6 +220,11 @@ $plugins = new Tree([
     new TreeEntry('040000', 'akismet', $tree),
     new TreeEntry('040000', 'gutenberg', $tree),
 ]);
+$gutenberg = new Tree([
+    new TreeEntry('100644', 'block.json', $blob),
+    new TreeEntry('040000', 'build', $tree),
+    new TreeEntry('040000', 'src', $tree),
+]);
 
 $entryNames = static fn (array $entries): array => array_map(
     static fn (TreeEntry $entry): string => $entry->filename,
@@ -247,6 +255,15 @@ return [
     'nonConeExtraTrailingSlashGeneratedSkipped' => $nonConeExtraSlashPathspec->skipWorktree('wp-content/generated/page.html', false),
     'nonConeSingleLeadingSlashPluginIncluded' => $nonConeExtraSlashPathspec->includesPath('wp-content/plugins/gutenberg/block.json', false),
     'nonConeExtraSlashEntriesToMaterialize' => $entryNames($nonConeExtraSlashPathspec->includedTreeEntries($wpContent, 'wp-content')),
+    'nonConeLiteralAncestorRootEntriesToMaterialize' => $entryNames($nonConeLiteralAncestorPathspec->includedTreeEntries($root)),
+    'nonConeLiteralAncestorWpContentEntriesToMaterialize' => $entryNames($nonConeLiteralAncestorPathspec->includedTreeEntries($wpContent, 'wp-content')),
+    'nonConeLiteralAncestorPluginEntriesToMaterialize' => $entryNames($nonConeLiteralAncestorPathspec->includedTreeEntries($plugins, 'wp-content/plugins')),
+    'nonConeLiteralAncestorGutenbergEntriesToMaterialize' => $entryNames($nonConeLiteralAncestorPathspec->includedTreeEntries($gutenberg, 'wp-content/plugins/gutenberg')),
+    'nonConeLiteralAncestorFileNamedWpContentSkipped' => $nonConeLiteralAncestorPathspec->skipWorktree('wp-content', false),
+    'nonConeLiteralAncestorGutenbergDirectoryIncluded' => $nonConeLiteralAncestorPathspec->includesPath('wp-content/plugins/gutenberg', true),
+    'nonConeLiteralAncestorGutenbergFileSkipped' => $nonConeLiteralAncestorPathspec->skipWorktree('wp-content/plugins/gutenberg', false),
+    'nonConeLiteralAncestorSrcIncluded' => $nonConeLiteralAncestorPathspec->includesPath('wp-content/plugins/gutenberg/src', true),
+    'nonConeLiteralAncestorBuildSkipped' => $nonConeLiteralAncestorPathspec->skipWorktree('wp-content/plugins/gutenberg/build', true),
     'pathspecBracketPluginBlockIncluded' => $wildmatchPathspec->includesPath('wp-content/plugins/akismet/block.json', false),
     'pathspecCacheExcludeAuthoritative' => $wildmatchPathspec->skipWorktree('wp-content/cache/page.html', false),
     'pathspecRecursiveEscapedThemeIncluded' => $wildmatchPathspec->includesPath('wp-content/themes/site/theme.?son', false),

@@ -2355,6 +2355,91 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules preserves unknown at-rule bodies while applying surrounding local global composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+@tokens {
+  .raw { composes: card; color: red }
+  :global(.wp-block) .raw { color: yellow }
+}
+
+.card {
+  composes: base;
+  color: blue;
+}
+
+.base {
+  color: green;
+}
+CSS);
+
+        $t->same('@tokens{.raw { composes: card; color: red } :global(.wp-block) .raw { color: yellow }}.EgL3uq_card{color:#00f}.EgL3uq_base{color:green}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_card EgL3uq_base', CssModulesTransformer::exportClassList($result['exports'], 'card'));
+
+        $unminified = (new CssModulesTransformer())->transform('@tokens { .raw { composes: card; color: red } } .card { color: blue }', [
+            'minify' => false,
+        ]);
+        $t->same('@tokens {.raw { composes: card; color: red }}.EgL3uq_card{ color: blue }', $unminified['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+        ], $unminified['exports']);
+        $t->same([], $unminified['references']);
+
+        $nestedKnownRule = (new CssModulesTransformer())->transform(<<<'CSS'
+@media (min-width: 1px) {
+  @tokens {
+    .raw { composes: card; color: red }
+  }
+
+  .card {
+    color: yellow;
+  }
+}
+
+.card {
+  composes: base;
+  color: blue;
+}
+
+.base {
+  color: green;
+}
+CSS);
+
+        $t->same('@media (width>=1px){@tokens{.raw { composes: card; color: red }}.EgL3uq_card{color:#ff0}}.EgL3uq_card{color:#00f}.EgL3uq_base{color:green}', $nestedKnownRule['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'base' => $export('EgL3uq_base'),
+        ], $nestedKnownRule['exports']);
+        $t->same([], $nestedKnownRule['references']);
+
+        $declarationLikeBody = (new CssModulesTransformer())->transform(<<<'CSS'
+@tokens {
+  composes: card;
+  color: red;
+}
+
+.card {
+  composes: base;
+  color: blue;
+}
+
+.base {
+  color: green;
+}
+CSS);
+
+        $t->same('@tokens{composes: card; color: red}.EgL3uq_card{color:#00f}.EgL3uq_base{color:green}', $declarationLikeBody['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'base' => $export('EgL3uq_base'),
+        ], $declarationLikeBody['exports']);
+        $t->same([], $declarationLikeBody['references']);
+    },
     'css modules keeps parent composes exports while lowering nested local selectors' => static function (TestRunner $t) use ($export, $dependency): void {
         $css = <<<'CSS'
 .foo {

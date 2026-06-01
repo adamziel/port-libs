@@ -16,7 +16,14 @@ $positiveSizeStorage = $fixture['positiveSizeLooseHeader'] . $fixture['blockBlob
 $positiveSizeObject = GitObject::fromStorageBytes($positiveSizeStorage);
 $negativeZeroSizeStorage = $fixture['negativeZeroSizeLooseHeader'] . $fixture['emptyBlobBody'];
 $negativeZeroSizeObject = GitObject::fromStorageBytes($negativeZeroSizeStorage);
+$lfSizeStorage = $fixture['lfSizeLooseHeader'] . $fixture['blockBlobBody'];
 $strictRejectsReadAhead = false;
+$lfSizeHeaderRejected = false;
+$lfSizeHeaderMessage = null;
+$lfSizeReadRejected = false;
+$lfSizeReadMessage = null;
+$lfSizeIntegrityRejected = false;
+$lfSizeIntegrityMessage = null;
 $allocationLimitRejected = false;
 $allocationLimitMessage = null;
 $trailingStreamIgnored = false;
@@ -64,6 +71,37 @@ try {
     GitObject::fromStorageBytes($storage . 'next loose object bytes already buffered');
 } catch (InvalidArgumentException) {
     $strictRejectsReadAhead = true;
+}
+
+try {
+    GitObject::decodeLooseHeader($lfSizeStorage);
+} catch (InvalidArgumentException $exception) {
+    $lfSizeHeaderRejected = true;
+    $lfSizeHeaderMessage = $exception->getMessage();
+}
+
+$lfSizeDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-lf-size-' . bin2hex(random_bytes(4)) . '/objects';
+$lfSizePath = $lfSizeDirectory . '/' . substr($object->oid(), 0, 2) . '/' . substr($object->oid(), 2);
+if (!is_dir(dirname($lfSizePath)) && !mkdir(dirname($lfSizePath), 0777, true) && !is_dir(dirname($lfSizePath))) {
+    throw new RuntimeException('Unable to create object-header LF-size fixture directory');
+}
+$lfSizeCompressed = gzcompress($lfSizeStorage);
+if ($lfSizeCompressed === false) {
+    throw new RuntimeException('Unable to compress object-header LF-size fixture');
+}
+file_put_contents($lfSizePath, $lfSizeCompressed);
+$lfSizeStore = LooseObjectStore::fromObjectsDirectory($lfSizeDirectory);
+try {
+    $lfSizeStore->read($object->oid());
+} catch (InvalidArgumentException $exception) {
+    $lfSizeReadRejected = true;
+    $lfSizeReadMessage = $exception->getMessage();
+}
+try {
+    $lfSizeStore->verifyIntegrity();
+} catch (RuntimeException $exception) {
+    $lfSizeIntegrityRejected = true;
+    $lfSizeIntegrityMessage = $exception->getMessage();
 }
 
 $trailingObjectsDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-trailing-' . bin2hex(random_bytes(4)) . '/objects';
@@ -197,6 +235,12 @@ return [
     'negativeZeroSizeHeaderAccepted' => $negativeZeroSizeObject->body === $fixture['emptyBlobBody'],
     'negativeZeroSizeCanonicalOid' => $negativeZeroSizeObject->oid(),
     'negativeZeroSizeRawHeaderOid' => hash('sha1', $negativeZeroSizeStorage),
+    'lfSizeHeaderRejected' => $lfSizeHeaderRejected,
+    'lfSizeHeaderMessage' => $lfSizeHeaderMessage,
+    'lfSizeReadRejected' => $lfSizeReadRejected,
+    'lfSizeReadMessage' => $lfSizeReadMessage,
+    'lfSizeIntegrityRejected' => $lfSizeIntegrityRejected,
+    'lfSizeIntegrityMessage' => $lfSizeIntegrityMessage,
     'allocationLimitBytes' => $boundedStore->allocationLimitBytes(),
     'oversizedHeaderSize' => $oversizedHeader['size'],
     'allocationLimitRejected' => $allocationLimitRejected,

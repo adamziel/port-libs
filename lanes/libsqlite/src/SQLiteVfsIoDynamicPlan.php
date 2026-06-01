@@ -4762,6 +4762,93 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function sharedCacheReadUncommittedDeleteProfile(
+        string $scenario,
+        int $rowCount,
+        int $deleteAtRow,
+        string $scanSource,
+        bool $rollbackDelete = false
+    ): array {
+        $scenario = trim($scenario);
+        if ($scenario === '' || (!str_starts_with($scenario, 'shared2-1.2') && !str_starts_with($scenario, 'shared2-1.3'))) {
+            throw new \InvalidArgumentException('SQLite shared2 read-uncommitted scenario is unsupported');
+        }
+        if ($rowCount < 2) {
+            throw new \InvalidArgumentException('SQLite shared2 read-uncommitted profile requires at least two rows');
+        }
+        if ($deleteAtRow < 1 || $deleteAtRow > $rowCount) {
+            throw new \InvalidArgumentException('SQLite shared2 read-uncommitted delete row must be inside the scan');
+        }
+
+        $scanSource = strtolower(trim($scanSource));
+        if (!in_array($scanSource, ['table', 'index'], true)) {
+            throw new \InvalidArgumentException('SQLite shared2 read-uncommitted scan source must be table or index');
+        }
+        if (str_starts_with($scenario, 'shared2-1.2') && $scanSource !== 'table') {
+            throw new \InvalidArgumentException('SQLite shared2-1.2 models table-btree scan invalidation');
+        }
+        if (str_starts_with($scenario, 'shared2-1.3') && $scanSource !== 'index') {
+            throw new \InvalidArgumentException('SQLite shared2-1.3 models index-btree scan invalidation');
+        }
+
+        $visitedRows = range(1, $deleteAtRow);
+        $deleteTransaction = str_starts_with($scenario, 'shared2-1.2');
+        $finalRows = $rollbackDelete ? $rowCount : 0;
+
+        return [
+            'status' => 'ok',
+            'script' => 'shared2.test',
+            'scenario' => $scenario,
+            'upstream' => $scanSource === 'table'
+                ? [
+                    'shared2.test shared2-1.1 setup table numbers with 64 rows',
+                    'shared2.test shared2-1.2 read-uncommitted table scan stops when peer deletes all rows',
+                ]
+                : [
+                    'shared2.test shared2-1.1 setup table numbers with 64 rows and primary-key index',
+                    'shared2.test shared2-1.3 read-uncommitted index scan stops when peer deletes all rows',
+                ],
+            'shared_cache_enabled' => true,
+            'read_uncommitted' => true,
+            'scan_source' => $scanSource,
+            'scan_sql' => $scanSource === 'table'
+                ? 'SELECT a FROM numbers ORDER BY oid'
+                : 'SELECT a, b FROM numbers ORDER BY a',
+            'btree_kind' => $scanSource === 'table' ? 'table-btree' : 'index-btree',
+            'row_count_before_scan' => $rowCount,
+            'count_before_scan' => $rowCount,
+            'delete_at_row' => $deleteAtRow,
+            'visited_rows_before_invalidation' => $visitedRows,
+            'visited_row_count' => count($visitedRows),
+            'last_visited_row' => $deleteAtRow,
+            'peer_delete_sql' => 'DELETE FROM numbers',
+            'peer_delete_transaction_opened' => $deleteTransaction,
+            'peer_delete_rows' => $rowCount,
+            'peer_rows_after_delete' => 0,
+            'read_cursor_invalidated_by_peer_delete' => true,
+            'scan_stops_at_delete_row' => true,
+            'upstream_result_pair' => [$deleteAtRow, $rowCount],
+            'rollback_after_delete' => $rollbackDelete,
+            'rows_after_rollback_or_commit' => $finalRows,
+            'schema_table' => 'numbers',
+            'schema_index' => 'sqlite_autoindex_numbers_1',
+            'payload' => 'abcdefghijklmnopqrstuvwxyz0123456789',
+            'integrity_check' => 'ok',
+            'reason' => $scanSource === 'table'
+                ? 'read_uncommitted_table_cursor_is_invalidated_when_peer_deletes_all_rows'
+                : 'read_uncommitted_index_cursor_is_invalidated_when_peer_deletes_all_rows',
+            'dependencies' => [
+                'sqlite-upstream-shared2-test',
+                'sqlite-shared-cache-read-uncommitted',
+                'sqlite-shared-cache-cursor-invalidation',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function quickBalanceDynamicWriteProfile(int $pageSize, int $payloadBytes, int $rowCount): array
     {
         if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {

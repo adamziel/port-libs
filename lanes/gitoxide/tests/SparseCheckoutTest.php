@@ -110,6 +110,64 @@ return [
 
         $t->same(['plugins'], $entryNames($spec->includedTreeEntries($wpContent, 'wp-content')));
     },
+    'non cone sparse checkout keeps literal ancestor directories traversable' => static function (TestRunner $t) use ($entryNames): void {
+        $upstream = SparseCheckoutSpec::fromNonConePatternFile("c1/c2\n");
+
+        $t->same(true, $upstream->includesPath('c1', true));
+        $t->same(false, $upstream->includesPath('c1', false));
+        $t->same(true, $upstream->skipWorktree('c1', false));
+        $t->same(true, $upstream->includesPath('c1/c2', true));
+        $t->same(true, $upstream->includesPath('c1/c2/a', false));
+        $t->same(false, $upstream->includesPath('c1/c3', true));
+
+        $blob = str_repeat('1', 40);
+        $tree = str_repeat('2', 40);
+        $root = new Tree([
+            new TreeEntry('100644', 'a', $blob),
+            new TreeEntry('040000', 'c1', $tree),
+            new TreeEntry('040000', 'd', $tree),
+        ]);
+        $c1 = new Tree([
+            new TreeEntry('100644', 'a', $blob),
+            new TreeEntry('040000', 'c2', $tree),
+            new TreeEntry('040000', 'c3', $tree),
+        ]);
+        $c2 = new Tree([
+            new TreeEntry('100644', 'a', $blob),
+            new TreeEntry('100644', 'b', $blob),
+        ]);
+
+        $t->same(['c1'], $entryNames($upstream->includedTreeEntries($root)));
+        $t->same(['c2'], $entryNames($upstream->includedTreeEntries($c1, 'c1')));
+        $t->same(['a', 'b'], $entryNames($upstream->includedTreeEntries($c2, 'c1/c2')));
+
+        $wordpress = SparseCheckoutSpec::fromNonConePatternFile("wp-content/plugins/gutenberg/src\n");
+        $wpRoot = new Tree([
+            new TreeEntry('100644', 'readme.txt', $blob),
+            new TreeEntry('040000', 'wp-admin', $tree),
+            new TreeEntry('040000', 'wp-content', $tree),
+        ]);
+        $wpContent = new Tree([
+            new TreeEntry('040000', 'plugins', $tree),
+            new TreeEntry('040000', 'themes', $tree),
+        ]);
+        $plugins = new Tree([
+            new TreeEntry('040000', 'akismet', $tree),
+            new TreeEntry('040000', 'gutenberg', $tree),
+        ]);
+        $gutenberg = new Tree([
+            new TreeEntry('040000', 'build', $tree),
+            new TreeEntry('040000', 'src', $tree),
+            new TreeEntry('100644', 'block.json', $blob),
+        ]);
+
+        $t->same(['wp-content'], $entryNames($wordpress->includedTreeEntries($wpRoot)));
+        $t->same(['plugins'], $entryNames($wordpress->includedTreeEntries($wpContent, 'wp-content')));
+        $t->same(['gutenberg'], $entryNames($wordpress->includedTreeEntries($plugins, 'wp-content/plugins')));
+        $t->same(['src'], $entryNames($wordpress->includedTreeEntries($gutenberg, 'wp-content/plugins/gutenberg')));
+        $t->same(true, $wordpress->includesPath('wp-content/plugins/gutenberg', true));
+        $t->same(false, $wordpress->includesPath('wp-content/plugins/gutenberg', false));
+    },
     'sparse checkout filters wordpress tree entries for traversal' => static function (TestRunner $t) use ($entryNames): void {
         $spec = SparseCheckoutSpec::cone(['wp-content/plugins/gutenberg']);
         $blob = str_repeat('1', 40);

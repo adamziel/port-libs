@@ -56,7 +56,7 @@ final class GitObject
         }
 
         $header = substr($bytes, 0, $nul);
-        if (!preg_match('/^(blob|tree|commit|tag) ([+-]?[0-9]+)$/', $header, $matches)) {
+        if (!preg_match('/\A(blob|tree|commit|tag) ([+-]?[0-9]+)\z/', $header, $matches)) {
             throw new \InvalidArgumentException('Invalid Git object header: ' . $header);
         }
         $size = self::parseLooseHeaderSize($matches[2], $header);

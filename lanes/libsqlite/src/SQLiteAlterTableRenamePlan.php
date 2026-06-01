@@ -60,8 +60,8 @@ final class SQLiteAlterTableRenamePlan
     public static function renameColumnSql(string $sql, string $tableName, string $oldName, string $newName): string
     {
         self::assertIdentifier($tableName, 'table name');
-        self::assertIdentifier($oldName, 'old column name');
-        self::assertIdentifier($newName, 'new column name');
+        self::assertColumnIdentifier($oldName, 'old column name');
+        self::assertColumnIdentifier($newName, 'new column name');
 
         $tokens = self::tokens($sql);
         $result = '';
@@ -427,14 +427,35 @@ final class SQLiteAlterTableRenamePlan
             return '[' . str_replace(']', ']]', $identifier) . ']';
         }
 
+        if (!self::isBareIdentifier($identifier)) {
+            return '"' . str_replace('"', '""', $identifier) . '"';
+        }
+
         return $identifier;
     }
 
     private static function assertIdentifier(string $identifier, string $label): void
     {
-        if ($identifier === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_$]*$/', $identifier) !== 1) {
+        if (!self::isBareIdentifier($identifier)) {
             throw new \InvalidArgumentException("SQLite ALTER TABLE rename {$label} is malformed");
         }
+    }
+
+    private static function assertColumnIdentifier(string $identifier, string $label): void
+    {
+        if (
+            $identifier === ''
+            || preg_match('/[^\x20-\x7E]/', $identifier) === 1
+            || preg_match('/^[A-Za-z_][A-Za-z0-9_$]*(?: [A-Za-z0-9_$]+)*$/', $identifier) !== 1
+        ) {
+            throw new \InvalidArgumentException("SQLite ALTER TABLE rename {$label} is malformed");
+        }
+    }
+
+    private static function isBareIdentifier(string $identifier): bool
+    {
+        return $identifier !== ''
+            && preg_match('/^[A-Za-z_][A-Za-z0-9_$]*$/', $identifier) === 1;
     }
 
     private static function isKeyword(string $token): bool

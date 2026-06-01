@@ -195,6 +195,8 @@ return [
         $t->same('(width>=1px),(hover)', $parser->minifyList('(width >= 1px)/* stale, comma */, (hover)'));
         $t->same('screen', $parser->minifyList('/* generated import note */ screen, /* trailing build note */'));
         $t->same('(width>=240px)', $parser->minifyList('(width >= 240px)/* unclosed build note'));
+        $t->same('not (color)', $parser->minifyList('not/* generated */(color)'));
+        $t->same('not (color)', $parser->minifyList('n\\6f t (color)'));
     },
     'media query parser maps upstream media query conjunction semantics' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
@@ -368,6 +370,9 @@ return [
             'env(--theme-breakpoint)',
             'var(--theme-breakpoint)',
             'screen and var(--theme-breakpoint)',
+            'not(color)',
+            'n\\6f t(color)',
+            'screen and not(color)',
             'all and all',
             'not all and all',
             'all and not all',

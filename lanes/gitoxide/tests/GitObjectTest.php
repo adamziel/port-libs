@@ -804,6 +804,38 @@ return [
             $t->contains($canonicalOid, $exception->getMessage());
         }
     },
+    'loose object integrity rejects LF-tailed size headers like gix btoi parsing' => static function (TestRunner $t) use ($writeLooseStorage): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-integrity-lf-size-' . bin2hex(random_bytes(4)) . '/objects';
+        $canonicalObject = new GitObject('blob', 'abc');
+        $canonicalOid = $canonicalObject->oid();
+        $lfSizeStorage = "blob 3\n\0abc";
+        $writeLooseStorage($objectsDirectory, $canonicalOid, $lfSizeStorage);
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+
+        $t->throws(InvalidArgumentException::class, static fn () => GitObject::decodeLooseHeader($lfSizeStorage));
+        $t->same(true, $store->contains($canonicalOid));
+        try {
+            $store->readHeader($canonicalOid);
+            throw new RuntimeException('Expected LF-tailed loose object size header lookup to fail');
+        } catch (InvalidArgumentException $exception) {
+            $t->contains("Invalid Git object header: blob 3\n", $exception->getMessage());
+        }
+
+        try {
+            $store->read($canonicalOid);
+            throw new RuntimeException('Expected LF-tailed loose object size header read to fail');
+        } catch (InvalidArgumentException $exception) {
+            $t->contains("Invalid Git object header: blob 3\n", $exception->getMessage());
+        }
+
+        try {
+            $store->verifyIntegrity();
+            throw new RuntimeException('Expected LF-tailed loose object size header to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$canonicalOid} could not be read exactly", $exception->getMessage());
+            $t->contains("Invalid Git object header: blob 3\n", $exception->getMessage());
+        }
+    },
     'loose object integrity rejects CRLF-normalized structured headers like gix object decode' => static function (TestRunner $t): void {
         $treeOid = str_repeat('a', 40);
         $commitBody = "tree {$treeOid}\r\n"
@@ -867,6 +899,11 @@ return [
         $t->same(true, $summary['negativeZeroSizeHeaderAccepted']);
         $t->same($fixture['emptyBlobOid'], $summary['negativeZeroSizeCanonicalOid']);
         $t->same($fixture['negativeZeroSizeLooseHeaderOid'], $summary['negativeZeroSizeRawHeaderOid']);
+        $t->same(true, $summary['lfSizeHeaderRejected']);
+        $t->contains("Invalid Git object header: blob " . strlen($fixture['blockBlobBody']) . "\n", $summary['lfSizeHeaderMessage']);
+        $t->same(true, $summary['lfSizeReadRejected']);
+        $t->same(true, $summary['lfSizeIntegrityRejected']);
+        $t->contains('could not be read exactly', $summary['lfSizeIntegrityMessage']);
         $t->same($fixture['allocationLimitBytes'], $summary['allocationLimitBytes']);
         $t->same(4096, $summary['oversizedHeaderSize']);
         $t->same(true, $summary['allocationLimitRejected']);

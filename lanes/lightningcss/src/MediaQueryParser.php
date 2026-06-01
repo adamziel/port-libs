@@ -226,7 +226,7 @@ final class MediaQueryParser
         ) ?? $query;
         $query = $this->normalizeWhitespace($query);
         $this->validateTopLevelLogicalOperators($query);
-        $this->validateTopLevelConditionFunctions($query);
+        $this->validateTopLevelConditionFunctions($query, $allowCompactedNegation);
         $this->validateTopLevelConditionOperationOperands($query);
         $query = $this->normalizeBooleanConditionGroups($query);
         $this->validateExplicitMediaTypeConditionSeparator($query);
@@ -583,7 +583,7 @@ final class MediaQueryParser
         return $this->canonicalMediaFeatureIdentifier(str_replace(' ', '', $feature));
     }
 
-    private function validateTopLevelConditionFunctions(string $query): void
+    private function validateTopLevelConditionFunctions(string $query, bool $allowCompactedNegation): void
     {
         $quote = null;
         $depth = 0;
@@ -620,7 +620,7 @@ final class MediaQueryParser
             }
 
             $functionName = $this->cssFunctionName(substr($query, $i));
-            if ($functionName !== null && strcasecmp($functionName['decoded'], 'not') !== 0) {
+            if ($functionName !== null && (!$allowCompactedNegation || strcasecmp($functionName['decoded'], 'not') !== 0)) {
                 throw new \InvalidArgumentException('Unknown media query condition function: ' . $functionName['decoded'] . substr($query, $i + strlen($functionName['raw'])));
             }
 
@@ -630,7 +630,7 @@ final class MediaQueryParser
             }
 
             $identifier = strtolower(substr($query, $start, $i - $start));
-            if (($query[$i] ?? '') === '(' && $identifier !== 'not') {
+            if (($query[$i] ?? '') === '(' && (!$allowCompactedNegation || $identifier !== 'not')) {
                 throw new \InvalidArgumentException('Unknown media query condition function: ' . substr($query, $start));
             }
 

@@ -8,6 +8,7 @@ final class CssModulesTransformer
 {
     private const PURE_NO_CHECK_MARKER = '/*__lightningcss-cssmodules-pure-no-check__*/';
     private const PRESERVE_EMPTY_COMPOSES_DECLARATION = '--__lightningcss-cssmodules-preserve-empty-composes:0';
+    private const RAW_AT_RULE_BODY_DECLARATION_PREFIX = '--__lightningcss-cssmodules-raw-at-rule-body-';
     private const COMMENT_IDENTIFIER_BOUNDARY = "\x1f";
     private const HASH_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_-';
     private const U32_MASK = 0xffffffff;
@@ -32,6 +33,9 @@ final class CssModulesTransformer
 
     /** @var list<string> */
     private array $unusedSymbols = [];
+
+    /** @var list<string> */
+    private array $rawAtRuleBodies = [];
 
     /**
      * @var array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
@@ -80,6 +84,7 @@ final class CssModulesTransformer
         $this->minify = $minify;
         $this->exports = [];
         $this->references = [];
+        $this->rawAtRuleBodies = [];
 
         [$css, $licenseComments] = $this->stripComments($css);
         $code = $this->transformRuleList($css, 0, false);
@@ -89,6 +94,7 @@ final class CssModulesTransformer
             $code = $this->restorePreservedEmptyComposesRules($code);
             $code = $this->restoreEmptyNthChildOfSelectorLists($code);
         }
+        $code = $this->restoreRawAtRuleBodies($code);
 
         if ($minify && $this->unusedSymbols !== []) {
             $code = $this->pruneUnusedSymbolsFromCss(
@@ -174,11 +180,124 @@ final class CssModulesTransformer
             return $this->rewritePositionTryDeclarationList($body);
         }
 
+        if (!$this->cssModulesAtRuleBodyIsParsed($prelude)) {
+            return $this->preserveRawAtRuleBody($body);
+        }
+
         if ($styleNestingDepth > 0) {
             $this->assertNoNestedComposesInAtRuleDeclarations($body);
         }
 
         return $this->transformRuleList($body, $styleNestingDepth, true);
+    }
+
+    private function cssModulesAtRuleBodyIsParsed(string $prelude): bool
+    {
+        $name = $this->atRuleName($prelude);
+        if ($name === null) {
+            return false;
+        }
+
+        if (str_ends_with($name, 'keyframes')) {
+            return true;
+        }
+
+        return in_array($name, [
+            'container',
+            'counter-style',
+            'font-face',
+            'font-feature-values',
+            'font-palette-values',
+            'layer',
+            'media',
+            'nest',
+            'page',
+            'property',
+            'scope',
+            'starting-style',
+            'supports',
+            'view-transition',
+        ], true);
+    }
+
+    private function atRuleName(string $prelude): ?string
+    {
+        $trimmed = ltrim($prelude);
+        if (($trimmed[0] ?? '') !== '@') {
+            return null;
+        }
+
+        $token = $this->readCssIdentifierToken($trimmed, 1);
+
+        return $token === null ? null : strtolower($token['decoded']);
+    }
+
+    private function preserveRawAtRuleBody(string $body): string
+    {
+        $index = count($this->rawAtRuleBodies);
+        $this->rawAtRuleBodies[] = $this->serializeRawAtRuleBody($body);
+
+        return self::RAW_AT_RULE_BODY_DECLARATION_PREFIX . $index . ':0;';
+    }
+
+    private function serializeRawAtRuleBody(string $body): string
+    {
+        $output = '';
+        $quote = null;
+        $pendingSpace = false;
+        $length = strlen($body);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $body[$i];
+
+            if ($quote !== null) {
+                if ($pendingSpace) {
+                    $output .= ' ';
+                    $pendingSpace = false;
+                }
+
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $body[++$i];
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if (ctype_space($char)) {
+                $pendingSpace = $output !== '';
+                continue;
+            }
+
+            if ($pendingSpace) {
+                $output .= ' ';
+                $pendingSpace = false;
+            }
+
+            $output .= $char;
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            }
+        }
+
+        $serialized = rtrim($output);
+
+        return str_ends_with($serialized, ';') ? rtrim(substr($serialized, 0, -1)) : $serialized;
+    }
+
+    private function restoreRawAtRuleBodies(string $code): string
+    {
+        foreach ($this->rawAtRuleBodies as $index => $body) {
+            $marker = self::RAW_AT_RULE_BODY_DECLARATION_PREFIX . $index . ':0';
+            $code = str_replace($marker . ';', $body, $code);
+            $code = str_replace($marker, $body, $code);
+        }
+
+        return $code;
     }
 
     private function rewriteAtRulePrelude(string $prelude, string $trimmedPrelude): string

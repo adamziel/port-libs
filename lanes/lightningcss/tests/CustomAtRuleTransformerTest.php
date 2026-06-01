@@ -5522,4 +5522,94 @@ CSS;
         $t->same($expectedCustom, $seen['customLoc']);
         $t->same($expectedUnknown, $seen['unknownLoc']);
     },
+    'custom at-rules visit nested upstream token-list block preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-block-state [data-state=draft] (16px draft);
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-block-state' => ['prelude' => '*'],
+        ], [
+            'Token' => [
+                'ident' => static function (array $token) use (&$seen): ?string {
+                    if (!in_array($token['value'], ['data-state', 'draft'], true)) {
+                        return null;
+                    }
+
+                    $seen['events'][] = 'token:ident:' . $token['value'];
+
+                    return match ($token['value']) {
+                        'data-state' => 'data-wp-state',
+                        'draft' => 'published',
+                        default => null,
+                    };
+                },
+            ],
+            'Length' => static function (array $length) use (&$seen): ?array {
+                if ($length['unit'] !== 'px') {
+                    return null;
+                }
+
+                $seen['events'][] = 'length:' . $length['value'] . $length['unit'];
+
+                return ['unit' => 'rem', 'value' => $length['value'] / 16];
+            },
+            'Rule' => [
+                'custom' => [
+                    'wp-block-state' => static function (array $rule) use (&$seen): array {
+                        $seen['events'][] = 'rule:' . $rule['prelude'];
+                        $seen['rule'] = [
+                            'prelude' => $rule['prelude'],
+                            'preludeAst' => $rule['preludeAst'],
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same([
+            'token:ident:data-state',
+            'token:ident:draft',
+            'length:16px',
+            'token:ident:draft',
+            'rule:[data-wp-state=published] (1rem published)',
+        ], $seen['events']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same('[data-wp-state=published] (1rem published)', $seen['rule']['prelude']);
+        $t->same([
+            'square-bracket-block',
+            'ident',
+            'delim:=',
+            'ident',
+            'close-square-bracket',
+            'parenthesis-block',
+            'length',
+            'ident',
+            'close-parenthesis',
+        ], array_map(static function (array $component): string {
+            if (($component['type'] ?? null) !== 'token') {
+                return (string) ($component['type'] ?? '');
+            }
+
+            $token = $component['value'] ?? [];
+            $type = (string) ($token['type'] ?? '');
+
+            return $type === 'delim' ? 'delim:' . ($token['value'] ?? '') : $type;
+        }, $seen['rule']['preludeAst']['value']));
+        $t->same('data-wp-state', $seen['rule']['preludeAst']['value'][1]['value']['value']);
+        $t->same('published', $seen['rule']['preludeAst']['value'][3]['value']['value']);
+        $t->same(['unit' => 'rem', 'value' => 1.0], $seen['rule']['preludeAst']['value'][6]['value']);
+        $t->same('published', $seen['rule']['preludeAst']['value'][7]['value']['value']);
+    },
 ];

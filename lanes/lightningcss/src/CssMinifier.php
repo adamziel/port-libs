@@ -41,6 +41,10 @@ final class CssMinifier
 
     public function minify(string $css, bool $preserveFontTargetFallbacks = false, bool $allowNamespaceAfterStyleRules = false): string
     {
+        if (!$this->recoverInvalidMediaFeatureValues) {
+            $this->validateAuthoredMediaQueryPreludes($css);
+        }
+
         [$css, $licenseComments] = $this->stripComments($css);
         $output = '';
         $quote = null;
@@ -240,7 +244,10 @@ final class CssMinifier
                     continue;
                 }
 
-                $function = $this->readIdentifier($prelude, $functionOffset);
+                $functionToken = $this->readCssIdentifierToken($prelude, $functionOffset);
+                $function = $functionToken !== null
+                    ? strtolower($functionToken['name'])
+                    : strtolower($this->readIdentifier($prelude, $functionOffset));
                 $close = $this->findMatchingBraceInCss($css, $open);
 
                 return [
@@ -264,6 +271,118 @@ final class CssMinifier
         $next = $css[$offset + strlen($keyword)] ?? '';
 
         return $next === '' || !$this->isIdentifierChar($next);
+    }
+
+    private function validateAuthoredMediaQueryPreludes(string $css): void
+    {
+        $parser = new MediaQueryParser();
+        $quote = null;
+        $length = strlen($css);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '/' && ($css[$i + 1] ?? '') === '*') {
+                $end = strpos($css, '*/', $i + 2);
+                if ($end === false) {
+                    return;
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char !== '@' || !$this->startsWithAtKeyword($css, $i, '@media')) {
+                continue;
+            }
+
+            $preludeStart = $i + strlen('@media');
+            $open = $this->findNextCssBlockOpen($css, $preludeStart);
+            if ($open === null) {
+                continue;
+            }
+
+            $prelude = trim(substr($css, $preludeStart, $open - $preludeStart));
+            if ($prelude !== '') {
+                $parser->minifyList($prelude, allowCompactedNegation: false);
+            }
+        }
+    }
+
+    private function findNextCssBlockOpen(string $css, int $start): ?int
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($css);
+
+        for ($i = $start; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '/' && ($css[$i + 1] ?? '') === '*') {
+                $end = strpos($css, '*/', $i + 2);
+                if ($end === false) {
+                    return null;
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($char === '{' && $parenDepth === 0 && $bracketDepth === 0) {
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     private function recoverableContainerFunctionOffset(string $prelude): ?int
@@ -352,12 +471,17 @@ final class CssMinifier
                 continue;
             }
 
-            if (!$this->isIdentifierStart($char)) {
+            if (!$this->isIdentifierStart($char) && $char !== '\\' && $char !== '-') {
                 continue;
             }
 
-            $identifier = strtolower($this->readIdentifier($condition, $i));
-            $after = $i + strlen($identifier);
+            $token = $this->readCssIdentifierToken($condition, $i);
+            if ($token === null) {
+                continue;
+            }
+
+            $identifier = strtolower($token['name']);
+            $after = $token['end'];
             if (($condition[$after] ?? '') !== '(') {
                 $i = $after - 1;
                 continue;
@@ -4145,10 +4269,29 @@ final class CssMinifier
     private function minifyFontStretchValue(string $value): string
     {
         $parts = $this->splitWhitespaceTopLevel(trim($value));
-        if (count($parts) === 2 && strcasecmp($parts[0], $parts[1]) === 0) {
-            return $this->minifyFontStretchValue($parts[0]);
+        if ($parts === [] || count($parts) > 2) {
+            return trim($value);
         }
 
+        $normalized = [];
+        foreach ($parts as $part) {
+            $stretch = $this->minifyFontStretchToken($part);
+            if ($stretch === null) {
+                return trim($value);
+            }
+
+            $normalized[] = $stretch;
+        }
+
+        if (count($normalized) === 2 && strcasecmp($normalized[0], $normalized[1]) === 0) {
+            return $normalized[0];
+        }
+
+        return implode(' ', $normalized);
+    }
+
+    private function minifyFontStretchToken(string $value): ?string
+    {
         $stretch = [
             'normal' => 'normal',
             'ultra-condensed' => '50%',
@@ -4161,7 +4304,16 @@ final class CssMinifier
             'ultra-expanded' => '200%',
         ];
 
-        return $stretch[strtolower(trim($value))] ?? $value;
+        $lower = strtolower(trim($value));
+        if (array_key_exists($lower, $stretch)) {
+            return $stretch[$lower];
+        }
+
+        if (preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)%)$/', $lower) === 1) {
+            return $this->minifyNumericDimensionToken($lower);
+        }
+
+        return null;
     }
 
     private function isFontStretchToken(string $value): bool

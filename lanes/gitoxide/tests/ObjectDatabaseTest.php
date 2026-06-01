@@ -719,6 +719,44 @@ return [
         $t->same([$objectsDir, realpath($alternateObjectsDir)], array_column($integrity, 'path'));
         $t->same([[$primaryOid], [$alternateOid]], array_map(static fn (array $row): array => $row['statistics']['verifiedObjectIds'], $integrity));
     },
+    'object database loose integrity rejects LF-tailed size headers in alternates' => static function (TestRunner $t) use ($writeCompressedLooseBytes): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-lf-size-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateGitDir = $root . '/shared-cache/.git';
+        $alternateObjectsDir = $alternateGitDir . '/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+
+        $primaryOid = (new LooseObjectStore($gitDir))->write(new GitObject('blob', 'primary object remains valid'));
+        $badObject = new GitObject('blob', 'abc');
+        $badOid = $badObject->oid();
+        $writeCompressedLooseBytes($alternateGitDir, $badOid, "blob 3\n\0abc");
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $database = new ObjectDatabase($gitDir);
+        $t->same('primary object remains valid', $database->read($primaryOid)->body);
+        try {
+            $database->readHeader($badOid);
+            throw new RuntimeException('Expected alternate LF-tailed loose object size header lookup to fail');
+        } catch (InvalidArgumentException $exception) {
+            $t->contains("Invalid Git object header: blob 3\n", $exception->getMessage());
+        }
+        try {
+            $database->read($badOid);
+            throw new RuntimeException('Expected alternate LF-tailed loose object size header read to fail');
+        } catch (InvalidArgumentException $exception) {
+            $t->contains("Invalid Git object header: blob 3\n", $exception->getMessage());
+        }
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected alternate LF-tailed loose object size header to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$badOid} could not be read exactly", $exception->getMessage());
+            $t->contains("Invalid Git object header: blob 3\n", $exception->getMessage());
+        }
+    },
     'object database loose integrity counts duplicate case-normalized candidates in primary and alternates' => static function (TestRunner $t): void {
         $root = sys_get_temp_dir() . '/port-libs-git-odb-case-duplicate-' . bin2hex(random_bytes(4));
         $gitDir = $root . '/site/.git';

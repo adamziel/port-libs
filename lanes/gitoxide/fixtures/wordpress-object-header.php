@@ -7,6 +7,7 @@ $blockBlobBody = "<!-- wp:paragraph -->\n"
     . "<!-- /wp:paragraph -->\n";
 $looseHeader = 'blob ' . strlen($blockBlobBody) . "\0";
 $positiveSizeLooseHeader = 'blob +' . strlen($blockBlobBody) . "\0";
+$lfSizeLooseHeader = 'blob ' . strlen($blockBlobBody) . "\n\0";
 $emptyBlobBody = '';
 $negativeZeroSizeLooseHeader = "blob -0\0";
 $canonicalEmptyBlobHeader = "blob 0\0";
@@ -21,6 +22,8 @@ return [
     'expectedLooseHeader' => $looseHeader,
     'positiveSizeLooseHeader' => $positiveSizeLooseHeader,
     'positiveSizeLooseHeaderOid' => hash('sha1', $positiveSizeLooseHeader . $blockBlobBody),
+    'lfSizeLooseHeader' => $lfSizeLooseHeader,
+    'lfSizeLooseHeaderOid' => hash('sha1', $lfSizeLooseHeader . $blockBlobBody),
     'negativeZeroSizeLooseHeader' => $negativeZeroSizeLooseHeader,
     'negativeZeroSizeLooseHeaderOid' => hash('sha1', $negativeZeroSizeLooseHeader . $emptyBlobBody),
     'emptyBlobOid' => hash('sha1', $canonicalEmptyBlobHeader . $emptyBlobBody),
@@ -34,5 +37,5 @@ return [
     'oversizedLooseHeader' => $oversizedLooseHeader,
     'oversizedLooseObjectOid' => str_repeat('a', 40),
     'allocationLimitMessage' => "Loose object declared size 4096 exceeds allocation limit {$allocationLimitBytes} bytes",
-    'wordpressUse' => 'A WordPress import or deployment tool can decode canonical and upstream-accepted signed-size loose object headers for block-content blobs, reject oversized loose-object declarations before allocating them, reject truncated first-window compressed headers before trusting advertised sizes, and ignore trailing compressed bytes or late same-stream overrun bytes after the declared object body without invoking git cat-file.',
+    'wordpressUse' => 'A WordPress import or deployment tool can decode canonical and upstream-accepted signed-size loose object headers for block-content blobs, reject LF-tailed loose-object size headers before trusting advertised sizes, reject oversized loose-object declarations before allocating them, reject truncated first-window compressed headers before trusting advertised sizes, and ignore trailing compressed bytes or late same-stream overrun bytes after the declared object body without invoking git cat-file.',
 ];

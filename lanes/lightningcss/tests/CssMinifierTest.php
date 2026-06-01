@@ -1400,6 +1400,10 @@ CSS
         $t->same('@font-face{font-weight:400}', $minifier->minify('@font-face {font-weight: 400 400}'));
         $t->same('@font-face{font-stretch:50% 200%}', $minifier->minify('@font-face {font-stretch: 50% 200%}'));
         $t->same('@font-face{font-stretch:50%}', $minifier->minify('@font-face {font-stretch: 50% 50%}'));
+        $t->same('@font-face{font-stretch:75% 125%}', $minifier->minify('@font-face {font-stretch: condensed expanded}'));
+        $t->same('@font-face{font-stretch:125%}', $minifier->minify('@font-face {font-stretch: expanded expanded}'));
+        $t->same('@font-face{font-stretch:87.5% 125%}', $minifier->minify('@font-face {font-stretch: semi-condensed 125%}'));
+        $t->same('@font-face{font-stretch:50% 200%}', $minifier->minify('@font-face {font-stretch: 50.0% ultra-expanded}'));
         $t->same('@font-face{unicode-range:U+26}', $minifier->minify('@font-face {unicode-range: u+26;}'));
         $t->same('@font-face{unicode-range:U+26}', $minifier->minify('@font-face {unicode-range: U+26;}'));
         $t->same('@font-face{unicode-range:U+0-7F}', $minifier->minify('@font-face {unicode-range: U+0-7F;}'));
@@ -3169,6 +3173,14 @@ CSS;
             InvalidArgumentException::class,
             static fn () => $minifier->minify('@layer blocks { @media (hover: 1) { .bad { color: yellow; } } }')
         );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minify('@layer blocks { @media not(color) { .bad { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media not (color){.ok{color:#ff0}}}',
+            $minifier->minify('@layer blocks { @media not/* build note */(color) { .ok { color: yellow; } } }')
+        );
 
         $invalidFeatureValues = $minifier->minifyWithErrorRecovery(
             '@layer blocks { @media (hover: 1) { .a { color: yellow; } } @media (min-width: hi) { .b { color: chartreuse; } } }',
@@ -3196,6 +3208,22 @@ CSS;
                 '@layer blocks { @media (2/1 <= width) { .bad { color: yellow; } } }',
                 'invalid-media-value-first.css'
             )
+        );
+
+        $compactNot = $minifier->minifyWithErrorRecovery(
+            '@layer blocks { @media n\\6f t(color) { .bad { color: red; } } @media not/* build note */(color) { .ok { color: yellow; } } }',
+            'compact-not-media.css'
+        );
+        $t->same('@layer blocks{@media not (color){.ok{color:#ff0}}}', $compactNot['code']);
+        $t->same(
+            [
+                [
+                    'message' => 'Unexpected token Function("not")',
+                    'type' => 'UnexpectedToken',
+                    'loc' => ['filename' => 'compact-not-media.css', 'line' => 1, 'column' => 23],
+                ],
+            ],
+            $compactNot['warnings']
         );
     },
     'css minifier maps upstream transition longhand value minification' => static function (TestRunner $t): void {

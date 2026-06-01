@@ -24,9 +24,15 @@ $css = <<<'CSS'
   src: local(Inter), url("./assets/fonts/inter-static.woff") format(woff) tech(palettes);
   unicode-range: u+????, U+1????, U+10????;
 }
+
+@font-face {
+  font-family: "Inter Condensed";
+  font-stretch: condensed expanded;
+  src: local("Inter Condensed"), url("./assets/fonts/inter-condensed.woff2") format(woff2);
+}
 CSS;
 
-$expected = '@font-face{font-family:Inter Variable;font-style:oblique 0deg 10deg;font-weight:100 900;src:local(Inter Variable),url(./assets/fonts/inter-var.woff2)format("woff2")tech(variations);unicode-range:U+25-FF,U+4??;font-display:swap}@font-face{font-family:Inter;font-style:oblique;font-weight:400;font-stretch:50%;src:local(Inter),url(./assets/fonts/inter-static.woff)format("woff")tech(palettes);unicode-range:U+????,U+1????,U+10????}';
+$expected = '@font-face{font-family:Inter Variable;font-style:oblique 0deg 10deg;font-weight:100 900;src:local(Inter Variable),url(./assets/fonts/inter-var.woff2)format("woff2")tech(variations);unicode-range:U+25-FF,U+4??;font-display:swap}@font-face{font-family:Inter;font-style:oblique;font-weight:400;font-stretch:50%;src:local(Inter),url(./assets/fonts/inter-static.woff)format("woff")tech(palettes);unicode-range:U+????,U+1????,U+10????}@font-face{font-family:Inter Condensed;font-stretch:75% 125%;src:local(Inter Condensed),url(./assets/fonts/inter-condensed.woff2)format("woff2")}';
 $actual = (new CssMinifier())->minify($css);
 
 if ($actual !== $expected) {

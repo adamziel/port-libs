@@ -792,6 +792,7 @@ final class TransitionPrefixer
         $transitionChanged = $this->rewritePrefixedTransitionEntries($entries, $targetOptions);
         $supportRules = [];
         $displayFlexChanged = $this->rewriteDisplayFlexPrefixEntries($entries, $targetOptions);
+        $displayGridChanged = $this->rewriteDisplayGridPrefixEntries($entries, $targetOptions);
         $flexChanged = $this->rewriteFlexPrefixEntries($entries, $targetOptions);
         $animationTimelineChanged = $this->rewriteAnimationTimelineShorthandEntries($entries, $targetOptions);
         $animationChanged = $this->rewriteAnimationPrefixEntries($entries, $targetOptions) || $animationTimelineChanged;
@@ -886,7 +887,7 @@ final class TransitionPrefixer
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
         $selectorVariants = $this->selectorPrefixVariants($selectors, $targetOptions);
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $cssRegionsChanged || $shapeChanged || $unicodeBidiChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $imageRenderingPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
+        if ($transitionChanged || $displayFlexChanged || $displayGridChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $cssRegionsChanged || $shapeChanged || $unicodeBidiChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $imageRenderingPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
             return $this->serializeRulesForSelectors($selectorVariants ?? [$selectors], $entries) . implode('', $supportRules);
         }
 
@@ -1965,6 +1966,8 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'safari', [3, 1], [8]),
             'displayFlexNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [21]),
             'displayFlexNeedsMs' => $this->targetInRange($normalized, 'ie', [10], [10]),
+            'displayGridNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [15])
+                || $this->targetAtLeast($normalized, 'ie', [10]),
             'flexNeedsOldWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 2])
                 || $this->targetInRange($normalized, 'chrome', [4], [20])
                 || $this->targetInRange($normalized, 'ios_saf', [3, 2], [6])
@@ -4892,6 +4895,130 @@ final class TransitionPrefixer
         }
         if ($targetOptions['displayFlexNeedsMs'] ?? false) {
             $values[] = $kind === 'inline-flex' ? '-ms-inline-flexbox' : '-ms-flexbox';
+        }
+        $values[] = $kind;
+
+        return $values;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteDisplayGridPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $lastStandardIndex = [];
+        $lastKindIndex = [];
+        foreach ($entries as $index => $entry) {
+            if ($entry['property'] !== 'display' || $entry['important']) {
+                continue;
+            }
+
+            $kind = $this->displayGridKind($entry['value']);
+            if ($kind === null) {
+                continue;
+            }
+
+            $lastKindIndex[$kind] = $index;
+            if ($this->displayGridCanonicalValue($entry['value']) === $kind) {
+                $lastStandardIndex[$kind] = $index;
+            }
+        }
+
+        if ($lastStandardIndex === []) {
+            return false;
+        }
+
+        $changed = false;
+        $rewritten = [];
+        $seen = [
+            'grid' => [],
+            'inline-grid' => [],
+        ];
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['property'] !== 'display' || $entry['important']) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $kind = $this->displayGridKind($entry['value']);
+            if ($kind === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $standardIndex = $lastStandardIndex[$kind] ?? null;
+            if ($standardIndex === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $canonical = $this->displayGridCanonicalValue($entry['value']);
+            if ($index < $standardIndex) {
+                $changed = true;
+                continue;
+            }
+
+            if ($index === $standardIndex && ($lastKindIndex[$kind] ?? $index) > $index) {
+                $changed = true;
+                continue;
+            }
+
+            $needed = $this->neededDisplayGridValues($kind, $targetOptions);
+
+            if ($canonical === $kind) {
+                foreach ($needed as $displayValue) {
+                    if ($displayValue === $kind || isset($seen[$kind][$displayValue])) {
+                        continue;
+                    }
+
+                    $rewritten[] = $this->declarationEntry('display', $displayValue);
+                    $seen[$kind][$displayValue] = true;
+                    $changed = true;
+                }
+            }
+
+            if (isset($seen[$kind][$canonical])) {
+                $changed = true;
+                continue;
+            }
+
+            $seen[$kind][$canonical] = true;
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+        return true;
+    }
+
+    private function displayGridKind(string $value): ?string
+    {
+        return match (strtolower(trim($value))) {
+            'grid', '-ms-grid' => 'grid',
+            'inline-grid', '-ms-inline-grid' => 'inline-grid',
+            default => null,
+        };
+    }
+
+    private function displayGridCanonicalValue(string $value): string
+    {
+        return strtolower(trim($value));
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<string>
+     */
+    private function neededDisplayGridValues(string $kind, array $targetOptions): array
+    {
+        $values = [];
+        if ($targetOptions['displayGridNeedsMs'] ?? false) {
+            $values[] = $kind === 'inline-grid' ? '-ms-inline-grid' : '-ms-grid';
         }
         $values[] = $kind;
 
