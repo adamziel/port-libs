@@ -365,6 +365,51 @@ return [
         $t->same(true, in_array($staleParent, $generationReads, true));
         $t->same(false, in_array($missingGrandparent, $generationReads, true));
     },
+    'maps upstream commit graph generation number bounds' => static function (TestRunner $t) use ($oid): void {
+        $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            "Ada <ada@example.test> {$seconds} +0000",
+            "CI <ci@example.test> {$seconds} +0000",
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ["Ada <ada@example.test> {$seconds} +0000"],
+                'committer' => ["CI <ci@example.test> {$seconds} +0000"],
+            ],
+        );
+        $release = $oid('1');
+        $pluginReview = $oid('2');
+        $themeReview = $oid('3');
+        $commits = [
+            $release => $timedCommit(1700000000),
+            $pluginReview => $timedCommit(1700000100, [$release]),
+            $themeReview => $timedCommit(1700000200, [$release]),
+        ];
+        $maxGenerations = [
+            $release => 0x3fffffff,
+            $pluginReview => 0x3fffffff,
+            $themeReview => 0x3fffffff,
+        ];
+        $maxGenerationFinder = new MergeBaseFinder(
+            static fn (string $oid): ?Commit => $commits[$oid] ?? null,
+            commitGraphGeneration: static fn (string $oid): ?int => $maxGenerations[$oid] ?? null,
+        );
+
+        $t->same([$release], $maxGenerationFinder->mergeBases($pluginReview, $themeReview));
+        $t->same($release, $maxGenerationFinder->mergeBaseAgainst($pluginReview, [$themeReview]));
+
+        $invalidGenerationFinder = new MergeBaseFinder(
+            static fn (string $oid): ?Commit => $commits[$oid] ?? null,
+            commitGraphGeneration: static fn (string $oid): int => 0x40000000,
+        );
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $invalidGenerationFinder->mergeBase($pluginReview, $themeReview),
+        );
+    },
     'maps upstream commit graph redundant pruning without inflating below result generation' => static function (TestRunner $t) use ($oid): void {
         $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
             str_repeat('f', 40),
@@ -1085,6 +1130,23 @@ BASELINE;
         $t->same($fixture['missingGenerationReleaseBaseline'], $example['missingGenerationGraphWalkBase']);
         $t->same($fixture['missingGenerationReleaseBaseline'], $example['missingGenerationPairwiseBase']);
         $t->same(true, $example['missingGenerationProviderKeepsReleaseBaseline']);
+        $maxGenerationFinder = new MergeBaseFinder(
+            static function (string $oid) use ($fixture): ?Commit {
+                return $fixture['commits'][$oid] ?? null;
+            },
+            commitGraphGeneration: static fn (string $oid): ?int => $fixture['maxCommitGraphGenerations'][$oid] ?? null,
+        );
+        $invalidGenerationFinder = new MergeBaseFinder(
+            static function (string $oid) use ($fixture): ?Commit {
+                return $fixture['commits'][$oid] ?? null;
+            },
+            commitGraphGeneration: static fn (string $oid): ?int => $fixture['invalidCommitGraphGenerations'][$oid] ?? null,
+        );
+        $t->same($fixture['releaseBaseline'], $maxGenerationFinder->mergeBase($fixture['pluginReview'], $fixture['themeReview']));
+        $t->same($fixture['releaseBaseline'], $example['maxGenerationBase']);
+        $t->same(true, $example['maxGenerationProviderKeepsReleaseBaseline']);
+        $t->same(true, $example['invalidCommitGraphGenerationRejected']);
+        $t->throws(InvalidArgumentException::class, static fn () => $invalidGenerationFinder->mergeBase($fixture['pluginReview'], $fixture['themeReview']));
         $hydratedPromisorCommits = $fixture['commits'];
         $hydratedPromisorReleaseCommit = $hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']];
         unset($hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']]);

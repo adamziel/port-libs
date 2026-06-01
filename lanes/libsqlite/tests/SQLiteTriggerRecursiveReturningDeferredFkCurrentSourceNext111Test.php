@@ -5,44 +5,44 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan;
 
 $parents = [
-    ['option_id' => 1, 'next_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 1],
-    ['option_id' => 2, 'next_id' => 3, 'option_name' => 'home', 'option_value' => 'https://old.test/home', 'revision' => 1],
-    ['option_id' => 3, 'next_id' => null, 'option_name' => 'blogname', 'option_value' => 'Old Site', 'revision' => 1],
+    ['setting_id' => 1, 'next_id' => 2, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'revision' => 1],
+    ['setting_id' => 2, 'next_id' => 3, 'key_name' => 'public_url', 'key_value' => 'https://old.test/public_url', 'revision' => 1],
+    ['setting_id' => 3, 'next_id' => null, 'key_name' => 'site_title', 'key_value' => 'Old Site', 'revision' => 1],
 ];
 $children = [
-    ['meta_id' => 11, 'option_id' => 1, 'meta_key' => '_origin'],
-    ['meta_id' => 12, 'option_id' => 2, 'meta_key' => '_origin'],
-    ['meta_id' => 13, 'option_id' => 3, 'meta_key' => '_origin'],
+    ['meta_id' => 11, 'setting_id' => 1, 'meta_key' => '_origin'],
+    ['meta_id' => 12, 'setting_id' => 2, 'meta_key' => '_origin'],
+    ['meta_id' => 13, 'setting_id' => 3, 'meta_key' => '_origin'],
 ];
 $fk = [
-    'parent_key' => 'option_id',
-    'child_key' => 'option_id',
+    'parent_key' => 'setting_id',
+    'child_key' => 'setting_id',
     'on_update' => 'no action',
     'deferred' => true,
 ];
 $returning = [
-    ['expr' => 'old.option_id', 'as' => 'old_id'],
-    ['expr' => 'new.option_id', 'as' => 'new_id'],
-    'option_name',
+    ['expr' => 'old.setting_id', 'as' => 'old_id'],
+    ['expr' => 'new.setting_id', 'as' => 'new_id'],
+    'key_name',
     'revision',
-    static fn (array $row, array $old, string $event): string => $event . ':' . $old['option_id'] . '>' . $row['option_id'],
+    static fn (array $row, array $old, string $event): string => $event . ':' . $old['setting_id'] . '>' . $row['setting_id'],
 ];
 $page = static fn (string $label): string => str_pad($label, 512, '.', STR_PAD_RIGHT);
 $baseStatement = [
-    'savepoint' => 'wp_options_import',
-    'where' => static fn (array $row): bool => $row['option_id'] === 1,
+    'savepoint' => 'app_settings_import',
+    'where' => static fn (array $row): bool => $row['setting_id'] === 1,
     'assignments' => [
-        'option_id' => static fn (array $row, int $depth): int => (int) $row['option_id'] + 100 + $depth,
+        'setting_id' => static fn (array $row, int $depth): int => (int) $row['setting_id'] + 100 + $depth,
         'revision' => static fn (array $row, int $depth): int => (int) $row['revision'] + 1 + $depth,
     ],
     'returning' => $returning,
     'trigger' => [
-        'name' => 'wp_options_au_recursive_rekey',
-        'match_column' => 'option_id',
+        'name' => 'app_settings_au_recursive_rekey',
+        'match_column' => 'setting_id',
         'match_value' => 'old.next_id',
     ],
-    'page_images' => [2 => $page('options-before'), 4 => $page('meta-before')],
-    'dirty_pages' => [2 => $page('options-dirty'), 4 => $page('meta-dirty'), 7 => $page('overflow-dirty')],
+    'page_images' => [2 => $page('settings-before'), 4 => $page('meta-before')],
+    'dirty_pages' => [2 => $page('settings-dirty'), 4 => $page('meta-dirty'), 7 => $page('overflow-dirty')],
     'wal_start_frame' => 31,
     'wal_frames' => [
         ['frame_index' => 32, 'page_number' => 2],
@@ -78,7 +78,7 @@ $tests = [
         $t->same('rollback-to-savepoint', $rollbackPlan()['current_next_boundary']);
     },
     'trigger recursive returning deferred fk current source next111 savepoint name' => static function (TestRunner $t) use ($rollbackPlan): void {
-        $t->same('wp_options_import', $rollbackPlan()['savepoint']);
+        $t->same('app_settings_import', $rollbackPlan()['savepoint']);
     },
     'trigger recursive returning deferred fk current source next111 recursive flag' => static function (TestRunner $t) use ($rollbackPlan): void {
         $t->same(true, $rollbackPlan()['recursive_triggers']);
@@ -116,8 +116,8 @@ $tests = [
     'trigger recursive returning deferred fk current source next111 returning new id' => static function (TestRunner $t) use ($rollbackPlan): void {
         $t->same(101, $rollbackPlan()['current_returning_rows'][0]['new_id']);
     },
-    'trigger recursive returning deferred fk current source next111 returning option name' => static function (TestRunner $t) use ($rollbackPlan): void {
-        $t->same('siteurl', $rollbackPlan()['current_returning_rows'][0]['option_name']);
+    'trigger recursive returning deferred fk current source next111 returning setting name' => static function (TestRunner $t) use ($rollbackPlan): void {
+        $t->same('base_url', $rollbackPlan()['current_returning_rows'][0]['key_name']);
     },
     'trigger recursive returning deferred fk current source next111 returning revision' => static function (TestRunner $t) use ($rollbackPlan): void {
         $t->same(2, $rollbackPlan()['current_returning_rows'][0]['revision']);
@@ -141,7 +141,7 @@ $tests = [
         $t->same(0, $rollbackPlan()['next_changes']);
     },
     'trigger recursive returning deferred fk current source next111 first effect trigger name' => static function (TestRunner $t) use ($rollbackPlan): void {
-        $t->same('wp_options_au_recursive_rekey', $rollbackPlan()['trigger_effects'][0]['trigger']);
+        $t->same('app_settings_au_recursive_rekey', $rollbackPlan()['trigger_effects'][0]['trigger']);
     },
     'trigger recursive returning deferred fk current source next111 first effect depth' => static function (TestRunner $t) use ($rollbackPlan): void {
         $t->same(1, $rollbackPlan()['trigger_effects'][0]['depth']);
@@ -195,7 +195,7 @@ $tests = [
         $t->same([101, 103, 105], $blockedPlan()['next_rowids']);
     },
     'trigger recursive returning deferred fk current source next111 blocked returning remains visible' => static function (TestRunner $t) use ($blockedPlan): void {
-        $t->same([['old_id' => 1, 'new_id' => 101, 'option_name' => 'siteurl', 'revision' => 2, 'expr4' => 'update:1>101']], $blockedPlan()['next_returning_rows']);
+        $t->same([['old_id' => 1, 'new_id' => 101, 'key_name' => 'base_url', 'revision' => 2, 'expr4' => 'update:1>101']], $blockedPlan()['next_returning_rows']);
     },
     'trigger recursive returning deferred fk current source next111 blocked keeps changes' => static function (TestRunner $t) use ($blockedPlan): void {
         $t->same(3, $blockedPlan()['next_changes']);

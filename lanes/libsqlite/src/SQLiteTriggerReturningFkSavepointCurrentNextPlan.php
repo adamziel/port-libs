@@ -14,7 +14,7 @@ final class SQLiteTriggerReturningFkSavepointCurrentNextPlan
      * @param array{parent_key:string,child_key:string,on_update?:string,deferred?:bool} $foreignKey
      * @param list<array<string,mixed>> $triggers
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,array<string,mixed>,string):mixed> $returning
-     * @param array{savepoint?:string,conflict_action?:string} $options
+     * @param array{savepoint?:string,conflict_action?:string,rowid_column?:string,label_column?:string} $options
      * @return array{savepoint:string,status:string,current_parent:list<array<string,mixed>>,current_child:list<array<string,mixed>>,attempt_parent:list<array<string,mixed>>,attempt_child:list<array<string,mixed>>,next_parent:list<array<string,mixed>>,next_child:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>,current_returning_rows:list<array<string,mixed>>,yielded:list<array<string,mixed>>,trigger_effects:list<array<string,mixed>>,foreign_key_actions:list<array<string,mixed>>,foreign_key_violations:list<array<string,mixed>>,discarded_parent:list<array<string,mixed>>,discarded_child:list<array<string,mixed>>,changes:int,attempted_changes:int,rollback_reason:?string,savepoint_preserved:bool,dependencies:list<string>}
      */
     public static function update(
@@ -29,6 +29,8 @@ final class SQLiteTriggerReturningFkSavepointCurrentNextPlan
     ): array {
         $savepoint = self::identifier((string) ($options['savepoint'] ?? 'fk_returning_statement'), 'savepoint');
         $conflictAction = self::conflictAction((string) ($options['conflict_action'] ?? 'abort-statement'));
+        $rowIdColumn = self::identifier((string) ($options['rowid_column'] ?? 'setting_id'), 'rowid column');
+        $labelColumn = self::identifier((string) ($options['label_column'] ?? 'key_name'), 'label column');
         $fk = self::foreignKey($foreignKey);
         self::validateAssignments($assignments);
 
@@ -56,7 +58,7 @@ final class SQLiteTriggerReturningFkSavepointCurrentNextPlan
                 $effects = array_merge($effects, $before['effects']);
             } catch (SQLiteTriggerReturningFkSavepointCurrentNextSignal $signal) {
                 if ($signal->action === 'ignore') {
-                    $yielded[] = self::yieldRow($ordinal, 'skipped', $old, $next, $returning, 'before-trigger-ignore', $signal->reason);
+                    $yielded[] = self::yieldRow($ordinal, 'skipped', $old, $next, $returning, 'before-trigger-ignore', $signal->reason, $rowIdColumn, $labelColumn);
                     continue;
                 }
                 $rollbackReason = $signal->reason;
@@ -76,13 +78,13 @@ final class SQLiteTriggerReturningFkSavepointCurrentNextPlan
                 $effects = array_merge($effects, $after['effects']);
                 self::applyForeignKey($attemptChildren, $beforeAfterTriggers, $next, $fk, $fkActions, $violations, $ordinal, 'after-trigger');
             } catch (SQLiteTriggerReturningFkSavepointCurrentNextSignal $signal) {
-                $yielded[] = self::yieldRow($ordinal, 'attempted-before-rollback', $old, $next, $returning, 'after-trigger-rollback', $signal->reason);
+                $yielded[] = self::yieldRow($ordinal, 'attempted-before-rollback', $old, $next, $returning, 'after-trigger-rollback', $signal->reason, $rowIdColumn, $labelColumn);
                 $rollbackReason = $signal->reason;
                 $rolledBack = true;
                 break;
             }
 
-            $yielded[] = self::yieldRow($ordinal, 'changed', $old, $next, $returning, 'statement', null);
+            $yielded[] = self::yieldRow($ordinal, 'changed', $old, $next, $returning, 'statement', null, $rowIdColumn, $labelColumn);
         }
 
         foreach (self::findViolations($attemptParents, $attemptChildren, $fk, 'savepoint-release') as $violation) {
@@ -327,15 +329,15 @@ final class SQLiteTriggerReturningFkSavepointCurrentNextPlan
         return $out;
     }
 
-    private static function yieldRow(int $ordinal, string $status, array $old, array $next, array $returning, string $phase, ?string $reason): array
+    private static function yieldRow(int $ordinal, string $status, array $old, array $next, array $returning, string $phase, ?string $reason, string $rowIdColumn, string $labelColumn): array
     {
         return [
             'ordinal' => $ordinal,
             'status' => $status,
             'phase' => $phase,
-            'old_key' => $old['option_id'] ?? null,
-            'new_key' => $next['option_id'] ?? null,
-            'option_name' => $next['option_name'] ?? $old['option_name'] ?? null,
+            'old_key' => $old[$rowIdColumn] ?? null,
+            'new_key' => $next[$rowIdColumn] ?? null,
+            'key_name' => $next[$labelColumn] ?? $old[$labelColumn] ?? null,
             'reason' => $reason,
             'returning' => self::projection($next, $old, $returning, 'update'),
         ];

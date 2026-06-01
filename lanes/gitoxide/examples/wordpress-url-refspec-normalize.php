@@ -35,6 +35,32 @@ $credentialRemote = GitUrl::parse($fixture['credentialRemoteUrl'])
 $credentialRemoteRoundtrip = GitUrl::parse($credentialRemote->toBytes());
 $byteRoundtripRemote = GitUrl::fromBytes($fixture['byteRoundtripRemoteUrl']);
 $byteRoundtripRemoteFromParse = GitUrl::parse($byteRoundtripRemote->toBytes());
+$partsRemote = GitUrl::fromParts(
+    $fixture['partsRemoteScheme'],
+    $fixture['partsRemoteUser'],
+    $fixture['partsRemotePassword'],
+    $fixture['partsRemoteHost'],
+    $fixture['partsRemotePort'],
+    $fixture['partsRemotePath']
+);
+$partsSshAlternate = GitUrl::fromParts(
+    $fixture['partsSshAlternateScheme'],
+    $fixture['partsSshAlternateUser'],
+    null,
+    $fixture['partsSshAlternateHost'],
+    null,
+    $fixture['partsSshAlternatePath'],
+    true
+);
+$partsSshPassword = GitUrl::fromParts(
+    $fixture['partsSshPasswordScheme'],
+    $fixture['partsSshPasswordUser'],
+    $fixture['partsSshPassword'],
+    $fixture['partsSshPasswordHost'],
+    null,
+    $fixture['partsSshPasswordPath'],
+    true
+);
 $fetch = array_map(
     static fn (string $spec): array => RefSpec::parseFetch($spec)->toArray(),
     $fixture['fetchRefspecs']
@@ -99,6 +125,10 @@ $summary = [
     'credentialRemoteRoundtrip' => $credentialRemoteRoundtrip->toArray(),
     'byteRoundtripRemote' => $byteRoundtripRemote->toArray(),
     'byteRoundtripRemoteFromParse' => $byteRoundtripRemoteFromParse->toArray(),
+    'partsRemote' => $partsRemote->toArray(),
+    'partsRemoteDisplay' => $partsRemote->display(),
+    'partsSshAlternate' => $partsSshAlternate->toArray(),
+    'partsSshPassword' => $partsSshPassword->toArray(),
     'fetch' => $fetch,
     'push' => $push,
     'oversizedRemoteRejected' => $oversizedRemoteRejected,
@@ -198,6 +228,24 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if ($summary['byteRoundtripRemoteFromParse']['normalized'] !== $summary['byteRoundtripRemote']['normalized']) {
         throw new RuntimeException('Unexpected byte-roundtrip remote parse equivalence');
+    }
+    if ($summary['partsRemote']['normalized'] !== $fixture['expectedPartsRemoteUrl']) {
+        throw new RuntimeException('Unexpected parts-built remote URL');
+    }
+    if ($summary['partsRemoteDisplay'] !== $fixture['expectedPartsRemoteDisplay']) {
+        throw new RuntimeException('Unexpected parts-built remote display URL');
+    }
+    if ($summary['partsSshAlternate']['normalized'] !== $fixture['expectedPartsSshAlternateUrl']) {
+        throw new RuntimeException('Unexpected parts-built SSH alternate URL');
+    }
+    if ($summary['partsSshAlternate']['alternativeForm'] !== true) {
+        throw new RuntimeException('Unexpected parts-built SSH alternate form flag');
+    }
+    if ($summary['partsSshPassword']['normalized'] !== $fixture['expectedPartsSshPasswordUrl']) {
+        throw new RuntimeException('Unexpected parts-built SSH password URL');
+    }
+    if ($summary['partsSshPassword']['alternativeForm'] !== false) {
+        throw new RuntimeException('Unexpected parts-built SSH password canonical fallback');
     }
     if (array_column($summary['fetch'], 'instruction') !== $fixture['expectedFetchInstructions']) {
         throw new RuntimeException('Unexpected fetch refspec instructions');

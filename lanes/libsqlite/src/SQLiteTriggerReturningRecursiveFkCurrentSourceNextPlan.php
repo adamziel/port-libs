@@ -16,8 +16,8 @@ final class SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan
      */
     public static function delete(array $parents, array $children, array $grandchildren, array $foreignKey, array $statement): array
     {
-        $rowid = self::identifier((string) ($statement['rowid_column'] ?? 'option_id'), 'rowid column');
-        $savepoint = self::identifier((string) ($statement['savepoint'] ?? 'wp_recursive_delete'), 'savepoint');
+        $rowid = self::identifier((string) ($statement['rowid_column'] ?? 'setting_id'), 'rowid column');
+        $savepoint = self::identifier((string) ($statement['savepoint'] ?? 'app_recursive_delete'), 'savepoint');
         $currentSource = self::source((string) ($statement['current_source'] ?? 'current'));
         $nextSource = self::source((string) ($statement['next_source'] ?? 'next'));
         $where = $statement['where'] ?? null;

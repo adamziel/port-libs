@@ -15,7 +15,7 @@ final class SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan
      */
     public static function run(array $parents, array $children, array $foreignKey, array $statement): array
     {
-        $rowIdColumn = self::identifier((string) ($statement['rowid_column'] ?? 'option_id'), 'rowid column');
+        $rowIdColumn = self::identifier((string) ($statement['rowid_column'] ?? 'setting_id'), 'rowid column');
         $savepoint = self::identifier((string) ($statement['savepoint'] ?? 'recursive_returning_fk'), 'savepoint');
         $where = $statement['where'] ?? null;
         if (!is_callable($where)) {
@@ -80,7 +80,7 @@ final class SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan
             if ($source === 'statement') {
                 $topLevelYielded[] = self::yieldRow(count($topLevelYielded), $old, $new, $returning, $rowIdColumn, $depth);
             } else {
-                $triggerEffects[] = self::effectRow($source, $old, $new, $depth, $action);
+                $triggerEffects[] = self::effectRow($source, $old, $new, $depth, $action, $rowIdColumn);
             }
 
             if ($recursive && $trigger !== []) {
@@ -170,12 +170,6 @@ final class SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan
 
     private static function triggerValue(mixed $value, array $old, array $new): mixed
     {
-        if ($value === 'old.option_id') {
-            return $old['option_id'] ?? null;
-        }
-        if ($value === 'new.option_id') {
-            return $new['option_id'] ?? null;
-        }
         if ($value === 'old.next_id') {
             return $old['next_id'] ?? null;
         }
@@ -302,15 +296,15 @@ final class SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan
     /**
      * @return array<string,mixed>
      */
-    private static function effectRow(string $trigger, array $old, array $new, int $depth, array $action): array
+    private static function effectRow(string $trigger, array $old, array $new, int $depth, array $action, string $rowIdColumn): array
     {
         return [
             'trigger' => $trigger,
             'timing' => 'after',
             'event' => 'update',
             'depth' => $depth,
-            'old_key' => $old['option_id'] ?? null,
-            'new_key' => $new['option_id'] ?? null,
+            'old_key' => $old[$rowIdColumn] ?? null,
+            'new_key' => $new[$rowIdColumn] ?? null,
             'foreign_key_action' => $action,
         ];
     }

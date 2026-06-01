@@ -600,6 +600,35 @@ $duplicateColumnNegativeMap->addVlqMap(
 );
 $duplicateColumnNegativeMap->offsetColumns(0, 5, -5);
 
+$tripleDuplicateLookupMap = new SourceMap();
+$tripleDuplicateLookupMap->addVlqMap(
+    'AAAAAA,A,CACAC',
+    ['wp-content/themes/example/source-map-triple-duplicate.css'],
+    ['.wp-block-triple-duplicate{}'],
+    ['triple-first-rule', 'triple-second-rule']
+);
+$tripleDuplicateExact = $tripleDuplicateLookupMap->findClosestMapping(0, 0);
+$tripleDuplicateAfterDuplicates = $tripleDuplicateLookupMap->findClosestMapping(0, 1);
+
+$tripleDuplicatePositiveMap = new SourceMap();
+$tripleDuplicatePositiveMap->addVlqMap(
+    'AAAAAA,A,CACAC',
+    ['wp-content/themes/example/source-map-triple-duplicate.css'],
+    ['.wp-block-triple-duplicate{}'],
+    ['triple-first-rule', 'triple-second-rule']
+);
+$tripleDuplicatePositiveMap->offsetColumns(0, 0, 5);
+
+$tripleDuplicateNegativeMap = new SourceMap();
+$tripleDuplicateNegativeMap->addVlqMap(
+    'AAAAAA,A,KACAC',
+    ['wp-content/themes/example/source-map-triple-duplicate.css'],
+    ['.wp-block-triple-duplicate{}'],
+    ['triple-first-rule', 'triple-shifted-rule']
+);
+$tripleDuplicateNegativeMap->offsetColumns(0, 5, -5);
+$tripleDuplicateNegativeClosest = $tripleDuplicateNegativeMap->findClosestMapping(0, 0);
+
 $duplicateBoundaryBufferedRawMap = new SourceMap();
 $duplicateBoundaryBufferedRawMap->addVlqMap(
     'AAAAAA,CACAC',
@@ -991,6 +1020,11 @@ $actual = [
     'streamingRawVlqMap' => $streamingRawVlqMap->toJson(null, false),
     'duplicateColumnPositiveMap' => $duplicateColumnPositiveMap->toJson(null, false),
     'duplicateColumnNegativeMap' => $duplicateColumnNegativeMap->toJson(null, false),
+    'tripleDuplicateExact' => $tripleDuplicateExact,
+    'tripleDuplicateAfterDuplicates' => $tripleDuplicateAfterDuplicates,
+    'tripleDuplicatePositiveMap' => $tripleDuplicatePositiveMap->toJson(null, false),
+    'tripleDuplicateNegativeMap' => $tripleDuplicateNegativeMap->toJson(null, false),
+    'tripleDuplicateNegativeClosest' => $tripleDuplicateNegativeClosest,
     'duplicateBoundaryBufferedReadOrder' => $duplicateBoundaryBufferedReadOrder,
     'duplicateBoundaryBufferedOffsetMap' => $duplicateBoundaryBufferedRestored->toJson(null, false),
     'duplicateBoundaryNestedReadOrderBeforeOffset' => $duplicateBoundaryNestedReadOrderBeforeOffset,
@@ -1116,6 +1150,11 @@ if (($argv[1] ?? null) === '--self-test') {
         'streamingRawVlqMap' => '{"version":3,"mappings":";;IAAAA,A;K","sources":["wp-content/themes/example/source-map-stream.css"],"sourcesContent":[".wp-block-source-map-stream{}"],"names":["stream-rule"]}',
         'duplicateColumnPositiveMap' => '{"version":3,"mappings":"AAAAA,K,C","sources":["wp-content/themes/example/source-map-duplicate-column.css"],"sourcesContent":[".wp-block-duplicate-column{}"],"names":["duplicate-column-rule"]}',
         'duplicateColumnNegativeMap' => '{"version":3,"mappings":"AAAAA,A","sources":["wp-content/themes/example/source-map-duplicate-column.css"],"sourcesContent":[".wp-block-duplicate-column{}"],"names":["duplicate-column-rule"]}',
+        'tripleDuplicateExact' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
+        'tripleDuplicateAfterDuplicates' => ['generatedLine' => 0, 'generatedColumn' => 1, 'sourceIndex' => 0, 'originalLine' => 1, 'originalColumn' => 0, 'nameIndex' => 1],
+        'tripleDuplicatePositiveMap' => '{"version":3,"mappings":"AAAAA,A,K,CACAC","sources":["wp-content/themes/example/source-map-triple-duplicate.css"],"sourcesContent":[".wp-block-triple-duplicate{}"],"names":["triple-first-rule","triple-second-rule"]}',
+        'tripleDuplicateNegativeMap' => '{"version":3,"mappings":"AAAAA,A,AACAC","sources":["wp-content/themes/example/source-map-triple-duplicate.css"],"sourcesContent":[".wp-block-triple-duplicate{}"],"names":["triple-first-rule","triple-shifted-rule"]}',
+        'tripleDuplicateNegativeClosest' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 1, 'originalColumn' => 0, 'nameIndex' => 1],
         'duplicateBoundaryBufferedReadOrder' => [0, 0, 1],
         'duplicateBoundaryBufferedOffsetMap' => '{"version":3,"mappings":"AAAAA,K,CACAC","sources":["wp-content/themes/example/source-map-duplicate-buffered.css"],"sourcesContent":[".wp-block-duplicate-buffered{}"],"names":["duplicate-buffered-first","duplicate-buffered-second"]}',
         'duplicateBoundaryNestedReadOrderBeforeOffset' => [0, 0, 1],

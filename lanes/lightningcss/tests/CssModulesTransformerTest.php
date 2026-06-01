@@ -159,6 +159,67 @@ CSS));
         $t->same([], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules treats double-colon local global as raw pseudo-elements before composing exports' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+::global(.wp-block) {
+  color: red;
+}
+
+::local(.card) {
+  color: yellow;
+}
+
+.card::global(.legacy) {
+  color: blue;
+}
+
+::global .card {
+  color: green;
+}
+
+.button {
+  composes: card;
+  color: white;
+}
+
+.card {
+  color: black;
+}
+CSS);
+
+        $t->same('::global(.wp-block){color:red}::local(.card){color:#ff0}.EgL3uq_card::global(.legacy){color:#00f}::global .EgL3uq_card{color:green}.EgL3uq_button{color:#fff}.EgL3uq_card{color:#000}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+
+        $pure = (new CssModulesTransformer())->transform('::global .card { color: red }', [
+            'pure' => true,
+        ]);
+        $t->same('::global .EgL3uq_card{color:red}', $pure['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+        ], $pure['exports']);
+
+        foreach ([
+            '::global(.card) { color: red }',
+            '::local(.card) { color: red }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css, [
+                'pure' => true,
+            ]));
+        }
+
+        foreach ([
+            '.card::global(.legacy) { composes: base; color: red }',
+            '::global .card { composes: base; color: red }',
+            '::local(.card) { composes: base; color: red }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
+        }
+    },
     'css modules decodes escaped local and global pseudo names before composing exports' => static function (TestRunner $t) use ($export, $local, $global): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 :lo\63 al(.card) {

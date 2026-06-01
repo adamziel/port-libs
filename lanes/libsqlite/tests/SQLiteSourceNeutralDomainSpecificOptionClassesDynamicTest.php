@@ -3,6 +3,10 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDmlTriggerCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningFkSavepointCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteTriggerOrderPlan;
 use PortLibs\LibSqlite\SQLiteUpsertReturningTriggerPlan;
 
@@ -11,6 +15,10 @@ $sourceRoot = $libsqliteRoot . '/src';
 
 $sourceFiles = [
     $sourceRoot . '/SQLiteDmlTriggerCurrentNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerReturningFkSavepointCurrentNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteUpdateDeleteTriggerOrderPlan.php',
     $sourceRoot . '/SQLiteUpsertReturningTriggerPlan.php',
 ];
@@ -123,5 +131,78 @@ return [
         $t->same(2, $plan['changes']);
         $t->same(['base_url', 'module_registry'], array_column($plan['returning_rows'], 'key_name'));
         $t->same(['app_settings_after_upsert', 'app_settings_after_insert'], array_column($plan['trigger_effects'], 'trigger'));
+    },
+    'trigger fk savepoint helpers default to settings keys' => static function (TestRunner $t) use ($settingRows): void {
+        $children = [
+            ['ref_id' => 10, 'setting_id' => 1, 'label' => 'base'],
+            ['ref_id' => 11, 'setting_id' => 2, 'label' => 'cache'],
+        ];
+        $update = SQLiteTriggerReturningFkSavepointCurrentNextPlan::update(
+            $settingRows,
+            $children,
+            ['setting_id' => static fn (array $row): int => (int) $row['setting_id'] + 10],
+            static fn (array $row): bool => $row['key_name'] === 'base_url',
+            ['parent_key' => 'setting_id', 'child_key' => 'setting_id', 'on_update' => 'cascade'],
+            [],
+            ['setting_id', 'key_name', ['expr' => 'old.setting_id', 'as' => 'old_setting_id']],
+        );
+        $delete = SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute(
+            $settingRows,
+            $children,
+            ['parent_key' => 'setting_id', 'child_key' => 'setting_id', 'on_delete' => 'cascade'],
+            [
+                'where' => static fn (array $row): bool => $row['key_name'] === 'cache_policy',
+                'returning' => ['setting_id', 'key_name'],
+            ],
+        );
+
+        $t->same([11, 2], array_column($update['next_parent'], 'setting_id'));
+        $t->same([11, 2], array_column($update['next_child'], 'setting_id'));
+        $t->same([1], array_column($update['yielded'], 'old_key'));
+        $t->same(['base_url'], array_column($update['yielded'], 'key_name'));
+        $t->same([2], $delete['deleted_rowids']);
+        $t->same([1], $delete['next_rowids']);
+        $t->same([['setting_id' => 2, 'key_name' => 'cache_policy']], $delete['next_returning_rows']);
+    },
+    'recursive trigger fk helpers default to settings rows' => static function (TestRunner $t) use ($settingRows): void {
+        $linkedRows = [
+            $settingRows[0] + ['next_id' => 2],
+            $settingRows[1] + ['next_id' => null],
+        ];
+        $children = [
+            ['ref_id' => 10, 'setting_id' => 1],
+            ['ref_id' => 11, 'setting_id' => 2],
+        ];
+        $deferred = SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan::run(
+            $linkedRows,
+            $children,
+            ['parent_key' => 'setting_id', 'child_key' => 'setting_id', 'on_update' => 'no action', 'deferred' => true],
+            [
+                'savepoint' => 'app_settings_rekey',
+                'where' => static fn (array $row): bool => $row['setting_id'] === 1,
+                'assignments' => ['setting_id' => static fn (array $row, int $depth): int => (int) $row['setting_id'] + 10 + $depth],
+                'returning' => ['setting_id', 'key_name'],
+                'trigger' => ['name' => 'app_settings_after_update', 'match_column' => 'setting_id', 'match_value' => 'old.next_id'],
+                'rollback_on_deferred_violation' => true,
+            ],
+        );
+        $deleted = SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete(
+            $linkedRows,
+            $children,
+            [['detail_id' => 20, 'setting_id' => 1], ['detail_id' => 21, 'setting_id' => 2]],
+            ['parent_key' => 'setting_id', 'child_key' => 'setting_id', 'grandchild_key' => 'setting_id', 'on_delete' => 'cascade'],
+            [
+                'where' => static fn (array $row): bool => $row['setting_id'] === 1,
+                'trigger' => ['name' => 'app_settings_after_delete', 'match_column' => 'setting_id', 'match_value' => 'old.next_id'],
+                'returning' => ['setting_id', 'key_name'],
+            ],
+        );
+
+        $t->same([11, 13], $deferred['current_rowids']);
+        $t->same([1, 2], $deferred['next_rowids']);
+        $t->same(true, $deferred['yield_suppressed_by_rollback']);
+        $t->same('app_recursive_delete', $deleted['savepoint']);
+        $t->same([1, 2], $deleted['deleted_parent_keys']);
+        $t->same([], $deleted['next_parent_keys']);
     },
 ];

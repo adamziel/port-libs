@@ -7,41 +7,41 @@ require_once __DIR__ . '/../src/SQLiteTriggerReturningRecursiveFkCurrentSourceNe
 use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan;
 
 $parents = [
-    ['option_id' => 1, 'next_id' => 2, 'option_name' => 'siteurl'],
-    ['option_id' => 2, 'next_id' => 3, 'option_name' => 'home'],
-    ['option_id' => 3, 'next_id' => null, 'option_name' => 'blogname'],
-    ['option_id' => 4, 'next_id' => null, 'option_name' => 'kept_plugin'],
+    ['setting_id' => 1, 'next_id' => 2, 'key_name' => 'base_url'],
+    ['setting_id' => 2, 'next_id' => 3, 'key_name' => 'public_url'],
+    ['setting_id' => 3, 'next_id' => null, 'key_name' => 'site_title'],
+    ['setting_id' => 4, 'next_id' => null, 'key_name' => 'kept_module'],
 ];
 $children = [
-    ['meta_id' => 11, 'option_id' => 1],
-    ['meta_id' => 12, 'option_id' => 2],
-    ['meta_id' => 13, 'option_id' => 2],
-    ['meta_id' => 14, 'option_id' => 3],
-    ['meta_id' => 15, 'option_id' => 4],
+    ['meta_id' => 11, 'setting_id' => 1],
+    ['meta_id' => 12, 'setting_id' => 2],
+    ['meta_id' => 13, 'setting_id' => 2],
+    ['meta_id' => 14, 'setting_id' => 3],
+    ['meta_id' => 15, 'setting_id' => 4],
 ];
 $grandchildren = [
-    ['detail_id' => 101, 'option_id' => 1],
-    ['detail_id' => 102, 'option_id' => 2],
-    ['detail_id' => 103, 'option_id' => 2],
-    ['detail_id' => 104, 'option_id' => 3],
-    ['detail_id' => 105, 'option_id' => 4],
+    ['detail_id' => 101, 'setting_id' => 1],
+    ['detail_id' => 102, 'setting_id' => 2],
+    ['detail_id' => 103, 'setting_id' => 2],
+    ['detail_id' => 104, 'setting_id' => 3],
+    ['detail_id' => 105, 'setting_id' => 4],
 ];
 
 $plan = SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete(
     $parents,
     $children,
     $grandchildren,
-    ['parent_key' => 'option_id', 'child_key' => 'option_id', 'grandchild_key' => 'option_id', 'deferred' => true, 'on_delete' => 'cascade'],
+    ['parent_key' => 'setting_id', 'child_key' => 'setting_id', 'grandchild_key' => 'setting_id', 'deferred' => true, 'on_delete' => 'cascade'],
     [
-        'savepoint' => 'wp_recursive_delete',
+        'savepoint' => 'app_recursive_delete',
         'current_source' => 'main@cookie-124',
         'next_source' => 'main@cookie-125',
-        'where' => static fn (array $row): bool => $row['option_id'] === 1,
-        'trigger' => ['name' => 'wp_options_ad_recursive_delete', 'match_column' => 'option_id', 'match_value' => 'old.next_id'],
+        'where' => static fn (array $row): bool => $row['setting_id'] === 1,
+        'trigger' => ['name' => 'app_settings_ad_recursive_delete', 'match_column' => 'setting_id', 'match_value' => 'old.next_id'],
         'rollback_to_savepoint' => true,
         'returning' => [
-            ['expr' => 'old.option_id', 'as' => 'deleted_id'],
-            'option_name',
+            ['expr' => 'old.setting_id', 'as' => 'deleted_id'],
+            'key_name',
             ['expr' => 'context.source', 'as' => 'source_token'],
             ['expr' => 'context.trigger_depth', 'as' => 'depth'],
         ],
@@ -59,7 +59,7 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
 
 return [
     'scenario' => 'application-trigger-returning-recursive-fk-current-source-next124',
-    'applicationUse' => 'Preview copied wp_options recursive DELETE triggers whose RETURNING rows are yielded from the current source before FK CASCADE deletes child rows and before a savepoint rollback restores the next source.',
+    'applicationUse' => 'Preview copied app_settings recursive DELETE triggers whose RETURNING rows are yielded from the current source before FK CASCADE deletes child rows and before a savepoint rollback restores the next source.',
     'status' => $plan['status'],
     'deletedParentKeys' => $plan['deleted_parent_keys'],
     'cascadeActions' => count($plan['cascade_actions']),

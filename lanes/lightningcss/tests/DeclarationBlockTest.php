@@ -588,6 +588,39 @@ return [
             $block->removeProperty('box-shadow: 12px 12px rgba(0,0,0,0.4); text-shadow: 1px 1px yellow', 'box-shadow')
         );
     },
+    'declaration block canonicalizes upstream filter cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'filter: URL("filters.svg#filter-id") Blur(0px) Brightness(100%) drop-shadow(16px 16px 20px yellow) !important; backdrop-filter: Blur(0px); -webkit-filter: hue-rotate(0); --Filter: Blur(0px)';
+
+        $t->same(
+            [
+                'filter' => 'url(filters.svg#filter-id) blur()brightness() drop-shadow(16px 16px 20px #ff0) !important',
+                'backdrop-filter' => 'blur()',
+                '-webkit-filter' => 'hue-rotate()',
+                '--Filter' => 'Blur(0px)',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(
+            ['value' => 'url(filters.svg#filter-id) blur()brightness() drop-shadow(16px 16px 20px #ff0)', 'important' => true],
+            $block->getProperty($declarations, 'filter')
+        );
+        $t->same(['value' => 'blur()', 'important' => false], $block->getProperty($declarations, 'backdrop-filter'));
+        $t->same(['value' => 'hue-rotate()', 'important' => false], $block->getProperty($declarations, '-webkit-filter'));
+        $t->same(['value' => 'Blur(0px)', 'important' => false], $block->getProperty($declarations, '--Filter'));
+        $t->same(
+            'backdrop-filter: blur()brightness(10%); -webkit-filter: hue-rotate(); --Filter: Blur(0px); filter: url(filters.svg#filter-id) blur()brightness() drop-shadow(16px 16px 20px #ff0) !important',
+            $block->setProperty($declarations, 'backdrop-filter', 'Blur(0px) Brightness(10%)')
+        );
+        $t->same(
+            'backdrop-filter: blur(); -webkit-filter: hue-rotate(); --Filter: Blur(0px); filter: contrast(175%)brightness(3%)',
+            $block->setProperty($declarations, 'filter', 'contrast(175%) brightness(3%)')
+        );
+        $t->same(
+            'backdrop-filter: blur(); --Filter: Blur(0px); filter: url(filters.svg#filter-id) blur()brightness() drop-shadow(16px 16px 20px #ff0) !important',
+            $block->removeProperty($declarations, '-webkit-filter')
+        );
+    },
     'declaration block canonicalizes upstream svg paint and rendering cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'fill: url("#wp-gradient") currentColor; stroke: rgba(255,0,0,.4); stroke-dasharray: 0px, 2px 4px; stroke-linecap: ROUND; stroke-linejoin: Miter; text-rendering: geometricPrecision; shape-rendering: crispEdges; color-interpolation: sRGB; color-interpolation-filters: linearRGB; fill-rule: EVENODD; clip-rule: NONZERO; marker-start: url("#start"); marker-end: NONE; stroke-width: 2.500px; stroke-dashoffset: 0px; stroke-miterlimit: 4.000; --Icon-Render: geometricPrecision';

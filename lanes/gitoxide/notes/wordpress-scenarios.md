@@ -311,7 +311,9 @@ The URL/refspec example now also covers file-authority URLs, SCP-like IPv6
 remotes, forced fetch-only refspec normalization, and oversized remote-host
 rejection before deployment tooling stores or replays a malformed URL. It now
 also rejects malformed bracketed SCP-like remotes such as `[::1:repo` before
-they can be mistaken for local mirror paths.
+they can be mistaken for local mirror paths. The same example also validates
+remotes built from stored deployment parts, proving HTTPS, local file, and SSH
+alternate/canonical fallback serialization can be normalized before use.
 
 ## WordPress Commit Signature Example
 

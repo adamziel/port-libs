@@ -3008,6 +3008,108 @@ CSS;
             ['var-exit', '--card-gap'],
         ], $seen);
     },
+    'custom at-rules compose upstream exit-array replacements through function visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'VariableExit' => [
+                    '--card-stack' => static function (array $variable) use (&$seen): array {
+                        $seen[] = ['VariableExit', $variable['name']['ident']];
+
+                        return [
+                            [
+                                'type' => 'function',
+                                'value' => [
+                                    'name' => 'wp-var-step',
+                                    'arguments' => [],
+                                ],
+                            ],
+                            [
+                                'type' => 'length',
+                                'unit' => 'px',
+                                'value' => 16,
+                            ],
+                        ];
+                    },
+                ],
+                'EnvironmentVariableExit' => [
+                    '--safe-gap' => static function (array $environmentVariable) use (&$seen): array {
+                        $seen[] = ['EnvironmentVariableExit', $environmentVariable['name']['ident']];
+
+                        return [
+                            [
+                                'type' => 'function',
+                                'value' => [
+                                    'name' => 'wp-env-step',
+                                    'arguments' => [],
+                                ],
+                            ],
+                            [
+                                'type' => 'length',
+                                'unit' => 'px',
+                                'value' => 24,
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'FunctionExit' => [
+                    'wp-var-step' => static function (array $function) use (&$seen): array {
+                        $seen[] = ['FunctionExit', $function['name']];
+
+                        return [
+                            'type' => 'length',
+                            'unit' => 'px',
+                            'value' => 8,
+                        ];
+                    },
+                    'wp-env-step' => static function (array $function) use (&$seen): array {
+                        $seen[] = ['FunctionExit', $function['name']];
+
+                        return [
+                            'type' => 'length',
+                            'unit' => 'px',
+                            'value' => 32,
+                        ];
+                    },
+                ],
+                'Length' => static function (array $length) use (&$seen): ?array {
+                    $seen[] = ['Length', $length['unit'] . ':' . $length['value']];
+
+                    return $length['unit'] === 'px'
+                        ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                        : null;
+                },
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@tokens wp {
+  gap: var(--card-stack);
+  padding: env(--safe-gap);
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+        ], $visitor);
+
+        $t->same('@tokens wp{gap:0.5rem 1rem;padding:2rem 1.5rem}', $result);
+        $t->same([
+            ['VariableExit', '--card-stack'],
+            ['FunctionExit', 'wp-var-step'],
+            ['Length', 'px:8'],
+            ['Length', 'px:16'],
+            ['EnvironmentVariableExit', '--safe-gap'],
+            ['FunctionExit', 'wp-env-step'],
+            ['Length', 'px:32'],
+            ['Length', 'px:24'],
+        ], $seen);
+    },
     'custom at-rules compose upstream EnvironmentVariable visitors inside generic functions' => static function (TestRunner $t): void {
         $tokens = [
             '--percentage1' => '25%',

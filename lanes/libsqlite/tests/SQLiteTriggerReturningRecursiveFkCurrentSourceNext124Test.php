@@ -5,39 +5,39 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan;
 
 $parents124 = [
-    ['option_id' => 1, 'next_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'https://old.test'],
-    ['option_id' => 2, 'next_id' => 3, 'option_name' => 'home', 'option_value' => 'https://old.test/home'],
-    ['option_id' => 3, 'next_id' => null, 'option_name' => 'blogname', 'option_value' => 'Old Site'],
-    ['option_id' => 4, 'next_id' => null, 'option_name' => 'kept_plugin', 'option_value' => 'keep'],
+    ['setting_id' => 1, 'next_id' => 2, 'key_name' => 'base_url', 'key_value' => 'https://old.test'],
+    ['setting_id' => 2, 'next_id' => 3, 'key_name' => 'public_url', 'key_value' => 'https://old.test/public_url'],
+    ['setting_id' => 3, 'next_id' => null, 'key_name' => 'site_title', 'key_value' => 'Old Site'],
+    ['setting_id' => 4, 'next_id' => null, 'key_name' => 'kept_module', 'key_value' => 'keep'],
 ];
 $children124 = [
-    ['meta_id' => 11, 'option_id' => 1, 'meta_key' => '_origin'],
-    ['meta_id' => 12, 'option_id' => 2, 'meta_key' => '_origin'],
-    ['meta_id' => 13, 'option_id' => 2, 'meta_key' => '_thumbnail'],
-    ['meta_id' => 14, 'option_id' => 3, 'meta_key' => '_origin'],
-    ['meta_id' => 15, 'option_id' => 4, 'meta_key' => '_origin'],
+    ['meta_id' => 11, 'setting_id' => 1, 'meta_key' => '_origin'],
+    ['meta_id' => 12, 'setting_id' => 2, 'meta_key' => '_origin'],
+    ['meta_id' => 13, 'setting_id' => 2, 'meta_key' => '_thumbnail'],
+    ['meta_id' => 14, 'setting_id' => 3, 'meta_key' => '_origin'],
+    ['meta_id' => 15, 'setting_id' => 4, 'meta_key' => '_origin'],
 ];
 $grandchildren124 = [
-    ['detail_id' => 101, 'option_id' => 1, 'detail' => 'siteurl-origin'],
-    ['detail_id' => 102, 'option_id' => 2, 'detail' => 'home-origin'],
-    ['detail_id' => 103, 'option_id' => 2, 'detail' => 'home-thumb'],
-    ['detail_id' => 104, 'option_id' => 3, 'detail' => 'blogname-origin'],
-    ['detail_id' => 105, 'option_id' => 4, 'detail' => 'kept-origin'],
+    ['detail_id' => 101, 'setting_id' => 1, 'detail' => 'base_url-origin'],
+    ['detail_id' => 102, 'setting_id' => 2, 'detail' => 'public_url-origin'],
+    ['detail_id' => 103, 'setting_id' => 2, 'detail' => 'public_url-thumb'],
+    ['detail_id' => 104, 'setting_id' => 3, 'detail' => 'site_title-origin'],
+    ['detail_id' => 105, 'setting_id' => 4, 'detail' => 'kept-origin'],
 ];
-$fk124 = ['parent_key' => 'option_id', 'child_key' => 'option_id', 'grandchild_key' => 'option_id', 'deferred' => true, 'on_delete' => 'cascade'];
+$fk124 = ['parent_key' => 'setting_id', 'child_key' => 'setting_id', 'grandchild_key' => 'setting_id', 'deferred' => true, 'on_delete' => 'cascade'];
 $statement124 = [
-    'savepoint' => 'wp_recursive_delete',
+    'savepoint' => 'app_recursive_delete',
     'current_source' => 'main@cookie-124',
     'next_source' => 'main@cookie-125',
-    'where' => static fn (array $row): bool => $row['option_id'] === 1,
-    'trigger' => ['name' => 'wp_options_ad_recursive_delete', 'match_column' => 'option_id', 'match_value' => 'old.next_id'],
+    'where' => static fn (array $row): bool => $row['setting_id'] === 1,
+    'trigger' => ['name' => 'app_settings_ad_recursive_delete', 'match_column' => 'setting_id', 'match_value' => 'old.next_id'],
     'returning' => [
-        ['expr' => 'old.option_id', 'as' => 'deleted_id'],
-        'option_name',
+        ['expr' => 'old.setting_id', 'as' => 'deleted_id'],
+        'key_name',
         ['expr' => 'context.source', 'as' => 'source_token'],
         ['expr' => 'context.trigger_depth', 'as' => 'depth'],
         ['expr' => 'context.trigger_source', 'as' => 'trigger_source'],
-        static fn (array $old, array $unused, array $context): string => $context['trigger_source'] . ':' . $old['option_name'],
+        static fn (array $old, array $unused, array $context): string => $context['trigger_source'] . ':' . $old['key_name'],
     ],
 ];
 
@@ -47,7 +47,7 @@ $nonRecursive124 = static fn (): array => SQLiteTriggerReturningRecursiveFkCurre
 
 $cases124 = [
     'commit status' => [static fn (): mixed => $commit124()['status'], 'current-yield-next-commit'],
-    'savepoint retained' => [static fn (): mixed => $commit124()['savepoint'], 'wp_recursive_delete'],
+    'savepoint retained' => [static fn (): mixed => $commit124()['savepoint'], 'app_recursive_delete'],
     'current source token' => [static fn (): mixed => $commit124()['current_source'], 'main@cookie-124'],
     'next source advances on commit' => [static fn (): mixed => $commit124()['next_source'], 'main@cookie-125'],
     'returning source is current source' => [static fn (): mixed => $commit124()['returning_source'], 'main@cookie-124'],
@@ -61,20 +61,20 @@ $cases124 = [
     'next grandchild keys keep unrelated row' => [static fn (): mixed => $commit124()['next_grandchild_keys'], [4]],
     'statement returning count excludes recursive trigger deletes' => [static fn (): mixed => count($commit124()['current_returning_rows']), 1],
     'statement returning deleted id' => [static fn (): mixed => $commit124()['current_returning_rows'][0]['deleted_id'], 1],
-    'statement returning option name' => [static fn (): mixed => $commit124()['current_returning_rows'][0]['option_name'], 'siteurl'],
+    'statement returning setting name' => [static fn (): mixed => $commit124()['current_returning_rows'][0]['key_name'], 'base_url'],
     'statement returning source token' => [static fn (): mixed => $commit124()['current_returning_rows'][0]['source_token'], 'main@cookie-124'],
     'statement returning depth' => [static fn (): mixed => $commit124()['current_returning_rows'][0]['depth'], 0],
     'statement returning trigger source' => [static fn (): mixed => $commit124()['current_returning_rows'][0]['trigger_source'], 'statement'],
-    'statement returning callable expression' => [static fn (): mixed => $commit124()['current_returning_rows'][0]['expr5'], 'statement:siteurl'],
+    'statement returning callable expression' => [static fn (): mixed => $commit124()['current_returning_rows'][0]['expr5'], 'statement:base_url'],
     'next returning visible on commit' => [static fn (): mixed => $commit124()['next_returning_rows'], $commit124()['current_returning_rows']],
     'attempted returning includes statement and trigger deletes' => [static fn (): mixed => count($commit124()['attempted_returning_rows']), 3],
     'attempted depths' => [static fn (): mixed => array_column($commit124()['attempted_returning_rows'], 'trigger_depth'), [0, 1, 2]],
-    'attempted trigger sources' => [static fn (): mixed => array_column($commit124()['attempted_returning_rows'], 'trigger_source'), ['statement', 'wp_options_ad_recursive_delete', 'wp_options_ad_recursive_delete']],
+    'attempted trigger sources' => [static fn (): mixed => array_column($commit124()['attempted_returning_rows'], 'trigger_source'), ['statement', 'app_settings_ad_recursive_delete', 'app_settings_ad_recursive_delete']],
     'trigger returning count' => [static fn (): mixed => count($commit124()['trigger_returning_rows']), 2],
     'trigger returning deleted ids' => [static fn (): mixed => array_column(array_column($commit124()['trigger_returning_rows'], 'returning'), 'deleted_id'), [2, 3]],
-    'trigger returning names' => [static fn (): mixed => array_column(array_column($commit124()['trigger_returning_rows'], 'returning'), 'option_name'), ['home', 'blogname']],
-    'trigger returning callable expressions' => [static fn (): mixed => array_column(array_column($commit124()['trigger_returning_rows'], 'returning'), 'expr5'), ['wp_options_ad_recursive_delete:home', 'wp_options_ad_recursive_delete:blogname']],
-    'trigger name carried' => [static fn (): mixed => array_column($commit124()['trigger_returning_rows'], 'trigger'), ['wp_options_ad_recursive_delete', 'wp_options_ad_recursive_delete']],
+    'trigger returning names' => [static fn (): mixed => array_column(array_column($commit124()['trigger_returning_rows'], 'returning'), 'key_name'), ['public_url', 'site_title']],
+    'trigger returning callable expressions' => [static fn (): mixed => array_column(array_column($commit124()['trigger_returning_rows'], 'returning'), 'expr5'), ['app_settings_ad_recursive_delete:public_url', 'app_settings_ad_recursive_delete:site_title']],
+    'trigger name carried' => [static fn (): mixed => array_column($commit124()['trigger_returning_rows'], 'trigger'), ['app_settings_ad_recursive_delete', 'app_settings_ad_recursive_delete']],
     'cascade action count' => [static fn (): mixed => count($commit124()['cascade_actions']), 8],
     'cascade child action count' => [static fn (): mixed => count(array_filter($commit124()['cascade_actions'], static fn (array $row): bool => $row['action'] === 'cascade-delete-child')), 4],
     'cascade grandchild action count' => [static fn (): mixed => count(array_filter($commit124()['cascade_actions'], static fn (array $row): bool => $row['action'] === 'cascade-delete-grandchild')), 4],
@@ -106,9 +106,9 @@ $cases124 = [
     'missing where throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, array_diff_key($statement124, ['where' => true])), InvalidArgumentException::class],
     'bad savepoint throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, array_replace($statement124, ['savepoint' => 'bad-name'])), InvalidArgumentException::class],
     'bad source throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, array_replace($statement124, ['current_source' => 'bad source'])), InvalidArgumentException::class],
-    'bad on delete throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, ['parent_key' => 'option_id', 'child_key' => 'option_id', 'on_delete' => 'restrict'], $statement124), InvalidArgumentException::class],
+    'bad on delete throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, ['parent_key' => 'setting_id', 'child_key' => 'setting_id', 'on_delete' => 'restrict'], $statement124), InvalidArgumentException::class],
     'bad returning column throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, array_replace($statement124, ['returning' => ['missing_column']])), InvalidArgumentException::class],
-    'bad returning alias throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, array_replace($statement124, ['returning' => [['expr' => 'old.option_id', 'as' => 'bad-alias']]])), InvalidArgumentException::class],
+    'bad returning alias throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, array_replace($statement124, ['returning' => [['expr' => 'old.setting_id', 'as' => 'bad-alias']]])), InvalidArgumentException::class],
     'max depth throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, $statement124 + ['max_depth' => 1]), InvalidArgumentException::class],
 ];
 

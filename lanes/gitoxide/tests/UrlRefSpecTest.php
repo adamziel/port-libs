@@ -226,6 +226,95 @@ return [
         $t->same($rawLocal->path(), $rawFromBytes->path());
         $t->same($rawLocalBytes, $rawFromBytes->toBytes());
     },
+    'git url builds from parts through upstream parse validation' => static function (TestRunner $t): void {
+        $https = GitUrl::fromParts(
+            GitUrl::SCHEME_HTTPS,
+            'deploy user',
+            'deploy token',
+            'Git.Example.TEST',
+            8443,
+            '/wp-content/site.git'
+        );
+        $t->same(GitUrl::SCHEME_HTTPS, $https->scheme());
+        $t->same('deploy user', $https->user());
+        $t->same('deploy token', $https->password());
+        $t->same('git.example.test', $https->host());
+        $t->same(8443, $https->port());
+        $t->same('/wp-content/site.git', $https->path());
+        $t->same('https://deploy%20user:deploy%20token@git.example.test:8443/wp-content/site.git', $https->toBytes());
+
+        $fileCanonical = GitUrl::fromParts(GitUrl::SCHEME_FILE, null, null, null, null, '/var/cache/site.git');
+        $t->same(false, $fileCanonical->usesAlternativeForm());
+        $t->same('file:///var/cache/site.git', $fileCanonical->toBytes());
+
+        $fileAlternative = GitUrl::fromParts(GitUrl::SCHEME_FILE, null, null, null, null, "/var/cache/site\xFF.git", true);
+        $t->same(true, $fileAlternative->usesAlternativeForm());
+        $t->same("/var/cache/site\xFF.git", $fileAlternative->path());
+        $t->same("/var/cache/site\xFF.git", $fileAlternative->toBytes());
+
+        $sshAlternative = GitUrl::fromParts(
+            GitUrl::SCHEME_SSH,
+            'deploy',
+            null,
+            'git.example.test',
+            null,
+            'wp-content/site.git',
+            true
+        );
+        $t->same(true, $sshAlternative->usesAlternativeForm());
+        $t->same('deploy@git.example.test:wp-content/site.git', $sshAlternative->toBytes());
+        $t->same('wp-content/site.git', $sshAlternative->path());
+
+        $sshPasswordFallback = GitUrl::fromParts(
+            GitUrl::SCHEME_SSH,
+            'deploy',
+            'secret',
+            'git.example.test',
+            null,
+            'wp-content/site.git',
+            true
+        );
+        $t->same(false, $sshPasswordFallback->usesAlternativeForm(), 'passwords force canonical URL serialization before validation');
+        $t->same('/wp-content/site.git', $sshPasswordFallback->path());
+        $t->same('ssh://deploy:secret@git.example.test/wp-content/site.git', $sshPasswordFallback->toBytes());
+
+        $sshPortFallback = GitUrl::fromParts(
+            GitUrl::SCHEME_SSH,
+            null,
+            null,
+            'git.example.test',
+            2222,
+            '/srv/git/site.git',
+            true
+        );
+        $t->same(false, $sshPortFallback->usesAlternativeForm(), 'ports force canonical URL serialization before validation');
+        $t->same('ssh://git.example.test:2222/srv/git/site.git', $sshPortFallback->toBytes());
+
+        $pathlessSsh = GitUrl::fromParts(GitUrl::SCHEME_SSH, null, null, 'git.example.test', null, '');
+        $t->same('/', $pathlessSsh->path(), 'validated URL serialization supplies the repository root path');
+        $t->same('ssh://git.example.test/', $pathlessSsh->toBytes());
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => GitUrl::fromParts(GitUrl::SCHEME_HTTPS, 'deploy', null, null, null, '/site.git')
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => GitUrl::fromParts(GitUrl::SCHEME_SSH, null, null, 'git.example.test', 0, '/site.git')
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => GitUrl::fromParts(GitUrl::SCHEME_FILE, null, null, null, null, 'relative.git')
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => GitUrl::fromParts('bad scheme', null, null, null, null, '/site.git')
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => GitUrl::fromParts(GitUrl::SCHEME_HTTPS, "bad\xFF", null, 'git.example.test', null, '/site.git')
+        );
+    },
     'git url toggles alternate serialization like gix-url serialize_alternate_form' => static function (TestRunner $t): void {
         $file = GitUrl::parse('file:///var/cache/wp-content/site.git');
         $fileAlternate = $file->withAlternativeForm(true);
@@ -886,6 +975,12 @@ return [
         $t->same($fixture['credentialRemotePassword'], $summary['credentialRemoteRoundtrip']['password']);
         $t->same($fixture['expectedByteRoundtripRemoteUrl'], $summary['byteRoundtripRemote']['normalized']);
         $t->same($summary['byteRoundtripRemoteFromParse']['normalized'], $summary['byteRoundtripRemote']['normalized']);
+        $t->same($fixture['expectedPartsRemoteUrl'], $summary['partsRemote']['normalized']);
+        $t->same($fixture['expectedPartsRemoteDisplay'], $summary['partsRemoteDisplay']);
+        $t->same($fixture['expectedPartsSshAlternateUrl'], $summary['partsSshAlternate']['normalized']);
+        $t->same(true, $summary['partsSshAlternate']['alternativeForm']);
+        $t->same($fixture['expectedPartsSshPasswordUrl'], $summary['partsSshPassword']['normalized']);
+        $t->same(false, $summary['partsSshPassword']['alternativeForm']);
         $t->same($fixture['expectedRemoteArgumentSafety'], $summary['remoteArgumentSafety']);
         $t->same($fixture['expectedUnsafeRemoteArgumentSafety'], $summary['unsafeRemoteArgumentSafety']);
         $t->same($fixture['expectedRootRemotePathIsRoot'], $summary['rootRemotePathIsRoot']);

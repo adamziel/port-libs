@@ -948,6 +948,40 @@ return [
             'wp-content/themes/twentytwentyfive/style.css',
         ], $walkPaths($records));
     },
+    'empty pathspecs can ignore caller prefixes for repository-wide tree walks' => static function (TestRunner $t) use ($makeTreeStore, $walkPaths): void {
+        [$root, $read] = $makeTreeStore();
+        $plainPaths = $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            PathspecSearch::fromSpecs([]),
+            $read,
+            includeTrees: false,
+        ));
+        $repositoryWide = PathspecSearch::fromSpecs(
+            [],
+            'wp-content/themes',
+            emptyPatternsMatchPrefix: false,
+        );
+
+        $t->same([], $repositoryWide->patterns());
+        $t->same('', $repositoryWide->commonPrefix());
+        $t->same('', $repositoryWide->prefixDirectory());
+        $t->same(null, $repositoryWide->longestCommonDirectory());
+        $t->same(PathspecMatch::KIND_ALWAYS, $repositoryWide->match('index.php', false)?->kind);
+        $t->same(true, $repositoryWide->isIncluded('wp-admin/admin.php', false));
+        $t->same(true, $repositoryWide->canMatch('wp-admin', true));
+        $t->same(true, $repositoryWide->directoryMatchesPrefix('wp-admin', true));
+
+        $paths = $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $repositoryWide,
+            $read,
+            includeTrees: false,
+        ));
+
+        $t->same($plainPaths, $paths);
+        $t->same(true, in_array('wp-admin/admin.php', $paths, true));
+        $t->same(true, in_array('wp-content/plugins/gutenberg/build/index.js', $paths, true));
+    },
     'explicit nil and empty magic pathspecs inherit caller prefixes during tree walks' => static function (TestRunner $t) use ($makeTreeStore, $walkPaths): void {
         [$root, $read] = $makeTreeStore();
 
@@ -1077,6 +1111,9 @@ return [
         $t->same(true, $example['prefixedEmptyMagicAkismetSkipped']);
         $t->same(true, $example['prefixedExcludeNilKeepsIndex']);
         $t->same(true, $example['prefixedExcludeNilSkipsTheme']);
+        $t->same($example['noPathspecWalkCount'], $example['emptyPatternsRepositoryWideCount']);
+        $t->same(true, $example['emptyPatternsRepositoryWideAdminIncluded']);
+        $t->same(true, $example['emptyPatternsRepositoryWideThemePrefixIgnored']);
         $t->same(['wp-content/plugins/safe.php'], $example['rawComponentGuardContentPaths']);
         $t->same(['wp-content', 'wp-content/plugins'], $example['rawComponentGuardReadPaths']);
         $t->same(true, $example['rawParentComponentSkipped']);

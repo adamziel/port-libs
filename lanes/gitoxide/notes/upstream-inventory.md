@@ -1683,3 +1683,28 @@ Partial-clone promisor numeric config boolean hydration slice prepared on 2026-0
   changed PHP lint and example smoke passed; `git diff --check -- lanes/gitoxide`
   passed. Full Cargo workspace runner was not executed.
 - Expected mapped denominator movement: `1749 / 2886` to `1750 / 2886`.
+
+URL/refspec from-parts parity slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-url-refspec-parse-normalize-parity-20260601T061645Z`
+  on accepted base `cc1b0ff669a7347b4e43610b8425ed481a9b7e5c` maps the
+  upstream `gix-url` validating constructor boundary where supplied URL parts
+  are serialized with canonical or alternate form and parsed back before use.
+- Source truth: upstream Gitoxide `gix-url/src/lib.rs::Url::from_parts`,
+  `Url::write_to`, `Url::write_canonical_form_to`,
+  `Url::write_alternative_form_to`, and focused parse/access tests in
+  `gix-url/tests/url/access.rs` plus `gix-url/tests/url/parse/{file.rs,ssh.rs}`
+  at commit `87433ed33eee9ba974111d20b854f6acb07cd4a6`.
+- Native PHP delta: `GitUrl::fromParts()` now validates constructed URL fields
+  by serializing and reparsing, including HTTPS host normalization and
+  credential percent-encoding, local file alternate byte preservation,
+  SSH alternate serialization, SSH password/port canonical fallback, and
+  invalid constructed URL rejection. The WordPress URL/refspec fixture/example
+  now normalizes stored deployment URL parts before fetch/push refspec handling.
+- Verification: baseline focused `UrlRefSpecTest.php` passed `1 test files,
+  637 assertions, 0 failures`; after implementation, focused
+  `UrlRefSpecTest.php` passed `1 test files, 670 assertions, 0 failures`.
+  Changed PHP lint, example smoke, lane-status/manifest JSON parse, and
+  `git diff --check -- lanes/gitoxide` passed. Full Gitoxide lane, root
+  harness, and upstream Cargo workspace were not executed.
+- Expected mapped denominator movement: `1749 / 2886` to `1750 / 2886`.

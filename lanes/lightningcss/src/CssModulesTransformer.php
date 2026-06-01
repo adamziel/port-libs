@@ -3255,6 +3255,15 @@ final class CssModulesTransformer
             return null;
         }
 
+        if (
+            $prefixLength === 2
+            && in_array(strtolower($token['decoded']), ['global', 'local'], true)
+        ) {
+            return [
+                'close' => $this->findMatchingParen($selector, $token['end']),
+            ];
+        }
+
         if ($this->selectorFunctionAllowsCssModuleRewrites($token['decoded'])) {
             return null;
         }
@@ -4582,6 +4591,10 @@ final class CssModulesTransformer
             return null;
         }
 
+        if (($selector[$offset - 1] ?? '') === ':') {
+            return null;
+        }
+
         $token = $this->readCssIdentifierToken($selector, $offset + 1);
         if ($token === null || strcasecmp($token['decoded'], $name) !== 0) {
             return null;
@@ -4597,6 +4610,10 @@ final class CssModulesTransformer
     private function cssModulesBarePseudoNameAt(string $selector, int $offset, string $name): bool
     {
         if (($selector[$offset] ?? '') !== ':' || ($selector[$offset + 1] ?? '') === ':') {
+            return false;
+        }
+
+        if (($selector[$offset - 1] ?? '') === ':') {
             return false;
         }
 

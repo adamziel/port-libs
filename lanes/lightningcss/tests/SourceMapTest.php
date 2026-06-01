@@ -607,6 +607,60 @@ return [
         $t->same([0, null], array_column($negativeDecoded, 'sourceIndex'));
         $t->same([0, null], array_column($negativeDecoded, 'nameIndex'));
     },
+    'source map offsets triple duplicate generated columns at upstream binary-search boundary' => static function (TestRunner $t): void {
+        $lookup = new SourceMap();
+        $lookup->addVlqMap(
+            'AAAAAA,A,CACAC',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['first', 'second']
+        );
+
+        $exactDuplicate = $lookup->findClosestMapping(0, 0);
+        $afterDuplicates = $lookup->findClosestMapping(0, 1);
+
+        $t->same(0, $exactDuplicate['generatedLine'] ?? null);
+        $t->same(0, $exactDuplicate['generatedColumn'] ?? null);
+        $t->same(null, $exactDuplicate['sourceIndex'] ?? null);
+        $t->same(null, $exactDuplicate['nameIndex'] ?? null);
+        $t->same(1, $afterDuplicates['generatedColumn'] ?? null);
+        $t->same(0, $afterDuplicates['sourceIndex'] ?? null);
+        $t->same(1, $afterDuplicates['nameIndex'] ?? null);
+
+        $positive = new SourceMap();
+        $positive->addVlqMap(
+            'AAAAAA,A,CACAC',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['first', 'second']
+        );
+        $positive->offsetColumns(0, 0, 5);
+        $positiveDecoded = SourceMap::decodeVlq($positive->writeVlq());
+
+        $t->same('AAAAA,A,K,CACAC', $positive->writeVlq());
+        $t->same([0, 0, 5, 6], array_column($positiveDecoded, 'generatedColumn'));
+        $t->same([0, null, null, 0], array_column($positiveDecoded, 'sourceIndex'));
+        $t->same([0, null, null, 1], array_column($positiveDecoded, 'nameIndex'));
+
+        $negative = new SourceMap();
+        $negative->addVlqMap(
+            'AAAAAA,A,KACAC',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['first', 'shifted']
+        );
+        $negative->offsetColumns(0, 5, -5);
+        $negativeDecoded = SourceMap::decodeVlq($negative->writeVlq());
+        $negativeClosest = $negative->findClosestMapping(0, 0);
+
+        $t->same('AAAAA,A,AACAC', $negative->writeVlq());
+        $t->same([0, 0, 0], array_column($negativeDecoded, 'generatedColumn'));
+        $t->same([0, null, 0], array_column($negativeDecoded, 'sourceIndex'));
+        $t->same([0, null, 1], array_column($negativeDecoded, 'originalLine'));
+        $t->same([0, null, 1], array_column($negativeDecoded, 'nameIndex'));
+        $t->same(1, $negativeClosest['originalLine'] ?? null);
+        $t->same(1, $negativeClosest['nameIndex'] ?? null);
+    },
     'source map preserves duplicate-column offset boundaries through buffers and nested maps' => static function (TestRunner $t): void {
         $raw = new SourceMap();
         $raw->addVlqMap(

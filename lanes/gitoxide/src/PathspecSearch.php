@@ -43,6 +43,7 @@ final class PathspecSearch
         string $defaultSearchMode = PathspecPattern::SEARCH_SHELL_GLOB,
         bool $defaultIgnoreCase = false,
         ?string $root = null,
+        bool $emptyPatternsMatchPrefix = true,
     ): self
     {
         if (!in_array($defaultSearchMode, [
@@ -69,7 +70,7 @@ final class PathspecSearch
             $patterns[] = self::normalizePattern($pattern, $prefix, $root);
         }
 
-        if ($patterns === [] && $prefix !== '') {
+        if ($patterns === [] && $prefix !== '' && $emptyPatternsMatchPrefix) {
             $patterns[] = new PathspecPattern(
                 $prefix,
                 mustBeDirectory: true,

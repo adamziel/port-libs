@@ -125,6 +125,11 @@ $excludeNilPathspecs = PathspecSearch::fromSpecs([':(exclude)']);
 $prefixedNilPathspecs = PathspecSearch::fromSpecs([':'], 'wp-content/themes');
 $prefixedEmptyMagicPathspecs = PathspecSearch::fromSpecs([':()'], 'wp-content/plugins/gutenberg');
 $prefixedExcludeNilPathspecs = PathspecSearch::fromSpecs([':(exclude)'], 'wp-content/themes');
+$emptyPatternsRepositoryWidePathspecs = PathspecSearch::fromSpecs(
+    [],
+    'wp-content/themes',
+    emptyPatternsMatchPrefix: false,
+);
 $rawComponentGuardPathspecs = PathspecSearch::fromSpecs([
     'wp-content/secret.php',
     'wp-content/plugins/safe.php',
@@ -337,6 +342,18 @@ $prefixedEmptyMagicRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$emptyPatternsRepositoryWideRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $emptyPatternsRepositoryWidePathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 $rawComponentReadPaths = [];
 $rawComponentGuardRecords = TreePathspecWalk::breadthFirst(
     $root,
@@ -416,6 +433,13 @@ return [
     'prefixedEmptyMagicAkismetSkipped' => !$prefixedEmptyMagicPathspecs->isIncluded('wp-content/plugins/akismet/akismet.php', false),
     'prefixedExcludeNilKeepsIndex' => $prefixedExcludeNilPathspecs->isIncluded('index.php', false),
     'prefixedExcludeNilSkipsTheme' => !$prefixedExcludeNilPathspecs->isIncluded('wp-content/themes/acme/style.css', false),
+    'emptyPatternsRepositoryWideCount' => count($emptyPatternsRepositoryWideRecords),
+    'emptyPatternsRepositoryWideAdminIncluded' => $emptyPatternsRepositoryWidePathspecs->isIncluded('wp-admin/admin.php', false),
+    'emptyPatternsRepositoryWideThemePrefixIgnored' => in_array(
+        'wp-content/plugins/gutenberg/build/index.js',
+        array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $emptyPatternsRepositoryWideRecords),
+        true,
+    ),
     'rawComponentGuardContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $rawComponentGuardRecords),
     'rawComponentGuardReadPaths' => $rawComponentReadPaths,
     'rawParentComponentSkipped' => $rawComponentGuardPathspecs->match('wp-content/plugins/../secret.php', false) === null,

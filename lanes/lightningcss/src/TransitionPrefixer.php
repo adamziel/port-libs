@@ -2746,7 +2746,7 @@ final class TransitionPrefixer
         ]));
         $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewritePseudoClassVariants($selector, 'placeholder-shown', [
             ...(($targetOptions['placeholderShownNeedsMoz'] ?? false) ? [':-moz-placeholder-shown'] : []),
-            ...(($targetOptions['placeholderShownNeedsMs'] ?? false) ? [':-ms-input-placeholder'] : []),
+            ...(($targetOptions['placeholderShownNeedsMs'] ?? false) ? [':-ms-placeholder-shown'] : []),
         ]));
         $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewritePseudoClassVariants($selector, 'fullscreen', [
             ...(($targetOptions['fullscreenNeedsWebkit'] ?? false) ? [':-webkit-full-screen'] : []),

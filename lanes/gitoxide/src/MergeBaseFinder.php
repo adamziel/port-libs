@@ -10,6 +10,8 @@ final class MergeBaseFinder
     private const FLAG_COMMIT2 = 2;
     private const FLAG_STALE = 4;
     private const FLAG_RESULT = 8;
+    private const COMMIT_GRAPH_GENERATION_INFINITY = 0xffffffff;
+    private const COMMIT_GRAPH_GENERATION_MAX = 0x3fffffff;
 
     /**
      * @var \Closure(string): (?Commit)
@@ -607,10 +609,10 @@ final class MergeBaseFinder
     private function graphWalkGeneration(string $oid): int
     {
         if ($this->commitGraphGeneration !== null) {
-            return $this->providedCommitGraphGeneration($oid) ?? PHP_INT_MAX;
+            return $this->providedCommitGraphGeneration($oid) ?? self::COMMIT_GRAPH_GENERATION_INFINITY;
         }
 
-        return $this->commitGeneration($oid) ?? PHP_INT_MAX;
+        return $this->commitGeneration($oid) ?? self::COMMIT_GRAPH_GENERATION_INFINITY;
     }
 
     private function providedCommitGraphGeneration(string $oid): ?int
@@ -621,8 +623,13 @@ final class MergeBaseFinder
         }
 
         $generation = ($this->commitGraphGeneration)($oid);
-        if ($generation !== null && (!is_int($generation) || $generation < 0)) {
-            throw new \InvalidArgumentException('Commit graph generation provider must return a non-negative integer or null');
+        if (
+            $generation !== null
+            && (!is_int($generation) || $generation < 0 || $generation > self::COMMIT_GRAPH_GENERATION_MAX)
+        ) {
+            throw new \InvalidArgumentException(
+                'Commit graph generation provider must return a non-negative integer up to 0x3fffffff or null',
+            );
         }
 
         return $this->commitGraphGenerationCache[$oid] = $generation;
@@ -676,7 +683,7 @@ final class MergeBaseFinder
             if (!$parentGeneration['complete']) {
                 $complete = false;
             }
-            $generation = max($generation, $parentGeneration['generation'] + 1);
+            $generation = max($generation, min(self::COMMIT_GRAPH_GENERATION_MAX, $parentGeneration['generation'] + 1));
         }
         unset($visiting[$oid]);
 

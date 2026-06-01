@@ -6363,7 +6363,7 @@ final class CustomAtRuleTransformer
 
         $replacement = $this->callFunctionExitVisitor($name, $function);
         if ($replacement !== null) {
-            return $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
+            return $this->applyValueVisitors($this->normalizeVisitorValue($replacement), ['function']);
         }
 
         $serializedArguments = implode(',', array_map(fn (mixed $argument): string => $this->serializeVisitorValue($argument), $arguments));
@@ -6874,11 +6874,40 @@ final class CustomAtRuleTransformer
             foreach ($value as $part) {
                 $normalized = $this->normalizeVisitorValue($part);
                 $next = $this->applyValueVisitors($normalized, $skipStructuredTypes);
-                $visited[] = $next;
+                if (is_array($next) && array_is_list($next)) {
+                    foreach ($next as $nextPart) {
+                        $visited[] = $nextPart;
+                    }
+                } else {
+                    $visited[] = $next;
+                }
                 $changed = $changed || $next !== $part;
             }
 
             return $changed ? $visited : $value;
+        }
+
+        if (($value['type'] ?? null) === 'function' && isset($value['value']) && is_array($value['value']) && !in_array('function', $skipStructuredTypes, true)) {
+            $function = $value['value'];
+            $name = (string) ($function['name'] ?? '');
+            if ($name !== '') {
+                $argumentsCss = $this->functionValueArgumentsCss($function);
+                $raw = $name . '(' . $argumentsCss . ')';
+                $structuredReplacement = $this->callStructuredValueVisitor($name, $argumentsCss, $raw, $skipStructuredTypes);
+                if ($structuredReplacement !== null) {
+                    return $structuredReplacement;
+                }
+
+                $replacement = $this->callFunctionVisitor($name, $this->parseFunctionArguments($argumentsCss), $raw);
+                if ($replacement !== null) {
+                    return ['type' => 'raw', 'value' => $replacement];
+                }
+
+                $visited = $this->visitFunctionExit($name, $argumentsCss, $raw);
+                if ($this->serializeVisitorValue($visited) !== $raw) {
+                    return $visited;
+                }
+            }
         }
 
         if (($value['type'] ?? null) === 'var' && is_array($value['value'] ?? null)) {

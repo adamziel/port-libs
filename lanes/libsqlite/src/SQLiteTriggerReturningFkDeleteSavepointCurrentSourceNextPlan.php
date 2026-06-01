@@ -16,7 +16,7 @@ final class SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan
     public static function execute(array $parents, array $children, array $foreignKey, array $statement): array
     {
         $savepoint = self::identifier((string) ($statement['savepoint'] ?? 'delete_returning_fk'), 'savepoint');
-        $rowIdColumn = self::identifier((string) ($statement['rowid_column'] ?? 'option_id'), 'rowid column');
+        $rowIdColumn = self::identifier((string) ($statement['rowid_column'] ?? 'setting_id'), 'rowid column');
         $where = $statement['where'] ?? null;
         if (!is_callable($where)) {
             throw new \InvalidArgumentException('SQLite trigger DELETE RETURNING FK WHERE callback is required');

@@ -33,6 +33,18 @@ $missingGenerationFinder = new MergeBaseFinder(
     },
     commitGraphGeneration: static fn (string $oid): ?int => null,
 );
+$maxGenerationFinder = new MergeBaseFinder(
+    static function (string $oid) use ($fixture): ?Commit {
+        return $fixture['commits'][$oid] ?? null;
+    },
+    commitGraphGeneration: static fn (string $oid): ?int => $fixture['maxCommitGraphGenerations'][$oid] ?? null,
+);
+$invalidGenerationFinder = new MergeBaseFinder(
+    static function (string $oid) use ($fixture): ?Commit {
+        return $fixture['commits'][$oid] ?? null;
+    },
+    commitGraphGeneration: static fn (string $oid): ?int => $fixture['invalidCommitGraphGenerations'][$oid] ?? null,
+);
 $shortcutReads = [];
 $shortcutFinder = new MergeBaseFinder(static function (string $oid) use (&$shortcutReads): Commit {
     $shortcutReads[] = $oid;
@@ -114,6 +126,13 @@ $missingGenerationPairwiseBase = $missingGenerationFinder->mergeBase(
     $fixture['missingGenerationPluginReview'],
     $fixture['missingGenerationThemeReview'],
 );
+$maxGenerationBase = $maxGenerationFinder->mergeBase($fixture['pluginReview'], $fixture['themeReview']);
+$invalidGenerationRejected = false;
+try {
+    $invalidGenerationFinder->mergeBase($fixture['pluginReview'], $fixture['themeReview']);
+} catch (InvalidArgumentException) {
+    $invalidGenerationRejected = true;
+}
 $hydratedPromisorCommits = $fixture['commits'];
 $hydratedPromisorReleaseCommit = $hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']];
 unset($hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']]);
@@ -219,6 +238,9 @@ return [
     'missingGenerationPairwiseBase' => $missingGenerationPairwiseBase,
     'missingGenerationProviderKeepsReleaseBaseline' => $missingGenerationGraphWalkBase === $fixture['missingGenerationReleaseBaseline']
         && $missingGenerationPairwiseBase === $fixture['missingGenerationReleaseBaseline'],
+    'maxGenerationBase' => $maxGenerationBase,
+    'maxGenerationProviderKeepsReleaseBaseline' => $maxGenerationBase === $fixture['releaseBaseline'],
+    'invalidCommitGraphGenerationRejected' => $invalidGenerationRejected,
     'hydratedPromisorHeads' => $fixture['hydratedPromisorHeads'],
     'hydratedPromisorBeforeBases' => $hydratedPromisorBeforeBases,
     'hydratedPromisorAfterBases' => $hydratedPromisorAfterBases,

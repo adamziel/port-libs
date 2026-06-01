@@ -58,6 +58,44 @@ final class GitUrl
         return self::parse($bytes);
     }
 
+    public static function fromParts(
+        string $scheme,
+        ?string $user,
+        ?string $password,
+        ?string $host,
+        ?int $port,
+        string $path,
+        bool $alternativeForm = false
+    ): self {
+        $scheme = self::normalizeScheme($scheme);
+        self::assertScheme($scheme);
+        if ($user !== null) {
+            self::assertValidUtf8($user, 'Git URL username');
+        }
+        if ($password !== null) {
+            self::assertValidUtf8($password, 'Git URL password');
+        }
+        if ($host !== null) {
+            self::assertValidUtf8($host, 'Git URL host');
+        }
+        if ($user !== null && $host === null) {
+            throw new \InvalidArgumentException('Git URL user info requires a host');
+        }
+        if ($port !== null) {
+            self::parsePort((string) $port);
+        }
+
+        return self::parse((new self(
+            $scheme,
+            $user,
+            $password,
+            $host,
+            $port,
+            $path,
+            $alternativeForm
+        ))->toBytes());
+    }
+
     /**
      * @return array{currentUser: bool, user: ?string, path: string}
      */

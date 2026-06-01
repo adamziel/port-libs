@@ -228,7 +228,10 @@ return [
         $t->same('.foo::selection{color:red}', $prefixer->prefixForTargets('.foo::selection { color: red; }', ['firefox' => 62]));
         $t->same('input:-moz-placeholder-shown{color:red}input:placeholder-shown{color:red}', $prefixer->prefixForTargets('input:placeholder-shown { color: red; }', ['firefox' => 50]));
         $t->same('input:placeholder-shown{color:red}', $prefixer->prefixForTargets('input:placeholder-shown { color: red; }', ['firefox' => 51]));
-        $t->same('input:-ms-input-placeholder{color:red}input:placeholder-shown{color:red}', $prefixer->prefixForTargets('input:placeholder-shown { color: red; }', ['ie' => 11]));
+        $t->same('input:placeholder-shown{color:red}', $prefixer->prefixForTargets('input:placeholder-shown { color: red; }', ['ie' => 9]));
+        $t->same('input:-ms-placeholder-shown{color:red}input:placeholder-shown{color:red}', $prefixer->prefixForTargets('input:placeholder-shown { color: red; }', ['ie' => 10]));
+        $t->same('input:-ms-placeholder-shown{color:red}input:placeholder-shown{color:red}', $prefixer->prefixForTargets('input:placeholder-shown { color: red; }', ['ie' => 11]));
+        $t->same('.wp-block-search__input:-ms-placeholder-shown{opacity:.75}.wp-block-search__input:placeholder-shown{opacity:.75}', $prefixer->prefixForTargets('.wp-block-search__input:placeholder-shown { opacity: .75; }', ['ie' => 10]));
         $t->same('section:-webkit-full-screen{color:red}section:fullscreen{color:red}', $prefixer->prefixForTargets('section:fullscreen { color: red; }', ['chrome' => 70]));
         $t->same('section:fullscreen{color:red}', $prefixer->prefixForTargets('section:fullscreen { color: red; }', ['chrome' => 71]));
         $t->same('section:-moz-full-screen{color:red}section:fullscreen{color:red}', $prefixer->prefixForTargets('section:fullscreen { color: red; }', ['firefox' => 63]));

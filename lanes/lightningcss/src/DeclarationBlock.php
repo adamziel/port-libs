@@ -323,6 +323,12 @@ final class DeclarationBlock
         '-moz-text-size-adjust',
         '-ms-text-size-adjust',
     ];
+    private const FILTER_DECLARATION_PROPERTIES = [
+        'filter',
+        '-webkit-filter',
+        'backdrop-filter',
+        '-webkit-backdrop-filter',
+    ];
 
     private const BACKGROUND_LONGHANDS = [
         'background-color',
@@ -13861,6 +13867,10 @@ final class DeclarationBlock
             return $this->normalizeTextSizeAdjustDeclarationValue($value);
         }
 
+        if (in_array($property, self::FILTER_DECLARATION_PROPERTIES, true)) {
+            return $this->normalizeMinifiedDeclarationValue($property, $value);
+        }
+
         if ($property === 'border-spacing') {
             return $this->normalizeBorderSpacingValue($value);
         }
@@ -14471,6 +14481,11 @@ final class DeclarationBlock
     }
 
     private function normalizeTransformDeclarationValue(string $property, string $value): string
+    {
+        return $this->normalizeMinifiedDeclarationValue($property, $value);
+    }
+
+    private function normalizeMinifiedDeclarationValue(string $property, string $value): string
     {
         $minified = (new CssMinifier())->minify('.x{' . $property . ':' . $value . '}');
         $prefix = '.x{' . $property . ':';

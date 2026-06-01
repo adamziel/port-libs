@@ -147,6 +147,16 @@ return [
         $shallowThemeReview => 3,
         $shallowArchiveReview => 1,
     ],
+    'maxCommitGraphGenerations' => [
+        $release => 0x3fffffff,
+        $pluginReview => 0x3fffffff,
+        $themeReview => 0x3fffffff,
+    ],
+    'invalidCommitGraphGenerations' => [
+        $release => 0x40000000,
+        $pluginReview => 0x40000000,
+        $themeReview => 0x40000000,
+    ],
     'timestampSkewExpectedBase' => $timestampSkewCenter2,
     'timestampSkewLeftReview' => $timestampSkewLeftReview,
     'timestampSkewRightReview' => $timestampSkewRightReview,
