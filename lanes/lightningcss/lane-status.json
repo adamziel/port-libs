@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "library": "LightningCSS",
     "estimatedProgress": 99.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS media-query range/layer import grammar and direct named-color property value parity. Verification passed changed PHP lint, git diff --check, changed example smokes, focused LightningCSS gate 4 files / 4347 assertions / 0 failures, and full LightningCSS lane 13 files / 8635 assertions / 0 failures.",
-    "phpPass": 8635,
+    "suiteProgress": "Supervisor-integrated LightningCSS bundle import graph, CSS Modules, CSSOM background clip, source-map VLQ offset, and target-prefix browser-boundary parity. Verification passed changed PHP lint, git diff --check, changed example smokes, focused LightningCSS gate 5 files / 5218 assertions / 0 failures, and full LightningCSS lane 13 files / 8694 assertions / 0 failures.",
+    "phpPass": 8694,
     "phpFail": 0,
     "wordpressScenarios": "LightningCSS examples remain generic coverage plus existing fixture smokes; latest accepted source adds CSS Modules local/global dangling-combinator parity, prefixed 3D transform layout CSSOM read-write parity, and source-map VLQ generated-only child pruning.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 16:18 UTC supervisor integration: source commit 9c58ee164dbff3a0a230487ba6ff5944d5abeef5 accepted media-query range/layer import grammar and direct named-color property value parity. Changed PHP lint passed; git diff --check passed; changed example smokes passed; focused LightningCSS gate passed 4 files / 4347 assertions / 0 failures; full LightningCSS PHP lane passed 13 files / 8635 assertions / 0 failures. Rust/Node/WASM runners were not run.",
-    "currentWork": "Media-query range/layer import grammar and direct named-color property value parity integrated on current main.",
+    "audit": "2026-06-01 16:20 UTC supervisor integration: source commit 2bc998068458c71f9e16d8cff706109fe8afb13f accepted bundle import graph, CSS Modules, CSSOM background clip, source-map VLQ offset, and target-prefix browser-boundary parity. Changed PHP lint passed; git diff --check passed; changed example smokes passed; focused LightningCSS gate passed 5 files / 5218 assertions / 0 failures; full LightningCSS PHP lane passed 13 files / 8694 assertions / 0 failures. Rust/Node/WASM runners were not run.",
+    "currentWork": "Bundle import graph, CSS Modules, CSSOM background clip, source-map VLQ offset, and target-prefix browser-boundary parity integrated on current main.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "9c58ee164dbff3a0a230487ba6ff5944d5abeef5",
+    "latestCommit": "2bc998068458c71f9e16d8cff706109fe8afb13f",
     "nextTask": "Keep LightningCSS workers on current-base source maps, bundle/import graph, media query, property value, CSSOM, CSS Modules, custom-at-rule, target-prefix, selector, parser recovery, and upstream Rust/Node/WASM parity gaps that can be expressed in PHP.",
-    "commit": "9c58ee164dbff3a0a230487ba6ff5944d5abeef5",
-    "latestFocusedSlice": "2026-06-01 supervisor batch: media-query range/layer import grammar adds 9 assertions and direct named-color property value parity adds 1 assertion. Full LightningCSS lane passed 13 files / 8635 assertions / 0 failures; phpPass moves 8625 -> 8635; mapped coverage remains 2398 / 3532; Rust/Node/WASM upstream runners were not executed."
+    "commit": "2bc998068458c71f9e16d8cff706109fe8afb13f",
+    "latestFocusedSlice": "2026-06-01 supervisor batch: bundle import graph, CSS Modules, CSSOM background clip, source-map VLQ offset, and target-prefix browser-boundary parity add 59 accepted assertions. Full LightningCSS lane passed 13 files / 8694 assertions / 0 failures; phpPass moves 8635 -> 8694; mapped coverage remains 2398 / 3532; Rust/Node/WASM upstream runners were not executed."
 }
