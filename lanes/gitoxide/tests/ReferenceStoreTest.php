@@ -1288,6 +1288,113 @@ return [
             (string) $store->reflogContents('refs/heads/main'),
         );
     },
+    'prepared recursive symbolic update and delete split reflogs like upstream gix ref' => static function (TestRunner $t) use ($old, $new, $other): void {
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $head = 'HEAD';
+        $intermediate = 'refs/heads/review/current';
+        $leaf = 'refs/heads/review/published';
+        $expectedNames = [$head, $intermediate, $leaf];
+        $expectedModes = [
+            ReferenceTransactionEdit::REFLOG_ONLY,
+            ReferenceTransactionEdit::REFLOG_ONLY,
+            ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
+        ];
+        $expectedUpdateFlags = [false, false, true];
+
+        $updateDir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-recursive-deref-update-' . bin2hex(random_bytes(4));
+        $updateStore = new ReferenceStore($updateDir);
+        $updateStore->looseStore()->writeSymbolic($head, $intermediate);
+        $updateStore->looseStore()->writeSymbolic($intermediate, $leaf);
+        $updateStore->looseStore()->writeDirect($leaf, $old);
+
+        $update = $updateStore->prepareLooseUpdateTransaction(
+            [$head => ReferenceTarget::object($new)],
+            'sha1',
+            $committer,
+            'recursive symbolic publish',
+            true,
+            ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+            ReferenceTarget::object($old),
+            true,
+        );
+
+        $t->same(true, is_file($updateDir . '/HEAD.lock'));
+        $t->same(true, is_file($updateDir . '/refs/heads/review/current.lock'));
+        $t->same(true, is_file($updateDir . '/refs/heads/review/published.lock'));
+
+        $updateEdits = $update->commit();
+
+        $t->same($expectedNames, array_map(static fn ($edit): string => $edit->name, $updateEdits));
+        $t->same($expectedModes, array_map(static fn ($edit): string => $edit->reflogMode, $updateEdits));
+        $t->same($expectedUpdateFlags, array_map(static fn ($edit): bool => $edit->updatesReference, $updateEdits));
+        $t->same([$intermediate, $leaf, $old], array_map(static fn ($edit): ?string => $edit->previousTarget?->value, $updateEdits));
+        $t->same([$new, $new, $new], array_map(static fn ($edit): ?string => $edit->newTarget?->value, $updateEdits));
+        $t->same(['symbolic', 'symbolic', 'object'], array_map(static fn ($edit): ?string => $edit->previousTarget?->kind, $updateEdits));
+        $t->same([false, false, false], [
+            is_file($updateDir . '/HEAD.lock'),
+            is_file($updateDir . '/refs/heads/review/current.lock'),
+            is_file($updateDir . '/refs/heads/review/published.lock'),
+        ]);
+        $t->same("ref: {$intermediate}\n", file_get_contents($updateDir . '/HEAD'));
+        $t->same("ref: {$leaf}\n", file_get_contents($updateDir . '/refs/heads/review/current'));
+        $t->same("{$new}\n", file_get_contents($updateDir . '/refs/heads/review/published'));
+        foreach ($expectedNames as $name) {
+            $t->contains(
+                "{$old} {$new} Deploy Bot <deploy@example.com> 1234 +0000\trecursive symbolic publish\n",
+                (string) $updateStore->reflogContents($name),
+                "{$name} receives the peeled leaf transition reflog",
+            );
+        }
+
+        $deleteDir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-recursive-deref-delete-' . bin2hex(random_bytes(4));
+        $deleteStore = new ReferenceStore($deleteDir);
+        $deleteStore->looseStore()->writeSymbolic($head, $intermediate);
+        $deleteStore->looseStore()->writeSymbolic($intermediate, $leaf);
+        $deleteStore->looseStore()->writeDirect($leaf, $old);
+        foreach ($expectedNames as $name) {
+            $deleteStore->appendReflog(
+                $name,
+                ReferenceTarget::object($old),
+                ReferenceTarget::object($other),
+                $committer,
+                'recursive symbolic audit',
+                true,
+            );
+        }
+
+        $delete = $deleteStore->prepareLooseDeleteTransaction(
+            [$head],
+            ReferenceStore::PREVIOUS_MUST_EXIST,
+            null,
+            true,
+            'sha1',
+            ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
+        );
+
+        $t->same(true, is_file($deleteDir . '/HEAD.lock'));
+        $t->same(true, is_file($deleteDir . '/refs/heads/review/current.lock'));
+        $t->same(true, is_file($deleteDir . '/refs/heads/review/published.lock'));
+
+        $deleteEdits = $delete->commit();
+
+        $t->same($expectedNames, array_map(static fn ($edit): string => $edit->name, $deleteEdits));
+        $t->same($expectedModes, array_map(static fn ($edit): string => $edit->reflogMode, $deleteEdits));
+        $t->same($expectedUpdateFlags, array_map(static fn ($edit): bool => $edit->updatesReference, $deleteEdits));
+        $t->same([$intermediate, $leaf, $old], array_map(static fn ($edit): ?string => $edit->previousTarget?->value, $deleteEdits));
+        $t->same([null, null, null], array_map(static fn ($edit): ?string => $edit->newTarget?->value, $deleteEdits));
+        $t->same([false, false, false], [
+            is_file($deleteDir . '/HEAD.lock'),
+            is_file($deleteDir . '/refs/heads/review/current.lock'),
+            is_file($deleteDir . '/refs/heads/review/published.lock'),
+        ]);
+        $t->same("ref: {$intermediate}\n", file_get_contents($deleteDir . '/HEAD'));
+        $t->same("ref: {$leaf}\n", file_get_contents($deleteDir . '/refs/heads/review/current'));
+        $t->same(false, is_file($deleteDir . '/refs/heads/review/published'));
+        $t->same(null, $deleteStore->tryFind($leaf));
+        foreach ($expectedNames as $name) {
+            $t->same(false, $deleteStore->reflogExists($name), "{$name} reflog is removed before references are pruned");
+        }
+    },
     'prepared deref duplicate leaf updates fail before packed refs lock acquisition like upstream' => static function (TestRunner $t) use ($old, $new, $other): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-deref-duplicate-' . bin2hex(random_bytes(4));
         mkdir($dir, 0777, true);
@@ -2105,6 +2212,33 @@ return [
             $fixture['productionCommit'] . ' ' . $fixture['reviewCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedDerefReflogMessage'],
             (string) $summary['preparedDerefProductionReflog'],
         );
+        $t->same($fixture['expectedPreparedRecursiveEditNames'], $summary['preparedRecursiveEditNames']);
+        $t->same($fixture['expectedPreparedRecursiveEditModes'], $summary['preparedRecursiveEditModes']);
+        $t->same($fixture['expectedPreparedRecursiveUpdatesReference'], $summary['preparedRecursiveUpdatesReference']);
+        $t->same(true, $summary['preparedRecursiveHadLocks']);
+        $t->same(true, $summary['preparedRecursiveCleanedLocks']);
+        $t->same($fixture['expectedPreparedRecursiveHeadContents'], $summary['preparedRecursiveHeadContents']);
+        $t->same($fixture['expectedPreparedRecursiveStageContents'], $summary['preparedRecursiveStageContents']);
+        $t->same($fixture['reviewCommit'], $summary['preparedRecursiveLeafCommit']);
+        foreach ([
+            $summary['preparedRecursiveHeadReflog'],
+            $summary['preparedRecursiveStageReflog'],
+            $summary['preparedRecursiveLeafReflog'],
+        ] as $recursiveReflog) {
+            $t->contains(
+                $fixture['productionCommit'] . ' ' . $fixture['reviewCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedRecursiveReflogMessage'],
+                (string) $recursiveReflog,
+            );
+        }
+        $t->same($fixture['expectedPreparedRecursiveEditNames'], $summary['preparedRecursiveDeleteEditNames']);
+        $t->same($fixture['expectedPreparedRecursiveEditModes'], $summary['preparedRecursiveDeleteEditModes']);
+        $t->same($fixture['expectedPreparedRecursiveUpdatesReference'], $summary['preparedRecursiveDeleteUpdatesReference']);
+        $t->same(true, $summary['preparedRecursiveDeleteHadLocks']);
+        $t->same(true, $summary['preparedRecursiveDeleteCleanedLocks']);
+        $t->same($fixture['expectedPreparedRecursiveHeadContents'], $summary['preparedRecursiveDeleteHeadContents']);
+        $t->same($fixture['expectedPreparedRecursiveStageContents'], $summary['preparedRecursiveDeleteStageContents']);
+        $t->same($fixture['expectedPreparedRecursiveDeleteLeafRefStillExists'], $summary['preparedRecursiveDeleteLeafRefStillExists']);
+        $t->same($fixture['expectedPreparedRecursiveDeleteReflogsExist'], $summary['preparedRecursiveDeleteReflogsExist']);
         $t->same($fixture['expectedPreparedQuietEditNames'], $summary['preparedQuietEditNames']);
         $t->same($fixture['expectedPreparedQuietEditModes'], $summary['preparedQuietEditModes']);
         $t->same($fixture['expectedPreparedQuietUpdatesReference'], $summary['preparedQuietUpdatesReference']);
@@ -2157,6 +2291,7 @@ return [
         $t->contains('detached HEAD preview updates loose', $summary['wordpressUse']);
         $t->contains('clone-style symbolic review pointer', $summary['wordpressUse']);
         $t->contains('dereferenced symbolic HEAD publish', $summary['wordpressUse']);
+        $t->contains('recursive symbolic tenant HEAD publishes and prunes', $summary['wordpressUse']);
         $t->contains('direct production referent publish', $summary['wordpressUse']);
         $t->contains('reject duplicate dereferenced prepared updates before waiting on packed-ref locks', $summary['wordpressUse']);
         $t->contains('quiet publish previews', $summary['wordpressUse']);

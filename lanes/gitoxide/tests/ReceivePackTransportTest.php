@@ -4555,6 +4555,28 @@ return [
             "path=wp-content.git\nprotocol=ssh\nhost=git.example.test:tenant\nusername=deploy\n",
             $nonNumericPortContext['credentialContext']->storageBytes()
         );
+        $ipv6Context = SshReceivePackTransport::connectorContext(
+            'ssh://deploy@[2001:db8::42]:2222/srv/wp-content.git',
+            ['protocolVersion' => 2],
+        );
+        $t->same('2001:db8::42', $ipv6Context['host']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@2001:db8::42'], $ipv6Context['sshArguments']);
+        $t->same(
+            ['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@2001:db8::42', 'git-receive-pack', "'/srv/wp-content.git'"],
+            $ipv6Context['sshInvocationArguments']
+        );
+        $t->same(
+            "path=srv/wp-content.git\nprotocol=ssh\nhost=[2001:db8::42]:2222\nusername=deploy\n",
+            $ipv6Context['credentialContext']->storageBytes()
+        );
+        $scpIpv6Context = SshReceivePackTransport::connectorContext(
+            '[2001:db8::42]:wp-content.git',
+            ['protocolVersion' => 2],
+        );
+        $t->same('2001:db8::42', $scpIpv6Context['host']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '2001:db8::42'], $scpIpv6Context['sshArguments']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '2001:db8::42', 'git-receive-pack', "'wp-content.git'"], $scpIpv6Context['sshInvocationArguments']);
+        $t->same("path=wp-content.git\nprotocol=ssh\nhost=[2001:db8::42]\n", $scpIpv6Context['credentialContext']->storageBytes());
         $optionLikeHostContext = SshReceivePackTransport::connectorContext('deploy@-git-proxy.example.test:wp-content.git', ['protocolVersion' => 2]);
         $t->same('-git-proxy.example.test', $optionLikeHostContext['host']);
         $t->same('deploy', $optionLikeHostContext['user']);
@@ -5096,6 +5118,8 @@ return [
         $t->same(true, in_array('GIT_DIR', $fixture['sshProtocolV2Context']['environmentRemovals'], true));
         $t->same(true, in_array('GIT_WORK_TREE', $fixture['sshProtocolV2Context']['environmentRemovals'], true));
         $t->same(false, in_array('GIT_PROTOCOL', $fixture['sshProtocolV2Context']['environmentRemovals'], true));
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@2001:db8::42'], $fixture['sshIpv6Context']['sshArguments']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '2001:db8::42'], $fixture['sshScpIpv6Context']['sshArguments']);
         $t->same('2001:db8::42', $fixture['sshScpIpv6Target']['host']);
         $t->same(null, $fixture['sshScpIpv6Target']['user']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@git.example.test'], $fixture['sshProtocolV2Context']['sshArguments']);

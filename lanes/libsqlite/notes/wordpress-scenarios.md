@@ -2365,15 +2365,15 @@ is reachable through the partial index. This maps Application SQLite images that
 use a safe partial option-name index to exclude malformed `NULL` names while
 still covering every normal Application option row.
 
-`examples/application-composite-indexed-generated-option-insert-plan.php` starts
-from a minimal `wp_options` table with a single-leaf
-`autoload, option_name COLLATE NOCASE DESC` composite index, asks
-`planOptionRowInsert()` for a bounded generated row insert, applies the
-returned table and index page images, and verifies that the new `home` option
-is reachable through `optionRowByIndexedAutoloadAndName('yes', 'HOME')`.
-This maps common Application recovery/preload flows that first constrain
-autoloaded options and then probe or sort by option name without decoding the
-whole table.
+`examples/application-composite-indexed-generated-setting-insert-plan.php`
+starts from a minimal `app_settings` table with a single-leaf
+`load_policy, key_name COLLATE NOCASE DESC` composite index, asks
+`planKeyValueRowInsert()` for a bounded generated setting insert, applies the
+returned table and index page images, and verifies that the new `landing_url`
+setting is reachable through
+`keyValueRowByIndexedLoadPolicyAndName('yes', 'LANDING_URL')`. This maps
+common application recovery/preload flows that first constrain eager-loaded
+settings and then probe or sort by key name without decoding the whole table.
 
 `examples/application-composite-indexed-option-replacement-plan.php` starts from
 a minimal `wp_options` table with the same composite index, asks
@@ -2450,16 +2450,17 @@ $optionName)`. This maps large Application SQLite fallback databases where a
 repair preflight must add a generated option without stale composite indexes
 and without invoking the SQLite extension.
 
-`examples/application-index-split-option-replacement-plan.php` starts from a
-`wp_options` table with a two-level `autoload, option_name` secondary index
-whose target `autoload='no'` leaf is full. It asks
-`planOptionRowReplace()` to rewrite an existing option from
-`autoload='yes'` to `autoload='no'`, applies the returned
+`examples/application-index-split-setting-replacement-plan.php` starts from an
+`app_settings` table with a two-level `load_policy, key_name` secondary index
+whose target `load_policy='no'` leaf is full. It asks
+`planKeyValueRowReplace()` to rewrite an existing setting from
+`load_policy='yes'` to `load_policy='no'`, applies the returned
 header/table/root/source-leaf/split-leaf page images, and verifies that the
-replaced option is reachable through
-`optionRowByIndexedAutoloadAndName('no', $optionName)`. This maps larger
-Application repair flows that disable autoload for a heavy option while keeping
-a preload-oriented composite index consistent through a same-depth leaf split.
+replaced setting is reachable through
+`keyValueRowByIndexedLoadPolicyAndName('no', $settingName)`. This maps larger
+application repair flows that disable eager loading for a heavy setting while
+keeping a preload-oriented composite index consistent through a same-depth leaf
+split.
 
 `examples/application-composite-index-parent-root-split-option-replacement-plan.php`
 starts from a larger `wp_options` table with a full two-level

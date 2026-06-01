@@ -61,7 +61,9 @@ final class TransitionPrefixer
             $css = $markedCss;
         }
 
-        $prefixed = $this->rewriteRuleList((new CssMinifier())->minify($css, preserveFontTargetFallbacks: true), false, $targetOptions);
+        $minified = (new CssMinifier())->minify($css, preserveFontTargetFallbacks: true);
+        $minified = $this->rewriteImportMediaRangeTails($minified, $targetOptions);
+        $prefixed = $this->rewriteRuleList($minified, false, $targetOptions);
 
         return $stripUnitlessLengthMathMarker && $parser !== null
             ? $parser->stripUnitlessLengthMathRangeMarkers($prefixed)
@@ -927,6 +929,105 @@ final class TransitionPrefixer
         }
 
         return '@media ' . $condition;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteImportMediaRangeTails(string $css, array $targetOptions): string
+    {
+        $lowerSimpleRanges = $targetOptions['mediaRangeSimpleNeedsFallback'] ?? false;
+        $lowerIntervalRanges = $targetOptions['mediaRangeIntervalNeedsFallback'] ?? false;
+        $usesXResolutionUnit = $targetOptions['mediaResolutionUsesXUnit'] ?? false;
+        $usesDppxResolutionUnit = $targetOptions['mediaResolutionUsesDppxUnit'] ?? false;
+        if (!$lowerSimpleRanges && !$lowerIntervalRanges && !$usesXResolutionUnit && !$usesDppxResolutionUnit) {
+            return $css;
+        }
+
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+        while ($cursor < $length) {
+            $start = $this->findNextTopLevelImportAtRule($css, $cursor);
+            if ($start === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $output .= substr($css, $cursor, $start - $cursor);
+            $end = $this->findImportStatementEnd($css, $start);
+            if ($end === null) {
+                $output .= substr($css, $start);
+                break;
+            }
+
+            $statement = substr($css, $start, $end - $start + 1);
+            $output .= $this->rewriteImportMediaRangeTail($statement, $targetOptions);
+            $cursor = $end + 1;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteImportMediaRangeTail(string $statement, array $targetOptions): string
+    {
+        if (preg_match('/^@import\b/i', $statement) !== 1 || !str_ends_with($statement, ';')) {
+            return $statement;
+        }
+
+        $body = substr($statement, 0, -1);
+        $position = strlen('@import');
+        $length = strlen($body);
+        $this->skipCssWhitespace($body, $position);
+        if ($position >= $length) {
+            return $statement;
+        }
+
+        if ($body[$position] === '"' || $body[$position] === "'") {
+            $position = $this->consumeCssStringToken($body, $position) + 1;
+        } elseif ($this->cssFunctionOpenOffset($body, $position, 'url') !== null) {
+            [, $end] = $this->readFunctionRaw($body, $position);
+            $position = $end + 1;
+        } else {
+            return $statement;
+        }
+
+        $this->skipCssWhitespace($body, $position);
+        while ($position < $length) {
+            $before = $position;
+            if ($this->consumeImportLayerModifier($body, $position)) {
+                $this->skipCssWhitespace($body, $position);
+            }
+            if ($this->consumeCssFunctionModifier($body, $position, 'supports')) {
+                $this->skipCssWhitespace($body, $position);
+            }
+            if ($position === $before) {
+                break;
+            }
+        }
+
+        $media = trim(substr($body, $position));
+        if ($media === '') {
+            return $statement;
+        }
+
+        $parser = new MediaQueryParser();
+        $media = $parser->lowerRangeSyntaxList(
+            $media,
+            $targetOptions['mediaRangeSimpleNeedsFallback'] ?? false,
+            $targetOptions['mediaRangeIntervalNeedsFallback'] ?? false
+        );
+        if ($targetOptions['mediaResolutionUsesDppxUnit'] ?? false) {
+            $media = $parser->useDppxResolutionUnitList($media);
+        }
+        if ($targetOptions['mediaResolutionUsesXUnit'] ?? false) {
+            $media = $parser->useXResolutionUnitList($media);
+        }
+
+        return rtrim(substr($body, 0, $position)) . ' ' . $media . ';';
     }
 
     /**
@@ -11663,6 +11764,85 @@ final class TransitionPrefixer
         return null;
     }
 
+    private function findNextTopLevelImportAtRule(string $css, int $start): ?int
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $braceDepth = 0;
+        $length = strlen($css);
+
+        for ($i = $start; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '{') {
+                $braceDepth++;
+            } elseif ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+            } elseif ($braceDepth === 0 && $parenDepth === 0 && strncasecmp(substr($css, $i, 7), '@import', 7) === 0) {
+                $after = $i + 7;
+                if ($after >= $length || !$this->isIdentifierChar($css[$after])) {
+                    return $i;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function findImportStatementEnd(string $css, int $start): ?int
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($css);
+
+        for ($i = $start; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === ';' && $parenDepth === 0 && $bracketDepth === 0) {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
     private function findMatchingBrace(string $css, int $open): int
     {
         $quote = null;
@@ -11830,6 +12010,82 @@ final class TransitionPrefixer
         }
 
         return $tokens;
+    }
+
+    private function skipCssWhitespace(string $value, int &$position): void
+    {
+        $length = strlen($value);
+        while ($position < $length && ctype_space($value[$position])) {
+            $position++;
+        }
+    }
+
+    private function consumeCssStringToken(string $value, int $start): int
+    {
+        $quote = $value[$start];
+        $length = strlen($value);
+        for ($i = $start + 1; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($char === '\\') {
+                $i++;
+                continue;
+            }
+            if ($char === $quote) {
+                return $i;
+            }
+        }
+
+        return $length - 1;
+    }
+
+    private function consumeImportLayerModifier(string $value, int &$position): bool
+    {
+        if ($this->cssFunctionOpenOffset($value, $position, 'layer') !== null) {
+            [, $end] = $this->readFunctionRaw($value, $position);
+            $position = $end + 1;
+            return true;
+        }
+
+        if (!$this->startsWithCssKeyword($value, $position, 'layer')) {
+            return false;
+        }
+
+        $position += strlen('layer');
+        return true;
+    }
+
+    private function consumeCssFunctionModifier(string $value, int &$position, string $name): bool
+    {
+        if ($this->cssFunctionOpenOffset($value, $position, $name) === null) {
+            return false;
+        }
+
+        [, $end] = $this->readFunctionRaw($value, $position);
+        $position = $end + 1;
+        return true;
+    }
+
+    private function cssFunctionOpenOffset(string $value, int $position, string $name): ?int
+    {
+        if (!$this->startsWithCssKeyword($value, $position, $name)) {
+            return null;
+        }
+
+        $open = $position + strlen($name);
+        $this->skipCssWhitespace($value, $open);
+
+        return isset($value[$open]) && $value[$open] === '(' ? $open : null;
+    }
+
+    private function startsWithCssKeyword(string $value, int $position, string $keyword): bool
+    {
+        $length = strlen($keyword);
+        if (strncasecmp(substr($value, $position, $length), $keyword, $length) !== 0) {
+            return false;
+        }
+
+        $after = $position + $length;
+        return !isset($value[$after]) || !$this->isIdentifierChar($value[$after]);
     }
 
     private function readIdentifier(string $value, int $start): string

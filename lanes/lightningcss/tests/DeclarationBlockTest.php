@@ -244,6 +244,7 @@ return [
     'declaration block canonicalizes upstream direct enum cssom declarations' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'color-scheme: Dark Light Only; print-color-adjust: Exact; -webkit-print-color-adjust: Economy; view-transition-name: AUTO; view-transition-class: None; view-transition-group: NEAREST; --Block-State: AUTO';
+        $customTransitions = 'view-transition-name: c\61 rd-enter; view-transition-class: nav\2d menu thumb; view-transition-group: c\61 rd-group; --View-Transition-Class: nav\2d menu';
 
         $t->same(
             [
@@ -264,6 +265,18 @@ return [
         $t->same(['value' => 'none', 'important' => false], $block->getProperty($declarations, 'view-transition-class'));
         $t->same(['value' => 'nearest', 'important' => false], $block->getProperty($declarations, 'view-transition-group'));
         $t->same(
+            [
+                'view-transition-name' => 'card-enter',
+                'view-transition-class' => 'nav-menu thumb',
+                'view-transition-group' => 'card-group',
+                '--View-Transition-Class' => 'nav\2d menu',
+            ],
+            $block->parse($customTransitions)
+        );
+        $t->same(['value' => 'card-enter', 'important' => false], $block->getProperty($customTransitions, 'view-transition-name'));
+        $t->same(['value' => 'nav-menu thumb', 'important' => false], $block->getProperty($customTransitions, 'view-transition-class'));
+        $t->same(['value' => 'card-group', 'important' => false], $block->getProperty($customTransitions, 'view-transition-group'));
+        $t->same(
             'color-scheme: dark only; print-color-adjust: exact; -webkit-print-color-adjust: economy; view-transition-name: auto; view-transition-class: none; view-transition-group: nearest; --Block-State: AUTO',
             $block->setProperty($declarations, 'color-scheme', 'ONLY DARK')
         );
@@ -278,6 +291,14 @@ return [
         $t->same(
             'color-scheme: light dark only; print-color-adjust: exact; -webkit-print-color-adjust: economy; view-transition-name: card-enter; view-transition-class: none; view-transition-group: nearest; --Block-State: AUTO',
             $block->setProperty($declarations, 'view-transition-name', 'card-enter')
+        );
+        $t->same(
+            'color: red; view-transition-class: card-enter thumb',
+            $block->setProperty('color: red', 'view-transition-class', 'c\61 rd-enter thumb')
+        );
+        $t->same(
+            'view-transition-name: card-enter; view-transition-class: nav-menu thumb; view-transition-group: hero-group; --View-Transition-Class: nav\2d menu',
+            $block->setProperty($customTransitions, 'view-transition-group', 'h\65 ro-group')
         );
         $t->same(
             'color-scheme: light dark only; print-color-adjust: exact; -webkit-print-color-adjust: economy; view-transition-name: auto; view-transition-class: none; view-transition-group: contain; --Block-State: AUTO',

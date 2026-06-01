@@ -13983,7 +13983,7 @@ final class DeclarationBlock
         }
 
         if (isset(self::VIEW_TRANSITION_KEYWORDS[$property])) {
-            return $this->normalizeKeywordDeclarationValue($value, self::VIEW_TRANSITION_KEYWORDS[$property]);
+            return $this->normalizeViewTransitionDeclarationValue($property, $value);
         }
 
         if (isset(self::UI_DIRECT_ENUM_KEYWORDS[$property])) {
@@ -14310,6 +14310,76 @@ final class DeclarationBlock
         }
 
         return implode(' ', $parts);
+    }
+
+    private function normalizeViewTransitionDeclarationValue(string $property, string $value): string
+    {
+        $trimmed = trim($value);
+        $keyword = strtolower($trimmed);
+        if (in_array($keyword, self::VIEW_TRANSITION_KEYWORDS[$property], true)) {
+            return $keyword;
+        }
+
+        if ($property === 'view-transition-class') {
+            $idents = $this->readCssCustomIdentifierList($trimmed);
+            if ($idents === null || $idents === []) {
+                return $trimmed;
+            }
+
+            foreach ($idents as $ident) {
+                if ($this->isReservedCssCustomIdentifier($ident) || strcasecmp($ident, 'none') === 0) {
+                    return $trimmed;
+                }
+            }
+
+            return implode(' ', array_map(fn (string $ident): string => $this->serializeCssIdentifier($ident), $idents));
+        }
+
+        $identifier = $this->readCssIdentifierToken($trimmed, 0);
+        if ($identifier === null || $identifier['end'] !== strlen($trimmed) || $this->isReservedCssCustomIdentifier($identifier['name'])) {
+            return $trimmed;
+        }
+
+        return $this->serializeCssIdentifier($identifier['name']);
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function readCssCustomIdentifierList(string $value): ?array
+    {
+        $idents = [];
+        $cursor = 0;
+        $length = strlen($value);
+        while ($cursor < $length) {
+            while ($cursor < $length && ctype_space($value[$cursor])) {
+                $cursor++;
+            }
+            if ($cursor >= $length) {
+                break;
+            }
+
+            $identifier = $this->readCssIdentifierToken($value, $cursor);
+            if ($identifier === null) {
+                return null;
+            }
+
+            $cursor = $identifier['end'];
+            if ($cursor < $length && !ctype_space($value[$cursor])) {
+                return null;
+            }
+
+            $idents[] = $identifier['name'];
+        }
+
+        return $idents;
+    }
+
+    private function isReservedCssCustomIdentifier(string $identifier): bool
+    {
+        $keyword = strtolower($identifier);
+
+        return in_array($keyword, ['initial', 'inherit', 'unset', 'default', 'revert', 'revert-layer'], true);
     }
 
     private function normalizeDisplayDeclarationValue(string $value): string

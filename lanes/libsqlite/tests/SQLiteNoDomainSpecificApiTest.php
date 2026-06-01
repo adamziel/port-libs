@@ -46,8 +46,8 @@ $keyValueSourceFiles = [
 ];
 $keyValueFixtureFiles = [
     $libsqliteRoot . '/examples/application-current-smoke-key-value-import.php',
-    $libsqliteRoot . '/examples/application-composite-indexed-generated-option-insert-plan.php',
-    $libsqliteRoot . '/examples/application-index-split-option-replacement-plan.php',
+    $libsqliteRoot . '/examples/application-composite-indexed-generated-setting-insert-plan.php',
+    $libsqliteRoot . '/examples/application-index-split-setting-replacement-plan.php',
     $libsqliteRoot . '/examples/application-json-upsert-migration-current-next27.php',
     $libsqliteRoot . '/examples/application-malformed-text-current-next70.php',
     $libsqliteRoot . '/examples/application-savepoint-key-value-import-diagnostics.php',
@@ -156,10 +156,27 @@ $keyValueFixtureTermMatches = static function () use ($keyValueFixtureFiles, $re
     return $matches;
 };
 
+$keyValueFixtureFilenameMatches = static function () use ($keyValueFixtureFiles, $relativePath): array {
+    $matches = [];
+    $pattern = '/wp_|wp_options|wp_sitemeta|blog_id|blogId|BlogId|option_id|option_name|option_value|option|OptionRow|optionRow|optionName|optionValue|optionId|Autoload|autoload/';
+
+    foreach ($keyValueFixtureFiles as $file) {
+        $relative = $relativePath($file);
+        if (preg_match_all($pattern, basename($relative), $fileMatches) > 0) {
+            foreach ($fileMatches[0] as $match) {
+                $matches[] = $relative . ': ' . $match;
+            }
+        }
+    }
+
+    return $matches;
+};
+
 return [
     'libsqlite source has no WordPress-named text' => static fn (TestRunner $t) => $t->same([], $sourceTextMatches()),
     'libsqlite filenames have no WordPress-specific names' => static fn (TestRunner $t) => $t->same([], $filenameMatches()),
     'libsqlite php declarations have no WordPress-specific class or method names' => static fn (TestRunner $t) => $t->same([], $domainSpecificDeclarationMatches()),
     'libsqlite key-value source API uses neutral setting names' => static fn (TestRunner $t) => $t->same([], $keyValueSourceTermMatches()),
+    'libsqlite key-value test and example filenames use neutral setting names' => static fn (TestRunner $t) => $t->same([], $keyValueFixtureFilenameMatches()),
     'libsqlite key-value tests and examples use neutral fixtures' => static fn (TestRunner $t) => $t->same([], $keyValueFixtureTermMatches()),
 ];

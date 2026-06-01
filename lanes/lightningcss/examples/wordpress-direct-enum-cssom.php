@@ -9,12 +9,16 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 $block = new DeclarationBlock();
 
 $themeDeclarations = 'color-scheme: Dark Light Only; print-color-adjust: Exact; view-transition-name: AUTO; view-transition-group: NEAREST; resize: Horizontal; user-select: Text; -webkit-user-select: NONE; appearance: SearchField; -moz-appearance: Menulist-Button; color: var(--wp--preset--color--contrast)';
+$transitionDeclarations = 'view-transition-name: c\61 rd-enter; view-transition-class: nav\2d menu thumb; view-transition-group: c\61 rd-group; color: var(--wp--preset--color--contrast)';
 
 $actual = [
     'colorScheme' => $block->getProperty($themeDeclarations, 'color-scheme'),
     'printAdjust' => $block->getProperty($themeDeclarations, 'print-color-adjust'),
     'transitionName' => $block->getProperty($themeDeclarations, 'view-transition-name'),
     'transitionGroup' => $block->getProperty($themeDeclarations, 'view-transition-group'),
+    'transitionCustomName' => $block->getProperty($transitionDeclarations, 'view-transition-name'),
+    'transitionClassList' => $block->getProperty($transitionDeclarations, 'view-transition-class'),
+    'transitionCustomGroup' => $block->getProperty($transitionDeclarations, 'view-transition-group'),
     'resizeMode' => $block->getProperty($themeDeclarations, 'resize'),
     'selectionMode' => $block->getProperty($themeDeclarations, 'user-select'),
     'webkitSelectionMode' => $block->getProperty($themeDeclarations, '-webkit-user-select'),
@@ -23,6 +27,8 @@ $actual = [
     'darkOnly' => $block->setProperty($themeDeclarations, 'color-scheme', 'ONLY DARK'),
     'economyPrint' => $block->setProperty($themeDeclarations, 'print-color-adjust', 'Economy'),
     'namedTransition' => $block->setProperty($themeDeclarations, 'view-transition-name', 'wp-nav-menu'),
+    'navigationClasses' => $block->setProperty($transitionDeclarations, 'view-transition-class', 'nav\2d menu card\2d enter'),
+    'navigationGroup' => $block->setProperty($transitionDeclarations, 'view-transition-group', 'nav\2d menu-group'),
     'blockResize' => $block->setProperty($themeDeclarations, 'resize', 'Block'),
     'disableSelection' => $block->setProperty($themeDeclarations, 'user-select', 'NONE'),
     'nativeTextareaAppearance' => $block->setProperty($themeDeclarations, 'appearance', 'TextArea'),
@@ -35,6 +41,9 @@ $expected = [
     'printAdjust' => ['value' => 'exact', 'important' => false],
     'transitionName' => ['value' => 'auto', 'important' => false],
     'transitionGroup' => ['value' => 'nearest', 'important' => false],
+    'transitionCustomName' => ['value' => 'card-enter', 'important' => false],
+    'transitionClassList' => ['value' => 'nav-menu thumb', 'important' => false],
+    'transitionCustomGroup' => ['value' => 'card-group', 'important' => false],
     'resizeMode' => ['value' => 'horizontal', 'important' => false],
     'selectionMode' => ['value' => 'text', 'important' => false],
     'webkitSelectionMode' => ['value' => 'none', 'important' => false],
@@ -43,6 +52,8 @@ $expected = [
     'darkOnly' => 'color-scheme: dark only; print-color-adjust: exact; view-transition-name: auto; view-transition-group: nearest; resize: horizontal; user-select: text; -webkit-user-select: none; appearance: searchfield; -moz-appearance: menulist-button; color: var(--wp--preset--color--contrast)',
     'economyPrint' => 'color-scheme: light dark only; print-color-adjust: economy; view-transition-name: auto; view-transition-group: nearest; resize: horizontal; user-select: text; -webkit-user-select: none; appearance: searchfield; -moz-appearance: menulist-button; color: var(--wp--preset--color--contrast)',
     'namedTransition' => 'color-scheme: light dark only; print-color-adjust: exact; view-transition-name: wp-nav-menu; view-transition-group: nearest; resize: horizontal; user-select: text; -webkit-user-select: none; appearance: searchfield; -moz-appearance: menulist-button; color: var(--wp--preset--color--contrast)',
+    'navigationClasses' => 'view-transition-name: card-enter; view-transition-class: nav-menu card-enter; view-transition-group: card-group; color: var(--wp--preset--color--contrast)',
+    'navigationGroup' => 'view-transition-name: card-enter; view-transition-class: nav-menu thumb; view-transition-group: nav-menu-group; color: var(--wp--preset--color--contrast)',
     'blockResize' => 'color-scheme: light dark only; print-color-adjust: exact; view-transition-name: auto; view-transition-group: nearest; resize: block; user-select: text; -webkit-user-select: none; appearance: searchfield; -moz-appearance: menulist-button; color: var(--wp--preset--color--contrast)',
     'disableSelection' => 'color-scheme: light dark only; print-color-adjust: exact; view-transition-name: auto; view-transition-group: nearest; resize: horizontal; user-select: none; -webkit-user-select: none; appearance: searchfield; -moz-appearance: menulist-button; color: var(--wp--preset--color--contrast)',
     'nativeTextareaAppearance' => 'color-scheme: light dark only; print-color-adjust: exact; view-transition-name: auto; view-transition-group: nearest; resize: horizontal; user-select: text; -webkit-user-select: none; appearance: textarea; -moz-appearance: menulist-button; color: var(--wp--preset--color--contrast)',

@@ -736,8 +736,8 @@ final class SshReceivePackTransport implements ReceivePackTransport
         }
 
         $arguments[] = $target['user'] === null
-            ? self::authority($target['host'], null)
-            : $target['user'] . '@' . self::authority($target['host'], null);
+            ? $target['host']
+            : $target['user'] . '@' . $target['host'];
 
         return $arguments;
     }

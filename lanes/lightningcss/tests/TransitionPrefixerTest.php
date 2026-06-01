@@ -4615,6 +4615,44 @@ CSS;
             ])
         );
     },
+    'transition prefixer maps upstream import media range tails after layer modifiers' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@import "blocks/query.css" layer(theme.blocks) (min-width:240px);@layer theme.blocks{.wp-block-query{color:#ff0}}',
+            $prefixer->prefixForTargets('@import "blocks/query.css" layer(theme.blocks) (width >= 240px); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@import "blocks/query.css" layer(theme.blocks) (min-width:100px) and (max-width:200px);@layer theme.blocks{.wp-block-query{color:#ff0}}',
+            $prefixer->prefixForTargets('@import "blocks/query.css" layer(theme.blocks) (100px <= width <= 200px); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@import "blocks/query.css" layer(theme.blocks) supports(display:grid) (min-width:240px);@layer theme.blocks{.wp-block-query{color:#ff0}}',
+            $prefixer->prefixForTargets('@import "blocks/query.css" layer(theme.blocks) supports(display: grid) (width >= 240px); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@import "blocks/query.css" layer(theme.blocks) (min-width:100px) and (max-width:200px);@layer theme.blocks{.wp-block-query{color:#ff0}}',
+            $prefixer->prefixForTargets('@import url("blocks/query.css") layer(theme.blocks) (100px <= width <= 200px); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@import "blocks/query.css" layer(theme.blocks) (width>=240px);@layer theme.blocks{.wp-block-query{color:#ff0}}',
+            $prefixer->prefixForTargets('@import "blocks/query.css" layer(theme.blocks) (width >= 240px); @layer theme.blocks { .wp-block-query { color: yellow; } }', [
+                'firefox' => 60,
+                'exclude' => ['MediaRangeSyntax'],
+            ])
+        );
+        $t->same(
+            '@import "blocks/query.css" layer(theme.blocks) (100px<=width<=200px);@layer theme.blocks{.wp-block-query{color:#ff0}}',
+            $prefixer->prefixForTargets('@import "blocks/query.css" layer(theme.blocks) (100px <= width <= 200px); @layer theme.blocks { .wp-block-query { color: yellow; } }', [
+                'firefox' => 85,
+                'exclude' => ['MediaIntervalSyntax'],
+            ])
+        );
+        $t->same(
+            '@import "blocks/density.css" layer(theme.blocks) (min-resolution:2x);@layer theme.blocks{.wp-block-query{color:#ff0}}',
+            $prefixer->prefixForTargets('@import "blocks/density.css" layer(theme.blocks) (resolution >= 2dppx); @layer theme.blocks { .wp-block-query { color: yellow; } }', ['chrome' => 95])
+        );
+    },
     'transition prefixer maps upstream negated grouped media ranges inside layers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

@@ -6366,11 +6366,11 @@ SQL execution.
 
 The direct libsqlite harness passed 181 PHP tests with 1201 assertions and 0
 failures. The new
-`examples/application-index-split-option-replacement-plan.php` script ran
+`examples/application-index-split-setting-replacement-plan.php` script ran
 successfully, reporting updated page images `[1,2,3,4,5,6]`, an index-interior
 root with 2 cells, split destination leaf counts 3 and 3, the old source leaf
-reduced to 1 cell, and indexed lookup of the replaced option through
-`optionRowByIndexedAutoloadAndName('no', $optionName)`.
+reduced to 1 cell, and indexed lookup of the replaced setting through
+`keyValueRowByIndexedLoadPolicyAndName('no', $settingName)`.
 
 Before starting a root harness for this slice, the required preflight first
 saw this worker's transient focused lane command:
@@ -6653,13 +6653,13 @@ cd .upstream-cache/libsqlite-build-port-libsqlite
 This maps rowid INSERT persistence, composite index key ordering,
 partial-index boundaries, equality-prefix planner coverage, UPDATE row rewrite
 behavior, and b-tree cell assembly boundaries used by the native bounded
-`wp_options(autoload, option_name)` insert page-image planner. The direct
+`app_settings(load_policy, key_name)` insert page-image planner. The direct
 libsqlite harness passed 172 PHP tests with 1131 assertions and 0 failures,
-and `examples/application-composite-indexed-generated-option-insert-plan.php`
+and `examples/application-composite-indexed-generated-setting-insert-plan.php`
 ran successfully, reporting updated table/index page images `[2,3]`,
-composite index records `[no, cron_lock, 2]`, `[yes, siteurl, 1]`,
-`[yes, home, 3]`, and indexed lookup of `home` through
-`optionRowByIndexedAutoloadAndName('yes', 'HOME')`.
+composite index records `[no, cache_lock, 2]`, `[yes, primary_url, 1]`,
+`[yes, landing_url, 3]`, and indexed lookup of `landing_url` through
+`keyValueRowByIndexedLoadPolicyAndName('yes', 'LANDING_URL')`.
 
 Before starting a root harness for this slice, the required preflight first
 found a short-lived active aggregate run:

@@ -80,6 +80,8 @@ final class CustomAtRuleTransformer
     /** @var callable|null */
     private $selectorVisitor = null;
 
+    private bool $suppressReturnedRuleExitVisitors = false;
+
     /** @var array<string, mixed>|callable|null */
     private $declarationVisitorConfig = null;
 
@@ -3938,12 +3940,12 @@ final class CustomAtRuleTransformer
     {
         $genericReplacement = $this->callAnyRuleExitVisitor(['type' => 'custom', 'value' => $rule]);
         if ($genericReplacement !== null) {
-            return $this->emitReplacement($genericReplacement, $parentSelectors);
+            return $this->emitReplacementFromRuleExit($genericReplacement, $parentSelectors);
         }
 
         $replacement = $this->callRuleExitVisitor($rule);
 
-        return $replacement === null ? null : $this->emitReplacement($replacement, $parentSelectors);
+        return $replacement === null ? null : $this->emitReplacementFromRuleExit($replacement, $parentSelectors);
     }
 
     /**
@@ -3954,12 +3956,12 @@ final class CustomAtRuleTransformer
     {
         $genericReplacement = $this->callAnyRuleExitVisitor(['type' => 'unknown', 'value' => $rule]);
         if ($genericReplacement !== null) {
-            return $this->emitReplacement($genericReplacement, $parentSelectors);
+            return $this->emitReplacementFromRuleExit($genericReplacement, $parentSelectors);
         }
 
         $replacement = $this->callUnknownRuleExitVisitor($rule);
 
-        return $replacement === null ? null : $this->emitReplacement($replacement, $parentSelectors);
+        return $replacement === null ? null : $this->emitReplacementFromRuleExit($replacement, $parentSelectors);
     }
 
     /**
@@ -3969,7 +3971,7 @@ final class CustomAtRuleTransformer
     {
         $genericReplacement = $this->callAnyRuleExitVisitor(array_replace($rule, ['type' => 'style']));
         if ($genericReplacement !== null) {
-            return $this->emitStyleRuleReplacement($genericReplacement, $rule);
+            return $this->emitStyleRuleReplacementFromRuleExit($genericReplacement, $rule);
         }
 
         if ($this->styleRuleExitVisitor === null) {
@@ -3978,7 +3980,7 @@ final class CustomAtRuleTransformer
 
         $replacement = ($this->styleRuleExitVisitor)($rule, $this);
 
-        return $replacement === null ? null : $this->emitStyleRuleReplacement($replacement, $rule);
+        return $replacement === null ? null : $this->emitStyleRuleReplacementFromRuleExit($replacement, $rule);
     }
 
     /**
@@ -3989,7 +3991,7 @@ final class CustomAtRuleTransformer
     {
         $genericReplacement = $this->callAnyRuleExitVisitor($rule);
         if ($genericReplacement !== null) {
-            return $this->emitReplacement($genericReplacement, $parentSelectors);
+            return $this->emitReplacementFromRuleExit($genericReplacement, $parentSelectors);
         }
 
         if ($this->mediaRuleExitVisitor === null) {
@@ -3998,7 +4000,7 @@ final class CustomAtRuleTransformer
 
         $replacement = ($this->mediaRuleExitVisitor)($rule, $this);
 
-        return $replacement === null ? null : $this->emitReplacement($replacement, $parentSelectors);
+        return $replacement === null ? null : $this->emitReplacementFromRuleExit($replacement, $parentSelectors);
     }
 
     /**
@@ -4009,7 +4011,7 @@ final class CustomAtRuleTransformer
     {
         $genericReplacement = $this->callAnyRuleExitVisitor($rule);
         if ($genericReplacement !== null) {
-            return $this->emitReplacement($genericReplacement, $parentSelectors);
+            return $this->emitReplacementFromRuleExit($genericReplacement, $parentSelectors);
         }
 
         if ($this->supportsRuleExitVisitor === null) {
@@ -4018,7 +4020,35 @@ final class CustomAtRuleTransformer
 
         $replacement = ($this->supportsRuleExitVisitor)($rule, $this);
 
-        return $replacement === null ? null : $this->emitReplacement($replacement, $parentSelectors);
+        return $replacement === null ? null : $this->emitReplacementFromRuleExit($replacement, $parentSelectors);
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     */
+    private function emitReplacementFromRuleExit(mixed $replacement, ?array $parentSelectors): string
+    {
+        $previous = $this->suppressReturnedRuleExitVisitors;
+        $this->suppressReturnedRuleExitVisitors = true;
+        try {
+            return $this->emitReplacement($replacement, $parentSelectors);
+        } finally {
+            $this->suppressReturnedRuleExitVisitors = $previous;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $fallbackRule
+     */
+    private function emitStyleRuleReplacementFromRuleExit(mixed $replacement, array $fallbackRule): string
+    {
+        $previous = $this->suppressReturnedRuleExitVisitors;
+        $this->suppressReturnedRuleExitVisitors = true;
+        try {
+            return $this->emitStyleRuleReplacement($replacement, $fallbackRule);
+        } finally {
+            $this->suppressReturnedRuleExitVisitors = $previous;
+        }
     }
 
     /**
@@ -4167,7 +4197,14 @@ final class CustomAtRuleTransformer
 
         $body = '';
         foreach ($rules as $rule) {
-            $body .= $this->emitReplacement($rule, $parentSelectors);
+            $body .= $this->emitReturnedChildRule($rule, $parentSelectors);
+        }
+
+        if (!$this->suppressReturnedRuleExitVisitors) {
+            $exitReplacement = $this->applyMediaRuleExit($this->buildVisitedMediaRule($query, $body, $parentSelectors), $parentSelectors);
+            if ($exitReplacement !== null) {
+                return $exitReplacement;
+            }
         }
 
         return '@media ' . $query . '{' . $body . '}';
@@ -4188,10 +4225,32 @@ final class CustomAtRuleTransformer
 
         $body = '';
         foreach ($rules as $rule) {
-            $body .= $this->emitReplacement($rule, $parentSelectors);
+            $body .= $this->emitReturnedChildRule($rule, $parentSelectors);
+        }
+
+        if (!$this->suppressReturnedRuleExitVisitors) {
+            $exitReplacement = $this->applySupportsRuleExit($this->buildVisitedSupportsRule($condition, $body, $parentSelectors), $parentSelectors);
+            if ($exitReplacement !== null) {
+                return $exitReplacement;
+            }
         }
 
         return '@supports ' . $condition . '{' . $body . '}';
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     */
+    private function emitReturnedChildRule(mixed $rule, ?array $parentSelectors): string
+    {
+        if (!is_array($rule)) {
+            return '';
+        }
+        if (($rule['type'] ?? null) === 'style' && isset($rule['value']) && is_array($rule['value'])) {
+            return $this->emitReturnedStyleRule($rule['value'], true);
+        }
+
+        return $this->emitReplacement($rule, $parentSelectors);
     }
 
     /**
@@ -4341,7 +4400,7 @@ final class CustomAtRuleTransformer
     /**
      * @param array<string, mixed> $value
      */
-    private function emitReturnedStyleRule(array $value): string
+    private function emitReturnedStyleRule(array $value, bool $visitDeclarations = false): string
     {
         $selectors = $this->serializeReturnedSelectors(is_array($value['selectors'] ?? null) ? $value['selectors'] : []);
         $declarations = $value['declarations'] ?? [];
@@ -4356,6 +4415,20 @@ final class CustomAtRuleTransformer
 
         if ($selectors === [] || $body === '') {
             return '';
+        }
+
+        if ($visitDeclarations) {
+            $selectors = $this->applySelectorVisitorToSelectorList($selectors);
+            if ($selectors === []) {
+                return '';
+            }
+
+            $entries = $this->processDeclarationEntries($this->declarationBlock->parseEntries($body));
+            if ($entries === []) {
+                return '';
+            }
+
+            return implode(',', $selectors) . '{' . $this->emitDeclarationEntriesBody($entries) . '}';
         }
 
         return implode(',', $selectors) . '{' . $body . '}';

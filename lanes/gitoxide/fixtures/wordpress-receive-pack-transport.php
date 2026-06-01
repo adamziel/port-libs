@@ -115,7 +115,15 @@ return [
     ),
     'sshTarget' => SshReceivePackTransport::parseRepositoryUrl('deploy@git.example.test:wp-content.git'),
     'sshIpv6Target' => SshReceivePackTransport::parseRepositoryUrl('ssh://deploy@[2001:db8::42]:2222/srv/wp-content.git'),
+    'sshIpv6Context' => SshReceivePackTransport::connectorContext(
+        'ssh://deploy@[2001:db8::42]:2222/srv/wp-content.git',
+        ['protocolVersion' => 2],
+    ),
     'sshScpIpv6Target' => SshReceivePackTransport::parseRepositoryUrl('[2001:db8::42]:wp-content.git'),
+    'sshScpIpv6Context' => SshReceivePackTransport::connectorContext(
+        '[2001:db8::42]:wp-content.git',
+        ['protocolVersion' => 2],
+    ),
     'sshLegacySchemeTarget' => SshReceivePackTransport::parseRepositoryUrl('ssh+git://deploy@git.example.test:2222/~/wp-content.git'),
     'sshLegacyGitSchemeTarget' => SshReceivePackTransport::parseRepositoryUrl('git+ssh://git.example.test:/~wp-content.git'),
     'sshScpLikeHomeTarget' => SshReceivePackTransport::parseRepositoryUrl('git.example.test:/~wp-content.git'),

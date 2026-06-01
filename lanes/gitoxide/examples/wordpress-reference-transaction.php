@@ -322,6 +322,92 @@ $preparedDerefEdits = $preparedDeref->commit();
 $preparedDerefCleanedLocks = !is_file($preparedDerefDir . '/' . $preparedDerefPrefix . 'HEAD.lock')
     && !is_file($preparedDerefDir . '/' . $preparedDerefPrefix . $fixture['preparedDerefTargetRef'] . '.lock');
 
+$preparedRecursiveDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-recursive-deref-' . bin2hex(random_bytes(4));
+$preparedRecursiveStore = new ReferenceStore($preparedRecursiveDir, null, $fixture['namespace']);
+$preparedRecursivePrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedRecursiveCommitter = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+$preparedRecursiveStore->looseStore()->writeSymbolic(
+    $preparedRecursivePrefix . $fixture['preparedRecursiveHeadRef'],
+    $preparedRecursivePrefix . $fixture['preparedRecursiveStageRef'],
+);
+$preparedRecursiveStore->looseStore()->writeSymbolic(
+    $preparedRecursivePrefix . $fixture['preparedRecursiveStageRef'],
+    $preparedRecursivePrefix . $fixture['preparedRecursiveLeafRef'],
+);
+$preparedRecursiveStore->looseStore()->writeDirect(
+    $preparedRecursivePrefix . $fixture['preparedRecursiveLeafRef'],
+    $fixture['productionCommit'],
+);
+$preparedRecursive = $preparedRecursiveStore->prepareLooseUpdateTransaction(
+    [$fixture['preparedRecursiveHeadRef'] => ReferenceTarget::object($fixture['reviewCommit'])],
+    'sha1',
+    $preparedRecursiveCommitter,
+    $fixture['preparedRecursiveReflogMessage'],
+    true,
+    ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+    ReferenceTarget::object($fixture['productionCommit']),
+    true,
+);
+$preparedRecursiveHeadPath = $preparedRecursiveDir . '/' . $preparedRecursivePrefix . $fixture['preparedRecursiveHeadRef'];
+$preparedRecursiveStagePath = $preparedRecursiveDir . '/' . $preparedRecursivePrefix . $fixture['preparedRecursiveStageRef'];
+$preparedRecursiveLeafPath = $preparedRecursiveDir . '/' . $preparedRecursivePrefix . $fixture['preparedRecursiveLeafRef'];
+$preparedRecursiveHadLocks = is_file($preparedRecursiveHeadPath . '.lock')
+    && is_file($preparedRecursiveStagePath . '.lock')
+    && is_file($preparedRecursiveLeafPath . '.lock');
+$preparedRecursiveEdits = $preparedRecursive->commit();
+$preparedRecursiveCleanedLocks = !is_file($preparedRecursiveHeadPath . '.lock')
+    && !is_file($preparedRecursiveStagePath . '.lock')
+    && !is_file($preparedRecursiveLeafPath . '.lock');
+
+$preparedRecursiveDeleteDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-recursive-deref-delete-' . bin2hex(random_bytes(4));
+$preparedRecursiveDeleteStore = new ReferenceStore($preparedRecursiveDeleteDir, null, $fixture['namespace']);
+$preparedRecursiveDeletePrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedRecursiveDeleteCommitter = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+$preparedRecursiveDeleteStore->looseStore()->writeSymbolic(
+    $preparedRecursiveDeletePrefix . $fixture['preparedRecursiveHeadRef'],
+    $preparedRecursiveDeletePrefix . $fixture['preparedRecursiveStageRef'],
+);
+$preparedRecursiveDeleteStore->looseStore()->writeSymbolic(
+    $preparedRecursiveDeletePrefix . $fixture['preparedRecursiveStageRef'],
+    $preparedRecursiveDeletePrefix . $fixture['preparedRecursiveLeafRef'],
+);
+$preparedRecursiveDeleteStore->looseStore()->writeDirect(
+    $preparedRecursiveDeletePrefix . $fixture['preparedRecursiveLeafRef'],
+    $fixture['productionCommit'],
+);
+foreach ([
+    $fixture['preparedRecursiveHeadRef'],
+    $fixture['preparedRecursiveStageRef'],
+    $fixture['preparedRecursiveLeafRef'],
+] as $preparedRecursiveDeleteRef) {
+    $preparedRecursiveDeleteStore->appendReflog(
+        $preparedRecursiveDeleteRef,
+        ReferenceTarget::object($fixture['productionCommit']),
+        ReferenceTarget::object($fixture['reviewCommit']),
+        $preparedRecursiveDeleteCommitter,
+        $fixture['preparedRecursiveDeleteReflogMessage'],
+        true,
+    );
+}
+$preparedRecursiveDelete = $preparedRecursiveDeleteStore->prepareLooseDeleteTransaction(
+    [$fixture['preparedRecursiveHeadRef']],
+    ReferenceStore::PREVIOUS_MUST_EXIST,
+    null,
+    true,
+    'sha1',
+    ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
+);
+$preparedRecursiveDeleteHeadPath = $preparedRecursiveDeleteDir . '/' . $preparedRecursiveDeletePrefix . $fixture['preparedRecursiveHeadRef'];
+$preparedRecursiveDeleteStagePath = $preparedRecursiveDeleteDir . '/' . $preparedRecursiveDeletePrefix . $fixture['preparedRecursiveStageRef'];
+$preparedRecursiveDeleteLeafPath = $preparedRecursiveDeleteDir . '/' . $preparedRecursiveDeletePrefix . $fixture['preparedRecursiveLeafRef'];
+$preparedRecursiveDeleteHadLocks = is_file($preparedRecursiveDeleteHeadPath . '.lock')
+    && is_file($preparedRecursiveDeleteStagePath . '.lock')
+    && is_file($preparedRecursiveDeleteLeafPath . '.lock');
+$preparedRecursiveDeleteEdits = $preparedRecursiveDelete->commit();
+$preparedRecursiveDeleteCleanedLocks = !is_file($preparedRecursiveDeleteHeadPath . '.lock')
+    && !is_file($preparedRecursiveDeleteStagePath . '.lock')
+    && !is_file($preparedRecursiveDeleteLeafPath . '.lock');
+
 $preparedQuietDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-quiet-lock-' . bin2hex(random_bytes(4));
 $preparedQuietStore = new ReferenceStore($preparedQuietDir, null, $fixture['namespace'], ReferenceStore::WRITE_REFLOG_DISABLE);
 $preparedQuietPrefix = ReferenceName::expandNamespace($fixture['namespace']);
@@ -583,6 +669,30 @@ return [
     'preparedDerefProductionCommit' => $preparedDerefStore->find($fixture['preparedDerefTargetRef'])->targetObjectId(),
     'preparedDerefHeadReflog' => $preparedDerefStore->reflogContents($fixture['preparedDerefHeadRef']),
     'preparedDerefProductionReflog' => $preparedDerefStore->reflogContents($fixture['preparedDerefTargetRef']),
+    'preparedRecursiveEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedRecursiveEdits),
+    'preparedRecursiveEditModes' => array_map(static fn ($edit): string => $edit->reflogMode, $preparedRecursiveEdits),
+    'preparedRecursiveUpdatesReference' => array_map(static fn ($edit): bool => $edit->updatesReference, $preparedRecursiveEdits),
+    'preparedRecursiveHadLocks' => $preparedRecursiveHadLocks,
+    'preparedRecursiveCleanedLocks' => $preparedRecursiveCleanedLocks,
+    'preparedRecursiveHeadContents' => file_get_contents($preparedRecursiveHeadPath),
+    'preparedRecursiveStageContents' => file_get_contents($preparedRecursiveStagePath),
+    'preparedRecursiveLeafCommit' => $preparedRecursiveStore->find($fixture['preparedRecursiveLeafRef'])->targetObjectId(),
+    'preparedRecursiveHeadReflog' => $preparedRecursiveStore->reflogContents($fixture['preparedRecursiveHeadRef']),
+    'preparedRecursiveStageReflog' => $preparedRecursiveStore->reflogContents($fixture['preparedRecursiveStageRef']),
+    'preparedRecursiveLeafReflog' => $preparedRecursiveStore->reflogContents($fixture['preparedRecursiveLeafRef']),
+    'preparedRecursiveDeleteEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedRecursiveDeleteEdits),
+    'preparedRecursiveDeleteEditModes' => array_map(static fn ($edit): string => $edit->reflogMode, $preparedRecursiveDeleteEdits),
+    'preparedRecursiveDeleteUpdatesReference' => array_map(static fn ($edit): bool => $edit->updatesReference, $preparedRecursiveDeleteEdits),
+    'preparedRecursiveDeleteHadLocks' => $preparedRecursiveDeleteHadLocks,
+    'preparedRecursiveDeleteCleanedLocks' => $preparedRecursiveDeleteCleanedLocks,
+    'preparedRecursiveDeleteHeadContents' => file_get_contents($preparedRecursiveDeleteHeadPath),
+    'preparedRecursiveDeleteStageContents' => file_get_contents($preparedRecursiveDeleteStagePath),
+    'preparedRecursiveDeleteLeafRefStillExists' => $preparedRecursiveDeleteStore->tryFind($fixture['preparedRecursiveLeafRef']) !== null,
+    'preparedRecursiveDeleteReflogsExist' => [
+        $preparedRecursiveDeleteStore->reflogExists($fixture['preparedRecursiveHeadRef']),
+        $preparedRecursiveDeleteStore->reflogExists($fixture['preparedRecursiveStageRef']),
+        $preparedRecursiveDeleteStore->reflogExists($fixture['preparedRecursiveLeafRef']),
+    ],
     'preparedQuietEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedQuietEdits),
     'preparedQuietEditModes' => array_map(static fn ($edit): string => $edit->reflogMode, $preparedQuietEdits),
     'preparedQuietUpdatesReference' => array_map(static fn ($edit): bool => $edit->updatesReference, $preparedQuietEdits),

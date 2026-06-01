@@ -2165,6 +2165,79 @@ CSS;
         $t->same('style', $seenBodyRules[0]['type']);
         $t->same('m-1', $seenBodyRules[0]['value']['selectors'][0][0]['name']);
     },
+    'custom at-rules visit upstream returned media replacement children before exit visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'lengths' => [],
+            'mediaExit' => null,
+        ];
+        $css = <<<'CSS'
+@viewport-fix {
+  .wp-block-cover {
+    width: 16px;
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'viewport-fix' => [
+                'prelude' => null,
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'viewport-fix' => static fn (array $rule): array => [
+                        'type' => 'media',
+                        'value' => [
+                            'query' => [
+                                'mediaQueries' => [
+                                    ['raw' => '(min-width: 40rem)'],
+                                ],
+                            ],
+                            'rules' => $rule['bodyRules'],
+                        ],
+                    ],
+                ],
+            ],
+            'Length' => static function (array $length) use (&$seen): ?array {
+                $seen['lengths'][] = $length;
+                if (($length['unit'] ?? null) !== 'px') {
+                    return null;
+                }
+
+                return [
+                    'unit' => 'rem',
+                    'value' => ((float) $length['value']) / 16,
+                ];
+            },
+            'RuleExit' => [
+                'media' => static function (array $rule) use (&$seen): array {
+                    $seen['mediaExit'] = [
+                        'type' => $rule['type'] ?? null,
+                        'declaration' => $rule['value']['rules'][0]['value']['declarations']['declarations'][0] ?? null,
+                    ];
+                    $rule['value']['query']['mediaQueries'][0]['raw'] = '(min-width: 48rem)';
+
+                    return $rule;
+                },
+            ],
+        ]);
+
+        $t->same('@media (width>=48rem){.wp-block-cover{width:1rem}}', $result);
+        $pxLengths = array_values(array_filter(
+            $seen['lengths'],
+            static fn (array $length): bool => ($length['unit'] ?? null) === 'px',
+        ));
+        $t->same([
+            ['unit' => 'px', 'value' => 16.0],
+        ], $pxLengths);
+        $t->same('media', $seen['mediaExit']['type']);
+        $t->same([
+            'property' => 'width',
+            'raw' => '1rem',
+            'important' => false,
+        ], $seen['mediaExit']['declaration']);
+    },
     'custom at-rules emit upstream returned style and ignored rule objects' => static function (TestRunner $t): void {
         $result = (new CustomAtRuleTransformer())->transform('@skip unused; @tailwind base; .keep { color: red; }', [
             'skip' => [
