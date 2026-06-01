@@ -228,6 +228,38 @@ return [
         $t->same(strtolower($newSha256), $status->newObject);
         $t->same(true, $status->hasReportOption());
     },
+    'ignores malformed report-status-v2 object-id option values like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
+        $validOld = str_repeat('C', 40);
+        $validNew = str_repeat('D', 64);
+        $response = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/wp-release accepted by proc-receive\n")
+            . $packet("option old-oid {$validOld}\n")
+            . $packet("option new-oid not-a-hex-object deployment hook diagnostic\n")
+            . $packet('option old-oid ' . str_repeat('f', 63) . "\n")
+            . $packet("option new-oid {$validNew} accepted by deployment hook\n")
+            . $flush
+        );
+        $invalidOnly = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/wp-preview accepted without object details\n")
+            . $packet("option old-oid not-a-hex-object\n")
+            . $packet('option new-oid ' . str_repeat('e', 63) . "\n")
+            . $flush
+        )->forExpectedRefNames(['refs/for/wp-preview']);
+        $status = $response->refStatuses()[0];
+        $invalidOnlyStatus = $invalidOnly->refStatuses()[0];
+
+        $t->same(true, $response->isSuccessful());
+        $t->same('refs/for/wp-release', $status->refName);
+        $t->same(strtolower($validOld), $status->oldObject);
+        $t->same(strtolower($validNew), $status->newObject);
+        $t->same(true, $status->hasReportOption());
+        $t->same(true, $invalidOnly->isSuccessful());
+        $t->same(null, $invalidOnlyStatus->oldObject);
+        $t->same(null, $invalidOnlyStatus->newObject);
+        $t->same(true, $invalidOnlyStatus->hasReportOption());
+    },
     'accepts valueless report-status-v2 options like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
         $response = PushResponse::fromReportStatusPacketLines(
             $packet("unpack ok\n")
@@ -553,7 +585,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("ok refs/heads/main\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet("option refname refs/heads/main\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet("ok main\n") . $flush));
-        $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet('ok refs/heads/main' . "\n") . $packet('option old-oid ' . str_repeat('f', 63) . "\n") . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => new PushRefStatus(PushRefStatus::OK, 'refs/heads/main', null, null, str_repeat('f', 63)));
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet("ok refs/heads/main\n") . $packet("option fall-through true\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet("ok refs/heads/main\n") . $packet("option fall-through\n") . $packet("option fall-through\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet("ng refs/heads/main rejected\n") . $packet("option fall-through\n") . $flush));
@@ -600,6 +632,7 @@ return [
         $valuelessOption = PushResponse::fromReportStatusPacketLines($fixture['valuelessOptionResponse'])
             ->forExpectedRefNames([$fixture['valuelessOptionRef']['requested']])
             ->refStatuses()[0];
+        $malformedObjectOption = PushResponse::fromReportStatusPacketLines($fixture['malformedObjectOptionResponse'])->refStatuses()[0];
         $emptyUnpackStatus = PushResponse::fromReportStatusPacketLines($fixture['emptyUnpackStatusResponse']);
 
         $t->same(true, $response->isSuccessful());
@@ -634,6 +667,10 @@ return [
         $t->same(null, $valuelessOption->oldObject);
         $t->same(null, $valuelessOption->newObject);
         $t->same(true, $valuelessOption->hasReportOption());
+        $t->same($fixture['malformedObjectOptionRef']['requested'], $malformedObjectOption->refName);
+        $t->same($fixture['malformedObjectOptionRef']['oldObject'], $malformedObjectOption->oldObject);
+        $t->same($fixture['malformedObjectOptionRef']['newObject'], $malformedObjectOption->newObject);
+        $t->same(true, $malformedObjectOption->hasReportOption());
         $t->same('', $emptyUnpackStatus->unpackStatus());
         $t->same(false, $emptyUnpackStatus->unpackOk());
         $t->same($fixture['emptyUnpackStatusRef']['message'], $emptyUnpackStatus->rejectedRefs()[0]->message);
@@ -679,6 +716,7 @@ return [
         $t->same(true, $summary['responseEndTerminatedAccepted']);
         $t->same(true, $summary['delimiterTerminatedAccepted']);
         $t->same(true, $summary['valuelessReportStatusOptionsAccepted']);
+        $t->same(true, $summary['malformedObjectOptionsIgnored']);
         $t->same(true, $summary['emptyUnpackStatusRejected']);
     },
 ];

@@ -506,6 +506,20 @@ return [
         $t->same('@layer blocks{@media (width>=240px){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (width >= 240px), { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media screen and not (color){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media screen and not (color) { .foo { color: yellow } } }'));
     },
+    'media query parser flattens upstream redundant boolean wrappers inside layers' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+        $minifier = new CssMinifier();
+
+        $t->same('(hover) and (color) and (width>=1px)', $parser->minifyList('((hover) and ((color) and (width >= 1px)))'));
+        $t->same('(hover) or (color) or (width>=1px)', $parser->minifyList('((hover) or ((color) or (width >= 1px)))'));
+        $t->same('(hover) and ((color) or (width>=1px))', $parser->minifyList('((hover) and ((color) or (width >= 1px)))'));
+        $t->same('(hover) or ((color) and (width>=1px))', $parser->minifyList('((hover) or ((color) and (width >= 1px)))'));
+        $t->same('screen and (hover) and (color) and (width>=1px)', $parser->minifyList('screen and ((hover) and ((color) and (width >= 1px)))'));
+        $t->same('screen and ((hover) or ((color) and (width>=1px)))', $parser->minifyList('screen and ((hover) or ((color) and (width >= 1px)))'));
+        $t->same('not (color)', $parser->minifyList('(not ((color)))'));
+        $t->same('@layer blocks{@media (hover) and (color) and (width>=1px){.foo{color:#ff0}}}', $minifier->minify('@layer blocks { @media ((hover) and ((color) and (width >= 1px))) { .foo { color: yellow } } }'));
+        $t->same('@layer blocks{@media screen and ((hover) or ((color) and (width>=1px))){.foo{color:#ff0}}}', $minifier->minify('@layer blocks { @media screen and ((hover) or ((color) and (width >= 1px))) { .foo { color: yellow } } }'));
+    },
     'css minifier treats comments as media query token separators inside layers' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

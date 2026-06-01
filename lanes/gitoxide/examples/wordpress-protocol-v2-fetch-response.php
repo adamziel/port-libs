@@ -28,6 +28,7 @@ $sidebandAllResponseEndResponse = FetchResponse::fromV2PacketLines(
         return true;
     }
 );
+$trailingWhitespaceResponse = FetchResponse::fromV2PacketLines($fixture['trailingWhitespaceResponse'], true);
 $smartHttpUploadPackResponse = FetchResponse::fromSmartHttpUploadPackResult($fixture['smartHttpUploadPackResponse']);
 $uploadPackError = null;
 try {
@@ -156,6 +157,15 @@ return [
         && $sidebandAllResponseEndResponse->errorMessages() === ['remote: deployment warning before pack']
         && $sidebandAllResponseEndResponse->terminator() === 'response-end',
     'sidebandAllResponseEndMessages' => $sidebandAllResponseEndMessages,
+    'trailingWhitespaceParsed' => $trailingWhitespaceResponse->hasPack()
+        && $trailingWhitespaceResponse->acknowledgements()[0]->object === $fixture['objects']['installed']
+        && $trailingWhitespaceResponse->acknowledgements()[1]->kind === 'ready'
+        && $trailingWhitespaceResponse->shallowUpdates()[0]->object === $fixture['objects']['main']
+        && $trailingWhitespaceResponse->wantedRefs()[0]->path === 'refs/heads/main'
+        && $trailingWhitespaceResponse->wantedRefs()[0]->object === $fixture['objects']['main']
+        && $trailingWhitespaceResponse->packData() === $fixture['packData']
+        && $trailingWhitespaceResponse->remoteProgress()[0]->percent === 100,
+    'trailingWhitespacePackTrailer' => bin2hex(substr($trailingWhitespaceResponse->packData(), -20)),
     'smartHttpUploadPackParsed' => $smartHttpUploadPackResponse->packData() === $fixture['packData']
         && count($smartHttpUploadPackResponse->acknowledgements()) === 3
         && $smartHttpUploadPackResponse->progressMessages() === ['Counting objects: 100% (1/1)' . "\r" . 'Counting objects: 100% (1/1), done.'],

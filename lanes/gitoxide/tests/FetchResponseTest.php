@@ -457,6 +457,41 @@ return [
         ], $response->progressMessages());
         $t->same(['remote: warning: reused promisor pack'], $response->errorMessages());
     },
+    'trims protocol v2 sideband-all response section lines like gix-protocol' => static function (TestRunner $t) use ($packet, $delimiter, $flush): void {
+        $main = '73a6868963993a3328e7d8fe94e5a6ac5078a944';
+        $installed = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $pack = 'PACK' . pack('N', 2) . pack('N', 1) . 'trimmed-fetch';
+
+        $response = FetchResponse::fromV2PacketLines(
+            $packet("\x01acknowledgments \t\r\n")
+            . $packet("\x01ACK {$installed} common \t\r\n")
+            . $packet("\x01ready \t\r\n")
+            . $delimiter
+            . $packet("\x01shallow-info \t\r\n")
+            . $packet("\x01shallow {$main} \t\r\n")
+            . $delimiter
+            . $packet("\x01wanted-refs \t\r\n")
+            . $packet("\x01{$main} refs/heads/main \t\r\n")
+            . $delimiter
+            . $packet("\x01packfile \t\r\n")
+            . $packet("\x02Counting objects: 100% (1/1) \t\r\n")
+            . $packet("\x01" . $pack)
+            . $flush,
+            true
+        );
+
+        $t->same(true, $response->hasPack());
+        $t->same(FetchAcknowledgement::COMMON, $response->acknowledgements()[0]->kind);
+        $t->same($installed, $response->acknowledgements()[0]->object);
+        $t->same(FetchAcknowledgement::READY, $response->acknowledgements()[1]->kind);
+        $t->same(FetchShallowUpdate::SHALLOW, $response->shallowUpdates()[0]->kind);
+        $t->same($main, $response->shallowUpdates()[0]->object);
+        $t->same('refs/heads/main', $response->wantedRefs()[0]->path);
+        $t->same($main, $response->wantedRefs()[0]->object);
+        $t->same($pack, $response->packData());
+        $t->same(["Counting objects: 100% (1/1) \t\r"], $response->progressMessages());
+        $t->same(100, $response->remoteProgress()[0]->percent);
+    },
     'maps remote progress chunks like gix-protocol sideband readers' => static function (TestRunner $t): void {
         $counting = RemoteProgress::fromText("Counting objects:  25% (1/4)\rCounting objects:  50% (2/4)\r");
         $enumerating = RemoteProgress::fromText('Enumerating objects: 4, done.');
@@ -784,6 +819,8 @@ return [
             ['isError' => false, 'text' => 'remote: response-end aware negotiation'],
             ['isError' => true, 'text' => 'remote: deployment warning before pack'],
         ], $summary['sidebandAllResponseEndMessages']);
+        $t->same(true, $summary['trailingWhitespaceParsed']);
+        $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['trailingWhitespacePackTrailer']);
         $t->same($fixture['packData'], $smartHttpUploadPackResponse->packData());
         $t->same(['Counting objects: 100% (1/1)' . "\r" . 'Counting objects: 100% (1/1), done.'], $smartHttpUploadPackResponse->progressMessages());
         $t->same(true, $summary['smartHttpUploadPackParsed']);

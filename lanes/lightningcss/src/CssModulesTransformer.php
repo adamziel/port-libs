@@ -2200,12 +2200,12 @@ final class CssModulesTransformer
                 );
                 $ofKeyword = $this->findNthChildOfKeyword($inner);
                 if ($ofKeyword === null) {
-                    $output .= ':' . $nthChildSelectorFunction['rawName'] . '(' . $inner . ')';
+                    $output .= ':' . $nthChildSelectorFunction['rawName'] . '(' . $this->minifyNthChildFormula($inner) . ')';
                     $i = $nthChildSelectorFunction['close'];
                     continue;
                 }
 
-                $formula = trim(substr($inner, 0, $ofKeyword['start']));
+                $formula = $this->minifyNthChildFormula(substr($inner, 0, $ofKeyword['start']));
                 $selectorList = substr($inner, $ofKeyword['end']);
                 $output .= ':'
                     . $nthChildSelectorFunction['rawName']
@@ -2520,6 +2520,63 @@ final class CssModulesTransformer
             'open' => $token['end'],
             'close' => $this->findMatchingParen($selector, $token['end']),
         ];
+    }
+
+    private function minifyNthChildFormula(string $formula): string
+    {
+        $formula = strtolower(trim(preg_replace('/\s+/', '', $formula) ?? $formula));
+        if ($formula === '') {
+            return '';
+        }
+
+        if ($formula === 'odd') {
+            return 'odd';
+        }
+
+        if ($formula === 'even') {
+            return '2n';
+        }
+
+        if (preg_match('/^([+-]?)(\d*)n(?:([+-])(\d+))?$/', $formula, $matches) === 1) {
+            $coefficient = $matches[2] === '' ? 1 : (int) $matches[2];
+            if (($matches[1] ?? '') === '-') {
+                $coefficient *= -1;
+            }
+
+            $offset = 0;
+            if (($matches[3] ?? '') !== '') {
+                $offset = (int) $matches[4];
+                if ($matches[3] === '-') {
+                    $offset *= -1;
+                }
+            }
+
+            if ($coefficient === 0) {
+                return (string) $offset;
+            }
+
+            if ($coefficient === 2 && $offset === 1) {
+                return 'odd';
+            }
+
+            $output = match ($coefficient) {
+                1 => 'n',
+                -1 => '-n',
+                default => $coefficient . 'n',
+            };
+
+            if ($offset === 0) {
+                return $output;
+            }
+
+            return $output . ($offset > 0 ? '+' : '') . $offset;
+        }
+
+        if (preg_match('/^[+-]?\d+$/', $formula) === 1) {
+            return (string) (int) $formula;
+        }
+
+        return $formula;
     }
 
     /**

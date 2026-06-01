@@ -1175,7 +1175,7 @@ CSS,
     },
     'css bundler maps upstream media range conjunctions through layered import graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
-            '@media ((width>=250px) or (color)) and (orientation:landscape){@layer theme.blocks{.c{color:green}}}@media ((width>=250px) or (color)){@layer theme.blocks{.b{color:#00f}}}.a{color:red}',
+            '@media ((width>=250px) or (color)) and (orientation:landscape){@layer theme.blocks{.c{color:green}}}@media (width>=250px) or (color){@layer theme.blocks{.b{color:#00f}}}.a{color:red}',
             $bundle([
                 '/a.css' => '@import "b.css" layer(theme.blocks) ((min-width: 250px) or (color)); .a { color: red }',
                 '/b.css' => '@import "c.css" (orientation: landscape); .b { color: blue }',

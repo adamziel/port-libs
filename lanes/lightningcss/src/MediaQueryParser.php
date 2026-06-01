@@ -1321,8 +1321,11 @@ final class MediaQueryParser
     {
         $query = preg_replace('/\bnot\s*\(/i', 'not (', $query) ?? $query;
         $query = $this->simplifyNotWrappedConditions($query);
-        $query = $this->flattenRedundantBooleanGroups($query, 'and');
-        $query = $this->flattenRedundantBooleanGroups($query, 'or');
+        do {
+            $previous = $query;
+            $query = $this->flattenRedundantBooleanGroups($query, 'and');
+            $query = $this->flattenRedundantBooleanGroups($query, 'or');
+        } while ($query !== $previous);
 
         return $this->normalizeWhitespace($query);
     }
@@ -1449,7 +1452,10 @@ final class MediaQueryParser
     {
         $mediaPrefix = $this->extractExplicitMediaTypePrefix($query);
         if ($mediaPrefix !== null) {
-            $condition = $this->collapseSingleFeatureWrapper($mediaPrefix['condition']);
+            $condition = $this->collapseRedundantConditionWrappers(
+                $mediaPrefix['condition'],
+                $mediaPrefix['qualifier'] !== null || $mediaPrefix['type'] !== 'all'
+            );
             if ($mediaPrefix['qualifier'] === null && $mediaPrefix['type'] === 'all') {
                 return $this->collapseAllMediaConditionWrapper($condition);
             }
@@ -1461,7 +1467,7 @@ final class MediaQueryParser
             return $prefix . ' and ' . $condition;
         }
 
-        return $this->collapseSingleFeatureWrapper($query);
+        return $this->collapseRedundantConditionWrappers($query, false);
     }
 
     /**
@@ -1593,6 +1599,53 @@ final class MediaQueryParser
         }
 
         return $condition;
+    }
+
+    private function collapseRedundantConditionWrappers(string $condition, bool $preserveTopLevelOr): string
+    {
+        $condition = trim($condition);
+        do {
+            $previous = $condition;
+            $condition = $this->collapseSingleFeatureWrapper($condition);
+            $unwrapped = $this->unwrapSingleParenthesizedValue($condition);
+            if ($unwrapped === null) {
+                continue;
+            }
+
+            $inner = $this->normalizeBooleanConditionGroups(trim($unwrapped));
+            $rootOperator = $this->topLevelLogicalRoot($inner);
+            if ($rootOperator !== null) {
+                if ($preserveTopLevelOr && $rootOperator === 'or') {
+                    return '(' . $inner . ')';
+                }
+
+                $condition = $inner;
+                continue;
+            }
+
+            if (preg_match('/^not\s+(.+)$/i', $inner, $matches) !== 1) {
+                continue;
+            }
+
+            $tail = trim($matches[1]);
+            if ($this->isSingleParenthesizedCondition($tail)) {
+                $condition = 'not ' . $this->collapseSingleFeatureWrapper($tail);
+            }
+        } while ($condition !== $previous);
+
+        return $condition;
+    }
+
+    private function topLevelLogicalRoot(string $condition): ?string
+    {
+        if ($this->splitTopLevelLogical($condition, 'or') !== null) {
+            return 'or';
+        }
+        if ($this->splitTopLevelLogical($condition, 'and') !== null) {
+            return 'and';
+        }
+
+        return null;
     }
 
     private function invertSimpleRangeFeature(string $feature): ?string

@@ -20,7 +20,7 @@ final class FetchWantedRef
 
     public static function fromLine(string $line): self
     {
-        $line = rtrim($line, "\r\n");
+        $line = rtrim($line, " \t\n\r\v\f");
         [$object, $path] = array_pad(explode(' ', $line, 2), 2, null);
         if ($path === null) {
             throw new \InvalidArgumentException("fetch response: unknown line prefix in {$line}");

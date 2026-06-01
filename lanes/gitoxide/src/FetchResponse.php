@@ -54,7 +54,7 @@ final class FetchResponse
                 self::throwUploadPackError($packet['payload']);
             }
 
-            $header = rtrim($packet['payload'], "\r\n");
+            $header = self::trimProtocolLineEnd($packet['payload']);
             if ($header === 'acknowledgments') {
                 $terminator = self::parseV2Section($bytes, $offset, $acknowledgements, FetchAcknowledgement::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $progressHandler);
                 if ($terminator !== null) {
@@ -506,5 +506,10 @@ final class FetchResponse
     private static function trimOneTrailingNewline(string $data): string
     {
         return str_ends_with($data, "\n") ? substr($data, 0, -1) : $data;
+    }
+
+    private static function trimProtocolLineEnd(string $line): string
+    {
+        return rtrim($line, " \t\n\r\v\f");
     }
 }

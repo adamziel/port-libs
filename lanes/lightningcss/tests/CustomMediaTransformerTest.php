@@ -96,7 +96,7 @@ CSS;
 CSS;
 
         $t->same(
-            '@import "./blocks/query.css" supports(display:grid) screen and (width>=782px);@import "./blocks/touch.css" ((pointer:coarse) or (hover:none));@media (width>=782px){.wp-block-query{color:#ff0}}',
+            '@import "./blocks/query.css" supports(display:grid) screen and (width>=782px);@import "./blocks/touch.css" (pointer:coarse) or (hover:none);@media (width>=782px){.wp-block-query{color:#ff0}}',
             $transformAndMinify($css)
         );
     },

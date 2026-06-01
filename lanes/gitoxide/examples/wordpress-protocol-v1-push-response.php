@@ -16,6 +16,7 @@ $emptyRejectionResponse = PushResponse::fromReportStatusPacketLines($fixture['em
 $emptyUnpackStatusResponse = PushResponse::fromReportStatusPacketLines($fixture['emptyUnpackStatusResponse']);
 $valuelessOptionResponse = PushResponse::fromReportStatusPacketLines($fixture['valuelessOptionResponse'])
     ->forExpectedRefNames([$fixture['valuelessOptionRef']['requested']]);
+$malformedObjectOptionResponse = PushResponse::fromReportStatusPacketLines($fixture['malformedObjectOptionResponse']);
 $expectedFilteredResponse = PushResponse::fromReportStatusPacketLines($fixture['expectedFilterResponse'])
     ->forExpectedRefNames($fixture['expectedRefNames']);
 $multiReportResponse = PushResponse::fromReportStatusPacketLines($fixture['multiReportResponse'])
@@ -135,6 +136,16 @@ return [
         ],
         $valuelessOptionResponse->refStatuses()
     ),
+    'malformedObjectOptionRefs' => array_map(
+        static fn (PushRefStatus $status): array => [
+            'requestedRef' => $status->refName,
+            'status' => $status->status,
+            'oldObject' => $status->oldObject,
+            'newObject' => $status->newObject,
+            'hasReportOption' => $status->hasReportOption(),
+        ],
+        $malformedObjectOptionResponse->refStatuses()
+    ),
     'expectedFilteredRefs' => array_map(
         static fn (PushRefStatus $status): array => [
             'requestedRef' => $status->refName,
@@ -194,6 +205,10 @@ return [
         && $valuelessOptionResponse->refStatuses()[0]->oldObject === null
         && $valuelessOptionResponse->refStatuses()[0]->newObject === null
         && $valuelessOptionResponse->refStatuses()[0]->hasReportOption(),
+    'malformedObjectOptionsIgnored' => $malformedObjectOptionResponse->isSuccessful()
+        && $malformedObjectOptionResponse->refStatuses()[0]->oldObject === $fixture['malformedObjectOptionRef']['oldObject']
+        && $malformedObjectOptionResponse->refStatuses()[0]->newObject === $fixture['malformedObjectOptionRef']['newObject']
+        && $malformedObjectOptionResponse->refStatuses()[0]->hasReportOption(),
     'expectedUnknownStatusIgnored' => count($expectedFilteredResponse->refStatuses()) === 2,
     'expectedLastStatusWon' => $expectedFilteredResponse->refStatuses()[0]->message === 'post-update hook accepted',
     'multiReportStatusPreserved' => array_map(

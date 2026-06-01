@@ -356,6 +356,42 @@ CSS, [
             'card' => $export('EgL3uq_card'),
         ], $pureSelectorFunction['exports']);
     },
+    'css modules minifies upstream nth-child formulas after local global rewriting while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:nth-child(2n + 1 of :global(.wp-block-post) + .child) {
+  color: red;
+}
+
+.card:nth-last-child(even of :local(.slot), :global(.legacy)) {
+  color: blue;
+}
+
+.card:nth-child(0n + 3 of .item) {
+  color: green;
+}
+
+.badge:nth-child(2n + 1) {
+  color: yellow;
+}
+
+.button {
+  composes: card;
+  color: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_card:nth-child(odd of .wp-block-post+.EgL3uq_child){color:red}.EgL3uq_card:nth-last-child(2n of .EgL3uq_slot,.legacy){color:#00f}.EgL3uq_card:nth-child(3 of .EgL3uq_item){color:green}.EgL3uq_badge:nth-child(odd){color:#ff0}.EgL3uq_button{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'child' => $export('EgL3uq_child'),
+            'slot' => $export('EgL3uq_slot'),
+            'item' => $export('EgL3uq_item'),
+            'badge' => $export('EgL3uq_badge'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+    },
     'css modules filters upstream forgiving local global selector lists while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card:is(:global(.legacy, .wp-button), .kept, .other) {

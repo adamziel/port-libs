@@ -703,6 +703,35 @@ $negativeLineSpliceUnsortedVlqJson = $negativeLineSpliceUnsortedVlqMap->toJson(n
 $negativeLineSpliceUnsortedVlqReadOrderAfterWrite = array_column($negativeLineSpliceUnsortedVlqMap->getMappings(), 'generatedColumn');
 $negativeLineSpliceUnsortedVlqClosest = $negativeLineSpliceUnsortedVlqMap->findClosestMapping(0, 8);
 
+$bufferedUnsortedRawVlqMap = new SourceMap();
+$bufferedUnsortedRawVlqMap->addVlqMap(
+    'UAAAA,RACAC',
+    ['wp-content/themes/example/source-map-buffered-unsorted.css'],
+    ['.wp-block-buffered-unsorted{}'],
+    ['later-buffered-rule', 'earlier-buffered-rule']
+);
+$bufferedUnsortedRawVlqBuffer = $bufferedUnsortedRawVlqMap->toBuffer();
+$bufferedUnsortedRawVlqRestored = SourceMap::fromBuffer('/', $bufferedUnsortedRawVlqBuffer);
+$bufferedUnsortedRawVlqReadOrderBeforeWrite = array_column($bufferedUnsortedRawVlqRestored->getMappings(), 'generatedColumn');
+$bufferedUnsortedRawVlqJson = $bufferedUnsortedRawVlqRestored->toJson(null, false);
+$bufferedUnsortedRawVlqReadOrderAfterWrite = array_column($bufferedUnsortedRawVlqRestored->getMappings(), 'generatedColumn');
+
+$bufferedUnsortedRawVlqPositiveOffsetMap = SourceMap::fromBuffer('/', $bufferedUnsortedRawVlqBuffer);
+$bufferedUnsortedRawVlqPositiveOffsetMap->offsetColumns(0, 5, 3);
+
+$bufferedUnsortedRawVlqNegativeOffsetMap = SourceMap::fromBuffer('/', $bufferedUnsortedRawVlqBuffer);
+$bufferedUnsortedRawVlqNegativeOffsetMap->offsetColumns(0, 10, -8);
+
+$bufferedUnsortedChildParent = new SourceMap();
+$bufferedUnsortedChildParentSource = $bufferedUnsortedChildParent->addSource('wp-content/themes/example/source-map-buffered-parent.css');
+$bufferedUnsortedChildParent->setSourceContent($bufferedUnsortedChildParentSource, ".wp-block-buffered-parent{}\n");
+$bufferedUnsortedChildParent->addMapping(2, 0, $bufferedUnsortedChildParentSource, 0, 0, 'buffered-parent-rule');
+$bufferedUnsortedChild = SourceMap::fromBuffer('/', $bufferedUnsortedRawVlqBuffer);
+$bufferedUnsortedChildParent->addSourceMap($bufferedUnsortedChild, 2);
+$bufferedUnsortedChildReadOrderBeforeWrite = array_column($bufferedUnsortedChildParent->getMappings(), 'generatedColumn');
+$bufferedUnsortedChildParentMap = $bufferedUnsortedChildParent->toJson(null, false);
+$bufferedUnsortedChildConsumed = $bufferedUnsortedChild->toJson(null, false);
+
 $duplicateLookupInputMap = SourceMap::fromJson(
     '{"version":3,"mappings":"AAAAAA","sources":["wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{}"],"names":["duplicate-lookup-rule"]}'
 );
@@ -945,6 +974,14 @@ $actual = [
     'negativeLineSpliceUnsortedVlqMap' => $negativeLineSpliceUnsortedVlqJson,
     'negativeLineSpliceUnsortedVlqReadOrderAfterWrite' => $negativeLineSpliceUnsortedVlqReadOrderAfterWrite,
     'negativeLineSpliceUnsortedVlqClosest' => $negativeLineSpliceUnsortedVlqClosest,
+    'bufferedUnsortedRawVlqReadOrderBeforeWrite' => $bufferedUnsortedRawVlqReadOrderBeforeWrite,
+    'bufferedUnsortedRawVlqMap' => $bufferedUnsortedRawVlqJson,
+    'bufferedUnsortedRawVlqReadOrderAfterWrite' => $bufferedUnsortedRawVlqReadOrderAfterWrite,
+    'bufferedUnsortedRawVlqPositiveOffsetMap' => $bufferedUnsortedRawVlqPositiveOffsetMap->toJson(null, false),
+    'bufferedUnsortedRawVlqNegativeOffsetMap' => $bufferedUnsortedRawVlqNegativeOffsetMap->toJson(null, false),
+    'bufferedUnsortedChildReadOrderBeforeWrite' => $bufferedUnsortedChildReadOrderBeforeWrite,
+    'bufferedUnsortedChildParentMap' => $bufferedUnsortedChildParentMap,
+    'bufferedUnsortedChildConsumed' => $bufferedUnsortedChildConsumed,
     'duplicateLookupExact' => $duplicateLookupExact,
     'duplicateLookupAfterLast' => $duplicateLookupAfterLast,
     'duplicateLookupExtendedMap' => $duplicateLookupExtendedMap->toJson(null, false),
@@ -1054,6 +1091,14 @@ if (($argv[1] ?? null) === '--self-test') {
         'negativeLineSpliceUnsortedVlqMap' => '{"version":3,"mappings":"ECAAC,QACAC;AAEAC","sources":["wp-content/themes/example/source-map-line-splice-removed.css","wp-content/themes/example/source-map-line-splice-unsorted.css"],"sourcesContent":[".wp-block-line-splice-removed{}\n",".wp-block-line-splice-unsorted{}\n"],"names":["removed-line-splice-rule","later-line-splice-rule","earlier-line-splice-rule","after-line-splice-rule"]}',
         'negativeLineSpliceUnsortedVlqReadOrderAfterWrite' => [2, 10, 0],
         'negativeLineSpliceUnsortedVlqClosest' => ['generatedLine' => 0, 'generatedColumn' => 2, 'sourceIndex' => 1, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 1],
+        'bufferedUnsortedRawVlqReadOrderBeforeWrite' => [10, 2],
+        'bufferedUnsortedRawVlqMap' => '{"version":3,"mappings":"EACAC,QADAD","sources":["wp-content/themes/example/source-map-buffered-unsorted.css"],"sourcesContent":[".wp-block-buffered-unsorted{}"],"names":["later-buffered-rule","earlier-buffered-rule"]}',
+        'bufferedUnsortedRawVlqReadOrderAfterWrite' => [2, 10],
+        'bufferedUnsortedRawVlqPositiveOffsetMap' => '{"version":3,"mappings":"EACAC,WADAD","sources":["wp-content/themes/example/source-map-buffered-unsorted.css"],"sourcesContent":[".wp-block-buffered-unsorted{}"],"names":["later-buffered-rule","earlier-buffered-rule"]}',
+        'bufferedUnsortedRawVlqNegativeOffsetMap' => '{"version":3,"mappings":"EAAAA","sources":["wp-content/themes/example/source-map-buffered-unsorted.css"],"sourcesContent":[".wp-block-buffered-unsorted{}"],"names":["later-buffered-rule","earlier-buffered-rule"]}',
+        'bufferedUnsortedChildReadOrderBeforeWrite' => [10, 2],
+        'bufferedUnsortedChildParentMap' => '{"version":3,"mappings":";;ECCAE,QADAD","sources":["wp-content/themes/example/source-map-buffered-parent.css","wp-content/themes/example/source-map-buffered-unsorted.css"],"sourcesContent":[".wp-block-buffered-parent{}\n",".wp-block-buffered-unsorted{}"],"names":["buffered-parent-rule","later-buffered-rule","earlier-buffered-rule"]}',
+        'bufferedUnsortedChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'duplicateLookupExact' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
         'duplicateLookupAfterLast' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0],
         'duplicateLookupExtendedMap' => '{"version":3,"mappings":"A","sources":["wp-content/cache/duplicate-lookup.css","wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{color:red}",".wp-block-duplicate-lookup{}"],"names":["compiled-duplicate-lookup","duplicate-lookup-rule"]}',

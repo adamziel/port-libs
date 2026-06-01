@@ -1167,6 +1167,51 @@ return [
             SourceMap::fromBuffer('/', json_encode($broken, JSON_THROW_ON_ERROR));
         });
     },
+    'source map preserves buffered unsorted raw vlq lines until upstream sort entrypoints' => static function (TestRunner $t): void {
+        $raw = new SourceMap();
+        $raw->addVlqMap(
+            'UAAAA,RACAC',
+            ['buffered.css'],
+            ['.buffered{}'],
+            ['later', 'earlier']
+        );
+
+        $buffer = $raw->toBuffer();
+        $restored = SourceMap::fromBuffer('/', $buffer);
+
+        $t->same([10, 2], array_column($raw->getMappings(), 'generatedColumn'));
+        $t->same([10, 2], array_column($restored->getMappings(), 'generatedColumn'));
+        $t->same([0, 1], array_column($restored->getMappings(), 'nameIndex'));
+        $t->same('EACAC,QADAD', $restored->writeVlq());
+        $t->same([2, 10], array_column($restored->getMappings(), 'generatedColumn'));
+        $t->same(['later', 'earlier'], $restored->getNames());
+
+        $offset = SourceMap::fromBuffer('/', $buffer);
+        $offset->offsetColumns(0, 5, 3);
+        $t->same([2, 13], array_column($offset->getMappings(), 'generatedColumn'));
+        $t->same('EACAC,WADAD', $offset->writeVlq());
+
+        $negative = SourceMap::fromBuffer('/', $buffer);
+        $negative->offsetColumns(0, 10, -8);
+        $t->same('EAAAA', $negative->writeVlq());
+        $t->same([2], array_column($negative->getMappings(), 'generatedColumn'));
+        $t->same(['.buffered{}'], $negative->getSourcesContent());
+
+        $parent = new SourceMap();
+        $entry = $parent->addSource('entry.css');
+        $parent->setSourceContent($entry, ".entry{}\n");
+        $parent->addMapping(2, 0, $entry, 0, 0, 'entry');
+        $bufferedChild = SourceMap::fromBuffer('/', $buffer);
+
+        $parent->addSourceMap($bufferedChild, 2);
+
+        $t->same([10, 2], array_column($parent->getMappings(), 'generatedColumn'));
+        $t->same([], $bufferedChild->getMappings());
+        $t->same(';;ECCAE,QADAD', $parent->writeVlq());
+        $t->same([2, 10], array_column($parent->getMappings(), 'generatedColumn'));
+        $t->same(['entry.css', 'buffered.css'], $parent->getSources());
+        $t->same(['entry', 'later', 'earlier'], $parent->getNames());
+    },
     'source map normalizes upstream project-root source paths' => static function (TestRunner $t): void {
         $map = new SourceMap('/srv/www/site/wp-content/themes/example');
         $style = $map->addSource('/srv/www/site/wp-content/themes/example/style.css');

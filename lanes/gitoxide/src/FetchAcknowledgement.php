@@ -33,7 +33,7 @@ final class FetchAcknowledgement
 
     public static function fromLine(string $line): self
     {
-        $line = rtrim($line, "\r\n");
+        $line = rtrim($line, " \t\n\r\v\f");
         if ($line === 'ready') {
             return self::ready();
         }

@@ -14,6 +14,8 @@ $newSha256 = str_repeat('b', 64);
 $staleHookOld = str_repeat('1', 40);
 $currentHookOld = str_repeat('2', 40);
 $newHookObject = str_repeat('3', 64);
+$malformedOptionOld = str_repeat('c', 40);
+$malformedOptionNew = str_repeat('d', 64);
 $siteAOld = str_repeat('6', 40);
 $siteANew = str_repeat('7', 40);
 $siteBOld = str_repeat('8', 40);
@@ -94,6 +96,18 @@ return [
         . $packet("option old-oid\n")
         . $packet("option new-oid \n")
         . $packet("option unknown-future-extension\n")
+        . $flush,
+    'malformedObjectOptionRef' => [
+        'requested' => 'refs/for/wp-release',
+        'oldObject' => $malformedOptionOld,
+        'newObject' => $malformedOptionNew,
+    ],
+    'malformedObjectOptionResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/for/wp-release accepted after object diagnostics\n")
+        . $packet("option old-oid {$malformedOptionOld}\n")
+        . $packet("option new-oid not-a-hex-object deployment hook diagnostic\n")
+        . $packet('option old-oid ' . str_repeat('f', 63) . "\n")
+        . $packet("option new-oid {$malformedOptionNew} accepted by deployment hook\n")
         . $flush,
     'expectedRefNames' => [
         'refs/heads/main',

@@ -86,14 +86,24 @@ final class PushRefStatus
                 return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
             }
 
-            return new self($this->status, $this->refName, $this->message, $this->reportedRefName, self::normalizeObjectIdOption($value), $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
+            $objectId = self::parseObjectIdOption($value);
+            if ($objectId === null) {
+                return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
+            }
+
+            return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $objectId, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
         }
         if ($name === 'new-oid') {
             if ($value === null || $value === '') {
                 return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
             }
 
-            return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, self::normalizeObjectIdOption($value), $this->forcedUpdate, $this->fallThrough, true);
+            $objectId = self::parseObjectIdOption($value);
+            if ($objectId === null) {
+                return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
+            }
+
+            return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $objectId, $this->forcedUpdate, $this->fallThrough, true);
         }
         if ($name === 'forced-update') {
             return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, true, $this->fallThrough, true);
@@ -112,7 +122,7 @@ final class PushRefStatus
         return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
     }
 
-    private static function normalizeObjectIdOption(string $value): string
+    private static function parseObjectIdOption(string $value): ?string
     {
         foreach ([64, 40] as $length) {
             if (preg_match('/^([0-9a-fA-F]{' . $length . '})(?:[ \t\r].*)?$/', $value, $matches) === 1) {
@@ -120,7 +130,7 @@ final class PushRefStatus
             }
         }
 
-        throw new \InvalidArgumentException('push response: option object id must be a 40- or 64-character hex object id');
+        return null;
     }
 
     private static function assertObjectId(string $oid): void
