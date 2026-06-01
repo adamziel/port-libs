@@ -17,15 +17,15 @@ use PortLibs\LibSqlite\SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan
 
 $currentRows = [
     [
-        'option_id' => 1,
-        'option_name' => 'plugin_settings',
-        'option_value' => '{"plugins":[{"slug":"seo"},{"slug":"cache"},{"slug":"forms"}],"meta":{"version":1}}',
+        'setting_id' => 1,
+        'key_name' => 'module_settings',
+        'key_value' => '{"modules":[{"slug":"seo"},{"slug":"cache"},{"slug":"forms"}],"meta":{"version":1}}',
     ],
     [
-        'option_id' => 2,
-        'option_name' => 'theme_settings',
-        'option_value' => new SQLiteBlobValue(SQLiteJsonB::encode([
-            'plugins' => [['slug' => 'blocks'], ['slug' => 'patterns']],
+        'setting_id' => 2,
+        'key_name' => 'theme_settings',
+        'key_value' => new SQLiteBlobValue(SQLiteJsonB::encode([
+            'modules' => [['slug' => 'blocks'], ['slug' => 'patterns']],
             'meta' => ['version' => 2],
         ])),
     ],
@@ -34,20 +34,20 @@ $currentRows = [
 $nextRows = [
     $currentRows[0],
     [
-        'option_id' => 2,
-        'option_name' => 'theme_settings',
-        'option_value' => new SQLiteBlobValue(SQLiteJsonB::encode([
-            'plugins' => [['slug' => 'blocks'], ['slug' => 'patterns'], ['slug' => 'stylebook']],
+        'setting_id' => 2,
+        'key_name' => 'theme_settings',
+        'key_value' => new SQLiteBlobValue(SQLiteJsonB::encode([
+            'modules' => [['slug' => 'blocks'], ['slug' => 'patterns'], ['slug' => 'stylebook']],
             'meta' => ['version' => 3],
         ])),
     ],
 ];
 
 $plan = SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan::compare($currentRows, $nextRows, [
-    '$.plugins[#-1].slug',
-    'strict $.plugins[#-1].slug',
-    'lax $.plugins[#-1].slug',
-    '$.plugins[-1].slug',
+    '$.modules[#-1].slug',
+    'strict $.modules[#-1].slug',
+    'lax $.modules[#-1].slug',
+    '$.modules[-1].slug',
 ]);
 
 echo json_encode([
@@ -56,11 +56,11 @@ echo json_encode([
     'invalidPaths' => $plan['invalidPaths'],
     'nextReaderPolicy' => $plan['nextReaderPolicy'],
     'currentLastSlugs' => [
-        $plan['current']['rows'][1]['paths']['$.plugins[#-1].slug']['value'],
-        $plan['current']['rows'][2]['paths']['$.plugins[#-1].slug']['value'],
+        $plan['current']['rows'][1]['paths']['$.modules[#-1].slug']['value'],
+        $plan['current']['rows'][2]['paths']['$.modules[#-1].slug']['value'],
     ],
     'nextLastSlugs' => [
-        $plan['next']['rows'][1]['paths']['$.plugins[#-1].slug']['value'],
-        $plan['next']['rows'][2]['paths']['$.plugins[#-1].slug']['value'],
+        $plan['next']['rows'][1]['paths']['$.modules[#-1].slug']['value'],
+        $plan['next']['rows'][2]['paths']['$.modules[#-1].slug']['value'],
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

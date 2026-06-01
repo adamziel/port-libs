@@ -7,20 +7,20 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteJsonPathIndexedUpdatePlan;
 
 $rows = [
-    ['option_id' => 1, 'option_name' => 'plugin_alpha', 'option_value' => '{"plugin":{"enabled":false,"version":1}}'],
-    ['option_id' => 2, 'option_name' => 'plugin_beta', 'option_value' => '{"plugin":{"enabled":true,"version":2}}'],
+    ['setting_id' => 1, 'key_name' => 'module_alpha', 'key_value' => '{"module":{"enabled":false,"version":1}}'],
+    ['setting_id' => 2, 'key_name' => 'module_beta', 'key_value' => '{"module":{"enabled":true,"version":2}}'],
 ];
 
 $plan = SQLiteJsonPathIndexedUpdatePlan::plan(
     $rows,
     [
-        ['name' => 'idx_plugin_enabled', 'path' => '$.plugin.enabled'],
-        ['name' => 'idx_plugin_version', 'path' => '$.plugin.version'],
+        ['name' => 'idx_module_enabled', 'path' => '$.module.enabled'],
+        ['name' => 'idx_module_version', 'path' => '$.module.version'],
     ],
     [
         ['rowid' => 1, 'mutations' => [
-            ['function' => 'json_set', 'path' => '$.plugin.enabled', 'value' => true],
-            ['function' => 'json_set', 'path' => '$.plugin.version', 'value' => 3],
+            ['function' => 'json_set', 'path' => '$.module.enabled', 'value' => true],
+            ['function' => 'json_set', 'path' => '$.module.version', 'value' => 3],
         ]],
     ],
 );
@@ -28,5 +28,5 @@ $plan = SQLiteJsonPathIndexedUpdatePlan::plan(
 echo json_encode([
     'changes' => $plan['changes'],
     'index_updates' => $plan['index_updates'],
-    'updated_value' => $plan['after'][0]['option_value'],
+    'updated_value' => $plan['after'][0]['key_value'],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

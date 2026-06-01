@@ -139,18 +139,18 @@ final class SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan
         $jsonErrorRowids = [];
 
         foreach ($rows as $row) {
-            if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite JSON path current-source row requires integer option_id');
+            if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException('SQLite JSON path current-source row requires integer setting_id');
             }
-            if (!array_key_exists('option_value', $row)) {
-                throw new \InvalidArgumentException('SQLite JSON path current-source row requires option_value');
+            if (!array_key_exists('key_value', $row)) {
+                throw new \InvalidArgumentException('SQLite JSON path current-source row requires key_value');
             }
 
-            $rowid = $row['option_id'];
+            $rowid = $row['setting_id'];
             $pathResults = [];
             foreach ($paths as $path) {
                 try {
-                    $located = SQLiteJsonInspection::locatePath(self::jsonInput($row['option_value']), $path);
+                    $located = SQLiteJsonInspection::locatePath(self::jsonInput($row['key_value']), $path);
                     $pathResults[$path] = [
                         'found' => $located['found'],
                         'value' => $located['found'] ? self::resultValue($located['value']) : null,
@@ -177,7 +177,7 @@ final class SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan
 
             $diagnostics[$rowid] = [
                 'rowid' => $rowid,
-                'optionName' => is_string($row['option_name'] ?? null) ? $row['option_name'] : null,
+                'keyName' => is_string($row['key_name'] ?? null) ? $row['key_name'] : null,
                 'paths' => $pathResults,
             ];
         }
@@ -196,7 +196,7 @@ final class SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan
             return $value;
         }
 
-        throw new \InvalidArgumentException('SQLite JSON path current-source option_value must be JSON text, JSON subtype, JSONB blob, or NULL');
+        throw new \InvalidArgumentException('SQLite JSON path current-source key_value must be JSON text, JSON subtype, JSONB blob, or NULL');
     }
 
     private static function resultValue(mixed $value): mixed

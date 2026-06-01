@@ -56,7 +56,7 @@ final class SQLiteJsonPathIndexedUpdatePlan
             $changedRows[] = $rowAfter;
 
             foreach ($indexes as $index) {
-                $column = $index['column'] ?? 'option_value';
+                $column = $index['column'] ?? 'key_value';
                 $current = self::indexKey($rowBefore, $column, $index['path']);
                 $next = self::indexKey($rowAfter, $column, $index['path']);
                 if ($current === $next) {
@@ -96,9 +96,9 @@ final class SQLiteJsonPathIndexedUpdatePlan
     {
         $positions = [];
         foreach ($rows as $position => $row) {
-            $rowid = $row['option_id'] ?? $row['rowid'] ?? null;
+            $rowid = $row['setting_id'] ?? $row['rowid'] ?? null;
             if (!is_int($rowid) && !is_string($rowid)) {
-                throw new \InvalidArgumentException('SQLite JSON indexed UPDATE rows need option_id or rowid');
+                throw new \InvalidArgumentException('SQLite JSON indexed UPDATE rows need setting_id or rowid');
             }
             $key = (string) $rowid;
             if (array_key_exists($key, $positions)) {
@@ -144,7 +144,7 @@ final class SQLiteJsonPathIndexedUpdatePlan
      */
     private static function mutationColumn(array $update): string
     {
-        $column = $update['column'] ?? 'option_value';
+        $column = $update['column'] ?? 'key_value';
         if (!is_string($column) || $column === '') {
             throw new \InvalidArgumentException('SQLite JSON indexed UPDATE mutation column must be text');
         }
@@ -189,7 +189,7 @@ final class SQLiteJsonPathIndexedUpdatePlan
         foreach ($uniqueNames as $name => $index) {
             $seen = [];
             foreach ($rows as $row) {
-                $key = self::indexKey($row, $index['column'] ?? 'option_value', $index['path']);
+                $key = self::indexKey($row, $index['column'] ?? 'key_value', $index['path']);
                 if ($key === null) {
                     continue;
                 }

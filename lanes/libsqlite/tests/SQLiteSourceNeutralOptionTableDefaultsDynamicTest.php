@@ -6,6 +6,8 @@ use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteAttachTempWalSchemaTriggerPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
+use PortLibs\LibSqlite\SQLiteJsonPathIndexedUpdatePlan;
+use PortLibs\LibSqlite\SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteMultiColumnRangePlan;
 use PortLibs\LibSqlite\SQLitePragmaIntegrityPartialIndexCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
@@ -21,6 +23,10 @@ $optionTableDefaultSourceFiles = [
     $sourceRoot . '/SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php',
 ];
+$jsonPathOptionDefaultSourceFiles = [
+    $sourceRoot . '/SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteJsonPathIndexedUpdatePlan.php',
+];
 
 $legacyOptionTableDefaultMatches = static function () use ($optionTableDefaultSourceFiles, $libsqliteRoot): array {
     $terms = [
@@ -32,6 +38,37 @@ $legacyOptionTableDefaultMatches = static function () use ($optionTableDefaultSo
     $matches = [];
 
     foreach ($optionTableDefaultSourceFiles as $file) {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read {$file}");
+        }
+        if (preg_match_all($pattern, $contents, $fileMatches) < 1) {
+            continue;
+        }
+        $relative = str_replace($libsqliteRoot . '/', '', $file);
+        foreach ($fileMatches[0] as $match) {
+            $matches[] = "{$relative}: {$match}";
+        }
+    }
+
+    return $matches;
+};
+
+$jsonPathLegacyDefaultMatches = static function () use ($jsonPathOptionDefaultSourceFiles, $libsqliteRoot): array {
+    $terms = [
+        'wp' . '_',
+        'wp' . '_options',
+        'wp' . '_option',
+        'option_id',
+        'option_name',
+        'option_value',
+        'autoload',
+        'blog_id',
+    ];
+    $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
+    $matches = [];
+
+    foreach ($jsonPathOptionDefaultSourceFiles as $file) {
         $contents = file_get_contents($file);
         if ($contents === false) {
             throw new RuntimeException("Unable to read {$file}");
@@ -95,6 +132,48 @@ $triggerNewRow = [
 
 return [
     'source-neutral option table default source files contain no hardcoded wp table defaults' => static fn (TestRunner $t) => $t->same([], $legacyOptionTableDefaultMatches()),
+    'source-neutral json path defaults use generic setting keys in source' => static fn (TestRunner $t) => $t->same([], $jsonPathLegacyDefaultMatches()),
+    'source-neutral json path compare defaults read setting key values' => static function (TestRunner $t): void {
+        $plan = SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan::compare(
+            [
+                ['setting_id' => 1, 'key_name' => 'module_registry', 'key_value' => '{"modules":[{"slug":"cache"},{"slug":"forms"}]}'],
+            ],
+            [
+                ['setting_id' => 1, 'key_name' => 'module_registry', 'key_value' => '{"modules":[{"slug":"cache"},{"slug":"search"}]}'],
+            ],
+            ['$.modules[#-1].slug'],
+        );
+
+        $t->same('module_registry', $plan['current']['rows'][1]['keyName']);
+        $t->same('forms', $plan['current']['rows'][1]['paths']['$.modules[#-1].slug']['value']);
+        $t->same('search', $plan['next']['rows'][1]['paths']['$.modules[#-1].slug']['value']);
+        $t->same([1], $plan['current']['foundRowids']);
+        $t->same(true, $plan['reprepareRequired']);
+    },
+    'source-neutral json path indexed update defaults mutate key value column' => static function (TestRunner $t): void {
+        $plan = SQLiteJsonPathIndexedUpdatePlan::plan(
+            [
+                ['setting_id' => 1, 'key_name' => 'module_alpha', 'key_value' => '{"module":{"enabled":false,"version":1}}'],
+                ['setting_id' => 2, 'key_name' => 'module_beta', 'key_value' => '{"module":{"enabled":true,"version":2}}'],
+            ],
+            [
+                ['name' => 'idx_module_enabled', 'path' => '$.module.enabled'],
+                ['name' => 'idx_module_version', 'path' => '$.module.version'],
+            ],
+            [
+                ['rowid' => 1, 'mutations' => [
+                    ['function' => 'json_set', 'path' => '$.module.enabled', 'value' => true],
+                    ['function' => 'json_set', 'path' => '$.module.version', 'value' => 3],
+                ]],
+            ],
+        );
+
+        $t->same(1, $plan['changes']);
+        $t->same('{"module":{"enabled":true,"version":3}}', $plan['after'][0]['key_value']);
+        $t->same(['idx_module_enabled', 'idx_module_version'], array_column($plan['index_updates'], 'index'));
+        $t->same([0, 1], [$plan['index_updates'][0]['current'], $plan['index_updates'][0]['next']]);
+        $t->same([1, 3], [$plan['index_updates'][1]['current'], $plan['index_updates'][1]['next']]);
+    },
     'source-neutral defaults pragma table is app settings' => static function (TestRunner $t) use ($settingsRows, $settingsIndex, $settingsPredicate): void {
         $page = SQLitePragmaIntegrityPartialIndexCurrentSourceNext::page(
             $settingsRows,

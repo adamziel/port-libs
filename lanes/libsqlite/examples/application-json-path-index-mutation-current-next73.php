@@ -7,24 +7,24 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteJsonPathIndexedUpdatePlan;
 
 $rows = [
-    ['option_id' => 1, 'option_name' => 'plugin_alpha_settings', 'option_value' => '{"autoload":true}', 'payload' => '{"plugin":{"slug":"alpha","enabled":false,"rank":1,"tags":["cache"],"meta":{"channel":"stable"}}}'],
-    ['option_id' => 2, 'option_name' => 'plugin_beta_settings', 'option_value' => '{"autoload":true}', 'payload' => '{"plugin":{"slug":"beta","enabled":true,"rank":2,"tags":["seo"],"meta":{"channel":"beta"}}}'],
+    ['setting_id' => 1, 'key_name' => 'module_alpha_settings', 'key_value' => '{"load_policy":true}', 'payload' => '{"module":{"slug":"alpha","enabled":false,"rank":1,"tags":["cache"],"meta":{"channel":"stable"}}}'],
+    ['setting_id' => 2, 'key_name' => 'module_beta_settings', 'key_value' => '{"load_policy":true}', 'payload' => '{"module":{"slug":"beta","enabled":true,"rank":2,"tags":["seo"],"meta":{"channel":"beta"}}}'],
 ];
 
 $plan = SQLiteJsonPathIndexedUpdatePlan::plan(
     $rows,
     [
-        ['name' => 'idx_plugin_payload_slug', 'column' => 'payload', 'path' => '$.plugin.slug', 'unique' => true],
-        ['name' => 'idx_plugin_payload_enabled', 'column' => 'payload', 'path' => '$.plugin.enabled'],
-        ['name' => 'idx_plugin_payload_rank', 'column' => 'payload', 'path' => '$.plugin.rank'],
-        ['name' => 'idx_plugin_payload_channel', 'column' => 'payload', 'path' => '$.plugin.meta.channel'],
-        ['name' => 'idx_option_autoload', 'column' => 'option_value', 'path' => '$.autoload'],
+        ['name' => 'idx_module_payload_slug', 'column' => 'payload', 'path' => '$.module.slug', 'unique' => true],
+        ['name' => 'idx_module_payload_enabled', 'column' => 'payload', 'path' => '$.module.enabled'],
+        ['name' => 'idx_module_payload_rank', 'column' => 'payload', 'path' => '$.module.rank'],
+        ['name' => 'idx_module_payload_channel', 'column' => 'payload', 'path' => '$.module.meta.channel'],
+        ['name' => 'idx_setting_load_policy', 'column' => 'key_value', 'path' => '$.load_policy'],
     ],
     [
         ['rowid' => 1, 'column' => 'payload', 'mutations' => [
-            ['function' => 'json_set', 'path' => '$.plugin.enabled', 'value' => true],
-            ['function' => 'json_set', 'path' => '$.plugin.rank', 'value' => 10],
-            ['function' => 'json_set', 'path' => '$.plugin.meta.channel', 'value' => 'published'],
+            ['function' => 'json_set', 'path' => '$.module.enabled', 'value' => true],
+            ['function' => 'json_set', 'path' => '$.module.rank', 'value' => 10],
+            ['function' => 'json_set', 'path' => '$.module.meta.channel', 'value' => 'published'],
         ]],
     ],
 );
@@ -42,5 +42,5 @@ echo json_encode([
         $plan['index_updates'],
     ),
     'payload' => $plan['after'][0]['payload'],
-    'option_value_unchanged' => $plan['after'][0]['option_value'],
+    'key_value_unchanged' => $plan['after'][0]['key_value'],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
