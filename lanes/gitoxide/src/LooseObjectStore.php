@@ -183,9 +183,10 @@ final class LooseObjectStore
     }
 
     /**
+     * @param null|callable(string,int):bool $shouldInterrupt
      * @return array{numObjects:int,verifiedObjectIds:list<string>}
      */
-    public function verifyIntegrity(): array
+    public function verifyIntegrity(?callable $shouldInterrupt = null): array
     {
         $verified = [];
         foreach ($this->integrityObjectIds() as $oid) {
@@ -202,6 +203,9 @@ final class LooseObjectStore
 
             self::decodeForIntegrity($object, $oid, $this->algorithm);
             $verified[] = $oid;
+            if ($shouldInterrupt !== null && $shouldInterrupt($oid, count($verified))) {
+                throw new \RuntimeException("Loose object integrity verification interrupted after {$oid}");
+            }
         }
 
         return [

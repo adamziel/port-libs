@@ -361,6 +361,45 @@ return [
         $t->same([$primaryOid], $integrity[0]['statistics']['verifiedObjectIds']);
         $t->same([$alternateOid], $integrity[1]['statistics']['verifiedObjectIds']);
     },
+    'object database propagates loose integrity interruption callbacks across stores' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-integrity-interrupt-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateObjectsDir = $root . '/shared-cache/.git/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+        if (!mkdir($alternateObjectsDir, 0777, true) && !is_dir($alternateObjectsDir)) {
+            throw new RuntimeException("Unable to create alternate objects directory: {$alternateObjectsDir}");
+        }
+
+        $primaryOid = (new LooseObjectStore($gitDir))->write(new GitObject('blob', 'Primary deployment object'));
+        $alternateOid = LooseObjectStore::fromObjectsDirectory($alternateObjectsDir)->write(new GitObject('blob', 'Shared deployment cache object'));
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $calls = [];
+        try {
+            (new ObjectDatabase($gitDir))->verifyLooseIntegrity(
+                static function (string $oid, int $verifiedCount, string $objectsDirectory) use (&$calls, $alternateObjectsDir): bool {
+                    $calls[] = ['oid' => $oid, 'count' => $verifiedCount, 'path' => $objectsDirectory];
+
+                    return $objectsDirectory === realpath($alternateObjectsDir);
+                }
+            );
+            throw new RuntimeException('Expected interrupted object database loose integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains('Loose object integrity verification interrupted after ' . $alternateOid, $exception->getMessage());
+        }
+
+        $t->same([
+            ['oid' => $primaryOid, 'count' => 1, 'path' => $objectsDir],
+            ['oid' => $alternateOid, 'count' => 1, 'path' => realpath($alternateObjectsDir)],
+        ], $calls);
+
+        $integrity = (new ObjectDatabase($gitDir))->verifyLooseIntegrity(static fn (): bool => false);
+        $t->same([$objectsDir, realpath($alternateObjectsDir)], array_column($integrity, 'path'));
+        $t->same([[$primaryOid], [$alternateOid]], array_map(static fn (array $row): array => $row['statistics']['verifiedObjectIds'], $integrity));
+    },
     'object database verifies sha256 loose object integrity across primary and alternate stores' => static function (TestRunner $t): void {
         $root = sys_get_temp_dir() . '/port-libs-git-odb-sha256-' . bin2hex(random_bytes(4));
         $gitDir = $root . '/site/.git';

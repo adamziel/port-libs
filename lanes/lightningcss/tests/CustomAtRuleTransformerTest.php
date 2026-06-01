@@ -688,6 +688,75 @@ CSS;
         $t->same('192dpi', $seen['rules']['density']['prelude']);
         $t->same(['type' => 'dpi', 'value' => 192.0], $seen['rules']['density']['preludeAst']['value']);
     },
+    'custom at-rules visit upstream length-percentage preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'lengths' => [],
+            'rules' => [],
+        ];
+        $css = <<<'CSS'
+@space 16px;
+@gaps 16px, 2rem, 25%;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'space' => ['prelude' => '<length-percentage>'],
+            'gaps' => ['prelude' => '<length-percentage>#'],
+        ], [
+            'Length' => static function (array $length) use (&$seen): array {
+                $seen['lengths'][] = $length;
+
+                return [
+                    'unit' => 'rem',
+                    'value' => $length['unit'] === 'px' ? $length['value'] / 16 : $length['value'] * 2,
+                ];
+            },
+            'Rule' => [
+                'custom' => static function (array $rule) use (&$seen): array {
+                    $seen['rules'][$rule['name']] = [
+                        'prelude' => $rule['prelude'],
+                        'preludeAst' => $rule['preludeAst'],
+                    ];
+
+                    return [];
+                },
+            ],
+        ]);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            ['unit' => 'px', 'value' => 16.0],
+            ['unit' => 'px', 'value' => 16.0],
+            ['unit' => 'rem', 'value' => 2.0],
+        ], $seen['lengths']);
+        $t->same('1rem', $seen['rules']['space']['prelude']);
+        $t->same([
+            'type' => 'length-percentage',
+            'value' => [
+                'type' => 'dimension',
+                'value' => ['unit' => 'rem', 'value' => 1.0],
+            ],
+        ], $seen['rules']['space']['preludeAst']);
+        $t->same('1rem,4rem,25%', $seen['rules']['gaps']['prelude']);
+
+        $gapComponents = $seen['rules']['gaps']['preludeAst']['value']['components'];
+        $t->same(['dimension', 'dimension', 'percentage'], array_map(
+            static fn (array $component): string => $component['value']['type'],
+            $gapComponents
+        ));
+        $t->same(['rem', 'rem'], array_map(
+            static fn (array $component): string => $component['value']['value']['unit'],
+            array_slice($gapComponents, 0, 2)
+        ));
+        $t->same([1.0, 4.0], array_map(
+            static fn (array $component): float => $component['value']['value']['value'],
+            array_slice($gapComponents, 0, 2)
+        ));
+        $t->same(0.25, $gapComponents[2]['value']['value']);
+    },
     'custom at-rules visit upstream ratio component preludes before custom rule visitors' => static function (TestRunner $t): void {
         $seen = [
             'ratios' => [],

@@ -374,15 +374,23 @@ final class ObjectDatabase
     }
 
     /**
+     * @param null|callable(string,int,string):bool $shouldInterrupt
      * @return list<array{path:string,statistics:array{numObjects:int,verifiedObjectIds:list<string>}}>
      */
-    public function verifyLooseIntegrity(): array
+    public function verifyLooseIntegrity(?callable $shouldInterrupt = null): array
     {
         $out = [];
         foreach ($this->looseStores() as $store) {
+            $interrupt = $shouldInterrupt === null
+                ? null
+                : static fn (string $oid, int $verifiedCount): bool => $shouldInterrupt(
+                    $oid,
+                    $verifiedCount,
+                    $store->objectsDirectory()
+                );
             $out[] = [
                 'path' => $store->objectsDirectory(),
-                'statistics' => $store->verifyIntegrity(),
+                'statistics' => $store->verifyIntegrity($interrupt),
             ];
         }
 

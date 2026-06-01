@@ -82,14 +82,12 @@ $css = <<<'CSS'
 
 @media (min-width: 600px) {
   .cardCompact {
-    composes: card;
     gap: 8px;
   }
 }
 
 @scope (.cardScope) to (:global(.wp-block-buttons)) {
   .cardScoped {
-    composes: card;
     color: yellow;
   }
 }
@@ -148,7 +146,6 @@ $dashedIdentResult = (new CssModulesTransformer())->transform(<<<'CSS'
 @media (max-width: env(--card-breakpoint)) {
   .paletteCardCompact {
     color: env(--card-accent);
-    composes: card from "./cards.module.css";
   }
 }
 CSS, [
@@ -295,6 +292,20 @@ CSS);
 
 try {
     (new CssModulesTransformer())->transform(<<<'CSS'
+@media (min-width: 1px) {
+  .card {
+    composes: reset;
+    color: red;
+  }
+}
+CSS);
+    $nestedComposes = 'accepted';
+} catch (InvalidArgumentException) {
+    $nestedComposes = 'rejected';
+}
+
+try {
+    (new CssModulesTransformer())->transform(<<<'CSS'
 ::slotted(:global(.wp-block-button)) .card {
   color: red;
 }
@@ -404,6 +415,7 @@ $actual = [
     'invalidComposes' => $invalidComposes,
     'invalidGlobalList' => $invalidGlobalList,
     'invalidLocalComposes' => $invalidLocalComposes,
+    'nestedComposes' => $nestedComposes,
     'invalidPseudoElementBoundary' => $invalidPseudoElementBoundary,
     'invalidPseudoElementComposes' => $invalidPseudoElementComposes,
     'deprecatedValueRule' => $deprecatedValueRule,
@@ -568,12 +580,7 @@ $expected = [
         ],
         'cardCompact' => [
             'name' => 'BlockA_cardCompact',
-            'composes' => [
-                [
-                    'type' => 'local',
-                    'name' => 'BlockA_card',
-                ],
-            ],
+            'composes' => [],
             'isReferenced' => false,
         ],
         'cardScope' => [
@@ -583,12 +590,7 @@ $expected = [
         ],
         'cardScoped' => [
             'name' => 'BlockA_cardScoped',
-            'composes' => [
-                [
-                    'type' => 'local',
-                    'name' => 'BlockA_card',
-                ],
-            ],
+            'composes' => [],
             'isReferenced' => false,
         ],
     ],
@@ -602,6 +604,7 @@ $expected = [
     'invalidComposes' => 'accepted',
     'invalidGlobalList' => 'rejected',
     'invalidLocalComposes' => 'rejected',
+    'nestedComposes' => 'rejected',
     'invalidPseudoElementBoundary' => 'rejected',
     'invalidPseudoElementComposes' => 'rejected',
     'deprecatedValueRule' => 'The @value rule is deprecated',
@@ -670,13 +673,7 @@ $expected = [
         ],
         'paletteCardCompact' => [
             'name' => 'BlockA_paletteCardCompact',
-            'composes' => [
-                [
-                    'type' => 'dependency',
-                    'name' => 'card',
-                    'specifier' => './cards.module.css',
-                ],
-            ],
+            'composes' => [],
             'isReferenced' => false,
         ],
     ],
@@ -813,6 +810,7 @@ echo 'bare-global: ' . $actual['bareGlobal'] . PHP_EOL;
 echo 'invalid-composes: ' . $actual['invalidComposes'] . PHP_EOL;
 echo 'invalid-global-list: ' . $actual['invalidGlobalList'] . PHP_EOL;
 echo 'invalid-local-composes: ' . $actual['invalidLocalComposes'] . PHP_EOL;
+echo 'nested-composes: ' . $actual['nestedComposes'] . PHP_EOL;
 echo 'invalid-pseudo-element-boundary: ' . $actual['invalidPseudoElementBoundary'] . PHP_EOL;
 echo 'invalid-pseudo-element-composes: ' . $actual['invalidPseudoElementComposes'] . PHP_EOL;
 echo 'deprecated-value-rule: ' . $actual['deprecatedValueRule'] . PHP_EOL;

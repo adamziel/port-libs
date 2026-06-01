@@ -587,6 +587,57 @@ return [
 
         $t->same(["slot\v", '[[:unknown:]]*.jpg'], $entryNames($combined->includedTreeEntries($uploads, 'wp-content/uploads')));
     },
+    'pathspec sparse checkout follows gix reversed character range boundaries' => static function (TestRunner $t) use ($entryNames): void {
+        $warnings = [];
+        set_error_handler(static function (int $errno, string $message) use (&$warnings): bool {
+            if (str_contains($message, 'preg_match()')) {
+                $warnings[] = $message;
+
+                return true;
+            }
+
+            return false;
+        });
+
+        try {
+            $reversed = SparseCheckoutSpec::fromPathspecs([':(glob)wp-content/uploads/[z-a]/**']);
+            $negated = SparseCheckoutSpec::fromPathspecs([':(glob)wp-content/uploads/[!z-a]/**']);
+            $folded = SparseCheckoutSpec::fromPathspecs([':(glob,icase)wp-content/uploads/[Z-A]/**']);
+
+            $t->same(true, $reversed->includesPath('wp-content/uploads/z/photo.jpg', false));
+            $t->same(false, $reversed->includesPath('wp-content/uploads/a/photo.jpg', false));
+            $t->same(false, $reversed->includesPath('wp-content/uploads/m/photo.jpg', false));
+            $t->same(true, $reversed->includesPath('wp-content/uploads/z', true));
+            $t->same(true, $reversed->includesPath('wp-content/uploads/a', true));
+            $t->same(false, $reversed->includesPath('wp-content/uploads/[z-a].jpg', false));
+
+            $t->same(false, $negated->includesPath('wp-content/uploads/z/photo.jpg', false));
+            $t->same(true, $negated->includesPath('wp-content/uploads/a/photo.jpg', false));
+            $t->same(true, $negated->includesPath('wp-content/uploads/m/photo.jpg', false));
+            $t->same(true, $negated->skipWorktree('wp-content/uploads/z/photo.jpg', false));
+
+            $t->same(true, $folded->includesPath('wp-content/uploads/z/photo.jpg', false));
+            $t->same(true, $folded->includesPath('wp-content/uploads/a/photo.jpg', false));
+            $t->same(true, $folded->includesPath('wp-content/uploads/m/photo.jpg', false));
+            $t->same(true, $folded->includesPath('wp-content/uploads/M/photo.jpg', false));
+            $t->same(false, $folded->includesPath('wp-content/uploads/0/photo.jpg', false));
+
+            $blob = str_repeat('1', 40);
+            $tree = str_repeat('2', 40);
+            $uploads = new Tree([
+                new TreeEntry('040000', 'z', $tree),
+                new TreeEntry('040000', 'a', $tree),
+                new TreeEntry('040000', 'm', $tree),
+                new TreeEntry('100644', '[z-a].jpg', $blob),
+            ]);
+
+            $t->same(['z', 'a', 'm'], $entryNames($reversed->includedTreeEntries($uploads, 'wp-content/uploads')));
+        } finally {
+            restore_error_handler();
+        }
+
+        $t->same([], $warnings);
+    },
     'pathspec sparse checkout normalizes worktree prefixes with case sensitive prefix matching' => static function (TestRunner $t): void {
         $spec = SparseCheckoutSpec::fromPathspecs([
             ':(glob)*.php',

@@ -6573,6 +6573,16 @@ final class CustomAtRuleTransformer
             }
         }
 
+        if (($value['type'] ?? null) === 'length-percentage' && isset($value['value']) && is_array($value['value'])) {
+            $visited = $this->visitLengthPercentageValue($value['value']);
+            if ($visited['changed']) {
+                return [
+                    'type' => 'length-percentage',
+                    'value' => $visited['value'],
+                ];
+            }
+        }
+
         foreach ([
             'angle' => $this->angleVisitor,
             'time' => $this->timeVisitor,
@@ -6663,6 +6673,40 @@ final class CustomAtRuleTransformer
         }
 
         return [$first, $second];
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @return array{value:array<string, mixed>,changed:bool}
+     */
+    private function visitLengthPercentageValue(array $value): array
+    {
+        if (($value['type'] ?? null) !== 'dimension' || !is_array($value['value'] ?? null) || $this->lengthVisitor === null) {
+            return ['value' => $value, 'changed' => false];
+        }
+
+        $length = $this->lengthComponents($this->normalizeLengthValue($value['value']));
+        if ($length === null) {
+            return ['value' => $value, 'changed' => false];
+        }
+
+        $replacement = ($this->lengthVisitor)($length, $this);
+        if ($replacement === null) {
+            return ['value' => $value, 'changed' => false];
+        }
+
+        $replacementLength = $this->lengthComponents($this->normalizeLengthValue($replacement));
+        if ($replacementLength === null) {
+            throw new \InvalidArgumentException('Length visitor must return a length value for length-percentage preludes or null');
+        }
+
+        return [
+            'value' => [
+                'type' => 'dimension',
+                'value' => $replacementLength,
+            ],
+            'changed' => true,
+        ];
     }
 
     /**

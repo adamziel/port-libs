@@ -27,8 +27,8 @@ final class SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $key = self::identifier((string) ($options['key'] ?? 'option_name'), 'key column');
-        $trigger = self::identifier((string) ($options['trigger'] ?? 'wp_options_view_io_update'), 'trigger name');
+        $key = self::identifier((string) ($options['key'] ?? 'key_name'), 'key column');
+        $trigger = self::identifier((string) ($options['trigger'] ?? 'app_settings_view_io_update'), 'trigger name');
         $currentSource = self::source((string) ($options['current_source'] ?? 'current'));
         $nextSource = self::source((string) ($options['next_source'] ?? 'next'));
         $fk = [
@@ -217,7 +217,7 @@ final class SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan
             $children[] = [
                 'row_index' => $index,
                 'child_key' => $row[$fk['child_key']],
-                'option_name' => $row['option_name'] ?? null,
+                'key_name' => $row[$fk['parent_key']] ?? null,
             ];
         }
 
@@ -242,7 +242,7 @@ final class SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan
                 'child_index' => $index,
                 'child_key' => $key,
                 'parent_key' => $fk['parent_key'],
-                'option_name' => $child['option_name'] ?? null,
+                'key_name' => $child['key_name'] ?? null,
             ];
         }
 

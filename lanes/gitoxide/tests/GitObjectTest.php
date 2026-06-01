@@ -335,6 +335,41 @@ return [
         $t->same($expected, $summary['verifiedObjectIds']);
         $t->same($gitDir . '/objects', $store->objectsDirectory());
     },
+    'loose object integrity honors interruption callbacks after verified objects' => static function (TestRunner $t): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-integrity-interrupt-' . bin2hex(random_bytes(4)) . '/.git';
+        $store = new LooseObjectStore($gitDir);
+        $firstOid = $store->write(new GitObject('blob', 'first block export'));
+        $secondOid = $store->write(new GitObject('blob', 'second block export'));
+        $expected = [$firstOid, $secondOid];
+        sort($expected, SORT_STRING);
+
+        $calls = [];
+        try {
+            $store->verifyIntegrity(static function (string $oid, int $verifiedCount) use (&$calls): bool {
+                $calls[] = ['oid' => $oid, 'count' => $verifiedCount];
+
+                return $verifiedCount === 1;
+            });
+            throw new RuntimeException('Expected interrupted loose object integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains('Loose object integrity verification interrupted after ' . $expected[0], $exception->getMessage());
+        }
+        $t->same([['oid' => $expected[0], 'count' => 1]], $calls);
+
+        $seen = [];
+        $t->same([
+            'numObjects' => 2,
+            'verifiedObjectIds' => $expected,
+        ], $store->verifyIntegrity(static function (string $oid, int $verifiedCount) use (&$seen): bool {
+            $seen[] = ['oid' => $oid, 'count' => $verifiedCount];
+
+            return false;
+        }));
+        $t->same([
+            ['oid' => $expected[0], 'count' => 1],
+            ['oid' => $expected[1], 'count' => 2],
+        ], $seen);
+    },
     'loose object integrity rejects path hash mismatches and malformed structured bodies' => static function (TestRunner $t) use ($writeLooseStorage): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-integrity-bad-path-' . bin2hex(random_bytes(4)) . '/.git';
         $objectsDirectory = $gitDir . '/objects';
@@ -558,5 +593,8 @@ return [
         $t->same($fixture['allocationLimitMessage'], $summary['allocationLimitMessage']);
         $t->same(true, $summary['trailingStreamIgnored']);
         $t->same(true, $summary['trailingStreamIntegrityVerified']);
+        $t->same(true, $summary['integrityInterruptHandled']);
+        $t->same(1, $summary['integrityInterruptChecks']);
+        $t->contains('Loose object integrity verification interrupted after ', $summary['integrityInterruptMessage']);
     },
 ];

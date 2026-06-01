@@ -2690,11 +2690,9 @@ CSS,
             $bundleModules([
                 '/entry.css' => <<<'CSS'
 .intro { color: red; }
-@media screen {
-  .card {
-    composes: token from "pkg:tokens.css";
-    color: blue;
-  }
+.card {
+  composes: token from "pkg:tokens.css";
+  color: blue;
 }
 CSS,
             ], '/entry.css', static function (string $specifier, string $originatingFile): string {
@@ -2704,8 +2702,8 @@ CSS,
             $t->same('resolver-error', $exception->kind);
             $t->same('Cannot resolve pkg:tokens.css from /entry.css', $exception->getMessage());
             $t->same('/entry.css', $exception->sourceFile);
-            $t->same(3, $exception->sourceLine);
-            $t->same(3, $exception->sourceColumn);
+            $t->same(2, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
             $resolverRejected = true;
         }
 

@@ -33,6 +33,15 @@ $posixClassPathspec = SparseCheckoutSpec::fromPathspecs([
 $posixSpaceClassPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)wp-content/uploads/slot[[:space:]]/**',
 ]);
+$reversedRangePathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content/uploads/[z-a]/**',
+]);
+$negatedReversedRangePathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content/uploads/[!z-a]/**',
+]);
+$foldedReversedRangePathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob,icase)wp-content/uploads/[Z-A]/**',
+]);
 $doubleStarComponentPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)wp-content/**.php',
     ':(glob)wp-content/**/loader.php',
@@ -197,6 +206,12 @@ return [
     'pathspecPosixSpaceTabSkipped' => $posixSpaceClassPathspec->skipWorktree("wp-content/uploads/slot\t/photo.jpg", false),
     'pathspecInvalidClassLiteralFallbackIncluded' => $posixClassPathspec->includesPath('wp-content/uploads/[[:unknown:]]*.jpg', false),
     'pathspecInvalidClassWildcardExpansionSkipped' => $posixClassPathspec->skipWorktree('wp-content/uploads/[[:unknown:]]hero.jpg', false),
+    'pathspecReversedRangeStartIncluded' => $reversedRangePathspec->includesPath('wp-content/uploads/z/photo.jpg', false),
+    'pathspecReversedRangeMiddleSkipped' => $reversedRangePathspec->skipWorktree('wp-content/uploads/m/photo.jpg', false),
+    'pathspecNegatedReversedRangeStartSkipped' => $negatedReversedRangePathspec->skipWorktree('wp-content/uploads/z/photo.jpg', false),
+    'pathspecNegatedReversedRangeMiddleIncluded' => $negatedReversedRangePathspec->includesPath('wp-content/uploads/m/photo.jpg', false),
+    'pathspecIcaseReversedRangeMiddleIncluded' => $foldedReversedRangePathspec->includesPath('wp-content/uploads/m/photo.jpg', false),
+    'pathspecIcaseReversedRangeDigitSkipped' => $foldedReversedRangePathspec->skipWorktree('wp-content/uploads/0/photo.jpg', false),
     'pathspecDoubleStarComponentLocalFileIncluded' => $doubleStarComponentPathspec->includesPath('wp-content/index.php', false),
     'pathspecDoubleStarComponentLocalNestedFileSkipped' => $doubleStarComponentPathspec->skipWorktree('wp-content/plugins/editor.php', false),
     'pathspecDoubleStarComponentDirectoryGlobIncluded' => $doubleStarComponentPathspec->includesPath('wp-content/plugins/loader.php', false),

@@ -21,6 +21,9 @@ $allocationLimitRejected = false;
 $allocationLimitMessage = null;
 $trailingStreamIgnored = false;
 $trailingStreamIntegrityVerified = false;
+$integrityInterruptHandled = false;
+$integrityInterruptChecks = 0;
+$integrityInterruptMessage = null;
 
 try {
     GitObject::fromStorageBytes($storage . 'next loose object bytes already buffered');
@@ -44,6 +47,21 @@ $trailingStreamIgnored = $trailingStore->read($object->oid())->body === $fixture
 $trailingIntegrity = $trailingStore->verifyIntegrity();
 $trailingStreamIntegrityVerified = $trailingIntegrity['numObjects'] === 1
     && $trailingIntegrity['verifiedObjectIds'] === [$object->oid()];
+
+$interruptObjectsDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-interrupt-' . bin2hex(random_bytes(4)) . '/objects';
+$interruptStore = LooseObjectStore::fromObjectsDirectory($interruptObjectsDirectory);
+$interruptStore->write(new GitObject('blob', $fixture['blockBlobBody']));
+$interruptStore->write(new GitObject('blob', "Queued WordPress export block\n"));
+try {
+    $interruptStore->verifyIntegrity(static function (string $oid, int $verifiedCount) use (&$integrityInterruptChecks): bool {
+        $integrityInterruptChecks = $verifiedCount;
+
+        return true;
+    });
+} catch (RuntimeException $exception) {
+    $integrityInterruptHandled = true;
+    $integrityInterruptMessage = $exception->getMessage();
+}
 
 $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-' . bin2hex(random_bytes(4)) . '/objects';
 $oversizedPath = $objectsDirectory . '/' . substr($fixture['oversizedLooseObjectOid'], 0, 2) . '/' . substr($fixture['oversizedLooseObjectOid'], 2);
@@ -86,4 +104,7 @@ return [
     'allocationLimitMessage' => $allocationLimitMessage,
     'trailingStreamIgnored' => $trailingStreamIgnored,
     'trailingStreamIntegrityVerified' => $trailingStreamIntegrityVerified,
+    'integrityInterruptHandled' => $integrityInterruptHandled,
+    'integrityInterruptChecks' => $integrityInterruptChecks,
+    'integrityInterruptMessage' => $integrityInterruptMessage,
 ];

@@ -27,9 +27,9 @@ final class SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $key = self::identifier((string) ($options['key'] ?? 'option_name'), 'key');
-        $parentKey = self::identifier((string) ($options['parent_key'] ?? 'parent_name'), 'parent key');
-        $savepoint = self::token((string) ($options['savepoint'] ?? 'wp_recursive_view_delete_returning_168'), 'savepoint');
+        $key = self::identifier((string) ($options['key'] ?? 'key_name'), 'key');
+        $parentKey = self::identifier((string) ($options['parent_key'] ?? 'parent_key_name'), 'parent key');
+        $savepoint = self::token((string) ($options['savepoint'] ?? 'app_recursive_view_delete_returning_168'), 'savepoint');
         $maxDepth = (int) ($options['max_depth'] ?? 4);
         if ($maxDepth < 0) {
             throw new InvalidArgumentException('SQLite recursive view DELETE RETURNING next168 max depth must be non-negative');
@@ -180,7 +180,7 @@ final class SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan
             $old = $rows[$index];
             $children = self::childrenOf($rows, $key, $parentKey, $rowKey);
             if ($blockedKey !== null && $rowKey === $blockedKey) {
-                $blocked[] = self::envelope($phase, $view, (int) $item['ordinal'], (int) $item['depth'], 'blocked-rollback', ['option_name' => $rowKey]);
+                $blocked[] = self::envelope($phase, $view, (int) $item['ordinal'], (int) $item['depth'], 'blocked-rollback', ['key_name' => $rowKey]);
                 $rolledBack = true;
                 break;
             }

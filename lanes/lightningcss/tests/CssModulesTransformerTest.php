@@ -1439,26 +1439,62 @@ CSS;
         $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('.foo { @media (min-width: 1px) { .bar { composes: baz; color: red } } }'));
         $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('.foo { @media (min-width: 1px) { composes: baz; color: red } }'));
     },
-    'css modules allows composes inside top-level conditional rule blocks' => static function (TestRunner $t) use ($export, $local): void {
+    'css modules rejects composes inside top-level at-rule blocks like upstream' => static function (TestRunner $t): void {
+        $transformer = new CssModulesTransformer();
+
+        foreach ([
+            '@media (min-width: 1px) { .foo { composes: bar; color: red } .bar { color: blue } }',
+            '@supports (display: grid) { .foo { composes: bar; color: red } .bar { color: blue } }',
+            '@layer theme { .foo { composes: bar; color: red } .bar { color: blue } }',
+            '@container (min-width: 1px) { .foo { composes: bar; color: red } .bar { color: blue } }',
+            '@scope (.root) { .foo { composes: bar; color: red } .bar { color: blue } }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform($css));
+        }
+    },
+    'css modules still scopes top-level at-rule blocks without composes' => static function (TestRunner $t) use ($export): void {
         $css = <<<'CSS'
 @media (min-width: 1px) {
-  .foo {
-    composes: bar;
+  :global(.legacy) .foo {
     color: red;
   }
+}
 
+@supports (display: grid) {
   .bar {
     color: blue;
+  }
+}
+
+@layer theme {
+  .baz {
+    color: yellow;
+  }
+}
+
+@container (min-width: 1px) {
+  .wide {
+    color: green;
+  }
+}
+
+@scope (.root) to (:global(.stop)) {
+  .scoped {
+    color: purple;
   }
 }
 CSS;
 
         $result = (new CssModulesTransformer())->transform($css);
 
-        $t->same('@media (width>=1px){.EgL3uq_foo{color:red}.EgL3uq_bar{color:#00f}}', $result['code']);
+        $t->same('@media (width>=1px){.legacy .EgL3uq_foo{color:red}}@supports (display:grid){.EgL3uq_bar{color:#00f}}@layer theme{.EgL3uq_baz{color:#ff0}}@container (width>=1px){.EgL3uq_wide{color:green}}@scope(.EgL3uq_root) to (.stop){:scope .EgL3uq_scoped{color:purple}}', $result['code']);
         $t->same([
-            'foo' => $export('EgL3uq_foo', [$local('EgL3uq_bar')]),
+            'foo' => $export('EgL3uq_foo'),
             'bar' => $export('EgL3uq_bar'),
+            'baz' => $export('EgL3uq_baz'),
+            'wide' => $export('EgL3uq_wide'),
+            'root' => $export('EgL3uq_root'),
+            'scoped' => $export('EgL3uq_scoped'),
         ], $result['exports']);
         $t->same([], $result['references']);
     },
@@ -1781,11 +1817,10 @@ CSS);
             'negated' => $export('EgL3uq_negated'),
         ], $topLevel['exports']);
     },
-    'css modules scopes upstream scope rule preludes while preserving composes exports' => static function (TestRunner $t) use ($export, $local, $global): void {
+    'css modules scopes upstream scope rule preludes without nested composes exports' => static function (TestRunner $t) use ($export): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 @scope (.scopeRoot) to (:global(.legacy-stop), .scopeLimit) {
   .card {
-    composes: base;
     color: red;
   }
 
@@ -1799,7 +1834,7 @@ CSS);
         $t->same([
             'scopeRoot' => $export('EgL3uq_scopeRoot'),
             'scopeLimit' => $export('EgL3uq_scopeLimit'),
-            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'card' => $export('EgL3uq_card'),
             'base' => $export('EgL3uq_base'),
         ], $result['exports']);
         $t->same([], $result['references']);
@@ -1807,7 +1842,6 @@ CSS);
         $globalLocal = (new CssModulesTransformer())->transform(<<<'CSS'
 @scope (:global(.wp-block) :local(.card-scope)) to (:global(.stop)) {
   .card {
-    composes: utility from global;
     color: yellow;
   }
 }
@@ -1816,7 +1850,7 @@ CSS);
         $t->same('@scope(.wp-block .EgL3uq_card-scope) to (.stop){:scope .EgL3uq_card{color:#ff0}}', $globalLocal['code']);
         $t->same([
             'card-scope' => $export('EgL3uq_card-scope'),
-            'card' => $export('EgL3uq_card', [$global('utility')]),
+            'card' => $export('EgL3uq_card'),
         ], $globalLocal['exports']);
         $t->same([], $globalLocal['references']);
     },
@@ -1875,13 +1909,11 @@ CSS;
             ],
         ], $result['references']);
     },
-    'css modules scopes upstream media env dashed idents while preserving composes' => static function (TestRunner $t) use ($export, $dashed, $dependency, $global): void {
+    'css modules scopes upstream media env dashed idents without nested composes' => static function (TestRunner $t) use ($export, $dashed): void {
         $css = <<<'CSS'
 @media (max-width: env(--branding-small)) {
   .foo {
     color: env(--brand-color);
-    composes: base from "tokens.css";
-    composes: utility from global;
   }
 }
 CSS;
@@ -1893,7 +1925,7 @@ CSS;
         $t->same('@media (width<=env(--EgL3uq_branding-small)){.EgL3uq_foo{color:env(--EgL3uq_brand-color)}}', $result['code']);
         $t->same([
             '--branding-small' => $dashed('--EgL3uq_branding-small', true),
-            'foo' => $export('EgL3uq_foo', [$dependency('base', 'tokens.css'), $global('utility')]),
+            'foo' => $export('EgL3uq_foo'),
             '--brand-color' => $dashed('--EgL3uq_brand-color', true),
         ], $result['exports']);
         $t->same([], $result['references']);
@@ -2068,7 +2100,6 @@ CSS, [
   }
 
   .keepMedia {
-    composes: token from "tokens.css";
     color: yellow;
   }
 }
@@ -2083,7 +2114,7 @@ CSS;
         $t->same([
             'keep' => $export('EgL3uq_keep', [$local('EgL3uq_base')]),
             'base' => $export('EgL3uq_base'),
-            'keepMedia' => $export('EgL3uq_keepMedia', [$dependency('token', 'tokens.css')]),
+            'keepMedia' => $export('EgL3uq_keepMedia'),
         ], $result['exports']);
         $t->same([], $result['references']);
 
