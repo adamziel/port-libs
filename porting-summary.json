@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 17:52:16 UTC",
-    "sourceCommit": "6487cc65e72dc04566b0308751b730079a8649b2",
-    "sourceCommitShort": "6487cc65e72d",
+    "generated": "2026-06-01 17:59:03 UTC",
+    "sourceCommit": "8c95fb5eb5c88b1afad15ed63cfd1fa69585122d",
+    "sourceCommitShort": "8c95fb5eb5c8",
     "sourceBranch": "main",
-    "dashboardCommit": "6487cc65e72dc04566b0308751b730079a8649b2",
-    "dashboardCommitShort": "6487cc65e72d",
+    "dashboardCommit": "8c95fb5eb5c88b1afad15ed63cfd1fa69585122d",
+    "dashboardCommitShort": "8c95fb5eb5c8",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,156,557 pass / 16 fail",
+            "php": "6,158,762 pass / 16 fail",
             "phase": "current-base source integration accepted; broad full-lane/release par...",
-            "audit": "2026-06-01 17:45 UTC supervisor integration: source commit 6487cc65e7...",
-            "currentWork": "Source-neutral trigger/upsert/view current-next fixture cleanup, real upstream select...",
+            "audit": "2026-06-01 17:58 UTC supervisor integration: source commit 8c95fb5eb5...",
+            "currentWork": "Real upstream without_rowid5 B-tree/index requirements, PRAGMA/schema WITHOUT ROWID p...",
             "nextTarget": "Prioritize broad full-lane memory exhaustion and the 16 obser...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "6487cc6"
+            "commit": "8c95fb5"
         },
         {
             "lane": "lightningcss",
@@ -45,13 +45,13 @@
             "coverage": "2,399 / 3,532 (67.9%)",
             "mapPercent": "67.9%",
             "unmapped": "1,133",
-            "php": "8,873 pass / 0 fail",
+            "php": "8,896 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 17:27 UTC supervisor integration: source commit a4bef18500...",
-            "currentWork": "Source-map reused inline input sourcesContent parity, grid-template longhand composit...",
+            "audit": "2026-06-01 17:58 UTC supervisor integration: source commit 8c95fb5eb5...",
+            "currentWork": "Target-prefixing scroll-navigation pseudo browser-boundary parity, CSSOM direct backg...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, bundle...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "a4bef18"
+            "commit": "8c95fb5"
         },
         {
             "lane": "gitoxide",
@@ -61,20 +61,20 @@
             "state": "High coverage",
             "progressPercent": "98.3",
             "completion": "98.3%",
-            "suite": "current-base Gitoxide empty MIDX object database and partial clone pa...",
-            "benchmark": "current-base Gitoxide empty MIDX object database and partial clone pa...",
+            "suite": "pending Gitoxide tree pathspec symlink directory boundary parity",
+            "benchmark": "pending Gitoxide tree pathspec symlink directory boundary parity",
             "denominator": "2886",
-            "mapped": "1808",
-            "coverage": "1,808 / 2,886 (62.6%)",
-            "mapPercent": "62.6%",
-            "unmapped": "1,078",
-            "php": "10,364 pass / 0 fail",
+            "mapped": "1809",
+            "coverage": "1,809 / 2,886 (62.7%)",
+            "mapPercent": "62.7%",
+            "unmapped": "1,077",
+            "php": "10,375 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 17:45 UTC supervisor integration: source commit 6487cc65e7...",
-            "currentWork": "Loose-object NUL-before-space unknown-kind ordering parity, sparse-checkout pathspec...",
+            "audit": "2026-06-01 17:58 UTC supervisor integration: source commit 8c95fb5eb5...",
+            "currentWork": "Tree/pathspec symlink directory-boundary parity, loose-object NUL-before-space unknow...",
             "nextTarget": "Keep Gitoxide workers on current-base non-overlapping referen...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "6487cc6"
+            "commit": "8c95fb5"
         },
         {
             "lane": "readability",
