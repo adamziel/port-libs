@@ -481,9 +481,20 @@ final class SQLitePDO extends \PDO
         $message = is_string($errorInfo[2] ?? null) ? $errorInfo[2] : $exception->getMessage();
 
         trigger_error(
-            "{$method}(): SQLSTATE[{$sqlState}]: General error: {$driverCode} {$message}",
+            "{$this->nativePdoWarningMethod($method)}(): SQLSTATE[{$sqlState}]: General error: {$driverCode} {$message}",
             E_USER_WARNING,
         );
+    }
+
+    private function nativePdoWarningMethod(string $method): string
+    {
+        [$class, $name] = array_pad(explode('::', $method, 2), 2, '');
+
+        return match ($class) {
+            self::class => 'PDO::' . $name,
+            SQLitePDOStatement::class => 'PDOStatement::' . $name,
+            default => $method,
+        };
     }
 
     private function setExceptionCode(\PDOException $exception, string $code): void
@@ -537,6 +548,10 @@ final class SQLitePDO extends \PDO
                     $this->validateSelectPrepareSql($statement);
                     continue;
                 }
+                if (preg_match('/^create\s+table\b/i', $statement) === 1) {
+                    $this->validateCreateTablePrepareSql($statement);
+                    continue;
+                }
                 if (SQLiteInsertValuesSql::startsWithInsertKeyword($statement)) {
                     $this->validateInsertPrepareSql($statement);
                     continue;
@@ -550,7 +565,11 @@ final class SQLitePDO extends \PDO
                 }
             } catch (\Throwable $exception) {
                 $message = $this->pdoSqliteMessage($exception);
-                if ($this->isColumnResolutionError($message) || $this->isTableResolutionError($message) || $this->isParameterResolutionError($message)) {
+                if ($this->isColumnResolutionError($message)
+                    || $this->isTableResolutionError($message)
+                    || $this->isParameterResolutionError($message)
+                    || $this->isCreateTableResolutionError($message)
+                ) {
                     throw $this->failure($message, $exception);
                 }
             }
@@ -576,6 +595,7 @@ final class SQLitePDO extends \PDO
     {
         $statement = SQLiteInsertValuesSql::parse($sql);
         $table = $statement['target'];
+        $this->assertWritableInsertTarget($table);
         $this->assertTable($table);
         $columns = $statement['columns'] ?? $this->columns[$table];
         $this->assertColumns($table, $columns, 'insert');
@@ -586,6 +606,20 @@ final class SQLitePDO extends \PDO
             foreach ($values as $expression) {
                 $this->assertPrepareScalarReferences($expression, []);
             }
+        }
+    }
+
+    private function validateCreateTablePrepareSql(string $sql): void
+    {
+        $table = $this->createTableName($sql);
+        if ($this->hasTable($table)) {
+            throw new \PDOException("table {$table} already exists");
+        }
+
+        try {
+            SQLitePdoFileImage::parseCreateTableDefinition($sql);
+        } catch (\InvalidArgumentException $exception) {
+            throw new \PDOException($exception->getMessage(), 0, $exception);
         }
     }
 
@@ -935,6 +969,14 @@ final class SQLitePDO extends \PDO
             || $message === 'variable number must be between ?1 and ?' . self::MAX_VARIABLE_NUMBER;
     }
 
+    private function isCreateTableResolutionError(string $message): bool
+    {
+        return preg_match('/^table [A-Za-z_][A-Za-z0-9_]* already exists$/', $message) === 1
+            || str_starts_with($message, 'unrecognized token: ')
+            || preg_match('/^near ".+": syntax error$/', $message) === 1
+            || $message === 'incomplete input';
+    }
+
     /**
      * @param array<int|string,mixed> $parameters
      */
@@ -1177,10 +1219,11 @@ final class SQLitePDO extends \PDO
 
     private function createTable(string $sql): void
     {
-        if (preg_match('/^create\s+table\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/i', $sql, $match) !== 1) {
-            throw new \PDOException('SQLitePDO CREATE TABLE support requires a simple column list');
+        $table = $this->createTableName($sql);
+        if ($this->hasTable($table)) {
+            throw new \PDOException("table {$table} already exists");
         }
-        $table = $match[1];
+
         try {
             $definition = SQLitePdoFileImage::parseCreateTableDefinition($sql);
         } catch (\InvalidArgumentException $exception) {
@@ -1194,23 +1237,53 @@ final class SQLitePDO extends \PDO
         $this->schemaCookie++;
     }
 
+    private function createTableName(string $sql): string
+    {
+        if (preg_match('/^create\s+table\s+([A-Za-z_][A-Za-z0-9_]*)\b/i', trim($sql), $match) !== 1) {
+            throw new \PDOException('SQLitePDO CREATE TABLE support requires a simple column list');
+        }
+
+        return $match[1];
+    }
+
+    private function hasTable(string $table): bool
+    {
+        foreach (array_keys($this->tables) as $knownTable) {
+            if (strcasecmp($knownTable, $table) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** @param array<int|string,mixed> $parameters */
     private function insertValues(string $sql, array $parameters): int
     {
         $statement = SQLiteInsertValuesSql::parse($sql);
         $table = $statement['target'];
+        $this->assertWritableInsertTarget($table);
         $this->assertTable($table);
         $columns = $statement['columns'] ?? $this->columns[$table];
         $this->assertColumns($table, $columns, 'insert');
+        $metadata = $this->tableColumnMetadata($table);
         $changes = 0;
         $parameterCursor = $this->parameterCursor($parameters);
         foreach ($statement['tuples'] as $values) {
             if (count($values) !== count($columns)) {
-                throw new \PDOException('SQLitePDO INSERT column count does not match value count');
+                throw new \PDOException($this->insertColumnCountMessage($table, $statement['columns'], count($columns), count($values)));
             }
-            $row = array_fill_keys($this->columns[$table], null);
+            $row = [];
+            foreach ($this->columns[$table] as $column) {
+                $default = $metadata[$column]['default'] ?? null;
+                $value = $default === null ? null : $this->value($default, $parameterCursor, [], true);
+                $row[$column] = $this->applyColumnAffinity($value, $metadata[$column]['type'] ?? '');
+            }
             foreach ($columns as $index => $column) {
-                $row[$column] = $this->value($values[$index], $parameterCursor);
+                $row[$column] = $this->applyColumnAffinity(
+                    $this->value($values[$index], $parameterCursor),
+                    $metadata[$column]['type'] ?? '',
+                );
             }
             $rowidAlias = $this->rowidAliases[$table] ?? null;
             $rowidColumn = $rowidAlias ?? ($this->columns[$table][0] ?? null);
@@ -1225,6 +1298,96 @@ final class SQLitePDO extends \PDO
         }
 
         return $changes;
+    }
+
+    private function assertWritableInsertTarget(string $table): void
+    {
+        if (str_starts_with(strtolower($table), 'sqlite_')) {
+            throw new \PDOException("table {$table} may not be modified");
+        }
+    }
+
+    /**
+     * @param list<string>|null $explicitColumns
+     */
+    private function insertColumnCountMessage(string $table, ?array $explicitColumns, int $expected, int $actual): string
+    {
+        if ($explicitColumns !== null) {
+            return "{$actual} values for {$expected} columns";
+        }
+
+        return "table {$table} has {$expected} columns but {$actual} values were supplied";
+    }
+
+    /**
+     * @return array<string,array{type:string,default:?string}>
+     */
+    private function tableColumnMetadata(string $table): array
+    {
+        $schema = $this->tableSql[$table] ?? '';
+        if ($schema === '') {
+            $metadata = [];
+            foreach ($this->columns[$table] ?? [] as $column) {
+                $metadata[$column] = ['type' => '', 'default' => null];
+            }
+
+            return $metadata;
+        }
+
+        $open = strpos($schema, '(');
+        if ($open === false) {
+            throw new \PDOException('SQLitePDO CREATE TABLE support requires a simple column list');
+        }
+        $close = self::matchingParen($schema, $open);
+        if ($close === null) {
+            throw new \PDOException('SQLitePDO CREATE TABLE support requires a simple column list');
+        }
+
+        $metadata = [];
+        foreach ($this->splitTopLevel(substr($schema, $open + 1, $close - $open - 1), ',') as $definition) {
+            $definition = trim($definition);
+            if ($definition === '' || preg_match('/^(?:constraint\s+\S+\s+)?(?:primary|unique|check|foreign)\b/i', $definition) === 1) {
+                continue;
+            }
+            if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)(.*)$/s', $definition, $match) !== 1) {
+                throw new \PDOException('SQLitePDO CREATE TABLE column is malformed');
+            }
+
+            $tail = $match[2];
+            $metadata[$match[1]] = [
+                'type' => self::declaredTypeFromColumnTail($tail),
+                'default' => self::defaultExpressionFromColumnTail($tail),
+            ];
+        }
+
+        foreach ($this->columns[$table] ?? [] as $column) {
+            $metadata[$column] ??= ['type' => '', 'default' => null];
+        }
+
+        return $metadata;
+    }
+
+    private static function declaredTypeFromColumnTail(string $tail): string
+    {
+        $end = self::firstTopLevelKeywordOffset($tail, ['CONSTRAINT', 'PRIMARY', 'NOT', 'NULL', 'UNIQUE', 'CHECK', 'DEFAULT', 'COLLATE', 'REFERENCES', 'GENERATED', 'AS']);
+        $type = $end === null ? $tail : substr($tail, 0, $end);
+
+        return trim(preg_replace('/\s+/', ' ', $type) ?? $type);
+    }
+
+    private static function defaultExpressionFromColumnTail(string $tail): ?string
+    {
+        $offset = self::firstTopLevelKeywordOffset($tail, ['DEFAULT']);
+        if ($offset === null) {
+            return null;
+        }
+
+        $start = self::skipWhitespaceStatic($tail, $offset + strlen('DEFAULT'));
+        $end = self::firstTopLevelKeywordOffset(substr($tail, $start), ['CONSTRAINT', 'PRIMARY', 'NOT', 'NULL', 'UNIQUE', 'CHECK', 'COLLATE', 'REFERENCES', 'GENERATED']);
+        $expression = $end === null ? substr($tail, $start) : substr($tail, $start, $end);
+        $expression = trim($expression);
+
+        return $expression === '' ? null : $expression;
     }
 
     /** @param array<int|string,mixed> $parameters */
@@ -1328,9 +1491,12 @@ final class SQLitePDO extends \PDO
     }
 
     /** @param array{parameters:array<int|string,mixed>,anonymous:int} $parameters @param array<string,mixed> $row */
-    private function value(string $expression, array &$parameters, array $row = []): mixed
+    private function value(string $expression, array &$parameters, array $row = [], bool $bareIdentifierAsText = false): mixed
     {
         $expression = trim($expression);
+        if (str_starts_with($expression, '(') && self::matchingParen($expression, 0) === strlen($expression) - 1) {
+            return $this->value(substr($expression, 1, -1), $parameters, $row, $bareIdentifierAsText);
+        }
         if ($expression === '?') {
             return $this->parameterValue($parameters, $parameters['anonymous']++);
         }
@@ -1349,10 +1515,11 @@ final class SQLitePDO extends \PDO
         if (preg_match('/^null$/i', $expression) === 1) {
             return null;
         }
-        if (preg_match('/^-?\d+$/', $expression) === 1) {
+        if (preg_match('/^[+-]?\d+$/', $expression) === 1) {
             return (int) $expression;
         }
-        if (preg_match('/^-?\d+\.\d+$/', $expression) === 1) {
+        if (preg_match('/^[+-]?(?:(?:\d+\.\d*)|(?:\d*\.\d+))(?:[eE][+-]?\d+)?$/', $expression) === 1
+            || preg_match('/^[+-]?\d+[eE][+-]?\d+$/', $expression) === 1) {
             return (float) $expression;
         }
         if (preg_match("/^'(.*)'$/s", $expression, $match) === 1) {
@@ -1367,10 +1534,49 @@ final class SQLitePDO extends \PDO
             return SQLiteJsonCanonical::jsonSqlFunctionArguments($match[1], $arguments);
         }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $expression) === 1) {
+            if ($bareIdentifierAsText) {
+                return $expression;
+            }
             throw new \PDOException("no such column: {$expression}");
         }
 
         throw new \PDOException("SQLitePDO unsupported scalar expression: {$expression}");
+    }
+
+    private function applyColumnAffinity(mixed $value, string $declaredType): mixed
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $coerced = SQLiteRealExpressionAffinityCorpusPlan::applyInsertAffinities(
+            [['value' => $value]],
+            ['value' => self::declaredAffinity($declaredType)],
+        );
+
+        return $coerced[0]['value'];
+    }
+
+    private static function declaredAffinity(string $declaredType): string
+    {
+        $type = strtoupper($declaredType);
+        if ($type === '') {
+            return 'BLOB';
+        }
+        if (str_contains($type, 'INT')) {
+            return 'INTEGER';
+        }
+        if (str_contains($type, 'CHAR') || str_contains($type, 'CLOB') || str_contains($type, 'TEXT')) {
+            return 'TEXT';
+        }
+        if (str_contains($type, 'BLOB')) {
+            return 'BLOB';
+        }
+        if (str_contains($type, 'REAL') || str_contains($type, 'FLOA') || str_contains($type, 'DOUB')) {
+            return 'REAL';
+        }
+
+        return 'NUMERIC';
     }
 
     /** @param array{parameters:array<int|string,mixed>,anonymous:int} $cursor */
@@ -1418,5 +1624,106 @@ final class SQLitePDO extends \PDO
         $parts[] = trim(substr($sql, $start));
 
         return $parts;
+    }
+
+    private static function matchingParen(string $sql, int $offset): ?int
+    {
+        if (($sql[$offset] ?? null) !== '(') {
+            return null;
+        }
+
+        $depth = 0;
+        $quote = null;
+        $length = strlen($sql);
+        for ($i = $offset; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($quote !== null) {
+                if ($char === $quote && ($sql[$i + 1] ?? null) === $quote) {
+                    $i++;
+                } elseif ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $i;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $keywords
+     */
+    private static function firstTopLevelKeywordOffset(string $text, array $keywords): ?int
+    {
+        $depth = 0;
+        $quote = null;
+        $length = strlen($text);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $text[$i];
+            if ($quote !== null) {
+                if ($char === $quote && ($text[$i + 1] ?? null) === $quote) {
+                    $i++;
+                } elseif ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')' && $depth > 0) {
+                $depth--;
+                continue;
+            }
+            if ($depth !== 0) {
+                continue;
+            }
+            foreach ($keywords as $keyword) {
+                $keywordLength = strlen($keyword);
+                if (
+                    strncasecmp(substr($text, $i, $keywordLength), $keyword, $keywordLength) === 0
+                    && ($i === 0 || !self::isIdentifierChar($text[$i - 1]))
+                    && (!isset($text[$i + $keywordLength]) || !self::isIdentifierChar($text[$i + $keywordLength]))
+                ) {
+                    return $i;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static function skipWhitespaceStatic(string $sql, int $offset): int
+    {
+        $length = strlen($sql);
+        while ($offset < $length && ctype_space($sql[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
+    }
+
+    private static function isIdentifierChar(string $char): bool
+    {
+        return ctype_alnum($char) || $char === '_';
     }
 }

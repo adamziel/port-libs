@@ -917,6 +917,10 @@ final class SQLiteUpdateDeleteReturningSql
         while (($stripped = self::stripEnclosingParentheses($expression)) !== null) {
             $expression = $stripped;
         }
+        $exists = self::limitExistsValue($expression);
+        if ($exists !== null) {
+            return $exists ? 1 : 0;
+        }
         $logical = self::evaluateLimitLogicalExpression($expression);
         if ($logical['matched']) {
             return $logical['value'] === null ? null : ($logical['value'] ? 1 : 0);
@@ -1074,6 +1078,40 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT expression is not supported');
+    }
+
+    private static function limitExistsValue(string $expression): ?bool
+    {
+        $function = self::wholeLimitScalarFunction($expression);
+        if ($function === null || $function['name'] !== 'exists') {
+            return null;
+        }
+
+        $selectSql = trim($function['arguments']);
+        if (preg_match('/^SELECT\s+(.+)$/is', $selectSql, $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT EXISTS requires a SELECT subquery');
+        }
+
+        $body = trim($match[1]);
+        if ($body === '') {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT EXISTS SELECT list must not be empty');
+        }
+        if (self::topLevelKeywordPosition($body, 'FROM') !== null) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT EXISTS only supports no-FROM constant SELECT subqueries');
+        }
+
+        $wherePosition = self::topLevelKeywordPosition($body, 'WHERE');
+        if ($wherePosition === null) {
+            return true;
+        }
+
+        $projection = trim(substr($body, 0, $wherePosition));
+        $where = trim(substr($body, $wherePosition + strlen('WHERE')));
+        if ($projection === '' || $where === '') {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT EXISTS requires SELECT expressions before a non-empty WHERE');
+        }
+
+        return self::sqliteTruthValue(self::limitExpressionValue($where)) === true;
     }
 
     private static function currentDateTimeLimitLiteral(string $expression): ?string
@@ -2415,7 +2453,19 @@ final class SQLiteUpdateDeleteReturningSql
      */
     private static function splitLimitComparison(string $sql, string $operator): ?array
     {
-        $parts = self::splitLimitOperator($sql, $operator);
+        if (preg_match('/[A-Za-z]/', $operator) === 1) {
+            $position = self::topLevelKeywordPosition($sql, $operator);
+            if ($position === null) {
+                return null;
+            }
+
+            $parts = [
+                trim(substr($sql, 0, $position)),
+                trim(substr($sql, $position + strlen($operator))),
+            ];
+        } else {
+            $parts = self::splitLimitOperator($sql, $operator);
+        }
         if (count($parts) !== 2) {
             return null;
         }

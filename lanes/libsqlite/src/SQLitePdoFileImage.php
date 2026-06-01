@@ -146,7 +146,14 @@ final class SQLitePdoFileImage
      */
     public static function parseCreateTableDefinition(string $sql): array
     {
-        if (preg_match('/^create\s+table\s+([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)$/is', trim($sql), $match) !== 1) {
+        $sql = trim($sql);
+        if (preg_match('/^create\s+table\s+[A-Za-z_][A-Za-z0-9_]*\s*\(/i', $sql) === 1
+            && !str_ends_with($sql, ')')
+        ) {
+            throw new \InvalidArgumentException('incomplete input');
+        }
+
+        if (preg_match('/^create\s+table\s+([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)$/is', $sql, $match) !== 1) {
             throw new \InvalidArgumentException('SQLitePDO CREATE TABLE support requires a simple column list');
         }
 
@@ -158,7 +165,7 @@ final class SQLitePdoFileImage
                 continue;
             }
             if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)(.*)$/s', $definition, $columnMatch) !== 1) {
-                throw new \InvalidArgumentException('SQLitePDO CREATE TABLE column is malformed');
+                throw new \InvalidArgumentException('unrecognized token: "' . self::firstSqlToken($definition) . '"');
             }
 
             $column = $columnMatch[1];
@@ -175,10 +182,19 @@ final class SQLitePdoFileImage
         }
 
         if ($columns === []) {
-            throw new \InvalidArgumentException('SQLitePDO CREATE TABLE needs at least one column');
+            throw new \InvalidArgumentException('near ")": syntax error');
         }
 
         return ['columns' => $columns, 'rowidAlias' => $rowidAlias];
+    }
+
+    private static function firstSqlToken(string $sql): string
+    {
+        if (preg_match('/^\s*([^\s,)]+)/', $sql, $match) === 1) {
+            return $match[1];
+        }
+
+        return trim($sql);
     }
 
     /**

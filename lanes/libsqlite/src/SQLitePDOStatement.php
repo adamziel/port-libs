@@ -254,7 +254,7 @@ final class SQLitePDOStatement extends \PDOStatement
         return true;
     }
 
-    public function setFetchMode(int $mode, mixed ...$args): bool
+    public function setFetchMode(int $mode, mixed ...$args): true
     {
         if (!in_array($mode, self::SUPPORTED_FETCH_MODES, true)) {
             throw new \PDOException('SQLitePDOStatement fetch mode is not supported');
