@@ -1077,31 +1077,31 @@ final class TreeMerge
                 if ($theirEntry === null || !self::sameEntry($baseEntry, $theirEntry)) {
                     $theirTargetEntry = $theirEntries[$ourRename['path']] ?? null;
                     if ($theirTargetEntry !== null) {
-                        if ($theirEntry === null) {
-                            $targetAddMerge = self::tryMergeRenameTargetAdd(
-                                $pathPrefix,
-                                $ourRename['path'],
-                                $ourRename['entry'],
-                                $theirTargetEntry,
-                                $readObject,
-                                $writeObject,
-                                $conflictStyle,
-                                $bigFileThreshold,
-                                self::ancestorEntriesForRenameTargetAdd(
+                        $targetAddMerge = self::tryMergeRenameTargetAdd(
+                            $pathPrefix,
+                            $ourRename['path'],
+                            $ourRename['entry'],
+                            $theirTargetEntry,
+                            $readObject,
+                            $writeObject,
+                            $conflictStyle,
+                            $bigFileThreshold,
+                            $theirEntry === null
+                                ? self::ancestorEntriesForRenameTargetAdd(
                                     $pathPrefix,
                                     $ourRename['path'],
                                     $baseEntries,
                                     [$path, $theirRenamesByTarget[$ourRename['path']] ?? null],
-                                ),
-                            );
-                            if ($targetAddMerge !== null) {
-                                $merged[] = $targetAddMerge['entry'];
-                                array_push($conflicts, ...$targetAddMerge['conflicts']);
-                                $consumed[$path] = true;
-                                $consumed[$ourRename['path']] = true;
-                                self::consumeRenamesToTarget($ourRename['path'], $ourRenames, $theirRenames, $consumed);
-                                continue;
-                            }
+                                )
+                                : [],
+                        );
+                        if ($targetAddMerge !== null) {
+                            $merged[] = $targetAddMerge['entry'];
+                            array_push($conflicts, ...$targetAddMerge['conflicts']);
+                            $consumed[$path] = true;
+                            $consumed[$ourRename['path']] = true;
+                            self::consumeRenamesToTarget($ourRename['path'], $ourRenames, $theirRenames, $consumed);
+                            continue;
                         }
 
                         $conflicts[] = new TreeMergeConflict(
@@ -1221,31 +1221,31 @@ final class TreeMerge
                 if ($ourEntry === null || !self::sameEntry($baseEntry, $ourEntry)) {
                     $ourTargetEntry = $ourEntries[$theirRename['path']] ?? null;
                     if ($ourTargetEntry !== null) {
-                        if ($ourEntry === null) {
-                            $targetAddMerge = self::tryMergeRenameTargetAdd(
-                                $pathPrefix,
-                                $theirRename['path'],
-                                $ourTargetEntry,
-                                $theirRename['entry'],
-                                $readObject,
-                                $writeObject,
-                                $conflictStyle,
-                                $bigFileThreshold,
-                                self::ancestorEntriesForRenameTargetAdd(
+                        $targetAddMerge = self::tryMergeRenameTargetAdd(
+                            $pathPrefix,
+                            $theirRename['path'],
+                            $ourTargetEntry,
+                            $theirRename['entry'],
+                            $readObject,
+                            $writeObject,
+                            $conflictStyle,
+                            $bigFileThreshold,
+                            $ourEntry === null
+                                ? self::ancestorEntriesForRenameTargetAdd(
                                     $pathPrefix,
                                     $theirRename['path'],
                                     $baseEntries,
                                     [$ourRenamesByTarget[$theirRename['path']] ?? null, $path],
-                                ),
-                            );
-                            if ($targetAddMerge !== null) {
-                                $merged[] = $targetAddMerge['entry'];
-                                array_push($conflicts, ...$targetAddMerge['conflicts']);
-                                $consumed[$path] = true;
-                                $consumed[$theirRename['path']] = true;
-                                self::consumeRenamesToTarget($theirRename['path'], $ourRenames, $theirRenames, $consumed);
-                                continue;
-                            }
+                                )
+                                : [],
+                        );
+                        if ($targetAddMerge !== null) {
+                            $merged[] = $targetAddMerge['entry'];
+                            array_push($conflicts, ...$targetAddMerge['conflicts']);
+                            $consumed[$path] = true;
+                            $consumed[$theirRename['path']] = true;
+                            self::consumeRenamesToTarget($theirRename['path'], $ourRenames, $theirRenames, $consumed);
+                            continue;
                         }
 
                         $conflicts[] = new TreeMergeConflict(

@@ -15,8 +15,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -40,20 +40,20 @@ $next = [
     $row(12, 'plugin_cache_alpha', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicatePeerResumePlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDuplicatePeerResumePlan(
     $current,
     $next,
     'plugin!_cache',
     '!',
     ['key' => 'plugin_cache', 'rowid' => 6],
-    'main.wp_options@195',
-    'main.wp_options@196',
+    'main.app_settings@195',
+    'main.app_settings@196',
     195,
     196,
 );
 
 if (in_array('--self-test', $argv, true)) {
-    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-next196');
+    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-nextoneNineSix');
     assert($plan['currentDuplicatePeersBeforeOrAtTokenRowids'] === [1, 2, 6]);
     assert($plan['nextDuplicatePeersBeforeOrAtTokenRowids'] === [1, 2, 6]);
     assert($plan['nextDuplicatePeersAfterTokenRowids'] === [11]);

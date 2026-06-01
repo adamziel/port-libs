@@ -49,7 +49,7 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
 
             if ($old !== null && $where !== null && !$where($old, $incoming)) {
                 $skipped[] = $incoming;
-                $yielded[] = self::yieldRow($ordinal, 'skipped', $event, $old, $incoming, $incoming, [], [], $returning);
+                $yielded[] = self::yieldRow($ordinal, 'skipped', $event, $old, $incoming, $incoming, [], [], $returning, $spec);
                 continue;
             }
 
@@ -111,7 +111,7 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
                 throw new \InvalidArgumentException('SQLite UPSERT trigger foreign key immediate constraint failed after trigger');
             }
             $violations = array_merge($violations, self::tagViolations($afterViolations, $ordinal, 'after-trigger'));
-            $yielded[] = self::yieldRow($ordinal, 'changed', $event, $old, $returningImage, $incoming, $rowViolations, $afterViolations, $returning);
+            $yielded[] = self::yieldRow($ordinal, 'changed', $event, $old, $returningImage, $incoming, $rowViolations, $afterViolations, $returning, $spec);
         }
 
         return [
@@ -238,7 +238,7 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
             if (strtolower((string) ($trigger['timing'] ?? '')) !== $timing || strtolower((string) ($trigger['event'] ?? '')) !== $event) {
                 continue;
             }
-            if (!self::whenMatches($trigger['when'] ?? true, $old, $new)) {
+            if (!self::whenMatches($trigger['when'] ?? true, $old, $new, $spec)) {
                 continue;
             }
             $action = strtolower((string) ($trigger['action'] ?? 'audit'));
@@ -304,14 +304,16 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
      * @param list<array<string,mixed>> $after
      * @return array<string,mixed>
      */
-    private static function yieldRow(int $ordinal, string $status, string $event, ?array $old, array $new, array $incoming, array $before, array $after, ?array $returning): array
+    private static function yieldRow(int $ordinal, string $status, string $event, ?array $old, array $new, array $incoming, array $before, array $after, ?array $returning, ?array $spec = null): array
     {
+        $parentKey = is_array($spec) ? $spec['parent_key'] : null;
+
         return [
             'ordinal' => $ordinal,
             'status' => $status,
             'event' => $event,
-            'old_key' => $old['option_id'] ?? null,
-            'new_key' => $new['option_id'] ?? null,
+            'old_key' => $parentKey === null || $old === null ? null : ($old[$parentKey] ?? null),
+            'new_key' => $parentKey === null ? null : ($new[$parentKey] ?? null),
             'violations_before_after_triggers' => count($before),
             'violations_after_triggers' => count($after),
             'returning' => $status === 'changed' ? self::returningRow($returning, $old, $new, $incoming, $event) : null,
@@ -465,7 +467,7 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
         return $value;
     }
 
-    private static function whenMatches(mixed $when, ?array $old, array $new): bool
+    private static function whenMatches(mixed $when, ?array $old, array $new, array $spec): bool
     {
         if ($when === true || $when === null) {
             return true;
@@ -477,8 +479,8 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
             throw new \InvalidArgumentException('SQLite UPSERT trigger/FK WHEN clause is malformed');
         }
         [$left, $operator, $right] = array_values($when);
-        $left = self::value($left, $old, $new, ['parent_key' => 'option_id', 'child_key' => 'option_id', 'deferred' => true]);
-        $right = self::value($right, $old, $new, ['parent_key' => 'option_id', 'child_key' => 'option_id', 'deferred' => true]);
+        $left = self::value($left, $old, $new, $spec);
+        $right = self::value($right, $old, $new, $spec);
 
         return match (strtoupper((string) $operator)) {
             '=', '==' => $left == $right,

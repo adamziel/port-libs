@@ -9,8 +9,8 @@ $tests = [];
 
 $enc194 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row194 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc194($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc194($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -18,8 +18,8 @@ $row194 = static fn (int $id, string $name, int|string $encoding): array => [
     },
 ];
 $bad194 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -78,7 +78,7 @@ $valueAt194 = static function (array $value, string $path): mixed {
 $cases194 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneNineFour'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* escaped wildcard literal prefix */'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* escaped wildcard literal prefix */'],
     'pattern' => ['pattern', 'plugin!%%'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
@@ -252,9 +252,9 @@ $tests['utf16 nocase like rtrim current source nextOneNineFour rejects invalid e
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapedWildcardPrefixPlan($current194, $nextOneNineFour, 'plugin!!%', '!!'));
 };
 
-$tests['utf16 nocase like rtrim current source nextOneNineFour rejects missing option id'] = static function (TestRunner $t) use ($nextOneNineFour): void {
+$tests['utf16 nocase like rtrim current source nextOneNineFour rejects missing setting id'] = static function (TestRunner $t) use ($nextOneNineFour): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapedWildcardPrefixPlan([
-        ['option_name_bytes' => 'plugin%cache', 'text_encoding' => 1],
+        ['key_name_bytes' => 'plugin%cache', 'text_encoding' => 1],
     ], $nextOneNineFour));
 };
 

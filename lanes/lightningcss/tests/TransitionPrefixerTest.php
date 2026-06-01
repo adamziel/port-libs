@@ -447,6 +447,14 @@ return [
         $t->same('.foo{width:min-content}', $prefixer->prefixForTargets('.foo { width: min-content; }', ['firefox' => 66]));
         $t->same('.foo{width:-moz-fit-content;width:fit-content}', $prefixer->prefixForTargets('.foo { width: fit-content; }', ['firefox' => 93]));
         $t->same('.foo{width:fit-content}', $prefixer->prefixForTargets('.foo { width: fit-content; }', ['firefox' => 94]));
+        $t->same('.foo{width:min-content}', $prefixer->prefixForTargets('.foo { width: min-content; }', ['safari' => 6]));
+        $t->same('.foo{width:-webkit-min-content;width:min-content}', $prefixer->prefixForTargets('.foo { width: min-content; }', ['safari' => '6.1']));
+        $t->same('.foo{height:max-content}', $prefixer->prefixForTargets('.foo { height: max-content; }', ['safari' => 6]));
+        $t->same('.foo{height:-webkit-max-content;height:max-content}', $prefixer->prefixForTargets('.foo { height: max-content; }', ['safari' => '6.1']));
+        $t->same('.foo{width:fit-content}', $prefixer->prefixForTargets('.foo { width: fit-content; }', ['safari' => 6]));
+        $t->same('.foo{width:-webkit-fit-content;width:fit-content}', $prefixer->prefixForTargets('.foo { width: fit-content; }', ['safari' => '6.1']));
+        $t->same('.foo{height:stretch}', $prefixer->prefixForTargets('.foo { height: stretch; }', ['safari' => 6]));
+        $t->same('.foo{height:-webkit-fill-available;height:stretch}', $prefixer->prefixForTargets('.foo { height: stretch; }', ['safari' => '6.1']));
         $t->same('.foo{width:-webkit-min-content;width:min-content}', $prefixer->prefixForTargets('.foo { width: min-content; }', ['safari' => '10.1']));
         $t->same('.foo{width:min-content}', $prefixer->prefixForTargets('.foo { width: min-content; }', ['safari' => 11]));
         $t->same('.foo{height:-webkit-fill-available;height:stretch}', $prefixer->prefixForTargets('.foo { height: stretch; }', ['chrome' => 137]));

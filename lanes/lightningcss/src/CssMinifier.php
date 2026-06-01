@@ -3217,6 +3217,10 @@ final class CssMinifier
 
     private function minifyDeclarationValue(string $property, string $value): string
     {
+        if (str_starts_with($property, '--') && trim($value) === '') {
+            return ' ';
+        }
+
         $value = $this->minifyMathFunctions($this->normalizeMathFunctionOperators($value));
         $value = $this->minifyTransformValue($property, $value);
         $value = $this->minifyAnimationLonghandValue($property, $value);
@@ -8731,7 +8735,24 @@ final class CssMinifier
 
     private function minifyTransitionShorthandValue(string $value): string
     {
-        return $this->mapCommaList($value, fn (string $part): string => $this->minifyTransitionLayer($part));
+        $layers = array_map(
+            fn (string $part): string => $this->minifyTransitionLayer($part),
+            $this->splitTopLevel($value, ',')
+        );
+        $output = '';
+        foreach ($layers as $index => $layer) {
+            if ($index > 0) {
+                $previous = $layers[$index - 1];
+                $needsVariableLayerSpace = $this->containsCustomPropertyReference($previous)
+                    || $this->containsCustomPropertyReference($layer)
+                    || stripos($previous, 'env(') !== false
+                    || stripos($layer, 'env(') !== false;
+                $output .= $needsVariableLayerSpace ? ', ' : ',';
+            }
+            $output .= $layer;
+        }
+
+        return $output;
     }
 
     private function minifyTransitionLayer(string $layer): string
@@ -13484,6 +13505,13 @@ final class CssMinifier
 
             return preg_replace('/\s+/', ' ', $value) ?? $value;
         }
+        if (stripos($value, 'var(') !== false || stripos($value, 'env(') !== false) {
+            $value = preg_replace('/\s*,\s*/', ',', trim($value)) ?? trim($value);
+            $value = preg_replace('/\s*\*\s*/', '*', $value) ?? $value;
+            $value = preg_replace('/\s*\/\s*/', ' / ', $value) ?? $value;
+
+            return preg_replace('/\s+/', ' ', $value) ?? $value;
+        }
 
         return $this->compactMathFallback($value);
     }
@@ -16025,7 +16053,7 @@ final class CssMinifier
         $green = $this->parseRgbComponent($parts['components'][1] ?? '');
         $blue = $this->parseRgbComponent($parts['components'][2] ?? '');
         if ($red === null || $green === null || $blue === null) {
-            return null;
+            return $this->minifyUnresolvedCommaColorChannels($name, $matches[2], $parts['components']);
         }
 
         $alpha = $parts['alpha'] === null ? 1.0 : $this->parseAlphaComponent($parts['alpha']);
@@ -16034,6 +16062,30 @@ final class CssMinifier
         }
 
         return $this->serializeColorBytes($red, $green, $blue, $alpha);
+    }
+
+    /**
+     * @param list<string> $components
+     */
+    private function minifyUnresolvedCommaColorChannels(string $name, string $arguments, array $components): ?string
+    {
+        $hasUnresolvedChannel = false;
+        foreach (array_slice($components, 0, 3) as $component) {
+            if ($this->containsCustomPropertyReference($component) || stripos($component, 'env(') !== false) {
+                $hasUnresolvedChannel = true;
+                break;
+            }
+        }
+        if (!$hasUnresolvedChannel) {
+            return null;
+        }
+
+        $parts = $this->splitTopLevel($arguments, ',');
+        if (count($parts) <= 1) {
+            return null;
+        }
+
+        return $name . '(' . implode(', ', array_map('trim', $parts)) . ')';
     }
 
     private function minifyRelativeHslColorFunction(string $arguments): ?string

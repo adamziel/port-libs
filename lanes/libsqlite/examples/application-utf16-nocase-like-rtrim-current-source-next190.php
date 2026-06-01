@@ -14,8 +14,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -34,7 +34,7 @@ $next = [
     $row(3, 'plugin_cache  ', 'UTF-8'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiSpaceTrimBoundaryPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiSpaceTrimBoundaryPlan(
     $current,
     $next,
     'plugin%',
@@ -42,7 +42,7 @@ $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiSpace
 );
 
 if (in_array('--self-test', $argv, true)) {
-    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-next190');
+    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-nextoneNineZero');
     assert($plan['currentMatchedRowids'] === [1, 2, 3]);
     assert($plan['nextMatchedRowids'] === [2, 3, 1]);
     assert($plan['changedTrailingWhitespaceClassRowids'] === [1, 2, 3]);

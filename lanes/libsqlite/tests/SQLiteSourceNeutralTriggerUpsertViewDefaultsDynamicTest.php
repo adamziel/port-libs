@@ -13,12 +13,18 @@ $libsqliteRoot = dirname(__DIR__);
 $sourceRoot = $libsqliteRoot . '/src';
 
 $sourceFiles = [
+    $sourceRoot . '/SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteRecursiveTriggerReturningSavepointPlan.php',
+    $sourceRoot . '/SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteUpsertTriggerForeignKeyYieldPlan.php',
 ];
 
 $legacyTriggerViewDefaultMatches = static function () use ($sourceFiles, $libsqliteRoot): array {

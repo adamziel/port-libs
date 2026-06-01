@@ -55,6 +55,17 @@ $writePromisorPackResult = static function (string $gitDir, PackBuildResult $pac
     return $basename . '.promisor';
 };
 
+$writeOrphanPromisorIndex = static function (string $gitDir, GitObject $object, string $promisorNote): string {
+    $pack = PackBuilder::build([$object]);
+    $packDir = $gitDir . '/objects/pack';
+    $basename = 'pack-' . $pack->packChecksum();
+
+    file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
+    file_put_contents($packDir . '/' . $basename . '.promisor', $promisorNote);
+
+    return $basename . '.promisor';
+};
+
 $buildThinPromisorBlobs = static function (string $label): array {
     $stable = '';
     for ($i = 0; $i < 72; $i++) {
@@ -552,6 +563,27 @@ return [
         $duplicate = $database->writePromisorPackBundle($pack, "resumed pack duplicate marker\n");
         $t->same(true, $duplicate['alreadyPresent']);
         $t->same(null, $duplicate['keepName']);
+    },
+    'object database ignores orphan promisor indexes while hydrating later packs' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackForObject, $writeOrphanPromisorIndex): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $database = new ObjectDatabase($gitDir);
+        $orphanBlob = new GitObject('blob', 'Interrupted promisor index without pack bytes');
+        $hydratedBlob = new GitObject('blob', 'Hydrated WordPress asset after interrupted promisor index');
+        $orphanPromisor = $writeOrphanPromisorIndex($gitDir, $orphanBlob, "interrupted promisor index without pack bytes\n");
+        $hydrationPromisor = $writePromisorPackForObject($gitDir, $hydratedBlob, "valid promisor hydration after orphan index\n");
+
+        $promisorPacks = $database->promisorPackNames();
+        $promisorObjectIds = $database->promisorObjectIds();
+
+        $t->same(false, in_array($orphanPromisor, $promisorPacks, true));
+        $t->same(false, in_array($orphanBlob->oid(), $promisorObjectIds, true));
+        $t->same(false, $database->isPromisorObject($orphanBlob->oid()));
+        $t->same('promised-missing', $database->objectState($orphanBlob->oid())['status']);
+        $t->same(true, in_array($hydrationPromisor, $promisorPacks, true));
+        $t->same(true, in_array($hydratedBlob->oid(), $promisorObjectIds, true));
+        $t->same('promisor-present', $database->objectState($hydratedBlob->oid())['status']);
+        $t->same('pack', $database->readHeader($hydratedBlob->oid())['source']);
+        $t->same($hydratedBlob->body, $database->read($hydratedBlob->oid())->body);
     },
     'object database writes promisor thin pack bundles using alternate bases' => static function (TestRunner $t) use ($writePromisorPackFixture, $buildThinPromisorBlobs): void {
         [$gitDir] = $writePromisorPackFixture();
@@ -1063,6 +1095,10 @@ return [
         $t->same($summary['resumedPromisorObject'], $summary['resumedPromisorState']['oid']);
         $t->same('pack', $summary['resumedPromisorHeader']['source']);
         $t->same(true, $summary['resumedPromisorBodyMatches']);
+        $t->same(false, in_array($summary['orphanPromisorIndex'], $summary['orphanPromisorPacksAfterRefresh'], true));
+        $t->same(false, in_array($summary['orphanPromisorObject'], $summary['orphanPromisorObjectIdsAfterRefresh'], true));
+        $t->same(false, $summary['orphanPromisorIsPromisor']);
+        $t->same('promised-missing', $summary['orphanPromisorState']['status']);
         $t->same('promised-missing', $summary['refreshNeverReturnedBefore']['status']);
         $t->same([$summary['refreshNeverReturnedObject']], $summary['refreshNeverReturnedRequests']);
         $t->same('present', $summary['refreshNeverReturnedAfter']['status']);

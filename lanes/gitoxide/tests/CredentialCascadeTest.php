@@ -167,6 +167,47 @@ return [
         $t->same(false, str_contains($result->nextActionBytes(), "host=stale.example.test\n"));
         $t->same(false, str_contains($result->nextActionBytes(), "\nhost="));
     },
+    'credential cascade splits local file path contexts before helper invocation' => static function (TestRunner $t): void {
+        $payloads = [];
+        $contexts = [];
+        $cascade = new CredentialCascade([
+            static function (string $action, string $payload, ?CredentialContext $context) use (&$payloads, &$contexts): string {
+                $payloads[] = [$action, $payload];
+                $contexts[] = [
+                    'protocol' => $context?->protocol,
+                    'host' => $context?->host,
+                    'path' => $context?->path,
+                    'url' => $context?->url,
+                ];
+
+                return "username=local-deploy\npassword=local-token\n";
+            },
+        ], useHttpPath: true);
+
+        $result = $cascade->get(new CredentialContext(
+            url: 'does/not/matter',
+            host: 'stale.example.test',
+            username: 'stale-user',
+        ));
+
+        $t->same([
+            'protocol' => 'file',
+            'host' => null,
+            'path' => 'does/not/matter',
+            'url' => null,
+        ], $contexts[0]);
+        $t->same('get', $payloads[0][0]);
+        $t->contains("protocol=file\n", $payloads[0][1]);
+        $t->contains("path=does/not/matter\n", $payloads[0][1]);
+        $t->same(false, str_contains($payloads[0][1], 'url='));
+        $t->same(false, str_contains($payloads[0][1], 'host='));
+        $t->same('local-deploy', $result->username);
+        $t->same('local-token', $result->password);
+        $t->same('file', $result->context->protocol);
+        $t->same(null, $result->context->host);
+        $t->same('does/not/matter', $result->context->path);
+        $t->same(false, str_contains($result->nextActionBytes(), 'url='));
+    },
     'credential cascade honors upstream quit merge order and query user only boundaries' => static function (TestRunner $t): void {
         $calls = [];
         $quit = new CredentialCascade([

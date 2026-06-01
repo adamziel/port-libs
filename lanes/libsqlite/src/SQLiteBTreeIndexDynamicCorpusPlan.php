@@ -17088,6 +17088,82 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,lower_bound:int,upper_bound:int,limit_value:int,limit_expression:string,limit_is_bound_variable:bool,stat4_required:bool,candidate_count:int,selected_row_count:int,first_row:array{a:int,b:int},last_row:array{a:int,b:int},sample_rows:list<array{a:int,b:int}>,uses_range_index:bool,uses_order_index:bool,uses_temp_btree:bool,index_name:string,range_index:string,order_index:string,plan_terms:list<string>,detail:string,integrity:string}>
+     */
+    public static function whereLimit3RangeLimitPlannerCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite wherelimit3 dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            ['wherelimit3-1.1', 'literal positive LIMIT keeps the a-range index and sorts by b', 5, false, true],
+            ['wherelimit3-1.2', 'literal LIMIT -1 makes the b-order index cheaper when STAT4 is available', -1, false, false],
+            ['wherelimit3-1.3', 'variable positive LIMIT keeps the a-range index and sorts by b', 5, true, true],
+            ['wherelimit3-1.4', 'variable LIMIT -1 makes the b-order index cheaper when STAT4 is available', -1, true, false],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $limitValue, $boundVariable, $usesRangeIndex] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $lower = 25 + (($batch * 37 + $case) % 700);
+            $width = 40 + (($batch * 19 + $case) % 220);
+            $upper = min(1001, $lower + $width);
+            $candidateCount = $upper - $lower;
+            $selectedCount = $limitValue < 0 ? $candidateCount : min($limitValue, $candidateCount);
+            $first = ['a' => $lower, 'b' => $lower];
+            $lastValue = $lower + max(0, $selectedCount - 1);
+            $last = ['a' => $lastValue, 'b' => $lastValue];
+            $sampleRows = [];
+            foreach (array_values(array_unique([$lower, min($lastValue, $lower + 1), min($lastValue, $lower + 2), $lastValue])) as $value) {
+                $sampleRows[] = ['a' => $value, 'b' => $value];
+            }
+
+            $planTerms = $usesRangeIndex
+                ? ['SEARCH t1 USING INDEX t1a (a>? AND a<?)', 'USE TEMP B-TREE FOR ORDER BY']
+                : ['SCAN t1 USING INDEX t1b'];
+            $limitExpression = $boundVariable ? '$N' : (string) $limitValue;
+
+            $out[] = [
+                'source' => 'wherelimit3.test sections wherelimit3-1.1 through wherelimit3-1.4',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $scenario . ' dynamic batch ' . $batch,
+                'statement' => sprintf(
+                    'SELECT * FROM t1 WHERE a>=%d AND a<%d ORDER BY b LIMIT %s',
+                    $lower,
+                    $upper,
+                    $limitExpression,
+                ),
+                'lower_bound' => $lower,
+                'upper_bound' => $upper,
+                'limit_value' => $limitValue,
+                'limit_expression' => $limitExpression,
+                'limit_is_bound_variable' => $boundVariable,
+                'stat4_required' => !$usesRangeIndex,
+                'candidate_count' => $candidateCount,
+                'selected_row_count' => $selectedCount,
+                'first_row' => $first,
+                'last_row' => $last,
+                'sample_rows' => $sampleRows,
+                'uses_range_index' => $usesRangeIndex,
+                'uses_order_index' => !$usesRangeIndex,
+                'uses_temp_btree' => $usesRangeIndex,
+                'index_name' => $usesRangeIndex ? 't1a' : 't1b',
+                'range_index' => 't1a',
+                'order_index' => 't1b',
+                'plan_terms' => $planTerms,
+                'detail' => implode('; ', $planTerms),
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{w:int,x:int,y:int}>
      */
     private static function where1BaseRows(): array

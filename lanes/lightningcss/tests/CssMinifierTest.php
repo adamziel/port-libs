@@ -769,6 +769,28 @@ CSS
         $t->same('.foo{--wp--preset--color--hex:#0f08}', $minifier->minify('.foo { --wp--preset--color--hex: #00ff0088; }'));
         $t->same('.foo{--wp--preset--color--quoted:"rgb(255, 255, 0)";--wp--preset--color--asset:url(theme.svg#ffff00)}', $minifier->minify('.foo { --wp--preset--color--quoted: "rgb(255, 255, 0)"; --wp--preset--color--asset: url(theme.svg#ffff00); }'));
     },
+    'css minifier maps upstream custom property var fallback token streams' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{--test: }', $minifier->minify('.foo { --test: ; }'));
+        $t->same('.foo{--test: }', $minifier->minify('.foo { --test:  ; }'));
+        $t->same('.foo{--test:foo}', $minifier->minify('.foo { --test: foo; }'));
+        $t->same('.foo{--test:foo}', $minifier->minify('.foo { --test:  foo; }'));
+        $t->same('.foo{--test:foo}', $minifier->minify('.foo { --test: foo ; }'));
+        $t->same('.foo{--test:foo}', $minifier->minify('.foo { --test: foo  ; }'));
+        $t->same('.foo{--test:foo}', $minifier->minify('.foo { --test:foo; }'));
+        $t->same('.foo{--test:foo}', $minifier->minify('.foo { --test:foo ; }'));
+        $t->same('.foo{--test:var(--foo,20px)}', $minifier->minify('.foo { --test: var(--foo, 20px); }'));
+        $t->same('.foo{transition:var(--foo,20px), var(--bar,40px)}', $minifier->minify(".foo { transition: var(--foo, 20px),\nvar(--bar, 40px); }"));
+        $t->same('.foo{background:var(--color) var(--image)}', $minifier->minify('.foo { background: var(--color) var(--image); }'));
+        $t->same('.foo{height:calc(var(--spectrum-global-dimension-size-300) / 2)}', $minifier->minify('.foo { height: calc(var(--spectrum-global-dimension-size-300) / 2);'));
+        $t->same('.foo{color:var(--color,#ff0)}', $minifier->minify('.foo { color: var(--color, rgb(255, 255, 0)); }'));
+        $t->same('.foo{color:var(--color,#ff0)}', $minifier->minify('.foo { color: var(--color, #ffff00); }'));
+        $t->same('.foo{color:var(--color,rgb(var(--red), var(--green), 0))}', $minifier->minify('.foo { color: var(--color, rgb(var(--red), var(--green), 0)); }'));
+        $t->same('.foo{--test:.5s}', $minifier->minify('.foo { --test: .5s; }'));
+        $t->same('.foo{--theme-sizes-1\\/12:2}', $minifier->minify('.foo { --theme-sizes-1\\/12: 2 }'));
+        $t->same('.foo{--test:0px}', $minifier->minify('.foo { --test: 0px; }'));
+    },
     'css minifier maps upstream aspect-ratio value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

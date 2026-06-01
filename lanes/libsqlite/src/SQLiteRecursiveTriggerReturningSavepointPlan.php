@@ -85,14 +85,15 @@ final class SQLiteRecursiveTriggerReturningSavepointPlan
                 'status' => $status,
                 'event' => $result === 'replaced-conflict' ? 'replace' : 'insert',
                 'conflict_action' => (string) ($effect['effective_conflict_action'] ?? ''),
-                'current_rowid' => $row['option_id'] ?? null,
+                'current_rowid' => self::rowIdValue($row),
                 'next_rowid' => $nextRowid,
                 'row' => $status === 'constraint-error' ? null : $row,
                 'returning' => $status === 'changed' ? self::projectReturning($row, count($yields), $effect, $returning) : null,
                 'result' => $result,
             ];
-            if (isset($row['option_id']) && is_int($row['option_id']) && $row['option_id'] >= $nextRowid) {
-                $nextRowid = $row['option_id'] + 1;
+            $rowid = self::rowIdValue($row);
+            if (is_int($rowid) && $rowid >= $nextRowid) {
+                $nextRowid = $rowid + 1;
             }
         }
 
@@ -161,11 +162,32 @@ final class SQLiteRecursiveTriggerReturningSavepointPlan
     {
         $max = 0;
         foreach ($rows as $row) {
-            if (isset($row['option_id']) && is_int($row['option_id']) && $row['option_id'] > $max) {
-                $max = $row['option_id'];
+            $rowid = self::rowIdValue($row);
+            if (is_int($rowid) && $rowid > $max) {
+                $max = $rowid;
             }
         }
 
         return $max + 1;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function rowIdValue(array $row): mixed
+    {
+        if (array_key_exists('setting_id', $row)) {
+            return $row['setting_id'];
+        }
+        if (array_key_exists('rowid', $row)) {
+            return $row['rowid'];
+        }
+        foreach ($row as $column => $value) {
+            if (is_string($column) && str_ends_with($column, '_id')) {
+                return $value;
+            }
+        }
+
+        return null;
     }
 }

@@ -2609,6 +2609,99 @@ return [
         $t->same($beforeMappings, $map->getMappings());
         $t->same($beforeVlq, $map->writeVlq());
     },
+    'source map keeps earlier input-map remaps when upstream extend later rejects' => static function (TestRunner $t): void {
+        $compiled = new SourceMap();
+        $compiledSource = $compiled->addSource('cache/compiled.css');
+        $compiled->setSourceContent($compiledSource, ".first{color:red}.broken{color:blue}\n.keep{}");
+        $compiled->addMapping(0, 0, $compiledSource, 0, 0, 'compiledFirst');
+        $compiled->addMapping(0, 20, $compiledSource, 1, 0, 'compiledBroken');
+        $compiled->addMapping(1, 4, $compiledSource, 2, 0, 'compiledUnvisited');
+
+        $input = new SourceMap();
+        $first = $input->addSource('src/first.scss');
+        $broken = $input->addSource('src/broken.scss');
+        $input->setSourceContent($first, ".first {\n  color: red;\n}");
+        $input->setSourceContent($broken, ".broken {\n  color: blue;\n}");
+        $input->addMapping(0, 0, $first, 10, 2, 'firstRule');
+        $input->addMapping(1, 0, $broken, 20, 4, 'brokenRule');
+
+        $corruptInputMapping = Closure::bind(static function (SourceMap $sourceMap): void {
+            $sourceMap->mappings[1]['sourceIndex'] = 99;
+        }, null, SourceMap::class);
+        if ($corruptInputMapping === null) {
+            throw new RuntimeException('Unable to bind SourceMap test helper.');
+        }
+
+        $corruptInputMapping($input);
+
+        $t->throws(InvalidArgumentException::class, static function () use ($compiled, $input): void {
+            $compiled->extendWithSourceMap($input);
+        });
+
+        $decoded = SourceMap::decodeVlq($compiled->writeVlq());
+        $data = $compiled->toArray(null, false);
+
+        $t->same('ACUEG,oBDTFF;IACAC', $compiled->writeVlq());
+        $t->same([0, 0, 1], array_column($decoded, 'generatedLine'));
+        $t->same([0, 20, 4], array_column($decoded, 'generatedColumn'));
+        $t->same([1, 0, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([10, 1, 2], array_column($decoded, 'originalLine'));
+        $t->same([2, 0, 0], array_column($decoded, 'originalColumn'));
+        $t->same([3, 1, 2], array_column($decoded, 'nameIndex'));
+        $t->same(['cache/compiled.css', 'src/first.scss', 'src/broken.scss'], $data['sources']);
+        $t->same(
+            [
+                ".first{color:red}.broken{color:blue}\n.keep{}",
+                ".first {\n  color: red;\n}",
+                ".broken {\n  color: blue;\n}",
+            ],
+            $data['sourcesContent']
+        );
+        $t->same(['compiledFirst', 'compiledBroken', 'compiledUnvisited', 'firstRule', 'brokenRule'], $data['names']);
+        $t->same(10, $compiled->findClosestMapping(0, 0)['originalLine'] ?? null);
+        $t->same(1, $compiled->findClosestMapping(0, 20)['originalLine'] ?? null);
+        $t->same(['src/first.scss', 'src/broken.scss'], $input->getSources());
+        $t->same([".first {\n  color: red;\n}", ".broken {\n  color: blue;\n}"], $input->getSourcesContent());
+
+        $nameReject = new SourceMap();
+        $nameCompiled = $nameReject->addSource('cache/name-compiled.css');
+        $nameReject->setSourceContent($nameCompiled, ".name-a{}.name-b{}");
+        $nameReject->addMapping(0, 0, $nameCompiled, 0, 0, 'compiledNameA');
+        $nameReject->addMapping(0, 12, $nameCompiled, 1, 0, 'compiledNameB');
+
+        $nameInput = new SourceMap();
+        $nameFirst = $nameInput->addSource('src/name-a.scss');
+        $nameBroken = $nameInput->addSource('src/name-b.scss');
+        $nameInput->setSourceContent($nameFirst, '.name-a{}');
+        $nameInput->setSourceContent($nameBroken, '.name-b{}');
+        $nameInput->addMapping(0, 0, $nameFirst, 5, 1, 'inputNameA');
+        $nameInput->addMapping(1, 0, $nameBroken, 6, 2, 'inputNameB');
+
+        $corruptNameMapping = Closure::bind(static function (SourceMap $sourceMap): void {
+            $sourceMap->mappings[1]['nameIndex'] = 99;
+        }, null, SourceMap::class);
+        if ($corruptNameMapping === null) {
+            throw new RuntimeException('Unable to bind SourceMap test helper.');
+        }
+
+        $corruptNameMapping($nameInput);
+
+        $t->throws(InvalidArgumentException::class, static function () use ($nameReject, $nameInput): void {
+            $nameReject->extendWithSourceMap($nameInput);
+        });
+
+        $nameDecoded = SourceMap::decodeVlq($nameReject->writeVlq());
+        $nameData = $nameReject->toArray(null, false);
+
+        $t->same('ACKCE,YDJDD', $nameReject->writeVlq());
+        $t->same([1, 0], array_column($nameDecoded, 'sourceIndex'));
+        $t->same([5, 1], array_column($nameDecoded, 'originalLine'));
+        $t->same([1, 0], array_column($nameDecoded, 'originalColumn'));
+        $t->same([2, 1], array_column($nameDecoded, 'nameIndex'));
+        $t->same(['cache/name-compiled.css', 'src/name-a.scss', 'src/name-b.scss'], $nameData['sources']);
+        $t->same(['compiledNameA', 'compiledNameB', 'inputNameA', 'inputNameB'], $nameData['names']);
+        $t->same(['src/name-a.scss', 'src/name-b.scss'], $nameInput->getSources());
+    },
     'source map extends generated mappings through upstream input maps' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $compiled = $map->addSource('cache/compiled.css');

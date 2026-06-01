@@ -324,10 +324,30 @@ final class SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan
         return [
             'ordinal' => $ordinal,
             'status' => $status,
-            'option_name' => $row['option_name'] ?? null,
+            'row_key' => self::rowKey($row),
             'conflict_indexes' => array_values($conflictIndexes),
             'returning' => $returning,
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function rowKey(array $row): mixed
+    {
+        if (array_key_exists('key_name', $row)) {
+            return $row['key_name'];
+        }
+        if (array_key_exists('name', $row)) {
+            return $row['name'];
+        }
+        foreach ($row as $column => $value) {
+            if (is_string($column) && str_ends_with($column, '_name')) {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     /**

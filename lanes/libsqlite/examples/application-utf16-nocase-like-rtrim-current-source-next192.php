@@ -14,8 +14,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -35,7 +35,7 @@ $next = [
     $row(4, 'plugin_cache_zip', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCandidateTokenPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCandidateTokenPlan(
     $current,
     $next,
     'plugin!_cache',
@@ -48,7 +48,7 @@ $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCandidateT
 );
 
 if (in_array('--self-test', $argv, true)) {
-    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-next192');
+    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-nextoneNineTwo');
     assert($plan['currentMatchedBeforeOrAtTokenRowids'] === [1]);
     assert($plan['currentFalsePositiveBeforeOrAtTokenRowids'] === [2]);
     assert($plan['candidateTokenResumeSafe'] === true);

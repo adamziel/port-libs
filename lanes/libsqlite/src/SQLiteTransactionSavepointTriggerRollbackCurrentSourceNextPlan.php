@@ -52,7 +52,7 @@ final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
                 'event' => 'delete',
                 'row_index' => $index,
                 'current_source_count' => count($working),
-                'current_source_names' => self::column($working, 'option_name'),
+                'current_source_names' => self::keyNames($working),
                 'row' => $old,
             ];
 
@@ -65,7 +65,7 @@ final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
                 $after = self::fireTriggers('after', 'delete', $old, null, $triggers, $ordinal);
             } catch (SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextSignal $signal) {
                 $sourceTrace[array_key_last($sourceTrace)]['next_source_count'] = count($working);
-                $sourceTrace[array_key_last($sourceTrace)]['next_source_names'] = self::column($working, 'option_name');
+                $sourceTrace[array_key_last($sourceTrace)]['next_source_names'] = self::keyNames($working);
                 if ($signal->action === 'ignore') {
                     $skipped[] = self::skip('delete', $ordinal, $index + 1, $old, 'after', $signal->reason);
                     ++$ordinal;
@@ -78,7 +78,7 @@ final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
             }
             $effects = array_merge($effects, $after);
             $sourceTrace[array_key_last($sourceTrace)]['next_source_count'] = count($working);
-            $sourceTrace[array_key_last($sourceTrace)]['next_source_names'] = self::column($working, 'option_name');
+            $sourceTrace[array_key_last($sourceTrace)]['next_source_names'] = self::keyNames($working);
             ++$ordinal;
         }
 
@@ -140,7 +140,7 @@ final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
                 'event' => 'update',
                 'row_index' => $index,
                 'current_source_count' => count($working),
-                'current_source_names' => self::column($working, 'option_name'),
+                'current_source_names' => self::keyNames($working),
                 'row' => $old,
             ];
 
@@ -152,7 +152,7 @@ final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
                 $after = self::fireTriggers('after', 'update', $old, $next, $triggers, $ordinal);
             } catch (SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextSignal $signal) {
                 $sourceTrace[array_key_last($sourceTrace)]['next_source_count'] = count($working);
-                $sourceTrace[array_key_last($sourceTrace)]['next_source_names'] = self::column($working, 'option_name');
+                $sourceTrace[array_key_last($sourceTrace)]['next_source_names'] = self::keyNames($working);
                 if ($signal->action === 'ignore') {
                     $skipped[] = self::skip('update', $ordinal, $index, $old, 'after', $signal->reason);
                     ++$ordinal;
@@ -168,7 +168,7 @@ final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
             $attemptedRows = array_values($working);
             $effects = array_merge($effects, $after['effects']);
             $sourceTrace[array_key_last($sourceTrace)]['next_source_count'] = count($working);
-            $sourceTrace[array_key_last($sourceTrace)]['next_source_names'] = self::column($working, 'option_name');
+            $sourceTrace[array_key_last($sourceTrace)]['next_source_names'] = self::keyNames($working);
             ++$ordinal;
         }
 
@@ -402,6 +402,42 @@ final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<mixed>
+     */
+    private static function keyNames(array $rows): array
+    {
+        $column = self::keyNameColumn($rows);
+        if ($column === null) {
+            return [];
+        }
+
+        return self::column($rows, $column);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     */
+    private static function keyNameColumn(array $rows): ?string
+    {
+        foreach ($rows as $row) {
+            if (array_key_exists('key_name', $row)) {
+                return 'key_name';
+            }
+            if (array_key_exists('name', $row)) {
+                return 'name';
+            }
+            foreach ($row as $column => $_) {
+                if (is_string($column) && str_ends_with($column, '_name')) {
+                    return $column;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @param list<array<string,mixed>> $before
      * @param list<array<string,mixed>> $after
      * @return list<array<string,mixed>>
@@ -428,14 +464,32 @@ final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
      */
     private static function rowIdentity(array $row): string
     {
-        if (array_key_exists('option_id', $row)) {
-            return 'option_id:' . (string) $row['option_id'];
+        $idColumn = self::rowIdColumn($row);
+        if ($idColumn !== null) {
+            return $idColumn . ':' . (string) $row[$idColumn];
         }
         if (array_key_exists('rowid', $row)) {
             return 'rowid:' . (string) $row['rowid'];
         }
 
         return 'row:' . json_encode($row, JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function rowIdColumn(array $row): ?string
+    {
+        if (array_key_exists('setting_id', $row)) {
+            return 'setting_id';
+        }
+        foreach ($row as $column => $value) {
+            if (is_string($column) && str_ends_with($column, '_id') && is_scalar($value)) {
+                return $column;
+            }
+        }
+
+        return null;
     }
 
     private static function identifier(string $value, string $label): string

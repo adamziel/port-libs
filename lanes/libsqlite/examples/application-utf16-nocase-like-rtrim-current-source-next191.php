@@ -9,8 +9,8 @@ require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -32,7 +32,7 @@ $nextRows = [
     $row(9, 'plugin_cache_new', 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedPatternRebindPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPreparedPatternRebindPlan(
     $currentRows,
     $nextRows,
     $enc('plugin!_%', 'UTF-16LE'),
@@ -46,7 +46,7 @@ $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedPa
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-next191');
+    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-nextoneNineOne');
     assert($plan['currentMatchedRowids'] === [1, 2, 6, 3, 4]);
     assert($plan['nextMatchedRowids'] === [1, 2, 6, 9]);
     assert($plan['matchedExitedRowids'] === [3, 4]);

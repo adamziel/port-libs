@@ -27,7 +27,7 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
         array $returning = ['*'],
         array $options = [],
     ): array {
-        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'wp_recursive_import'), 'savepoint');
+        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'app_recursive_import'), 'savepoint');
         $rollbackTo = (bool) ($options['rollback_to'] ?? true);
         $currentSource = (string) ($options['current_source'] ?? 'current-recursive-trigger-returning');
         $nextSource = (string) ($options['next_source'] ?? 'next-after-recursive-trigger-savepoint');
@@ -203,7 +203,7 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'wp_recursive_returning_batch'), 'savepoint');
+        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'app_recursive_returning_batch'), 'savepoint');
         $currentSource = self::sourceToken((string) ($options['current_source'] ?? 'current-recursive-returning'));
         $nextSource = self::sourceToken((string) ($options['next_source'] ?? 'next-recursive-returning'));
         $rollbackCurrent = (bool) ($options['rollback_current'] ?? true);

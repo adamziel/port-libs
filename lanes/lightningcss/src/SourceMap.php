@@ -398,20 +398,17 @@ final class SourceMap
             $nameIndexes[$index] = $this->addName($name);
         }
 
-        $updated = [];
-        foreach ($this->mappings as $mapping) {
+        foreach ($this->mappings as $index => $mapping) {
             if ($mapping['sourceIndex'] === null) {
-                $updated[] = $mapping;
                 continue;
             }
 
             $closest = $originalSourceMap->findClosestMapping($mapping['originalLine'], $mapping['originalColumn']);
             if ($closest === null || $closest['sourceIndex'] === null) {
-                $mapping['sourceIndex'] = null;
-                $mapping['originalLine'] = null;
-                $mapping['originalColumn'] = null;
-                $mapping['nameIndex'] = null;
-                $updated[] = $mapping;
+                $this->mappings[$index]['sourceIndex'] = null;
+                $this->mappings[$index]['originalLine'] = null;
+                $this->mappings[$index]['originalColumn'] = null;
+                $this->mappings[$index]['nameIndex'] = null;
                 continue;
             }
 
@@ -419,22 +416,21 @@ final class SourceMap
                 throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $closest['sourceIndex']);
             }
 
-            $mapping['sourceIndex'] = $sourceIndexes[$closest['sourceIndex']];
-            $mapping['originalLine'] = $closest['originalLine'];
-            $mapping['originalColumn'] = $closest['originalColumn'];
-            $mapping['nameIndex'] = null;
+            $mappedSourceIndex = $sourceIndexes[$closest['sourceIndex']];
+            $mappedNameIndex = null;
             if ($closest['nameIndex'] !== null) {
                 if (!array_key_exists($closest['nameIndex'], $nameIndexes)) {
                     throw new InvalidArgumentException('Source map mapping references unknown name index: ' . $closest['nameIndex']);
                 }
 
-                $mapping['nameIndex'] = $nameIndexes[$closest['nameIndex']];
+                $mappedNameIndex = $nameIndexes[$closest['nameIndex']];
             }
 
-            $updated[] = $mapping;
+            $this->mappings[$index]['sourceIndex'] = $mappedSourceIndex;
+            $this->mappings[$index]['originalLine'] = $closest['originalLine'];
+            $this->mappings[$index]['originalColumn'] = $closest['originalColumn'];
+            $this->mappings[$index]['nameIndex'] = $mappedNameIndex;
         }
-
-        $this->mappings = $this->renumberMappings($updated);
     }
 
     public function offsetColumns(int $generatedLine, int $generatedColumn, int $generatedColumnOffset): void

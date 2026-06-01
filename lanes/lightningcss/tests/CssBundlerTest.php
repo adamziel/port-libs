@@ -469,6 +469,48 @@ CSS,
 
         throw new RuntimeException('Expected late @import after post-import @layer statement exception');
     },
+    'css bundler rejects malformed layer statements before import graph reads' => static function (TestRunner $t) use ($bundle): void {
+        $assertBadLayerStatement = static function (string $css, string $message, int $column) use ($t): void {
+            $reads = [];
+
+            try {
+                (new CssBundler())->bundleWithReader(
+                    '/entry.css',
+                    static function (string $file) use (&$reads, $css): string {
+                        $reads[] = $file;
+
+                        return $file === '/entry.css'
+                            ? $css
+                            : '.dep { color: green }';
+                    }
+                );
+            } catch (CssBundleException $exception) {
+                $t->same('parser-error', $exception->kind);
+                $t->same($message, $exception->getMessage());
+                $t->same('/entry.css', $exception->sourceFile);
+                $t->same(1, $exception->sourceLine);
+                $t->same($column, $exception->sourceColumn);
+                $t->same(['/entry.css'], $reads);
+
+                return;
+            }
+
+            throw new RuntimeException('Expected malformed @layer statement to fail before dependency reads');
+        };
+
+        $assertBadLayerStatement('@layer; @import "dep.css"; .entry { color: red }', 'Unexpected token Semicolon', 8);
+        $assertBadLayerStatement('@layer foo,; @import "dep.css"; .entry { color: red }', 'Unexpected token Semicolon', 13);
+        $assertBadLayerStatement('@layer .foo; @import "dep.css"; .entry { color: red }', 'Unexpected token Delim(".")', 8);
+        $assertBadLayerStatement('@layer foo bar; @import "dep.css"; .entry { color: red }', 'Unexpected token Ident("bar")', 11);
+
+        $t->same(
+            '@layer foo,bar;.dep{color:green}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@layer foo/*x*/,bar; @import "dep.css"; .entry { color: red }',
+                '/dep.css' => '.dep { color: green }',
+            ], '/entry.css')
+        );
+    },
     'css bundler preserves imports after unknown statement at-rules like upstream' => static function (TestRunner $t): void {
         $reads = [];
         $resolved = [];

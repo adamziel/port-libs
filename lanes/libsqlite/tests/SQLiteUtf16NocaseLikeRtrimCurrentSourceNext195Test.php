@@ -9,8 +9,8 @@ $tests = [];
 
 $enc195 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row195 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc195($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc195($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -73,7 +73,7 @@ $valueAt195 = static function (array $value, string $path): mixed {
 $cases195 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneNineFive'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* escaped literal tail */'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* escaped literal tail */'],
     'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneEightThree'],
     'pattern' => ['pattern', 'plugin!_!%!_cache'],
     'escape' => ['escape', '!'],
@@ -199,8 +199,8 @@ $tests['utf16 nocase like rtrim current source nextOneNineFive unescaped wildcar
 };
 
 $tests['utf16 nocase like rtrim current source nextOneNineFive malformed row is isolated'] = static function (TestRunner $t) use ($current195, $nextOneNineFive): void {
-    $badCurrent = array_merge($current195, [['option_id' => 11, 'option_name_bytes' => "\x00\xd8", 'text_encoding' => 2]]);
-    $badNext = array_merge($nextOneNineFive, [['option_id' => 12, 'option_name_bytes' => "x\0y", 'text_encoding' => 2]]);
+    $badCurrent = array_merge($current195, [['setting_id' => 11, 'key_name_bytes' => "\x00\xd8", 'text_encoding' => 2]]);
+    $badNext = array_merge($nextOneNineFive, [['setting_id' => 12, 'key_name_bytes' => "x\0y", 'text_encoding' => 2]]);
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapedLiteralTailPlan($badCurrent, $badNext);
     $t->same([11], $result['currentMalformedRowids']);
     $t->same([12], $result['nextMalformedRowids']);

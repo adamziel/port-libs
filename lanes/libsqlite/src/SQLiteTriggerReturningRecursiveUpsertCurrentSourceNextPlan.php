@@ -32,6 +32,7 @@ final class SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite trigger RETURNING recursive UPSERT next source rows must be a non-empty list');
         }
 
+        $recursiveOptions = $options + ['key_column' => $uniqueColumns[0] ?? 'key_name'];
         $currentSourceRows = array_values($rows);
         $current = SQLiteRecursiveUpsertConflictYieldPlan::execute(
             $currentSourceRows,
@@ -39,7 +40,7 @@ final class SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan
             $uniqueColumns,
             $assignments,
             $triggers,
-            $options,
+            $recursiveOptions,
         );
 
         $nextSourceRows = array_values($current['rows']);
@@ -49,7 +50,7 @@ final class SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan
             $uniqueColumns,
             $assignments,
             $triggers,
-            $options,
+            $recursiveOptions,
         );
 
         return [
@@ -92,11 +93,31 @@ final class SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan
                 'depth' => $yield['depth'] ?? null,
                 'current_source_key' => $yield['old_key'] ?? $yield['incoming_key'] ?? null,
                 'next_source_key' => $yield['new_key'] ?? null,
-                'returning_key' => is_array($returning) ? ($returning['option_name'] ?? null) : null,
+                'returning_key' => is_array($returning) ? self::rowKey($returning) : null,
                 'returning' => $returning,
             ];
         }
 
         return $edges;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function rowKey(array $row): mixed
+    {
+        if (array_key_exists('key_name', $row)) {
+            return $row['key_name'];
+        }
+        if (array_key_exists('name', $row)) {
+            return $row['name'];
+        }
+        foreach ($row as $column => $value) {
+            if (is_string($column) && str_ends_with($column, '_name')) {
+                return $value;
+            }
+        }
+
+        return null;
     }
 }

@@ -81,9 +81,9 @@ $expected = [
     ],
     'buttonClassList' => 'BlockA_button BlockA_card',
     'invalid' => [
-        '.card::global(.legacy) { composes: base; color: red }' => 'CSS Modules composes may only be used in a simple local class selector',
-        '::global .card { composes: base; color: red }' => 'CSS Modules composes may only be used in a simple local class selector',
-        '::local(.card) { composes: base; color: red }' => 'CSS Modules composes may only be used in a simple local class selector',
+        '.card::global(.legacy) { composes: base; color: red }' => 'The `composes` property cannot be used with a simple class selector',
+        '::global .card { composes: base; color: red }' => 'The `composes` property cannot be used with a simple class selector',
+        '::local(.card) { composes: base; color: red }' => 'The `composes` property cannot be used with a simple class selector',
     ],
 ];
 

@@ -107,6 +107,64 @@ final class SQLitePragmaWritableSchemaIntegrityPlan
     }
 
     /**
+     * Model the integrity_check rows reached when writable_schema swaps two
+     * index rootpages whose NOCASE columns compare equal but are not
+     * byte-for-byte identical.
+     *
+     * @param list<array<string,mixed>> $leftRows
+     * @param list<array<string,mixed>> $rightRows
+     * @param list<array{name:string,collation?:string}|array{0:string,1?:string}> $indexColumns
+     * @return array{source:string,pragma:string,limit:int,scope:?string,left_table:string,right_table:string,left_index:string,right_index:string,index_columns:list<array{name:string,collation:string}>,rootpage_swap:bool,result:list<string>,rows:list<array<string,string>>,violations:list<array{kind:string,table:string,index:string,row:int,expected:array<string,mixed>,actual:array<string,mixed>|null,collated_match:bool,byte_for_byte_match:bool,message:string}>,rows_checked:int,schema_events:list<string>}
+     */
+    public static function indexRootSwapIntegrityPlan(
+        string $pragmaSql,
+        array $leftRows,
+        array $rightRows,
+        array $indexColumns,
+        string $leftTable,
+        string $rightTable,
+        string $leftIndex,
+        string $rightIndex
+    ): array {
+        $pragma = self::parsePragmaSql($pragmaSql);
+        $columns = self::normalizeIndexColumns($indexColumns);
+
+        $violations = array_merge(
+            self::indexRootSwapViolations($leftRows, $rightRows, $columns, $leftTable, $leftIndex),
+            self::indexRootSwapViolations($rightRows, $leftRows, $columns, $rightTable, $rightIndex)
+        );
+        usort($violations, static fn (array $left, array $right): int => [$left['row'], $left['message']] <=> [$right['row'], $right['message']]);
+
+        $result = array_slice(array_map(static fn (array $violation): string => $violation['message'], $violations), 0, $pragma['limit']);
+        if ($result === []) {
+            $result = ['ok'];
+        }
+
+        return [
+            'source' => 'pragma.test pragma-3.40 through pragma-3.41',
+            'pragma' => $pragma['pragma'],
+            'limit' => $pragma['limit'],
+            'scope' => $pragma['scope'],
+            'left_table' => $leftTable,
+            'right_table' => $rightTable,
+            'left_index' => $leftIndex,
+            'right_index' => $rightIndex,
+            'index_columns' => $columns,
+            'rootpage_swap' => true,
+            'result' => $result,
+            'rows' => array_map(static fn (string $message): array => [$pragma['pragma'] => $message], $result),
+            'violations' => array_slice($violations, 0, $pragma['limit']),
+            'rows_checked' => count($leftRows) + count($rightRows),
+            'schema_events' => [
+                'writable_schema_on',
+                'sqlite_schema_index_rootpages_swapped',
+                'writable_schema_reset',
+                'pragma_integrity_check_virtual_table_scan',
+            ],
+        ];
+    }
+
+    /**
      * @return array{pragma:string,limit:int,scope:?string}
      */
     private static function parsePragmaSql(string $sql): array
@@ -324,6 +382,187 @@ final class SQLitePragmaWritableSchemaIntegrityPlan
         }
 
         return $interleaved;
+    }
+
+    /**
+     * @param list<array{name:string,collation?:string}|array{0:string,1?:string}> $indexColumns
+     * @return list<array{name:string,collation:string}>
+     */
+    private static function normalizeIndexColumns(array $indexColumns): array
+    {
+        $columns = [];
+        foreach ($indexColumns as $column) {
+            if (!is_array($column)) {
+                throw new InvalidArgumentException('SQLite writable-schema index root swap columns must be arrays');
+            }
+
+            $name = (string) ($column['name'] ?? $column[0] ?? '');
+            if ($name === '') {
+                throw new InvalidArgumentException('SQLite writable-schema index root swap column name cannot be empty');
+            }
+
+            $collation = strtoupper((string) ($column['collation'] ?? $column[1] ?? 'BINARY'));
+            if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM'], true)) {
+                throw new InvalidArgumentException("SQLite writable-schema index root swap collation {$collation} is unsupported");
+            }
+
+            $columns[] = ['name' => $name, 'collation' => $collation];
+        }
+
+        if ($columns === []) {
+            throw new InvalidArgumentException('SQLite writable-schema index root swap requires at least one indexed column');
+        }
+
+        return $columns;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $tableRows
+     * @param list<array<string,mixed>> $swappedIndexRows
+     * @param list<array{name:string,collation:string}> $columns
+     * @return list<array{kind:string,table:string,index:string,row:int,expected:array<string,mixed>,actual:array<string,mixed>|null,collated_match:bool,byte_for_byte_match:bool,message:string}>
+     */
+    private static function indexRootSwapViolations(array $tableRows, array $swappedIndexRows, array $columns, string $table, string $index): array
+    {
+        $indexByRowId = [];
+        foreach ($swappedIndexRows as $row) {
+            if (!is_array($row)) {
+                throw new InvalidArgumentException('SQLite writable-schema index root swap rows must be arrays');
+            }
+            $indexByRowId[self::rowId($row)] = $row;
+        }
+
+        $violations = [];
+        foreach ($tableRows as $row) {
+            if (!is_array($row)) {
+                throw new InvalidArgumentException('SQLite writable-schema index root swap rows must be arrays');
+            }
+
+            $rowId = self::rowId($row);
+            $actual = $indexByRowId[$rowId] ?? null;
+            $collatedMatch = $actual !== null && self::indexKeyEqualByCollation($row, $actual, $columns);
+            $byteMatch = $actual !== null && self::indexKeyByteEqual($row, $actual, $columns);
+
+            if ($actual === null || !$collatedMatch) {
+                $violations[] = [
+                    'kind' => 'missing_index_entry',
+                    'table' => $table,
+                    'index' => $index,
+                    'row' => $rowId,
+                    'expected' => self::indexKey($row, $columns),
+                    'actual' => $actual === null ? null : self::indexKey($actual, $columns),
+                    'collated_match' => false,
+                    'byte_for_byte_match' => false,
+                    'message' => "row {$rowId} missing from index {$index}",
+                ];
+                continue;
+            }
+
+            if (!$byteMatch) {
+                $violations[] = [
+                    'kind' => 'index_value_mismatch',
+                    'table' => $table,
+                    'index' => $index,
+                    'row' => $rowId,
+                    'expected' => self::indexKey($row, $columns),
+                    'actual' => self::indexKey($actual, $columns),
+                    'collated_match' => true,
+                    'byte_for_byte_match' => false,
+                    'message' => "row {$rowId} values differ from index {$index}",
+                ];
+            }
+        }
+
+        return $violations;
+    }
+
+    /**
+     * @param array<string,mixed> $left
+     * @param array<string,mixed> $right
+     * @param list<array{name:string,collation:string}> $columns
+     */
+    private static function indexKeyEqualByCollation(array $left, array $right, array $columns): bool
+    {
+        foreach ($columns as $column) {
+            $name = $column['name'];
+            if (!array_key_exists($name, $left) || !array_key_exists($name, $right)) {
+                throw new InvalidArgumentException("SQLite writable-schema index root swap row is missing column {$name}");
+            }
+            if (!self::collationEqual($left[$name], $right[$name], $column['collation'])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string,mixed> $left
+     * @param array<string,mixed> $right
+     * @param list<array{name:string,collation:string}> $columns
+     */
+    private static function indexKeyByteEqual(array $left, array $right, array $columns): bool
+    {
+        foreach ($columns as $column) {
+            $name = $column['name'];
+            if (!array_key_exists($name, $left) || !array_key_exists($name, $right)) {
+                throw new InvalidArgumentException("SQLite writable-schema index root swap row is missing column {$name}");
+            }
+            if (get_debug_type($left[$name]) !== get_debug_type($right[$name]) || $left[$name] !== $right[$name]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function collationEqual(mixed $left, mixed $right, string $collation): bool
+    {
+        if (!is_string($left) || !is_string($right)) {
+            return $left === $right;
+        }
+
+        return match ($collation) {
+            'NOCASE' => strtolower($left) === strtolower($right),
+            'RTRIM' => rtrim($left, " \t\r\n\0\x0B") === rtrim($right, " \t\r\n\0\x0B"),
+            default => $left === $right,
+        };
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function rowId(array $row): int
+    {
+        if (!array_key_exists('rowid', $row)) {
+            throw new InvalidArgumentException('SQLite writable-schema index root swap rows require rowid');
+        }
+
+        $rowId = $row['rowid'];
+        if (!is_int($rowId) || $rowId < 1) {
+            throw new InvalidArgumentException('SQLite writable-schema index root swap rowid must be a positive integer');
+        }
+
+        return $rowId;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<array{name:string,collation:string}> $columns
+     * @return array<string,mixed>
+     */
+    private static function indexKey(array $row, array $columns): array
+    {
+        $key = [];
+        foreach ($columns as $column) {
+            $name = $column['name'];
+            if (!array_key_exists($name, $row)) {
+                throw new InvalidArgumentException("SQLite writable-schema index root swap row is missing column {$name}");
+            }
+            $key[$name] = $row[$name];
+        }
+
+        return $key;
     }
 
     /**

@@ -66,4 +66,14 @@ return [
         'ours' => new Tree([$blob('acme-review.php', "Plugin: Acme\nStatus: review\n")]),
         'theirs' => new Tree([$blob('acme-review.php', "Plugin: Acme\nStatus: stable\n")]),
     ],
+    'renameAdd' => [
+        'read' => $read,
+        'write' => $write,
+        'base' => new Tree([$blob('legacy-widget.php', "Plugin: Legacy Widget\nStable tag: trunk\nRequires PHP: 8.1\nVersion: 1.0\n")]),
+        'ours' => new Tree([
+            $blob('legacy-widget.php', "Plugin: Legacy Widget\nStable tag: trunk\nRequires PHP: 8.1\nVersion: 1.1\n"),
+            $blob('review-widget.php', "Plugin: Review Widget\nStatus: review build\n"),
+        ]),
+        'theirs' => new Tree([$blob('review-widget.php', "Plugin: Legacy Widget\nStable tag: trunk\nRequires PHP: 8.1\nVersion: 1.2\n")]),
+    ],
 ];

@@ -206,6 +206,7 @@ return [
 
         $t->same('3b18a', $index->disambiguatePrefix(strtoupper($first), 4));
         $t->same($first, $index->disambiguatePrefix($first, 40));
+        $t->same($first, $index->disambiguatePrefix(strtoupper($first), 40));
         $t->same(null, $index->disambiguatePrefix('ffffffffffffffffffffffffffffffffffffffff', 4));
         $t->throws(InvalidArgumentException::class, static fn () => $index->disambiguatePrefix($first, 3));
     },
@@ -243,6 +244,7 @@ return [
 
         $t->same('aaaa1', $index->disambiguatePrefix(strtoupper($first), 4));
         $t->same($first, $index->disambiguatePrefix($first, 64));
+        $t->same($first, $index->disambiguatePrefix(strtoupper($first), 64));
         $t->same(null, $index->disambiguatePrefix(str_repeat('f', 64), 4));
         $t->throws(InvalidArgumentException::class, static fn () => $index->lookup($first . '0'));
         $t->throws(InvalidArgumentException::class, static fn () => PackIndex::fromBytes('', 'blake3'));
@@ -364,11 +366,13 @@ return [
     'wordpress fixture locates compacted content objects without git binary' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-index.php';
         $index = PackIndex::fromBytes($fixture['indexBytes'], $fixture['objectHash']);
+        $summary = require dirname(__DIR__) . '/examples/wordpress-pack-index.php';
         $t->same('sha1', $index->objectHash());
         $t->same(20, $index->hashBytes());
         $t->same(3, $index->count());
         $t->same($fixture['packChecksum'], $index->packChecksum());
         $t->same($fixture['objects'][1]['offset'], $index->lookup($fixture['objects'][1]['oid'])?->packOffset);
         $t->same($fixture['objects'][2]['offset'], $index->lookup($fixture['objects'][2]['oid'])?->packOffset);
+        $t->same($fixture['objects'][1]['oid'], $summary['wordpressBlobFullPrefixFromUppercase']);
     },
 ];

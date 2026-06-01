@@ -1295,29 +1295,80 @@ return [
             $blobEntry('foo', "1\n2\n3\n4\n5\n"),
             $blobEntry('bar', "different file\n"),
         ]);
-        $theirs = new Tree([$blobEntry('bar', "original\n1\n2\n3\n4\n5\n6\n")]);
+        $theirs = new Tree([$blobEntry('bar', "1\n2\n3\n4\n5\n6\n")]);
 
         $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $mergedBar = $result->tree->entryNamed('bar');
 
         $t->same(false, $result->isClean());
-        $t->same(['foo'], $names($result->tree));
+        $t->same(['bar'], $names($result->tree));
+        $t->same(null, $result->tree->entryNamed('foo'));
+        $t->same('blob', $mergedBar?->kind());
+        $t->contains('<<<<<<< ours/bar', $read($mergedBar?->oid ?? '')->body);
+        $t->contains("different file\n", $read($mergedBar?->oid ?? '')->body);
+        $t->contains("1\n2\n3\n4\n5\n6\n", $read($mergedBar?->oid ?? '')->body);
+        $t->contains('>>>>>>> theirs/bar', $read($mergedBar?->oid ?? '')->body);
         $t->same([
-            ['path' => 'foo', 'reason' => 'rename-modify'],
-            ['path' => 'bar', 'reason' => 'rename-target-add'],
+            ['path' => 'bar', 'reason' => 'content-conflict', 'base' => null, 'ours' => 'bar', 'theirs' => 'bar'],
         ], array_map(
-            static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
             $result->conflicts,
         ));
         $t->same([
-            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'bar'],
-            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'bar'],
-            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'foo'],
-            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'foo'],
-            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'foo'],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'bar', 'body' => "different file\n"],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'bar', 'body' => "1\n2\n3\n4\n5\n6\n"],
         ], array_map(
-            static fn (MergeIndexEntry $entry): array => ['stage' => $entry->stage, 'side' => $entry->side(), 'path' => $entry->path],
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
             $result->indexEntries(),
         ));
+        $t->same(['bar'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
+
+        $reversed = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write);
+        $reversedBar = $reversed->tree->entryNamed('bar');
+
+        $t->same(false, $reversed->isClean());
+        $t->same(['bar'], $names($reversed->tree));
+        $t->contains('<<<<<<< ours/bar', $read($reversedBar?->oid ?? '')->body);
+        $t->contains("1\n2\n3\n4\n5\n6\n", $read($reversedBar?->oid ?? '')->body);
+        $t->contains("different file\n", $read($reversedBar?->oid ?? '')->body);
+        $t->contains('>>>>>>> theirs/bar', $read($reversedBar?->oid ?? '')->body);
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'bar', 'body' => "1\n2\n3\n4\n5\n6\n"],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'bar', 'body' => "different file\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
+            $reversed->indexEntries(),
+        ));
+
+        $diff3 = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write, BlobMerge::STYLE_DIFF3);
+        $diff3Body = $read($diff3->tree->entryNamed('bar')?->oid ?? '')->body;
+        $t->contains('<<<<<<< ours/bar', $diff3Body);
+        $t->contains("different file\n", $diff3Body);
+        $t->contains('||||||| base/bar', $diff3Body);
+        $t->contains("=======\n1\n2\n3\n4\n5\n6\n>>>>>>> theirs/bar", $diff3Body);
+
+        $diff3Reversed = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write, BlobMerge::STYLE_DIFF3);
+        $diff3ReversedBody = $read($diff3Reversed->tree->entryNamed('bar')?->oid ?? '')->body;
+        $t->contains('<<<<<<< ours/bar', $diff3ReversedBody);
+        $t->contains("1\n2\n3\n4\n5\n6\n", $diff3ReversedBody);
+        $t->contains('||||||| base/bar', $diff3ReversedBody);
+        $t->contains("=======\ndifferent file\n>>>>>>> theirs/bar", $diff3ReversedBody);
     },
     'maps upstream gix-merge tree-baseline rename-add-exe-bit-conflict fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();

@@ -8,8 +8,8 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -33,21 +33,21 @@ $next = [
     $row(5, 'plugin_cache_delta', 'UTF-8'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameLimitOffsetPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyLimitOffsetPlan(
     $current,
     $next,
     'plugin!_cache%',
     '!',
     2,
     2,
-    'copied-wp-options',
-    'copied-wp-options',
+    'copied-app-settings',
+    'copied-app-settings',
     193,
     193,
 );
 
 if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'] ?? '')) {
-    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-next193');
+    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-nextoneNineThree');
     assert($plan['currentLimitWindowRowids'] === [3, 4]);
     assert($plan['nextLimitWindowRowids'] === [9, 3]);
     assert($plan['limitOffsetResumeSafe'] === false);

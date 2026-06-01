@@ -1010,6 +1010,37 @@ try {
     echo 'post-import-layer: rejected' . PHP_EOL;
 }
 
+$badLayerStatementReads = [];
+try {
+    (new CssBundler())->bundleWithReader(
+        '/bad-layer-statement.css',
+        static function (string $file) use (&$badLayerStatementReads): string {
+            $badLayerStatementReads[] = $file;
+
+            return $file === '/bad-layer-statement.css'
+                ? '@layer theme.blocks,; @import "blocks/card.css"; .wp-site-blocks { color: red }'
+                : '.wp-block-card { color: green }';
+        }
+    );
+
+    fwrite(STDERR, "Expected malformed @layer statement to fail before reading block imports\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== 'Unexpected token Semicolon'
+        || $exception->sourceFile !== '/bad-layer-statement.css'
+        || $exception->sourceLine !== 1
+        || $exception->sourceColumn !== 22
+        || $badLayerStatementReads !== ['/bad-layer-statement.css']
+    ) {
+        fwrite(STDERR, 'Unexpected malformed @layer diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'bad-layer-statement-import: rejected-before-read' . PHP_EOL;
+}
+
 $nestedImportReads = [];
 try {
     (new CssBundler())->bundleWithReader(

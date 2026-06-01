@@ -253,6 +253,16 @@ $resumedState = $database->objectState($resumedAssetBlob->oid());
 $resumedHeader = $database->readHeader($resumedAssetBlob->oid());
 $resumedBodyMatches = $database->read($resumedAssetBlob->oid())->body === $resumedAssetBlob->body;
 
+$orphanBlob = new GitObject('blob', 'WordPress interrupted promisor index without pack bytes');
+$orphanPack = PackBuilder::build([$orphanBlob]);
+$orphanBase = 'pack-' . $orphanPack->packChecksum();
+file_put_contents($packDir . '/' . $orphanBase . '.idx', $orphanPack->indexBytes());
+file_put_contents($packDir . '/' . $orphanBase . '.promisor', "WordPress interrupted promisor index without pack bytes\n");
+$orphanPromisorPacksAfterRefresh = $database->promisorPackNames();
+$orphanPromisorObjectIdsAfterRefresh = $database->promisorObjectIds();
+$orphanPromisorIsPromisor = $database->isPromisorObject($orphanBlob->oid());
+$orphanPromisorState = $database->objectState($orphanBlob->oid());
+
 $deepChainStable = '';
 for ($i = 0; $i < 96; $i++) {
     $deepChainStable .= hash('sha1', 'wordpress-deep-promisor-chain-' . $i) . "\n";
@@ -394,6 +404,12 @@ return [
     'resumedPromisorState' => $resumedState,
     'resumedPromisorHeader' => $resumedHeader,
     'resumedPromisorBodyMatches' => $resumedBodyMatches,
+    'orphanPromisorObject' => $orphanBlob->oid(),
+    'orphanPromisorIndex' => $orphanBase . '.promisor',
+    'orphanPromisorPacksAfterRefresh' => $orphanPromisorPacksAfterRefresh,
+    'orphanPromisorObjectIdsAfterRefresh' => $orphanPromisorObjectIdsAfterRefresh,
+    'orphanPromisorIsPromisor' => $orphanPromisorIsPromisor,
+    'orphanPromisorState' => $orphanPromisorState,
     'deepChainObjectCount' => count($deepChainObjects),
     'deepChainTargetObject' => $deepChainTargetOid,
     'deepChainTargetPack' => $deepChainWrites[40]['promisorName'],

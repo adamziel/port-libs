@@ -2322,19 +2322,48 @@ CSS;
         foreach ([
             ':local(.test) { composes: foo; color: red }',
             ':local(.test), .fallback { composes: foo; color: red }',
-            '@media (min-width: 1px) { :local(.test) { composes: foo; color: red } }',
+            '.test, :global(.fallback) { composes: foo; color: red }',
+            '.test:global(.fallback) { composes: foo; color: red }',
         ] as $css) {
-            $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform($css));
+            try {
+                $transformer->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same('The `composes` property cannot be used with a simple class selector', $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream invalid composes selector exception');
         }
+
+        try {
+            $transformer->transform('@media (min-width: 1px) { :local(.test) { composes: foo; color: red } }');
+        } catch (InvalidArgumentException $exception) {
+            $t->same('The `composes` property cannot be used within nested rules', $exception->getMessage());
+
+            return;
+        }
+
+        throw new RuntimeException('Expected upstream nested composes exception');
     },
     'css modules rejects composes outside simple local class selectors' => static function (TestRunner $t): void {
         $transformer = new CssModulesTransformer();
 
-        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('.ancestor .test { composes: foo; color: red }'));
-        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('.test:hover { composes: foo; color: red }'));
-        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('.test.foo { composes: foo; color: red }'));
-        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('#test { composes: foo; color: red }'));
-        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform(':global(.test) { composes: foo; color: red }'));
+        foreach ([
+            '.ancestor .test { composes: foo; color: red }',
+            '.test:hover { composes: foo; color: red }',
+            '.test.foo { composes: foo; color: red }',
+            '#test { composes: foo; color: red }',
+            ':global(.test) { composes: foo; color: red }',
+        ] as $css) {
+            try {
+                $transformer->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same('The `composes` property cannot be used with a simple class selector', $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream invalid composes selector exception');
+        }
     },
     'css modules rejects composes inside nested local rules' => static function (TestRunner $t): void {
         $transformer = new CssModulesTransformer();

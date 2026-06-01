@@ -1879,7 +1879,7 @@ final class CssModulesTransformer
 
         foreach ($this->splitTopLevel($selectorList, ',') as $selector) {
             if (!$this->isSimpleLocalClassSelector($selector)) {
-                throw new \InvalidArgumentException('CSS Modules composes may only be used in a simple local class selector');
+                throw new \InvalidArgumentException('The `composes` property cannot be used with a simple class selector');
             }
         }
     }

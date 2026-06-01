@@ -36,6 +36,7 @@ return [
     'wordpressBlobPrefixStatus' => $blobPrefix['status'],
     'wordpressBlobPrefixRange' => $blobPrefix['candidateRange'],
     'wordpressBlobShortestPrefix' => $index->disambiguatePrefix($fixture['objects'][1]['oid'], 4),
+    'wordpressBlobFullPrefixFromUppercase' => $index->disambiguatePrefix(strtoupper($fixture['objects'][1]['oid']), 40),
     'generatedPrefixRanges' => $generatedPrefixRanges,
     'largeOffsetThreshold' => $largeOffsetThreshold,
     'firstLargeOffset' => $largeOffsetThreshold + 1,

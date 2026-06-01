@@ -263,6 +263,37 @@ return [
         $t->same("srv/wp-content\xff.git", $nonUtf8LocalPathContext->path);
         $t->contains("path=srv/wp-content\xff.git\n", $nonUtf8LocalPathContext->storageBytes());
 
+        $localRelativePath = (new CredentialContext(
+            url: 'wp-content deploy.git',
+            host: 'stale.example.test',
+            username: 'stale-user',
+        ))->destructureUrl(true);
+        $t->same('file', $localRelativePath->protocol);
+        $t->same(null, $localRelativePath->host);
+        $t->same(null, $localRelativePath->username);
+        $t->same('wp-content deploy.git', $localRelativePath->path);
+        $t->same('wp-content deploy.git', $localRelativePath->url);
+
+        $localAbsolutePathWithWhitespace = (new CredentialContext(
+            url: '/srv/wp-content deploy.git ',
+        ))->destructureUrl(true);
+        $t->same('file', $localAbsolutePathWithWhitespace->protocol);
+        $t->same(null, $localAbsolutePathWithWhitespace->host);
+        $t->same('srv/wp-content deploy.git ', $localAbsolutePathWithWhitespace->path);
+
+        $localTildePath = (new CredentialContext(url: '~/wp-content.git'))->destructureUrl(true);
+        $t->same('file', $localTildePath->protocol);
+        $t->same(null, $localTildePath->username);
+        $t->same('~/wp-content.git', $localTildePath->path);
+
+        $fileRelativeAuthorityRoot = (new CredentialContext(
+            url: 'file://../',
+            path: 'stale/wp-content.git',
+        ))->destructureUrl(true);
+        $t->same('file', $fileRelativeAuthorityRoot->protocol);
+        $t->same('..', $fileRelativeAuthorityRoot->host);
+        $t->same(null, $fileRelativeAuthorityRoot->path);
+
         $fileAuthority = (new CredentialContext(
             url: 'file://Deploy@[::1]/var/cache/wp-content.git',
         ))->destructureUrl(true);
@@ -370,6 +401,28 @@ return [
             'path' => '~byron/hello',
             'promptUrl' => 'http://example.com/~byron/hello',
         ], $fixture['emptyUserHttpContext']);
+        $t->same([
+            'protocol' => 'file',
+            'host' => null,
+            'username' => null,
+            'path' => 'wp-content deploy.git',
+            'url' => 'wp-content deploy.git',
+        ], $fixture['localRelativeContext']);
+        $t->same([
+            'protocol' => 'file',
+            'host' => null,
+            'path' => 'srv/wp-content deploy.git ',
+        ], $fixture['localAbsoluteWhitespaceContext']);
+        $t->same([
+            'protocol' => 'file',
+            'username' => null,
+            'path' => '~/wp-content.git',
+        ], $fixture['localTildeContext']);
+        $t->same([
+            'protocol' => 'file',
+            'host' => '..',
+            'path' => null,
+        ], $fixture['fileRelativeAuthorityRootContext']);
         $t->same(true, $fixture['nonUtf8LocalPathPreserved']);
         $t->same(null, $fixture['clearedPassword']);
         $t->same(false, $fixture['emptyQuitFalse']);
@@ -416,6 +469,10 @@ return [
         $t->same($fixture['httpPathDisabledContext'], $summary['httpPathDisabledContext']);
         $t->same($fixture['passwordOnlyHttpContext'], $summary['passwordOnlyHttpContext']);
         $t->same($fixture['emptyUserHttpContext'], $summary['emptyUserHttpContext']);
+        $t->same($fixture['localRelativeContext'], $summary['localRelativeContext']);
+        $t->same($fixture['localAbsoluteWhitespaceContext'], $summary['localAbsoluteWhitespaceContext']);
+        $t->same($fixture['localTildeContext'], $summary['localTildeContext']);
+        $t->same($fixture['fileRelativeAuthorityRootContext'], $summary['fileRelativeAuthorityRootContext']);
         $t->same(true, $summary['nonUtf8LocalPathPreserved']);
         $t->same(true, $summary['rootHttpPathCleared']);
         $t->same($fixture['helperProgramProtocolHost'], $summary['helperProgramProtocolHost']);

@@ -14,8 +14,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -35,10 +35,10 @@ $next = [
     $row(5, 'plugin_cache', 'UTF-8'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedWildcardPrefixPlan($current, $next);
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapedWildcardPrefixPlan($current, $next);
 
 if (in_array('--self-test', $argv, true)) {
-    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-next194');
+    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-nextoneNineFour');
     assert($plan['prefix'] === 'plugin%');
     assert($plan['escapedPercentIsLiteralPrefixByte'] === true);
     assert($plan['currentMatchedRowids'] === [1, 2]);

@@ -73,6 +73,21 @@ $nonUtf8LocalPathContext = (new CredentialContext(
     host: 'stale.git.example.test',
     username: 'deploy-bot',
 ))->destructureUrl(true);
+$localRelativeContext = (new CredentialContext(
+    url: 'wp-content deploy.git',
+    host: 'stale.git.example.test',
+    username: 'deploy-bot',
+))->destructureUrl(true);
+$localAbsoluteWhitespaceContext = (new CredentialContext(
+    url: '/srv/wp-content deploy.git ',
+))->destructureUrl(true);
+$localTildeContext = (new CredentialContext(
+    url: '~/wp-content.git',
+))->destructureUrl(true);
+$fileRelativeAuthorityRootContext = (new CredentialContext(
+    url: 'file://../',
+    path: 'stale/wp-content.git',
+))->destructureUrl(true);
 $duplicateInvalidStringRejected = false;
 try {
     CredentialContext::fromBytes("username=bad\xff\nusername=deploy-bot\n");
@@ -249,6 +264,28 @@ return [
         'path' => $emptyUserHttpContext->path,
         'promptUrl' => $emptyUserHttpContext->toUrl(),
     ],
+    'localRelativeContext' => [
+        'protocol' => $localRelativeContext->protocol,
+        'host' => $localRelativeContext->host,
+        'username' => $localRelativeContext->username,
+        'path' => $localRelativeContext->path,
+        'url' => $localRelativeContext->url,
+    ],
+    'localAbsoluteWhitespaceContext' => [
+        'protocol' => $localAbsoluteWhitespaceContext->protocol,
+        'host' => $localAbsoluteWhitespaceContext->host,
+        'path' => $localAbsoluteWhitespaceContext->path,
+    ],
+    'localTildeContext' => [
+        'protocol' => $localTildeContext->protocol,
+        'username' => $localTildeContext->username,
+        'path' => $localTildeContext->path,
+    ],
+    'fileRelativeAuthorityRootContext' => [
+        'protocol' => $fileRelativeAuthorityRootContext->protocol,
+        'host' => $fileRelativeAuthorityRootContext->host,
+        'path' => $fileRelativeAuthorityRootContext->path,
+    ],
     'nonUtf8LocalPathPreserved' => $nonUtf8LocalPathContext->protocol === 'file'
         && $nonUtf8LocalPathContext->host === null
         && $nonUtf8LocalPathContext->username === null
@@ -281,5 +318,5 @@ return [
     'redactedBytes' => $redacted->storageBytes(),
     'clearedPassword' => $cleared->password,
     'clearedOauthRefreshToken' => $cleared->oauthRefreshToken,
-    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, destructure local mirror and extension-scheme remotes, preserve an explicit repository path when HTTP path matching is disabled, distinguish empty HTTP userinfo from password-only helper URLs, preserve byte-oriented local mirror paths, enforce string-field UTF-8 boundaries, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs.',
+    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, destructure local mirror and extension-scheme remotes, preserve an explicit repository path when HTTP path matching is disabled, distinguish empty HTTP userinfo from password-only helper URLs, preserve byte-oriented and whitespace-bearing local mirror paths without username expansion, enforce string-field UTF-8 boundaries, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs.',
 ];

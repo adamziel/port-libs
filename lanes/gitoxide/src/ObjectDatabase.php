@@ -789,6 +789,9 @@ final class ObjectDatabase
             foreach ($indexPaths as $indexPath) {
                 $packPath = substr($indexPath, 0, -4) . '.pack';
                 if (!is_file($packPath)) {
+                    if (is_file(substr($indexPath, 0, -4) . '.promisor')) {
+                        continue;
+                    }
                     throw new \RuntimeException("Pack data file not found for index: {$indexPath}");
                 }
 

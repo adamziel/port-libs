@@ -41,6 +41,15 @@ $renameAddDeleteResolved = $renameAddDeleteMerge->resolveTreeConflicts(
     TreeMergeResult::RESOLVE_ANCESTOR,
     TreeMergeResult::RESOLVE_ANCESTOR,
 );
+$renameAdd = $fixture['renameAdd'];
+$renameAddMerge = TreeMerge::mergeRecursive(
+    $renameAdd['base'],
+    $renameAdd['ours'],
+    $renameAdd['theirs'],
+    $renameAdd['read'],
+    $renameAdd['write'],
+);
+$renameAddEntry = $renameAddMerge->tree->entryNamed('review-widget.php');
 
 echo 'clean=' . ($clean->isClean() ? 'yes' : 'no') . "\n";
 echo 'entries=' . implode(',', array_map(static fn (TreeEntry $entry): string => $entry->filename, $clean->tree->entries)) . "\n";
@@ -50,3 +59,6 @@ echo 'virtual-base-conflicts=' . count($virtualBaseMerge->conflicts) . "\n";
 echo 'virtual-base-ours=' . $virtualBase['read']($virtualBaseResolved->tree->entryNamed('renamed-content')?->oid ?? '')->body;
 echo 'rename-add-delete-conflicts=' . count($renameAddDeleteMerge->conflicts) . "\n";
 echo 'rename-add-delete-ancestor=' . $renameAddDelete['read']($renameAddDeleteResolved->tree->entryNamed('acme-review.php')?->oid ?? '')->body;
+echo 'rename-add-conflicts=' . count($renameAddMerge->conflicts) . "\n";
+echo 'rename-add-entry=' . ($renameAddEntry?->filename ?? '') . "\n";
+echo 'rename-add-body=' . $renameAdd['read']($renameAddEntry?->oid ?? '')->body;

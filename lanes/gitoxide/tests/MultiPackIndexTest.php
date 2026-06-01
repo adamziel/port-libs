@@ -236,6 +236,7 @@ return [
 
         $t->same('0ffa1', $index->disambiguatePrefix('0FFA111111111111111111111111111111111111', 4));
         $t->same('0ffa111111111111111111111111111111111111', $index->disambiguatePrefix('0ffa111111111111111111111111111111111111', 40));
+        $t->same('0ffa111111111111111111111111111111111111', $index->disambiguatePrefix('0FFA111111111111111111111111111111111111', 40));
         $t->same(null, $index->disambiguatePrefix('ffffffffffffffffffffffffffffffffffffffff', 4));
 
         $sha256First = 'aaaa111111111111111111111111111111111111111111111111111111111111';
@@ -250,6 +251,7 @@ return [
         $t->same(['start' => 0, 'end' => 2], $sha256Ambiguous['candidateRange']);
         $t->same('aaaa1', $sha256->disambiguatePrefix(strtoupper($sha256First), 4));
         $t->same($sha256First, $sha256->disambiguatePrefix($sha256First, 64));
+        $t->same($sha256First, $sha256->disambiguatePrefix(strtoupper($sha256First), 64));
         $t->throws(InvalidArgumentException::class, static fn () => $sha256->lookupPrefix(str_repeat('f', 65)));
         $t->throws(InvalidArgumentException::class, static fn () => $sha256->disambiguatePrefix($sha256First, 3));
     },
@@ -436,6 +438,7 @@ return [
     'wordpress fixture maps content and media packs through one multi-pack-index' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-multi-pack-index.php';
         $index = MultiPackIndex::fromBytes($fixture['multiIndexBytes']);
+        $summary = require dirname(__DIR__) . '/examples/wordpress-multi-pack-index.php';
         $mediaObject = $fixture['objectsByRole']['large-media'];
         $templateObject = $fixture['objectsByRole']['template'];
 
@@ -455,5 +458,6 @@ return [
         $t->same('missing', $emptyPrefix['status']);
         $t->same(['start' => 0, 'end' => 0], $emptyPrefix['candidateRange']);
         $t->throws(RuntimeException::class, static fn () => $empty->verifyIntegrityFast());
+        $t->same($templateObject['oid'], $summary['templateFullPrefixFromUppercase']);
     },
 ];

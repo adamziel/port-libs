@@ -55,6 +55,7 @@ return [
     'templatePrefixStatus' => $templatePrefix['status'],
     'templatePrefixRange' => $templatePrefix['candidateRange'],
     'templateShortestPrefix' => $index->disambiguatePrefix($templateObject['oid'], 4),
+    'templateFullPrefixFromUppercase' => $index->disambiguatePrefix(strtoupper($templateObject['oid']), 40),
     'generatedPrefixRanges' => $generatedPrefixRanges,
     'emptyObjects' => $emptyIndex->count(),
     'emptyChecksum' => $emptyIndex->verifyChecksum(),

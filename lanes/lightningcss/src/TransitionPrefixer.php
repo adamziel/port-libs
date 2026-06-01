@@ -1947,7 +1947,7 @@ final class TransitionPrefixer
             || $this->targetInRange($normalized, 'chrome', [22], [45])
             || $this->targetInRange($normalized, 'ios_saf', [7], [13, 4])
             || $this->targetInRange($normalized, 'opera', [15], [32])
-            || $this->targetInRange($normalized, 'safari', [6], [10, 1])
+            || $this->targetInRange($normalized, 'safari', [6, 1], [10, 1])
             || $this->targetInRange($normalized, 'samsung', [0], [4]);
         $sizingMinMaxNeedsMoz = $this->targetInRange($normalized, 'firefox', [3], [65]);
         $sizingFitContentNeedsWebkit = $sizingMinMaxNeedsWebkit;
@@ -1957,7 +1957,7 @@ final class TransitionPrefixer
             || $this->targetInRange($normalized, 'edge', [79], [137])
             || $this->targetAtLeast($normalized, 'ios_saf', [7])
             || $this->targetAtLeast($normalized, 'opera', [15])
-            || $this->targetAtLeast($normalized, 'safari', [6])
+            || $this->targetAtLeast($normalized, 'safari', [6, 1])
             || $this->targetAtLeast($normalized, 'samsung', [4]);
         $sizingStretchNeedsMoz = $this->targetAtLeast($normalized, 'firefox', [3]);
         $animationNeedsWebkit = $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])

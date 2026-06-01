@@ -5562,7 +5562,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nextoneNineZero',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ?',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ?',
             'baseStatus' => $base['status'],
             'pattern' => $base['pattern'],
             'escape' => $base['escape'],
@@ -5763,7 +5763,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nextoneNineOne',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* prepared UTF-16 rebind */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* prepared UTF-16 rebind */',
             'currentPattern' => $currentPattern,
             'nextPattern' => $nextPattern,
             'currentEscape' => $currentEscape,
@@ -5955,7 +5955,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nextoneNineTwo',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* candidate residual token */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* candidate residual token */',
             'pattern' => $pattern,
             'escape' => $escape,
             'collation' => 'NOCASE',
@@ -6161,7 +6161,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nextoneNineThree',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? LIMIT ? OFFSET ?',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? LIMIT ? OFFSET ?',
             'pattern' => $pattern,
             'escape' => $escape,
             'limit' => $limit,
@@ -6307,7 +6307,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nextoneNineFour',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* escaped wildcard literal prefix */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* escaped wildcard literal prefix */',
             'pattern' => $base['pattern'],
             'escape' => $base['escape'],
             'collation' => 'NOCASE',
@@ -6504,7 +6504,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nextoneNineFive',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* escaped literal tail */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* escaped literal tail */',
             'baseStatus' => $base['status'],
             'pattern' => $pattern,
             'escape' => $escape,
@@ -6649,7 +6649,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nextoneNineSix',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* duplicate comparison-key peers */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* duplicate comparison-key peers */',
             'pattern' => $pattern,
             'escape' => $escape,
             'collation' => 'NOCASE',

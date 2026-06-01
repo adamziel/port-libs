@@ -1138,6 +1138,7 @@ final class CssBundler
                     ];
                     $seenImport = true;
                 } elseif ($this->startsAtKeyword($css, $cursor, '@layer')) {
+                    $this->validateLayerStatement($raw, $file, $this->sourceLocation($css, $cursor));
                     if ($seenImport) {
                         $importsAllowed = false;
                     }
@@ -1277,6 +1278,132 @@ final class CssBundler
         }
 
         return $items;
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function validateLayerStatement(string $statement, string $file, array $loc): void
+    {
+        $end = strlen($statement);
+        while ($end > 0 && ctype_space($statement[$end - 1])) {
+            $end--;
+        }
+
+        $semicolon = ($statement[$end - 1] ?? '') === ';' ? $end - 1 : $end;
+        $contentEnd = $semicolon;
+        $keywordEnd = $this->atKeywordEndOffset($statement, 0, '@layer') ?? strlen('@layer');
+        $offset = $this->skipWhitespaceAndComments($statement, $keywordEnd);
+        if ($offset >= $contentEnd) {
+            $this->throwUnexpectedLayerStatementToken('Semicolon', $statement, $end, $file, $loc);
+        }
+
+        while ($offset < $contentEnd) {
+            $nameStart = $offset;
+            if (!$this->consumeLayerName($statement, $offset, $contentEnd)) {
+                $this->throwUnexpectedLayerStatementChar($statement, $offset, $file, $loc);
+            }
+
+            $nameEnd = $offset;
+            $after = $this->skipWhitespaceAndComments($statement, $offset);
+            if ($after >= $contentEnd) {
+                return;
+            }
+
+            if (($statement[$after] ?? '') === ',') {
+                $offset = $this->skipWhitespaceAndComments($statement, $after + 1);
+                if ($offset >= $contentEnd) {
+                    $this->throwUnexpectedLayerStatementToken('Semicolon', $statement, $end, $file, $loc);
+                }
+                continue;
+            }
+
+            $identifier = $this->readCssIdentifierToken($statement, $after);
+            if ($identifier !== null) {
+                $diagnosticOffset = $this->skipWhitespaceAndComments($statement, $nameEnd) === $after
+                    ? $nameEnd
+                    : $after;
+                $this->throwUnexpectedLayerStatementToken('Ident("' . $identifier['name'] . '")', $statement, $diagnosticOffset, $file, $loc);
+            }
+
+            $this->throwUnexpectedLayerStatementChar($statement, $after, $file, $loc);
+        }
+    }
+
+    private function consumeLayerName(string $statement, int &$offset, int $end): bool
+    {
+        $nameStart = $offset;
+        if (!$this->consumeLayerNameSegmentBounded($statement, $offset, $end)) {
+            return false;
+        }
+
+        while ($offset < $end && ($statement[$offset] ?? '') === '.') {
+            $dot = $offset++;
+            if (!$this->consumeLayerNameSegmentBounded($statement, $offset, $end)) {
+                $offset = $dot;
+                return false;
+            }
+        }
+
+        return $offset > $nameStart;
+    }
+
+    private function consumeLayerNameSegmentBounded(string $layer, int &$offset, int $end): bool
+    {
+        $start = $offset;
+        if ($offset >= $end) {
+            return false;
+        }
+
+        if (($layer[$offset] ?? '') === '-') {
+            $offset++;
+            if ($offset < $end && ($layer[$offset] ?? '') === '-') {
+                $offset++;
+            }
+        }
+
+        if ($offset >= $end) {
+            return $offset - $start >= 2 && substr($layer, $start, 2) === '--';
+        }
+
+        if (!$this->isLayerNameStart($layer, $offset)) {
+            return false;
+        }
+
+        $this->consumeLayerNameCodepoint($layer, $offset);
+        while ($offset < $end && $this->isLayerNameContinue($layer, $offset)) {
+            $this->consumeLayerNameCodepoint($layer, $offset);
+        }
+
+        return $offset > $start;
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function throwUnexpectedLayerStatementChar(string $statement, int $offset, string $file, array $loc): void
+    {
+        $char = $statement[$offset] ?? ';';
+        if ($char === ';') {
+            $this->throwUnexpectedLayerStatementToken('Semicolon', $statement, strlen($statement), $file, $loc);
+        }
+
+        $this->throwUnexpectedLayerStatementToken('Delim("' . addcslashes($char, "\\\"") . '")', $statement, $offset, $file, $loc);
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function throwUnexpectedLayerStatementToken(string $token, string $statement, int $offset, string $file, array $loc): void
+    {
+        $diagnostic = $this->sourceLocationRelativeTo($statement, min($offset, strlen($statement)), $loc);
+        throw new CssBundleException(
+            'parser-error',
+            'Unexpected token ' . $token,
+            $file,
+            $diagnostic['line'],
+            $diagnostic['column'],
+        );
     }
 
     private function isImportTransparentStatementAtRule(string $css, int $offset): bool
