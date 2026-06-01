@@ -8,6 +8,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
 {
     private const READY_PUBLICATION_SAVEPOINT_PREFIX = 'application_rowvalue_window_current_step';
     private const DEFAULT_ROW_ID_COLUMN = 'setting_id';
+    private const DEFAULT_KEY_NAME_COLUMN = 'key_name';
+    private const DEFAULT_KEY_VALUE_COLUMN = 'key_value';
 
     /**
      * @param array<string,list<array<string,mixed>>> $tables
@@ -19,7 +21,77 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             return $rowIdColumn;
         }
 
-        return SQLiteRowIdColumn::resolveTables($tables, $rowIdColumn, $uniqueConstraints);
+        $rowLists = [];
+        foreach ($tables as $name => $rows) {
+            if (!is_string($name) || !is_array($rows) || !array_is_list($rows)) {
+                continue;
+            }
+            $rowLists[$name] = $rows;
+        }
+
+        return SQLiteRowIdColumn::resolveTables($rowLists, $rowIdColumn, $uniqueConstraints);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function keyNameColumn(array $row): string
+    {
+        if (array_key_exists(self::DEFAULT_KEY_NAME_COLUMN, $row)) {
+            return self::DEFAULT_KEY_NAME_COLUMN;
+        }
+
+        foreach ($row as $column => $_value) {
+            if (is_string($column) && str_ends_with($column, '_name')) {
+                return $column;
+            }
+        }
+
+        return self::DEFAULT_KEY_NAME_COLUMN;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function keyNameString(array $row): string
+    {
+        $value = $row[self::keyNameColumn($row)] ?? '';
+
+        return is_scalar($value) || $value === null ? (string) $value : '';
+    }
+
+    /**
+     * @param array<string,mixed>|null $row
+     */
+    private static function nullableKeyName(?array $row): ?string
+    {
+        return $row === null ? null : self::keyNameString($row);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function keyValueColumn(array $row): string
+    {
+        if (array_key_exists(self::DEFAULT_KEY_VALUE_COLUMN, $row)) {
+            return self::DEFAULT_KEY_VALUE_COLUMN;
+        }
+
+        foreach ($row as $column => $_value) {
+            if (is_string($column) && str_ends_with($column, '_value')) {
+                return $column;
+            }
+        }
+
+        return self::DEFAULT_KEY_VALUE_COLUMN;
+    }
+
+    /**
+     * @param array<string,mixed>|null $row
+     */
+    private static function nullableKeyValue(?array $row): mixed
+    {
+        return $row === null ? null : ($row[self::keyValueColumn($row)] ?? null);
     }
 
     /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php. */
@@ -40,6 +112,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'app_settings_rowvalue_window_current_next232',
         string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $savepoint) !== 1) {
             throw new \InvalidArgumentException('SQLite row-value window current-source next232 savepoint must be an identifier');
         }
@@ -143,7 +216,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $ordered[] = [
                 'ordinal' => $index + 1,
                 $rowIdColumn => $row[$rowIdColumn],
-                'option_name' => $row['option_name'] ?? null,
+                self::keyNameColumn($row) => self::nullableKeyName($row),
                 'status' => $row['status'] ?? null,
             ];
         }
@@ -170,6 +243,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'app_settings_rowvalue_returning_window_next233',
         string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($yieldStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value returning window next233 needs yield statements');
         }
@@ -326,7 +400,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             }
             $windows[] = [
                 $rowIdColumn => self::rowIdValueReturningWindowRollbackRetry($row, $rowIdColumn),
-                'option_name' => (string) ($row['option_name'] ?? ''),
+                self::keyNameColumn($row) => self::keyNameString($row),
                 'status' => $row['status'] ?? null,
                 'bytes' => $bytes,
                 'row_number' => $index + 1,
@@ -488,7 +562,17 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      */
     private static function idsFromWindowReturningWindowRollbackRetry(array $windows): array
     {
-        return array_column($windows, 'option_id');
+        if ($windows === []) {
+            return [];
+        }
+
+        foreach ($windows[0] as $column => $_value) {
+            if (is_string($column) && str_ends_with($column, '_id')) {
+                return array_column($windows, $column);
+            }
+        }
+
+        return [];
     }
 
     /**
@@ -535,6 +619,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $rowIdColumn = 'setting_id',
         string $savepoint = 'app_settings_rowvalue_returning_window_next234',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         self::validateTablesPartitionedRetryWindow($tables);
         self::validateStatementsPartitionedRetryWindow($attemptStatements, 'attempt');
         self::validateStatementsPartitionedRetryWindow($retryStatements, 'retry');
@@ -893,6 +978,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'app_settings_rowvalue_returning_window_next235',
         string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
             $attemptStatements,
@@ -1018,6 +1104,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'app_settings_rowvalue_window_current_next236',
         string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReturningWindowRollbackRetry(
             $tables,
             $yieldStatements,
@@ -1043,7 +1130,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'retry_running_bytes_next236' => array_column($retryFrame, 'running_bytes'),
             'retry_following_bytes_next236' => array_column($retryFrame, 'following_bytes'),
             'retry_neighbor_names_next236' => array_map(
-                static fn (array $row): array => [$row['lag_name'], $row['option_name'], $row['lead_name']],
+                static fn (array $row): array => [$row['lag_name'], self::keyNameString($row), $row['lead_name']],
                 $retryFrame,
             ),
             'current_source_receipt_next236' => self::currentSourceReceiptCurrentRowWindowFrames($base, $retryFrame, $rowIdColumn),
@@ -1081,7 +1168,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
 
             $frames[] = [
                 $rowIdColumn => self::rowIdValueCurrentRowWindowFrames($row, $rowIdColumn),
-                'option_name' => (string) ($row['option_name'] ?? ''),
+                self::keyNameColumn($row) => self::keyNameString($row),
                 'status' => $row['status'] ?? null,
                 'row_number' => self::numericValueCurrentRowWindowFrames($row['row_number'] ?? null),
                 'dense_rank' => self::numericValueCurrentRowWindowFrames($row['dense_rank'] ?? null),
@@ -1091,9 +1178,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'following_bytes' => $total - $running,
                 'lag_id' => $lag === null ? null : self::rowIdValueCurrentRowWindowFrames($lag, $rowIdColumn),
                 'lead_id' => $lead === null ? null : self::rowIdValueCurrentRowWindowFrames($lead, $rowIdColumn),
-                'lag_name' => $lag['option_name'] ?? null,
-                'lead_name' => $lead['option_name'] ?? null,
-                'frame_token' => ($row['option_name'] ?? '') . ':' . $bytes . ':' . $running,
+                'lag_name' => self::nullableKeyName($lag),
+                'lead_name' => self::nullableKeyName($lead),
+                'frame_token' => self::keyNameString($row) . ':' . $bytes . ':' . $running,
             ];
         }
 
@@ -1166,6 +1253,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $rowIdColumn = 'setting_id',
         string $savepoint = 'app_settings_rowvalue_returning_window_next237',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         self::validateTablesExcludeCurrentRetryWindow($tables);
         self::validateStatementsExcludeCurrentRetryWindow($attemptStatements, 'attempt');
         self::validateStatementsExcludeCurrentRetryWindow($retryStatements, 'retry');
@@ -1516,6 +1604,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'app_settings_rowvalue_returning_window_next238',
         string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReturningWindowDigests(
             $tables,
             $attemptStatements,
@@ -1644,8 +1733,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'next_partition_row_number_next238' => $next['window_partition_row_number_next235'] ?? null,
                 'current_status_next238' => $current['status'] ?? null,
                 'next_status_next238' => $next['status'] ?? null,
-                'current_option_value_next238' => $current['option_value'] ?? null,
-                'next_option_value_next238' => $next['option_value'] ?? null,
+                'current_key_value_next238' => self::nullableKeyValue($current),
+                'next_key_value_next238' => self::nullableKeyValue($next),
                 'current_present_next238' => $current !== null,
                 'next_present_next238' => $next !== null,
                 'rollback_preserved_current_next238' => $current !== null && $next === null,
@@ -1818,6 +1907,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'app_settings_rowvalue_window_current_next239',
         string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentRowWindowFrames(
             $tables,
             $yieldStatements,
@@ -1898,7 +1988,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
 
                 $windowRows[] = [
                     $rowIdColumn => self::rowIdValueStatementWindowMetrics($row, $rowIdColumn),
-                    'option_name' => (string) ($row['option_name'] ?? ''),
+                    self::keyNameColumn($row) => self::keyNameString($row),
                     'status' => $row['status'] ?? null,
                     'bytes' => $bytes,
                     'statement_key' => $key,
@@ -1912,8 +2002,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                     'ntile_2' => self::ntileStatementWindowMetrics($index, $count, 2),
                     'percent_rank_milli' => self::percentRankMilliStatementWindowMetrics($rank, $count),
                     'cume_dist_milli' => self::cumeDistMilliStatementWindowMetrics($rows, $bytes),
-                    'first_value_name' => (string) ($rows[0]['option_name'] ?? ''),
-                    'last_value_name' => (string) ($rows[$count - 1]['option_name'] ?? ''),
+                    'first_value_name' => self::keyNameString($rows[0]),
+                    'last_value_name' => self::keyNameString($rows[$count - 1]),
                     'exclude_current_neighbor_ids' => self::neighborIdsStatementWindowMetrics($rows, $index, $rowIdColumn),
                     'window_token' => $key . ':' . self::rowIdValueStatementWindowMetrics($row, $rowIdColumn) . ':' . $bytes . ':' . $sum,
                 ];
@@ -2200,7 +2290,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
 
             $rows[] = [
                 $rowIdColumn => $id,
-                'option_name' => (string) ($row['option_name'] ?? ''),
+                self::keyNameColumn($row) => self::keyNameString($row),
                 'status' => $row['status'] ?? null,
                 'peer_key' => $key,
                 'peer_group_number' => $groupNumbers[$key],
@@ -2377,8 +2467,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'frame_discarded_only_next241' => (bool) $pair['rollback_preserved_current_next238'],
                 'frame_current_status_next241' => $pair['current_status_next238'],
                 'frame_next_status_next241' => $pair['next_status_next238'],
-                'frame_current_value_next241' => $pair['current_option_value_next238'],
-                'frame_next_value_next241' => $pair['next_option_value_next238'],
+                'frame_current_value_next241' => $pair['current_key_value_next238'],
+                'frame_next_value_next241' => $pair['next_key_value_next238'],
                 'frame_source_isolated_next241' => true,
                 'frame_current_row_boundary_next241' => 'current-row-only',
             ];
@@ -2563,8 +2653,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                     'rows_frame_sum' => self::sumBytesChainedStatementWindows($frame),
                     'groups_frame_ids' => self::rowIdsChainedStatementWindows($groups, $rowIdColumn),
                     'groups_frame_sum' => self::sumBytesChainedStatementWindows($groups),
-                    'first_value_name' => (string) ($rows[0]['option_name'] ?? ''),
-                    'last_value_name' => (string) ($rows[$count - 1]['option_name'] ?? ''),
+                    'first_value_name' => self::keyNameString($rows[0]),
+                    'last_value_name' => self::keyNameString($rows[$count - 1]),
                     'window_token_next242' => $key . ':' . $id . ':' . self::sumBytesChainedStatementWindows($frame) . ':' . self::sumBytesChainedStatementWindows($groups),
                 ];
             }
@@ -3287,14 +3377,14 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 $phase,
                 (string) ($index + 1),
                 (string) $rowId,
-                (string) ($frame['option_name'] ?? ''),
+                self::keyNameString($frame),
                 (string) ($frame['frame_token'] ?? ''),
             ];
             $tickets[] = [
                 'phase' => $phase,
                 'ordinal' => $index + 1,
                 $rowIdColumn => $rowId,
-                'option_name' => (string) ($frame['option_name'] ?? ''),
+                self::keyNameColumn($frame) => self::keyNameString($frame),
                 'status' => $frame['status'] ?? null,
                 'frame_token' => (string) ($frame['frame_token'] ?? ''),
                 'running_bytes' => self::yieldGateIntValue($frame['running_bytes'] ?? null),
@@ -3960,8 +4050,6 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
     ): array {
-        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
-
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeYieldGateWindow(
             $tables,
             $yieldStatements,
@@ -4035,7 +4123,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'source' => $source,
                 'ticket' => $ticketId,
                 $rowIdColumn => $rowId,
-                'option_name' => self::publicationResumeBarrierStringValue($ticket['option_name'] ?? null, 'option_name'),
+                self::keyNameColumn($ticket) => self::publicationResumeBarrierStringValue(self::nullableKeyName($ticket), 'key name'),
                 'status' => $ticket['status'] ?? null,
                 'frame_token' => self::publicationResumeBarrierStringValue($ticket['frame_token'] ?? null, 'frame_token'),
                 'running_bytes' => self::publicationResumeBarrierIntValue($ticket['running_bytes'] ?? null),
@@ -4206,11 +4294,10 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ?array $acknowledgedYieldTickets = null,
         int $chunkSize = 2,
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($chunkSize < 1) {
             throw new \InvalidArgumentException('SQLite row-value returning window next249 chunk size must be positive');
         }
-
-        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
 
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeYieldGateWindow(
             $tables,
@@ -4271,14 +4358,14 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $totalRunning += $running;
             $ordinal = $index + 1;
             $phase = (string) ($ticket['phase'] ?? '');
-            $name = (string) ($ticket['option_name'] ?? '');
+            $name = self::keyNameString($ticket);
             $frameToken = (string) ($ticket['frame_token'] ?? '');
 
             $rows[] = [
                 'ordinal' => $ordinal,
                 'phase' => $phase,
                 $rowIdColumn => $rowId,
-                'option_name' => $name,
+                self::keyNameColumn($ticket) => $name,
                 'status' => $ticket['status'] ?? null,
                 'ticket' => (string) ($ticket['ticket'] ?? ''),
                 'running_bytes' => $running,
@@ -4647,13 +4734,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ?string $expectedCurrentDigest = null,
         ?string $expectedNextDigest = null,
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         self::sourceDigestHandoffRequiredToken($currentSourceEpoch, 'current source epoch');
         self::sourceDigestHandoffRequiredToken($nextSourceEpoch, 'next source epoch');
         if ($currentSourceEpoch === $nextSourceEpoch) {
             throw new \InvalidArgumentException('SQLite row-value returning window next251 source epochs must differ');
         }
-
-        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
 
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePublicationResumeBarrier(
             $tables,
@@ -4703,7 +4789,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'source_handoff_state_next251' => $sourceReady
                 ? 'current-source-drained-next-source-digest-ready-next251'
                 : 'current-source-or-digest-fence-holds-next-source-next251',
-            'dependency_closure_next251' => 'no new support component needed; next251 reuses row-value UPDATE/DELETE RETURNING window publication sequencing and adds a source epoch/digest handoff fence for copied Application option imports',
+            'dependency_closure_next251' => 'no new support component needed; next251 reuses row-value UPDATE/DELETE RETURNING window publication sequencing and adds a source epoch/digest handoff fence for copied application setting imports',
             'dependencies_next251' => [
                 'sqlite-rowvalue-update-delete-returning-window-source-handoff-next251',
                 'sqlite-returning-current-source-digest-fence-next251',
@@ -5212,16 +5298,17 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next254',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
-        string $currentSourceEpoch = 'wp-current-source-254',
-        string $nextSourceEpoch = 'wp-next-source-254',
+        string $currentSourceEpoch = 'app-current-source-254',
+        string $nextSourceEpoch = 'app-next-source-254',
         ?string $expectedCurrentDigest = null,
         ?string $expectedNextDigest = null,
         ?array $rowReceipts = null,
         bool $requireNextReceipts = true,
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeSourceDigestHandoff(
             $tables,
             $yieldStatements,
@@ -5279,7 +5366,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'admission_state_next254' => $blocked === []
                 ? 'current-source-next254-window-receipts-admitted'
                 : 'current-source-next254-window-receipts-held',
-            'dependency_closure_next254' => 'no new support component needed; next254 reuses row-value UPDATE/DELETE RETURNING window publication, source epoch/digest handoff rows, and adds per-row window receipt admission for copied Application option imports',
+            'dependency_closure_next254' => 'no new support component needed; next254 reuses row-value UPDATE/DELETE RETURNING window publication, source epoch/digest handoff rows, and adds per-row window receipt admission for copied application setting imports',
             'dependencies_next254' => [
                 'sqlite-rowvalue-update-delete-returning-window-current-source-next254',
                 'sqlite-returning-window-row-receipt-admission-next254',
@@ -5546,11 +5633,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next255',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
         ?array $acknowledgedNextRowTickets = null,
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeSourceDigestHandoff(
             $tables,
             $yieldStatements,
@@ -5636,7 +5724,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $rows[] = [
                 'ticket' => $ticket,
                 'next_row_ordinal_next255' => count($rows) + 1,
-                'next_row_rowid_next255' => self::nextRowAdmissionRowId($row[$rowIdColumn] ?? $row['option_id'] ?? null, $rowIdColumn),
+                'next_row_rowid_next255' => self::nextRowAdmissionRowId($row[$rowIdColumn] ?? null, $rowIdColumn),
                 'next_row_source_epoch_next255' => self::nextRowAdmissionStringValue($row['source_epoch_next251'] ?? null, 'source epoch'),
                 'next_row_previous_ticket_next255' => $previousTicket,
                 'next_row_next_ticket_next255' => is_array($next) ? self::nextRowAdmissionTicket($next['ticket'] ?? null) : null,
@@ -5821,12 +5909,13 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_retry_commit',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         ?array $acknowledgedYieldTickets = null,
         int $chunkSize = 2,
         ?array $acknowledgedChunkTokens = null,
         ?array $acknowledgedCommitTokens = null,
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeChunkCursorReleaseWindow(
             $tables,
             $yieldStatements,
@@ -6008,11 +6097,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next257',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         ?array $acknowledgedYieldTickets = null,
         int $chunkSize = 2,
         ?array $acknowledgedChunkTokens = null,
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeChunkCursorReleaseWindow(
             $tables,
             $yieldStatements,
@@ -6195,7 +6285,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'visible' => true,
                 'publication_ordinal_next257' => count($rows) + 1,
                 $rowIdColumn => $rowId,
-                'option_name' => $cursorRow['option_name'] ?? null,
+                self::keyNameColumn($cursorRow) => self::nullableKeyName($cursorRow),
                 'publication_token' => hash('sha256', 'retry-window|' . (string) ($cursorRow['cursor_token'] ?? '') . '|' . (string) $rowId),
             ];
         }
@@ -6254,11 +6344,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next258',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
         ?string $acknowledgedTransitionToken = null,
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePublicationWindowFence(
             $tables,
             $yieldStatements,
@@ -6471,13 +6562,14 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next259',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
         ?array $acknowledgedNextRowTickets = null,
         ?array $acknowledgedCurrentFrameTickets = null,
         bool $requirePreviousFrameClose = true,
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeWindowRowAdmission(
             $tables,
             $yieldStatements,
@@ -6528,7 +6620,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'all_current_frames_acknowledged' => self::allCurrentFramesAcknowledgedForCurrentRowAdmission($rows),
                 'all_next_frames_acknowledged' => self::allNextFramesAcknowledgedForCurrentRowAdmission($rows),
             ],
-            'dependency_closure_next259' => 'no new support component needed; next259 reuses native row-value UPDATE/DELETE RETURNING rows, next251 source handoff, and next255 next-row admission while adding CURRENT ROW frame-close gating for copied Application option imports',
+            'dependency_closure_next259' => 'no new support component needed; next259 reuses native row-value UPDATE/DELETE RETURNING rows, next251 source handoff, and next255 next-row admission while adding CURRENT ROW frame-close gating for copied application setting imports',
             'dependencies_next259' => [
                 'sqlite-rowvalue-returning-window-current-row-frame-next259',
                 'sqlite-rowvalue-returning-window-next-row-admission-next255',
@@ -6580,7 +6672,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             }
 
             $ready = $blockedReasons === [];
-            $rowId = self::currentRowFrameAdmissionRowId($row[$rowIdColumn] ?? $row['next_row_rowid_next255'] ?? $row['option_id'] ?? null, $rowIdColumn);
+            $rowId = self::currentRowFrameAdmissionRowId($row[$rowIdColumn] ?? $row['next_row_rowid_next255'] ?? null, $rowIdColumn);
             $rows[] = [
                 'ticket' => $ticket,
                 'current_frame_ordinal_next259' => count($rows) + 1,
@@ -6783,12 +6875,13 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next260',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
         ?array $acknowledgedNextRowTickets = null,
         ?array $acknowledgedBoundaryTickets = null,
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeWindowRowAdmission(
             $tables,
             $yieldStatements,
@@ -7080,11 +7173,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next261',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
-        string $currentSourceEpoch = 'wp-current-source-261',
-        string $nextSourceEpoch = 'wp-next-source-261',
+        string $currentSourceEpoch = 'app-current-source-261',
+        string $nextSourceEpoch = 'app-next-source-261',
         ?string $expectedCurrentDigest = null,
         ?string $expectedNextDigest = null,
         ?array $rowReceipts = null,
@@ -7092,6 +7185,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ?array $segmentWatermarks = null,
         bool $requireNextSegmentWatermark = true,
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRowReceiptAdmissionWindow(
             $tables,
             $yieldStatements,
@@ -7157,7 +7251,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'source_window_state_next261' => $segmentsReady
                 ? 'current-source-window-watermarks-admit-next-source-next261'
                 : 'current-source-window-watermarks-hold-next-source-next261',
-            'dependency_closure_next261' => 'no new support component needed; next261 reuses row-value UPDATE/DELETE RETURNING window row receipts and adds current/next source window segment watermarks for copied Application option imports',
+            'dependency_closure_next261' => 'no new support component needed; next261 reuses row-value UPDATE/DELETE RETURNING window row receipts and adds current/next source window segment watermarks for copied application setting imports',
             'dependencies_next261' => [
                 'sqlite-rowvalue-update-delete-returning-window-current-source-next261',
                 'sqlite-returning-window-segment-watermark-next261',
@@ -7362,7 +7456,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next262',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
         ?array $acknowledgedNextRowTickets = null,
@@ -7370,6 +7464,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ?array $acknowledgedPeerTokens = null,
         array $peerColumns = ['status'],
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         self::peerGroupAdmissionColumns($peerColumns);
 
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeFrameBoundaryAdmission(
@@ -7623,11 +7718,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next263',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         ?array $acknowledgedPeerTokens = null,
         array $peerColumns = ['status'],
         ?string $resumeAfterPeerToken = null,
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executePeerGroupAdmission(
             $tables,
             $yieldStatements,
@@ -7695,9 +7791,10 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next264',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         ?array $acknowledgedFinalReceipts = null,
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executePeerCheckpointAdmission(
             $tables,
             $yieldStatements,
@@ -7767,8 +7864,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next265',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeFinalReceiptAdmission($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $ledger = [];
         foreach ($base['final_receipts_next264'] as $receipt) {
@@ -7816,8 +7914,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next266',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeReceiptLedgerHandoff($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $sourceCounts = [];
         foreach ($base['receipt_ledger_next265'] as $row) {
@@ -7860,9 +7959,10 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next267',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         int $batchSize = 3,
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($batchSize < 1) {
             throw new \InvalidArgumentException('SQLite row-value returning window next267 batch size must be positive');
         }
@@ -7914,9 +8014,10 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next268',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
         int $batchSize = 3,
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeHandoffBatchAdmission($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn, $batchSize);
         $manifest = [
             'savepoint' => $savepoint,
@@ -7958,8 +8059,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next269',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeHandoffManifest($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn, 2);
         $closure = [
             'savepoint' => $savepoint,
@@ -7997,8 +8099,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next270',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeCurrentSourceClosure($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $receipts = array_column($base['receipt_ledger_next265'], 'ledger_receipt_next265');
         sort($receipts);
@@ -8038,8 +8141,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next271',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeDeleteReturningGuard($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $updateRows = array_values(array_filter(
             $base['receipt_ledger_next265'],
@@ -8081,8 +8185,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next272',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeUpdateReturningFence($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $summary = [
             'savepoint' => $savepoint,
@@ -8122,8 +8227,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next273',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeAfterCurrentSummary($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $admission = [
             'savepoint' => $savepoint,
@@ -8161,8 +8267,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next274',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeCurrentSourceAdmission($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $statements = array_merge($base['yield_statements'], $base['attempt_statements'], $base['retry_statements']);
         $updateCount = array_sum(array_map(
@@ -8209,8 +8316,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next275',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeReturningBalance($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $package = [
             'savepoint' => $savepoint,
@@ -8249,8 +8357,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next276',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executePublicationSourcePackage($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $handoff = [
             'savepoint' => $savepoint,
@@ -8292,8 +8401,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next277',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeAfterCurrentHandoff($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $attestation = [
             'savepoint' => $savepoint,
@@ -8332,8 +8442,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next278',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeAfterCurrentAttestation($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $manifest = [
             'savepoint' => $savepoint,
@@ -8374,8 +8485,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next279',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeAfterCurrentManifest($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $bridge = [
             'savepoint' => $savepoint,
@@ -8414,8 +8526,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next280',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeAfterCurrentBridge($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $seal = [
             'savepoint' => $savepoint,
@@ -8457,8 +8570,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next281',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeAfterCurrentSeal($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $receipt = [
             'savepoint' => $savepoint,
@@ -8497,8 +8611,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next282',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeCurrentSourceReceipt($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $ledger = [
             'savepoint' => $savepoint,
@@ -8539,8 +8654,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next283',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeReturningWindowLedger($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $window = [
             'savepoint' => $savepoint,
@@ -8579,8 +8695,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next284',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeAfterCurrentWindowReceipt($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $seal = [
             'savepoint' => $savepoint,
@@ -8622,8 +8739,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next285',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeCurrentSourceReadySeal($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $receipt = [
             'savepoint' => $savepoint,
@@ -8662,8 +8780,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next286',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeAfterCurrentReceipt($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $ledger = [
             'savepoint' => $savepoint,
@@ -8704,8 +8823,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next287',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeAfterCurrentLedger($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $window = [
             'savepoint' => $savepoint,
@@ -8745,8 +8865,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next288',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeAfterCurrentWindowCoverage($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $seal = [
             'savepoint' => $savepoint,
@@ -8788,8 +8909,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next294',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeAfterCurrentFinalSeal($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $handoff = [
             'savepoint' => $savepoint,
@@ -8829,8 +8951,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next295',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeAfterCurrentSourceHandoff($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $windowAudit = [
             'savepoint' => $savepoint,
@@ -8870,8 +8993,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next296',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeAfterCurrentWindowAudit($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $sourceAudit = [
             'savepoint' => $savepoint,
@@ -8911,8 +9035,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next297',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeAfterCurrentSourceAudit($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $seal = [
             'savepoint' => $savepoint,
@@ -8954,8 +9079,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_source_continuation',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $base = self::executeAfterCurrentIntegrationSeal($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $sourceWindow = [
             'savepoint' => $savepoint,
@@ -9067,8 +9193,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         ?string $savepoint = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($targetStep < 306 || $targetStep > 341) {
             throw new \InvalidArgumentException('SQLite row-value window current-source pre-publication step must be between 306 and 341');
         }
@@ -9099,8 +9226,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         ?string $savepoint = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($targetStep < 342 || $targetStep > 365) {
             throw new \InvalidArgumentException('SQLite row-value window after-ready publication step must be between 342 and 365');
         }
@@ -9130,8 +9258,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         ?string $savepoint = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($targetStep < 366 || $targetStep > 373) {
             throw new \InvalidArgumentException('SQLite row-value window current-source handoff continuation step must be between 366 and 373');
         }
@@ -9162,8 +9291,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         ?string $savepoint = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($targetStep < 374 || $targetStep > 381) {
             throw new \InvalidArgumentException('SQLite row-value window current-source ready-seal step must be between 374 and 381');
         }
@@ -9194,8 +9324,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         ?string $savepoint = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($targetStep < 382 || $targetStep > 445) {
             throw new \InvalidArgumentException('SQLite row-value window current-source follow-on step must be between 382 and 445');
         }
@@ -9219,8 +9350,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         ?string $savepoint = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($targetStep < 446 || $targetStep > 493) {
             throw new \InvalidArgumentException('SQLite row-value window current-source continuation step must be between 446 and 493');
         }
@@ -9244,8 +9376,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         ?string $savepoint = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($targetStep < 494 || $targetStep > 509) {
             throw new \InvalidArgumentException('SQLite row-value window current-source publication handoff step must be between 494 and 509');
         }
@@ -9269,8 +9402,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         ?string $savepoint = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($targetStep < 510 || $targetStep > 541) {
             throw new \InvalidArgumentException('SQLite row-value window current-source publication seal step must be between 510 and 541');
         }
@@ -9301,8 +9435,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $uniqueConstraints,
         int $targetStep,
         string $savepoint = 'app_settings_rowvalue_window_current_publication',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($targetStep < 542 || $targetStep > 669) {
             throw new \InvalidArgumentException('SQLite row-value window ready-publication continuation step must be between 542 and 669');
         }
@@ -9414,8 +9549,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         ?string $savepoint = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($publicationStep < 670 || $publicationStep > 1181) {
             throw new \InvalidArgumentException('SQLite row-value window ready-publication continuation step must be between 670 and 1181');
         }
@@ -9455,8 +9591,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         ?string $savepoint = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($firstPublicationStep < 734 || $lastPublicationStep > 1181 || $firstPublicationStep > $lastPublicationStep) {
             throw new \InvalidArgumentException('SQLite row-value window ready-publication range must be ordered between 734 and 1181');
         }
@@ -9493,8 +9630,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         ?string $savepoint = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         $plans = self::executeReadyPublicationRange(
             958,
             1181,
@@ -9766,8 +9904,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_source_next289',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($attemptStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value window current-source next289 needs attempt statements');
         }
@@ -9974,7 +10113,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'next_rowid' => $rows[$index + 1][$rowIdColumn] ?? null,
                 'peer_count' => $count,
                 'status' => $row['status'] ?? null,
-                'option_name' => $row['option_name'] ?? null,
+                self::keyNameColumn($row) => self::nullableKeyName($row),
                 'source' => 'returning-current-source-next289',
             ];
         }
@@ -10056,8 +10195,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_statement_partitioned_window',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
         if ($attemptStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value statement-partitioned window needs attempt statements');
         }
@@ -10267,7 +10407,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'next_rowid' => $rows[$index + 1][$rowIdColumn] ?? null,
                 'peer_count' => $count,
                 'status' => $row['status'] ?? null,
-                'option_name' => $row['option_name'] ?? null,
+                self::keyNameColumn($row) => self::nullableKeyName($row),
                 'source' => $source,
             ];
         }
@@ -10298,7 +10438,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                     'next_rowid_in_statement' => $rows[$index + 1][$rowIdColumn] ?? null,
                     'statement_peer_count' => $count,
                     'status' => $row['status'] ?? null,
-                    'option_name' => $row['option_name'] ?? null,
+                    self::keyNameColumn($row) => self::nullableKeyName($row),
                     'source' => 'retry-statement-current-source',
                 ];
             }

@@ -57,26 +57,6 @@ $partitionedWindowSourceMatches = static function () use ($partitionedWindowSour
         throw new RuntimeException("Unable to read {$partitionedWindowSourceFile}");
     }
 
-    $segments = [
-        [
-            'public static function executePartitionedRetryWindow(',
-            'private static function compareValuesPartitionedRetryWindow(',
-        ],
-        [
-            'public static function executeExcludeCurrentRetryWindow(',
-            'private static function compareValuesExcludeCurrentRetryWindow(',
-        ],
-    ];
-
-    $segment = '';
-    foreach ($segments as [$startMarker, $endMarker]) {
-        $start = strpos($contents, $startMarker);
-        $end = strpos($contents, $endMarker, $start === false ? 0 : $start);
-        if ($start === false || $end === false || $end <= $start) {
-            throw new RuntimeException("Unable to isolate row-value window source segment {$startMarker}");
-        }
-        $segment .= substr($contents, $start, $end - $start);
-    }
     $terms = [
         'wp' . '_',
         'wp' . '_options',
@@ -88,7 +68,7 @@ $partitionedWindowSourceMatches = static function () use ($partitionedWindowSour
         'blog' . '_id',
     ];
     $pattern = '/(?:\bwp\b|' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
-    if (preg_match_all($pattern, $segment, $fileMatches, PREG_OFFSET_CAPTURE) < 1) {
+    if (preg_match_all($pattern, $contents, $fileMatches, PREG_OFFSET_CAPTURE) < 1) {
         return [];
     }
 

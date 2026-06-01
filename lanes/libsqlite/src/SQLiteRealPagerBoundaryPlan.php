@@ -223,6 +223,63 @@ final class SQLiteRealPagerBoundaryPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function transientSpecialFilenameRows(int $count = 1000): array
+    {
+        if ($count < 1) {
+            throw new \InvalidArgumentException('SQLite pager transient special-filename corpus row count must be positive');
+        }
+
+        $rows = [];
+        $filenames = [
+            [':memory:', 'memory'],
+            ['', 'temporary'],
+        ];
+        $pageSizes = [1024, 2048, 4096, 8192];
+        $initialRows = ['Charles', 'James', 'Mary'];
+        $rolledBackRows = ['William', 'Anne'];
+
+        for ($case = 1; $case <= $count; $case++) {
+            [$filename, $storage] = $filenames[($case - 1) % count($filenames)];
+            $pageSize = $pageSizes[intdiv($case - 1, count($filenames)) % count($pageSizes)];
+            $section = $storage === 'memory' ? 'pager1-8.1' : 'pager1-8.2';
+
+            $rows[] = [
+                'case' => $case,
+                'status' => 'transient-special-filename-isolated',
+                'script' => 'pager1.test',
+                'section' => $section . '.1..' . $section . '.3',
+                'upstream' => sprintf('pager1.test %s special filename isolation dynamic case %04d', $section, $case),
+                'filename' => $filename,
+                'storage' => $storage,
+                'page_size' => $pageSize,
+                'auto_vacuum' => true,
+                'first_connection_rows' => $initialRows,
+                'second_connection_status' => 'error',
+                'second_connection_error' => 'no such table: x1',
+                'second_connection_rows' => [],
+                'rollback_insert_rows' => $rolledBackRows,
+                'rows_after_rollback' => $initialRows,
+                'persistent_database_file' => false,
+                'persistent_journal_file' => false,
+                'isolated_per_connection' => true,
+                'rollback_discards_transient_rows' => true,
+                'integrity_check_after_rollback' => 'ok',
+                'source' => 'pager1.test pager1-8.1 through pager1-8.2 special filenames :memory: and empty string open isolated transient databases',
+                'dependencies' => [
+                    'real-upstream-corpus-pager1',
+                    'sqlite-pager-transient-special-filename',
+                    'sqlite-pager-isolated-memory-temp',
+                    'sqlite-pager-rollback-transient-database',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function rollbackRestoresMaxPageCount(
