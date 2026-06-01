@@ -3926,4 +3926,75 @@ foreach ($jsonbLimitCases as $name => [$callback, $expected]) {
     };
 }
 
+$offsetLiteralLimitExpr = static function (int $value, string $label) use ($sqlStringLiteral): string {
+    $payload = (string) $value . ' OFFSET ' . $label;
+
+    return 'replace(' . $sqlStringLiteral($payload) . ', ' . $sqlStringLiteral(' OFFSET ' . $label) . ', ' . $sqlStringLiteral('') . ')';
+};
+
+for ($seed = 1; $seed <= 64; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = ($seed + 1) % 3;
+    $limitExpr = $offsetLiteralLimitExpr($limitValue, 'limit-literal-' . $seed);
+    $offsetExpr = $offsetLiteralLimitExpr($offsetValue, 'offset-literal-' . $seed);
+    $sql = "UPDATE app_settings SET state = 'offset_literal_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update string-literal offset keyword seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($result['returning']), 'offset_literal_limit'), array_column($result['returning'], 'state'));
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+for ($seed = 1; $seed <= 64; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 2) % 4;
+    $limitExpr = $offsetLiteralLimitExpr($limitValue, 'rowvalue-limit-literal-' . $seed);
+    $offsetExpr = $offsetLiteralLimitExpr($offsetValue, 'rowvalue-offset-literal-' . $seed);
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue string-literal offset keyword seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+$offsetLiteralLimitCases = [
+    'parse limit expression keeps offset word inside literal' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT ' . $offsetLiteralLimitExpr(3, 'parse-limit'))['limit'], 3],
+    'parse offset expression keeps offset word inside literal' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET ' . $offsetLiteralLimitExpr(2, 'parse-offset'))['offset'], 2],
+    'parse keyword offset after literal-bearing limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT ' . $offsetLiteralLimitExpr(4, 'keyword-limit') . ' OFFSET ' . $offsetLiteralLimitExpr(1, 'keyword-offset'))['limit'], 4],
+    'parse keyword offset expression after literal-bearing limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT ' . $offsetLiteralLimitExpr(4, 'keyword-limit') . ' OFFSET ' . $offsetLiteralLimitExpr(1, 'keyword-offset'))['offset'], 1],
+    'parse comma form offset expression with literal token' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT ' . $offsetLiteralLimitExpr(2, 'comma-offset') . ', ' . $offsetLiteralLimitExpr(5, 'comma-limit'))['offset'], 2],
+    'parse comma form limit expression with literal token' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT ' . $offsetLiteralLimitExpr(2, 'comma-offset') . ', ' . $offsetLiteralLimitExpr(5, 'comma-limit'))['limit'], 5],
+    'parse replace result containing offset literal as integer' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT replace(' . $sqlStringLiteral('3 OFFSET not-keyword') . ', ' . $sqlStringLiteral(' OFFSET not-keyword') . ', ' . $sqlStringLiteral('') . ')')['limit'], 3],
+    'parse substr nested literal before keyword offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT substr(' . $sqlStringLiteral('x2 OFFSET literal') . ', 2, 1) OFFSET replace(' . $sqlStringLiteral('1 OFFSET skip') . ', ' . $sqlStringLiteral(' OFFSET skip') . ', ' . $sqlStringLiteral('') . ')')['offset'], 1],
+    'malformed empty keyword offset still rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT ' . $offsetLiteralLimitExpr(2, 'missing-offset') . ' OFFSET'), InvalidArgumentException::class],
+];
+
+foreach ($offsetLiteralLimitCases as $name => [$callback, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity offset literal keyword ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+            return;
+        }
+        $t->same($expected, $callback());
+        $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+    };
+}
+
 return $tests;

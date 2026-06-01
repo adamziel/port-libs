@@ -223,7 +223,7 @@ final class LooseObjectStore
 
     private static function objectPathExists(string $path): bool
     {
-        return file_exists($path) || is_link($path);
+        return file_exists($path);
     }
 
     /**

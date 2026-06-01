@@ -1087,8 +1087,32 @@ CSS;
             $prefixer->prefixForTargets('.foo { appearance: none; }', ['firefox' => 80])
         );
         $t->same(
+            '.foo{appearance:none}',
+            $prefixer->prefixForTargets('.foo { appearance: none; }', ['ios_saf' => '3.1'])
+        );
+        $t->same(
+            '.foo{-webkit-appearance:none;appearance:none}',
+            $prefixer->prefixForTargets('.foo { appearance: none; }', ['ios_saf' => '3.2'])
+        );
+        $t->same(
             '.foo{-webkit-appearance:none;appearance:none}',
             $prefixer->prefixForTargets('.foo { appearance: none; }', ['safari' => 15])
+        );
+        $t->same(
+            '.foo{-webkit-appearance:none;appearance:none}',
+            $prefixer->prefixForTargets('.foo { appearance: none; }', ['safari' => '15.2'])
+        );
+        $t->same(
+            '.foo{appearance:none}',
+            $prefixer->prefixForTargets('.foo { appearance: none; }', ['safari' => '15.3'])
+        );
+        $t->same(
+            '.foo{-webkit-appearance:none;appearance:none}',
+            $prefixer->prefixForTargets('.foo { appearance: none; }', ['ios_saf' => '15.2'])
+        );
+        $t->same(
+            '.foo{appearance:none}',
+            $prefixer->prefixForTargets('.foo { appearance: none; }', ['ios_saf' => '15.3'])
         );
         $t->same(
             '.foo{appearance:none}',

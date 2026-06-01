@@ -450,6 +450,36 @@ return [
             $t->contains('Loose object not found', $exception->getMessage());
         }
     },
+    'loose object integrity reports broken symlink candidates as missing objects like gix odb' => static function (TestRunner $t): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-integrity-broken-symlink-' . bin2hex(random_bytes(4)) . '/objects';
+        $staleOid = str_repeat('2', 40);
+        $stalePath = $objectsDirectory . '/' . substr($staleOid, 0, 2) . '/' . substr($staleOid, 2);
+        if (!mkdir(dirname($stalePath), 0777, true) && !is_dir(dirname($stalePath))) {
+            throw new RuntimeException('Unable to create broken loose object symlink directory');
+        }
+        if (!symlink($objectsDirectory . '/missing-target', $stalePath)) {
+            throw new RuntimeException('Unable to create broken loose object symlink fixture');
+        }
+
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+        $t->same(false, $store->contains($staleOid));
+        $t->same(null, $store->tryReadHeader($staleOid));
+        $t->same(null, $store->tryRead($staleOid));
+        try {
+            $store->readHeader($staleOid);
+            throw new RuntimeException('Expected broken loose object symlink header lookup to be missing');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object not found: {$staleOid}", $exception->getMessage());
+        }
+
+        try {
+            $store->verifyIntegrity();
+            throw new RuntimeException('Expected broken loose object symlink to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$staleOid} could not be read exactly", $exception->getMessage());
+            $t->contains("Loose object not found: {$staleOid}", $exception->getMessage());
+        }
+    },
     'loose object integrity counts duplicate case-normalized iterator candidates' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-integrity-case-duplicate-' . bin2hex(random_bytes(4)) . '/.git';
         $store = new LooseObjectStore($gitDir);

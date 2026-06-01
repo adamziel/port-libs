@@ -292,6 +292,70 @@ CSS, [
             'card' => $export('EgL3uq_card'),
         ], $pureSelectorFunction['exports']);
     },
+    'css modules filters upstream forgiving local global selector lists while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:is(:global(.legacy, .wp-button), .kept, .other) {
+  color: red;
+}
+
+.card:where(:local(.drop, .also), .soft, :global(.public)) {
+  color: yellow;
+}
+
+.card:has(:global(.bad, .worse), .child, .media) {
+  color: blue;
+}
+
+.item:nth-child(2n of :global(.bad, .worse), .card, :global(.public)) {
+  color: green;
+}
+
+.item:nth-last-child(odd of :local(.drop, .also), :global(.public), .card) {
+  color: purple;
+}
+
+.panel {
+  composes: card;
+  color: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_card:is(.EgL3uq_kept,.EgL3uq_other){color:red}.EgL3uq_card:where(.EgL3uq_soft,.public){color:#ff0}.EgL3uq_card:has(.EgL3uq_child,.EgL3uq_media){color:#00f}.EgL3uq_item:nth-child(2n of .EgL3uq_card,.public){color:green}.EgL3uq_item:nth-last-child(odd of .public,.EgL3uq_card){color:purple}.EgL3uq_panel{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'kept' => $export('EgL3uq_kept'),
+            'other' => $export('EgL3uq_other'),
+            'soft' => $export('EgL3uq_soft'),
+            'child' => $export('EgL3uq_child'),
+            'media' => $export('EgL3uq_media'),
+            'item' => $export('EgL3uq_item'),
+            'panel' => $export('EgL3uq_panel', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        $emptyForgiving = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:has(:global(.legacy, .wp-button)) {
+  color: red;
+}
+
+.item:nth-child(odd of :local(.drop, .also)) {
+  color: blue;
+}
+CSS);
+
+        $t->same('.EgL3uq_card:has(){color:red}.EgL3uq_item:nth-child(odd of ){color:#00f}', $emptyForgiving['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'item' => $export('EgL3uq_item'),
+        ], $emptyForgiving['exports']);
+
+        foreach ([
+            '.card:not(:global(.legacy, .wp-button)) { color: red }',
+            ':global(.legacy, .wp-button) .card { color: red }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
+        }
+    },
     'css modules leaves upstream host-context arguments public while preserving local composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 :host-context(.public-theme) .card {

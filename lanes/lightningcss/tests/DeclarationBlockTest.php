@@ -390,6 +390,60 @@ return [
             $block->removeProperty('box-shadow: 12px 12px rgba(0,0,0,0.4); text-shadow: 1px 1px yellow', 'box-shadow')
         );
     },
+    'declaration block canonicalizes upstream svg paint and rendering cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'fill: url("#wp-gradient") currentColor; stroke: rgba(255,0,0,.4); stroke-dasharray: 0px, 2px 4px; stroke-linecap: ROUND; stroke-linejoin: Miter; text-rendering: geometricPrecision; shape-rendering: crispEdges; color-interpolation: sRGB; color-interpolation-filters: linearRGB; fill-rule: EVENODD; clip-rule: NONZERO; marker-start: url("#start"); marker-end: NONE; stroke-width: 2.500px; stroke-dashoffset: 0px; stroke-miterlimit: 4.000; --Icon-Render: geometricPrecision';
+
+        $t->same(
+            [
+                'fill' => 'url(#wp-gradient) currentColor',
+                'stroke' => '#f006',
+                'stroke-dasharray' => '0 2 4',
+                'stroke-linecap' => 'round',
+                'stroke-linejoin' => 'miter',
+                'text-rendering' => 'geometricprecision',
+                'shape-rendering' => 'crispedges',
+                'color-interpolation' => 'srgb',
+                'color-interpolation-filters' => 'linearrgb',
+                'fill-rule' => 'evenodd',
+                'clip-rule' => 'nonzero',
+                'marker-start' => 'url(#start)',
+                'marker-end' => 'none',
+                'stroke-width' => '2.5px',
+                'stroke-dashoffset' => '0',
+                'stroke-miterlimit' => '4',
+                '--Icon-Render' => 'geometricPrecision',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'url(#wp-gradient) currentColor', 'important' => false], $block->getProperty($declarations, 'fill'));
+        $t->same(['value' => '#f006', 'important' => false], $block->getProperty($declarations, 'stroke'));
+        $t->same(['value' => '0 2 4', 'important' => false], $block->getProperty($declarations, 'stroke-dasharray'));
+        $t->same(['value' => 'geometricprecision', 'important' => false], $block->getProperty($declarations, 'text-rendering'));
+        $t->same(['value' => 'srgb', 'important' => false], $block->getProperty($declarations, 'color-interpolation'));
+        $t->same(['value' => 'url(#start)', 'important' => false], $block->getProperty($declarations, 'marker-start'));
+        $t->same(['value' => 'geometricPrecision', 'important' => false], $block->getProperty($declarations, '--Icon-Render'));
+        $t->same(
+            'fill: url(#editor-gradient) #ff0; stroke: #f006; color: red',
+            $block->setProperty('fill: url("#wp-gradient") currentColor; stroke: rgba(255,0,0,.4); color: red', 'fill', 'url("#editor-gradient") yellow')
+        );
+        $t->same(
+            'stroke-dasharray: .5 25% 4; color: red',
+            $block->setProperty('stroke-dasharray: 1px 2px; color: red', 'stroke-dasharray', '0.500px 25% 4')
+        );
+        $t->same(
+            'shape-rendering: crispedges; text-rendering: optimizelegibility !important',
+            $block->setProperty('text-rendering: geometricPrecision; shape-rendering: crispEdges', 'text-rendering', 'optimizeLegibility', true)
+        );
+        $t->same(
+            'marker-start: url(#editor-marker); marker-end: none',
+            $block->setProperty('marker-start: url("#start"); marker-end: NONE', 'marker-start', 'url("#editor-marker")')
+        );
+        $t->same(
+            'stroke: #f006; stroke-dasharray: 0 2 4',
+            $block->removeProperty('fill: url("#wp-gradient") currentColor; stroke: rgba(255,0,0,.4); stroke-dasharray: 0px, 2px 4px', 'fill')
+        );
+    },
     'declaration block canonicalizes upstream transform cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'transform: translateX(10px) scale3d(100%, 100%, 100%); translate: 0px 12px 0px; rotate: 10deg 0 0 -1; scale: 100% 105% 1; color: red';

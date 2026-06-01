@@ -761,6 +761,40 @@ return [
 
         $t->same(['f\\oo'], $entryNames($literalBackslash->includedTreeEntries($plugins, 'wp-content/plugins')));
     },
+    'pathspec sparse checkout keeps escaped byte directories traversable' => static function (TestRunner $t) use ($entryNames): void {
+        $escapedByte = SparseCheckoutSpec::fromPathspecs([
+            'wp-content/plugins/f\\oo/block.json',
+        ]);
+        $escapedSlash = SparseCheckoutSpec::fromPathspecs([
+            ':(glob)wp-content/plugins/foo\\/block.json',
+        ]);
+
+        $t->same(true, $escapedByte->includesPath('wp-content/plugins', true));
+        $t->same(true, $escapedByte->includesPath('wp-content/plugins/f', true));
+        $t->same(true, $escapedByte->includesPath('wp-content/plugins/foo', true));
+        $t->same(true, $escapedByte->includesPath('wp-content/plugins/f\\oo', true));
+        $t->same(false, $escapedByte->includesPath('wp-content/plugins/bar', true));
+        $t->same(true, $escapedByte->includesPath('wp-content/plugins/foo/block.json', false));
+        $t->same(true, $escapedByte->includesPath('wp-content/plugins/f\\oo/block.json', false));
+        $t->same(false, $escapedByte->includesPath('wp-content/plugins/bar/block.json', false));
+
+        $t->same(true, $escapedSlash->includesPath('wp-content/plugins/foo', true));
+        $t->same(true, $escapedSlash->includesPath('wp-content/plugins/foo/block.json', false));
+        $t->same(false, $escapedSlash->includesPath('wp-content/plugins/foo/other.json', false));
+
+        $blob = str_repeat('1', 40);
+        $tree = str_repeat('2', 40);
+        $plugins = new Tree([
+            new TreeEntry('040000', 'bar', $tree),
+            new TreeEntry('040000', 'f', $tree),
+            new TreeEntry('040000', 'f\\oo', $tree),
+            new TreeEntry('040000', 'foo', $tree),
+            new TreeEntry('100644', 'foo-file.php', $blob),
+        ]);
+
+        $t->same(['f', 'f\\oo', 'foo'], $entryNames($escapedByte->includedTreeEntries($plugins, 'wp-content/plugins')));
+        $t->same(['f', 'foo'], $entryNames($escapedSlash->includedTreeEntries($plugins, 'wp-content/plugins')));
+    },
     'pathspec sparse checkout keeps absolute wildcard prefixes case sensitive under icase' => static function (TestRunner $t): void {
         $root = '/srv/www/example.com/current';
         $foldedAbsoluteWildcard = SparseCheckoutSpec::fromPathspecs([

@@ -88,6 +88,12 @@ $absoluteBackslashGlobPathspec = SparseCheckoutSpec::fromPathspecs([
 $absoluteBackslashOrdinaryPathspec = SparseCheckoutSpec::fromPathspecs([
     $deploymentRoot . '/wp-content/plugins/f\\oo/block.json',
 ], root: $deploymentRoot);
+$escapedByteTraversalPathspec = SparseCheckoutSpec::fromPathspecs([
+    'wp-content/plugins/f\\oo/block.json',
+]);
+$escapedSlashTraversalPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content/plugins/foo\\/block.json',
+]);
 $absoluteWildcardPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(icase)' . $deploymentRoot . '/*/readme.md',
 ], root: $deploymentRoot);
@@ -246,6 +252,13 @@ return [
     'absoluteBackslashGlobSlashSkipped' => $absoluteBackslashGlobPathspec->skipWorktree('wp-content/plugins/f/oo/loader.php', false),
     'absoluteBackslashOrdinaryEscapesNextByte' => $absoluteBackslashOrdinaryPathspec->includesPath('wp-content/plugins/foo/block.json', false),
     'absoluteBackslashOrdinaryVerbatimFallbackIncluded' => $absoluteBackslashOrdinaryPathspec->includesPath('wp-content/plugins/f\\oo/block.json', false),
+    'pathspecEscapedBytePrefixDirectoryTraversable' => $escapedByteTraversalPathspec->includesPath('wp-content/plugins/f', true),
+    'pathspecEscapedByteDirectoryTraversable' => $escapedByteTraversalPathspec->includesPath('wp-content/plugins/foo', true),
+    'pathspecEscapedByteVerbatimDirectoryIncluded' => $escapedByteTraversalPathspec->includesPath('wp-content/plugins/f\\oo', true),
+    'pathspecEscapedByteEscapedFileIncluded' => $escapedByteTraversalPathspec->includesPath('wp-content/plugins/foo/block.json', false),
+    'pathspecEscapedByteVerbatimFileIncluded' => $escapedByteTraversalPathspec->includesPath('wp-content/plugins/f\\oo/block.json', false),
+    'pathspecEscapedSlashDirectoryTraversable' => $escapedSlashTraversalPathspec->includesPath('wp-content/plugins/foo', true),
+    'pathspecEscapedSlashFileIncluded' => $escapedSlashTraversalPathspec->includesPath('wp-content/plugins/foo/block.json', false),
     'absoluteWildcardIcaseRealDirectorySkipped' => $absoluteWildcardPathspec->skipWorktree('wp-content/README.md', false),
     'absoluteWildcardIcaseLiteralStarIncluded' => $absoluteWildcardPathspec->includesPath('*/README.md', false),
     'absoluteWildcardOrdinaryGlobIncluded' => $ordinaryAbsoluteWildcardPathspec->includesPath('wp-content/readme.md', false),

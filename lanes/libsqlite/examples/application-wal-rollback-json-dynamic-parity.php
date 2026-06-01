@@ -266,6 +266,25 @@ $withScenarios(
 );
 
 $withScenarios(
+    static fn (): array => SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledReopenedPrefixCheckpointFollowupScenarios(4),
+    static function (array $scenarios) use (&$summary): void {
+        $summary['rollbackDisabledReopenedPrefixCheckpointFollowupScenarioCount'] = count($scenarios);
+        $summary['rollbackDisabledReopenedPrefixCheckpointFollowupModes'] = array_map(static fn (array $scenario): string => $scenario['checkpoint_mode'], $scenarios);
+        $summary['rollbackDisabledReopenedPrefixCheckpointFollowupStartedNewWalHeaders'] = array_map(static fn (array $scenario): bool => $scenario['reopened_checkpoint_followup_started_new_wal_header'], $scenarios);
+        $summary['rollbackDisabledReopenedPrefixCheckpointFollowupWalFramesBefore'] = array_map(static fn (array $scenario): int => $scenario['reopened_checkpoint_followup_plan']['wal_frame_count_before'], $scenarios);
+        $summary['rollbackDisabledReopenedPrefixCheckpointFollowupWalFramesAfter'] = array_map(static fn (array $scenario): int => $scenario['reopened_checkpoint_followup_plan']['wal_frame_count_after'], $scenarios);
+        $summary['rollbackDisabledReopenedPrefixCheckpointFollowupPages'] = array_map(static fn (array $scenario): array => array_column($scenario['reopened_checkpoint_followup_plan']['import_plan']['applied'], 'page_number'), $scenarios);
+        $summary['rollbackDisabledReopenedPrefixCheckpointFollowupInsertedKeys'] = array_map(static fn (array $scenario): string => $scenario['reopened_checkpoint_followup_plan']['import_plan']['applied'][1]['key_name'], $scenarios);
+        $summary['rollbackDisabledReopenedPrefixCheckpointFollowupReopenedKeysRetained'] = array_map(static fn (array $scenario): bool => $scenario['reopened_checkpoint_followup_reopened_key_retained'], $scenarios);
+        $summary['rollbackDisabledReopenedPrefixCheckpointFollowupPreviousRecoveryKeysRetained'] = array_map(static fn (array $scenario): bool => $scenario['reopened_checkpoint_followup_previous_recovery_key_retained'], $scenarios);
+        $summary['rollbackDisabledReopenedPrefixCheckpointFollowupRejectedTailKeysRetained'] = array_map(
+            static fn (array $scenario): bool => $scenario['reopened_checkpoint_followup_rejected_prior_tail_key_retained'] || $scenario['reopened_checkpoint_followup_rejected_post_recovery_tail_key_retained'],
+            $scenarios
+        );
+    }
+);
+
+$withScenarios(
     static fn (): array => SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupScenarios(4),
     static function (array $scenarios) use (&$summary): void {
         $summary['rollbackDisabledFollowupScenarioCount'] = count($scenarios);
@@ -484,6 +503,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['rollbackDisabledMaterializedWalScenarioCount'] === 4);
     assert($summary['rollbackDisabledReopenedPrefixSuccessScenarioCount'] === 4);
     assert($summary['rollbackDisabledReopenedPrefixCheckpointScenarioCount'] === 4);
+    assert($summary['rollbackDisabledReopenedPrefixCheckpointFollowupScenarioCount'] === 4);
     assert($summary['rollbackDisabledFollowupScenarioCount'] === 4);
     assert($summary['rollbackDisabledFollowupFailureScenarioCount'] === 4);
     assert($summary['rollbackDisabledFollowupRecoveryScenarioCount'] === 4);
@@ -564,6 +584,15 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['rollbackDisabledReopenedPrefixCheckpointPagesMaterialized'] === array_fill(0, 4, true));
     assert($summary['rollbackDisabledReopenedPrefixCheckpointFinalFramePinned'] === array_fill(0, 4, true));
     assert($summary['rollbackDisabledReopenedPrefixCheckpointRejectedTailKeysRetained'] === array_fill(0, 4, false));
+    assert($summary['rollbackDisabledReopenedPrefixCheckpointFollowupModes'] === ['restart', 'truncate', 'restart', 'truncate']);
+    assert($summary['rollbackDisabledReopenedPrefixCheckpointFollowupStartedNewWalHeaders'] === [false, true, false, true]);
+    assert($summary['rollbackDisabledReopenedPrefixCheckpointFollowupWalFramesBefore'] === array_fill(0, 4, 0));
+    assert($summary['rollbackDisabledReopenedPrefixCheckpointFollowupWalFramesAfter'] === array_fill(0, 4, 3));
+    assert($summary['rollbackDisabledReopenedPrefixCheckpointFollowupPages'][0] === [1321, 2521, 2121]);
+    assert($summary['rollbackDisabledReopenedPrefixCheckpointFollowupInsertedKeys'][0] === 'disabled_reopened_checkpoint_followup_payload_1');
+    assert($summary['rollbackDisabledReopenedPrefixCheckpointFollowupReopenedKeysRetained'] === array_fill(0, 4, true));
+    assert($summary['rollbackDisabledReopenedPrefixCheckpointFollowupPreviousRecoveryKeysRetained'] === array_fill(0, 4, true));
+    assert($summary['rollbackDisabledReopenedPrefixCheckpointFollowupRejectedTailKeysRetained'] === array_fill(0, 4, false));
     assert($summary['rollbackDisabledFollowupStatuses'] === array_fill(0, 4, 'ready'));
     assert($summary['rollbackDisabledFollowupWalFramesBefore'] === [4, 5, 6, 3]);
     assert($summary['rollbackDisabledFollowupWalFramesAfter'] === [6, 7, 8, 5]);

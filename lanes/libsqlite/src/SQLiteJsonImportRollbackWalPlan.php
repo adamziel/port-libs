@@ -2499,7 +2499,7 @@ final class SQLiteJsonImportRollbackWalPlan
     /**
      * @return list<array<string,mixed>>
      */
-    public static function dynamicRollbackDisabledReopenedPrefixSuccessScenarios(int $scenarioCount = 16): array
+    public static function dynamicRollbackDisabledReopenedPrefixSuccessScenarios(int $scenarioCount = 6): array
     {
         if ($scenarioCount < 1) {
             throw new \InvalidArgumentException('SQLite Application JSON WAL rollback-disabled reopened-prefix success dynamic parity requires at least one scenario');
@@ -2513,7 +2513,7 @@ final class SQLiteJsonImportRollbackWalPlan
     /**
      * @return list<array<string,mixed>>
      */
-    public static function dynamicRollbackDisabledReopenedPrefixCheckpointScenarios(int $scenarioCount = 16): array
+    public static function dynamicRollbackDisabledReopenedPrefixCheckpointScenarios(int $scenarioCount = 6): array
     {
         if ($scenarioCount < 1) {
             throw new \InvalidArgumentException('SQLite Application JSON WAL rollback-disabled reopened-prefix checkpoint dynamic parity requires at least one scenario');
@@ -2521,6 +2521,20 @@ final class SQLiteJsonImportRollbackWalPlan
 
         return self::dynamicRollbackDisabledReopenedPrefixCheckpointScenariosFromSuccessScenarios(
             self::dynamicRollbackDisabledReopenedPrefixSuccessScenarios($scenarioCount)
+        );
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicRollbackDisabledReopenedPrefixCheckpointFollowupScenarios(int $scenarioCount = 6): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL rollback-disabled reopened-prefix checkpoint followup dynamic parity requires at least one scenario');
+        }
+
+        return self::dynamicRollbackDisabledReopenedPrefixCheckpointFollowupScenariosFromCheckpointScenarios(
+            self::dynamicRollbackDisabledReopenedPrefixCheckpointScenarios($scenarioCount)
         );
     }
 
@@ -2815,6 +2829,108 @@ final class SQLiteJsonImportRollbackWalPlan
                 'reopened_previous_recovery_key_retained_after_checkpoint' => in_array($base['expected_previous_recovery_inserted_key'], $finalKeys, true),
                 'reopened_rejected_prior_tail_key_retained_after_checkpoint' => in_array($base['rejected_prior_tail_inserted_key'], $finalKeys, true),
                 'reopened_rejected_post_recovery_tail_key_retained_after_checkpoint' => in_array($base['rejected_post_recovery_tail_inserted_key'], $finalKeys, true),
+            ]);
+        }
+
+        return $scenarios;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $baseScenarios
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicRollbackDisabledReopenedPrefixCheckpointFollowupScenariosFromCheckpointScenarios(array $baseScenarios): array
+    {
+        if ($baseScenarios === []) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL rollback-disabled reopened-prefix checkpoint followup dynamic parity requires checkpoint scenarios');
+        }
+
+        $scenarios = [];
+        foreach ($baseScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $tenantId = (int) $base['tenant_id'];
+            $pageSize = (int) $base['page_size'];
+            $jsonbMode = (bool) $base['jsonb_mode'];
+            $releasedCheckpoint = $base['reopened_released_checkpoint'];
+            $checkpointedDatabase = (string) $releasedCheckpoint['database_bytes'];
+            $checkpointWalBytes = (string) $releasedCheckpoint['wal_bytes'];
+            $startedNewWalHeader = $checkpointWalBytes === '';
+            if ($startedNewWalHeader) {
+                $checkpointWalBytes = self::emptyCheckpointWalBytes(
+                    $pageSize,
+                    $releasedCheckpoint['next_wal_header_salt'] ?? [0x51, 0x52],
+                    1
+                );
+            }
+
+            $reopenedPages = $base['expected_reopened_pages'];
+            $catalogPage = (int) $reopenedPages[0];
+            $reopenedInsertPage = (int) $reopenedPages[1];
+            $followupInsertPage = 2520 + $seed;
+            $followupRows = $base['reopened_success_plan']['import_plan']['final_rows'];
+            $followupMutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_reopened_checkpoint_followup_catalog_' . $seed,
+                    'key_name' => 'disabled_rollback_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.after_reopened_checkpoint',
+                    'value' => 'after-reopened-checkpoint-' . $seed,
+                    'wal_frame_index' => 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_reopened_checkpoint_followup_insert_' . $seed,
+                    'key_name' => 'disabled_reopened_checkpoint_followup_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.checkpoint_followup',
+                    'value' => true,
+                    'on_missing' => 'insert',
+                    'insert_setting_id' => $seed * 10000 + 15,
+                    'insert_load_policy' => 'auto',
+                    'initial_value' => '{}',
+                    'page_number' => $followupInsertPage,
+                    'wal_frame_index' => 2,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_reopened_checkpoint_followup_reopened_insert_' . $seed,
+                    'key_name' => $base['expected_reopened_inserted_key'],
+                    'function' => 'json_set',
+                    'path' => '$.reopened_checkpoint_followup_seen',
+                    'value' => true,
+                    'page_number' => $reopenedInsertPage,
+                    'wal_frame_index' => 3,
+                ],
+            ];
+
+            $followupPlan = self::plan($followupRows, $followupMutations, [
+                'database_bytes' => $checkpointedDatabase,
+                'page_size' => $pageSize,
+                'wal_bytes' => $checkpointWalBytes,
+                'transaction' => 'application_disabled_reopened_checkpoint_followup_json_import_' . $seed,
+                'savepoint' => 'disabled_reopened_checkpoint_followup_json_batch_' . $seed,
+                'pre_savepoint_wal_pages' => [],
+                'materialize_success_wal_frames' => true,
+            ]);
+
+            $finalKeys = array_column($followupPlan['import_plan']['final_rows'], 'key_name');
+            $scenarios[] = array_merge($base, [
+                'reopened_checkpoint_followup_input_database_hash' => hash('sha256', $checkpointedDatabase),
+                'reopened_checkpoint_followup_input_wal_hash' => hash('sha256', $checkpointWalBytes),
+                'reopened_checkpoint_followup_wal_bytes' => $checkpointWalBytes,
+                'reopened_checkpoint_followup_started_new_wal_header' => $startedNewWalHeader,
+                'reopened_checkpoint_followup_wal_header_length' => strlen($checkpointWalBytes),
+                'reopened_checkpoint_followup_base_row_count' => count($followupRows),
+                'expected_reopened_checkpoint_followup_pages' => [$catalogPage, $followupInsertPage, $reopenedInsertPage],
+                'expected_reopened_checkpoint_followup_inserted_key' => 'disabled_reopened_checkpoint_followup_payload_' . $seed,
+                'expected_reopened_checkpoint_followup_inserted_id' => $seed * 10000 + 15,
+                'reopened_checkpoint_followup_plan' => $followupPlan,
+                'reopened_checkpoint_followup_inserted_key_retained' => in_array('disabled_reopened_checkpoint_followup_payload_' . $seed, $finalKeys, true),
+                'reopened_checkpoint_followup_reopened_key_retained' => in_array($base['expected_reopened_inserted_key'], $finalKeys, true),
+                'reopened_checkpoint_followup_previous_recovery_key_retained' => in_array($base['expected_previous_recovery_inserted_key'], $finalKeys, true),
+                'reopened_checkpoint_followup_rejected_prior_tail_key_retained' => in_array($base['rejected_prior_tail_inserted_key'], $finalKeys, true),
+                'reopened_checkpoint_followup_rejected_post_recovery_tail_key_retained' => in_array($base['rejected_post_recovery_tail_inserted_key'], $finalKeys, true),
             ]);
         }
 

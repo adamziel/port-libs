@@ -2429,7 +2429,7 @@ final class CustomAtRuleTransformer
 
     /**
      * @param list<string>|null $parentSelectors
-     * @return array{name:string, prelude:string, preludeTokens:list<array{type:string,value:mixed}>, body:string, hasBlock:bool, context:string, parentSelectors:list<string>}
+     * @return array{name:string, prelude:string, preludeTokens:list<array{type:string,value:mixed}>, block:list<mixed>|null, body:string, hasBlock:bool, context:string, parentSelectors:list<string>}
      */
     private function buildUnknownRule(string $name, string $prelude, ?string $body, ?array $parentSelectors): array
     {
@@ -2439,6 +2439,7 @@ final class CustomAtRuleTransformer
             'name' => $name,
             'prelude' => $prelude,
             'preludeTokens' => $this->parseUnknownPreludeTokens($prelude),
+            'block' => $body === null ? null : $this->parseComponentValueList($body),
             'body' => $body ?? '',
             'hasBlock' => $body !== null,
             'context' => $parentSelectors === null ? 'rule-list' : 'style-block',

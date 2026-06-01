@@ -57,6 +57,19 @@ final class DeclarationBlock
     private const CSS_WIDE_KEYWORDS = ['initial', 'inherit', 'unset', 'revert', 'revert-layer'];
 
     private const ALPHA_VALUE_PROPERTIES = ['opacity', 'fill-opacity', 'stroke-opacity'];
+    private const SVG_PAINT_PROPERTIES = ['fill', 'stroke'];
+    private const SVG_MARKER_PROPERTIES = ['marker', 'marker-start', 'marker-mid', 'marker-end'];
+    private const SVG_LENGTH_PERCENTAGE_PROPERTIES = ['stroke-width', 'stroke-dashoffset'];
+    private const SVG_LOWERCASE_KEYWORD_PROPERTIES = [
+        'fill-rule' => ['nonzero', 'evenodd'],
+        'clip-rule' => ['nonzero', 'evenodd'],
+        'stroke-linecap' => ['butt', 'round', 'square'],
+        'stroke-linejoin' => ['miter', 'round', 'bevel', 'arcs'],
+        'color-interpolation' => ['auto', 'srgb', 'linearrgb'],
+        'color-interpolation-filters' => ['auto', 'srgb', 'linearrgb'],
+        'shape-rendering' => ['auto', 'optimizespeed', 'crispedges', 'geometricprecision'],
+        'text-rendering' => ['auto', 'optimizespeed', 'optimizelegibility', 'geometricprecision'],
+    ];
     private const PRINT_COLOR_ADJUST_PROPERTIES = ['print-color-adjust', '-webkit-print-color-adjust', '-moz-print-color-adjust'];
     private const VIEW_TRANSITION_KEYWORDS = [
         'view-transition-name' => ['none', 'auto'],
@@ -13583,6 +13596,30 @@ final class DeclarationBlock
             return $this->normalizeAlphaValue($value);
         }
 
+        if (in_array($property, self::SVG_PAINT_PROPERTIES, true)) {
+            return $this->normalizeSvgPaintValue($value);
+        }
+
+        if (in_array($property, self::SVG_MARKER_PROPERTIES, true)) {
+            return $this->normalizeSvgMarkerValue($value);
+        }
+
+        if ($property === 'stroke-dasharray') {
+            return $this->normalizeSvgStrokeDasharrayValue($value);
+        }
+
+        if (in_array($property, self::SVG_LENGTH_PERCENTAGE_PROPERTIES, true)) {
+            return $this->normalizeLengthPercentageOrAutoToken($value);
+        }
+
+        if ($property === 'stroke-miterlimit') {
+            return $this->normalizeSvgNumberValue($value);
+        }
+
+        if (isset(self::SVG_LOWERCASE_KEYWORD_PROPERTIES[$property])) {
+            return $this->normalizeKeywordDeclarationValue($value, self::SVG_LOWERCASE_KEYWORD_PROPERTIES[$property]);
+        }
+
         if ($property === 'color-scheme') {
             return $this->normalizeColorSchemeDeclarationValue($value);
         }
@@ -13691,6 +13728,99 @@ final class DeclarationBlock
         $keyword = strtolower($trimmed);
 
         return in_array($keyword, $keywords, true) ? $keyword : $trimmed;
+    }
+
+    private function normalizeSvgPaintValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        $first = $tokens[0];
+        if (preg_match('/^url\(/i', $first) === 1) {
+            $parts = [$this->normalizeCssUrlToken($first)];
+            if (isset($tokens[1])) {
+                $parts[] = $this->normalizeSvgPaintFallbackValue($tokens[1]);
+            }
+
+            return implode(' ', $parts);
+        }
+
+        if (count($tokens) === 1) {
+            return $this->normalizeSvgPaintFallbackValue($first);
+        }
+
+        return implode(' ', array_map(fn (string $token): string => $this->normalizeSvgPaintFallbackValue($token), $tokens));
+    }
+
+    private function normalizeSvgPaintFallbackValue(string $value): string
+    {
+        return $this->normalizeShadowColorToken($value);
+    }
+
+    private function normalizeSvgMarkerValue(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^url\(/i', $value) === 1) {
+            return $this->normalizeCssUrlToken($value);
+        }
+
+        return strcasecmp($value, 'none') === 0 ? 'none' : $value;
+    }
+
+    private function normalizeSvgStrokeDasharrayValue(string $value): string
+    {
+        $tokens = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            foreach ($this->splitWhitespaceTopLevel($part) as $token) {
+                $tokens[] = $token;
+            }
+        }
+
+        if (count($tokens) === 1 && strcasecmp($tokens[0], 'none') === 0) {
+            return 'none';
+        }
+
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        return implode(' ', array_map(fn (string $token): string => $this->normalizeSvgDasharrayComponent($token), $tokens));
+    }
+
+    private function normalizeSvgDasharrayComponent(string $token): string
+    {
+        $token = trim($token);
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))px$/i', $token, $matches) === 1) {
+            return $this->normalizeCssNumberLiteral($matches[1]);
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-z]+)$/i', $token, $matches) === 1) {
+            $number = $this->normalizeCssNumberLiteral($matches[1]);
+
+            return $number . strtolower($matches[2]);
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
+            return $this->normalizeCssNumberLiteral($matches[1]) . '%';
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) === 1) {
+            return $this->normalizeCssNumberLiteral($token);
+        }
+
+        return $token;
+    }
+
+    private function normalizeSvgNumberValue(string $value): string
+    {
+        $value = trim($value);
+
+        return preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $value) === 1
+            ? $this->normalizeCssNumberLiteral($value)
+            : $value;
     }
 
     private function isBoxSpacingDeclarationProperty(string $property): bool

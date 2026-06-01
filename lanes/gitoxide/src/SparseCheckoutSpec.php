@@ -1050,8 +1050,7 @@ final class SparseCheckoutSpec
         $length = strlen($pattern);
         for ($i = 0; $i < $length; $i++) {
             if ($pattern[$i] === '\\') {
-                $i++;
-                continue;
+                return true;
             }
             if (str_contains('*?[', $pattern[$i])) {
                 return true;

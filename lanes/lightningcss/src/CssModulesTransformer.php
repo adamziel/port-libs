@@ -86,6 +86,7 @@ final class CssModulesTransformer
             $code = (new NestingTransformer())->lower($code);
             $code = $this->rewriteAttributeSelectorsInCss($code);
             $code = $this->restorePreservedEmptyComposesRules($code);
+            $code = $this->restoreEmptyNthChildOfSelectorLists($code);
         }
 
         if ($minify && $this->unusedSymbols !== []) {
@@ -489,6 +490,15 @@ final class CssModulesTransformer
             '{' . self::PRESERVE_EMPTY_COMPOSES_DECLARATION . '}',
             '{' . self::PRESERVE_EMPTY_COMPOSES_DECLARATION . ';}',
         ], '{}', $code);
+    }
+
+    private function restoreEmptyNthChildOfSelectorLists(string $code): string
+    {
+        return preg_replace(
+            '/:(nth(?:-last)?-child)\(([^()]*)\bof\)/i',
+            ':$1($2of )',
+            $code
+        ) ?? $code;
     }
 
     /**
@@ -2036,6 +2046,49 @@ final class CssModulesTransformer
                 continue;
             }
 
+            $forgivingSelectorFunction = $bracketDepth === 0 ? $this->forgivingSelectorFunctionAt($selector, $i) : null;
+            if ($forgivingSelectorFunction !== null) {
+                $inner = substr(
+                    $selector,
+                    $forgivingSelectorFunction['open'] + 1,
+                    $forgivingSelectorFunction['close'] - $forgivingSelectorFunction['open'] - 1
+                );
+                $output .= ':'
+                    . $forgivingSelectorFunction['rawName']
+                    . '('
+                    . $this->rewriteForgivingSelectorList($inner, $mode, $locals)
+                    . ')';
+                $i = $forgivingSelectorFunction['close'];
+                continue;
+            }
+
+            $nthChildSelectorFunction = $bracketDepth === 0 ? $this->nthChildSelectorFunctionAt($selector, $i) : null;
+            if ($nthChildSelectorFunction !== null) {
+                $inner = substr(
+                    $selector,
+                    $nthChildSelectorFunction['open'] + 1,
+                    $nthChildSelectorFunction['close'] - $nthChildSelectorFunction['open'] - 1
+                );
+                $ofKeyword = $this->findNthChildOfKeyword($inner);
+                if ($ofKeyword === null) {
+                    $output .= ':' . $nthChildSelectorFunction['rawName'] . '(' . $inner . ')';
+                    $i = $nthChildSelectorFunction['close'];
+                    continue;
+                }
+
+                $formula = trim(substr($inner, 0, $ofKeyword['start']));
+                $selectorList = substr($inner, $ofKeyword['end']);
+                $output .= ':'
+                    . $nthChildSelectorFunction['rawName']
+                    . '('
+                    . $formula
+                    . ' of '
+                    . $this->rewriteForgivingSelectorList($selectorList, $mode, $locals)
+                    . ')';
+                $i = $nthChildSelectorFunction['close'];
+                continue;
+            }
+
             $globalPseudo = $bracketDepth === 0 ? $this->cssModulesPseudoFunctionAt($selector, $i, 'global') : null;
             if ($globalPseudo !== null) {
                 $open = $globalPseudo['open'];
@@ -2150,6 +2203,169 @@ final class CssModulesTransformer
         }
 
         return trim($output);
+    }
+
+    /**
+     * @param array<string, true> $locals
+     */
+    private function rewriteForgivingSelectorList(string $selectorList, string $mode, array &$locals): string
+    {
+        $rewritten = [];
+
+        foreach ($this->splitTopLevel($selectorList, ',') as $selector) {
+            $candidateLocals = [];
+            try {
+                $rewrittenSelector = $this->rewriteSelectorFragment($selector, $mode, $candidateLocals);
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+
+            if ($rewrittenSelector === '') {
+                continue;
+            }
+
+            foreach ($candidateLocals as $local => $enabled) {
+                if ($enabled) {
+                    $locals[(string) $local] = true;
+                }
+            }
+
+            $rewritten[] = $rewrittenSelector;
+        }
+
+        return implode(',', $rewritten);
+    }
+
+    /**
+     * @return array{rawName:string,open:int,close:int}|null
+     */
+    private function forgivingSelectorFunctionAt(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset] ?? '') !== ':' || ($selector[$offset + 1] ?? '') === ':') {
+            return null;
+        }
+
+        $token = $this->readCssIdentifierToken($selector, $offset + 1);
+        if ($token === null || ($selector[$token['end']] ?? '') !== '(') {
+            return null;
+        }
+
+        if (!in_array(strtolower($token['decoded']), ['is', 'where', 'has', '-webkit-any', '-moz-any'], true)) {
+            return null;
+        }
+
+        return [
+            'rawName' => $token['raw'],
+            'open' => $token['end'],
+            'close' => $this->findMatchingParen($selector, $token['end']),
+        ];
+    }
+
+    /**
+     * @return array{rawName:string,open:int,close:int}|null
+     */
+    private function nthChildSelectorFunctionAt(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset] ?? '') !== ':' || ($selector[$offset + 1] ?? '') === ':') {
+            return null;
+        }
+
+        $token = $this->readCssIdentifierToken($selector, $offset + 1);
+        if ($token === null || ($selector[$token['end']] ?? '') !== '(') {
+            return null;
+        }
+
+        if (!in_array(strtolower($token['decoded']), ['nth-child', 'nth-last-child'], true)) {
+            return null;
+        }
+
+        return [
+            'rawName' => $token['raw'],
+            'open' => $token['end'],
+            'close' => $this->findMatchingParen($selector, $token['end']),
+        ];
+    }
+
+    /**
+     * @return array{start:int,end:int}|null
+     */
+    private function findNthChildOfKeyword(string $inner): ?array
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($inner);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $inner[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($parenDepth !== 0 || $bracketDepth !== 0) {
+                continue;
+            }
+
+            if (!$this->isCssIdentifierStartChar($char) && $char !== '-' && $char !== '\\') {
+                continue;
+            }
+
+            $token = $this->readCssIdentifierToken($inner, $i);
+            if ($token === null) {
+                continue;
+            }
+
+            $previous = $inner[$i - 1] ?? '';
+            $next = $inner[$token['end']] ?? '';
+            if (
+                strcasecmp($token['decoded'], 'of') === 0
+                && ($previous === '' || !$this->isCssIdentifierChar($previous))
+                && ($next === '' || !$this->isCssIdentifierChar($next))
+            ) {
+                return [
+                    'start' => $i,
+                    'end' => $token['end'],
+                ];
+            }
+
+            $i = $token['end'] - 1;
+        }
+
+        return null;
     }
 
     private function assertNoDeprecatedValueRule(string $source): void

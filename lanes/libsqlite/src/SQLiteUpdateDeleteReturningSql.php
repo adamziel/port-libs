@@ -872,14 +872,19 @@ final class SQLiteUpdateDeleteReturningSql
         if (count($commaParts) === 2) {
             return [self::limitInteger($commaParts[1]), self::limitInteger($commaParts[0])];
         }
-        if (preg_match('/^(.+?)(?:\s+OFFSET\s+(.+))?$/i', $sql, $match) === 1) {
-            $limit = self::limitInteger(trim($match[1]));
-            $offset = isset($match[2]) ? self::limitInteger(trim($match[2])) : 0;
-
-            return [$limit, $offset];
+        if (count($commaParts) !== 1) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT must be an integer expression, integer OFFSET integer, or offset,count');
         }
 
-        throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT must be an integer expression, integer OFFSET integer, or offset,count');
+        $offsetPosition = self::topLevelKeywordPosition($sql, 'OFFSET');
+        if ($offsetPosition !== null) {
+            $limitSql = trim(substr($sql, 0, $offsetPosition));
+            $offsetSql = trim(substr($sql, $offsetPosition + strlen('OFFSET')));
+
+            return [self::limitInteger($limitSql), self::limitInteger($offsetSql)];
+        }
+
+        return [self::limitInteger($sql), 0];
     }
 
     private static function limitInteger(string $expression): int

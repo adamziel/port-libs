@@ -1764,6 +1764,40 @@ CSS;
 
         $t->same('@media (prefers-color-scheme:editor){.wp-block-card{color:#ff0}.wp-block-card .wp-block-card__title{color:red}}', $result);
     },
+    'custom at-rules expose upstream unknown at-rule block token lists' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@wp-theme card { #056ef0 4px var(--wp-gap) }
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => [
+                    'wp-theme' => static function (array $rule) use (&$seen): array {
+                        $seen = [
+                            'hasBlock' => $rule['hasBlock'] ?? null,
+                            'prelude' => $rule['preludeTokens'] ?? null,
+                            'block' => $rule['block'] ?? null,
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same(true, $seen['hasBlock']);
+        $t->same([['type' => 'token', 'value' => ['type' => 'ident', 'value' => 'card']]], $seen['prelude']);
+        $t->same(['color', 'length', 'var'], array_column($seen['block'], 'type'));
+        $t->same(['type' => 'rgb', 'r' => 5, 'g' => 110, 'b' => 240, 'alpha' => 1], $seen['block'][0]['value']);
+        $t->same(['unit' => 'px', 'value' => 4.0], $seen['block'][1]['value']);
+        $t->same('--wp-gap', $seen['block'][2]['value']['name']['ident']);
+    },
     'custom at-rules visit upstream native media boolean rule visitors' => static function (TestRunner $t): void {
         $seenQuery = null;
         $result = (new CustomAtRuleTransformer())->transform('@media (hover) { .foo { color: red; } }', [], [

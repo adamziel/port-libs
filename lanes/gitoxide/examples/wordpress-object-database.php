@@ -154,6 +154,26 @@ try {
         && str_contains($exception->getMessage(), "Loose object file is empty: {$emptyLooseOid}");
 }
 
+$brokenSymlinkGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-broken-symlink-' . bin2hex(random_bytes(4)) . '/.git';
+$brokenSymlinkOid = str_repeat('d', 40);
+$brokenSymlinkPath = $brokenSymlinkGitDir . '/objects/' . substr($brokenSymlinkOid, 0, 2) . '/' . substr($brokenSymlinkOid, 2);
+if (!mkdir(dirname($brokenSymlinkPath), 0777, true) && !is_dir(dirname($brokenSymlinkPath))) {
+    throw new RuntimeException('Unable to create broken loose object symlink example directory');
+}
+if (!symlink($brokenSymlinkGitDir . '/objects/missing-target', $brokenSymlinkPath)) {
+    throw new RuntimeException('Unable to create broken loose object symlink example fixture');
+}
+$brokenSymlinkStore = new LooseObjectStore($brokenSymlinkGitDir);
+$looseIntegrityBrokenSymlinkRejected = false;
+try {
+    (new ObjectDatabase($brokenSymlinkGitDir))->verifyLooseIntegrity();
+} catch (RuntimeException $exception) {
+    $looseIntegrityBrokenSymlinkRejected = !$brokenSymlinkStore->contains($brokenSymlinkOid)
+        && $brokenSymlinkStore->tryReadHeader($brokenSymlinkOid) === null
+        && str_contains($exception->getMessage(), "Loose object {$brokenSymlinkOid} could not be read exactly")
+        && str_contains($exception->getMessage(), "Loose object not found: {$brokenSymlinkOid}");
+}
+
 $unwalkableGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-unwalkable-' . bin2hex(random_bytes(4)) . '/.git';
 $unwalkableStore = new LooseObjectStore($unwalkableGitDir);
 $unwalkableOid = $unwalkableStore->write(new GitObject('blob', 'Verified deployment object beside transient scratch data.'));
@@ -236,6 +256,7 @@ return [
     'looseIntegrityNestedCandidateRejected' => $looseIntegrityNestedCandidateRejected,
     'looseIntegritySizeMismatchRejected' => $looseIntegritySizeMismatchRejected,
     'looseIntegrityEmptyFileRejected' => $looseIntegrityEmptyFileRejected,
+    'looseIntegrityBrokenSymlinkRejected' => $looseIntegrityBrokenSymlinkRejected,
     'looseIntegrityTraversalErrorIgnored' => $looseIntegrityTraversalErrorIgnored,
     'looseIntegrityCaseDuplicateCount' => $caseDuplicateIntegrity[0]['statistics']['numObjects'],
     'looseIntegrityCaseDuplicateVerifiedIds' => $caseDuplicateIntegrity[0]['statistics']['verifiedObjectIds'],

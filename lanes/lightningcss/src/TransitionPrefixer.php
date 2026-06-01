@@ -1219,9 +1219,9 @@ final class TransitionPrefixer
             'appearanceNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [83])
                 || $this->targetInRange($normalized, 'edge', [79], [83])
-                || $this->targetInRange($normalized, 'ios_saf', [3], [15])
+                || $this->targetInRange($normalized, 'ios_saf', [3, 2], [15, 2])
                 || $this->targetInRange($normalized, 'opera', [15], [72])
-                || $this->targetInRange($normalized, 'safari', [3, 1], [15])
+                || $this->targetInRange($normalized, 'safari', [3, 1], [15, 2])
                 || $this->targetInRange($normalized, 'samsung', [4], [13]),
             'appearanceNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [79]),
             'appearanceNeedsMs' => isset($normalized['ie'])

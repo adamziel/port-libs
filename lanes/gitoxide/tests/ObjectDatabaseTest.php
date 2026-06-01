@@ -493,6 +493,37 @@ return [
             $t->contains('Loose object not found', $exception->getMessage());
         }
     },
+    'object database loose integrity reports broken alternate symlink candidates as missing objects' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-broken-symlink-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateObjectsDir = $root . '/shared-cache/.git/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+
+        $staleOid = str_repeat('6', 40);
+        $stalePath = $alternateObjectsDir . '/' . substr($staleOid, 0, 2) . '/' . substr($staleOid, 2);
+        if (!mkdir(dirname($stalePath), 0777, true) && !is_dir(dirname($stalePath))) {
+            throw new RuntimeException('Unable to create alternate broken loose object symlink directory');
+        }
+        if (!symlink($alternateObjectsDir . '/missing-target', $stalePath)) {
+            throw new RuntimeException('Unable to create alternate broken loose object symlink fixture');
+        }
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $database = new ObjectDatabase($gitDir);
+        $t->same(false, $database->contains($staleOid));
+        $t->throws(RuntimeException::class, static fn () => $database->readHeader($staleOid));
+
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected broken alternate loose object symlink to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$staleOid} could not be read exactly", $exception->getMessage());
+            $t->contains("Loose object not found: {$staleOid}", $exception->getMessage());
+        }
+    },
     'object database loose integrity rejects empty primary and alternate object files' => static function (TestRunner $t): void {
         $root = sys_get_temp_dir() . '/port-libs-git-odb-empty-loose-' . bin2hex(random_bytes(4));
         $gitDir = $root . '/site/.git';
@@ -982,6 +1013,7 @@ return [
         $t->same(true, $summary['looseIntegrityNestedCandidateRejected']);
         $t->same(true, $summary['looseIntegritySizeMismatchRejected']);
         $t->same(true, $summary['looseIntegrityEmptyFileRejected']);
+        $t->same(true, $summary['looseIntegrityBrokenSymlinkRejected']);
         $t->same(true, $summary['looseIntegrityTraversalErrorIgnored']);
         $t->same(2, $summary['looseIntegrityCaseDuplicateCount']);
         $t->same([
