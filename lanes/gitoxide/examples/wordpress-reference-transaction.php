@@ -148,6 +148,33 @@ $preparedPackedDeletePackedNames = is_file($packedDeleteDir . '/packed-refs')
     ? PackedReferences::open($packedDeleteDir . '/packed-refs')->names()
     : [];
 
+$packedUpdateDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-packed-update-' . bin2hex(random_bytes(4));
+$packedUpdateStore = new ReferenceStore($packedUpdateDir, null, $fixture['namespace']);
+$packedUpdatePrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$packedUpdateRef = $fixture['preparedPackedUpdateRef'];
+$packedUpdateStore->update(
+    $packedUpdateRef,
+    ReferenceTarget::object($fixture['reviewCommit']),
+    ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+);
+$preparedPackedUpdate = $packedUpdateStore->prepareLooseUpdateTransaction(
+    [$packedUpdateRef => ReferenceTarget::object($fixture['productionCommit'])],
+    'sha1',
+    new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+    $fixture['preparedPackedUpdateReflogMessage'],
+    true,
+    ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+    ReferenceTarget::object($fixture['reviewCommit']),
+    false,
+    ReferenceStore::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE,
+);
+$preparedPackedUpdatePath = $packedUpdateDir . '/' . $packedUpdatePrefix . $packedUpdateRef;
+$preparedPackedUpdateHadPackedLock = is_file($packedUpdateDir . '/packed-refs.lock');
+$preparedPackedUpdateNoLooseLock = !is_file($preparedPackedUpdatePath . '.lock');
+$preparedPackedUpdateEdits = $preparedPackedUpdate->commit();
+$preparedPackedUpdateCleanedPackedLock = !is_file($packedUpdateDir . '/packed-refs.lock');
+$preparedPackedUpdatePackedNames = PackedReferences::open($packedUpdateDir . '/packed-refs')->names();
+
 $logOnlyDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-log-only-lock-' . bin2hex(random_bytes(4));
 mkdir($logOnlyDir, 0777, true);
 file_put_contents($logOnlyDir . '/packed-refs', "{$fixture['productionCommit']} refs/heads/production\n");
@@ -373,6 +400,15 @@ return [
     'preparedPackedDeletePackedNames' => $preparedPackedDeletePackedNames,
     'preparedPackedDeleteRefStillExists' => $packedDeleteStore->tryFind($fixture['preparedPackedDeleteRef']) !== null,
     'preparedPackedDeleteSideRefStillExists' => $packedDeleteStore->tryFind($fixture['preparedPackedDeleteSideRef']) !== null,
+    'preparedPackedUpdateEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedPackedUpdateEdits),
+    'preparedPackedUpdateHadPackedLock' => $preparedPackedUpdateHadPackedLock,
+    'preparedPackedUpdateNoLooseLock' => $preparedPackedUpdateNoLooseLock,
+    'preparedPackedUpdateCleanedPackedLock' => $preparedPackedUpdateCleanedPackedLock,
+    'preparedPackedUpdatePackedNames' => $preparedPackedUpdatePackedNames,
+    'preparedPackedUpdateLooseSourceRemoved' => !is_file($preparedPackedUpdatePath),
+    'preparedPackedUpdateSource' => $packedUpdateStore->find($packedUpdateRef)->source,
+    'preparedPackedUpdateCommit' => $packedUpdateStore->find($packedUpdateRef)->targetObjectId(),
+    'preparedPackedUpdateReflog' => $packedUpdateStore->reflogContents($packedUpdateRef),
     'preparedLogOnlyDeleteEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedLogOnlyDeleteEdits),
     'preparedLogOnlyPackedLockPreserved' => is_file($logOnlyDir . '/packed-refs.lock')
         && file_get_contents($logOnlyDir . '/packed-refs.lock') === 'held by packed ref compaction',

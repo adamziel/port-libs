@@ -795,6 +795,41 @@ return [
         $t->same(';EACAC,QADAD', $negativeLineShift->writeVlq());
         $t->same(['later', 'earlier'], $negativeLineShift->toArray(null, false)['names']);
     },
+    'source map negative line offsets splice unsorted raw vlq lines before sorting' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $removed = $map->addSource('removed-line.css');
+        $map->setSourceContent($removed, ".removed-line{}\n");
+        $map->addMapping(0, 0, $removed, 0, 0, 'removed-line');
+        $map->addVlqMap(
+            ';UACAC,RADAD;AAGAE',
+            ['line-splice.css'],
+            [".line-splice{}\n"],
+            ['later', 'earlier', 'after']
+        );
+
+        $map->offsetLines(1, -1);
+        $beforeWrite = $map->getMappings();
+
+        $t->same([0, 0, 1], array_column($beforeWrite, 'generatedLine'));
+        $t->same([10, 2, 0], array_column($beforeWrite, 'generatedColumn'));
+        $t->same([1, 0, 3], array_column($beforeWrite, 'originalLine'));
+        $t->same([2, 1, 3], array_column($beforeWrite, 'nameIndex'));
+        $t->same('ECAAC,QACAC;AAEAC', $map->writeVlq());
+
+        $afterWrite = $map->getMappings();
+        $closest = $map->findClosestMapping(0, 8);
+        $data = $map->toArray(null, false);
+
+        $t->same([0, 0, 1], array_column($afterWrite, 'generatedLine'));
+        $t->same([2, 10, 0], array_column($afterWrite, 'generatedColumn'));
+        $t->same([0, 1, 3], array_column($afterWrite, 'originalLine'));
+        $t->same(2, $closest['generatedColumn'] ?? null);
+        $t->same(0, $closest['originalLine'] ?? null);
+        $t->same(1, $closest['nameIndex'] ?? null);
+        $t->same(['removed-line.css', 'line-splice.css'], $data['sources']);
+        $t->same([".removed-line{}\n", ".line-splice{}\n"], $data['sourcesContent']);
+        $t->same(['removed-line', 'later', 'earlier', 'after'], $data['names']);
+    },
     'source map closest lookup follows upstream duplicate generated-column search' => static function (TestRunner $t): void {
         $inputMap = SourceMap::fromJson(
             '{"version":3,"mappings":"AAAAAA","sources":["compiled.css"],"sourcesContent":[".compiled{}"],"names":["rule"]}'

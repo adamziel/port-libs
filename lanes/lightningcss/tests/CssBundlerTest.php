@@ -1002,6 +1002,34 @@ CSS,
             ])
         );
     },
+    'css bundler passes empty import sources to resolver like upstream' => static function (TestRunner $t) use ($bundle): void {
+        $resolved = [];
+        $t->same(
+            ':root{--theme-gap:1rem}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import ""; .entry { color: red }',
+                '/empty.css' => ':root { --theme-gap: 1rem }',
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return '/empty.css';
+            })
+        );
+        $t->same([['', '/entry.css']], $resolved);
+
+        $resolved = [];
+        $t->same(
+            '@import "https://cdn.example/reset.css" print;.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import url() print; .entry { color: red }',
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): array {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return ['external' => 'https://cdn.example/reset.css'];
+            })
+        );
+        $t->same([['', '/entry.css']], $resolved);
+    },
     'css bundler rejects malformed import condition tails before resolver reads' => static function (TestRunner $t): void {
         $assertMalformedImportCondition = static function (string $css, string $message) use ($t): void {
             $reads = [];

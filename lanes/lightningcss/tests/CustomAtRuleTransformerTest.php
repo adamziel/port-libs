@@ -2361,6 +2361,98 @@ CSS;
         $t->same([['unit' => 'px', 'value' => 32]], $seenLengths);
         $t->same([['type' => 'rgb', 'r' => 255, 'g' => 0, 'b' => 0, 'alpha' => 1]], $seenColors);
     },
+    'custom at-rules compose upstream token-array replacements through structured visitors' => static function (TestRunner $t): void {
+        $seenFunctionList = [];
+        $functionVisitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Function' => [
+                    'theme' => static function (array $arguments, string $raw, string $name) use (&$seenFunctionList): ?array {
+                        $seenFunctionList[] = ['Function', $name, $arguments[0] ?? null, $raw];
+                        if (($arguments[0] ?? null) !== 'space') {
+                            return null;
+                        }
+
+                        return [
+                            ['type' => 'length', 'unit' => 'px', 'value' => 16],
+                            ['type' => 'var', 'value' => ['name' => ['ident' => '--card-gap'], 'fallback' => null]],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Variable' => static function (array $variable) use (&$seenFunctionList): ?array {
+                    $name = $variable['name']['ident'] ?? '';
+                    $seenFunctionList[] = ['Variable', $name];
+
+                    return $name === '--card-gap'
+                        ? ['type' => 'length', 'unit' => 'px', 'value' => 24]
+                        : null;
+                },
+                'Length' => static function (array $length) use (&$seenFunctionList): ?array {
+                    $seenFunctionList[] = ['Length', $length['unit'] . ':' . $length['value']];
+
+                    return $length['unit'] === 'px'
+                        ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                        : null;
+                },
+            ],
+        ]);
+
+        $functionResult = (new CustomAtRuleTransformer())->transform('.wp-block-card { margin: theme("space"); }', [], $functionVisitor);
+
+        $seenTokenList = [];
+        $tokenVisitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'ident' => static function (array $token) use (&$seenTokenList): ?array {
+                        $seenTokenList[] = ['Token.ident', $token['value'] ?? ''];
+                        if (($token['value'] ?? '') !== 'wp-stack') {
+                            return null;
+                        }
+
+                        return [
+                            ['type' => 'length', 'unit' => 'px', 'value' => 8],
+                            ['type' => 'env', 'value' => ['name' => ['type' => 'custom', 'ident' => '--stack-gap'], 'fallback' => null]],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'EnvironmentVariable' => static function (array $environmentVariable) use (&$seenTokenList): ?array {
+                    $name = $environmentVariable['name']['ident'] ?? '';
+                    $seenTokenList[] = ['EnvironmentVariable', $name];
+
+                    return $name === '--stack-gap'
+                        ? ['type' => 'length', 'unit' => 'px', 'value' => 24]
+                        : null;
+                },
+                'Length' => static function (array $length) use (&$seenTokenList): ?array {
+                    $seenTokenList[] = ['Length', $length['unit'] . ':' . $length['value']];
+
+                    return $length['unit'] === 'px'
+                        ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                        : null;
+                },
+            ],
+        ]);
+
+        $tokenResult = (new CustomAtRuleTransformer())->transform('.wp-block-stack { gap: wp-stack; }', [], $tokenVisitor);
+
+        $t->same('.wp-block-card{margin:1rem 1.5rem}', $functionResult);
+        $t->same([
+            ['Function', 'theme', 'space', 'theme("space")'],
+            ['Length', 'px:16'],
+            ['Variable', '--card-gap'],
+            ['Length', 'px:24'],
+        ], $seenFunctionList);
+        $t->same('.wp-block-stack{gap:0.5rem 1.5rem}', $tokenResult);
+        $t->same([
+            ['Token.ident', 'wp-stack'],
+            ['Length', 'px:8'],
+            ['EnvironmentVariable', '--stack-gap'],
+            ['Length', 'px:24'],
+        ], $seenTokenList);
+    },
     'custom at-rules compose upstream Color and Length value visitors' => static function (TestRunner $t): void {
         $seenColors = [];
         $seenLengths = [];

@@ -231,6 +231,26 @@ if (!$readerObjectRejected) {
 
 echo 'reader-object-diagnostic: rejected' . PHP_EOL;
 
+$emptyImportResolved = [];
+$emptyImportBundle = (new CssBundler())->bundle('/empty-import.css', [
+    '/empty-import.css' => '@import ""; .wp-site-blocks { color: red }',
+    '/vendor/reset.css' => ':root { --wp--style--block-gap: 1rem }',
+], static function (string $specifier, string $originatingFile) use (&$emptyImportResolved): string {
+    $emptyImportResolved[] = [$specifier, $originatingFile];
+
+    return '/vendor/reset.css';
+});
+
+if (
+    $emptyImportBundle !== ':root{--wp--style--block-gap:1rem}.wp-site-blocks{color:red}'
+    || $emptyImportResolved !== [['', '/empty-import.css']]
+) {
+    fwrite(STDERR, "Expected empty @import source to reach resolver and inline shared CSS\n");
+    exit(1);
+}
+
+echo 'empty-import-source: resolved' . PHP_EOL;
+
 $sharedPresetBundle = (new CssBundler())->bundle('style.css', [
     'style.css' => <<<'CSS'
 @import "../shared/presets.css";

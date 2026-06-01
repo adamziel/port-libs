@@ -76,9 +76,15 @@ final class ReferenceStore
         string $previous = self::PREVIOUS_ANY,
         ?ReferenceTarget $expectedTarget = null,
         bool $deref = false,
+        string $packedRefsMode = self::PACKED_DELETIONS_ONLY,
+        ?ObjectDatabase $objectDatabase = null,
     ): PreparedReferenceTransaction
     {
+        self::assertPackedRefsMode($packedRefsMode);
+
         $locks = [];
+        $packedRefsUpdates = [];
+        $packedRefsDeleteLoose = [];
         $writeReflog = $this->writeReflogMode !== self::WRITE_REFLOG_DISABLE
             && (
                 $committer !== null
@@ -86,7 +92,17 @@ final class ReferenceStore
                 || $forceCreateReflog
                 || $this->writeReflogMode === self::WRITE_REFLOG_ALWAYS
             );
-        $packedRefsLockPath = $this->preparePackedRefsLockForLooseTransaction();
+        $forcePackedRefsLock = false;
+        foreach ($updates as $target) {
+            if (!$target instanceof ReferenceTarget) {
+                continue;
+            }
+            if ($packedRefsMode !== self::PACKED_DELETIONS_ONLY && $this->physicalTarget($target)->isObject()) {
+                $forcePackedRefsLock = true;
+                break;
+            }
+        }
+        $packedRefsLockPath = $this->preparePackedRefsLockForLooseTransaction($forcePackedRefsLock);
 
         try {
             foreach ($updates as $name => $target) {
@@ -98,6 +114,21 @@ final class ReferenceStore
                 $physicalTarget = $this->physicalTarget($target);
                 $existing = $this->tryFindPhysical($physicalName, $algorithm);
                 $this->assertPreviousValueAllowsUpdate($physicalName, $physicalTarget, $existing, $previous, $expectedTarget);
+                $writesObjectToPackedRefs = $packedRefsMode !== self::PACKED_DELETIONS_ONLY && $physicalTarget->isObject();
+                $removesLooseSourceAfterPackedCommit = $packedRefsMode === self::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE
+                    && $physicalTarget->isObject();
+
+                if ($writesObjectToPackedRefs) {
+                    $packedRefsUpdates[$physicalName] = $this->packedReferenceForUpdate(
+                        $physicalName,
+                        $physicalTarget,
+                        $algorithm,
+                        $objectDatabase,
+                    );
+                    if ($removesLooseSourceAfterPackedCommit) {
+                        $packedRefsDeleteLoose[$physicalName] = true;
+                    }
+                }
 
                 if ($derefParents !== []) {
                     $leafPreviousForReflog = $existing?->target;
@@ -152,11 +183,30 @@ final class ReferenceStore
                     ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
                     true,
                 );
+                $reflog = $writeReflog && $leafReflogTarget !== null ? [
+                    'physicalName' => $physicalName,
+                    'previousTarget' => $physicalTarget->isSymbolic() ? null : $existing?->target,
+                    'newTarget' => $leafReflogTarget,
+                    'committer' => $committer,
+                    'message' => $reflogMessage,
+                    'forceCreate' => $forceCreateReflog,
+                    'algorithm' => $algorithm,
+                    'writeMode' => $this->writeReflogMode,
+                ] : null;
 
-                if ($existing !== null && $physicalTarget->isObject() && self::targetsEqual($existing->target, $physicalTarget)) {
+                if ($existing !== null && $physicalTarget->isObject() && self::targetsEqual($existing->target, $physicalTarget) && !$writesObjectToPackedRefs) {
                     $locks[] = [
                         'action' => PreparedReferenceTransaction::ACTION_NOOP,
                         'edit' => $edit,
+                    ];
+                    continue;
+                }
+
+                if ($writesObjectToPackedRefs) {
+                    $locks[] = [
+                        'action' => PreparedReferenceTransaction::ACTION_PACKED_UPDATE,
+                        'edit' => $edit,
+                        'reflog' => $reflog,
                     ];
                     continue;
                 }
@@ -177,16 +227,7 @@ final class ReferenceStore
                 $locks[] = [
                     'lockPath' => $lockPath,
                     'edit' => $edit,
-                    'reflog' => $writeReflog && $leafReflogTarget !== null ? [
-                        'physicalName' => $physicalName,
-                        'previousTarget' => $physicalTarget->isSymbolic() ? null : $existing?->target,
-                        'newTarget' => $leafReflogTarget,
-                        'committer' => $committer,
-                        'message' => $reflogMessage,
-                        'forceCreate' => $forceCreateReflog,
-                        'algorithm' => $algorithm,
-                        'writeMode' => $this->writeReflogMode,
-                    ] : null,
+                    'reflog' => $reflog,
                 ];
             }
         } catch (\Throwable $throwable) {
@@ -195,7 +236,15 @@ final class ReferenceStore
             throw $throwable;
         }
 
-        return new PreparedReferenceTransaction($this->gitDirectory, $locks, $packedRefsLockPath);
+        $packedRefsUpdatePlan = $packedRefsUpdates === []
+            ? null
+            : [
+                'updates' => $packedRefsUpdates,
+                'deleteLoose' => array_keys($packedRefsDeleteLoose),
+                'algorithm' => $algorithm,
+            ];
+
+        return new PreparedReferenceTransaction($this->gitDirectory, $locks, $packedRefsLockPath, null, $packedRefsUpdatePlan);
     }
 
     /**
@@ -1343,12 +1392,12 @@ final class ReferenceStore
         }
     }
 
-    private function preparePackedRefsLockForLooseTransaction(): ?string
+    private function preparePackedRefsLockForLooseTransaction(bool $force = false): ?string
     {
         if ($this->packedRefsLockPathExists()) {
             throw new \RuntimeException('The lock for the packed-ref file could not be obtained');
         }
-        if (!$this->packedRefsPathExists()) {
+        if (!$force && !$this->packedRefsPathExists()) {
             return null;
         }
 

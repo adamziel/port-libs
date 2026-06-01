@@ -1296,7 +1296,7 @@ final class CssBundler
             $offset = $end;
         }
 
-        if ($specifier === null || $specifier === '') {
+        if ($specifier === null) {
             throw new CssBundleException('parser-error', 'Invalid @import source', $file, $loc['line'], $loc['column']);
         }
 

@@ -1548,6 +1548,81 @@ return [
         $t->same(null, $allPackedStore->tryFind('refs/heads/main'));
         $t->same(null, $allPackedStore->tryFind('refs/heads/side'));
     },
+    'prepared reference transaction packs object updates and prunes loose sources like upstream' => static function (TestRunner $t): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-packed-update-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        $objects = new LooseObjectStore($dir);
+        $oldCommitId = $objects->write(new GitObject(
+            'commit',
+            'tree ' . str_repeat('0', 40) . "\n"
+            . "author Deploy Bot <deploy@example.com> 1770000000 +0000\n"
+            . "committer Deploy Bot <deploy@example.com> 1770000000 +0000\n\n"
+            . "Previous tenant review package\n",
+        ));
+        $newCommitId = $objects->write(new GitObject(
+            'commit',
+            'tree ' . str_repeat('0', 40) . "\n"
+            . "author Deploy Bot <deploy@example.com> 1770000001 +0000\n"
+            . "committer Deploy Bot <deploy@example.com> 1770000001 +0000\n\n"
+            . "Published tenant review package\n",
+        ));
+        $releaseTagId = $objects->write((new GitTag(
+            $newCommitId,
+            'commit',
+            'wp-release-v2026.05',
+            'Deploy Bot <deploy@example.com> 1770000002 +0000',
+            "WordPress release tag\n",
+        ))->object());
+
+        $store = ReferenceStore::at($dir);
+        $store->looseStore()->writeDirect('refs/heads/review/plugin-packed', $oldCommitId);
+
+        $transaction = $store->prepareLooseUpdateTransaction(
+            [
+                'refs/heads/review/plugin-packed' => ReferenceTarget::object($newCommitId),
+                'refs/tags/wp-release-v2026.05' => ReferenceTarget::object($releaseTagId),
+            ],
+            'sha1',
+            new CommitSignature('Deploy Bot', 'deploy@example.com', '1770000003 +0000'),
+            'prepared packed review publish',
+            true,
+            ReferenceStore::PREVIOUS_ANY,
+            null,
+            false,
+            ReferenceStore::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE,
+            new ObjectDatabase($dir),
+        );
+
+        $t->same(true, is_file($dir . '/packed-refs.lock'), 'prepared packed object updates create a packed-refs lock even when packed-refs is absent');
+        $t->same(false, is_file($dir . '/refs/heads/review/plugin-packed.lock'), 'direct-to-packed object update avoids a loose leaf lock');
+        $t->same(false, is_file($dir . '/refs/tags/wp-release-v2026.05.lock'), 'new packed tag update avoids a loose leaf lock');
+        $t->same("{$oldCommitId}\n", file_get_contents($dir . '/refs/heads/review/plugin-packed'));
+
+        $edits = $transaction->commit();
+        $packed = PackedReferences::open($dir . '/packed-refs');
+        $packedBranch = $packed->find('refs/heads/review/plugin-packed');
+        $packedTag = $packed->find('refs/tags/wp-release-v2026.05');
+
+        $t->same(['refs/heads/review/plugin-packed', 'refs/tags/wp-release-v2026.05'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same(false, is_file($dir . '/packed-refs.lock'));
+        $t->same(false, is_file($dir . '/refs/heads/review/plugin-packed'));
+        $t->same(false, is_file($dir . '/refs/tags/wp-release-v2026.05'));
+        $t->same(['refs/heads/review/plugin-packed', 'refs/tags/wp-release-v2026.05'], $packed->names());
+        $t->same($newCommitId, $packedBranch->targetObjectId());
+        $t->same($newCommitId, $packedBranch->objectId());
+        $t->same($releaseTagId, $packedTag->targetObjectId());
+        $t->same($newCommitId, $packedTag->objectId());
+        $t->same('packed', $store->find('refs/heads/review/plugin-packed')->source);
+        $t->same($newCommitId, $store->find('refs/tags/wp-release-v2026.05')->objectId());
+        $t->contains(
+            "{$oldCommitId} {$newCommitId} Deploy Bot <deploy@example.com> 1770000003 +0000\tprepared packed review publish",
+            (string) $store->reflogContents('refs/heads/review/plugin-packed'),
+        );
+        $t->contains(
+            str_repeat('0', 40) . " {$releaseTagId} Deploy Bot <deploy@example.com> 1770000003 +0000\tprepared packed review publish",
+            (string) $store->reflogContents('refs/tags/wp-release-v2026.05'),
+        );
+    },
     'prepared reference transaction lock collision rolls back already prepared locks' => static function (TestRunner $t) use ($old, $new): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-lock-collision-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -1776,6 +1851,18 @@ return [
         $t->same($fixture['expectedPreparedPackedDeletePackedNames'], $summary['preparedPackedDeletePackedNames']);
         $t->same($fixture['expectedPreparedPackedDeleteRefStillExists'], $summary['preparedPackedDeleteRefStillExists']);
         $t->same($fixture['expectedPreparedPackedDeleteSideRefStillExists'], $summary['preparedPackedDeleteSideRefStillExists']);
+        $t->same($fixture['expectedPreparedPackedUpdateEditNames'], $summary['preparedPackedUpdateEditNames']);
+        $t->same($fixture['expectedPreparedPackedUpdateHadPackedLock'], $summary['preparedPackedUpdateHadPackedLock']);
+        $t->same($fixture['expectedPreparedPackedUpdateNoLooseLock'], $summary['preparedPackedUpdateNoLooseLock']);
+        $t->same($fixture['expectedPreparedPackedUpdateCleanedPackedLock'], $summary['preparedPackedUpdateCleanedPackedLock']);
+        $t->same($fixture['expectedPreparedPackedUpdatePackedNames'], $summary['preparedPackedUpdatePackedNames']);
+        $t->same($fixture['expectedPreparedPackedUpdateLooseSourceRemoved'], $summary['preparedPackedUpdateLooseSourceRemoved']);
+        $t->same($fixture['expectedPreparedPackedUpdateSource'], $summary['preparedPackedUpdateSource']);
+        $t->same($fixture['productionCommit'], $summary['preparedPackedUpdateCommit']);
+        $t->contains(
+            $fixture['reviewCommit'] . ' ' . $fixture['productionCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedPackedUpdateReflogMessage'],
+            (string) $summary['preparedPackedUpdateReflog'],
+        );
         $t->same($fixture['expectedPreparedLogOnlyDeleteEditNames'], $summary['preparedLogOnlyDeleteEditNames']);
         $t->same($fixture['expectedPreparedLogOnlyPackedLockPreserved'], $summary['preparedLogOnlyPackedLockPreserved']);
         $t->same($fixture['expectedPreparedLogOnlyRefStillExists'], $summary['preparedLogOnlyRefStillExists']);
@@ -1839,6 +1926,7 @@ return [
         $t->contains('idempotent prepared writes', $summary['wordpressUse']);
         $t->contains('packed-ref transaction locks', $summary['wordpressUse']);
         $t->contains('prepared packed-refs commit phase', $summary['wordpressUse']);
+        $t->contains('pack prepared object updates before pruning loose review sources', $summary['wordpressUse']);
         $t->contains('clone-style symbolic review pointer', $summary['wordpressUse']);
         $t->contains('dereferenced symbolic HEAD publish', $summary['wordpressUse']);
         $t->contains('direct production referent publish', $summary['wordpressUse']);

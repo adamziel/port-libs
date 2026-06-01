@@ -6145,15 +6145,22 @@ final class CustomAtRuleTransformer
         return $visitor($function, $this);
     }
 
-    private function callStructuredValueVisitor(string $name, string $argumentsCss, string $raw): mixed
+    /**
+     * @param list<string> $skipStructuredTypes
+     */
+    private function callStructuredValueVisitor(string $name, string $argumentsCss, string $raw, array $skipStructuredTypes = []): mixed
     {
         $lower = strtolower($name);
+        if (in_array($lower, $skipStructuredTypes, true)) {
+            return null;
+        }
+
         if ($lower === 'env' && $this->hasEnvironmentVariableVisitor()) {
             $environmentVariable = $this->parseEnvironmentVariable($argumentsCss, $raw);
             $replacement = $this->callEnvironmentVariableVisitor($environmentVariable);
 
             if ($replacement !== null) {
-                $value = $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
+                $value = $this->applyValueVisitors($this->normalizeVisitorValue($replacement), [...$skipStructuredTypes, 'env']);
                 if (!is_array($value) || ($value['type'] ?? null) !== 'env') {
                     return $value;
                 }
@@ -6165,7 +6172,7 @@ final class CustomAtRuleTransformer
 
             return $exitReplacement === null
                 ? ['type' => 'env', 'value' => $environmentVariable]
-                : $this->applyValueVisitors($this->normalizeVisitorValue($exitReplacement));
+                : $this->applyValueVisitors($this->normalizeVisitorValue($exitReplacement), [...$skipStructuredTypes, 'env']);
         }
 
         if ($lower === 'var' && $this->hasVariableVisitor()) {
@@ -6173,7 +6180,7 @@ final class CustomAtRuleTransformer
             $replacement = $this->callVariableVisitor($variable);
 
             if ($replacement !== null) {
-                $value = $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
+                $value = $this->applyValueVisitors($this->normalizeVisitorValue($replacement), [...$skipStructuredTypes, 'var']);
                 if (!is_array($value) || ($value['type'] ?? null) !== 'var') {
                     return $value;
                 }
@@ -6185,7 +6192,7 @@ final class CustomAtRuleTransformer
 
             return $exitReplacement === null
                 ? ['type' => 'var', 'value' => $variable]
-                : $this->applyValueVisitors($this->normalizeVisitorValue($exitReplacement));
+                : $this->applyValueVisitors($this->normalizeVisitorValue($exitReplacement), [...$skipStructuredTypes, 'var']);
         }
 
         if ($lower === 'url' && $this->urlVisitor !== null) {
@@ -6564,10 +6571,42 @@ final class CustomAtRuleTransformer
         return ['value' => $image, 'changed' => $changed];
     }
 
-    private function applyValueVisitors(mixed $value): mixed
+    /**
+     * @param list<string> $skipStructuredTypes
+     */
+    private function applyValueVisitors(mixed $value, array $skipStructuredTypes = []): mixed
     {
         if (!is_array($value)) {
             return $value;
+        }
+
+        if (array_is_list($value)) {
+            $visited = [];
+            $changed = false;
+            foreach ($value as $part) {
+                $normalized = $this->normalizeVisitorValue($part);
+                $next = $this->applyValueVisitors($normalized, $skipStructuredTypes);
+                $visited[] = $next;
+                $changed = $changed || $next !== $part;
+            }
+
+            return $changed ? $visited : $value;
+        }
+
+        if (($value['type'] ?? null) === 'var' && is_array($value['value'] ?? null)) {
+            $argumentsCss = $this->variableArgumentsCss($value['value']);
+            $replacement = $this->callStructuredValueVisitor('var', $argumentsCss, 'var(' . $argumentsCss . ')', $skipStructuredTypes);
+            if ($replacement !== null) {
+                return $replacement;
+            }
+        }
+
+        if (($value['type'] ?? null) === 'env' && is_array($value['value'] ?? null)) {
+            $argumentsCss = $this->environmentVariableArgumentsCss($value['value']);
+            $replacement = $this->callStructuredValueVisitor('env', $argumentsCss, 'env(' . $argumentsCss . ')', $skipStructuredTypes);
+            if ($replacement !== null) {
+                return $replacement;
+            }
         }
 
         if (($value['type'] ?? null) === 'image' && isset($value['value']) && is_array($value['value'])) {
@@ -7142,7 +7181,7 @@ final class CustomAtRuleTransformer
             }
 
             $appliesColorVisitor = $this->colorVisitor !== null && $this->colorComponents($normalized) !== null;
-            $visited = $this->applyValueVisitors($normalized);
+            $visited = $this->applyValueVisitors($normalized, ['function']);
             if ($appliesColorVisitor) {
                 $this->functionReplacementAppliedColorVisitor = true;
             }

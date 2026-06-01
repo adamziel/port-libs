@@ -546,11 +546,13 @@ final class CssModulesTransformer
             return $rewrittenProperty . ':' . ($rewrittenValue ?? $value) . $trailingSemicolon;
         }
 
-        $value = $this->stripDeclarationPriority(trim(substr($withoutSemicolon, $colon + 1)));
+        [$value, $priority] = $this->splitDeclarationPriority(trim(substr($withoutSemicolon, $colon + 1)));
         try {
             $parsedComposes = $this->parseComposesValue($value);
         } catch (\InvalidArgumentException) {
-            return $statement;
+            $trailingSemicolon = str_ends_with(rtrim($statement), ';') ? ';' : '';
+
+            return 'composes:' . $this->serializeInvalidComposesValue($value) . $priority . $trailingSemicolon;
         }
 
         if ($styleNestingDepth > 0 || $composesNestedContext) {
@@ -576,7 +578,10 @@ final class CssModulesTransformer
         return $token !== null && $token['end'] === strlen($rawProperty);
     }
 
-    private function stripDeclarationPriority(string $value): string
+    /**
+     * @return array{0:string,1:string}
+     */
+    private function splitDeclarationPriority(string $value): array
     {
         $bang = null;
         $quote = null;
@@ -613,10 +618,73 @@ final class CssModulesTransformer
         }
 
         if ($bang === null || preg_match('/^\s*important\s*$/i', substr($value, $bang + 1)) !== 1) {
-            return $value;
+            return [$value, ''];
         }
 
-        return rtrim(substr($value, 0, $bang));
+        return [rtrim(substr($value, 0, $bang)), '!important'];
+    }
+
+    private function serializeInvalidComposesValue(string $value): string
+    {
+        $output = '';
+        $pendingSpace = false;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+
+            if (ctype_space($char)) {
+                $pendingSpace = $output !== '';
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $end = $this->findStringTokenEnd($value, $i);
+                $output .= ($pendingSpace ? ' ' : '') . substr($value, $i, $end - $i + 1);
+                $pendingSpace = false;
+                $i = $end;
+                continue;
+            }
+
+            $token = ($char === '\\' || $char === '-' || $this->isCssIdentifierStartChar($char))
+                ? $this->readCssIdentifierToken($value, $i)
+                : null;
+            if ($token !== null) {
+                $output .= ($pendingSpace ? ' ' : '') . $this->escapeCssIdentifier($token['decoded']);
+                $pendingSpace = false;
+                $i = $token['end'] - 1;
+                continue;
+            }
+
+            if ($pendingSpace && !in_array($char, [')', ',', ';'], true)) {
+                $output .= ' ';
+            }
+
+            $output .= $char;
+            $pendingSpace = false;
+        }
+
+        return $output;
+    }
+
+    private function findStringTokenEnd(string $value, int $start): int
+    {
+        $quote = $value[$start];
+        $length = strlen($value);
+
+        for ($i = $start + 1; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($char === '\\' && $i + 1 < $length) {
+                $i++;
+                continue;
+            }
+
+            if ($char === $quote) {
+                return $i;
+            }
+        }
+
+        return $length - 1;
     }
 
     /**

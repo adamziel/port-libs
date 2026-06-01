@@ -9,39 +9,32 @@ final class PreparedReferenceTransaction
     public const ACTION_UPDATE = 'update';
     public const ACTION_DELETE = 'delete';
     public const ACTION_NOOP = 'noop';
+    public const ACTION_PACKED_UPDATE = 'packed-update';
 
     private bool $open = true;
 
     /**
      * @param list<array{action?:string,lockPath?:string,edit:ReferenceTransactionEdit,reflog?:array{physicalName:string,previousTarget:?ReferenceTarget,newTarget:ReferenceTarget,committer:?CommitSignature,message:string,forceCreate:bool,algorithm:string,writeMode?:string}|null,delete?:array{physicalName:string,deleteReference:bool,deleteReflog:bool}}> $locks
      * @param ?array{deletions:list<string>,algorithm:string} $packedRefsDeletionPlan
+     * @param ?array{updates:array<string,PackedReference>,deleteLoose:list<string>,algorithm:string} $packedRefsUpdatePlan
      */
     public function __construct(
         private readonly string $gitDirectory,
         private readonly array $locks,
         private ?string $packedRefsLockPath = null,
         private ?array $packedRefsDeletionPlan = null,
+        private ?array $packedRefsUpdatePlan = null,
     ) {
         foreach ($locks as $lock) {
             if (!$lock['edit'] instanceof ReferenceTransactionEdit) {
                 throw new \InvalidArgumentException('Prepared reference operations must contain transaction edits');
             }
             $action = $lock['action'] ?? self::ACTION_UPDATE;
-            if (!in_array($action, [self::ACTION_UPDATE, self::ACTION_DELETE, self::ACTION_NOOP], true)) {
+            if (!in_array($action, [self::ACTION_UPDATE, self::ACTION_DELETE, self::ACTION_NOOP, self::ACTION_PACKED_UPDATE], true)) {
                 throw new \InvalidArgumentException("Unknown prepared reference action: {$action}");
             }
-            if ($action === self::ACTION_NOOP) {
-                continue;
-            }
-            if (!is_string($lock['lockPath'] ?? null)) {
-                throw new \InvalidArgumentException('Prepared reference locks must contain lock paths and transaction edits');
-            }
             $reflog = $lock['reflog'] ?? null;
-            if ($reflog === null) {
-                if ($action === self::ACTION_UPDATE) {
-                    continue;
-                }
-            } elseif (
+            if ($reflog !== null && (
                     !is_string($reflog['physicalName'] ?? null)
                     || !(($reflog['previousTarget'] ?? null) === null || $reflog['previousTarget'] instanceof ReferenceTarget)
                     || !$reflog['newTarget'] instanceof ReferenceTarget
@@ -55,8 +48,15 @@ final class PreparedReferenceTransaction
                         ReferenceStore::WRITE_REFLOG_ALWAYS,
                         ReferenceStore::WRITE_REFLOG_DISABLE,
                     ], true)
-                ) {
-                    throw new \InvalidArgumentException('Prepared reference reflogs must contain validated reference targets and metadata');
+                )) {
+                throw new \InvalidArgumentException('Prepared reference reflogs must contain validated reference targets and metadata');
+            }
+
+            if ($action === self::ACTION_NOOP) {
+                continue;
+            }
+            if ($action !== self::ACTION_PACKED_UPDATE && !is_string($lock['lockPath'] ?? null)) {
+                throw new \InvalidArgumentException('Prepared reference locks must contain lock paths and transaction edits');
             }
 
             if ($action === self::ACTION_DELETE) {
@@ -81,6 +81,28 @@ final class PreparedReferenceTransaction
                     throw new \InvalidArgumentException('Prepared packed-ref deletion names must be strings');
                 }
                 ReferenceName::assertValid($deletion);
+            }
+        }
+
+        if ($packedRefsUpdatePlan !== null) {
+            if (
+                !is_array($packedRefsUpdatePlan['updates'] ?? null)
+                || !is_array($packedRefsUpdatePlan['deleteLoose'] ?? null)
+                || !is_string($packedRefsUpdatePlan['algorithm'] ?? null)
+            ) {
+                throw new \InvalidArgumentException('Prepared packed-ref update plans must contain updates, loose deletions, and an algorithm');
+            }
+            foreach ($packedRefsUpdatePlan['updates'] as $name => $reference) {
+                if (!is_string($name) || !$reference instanceof PackedReference || $reference->name !== $name) {
+                    throw new \InvalidArgumentException('Prepared packed-ref updates must be keyed by matching packed reference names');
+                }
+                ReferenceName::assertValid($name);
+            }
+            foreach ($packedRefsUpdatePlan['deleteLoose'] as $name) {
+                if (!is_string($name)) {
+                    throw new \InvalidArgumentException('Prepared packed-ref loose deletion names must be strings');
+                }
+                ReferenceName::assertValid($name);
             }
         }
     }
@@ -117,7 +139,7 @@ final class PreparedReferenceTransaction
 
         try {
             for ($index = count($this->locks) - 1; $index >= 0; $index--) {
-                if (($this->locks[$index]['action'] ?? self::ACTION_UPDATE) === self::ACTION_NOOP) {
+                if (in_array($this->locks[$index]['action'] ?? self::ACTION_UPDATE, [self::ACTION_NOOP, self::ACTION_PACKED_UPDATE], true)) {
                     continue;
                 }
 
@@ -160,6 +182,8 @@ final class PreparedReferenceTransaction
                 $action = $lock['action'] ?? self::ACTION_UPDATE;
                 if ($action === self::ACTION_UPDATE) {
                     $this->commitUpdate($lock);
+                } elseif ($action === self::ACTION_PACKED_UPDATE) {
+                    $this->commitPackedUpdate($lock);
                 }
             }
             foreach ($this->locks as $lock) {
@@ -167,7 +191,8 @@ final class PreparedReferenceTransaction
                     $this->commitDeleteReflog($lock);
                 }
             }
-            $this->commitPackedReferenceDeletions();
+            $this->commitPackedReferenceChanges();
+            $this->deleteLoosePackedUpdateSources();
             foreach ($this->locks as $lock) {
                 if (($lock['action'] ?? self::ACTION_UPDATE) === self::ACTION_DELETE) {
                     $this->commitDeleteReference($lock);
@@ -180,33 +205,46 @@ final class PreparedReferenceTransaction
         return $this->edits();
     }
 
-    private function commitPackedReferenceDeletions(): void
+    private function commitPackedReferenceChanges(): void
     {
-        if ($this->packedRefsDeletionPlan === null || $this->packedRefsDeletionPlan['deletions'] === []) {
+        $deletions = $this->packedRefsDeletionPlan['deletions'] ?? [];
+        $updates = $this->packedRefsUpdatePlan['updates'] ?? [];
+        if ($deletions === [] && $updates === []) {
             return;
         }
 
+        $algorithm = $this->packedRefsUpdatePlan['algorithm']
+            ?? $this->packedRefsDeletionPlan['algorithm']
+            ?? 'sha1';
         $packedPath = $this->packedRefsPath();
-        if (!is_file($packedPath)) {
-            $this->packedRefsDeletionPlan = null;
-            return;
-        }
-
-        $packed = PackedReferences::open($packedPath, $this->packedRefsDeletionPlan['algorithm']);
         $byName = [];
-        foreach ($packed->all() as $reference) {
-            $byName[$reference->name] = $reference;
+        if (is_file($packedPath)) {
+            $packed = PackedReferences::open($packedPath, $algorithm);
+            foreach ($packed->all() as $reference) {
+                $byName[$reference->name] = $reference;
+            }
         }
 
-        foreach ($this->packedRefsDeletionPlan['deletions'] as $name) {
+        foreach ($deletions as $name) {
             unset($byName[$name]);
+        }
+        foreach ($updates as $name => $reference) {
+            $byName[$name] = $reference;
         }
 
         if ($byName === []) {
-            if (!unlink($packedPath)) {
+            if (is_file($packedPath) && !unlink($packedPath)) {
                 throw new \RuntimeException('Unable to remove empty prepared packed-refs file');
             }
+            $lockPath = $this->packedRefsLockPath ?? $this->packedRefsLockPath();
+            if (is_file($lockPath) && !unlink($lockPath)) {
+                throw new \RuntimeException('Unable to remove empty prepared packed-refs lock file');
+            }
+            if ($this->packedRefsLockPath === $lockPath) {
+                $this->packedRefsLockPath = null;
+            }
             $this->packedRefsDeletionPlan = null;
+            $this->packedRefsUpdatePlan = null;
             return;
         }
 
@@ -235,6 +273,25 @@ final class PreparedReferenceTransaction
             $this->packedRefsLockPath = null;
         }
         $this->packedRefsDeletionPlan = null;
+    }
+
+    private function deleteLoosePackedUpdateSources(): void
+    {
+        foreach ($this->packedRefsUpdatePlan['deleteLoose'] ?? [] as $physicalName) {
+            $targetPath = rtrim($this->gitDirectory, '/\\') . '/' . $physicalName;
+            if (is_dir($targetPath)) {
+                throw new \RuntimeException("Unable to remove prepared packed-ref loose source directory: {$physicalName}");
+            }
+            if (!is_file($targetPath)) {
+                continue;
+            }
+            if (!unlink($targetPath)) {
+                throw new \RuntimeException("Unable to remove prepared packed-ref loose source: {$physicalName}");
+            }
+            $this->deleteEmptyParents(dirname($targetPath));
+        }
+
+        $this->packedRefsUpdatePlan = null;
     }
 
     public function isOpen(): bool
@@ -286,6 +343,14 @@ final class PreparedReferenceTransaction
         if (!rename($lockPath, $targetPath)) {
             throw new \RuntimeException("Unable to commit prepared reference lock: {$lock['edit']->name}");
         }
+    }
+
+    /**
+     * @param array{edit:ReferenceTransactionEdit,reflog?:array{physicalName:string,previousTarget:?ReferenceTarget,newTarget:ReferenceTarget,committer:?CommitSignature,message:string,forceCreate:bool,algorithm:string,writeMode?:string}|null} $lock
+     */
+    private function commitPackedUpdate(array $lock): void
+    {
+        $this->appendPreparedReflog($lock['reflog'] ?? null);
     }
 
     /**

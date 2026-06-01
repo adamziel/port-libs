@@ -3833,6 +3833,76 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,changed_columns:list<string>,index_dependencies:array<string,list<string>>,opened_btrees:list<string>,opened_indexes:list<string>,skipped_indexes:list<string>,rootpage_join_order:list<string>,open_opcode_count:int,opens_table:bool,opens_only_dependent_indexes:bool,detail:string,integrity:string}>
+     */
+    public static function indexexpr2UpdateOpenIndexSetCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite indexexpr2 update open-index corpus requires at least one case');
+        }
+
+        $dependencies = [
+            't2abc' => ['a', 'b', 'c'],
+            't2cd' => ['c', 'd'],
+            't2def' => ['d', 'e', 'f'],
+        ];
+
+        $templates = [
+            [
+                'indexexpr2-4.200',
+                'UPDATE of b opens table plus expression index t2abc only',
+                'UPDATE t2 SET b=b+1',
+                ['b'],
+                ['t2', 't2abc'],
+            ],
+            [
+                'indexexpr2-4.210',
+                'UPDATE of c opens table plus expression indexes t2abc and t2cd',
+                'UPDATE t2 SET c=c+1',
+                ['c'],
+                ['t2', 't2abc', 't2cd'],
+            ],
+            [
+                'indexexpr2-4.220',
+                'UPDATE of c and f opens every affected expression index',
+                'UPDATE t2 SET c=c+1, f=NULL',
+                ['c', 'f'],
+                ['t2', 't2abc', 't2cd', 't2def'],
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $statement, $changedColumns, $opened] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $openedIndexes = array_values(array_filter($opened, static fn (string $name): bool => $name !== 't2'));
+            $skippedIndexes = array_values(array_diff(array_keys($dependencies), $openedIndexes));
+
+            $out[] = [
+                'source' => 'indexexpr2.test sections indexexpr2-4.200 through indexexpr2-4.220',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $scenario . ' dynamic batch ' . $batch,
+                'statement' => $statement,
+                'changed_columns' => $changedColumns,
+                'index_dependencies' => $dependencies,
+                'opened_btrees' => $opened,
+                'opened_indexes' => $openedIndexes,
+                'skipped_indexes' => $skippedIndexes,
+                'rootpage_join_order' => $opened,
+                'open_opcode_count' => count($opened),
+                'opens_table' => in_array('t2', $opened, true),
+                'opens_only_dependent_indexes' => self::openedExpressionIndexesMatchChangedColumns($dependencies, $openedIndexes, $changedColumns),
+                'detail' => 'explain() Open opcodes join sqlite_master rootpages for ' . implode(', ', $opened),
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,index_name:string,integer_value:int,float_value:float,comparison:string,ordered_rowids:list<int>,selected_labels:list<string>,integrity:string,precision_boundary:string}>
      */
     public static function numindexLargeNumericKeyCases(int $cases = 1000): array
@@ -16075,6 +16145,27 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     private static function sqlitePartialIndexBoundValueMatches(int $predicate, mixed $value): bool
     {
         return is_int($value) && $value === $predicate;
+    }
+
+    /**
+     * @param array<string,list<string>> $dependencies
+     * @param list<string> $openedIndexes
+     * @param list<string> $changedColumns
+     */
+    private static function openedExpressionIndexesMatchChangedColumns(array $dependencies, array $openedIndexes, array $changedColumns): bool
+    {
+        sort($openedIndexes);
+
+        $expected = [];
+        foreach ($dependencies as $name => $columns) {
+            if (array_intersect($columns, $changedColumns) !== []) {
+                $expected[] = $name;
+            }
+        }
+
+        sort($expected);
+
+        return $expected === $openedIndexes;
     }
 
     /**

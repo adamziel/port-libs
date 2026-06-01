@@ -25,6 +25,19 @@ $css = <<<'CSS'
   composes: heading from "./typography.css" extra;
   color: yellow;
 }
+
+.cardEscaped {
+  c\6f mposes: utility \66 rom;
+  color: green;
+}
+
+.utility {
+  color: white;
+}
+
+.\66 rom {
+  color: blue;
+}
 CSS;
 
 $result = (new CssModulesTransformer())->transform($css, [
@@ -38,7 +51,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '.BlockA_card{composes:from global;color:red}.BlockA_button{color:#00f}.BlockA_reset{color:#fff}.BlockA_cardLegacy{composes:heading from "./typography.css" extra;color:#ff0}',
+    'code' => '.BlockA_card{composes:from global;color:red}.BlockA_button{color:#00f}.BlockA_reset{color:#fff}.BlockA_cardLegacy{composes:heading from "./typography.css" extra;color:#ff0}.BlockA_cardEscaped{composes:utility from;color:green}.BlockA_utility{color:#fff}.BlockA_from{color:#00f}',
     'exports' => [
         'card' => [
             'name' => 'BlockA_card',
@@ -62,6 +75,21 @@ $expected = [
         ],
         'cardLegacy' => [
             'name' => 'BlockA_cardLegacy',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'cardEscaped' => [
+            'name' => 'BlockA_cardEscaped',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'utility' => [
+            'name' => 'BlockA_utility',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'from' => [
+            'name' => 'BlockA_from',
             'composes' => [],
             'isReferenced' => false,
         ],

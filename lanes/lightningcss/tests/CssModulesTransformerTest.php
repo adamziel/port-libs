@@ -1237,6 +1237,56 @@ CSS;
             $t->same([], $result['references']);
         }
     },
+    'css modules canonicalizes escaped idents in invalid composes fallback declarations' => static function (TestRunner $t) use ($export): void {
+        $escapedKeyword = (new CssModulesTransformer())->transform(<<<'CSS'
+.test {
+  composes: foo \66 rom;
+  color: red;
+}
+
+.foo {
+  color: blue;
+}
+
+.\66 rom {
+  color: green;
+}
+CSS);
+
+        $t->same('.EgL3uq_test{composes:foo from;color:red}.EgL3uq_foo{color:#00f}.EgL3uq_from{color:green}', $escapedKeyword['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test'),
+            'foo' => $export('EgL3uq_foo'),
+            'from' => $export('EgL3uq_from'),
+        ], $escapedKeyword['exports']);
+        $t->same([], $escapedKeyword['references']);
+
+        $escapedProperty = (new CssModulesTransformer())->transform(<<<'CSS'
+.test {
+  c\6f mposes: foo \66 rom;
+  color: red;
+}
+
+.foo {
+  color: blue;
+}
+
+.\66 rom {
+  color: green;
+}
+CSS);
+
+        $t->same('.EgL3uq_test{composes:foo from;color:red}.EgL3uq_foo{color:#00f}.EgL3uq_from{color:green}', $escapedProperty['code']);
+        $t->same($escapedKeyword['exports'], $escapedProperty['exports']);
+        $t->same([], $escapedProperty['references']);
+
+        $escapedFunction = (new CssModulesTransformer())->transform('.test { composes: foo \75rl(bar); color: red }');
+        $t->same('.EgL3uq_test{composes:foo url(bar);color:red}', $escapedFunction['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test'),
+        ], $escapedFunction['exports']);
+        $t->same([], $escapedFunction['references']);
+    },
     'css modules rejects upstream deprecated value rules before composing exports' => static function (TestRunner $t): void {
         foreach ([
             '@value compact: (max-width: 37.4375em);',

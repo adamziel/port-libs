@@ -316,6 +316,77 @@ return [
             $block->removeProperty($declarations, 'appearance')
         );
     },
+    'declaration block canonicalizes upstream text and writing direct cssom declarations' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'text-transform: UpperCase full-size-kana full-width; white-space: Pre-Wrap; word-break: Break-All; line-break: Anywhere; hyphens: Manual; -webkit-hyphens: AUTO; overflow-wrap: Break-Word; word-wrap: Anywhere; text-align: Match-Parent; text-align-last: Justify; -moz-text-align-last: CENTER; text-justify: Inter-Character; direction: RTL; unicode-bidi: Isolate-Override; box-decoration-break: Clone; -webkit-box-decoration-break: Slice; text-size-adjust: 100.0%; -webkit-text-size-adjust: NONE; marker-side: Match-Parent; --Text-Transform: UpperCase';
+
+        $t->same(
+            [
+                'text-transform' => 'uppercase full-width full-size-kana',
+                'white-space' => 'pre-wrap',
+                'word-break' => 'break-all',
+                'line-break' => 'anywhere',
+                'hyphens' => 'manual',
+                '-webkit-hyphens' => 'auto',
+                'overflow-wrap' => 'break-word',
+                'word-wrap' => 'anywhere',
+                'text-align' => 'match-parent',
+                'text-align-last' => 'justify',
+                '-moz-text-align-last' => 'center',
+                'text-justify' => 'inter-character',
+                'direction' => 'rtl',
+                'unicode-bidi' => 'isolate-override',
+                'box-decoration-break' => 'clone',
+                '-webkit-box-decoration-break' => 'slice',
+                'text-size-adjust' => '100%',
+                '-webkit-text-size-adjust' => 'none',
+                'marker-side' => 'match-parent',
+                '--Text-Transform' => 'UpperCase',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'uppercase full-width full-size-kana', 'important' => false], $block->getProperty($declarations, 'text-transform'));
+        $t->same(['value' => 'full-width full-size-kana', 'important' => false], $block->getProperty('text-transform: full-size-kana full-width', 'text-transform'));
+        $t->same(['value' => 'pre-wrap', 'important' => false], $block->getProperty($declarations, 'white-space'));
+        $t->same(['value' => 'break-all', 'important' => false], $block->getProperty($declarations, 'word-break'));
+        $t->same(['value' => 'anywhere', 'important' => false], $block->getProperty($declarations, 'line-break'));
+        $t->same(['value' => 'manual', 'important' => false], $block->getProperty($declarations, 'hyphens'));
+        $t->same(['value' => 'auto', 'important' => false], $block->getProperty($declarations, '-webkit-hyphens'));
+        $t->same(['value' => 'break-word', 'important' => false], $block->getProperty($declarations, 'overflow-wrap'));
+        $t->same(['value' => 'anywhere', 'important' => false], $block->getProperty($declarations, 'word-wrap'));
+        $t->same(['value' => 'match-parent', 'important' => false], $block->getProperty($declarations, 'text-align'));
+        $t->same(['value' => 'justify', 'important' => false], $block->getProperty($declarations, 'text-align-last'));
+        $t->same(['value' => 'center', 'important' => false], $block->getProperty($declarations, '-moz-text-align-last'));
+        $t->same(['value' => 'inter-character', 'important' => false], $block->getProperty($declarations, 'text-justify'));
+        $t->same(['value' => 'rtl', 'important' => false], $block->getProperty($declarations, 'direction'));
+        $t->same(['value' => 'isolate-override', 'important' => false], $block->getProperty($declarations, 'unicode-bidi'));
+        $t->same(['value' => 'clone', 'important' => false], $block->getProperty($declarations, 'box-decoration-break'));
+        $t->same(['value' => 'slice', 'important' => false], $block->getProperty($declarations, '-webkit-box-decoration-break'));
+        $t->same(['value' => '100%', 'important' => false], $block->getProperty($declarations, 'text-size-adjust'));
+        $t->same(['value' => 'none', 'important' => false], $block->getProperty($declarations, '-webkit-text-size-adjust'));
+        $t->same(['value' => 'match-parent', 'important' => false], $block->getProperty($declarations, 'marker-side'));
+        $t->same(['value' => 'UpperCase', 'important' => false], $block->getProperty($declarations, '--Text-Transform'));
+        $t->same(
+            'text-transform: lowercase full-size-kana; color: red',
+            $block->setProperty('text-transform: UpperCase full-width; color: red', 'text-transform', 'LowerCase full-size-kana')
+        );
+        $t->same(
+            'white-space: break-spaces; text-align: match-parent !important',
+            $block->setProperty('text-align: Center; white-space: Break-Spaces', 'text-align', 'MATCH-PARENT', true)
+        );
+        $t->same(
+            'text-size-adjust: 100%; color: red; -webkit-text-size-adjust: none',
+            $block->setProperty('text-size-adjust: 100.0%; color: red', '-webkit-text-size-adjust', 'None')
+        );
+        $t->same(
+            'box-decoration-break: slice; -webkit-box-decoration-break: slice',
+            $block->setProperty('box-decoration-break: Clone; -webkit-box-decoration-break: Slice', 'box-decoration-break', 'slice')
+        );
+        $t->same(
+            'unicode-bidi: isolate; marker-side: match-self',
+            $block->removeProperty('direction: RTL; unicode-bidi: Isolate; marker-side: Match-Self', 'direction')
+        );
+    },
     'declaration block canonicalizes upstream border spacing cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

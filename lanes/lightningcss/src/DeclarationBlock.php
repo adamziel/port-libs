@@ -155,6 +155,32 @@ final class DeclarationBlock
             'textarea',
         ],
     ];
+    private const TEXT_DIRECT_ENUM_KEYWORDS = [
+        'white-space' => ['normal', 'pre', 'nowrap', 'pre-wrap', 'break-spaces', 'pre-line'],
+        'word-break' => ['normal', 'keep-all', 'break-all', 'break-word'],
+        'line-break' => ['auto', 'loose', 'normal', 'strict', 'anywhere'],
+        'hyphens' => ['none', 'manual', 'auto'],
+        '-webkit-hyphens' => ['none', 'manual', 'auto'],
+        '-moz-hyphens' => ['none', 'manual', 'auto'],
+        '-ms-hyphens' => ['none', 'manual', 'auto'],
+        'overflow-wrap' => ['normal', 'anywhere', 'break-word'],
+        'word-wrap' => ['normal', 'anywhere', 'break-word'],
+        'text-align' => ['start', 'end', 'left', 'right', 'center', 'justify', 'match-parent', 'justify-all'],
+        'text-align-last' => ['auto', 'start', 'end', 'left', 'right', 'center', 'justify', 'match-parent'],
+        '-moz-text-align-last' => ['auto', 'start', 'end', 'left', 'right', 'center', 'justify', 'match-parent'],
+        'text-justify' => ['auto', 'none', 'inter-word', 'inter-character'],
+        'direction' => ['ltr', 'rtl'],
+        'unicode-bidi' => ['normal', 'embed', 'isolate', 'bidi-override', 'isolate-override', 'plaintext'],
+        'box-decoration-break' => ['slice', 'clone'],
+        '-webkit-box-decoration-break' => ['slice', 'clone'],
+        'marker-side' => ['match-self', 'match-parent'],
+    ];
+    private const TEXT_SIZE_ADJUST_PROPERTIES = [
+        'text-size-adjust',
+        '-webkit-text-size-adjust',
+        '-moz-text-size-adjust',
+        '-ms-text-size-adjust',
+    ];
 
     private const BACKGROUND_LONGHANDS = [
         'background-color',
@@ -1444,7 +1470,7 @@ final class DeclarationBlock
         $tokens = $this->splitWhitespaceTopLevel($value);
         $fill = false;
         $offsets = [];
-        foreach ($tokens as $token) {
+        foreach ($tokens as $index => $token) {
             if (strcasecmp($token, 'fill') === 0) {
                 $fill = true;
                 continue;
@@ -13636,6 +13662,18 @@ final class DeclarationBlock
             return $this->normalizeKeywordDeclarationValue($value, self::UI_DIRECT_ENUM_KEYWORDS[$property]);
         }
 
+        if ($property === 'text-transform') {
+            return $this->normalizeTextTransformDeclarationValue($value);
+        }
+
+        if (isset(self::TEXT_DIRECT_ENUM_KEYWORDS[$property])) {
+            return $this->normalizeKeywordDeclarationValue($value, self::TEXT_DIRECT_ENUM_KEYWORDS[$property]);
+        }
+
+        if (in_array($property, self::TEXT_SIZE_ADJUST_PROPERTIES, true)) {
+            return $this->normalizeTextSizeAdjustDeclarationValue($value);
+        }
+
         if ($property === 'border-spacing') {
             return $this->normalizeBorderSpacingValue($value);
         }
@@ -13728,6 +13766,69 @@ final class DeclarationBlock
         $keyword = strtolower($trimmed);
 
         return in_array($keyword, $keywords, true) ? $keyword : $trimmed;
+    }
+
+    private function normalizeTextTransformDeclarationValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        $case = null;
+        $fullWidth = false;
+        $fullSizeKana = false;
+        foreach ($tokens as $token) {
+            $keyword = strtolower($token);
+            if ($case === null && in_array($keyword, ['none', 'uppercase', 'lowercase', 'capitalize'], true)) {
+                if ($keyword === 'none' && count($tokens) > 1) {
+                    return trim($value);
+                }
+
+                $case = $keyword;
+                continue;
+            }
+
+            if ($keyword === 'full-width') {
+                $fullWidth = true;
+                continue;
+            }
+
+            if ($keyword === 'full-size-kana') {
+                $fullSizeKana = true;
+                continue;
+            }
+
+            return trim($value);
+        }
+
+        $parts = [];
+        if ($case !== null && ($case !== 'none' || (!$fullWidth && !$fullSizeKana))) {
+            $parts[] = $case;
+        }
+        if ($fullWidth) {
+            $parts[] = 'full-width';
+        }
+        if ($fullSizeKana) {
+            $parts[] = 'full-size-kana';
+        }
+
+        return $parts === [] ? 'none' : implode(' ', $parts);
+    }
+
+    private function normalizeTextSizeAdjustDeclarationValue(string $value): string
+    {
+        $trimmed = trim($value);
+        $keyword = strtolower($trimmed);
+        if ($keyword === 'auto' || $keyword === 'none') {
+            return $keyword;
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $trimmed, $matches) === 1) {
+            return $this->normalizeCssNumberLiteral($matches[1]) . '%';
+        }
+
+        return $trimmed;
     }
 
     private function normalizeSvgPaintValue(string $value): string
