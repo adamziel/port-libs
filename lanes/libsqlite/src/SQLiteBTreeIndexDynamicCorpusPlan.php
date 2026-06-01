@@ -12994,6 +12994,295 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,table_name:string,index_name:string,index_columns:list<string>,where_clause:string,stat4_enabled:bool,encoding:string|null,collation:string|null,stored_value_family:string,uses_skip_scan:bool,uses_full_index:bool,chosen_index:string|null,rejected_indexes:list<string>,constraint_detail:string,range_terms:list<string>,order_by:string|null,detail:string,integrity:string}>
+     */
+    public static function skipscan5And6Stat4RangeCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite skipscan5/6 dynamic corpus requires at least one case');
+        }
+
+        $source = 'skipscan5.test sections skipscan5-1.3 through skipscan5-3.3 and skipscan6.test sections skipscan6-1.2 through skipscan6-3.2';
+        $templates = [];
+
+        $addTemplate = static function (
+            string $section,
+            string $scenario,
+            string $tableName,
+            string $indexName,
+            array $indexColumns,
+            string $whereClause,
+            ?string $encoding,
+            ?string $collation,
+            string $storedValueFamily,
+            bool $usesSkipScan,
+            bool $usesFullIndex,
+            ?string $chosenIndex,
+            array $rejectedIndexes,
+            string $constraintDetail,
+            array $rangeTerms,
+            ?string $orderBy,
+            string $detail
+        ) use (&$templates, $source): void {
+            $templates[] = [
+                'source' => $source,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'table_name' => $tableName,
+                'index_name' => $indexName,
+                'index_columns' => $indexColumns,
+                'where_clause' => $whereClause,
+                'stat4_enabled' => true,
+                'encoding' => $encoding,
+                'collation' => $collation,
+                'stored_value_family' => $storedValueFamily,
+                'uses_skip_scan' => $usesSkipScan,
+                'uses_full_index' => $usesFullIndex,
+                'chosen_index' => $chosenIndex,
+                'rejected_indexes' => $rejectedIndexes,
+                'constraint_detail' => $constraintDetail,
+                'range_terms' => $rangeTerms,
+                'order_by' => $orderBy,
+                'detail' => $detail,
+                'integrity' => 'ok',
+            ];
+        };
+
+        foreach ([
+            ['1', 'b = 5', 'ANY(a) AND b=?', true, ['b=5'], 'integer equality is selective enough to probe b inside skip-scan groups'],
+            ['2', 'b > 12 AND b < 16', 'ANY(a) AND b>? AND b<?', true, ['b>12', 'b<16'], 'narrow middle integer range uses skip-scan over unconstrained a values'],
+            ['3', 'b > 2 AND b < 16', 'SCAN t1', false, ['b>2', 'b<16'], 'wide lower integer range is costed as a table scan'],
+            ['4', 'b > 18 AND b < 25', 'ANY(a) AND b>? AND b<?', true, ['b>18', 'b<25'], 'upper integer range remains selective enough for skip-scan'],
+            ['5', 'b > 16', 'ANY(a) AND b>?', true, ['b>16'], 'open-ended high integer range uses skip-scan'],
+            ['6', 'b > 5', 'SCAN t1', false, ['b>5'], 'open-ended broad integer range falls back to a table scan'],
+            ['7', 'b < 15', 'SCAN t1', false, ['b<15'], 'broad low integer range falls back to a table scan'],
+            ['8', 'b < 5', 'ANY(a) AND b<?', true, ['b<5'], 'narrow low integer range uses skip-scan'],
+            ['9', '5 > b', 'ANY(a) AND b<?', true, ['b<5'], 'commuted low integer range still maps to the b upper-bound skip-scan'],
+            ['10', "b = '5'", 'ANY(a) AND b=?', true, ["b='5'"], 'text literal equality preserves the same numeric skip-scan choice'],
+            ['11', "b > '12' AND b < '16'", 'ANY(a) AND b>? AND b<?', true, ["b>'12'", "b<'16'"], 'text literal middle range remains selective after affinity'],
+            ['12', "b > '2' AND b < '16'", 'SCAN t1', false, ["b>'2'", "b<'16'"], 'text literal broad range is still costed as a table scan'],
+            ['13', "b > '18' AND b < '25'", 'ANY(a) AND b>? AND b<?', true, ["b>'18'", "b<'25'"], 'text literal upper range keeps the skip-scan probe'],
+            ['14', "b > '16'", 'ANY(a) AND b>?', true, ["b>'16'"], 'text literal high range uses skip-scan after numeric affinity'],
+            ['15', "b > '5'", 'SCAN t1', false, ["b>'5'"], 'text literal broad high range is too wide for skip-scan'],
+            ['16', "b < '15'", 'SCAN t1', false, ["b<'15'"], 'text literal broad low range is too wide for skip-scan'],
+            ['17', "b < '5'", 'ANY(a) AND b<?', true, ["b<'5'"], 'text literal low range uses skip-scan after numeric affinity'],
+            ['18', "'5' > b", 'ANY(a) AND b<?', true, ["b<'5'"], 'commuted text literal low range still maps to the b upper-bound skip-scan'],
+        ] as [$suffix, $whereClause, $constraintDetail, $usesSkipScan, $rangeTerms, $detail]) {
+            $addTemplate(
+                'skipscan5-1.3.' . $suffix,
+                'STAT4 integer range selectivity chooses between skip-scan and table scan',
+                't1',
+                'i1',
+                ['a', 'b'],
+                $whereClause,
+                null,
+                null,
+                'integer-distribution',
+                $usesSkipScan,
+                false,
+                $usesSkipScan ? 'i1' : null,
+                $usesSkipScan ? [] : ['i1 skip-scan'],
+                $constraintDetail,
+                $rangeTerms,
+                null,
+                $detail
+            );
+        }
+
+        $textRangeTemplates = [
+            ['1', "c BETWEEN 'd' AND 'e'", 'ANY(a) AND ANY(b) AND c>? AND c<?', true, ["c>'d'", "c<'e'"], 'narrow collated text range uses two-column skip prefix'],
+            ['2', "c BETWEEN 'b' AND 'r'", 'SCAN t2', false, ["c>'b'", "c<'r'"], 'broad collated text range is costed as a table scan'],
+            ['3', "c > 'q'", 'ANY(a) AND ANY(b) AND c>?', true, ["c>'q'"], 'selective high collated text range uses skip-scan'],
+            ['4', "c > 'e'", 'SCAN t2', false, ["c>'e'"], 'broad high collated text range falls back to a table scan'],
+            ['5', "c < 'q'", 'SCAN t2', false, ["c<'q'"], 'broad low collated text range falls back to a table scan'],
+            ['6', "c < 'b'", 'ANY(a) AND ANY(b) AND c<?', true, ["c<'b'"], 'selective low collated text range uses skip-scan'],
+        ];
+
+        foreach ([
+            ['1', 'utf-8', 'test_collate utf8+utf16 registration'],
+            ['2', 'utf-16', 'test_collate missing utf16 callback'],
+            ['3', 'utf-8', 'test_collate utf16-needed callback'],
+        ] as [$group, $encoding, $collation]) {
+            foreach ($textRangeTemplates as [$suffix, $whereClause, $constraintDetail, $usesSkipScan, $rangeTerms, $detail]) {
+                $addTemplate(
+                    'skipscan5-2.' . $group . '.' . $suffix,
+                    'STAT4 collated text range selectivity chooses between skip-scan and table scan',
+                    't2',
+                    'i2',
+                    ['a', 'b', 'c'],
+                    $whereClause,
+                    $encoding,
+                    $collation,
+                    'text-collated-distribution',
+                    $usesSkipScan,
+                    false,
+                    $usesSkipScan ? 'i2' : null,
+                    $usesSkipScan ? [] : ['i2 skip-scan'],
+                    $constraintDetail,
+                    $rangeTerms,
+                    null,
+                    $detail
+                );
+            }
+        }
+
+        foreach ([
+            ['1', 'b BETWEEN -10000 AND -8000', 'ANY(a) AND b>? AND b<?', true, ['b>-10000', 'b<-8000'], 'negative integer range remains selective enough for skip-scan'],
+            ['2', "b BETWEEN -10000 AND 'qqq'", 'SCAN t3', false, ['b>-10000', "b<'qqq'"], 'cross-storage-class range is too broad for skip-scan'],
+            ['3', "b < X'5555'", 'SCAN t3', false, ["b<X'5555'"], 'blob upper bound covers too much of the mixed distribution'],
+            ['4', "b > X'5555'", 'ANY(a) AND b>?', true, ["b>X'5555'"], 'blob lower bound leaves a selective high tail for skip-scan'],
+            ['5', "b > 'zzz'", 'ANY(a) AND b>?', true, ["b>'zzz'"], 'high text tail uses skip-scan in the mixed distribution'],
+            ['6', "b < 'zzz'", 'SCAN t3', false, ["b<'zzz'"], 'low text range covers too many mixed-type rows for skip-scan'],
+        ] as [$suffix, $whereClause, $constraintDetail, $usesSkipScan, $rangeTerms, $detail]) {
+            $addTemplate(
+                'skipscan5-3.3.' . $suffix,
+                'STAT4 mixed storage-class range selectivity chooses between skip-scan and table scan',
+                't3',
+                'i3',
+                ['a', 'b'],
+                $whereClause,
+                null,
+                null,
+                'mixed-storage-class-distribution',
+                $usesSkipScan,
+                false,
+                $usesSkipScan ? 'i3' : null,
+                $usesSkipScan ? [] : ['i3 skip-scan'],
+                $constraintDetail,
+                $rangeTerms,
+                null,
+                $detail
+            );
+        }
+
+        foreach ([
+            [
+                'skipscan6-1.2',
+                'STAT4 prefers full prefix constraints on ix over a skip-scan alternative',
+                't1',
+                'ix',
+                ['aa', 'bb', 'cc', 'dd DESC'],
+                'bb = 21 AND aa = 1 AND dd BETWEEN 1413831508 AND 1413835108',
+                'stat4-full-prefix-preference',
+                'ix',
+                ['ix skip-scan'],
+                'SEARCH t1 USING INDEX ix (aa=? AND bb=? AND dd>? AND dd<?)',
+                ['aa=1', 'bb=21', 'dd>1413831508', 'dd<1413835108'],
+                'matching aa and bb prefix constraints beat the skip-scan path',
+            ],
+            [
+                'skipscan6-2.2',
+                'STAT4 prefers good(bb,aa,dd) over bad(aa,bb,cc,dd) skip-scan',
+                't1',
+                'good',
+                ['bb', 'aa', 'dd DESC'],
+                'bb = 21 AND aa = 1 AND dd BETWEEN 1413831508 AND 1413835108',
+                'stat4-full-prefix-preference',
+                'good',
+                ['bad skip-scan'],
+                'SEARCH t1 USING INDEX good (bb=? AND aa=? AND dd>? AND dd<?)',
+                ['bb=21', 'aa=1', 'dd>1413831508', 'dd<1413835108'],
+                'the declared full-prefix index is cheaper than the competing skip-scan index',
+            ],
+            [
+                'skipscan6-3.1',
+                'STAT4 chooses t3_a for equality over skip-scanning t3_ba',
+                't3',
+                't3_a',
+                ['a'],
+                'a = ? AND c = ?',
+                'stat4-single-column-preference',
+                't3_a',
+                ['t3_ba skip-scan'],
+                'SEARCH t3 USING INDEX t3_a (a=?)',
+                ['a=?', 'c=? residual'],
+                'a direct equality index beats skip-scan on the two-column alternative',
+            ],
+            [
+                'skipscan6-3.2',
+                'STAT4 chooses t2_a for equality over skip-scanning t2_ba',
+                't2',
+                't2_a',
+                ['a'],
+                'a = ? AND c = ?',
+                'stat4-single-column-preference',
+                't2_a',
+                ['t2_ba skip-scan'],
+                'SEARCH t2 USING INDEX t2_a (a=?)',
+                ['a=?', 'c=? residual'],
+                'a direct equality index beats skip-scan on the nullable two-column alternative',
+            ],
+        ] as [
+            $section,
+            $scenario,
+            $tableName,
+            $indexName,
+            $indexColumns,
+            $whereClause,
+            $storedValueFamily,
+            $chosenIndex,
+            $rejectedIndexes,
+            $constraintDetail,
+            $rangeTerms,
+            $detail,
+        ]) {
+            $addTemplate(
+                $section,
+                $scenario,
+                $tableName,
+                $indexName,
+                $indexColumns,
+                $whereClause,
+                null,
+                null,
+                $storedValueFamily,
+                false,
+                true,
+                $chosenIndex,
+                $rejectedIndexes,
+                $constraintDetail,
+                $rangeTerms,
+                null,
+                $detail
+            );
+        }
+
+        $templateCount = count($templates);
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % $templateCount];
+            $batch = intdiv($case - 1, $templateCount) + 1;
+
+            $out[] = [
+                'source' => $template['source'],
+                'case' => $case,
+                'upstream_section' => $template['upstream_section'],
+                'batch' => $batch,
+                'scenario' => $template['scenario'] . ' dynamic batch ' . $batch,
+                'table_name' => $template['table_name'],
+                'index_name' => $template['index_name'],
+                'index_columns' => $template['index_columns'],
+                'where_clause' => $template['where_clause'],
+                'stat4_enabled' => $template['stat4_enabled'],
+                'encoding' => $template['encoding'],
+                'collation' => $template['collation'],
+                'stored_value_family' => $template['stored_value_family'],
+                'uses_skip_scan' => $template['uses_skip_scan'],
+                'uses_full_index' => $template['uses_full_index'],
+                'chosen_index' => $template['chosen_index'],
+                'rejected_indexes' => $template['rejected_indexes'],
+                'constraint_detail' => $template['constraint_detail'],
+                'range_terms' => $template['range_terms'],
+                'order_by' => $template['order_by'],
+                'detail' => $template['detail'] . '; skipscan5/6 dynamic replay ' . $batch,
+                'integrity' => $template['integrity'],
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,table_shape:string,stat1_rows:list<array{tbl:string,idx:string|null,stat:string}>,result_rows:list<array<int,mixed>>,plan_detail:string,chosen_index:string|null,skip_prefix_columns:list<string>,constrained_columns:list<string>,uses_any_skip_scan:bool,uses_temp_sort:bool,uses_temp_distinct:bool,order_by_satisfied:bool,optimization_disabled:bool,noskipscan_token:bool,rejected_indexes:list<string>,detail:string,integrity:string}>
      */
     public static function skipscan1PlannerCases(int $cases = 1200): array

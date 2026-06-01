@@ -201,6 +201,34 @@ return [
         $t->same(true, PathspecMatcher::matchesOne(':(glob)wp-content/plugins/f\\\\oo/block.json', $backslashPath, false));
         $t->same(false, PathspecMatcher::matchesOne(':(glob)wp-content/plugins/f\\\\oo/block.json', $slashPath, false));
     },
+    'dangling backslash attribute patterns abort while pathspecs keep gix verbatim fallback' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString(
+            'wp-content/plugins/trailing\\ dangling-backslash' . "\n"
+            . 'wp-content/plugins/trailing\\\\ escaped-backslash' . "\n",
+            withBuiltInMacros: false,
+        );
+        $path = 'wp-content/plugins/trailing\\';
+        $danglingPathspec = 'wp-content/plugins/trailing\\';
+        $escapedBackslashPathspec = ':(glob,attr:escaped-backslash)wp-content/plugins/trailing\\\\';
+
+        $t->same(['dangling-backslash' => null], $attributes->attributesForPath($path, ['dangling-backslash']));
+        $t->same(['escaped-backslash' => true], $attributes->attributesForPath($path, ['escaped-backslash']));
+
+        $match = PathspecSearch::fromSpecs([$danglingPathspec])->match($path, false);
+        $t->same(PathspecMatch::KIND_VERBATIM, $match?->kind);
+        $t->same(true, PathspecMatcher::matchesOne($danglingPathspec, $path, false));
+        $t->same(false, PathspecMatcher::matchesOne(
+            ':(attr:dangling-backslash)' . $danglingPathspec,
+            $path,
+            false,
+            $attributes,
+        ));
+        $t->same(false, PathspecSearch::fromSpecs([
+            ':(attr:dangling-backslash)' . $danglingPathspec,
+        ])->isIncluded($path, false, $attributes));
+        $t->same(true, PathspecMatcher::matchesOne($escapedBackslashPathspec, $path, false, $attributes));
+        $t->same(true, PathspecSearch::fromSpecs([$escapedBackslashPathspec])->isIncluded($path, false, $attributes));
+    },
     'attribute pathspec filters keep path aware double star component local like gix wildmatch' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString(
             "wp-content/plugins/a**f.php component-local\n"
@@ -723,6 +751,11 @@ return [
         $t->same(['backslash-plugin' => null], $example['slashPathDoesNotMatchBackslashAttribute']);
         $t->same(true, $example['backslashPathspecMatchesByte']);
         $t->same(true, $example['backslashPathspecSkipsSlash']);
+        $t->same(['dangling-backslash' => null], $example['danglingBackslashAttributeSkipped']);
+        $t->same(['escaped-backslash' => true], $example['escapedBackslashAttributeStillMatches']);
+        $t->same(PathspecMatch::KIND_VERBATIM, $example['danglingBackslashPathspecFallsBackVerbatim']);
+        $t->same(true, $example['danglingBackslashAttrPathspecSkipped']);
+        $t->same(true, $example['escapedBackslashAttrPathspecMatches']);
         $t->same(['malformed' => null], $example['malformedBracketAttributeSkipped']);
         $t->same(['literal-open' => true], $example['validLiteralBracketAttributeMatches']);
         $t->same(PathspecMatch::KIND_VERBATIM, $example['malformedBracketPathspecFallsBackVerbatim']);

@@ -585,7 +585,8 @@ final class GitAttributes
                 if ($i + 1 < $length) {
                     $regex .= preg_quote($pattern[++$i], '~');
                 } else {
-                    $regex .= preg_quote($char, '~');
+                    // gix wildmatch aborts dangling escapes; attribute matches do not get pathspec's verbatim fallback.
+                    $regex .= '(?!)';
                 }
                 continue;
             }

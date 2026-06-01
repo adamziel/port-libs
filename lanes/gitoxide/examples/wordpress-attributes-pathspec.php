@@ -39,6 +39,11 @@ $backslashAttributes = GitAttributes::fromString(
     . 'wp-content/plugins/f/oo/block.json slash-plugin' . "\n",
     withBuiltInMacros: false,
 );
+$danglingBackslashAttributes = GitAttributes::fromString(
+    'wp-content/plugins/trailing\\ dangling-backslash' . "\n"
+    . 'wp-content/plugins/trailing\\\\ escaped-backslash' . "\n",
+    withBuiltInMacros: false,
+);
 $malformedBracketAttributes = GitAttributes::fromString(
     "wp-content/uploads/foo[ malformed\n"
     . "wp-content/uploads/foo[] empty-class\n"
@@ -50,6 +55,11 @@ $malformedBracketAttributes = GitAttributes::fromString(
 $backslashPath = 'wp-content/plugins/f\\oo/block.json';
 $slashPath = 'wp-content/plugins/f/oo/block.json';
 $backslashPathspec = ':(glob,attr:backslash-plugin)wp-content/plugins/f\\\\oo/block.json';
+$danglingBackslashPath = 'wp-content/plugins/trailing\\';
+$danglingBackslashPathspec = 'wp-content/plugins/trailing\\';
+$danglingBackslashMatch = PathspecSearch::fromSpecs([$danglingBackslashPathspec])
+    ->match($danglingBackslashPath, false);
+$escapedBackslashPathspec = ':(glob,attr:escaped-backslash)wp-content/plugins/trailing\\\\';
 $malformedBracketMatch = PathspecSearch::fromSpecs(['wp-content/uploads/foo['])
     ->match('wp-content/uploads/foo[', false);
 $tabAttributes = GitAttributes::fromString(
@@ -310,6 +320,24 @@ return [
         $slashPath,
         false,
         $backslashAttributes,
+    ),
+    'danglingBackslashAttributeSkipped' => $danglingBackslashAttributes->attributesForPath(
+        $danglingBackslashPath,
+        ['dangling-backslash'],
+    ),
+    'escapedBackslashAttributeStillMatches' => $danglingBackslashAttributes->attributesForPath(
+        $danglingBackslashPath,
+        ['escaped-backslash'],
+    ),
+    'danglingBackslashPathspecFallsBackVerbatim' => $danglingBackslashMatch?->kind,
+    'danglingBackslashAttrPathspecSkipped' => !PathspecSearch::fromSpecs([
+        ':(attr:dangling-backslash)' . $danglingBackslashPathspec,
+    ])->isIncluded($danglingBackslashPath, false, $danglingBackslashAttributes),
+    'escapedBackslashAttrPathspecMatches' => PathspecMatcher::matchesOne(
+        $escapedBackslashPathspec,
+        $danglingBackslashPath,
+        false,
+        $danglingBackslashAttributes,
     ),
     'malformedBracketAttributeSkipped' => $malformedBracketAttributes->attributesForPath(
         'wp-content/uploads/foo[',

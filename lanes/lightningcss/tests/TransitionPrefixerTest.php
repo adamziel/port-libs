@@ -1023,6 +1023,66 @@ CSS;
             ])
         );
     },
+    'transition prefixer maps upstream unicode-bidi value browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{unicode-bidi:-webkit-isolate;unicode-bidi:-moz-isolate;unicode-bidi:isolate}',
+            $prefixer->prefixForTargets('.foo { unicode-bidi: isolate; }', ['chrome' => 47, 'firefox' => 49])
+        );
+        $t->same(
+            '.foo{unicode-bidi:isolate}',
+            $prefixer->prefixForTargets('.foo { unicode-bidi: isolate; }', ['chrome' => 48, 'firefox' => 50])
+        );
+        $t->same(
+            '.foo{unicode-bidi:-webkit-isolate;unicode-bidi:isolate}',
+            $prefixer->prefixForTargets('.foo { unicode-bidi: isolate; }', ['safari' => '10.1'])
+        );
+        $t->same(
+            '.foo{unicode-bidi:isolate}',
+            $prefixer->prefixForTargets('.foo { unicode-bidi: isolate; }', ['safari' => '10.2'])
+        );
+        $t->same(
+            '.foo{unicode-bidi:-webkit-isolate;unicode-bidi:isolate}',
+            $prefixer->prefixForTargets('.foo { unicode-bidi: isolate; }', ['ios_saf' => '10.3'])
+        );
+        $t->same(
+            '.foo{unicode-bidi:isolate}',
+            $prefixer->prefixForTargets('.foo { unicode-bidi: isolate; }', ['ios_saf' => '10.4'])
+        );
+        $t->same(
+            '.foo{unicode-bidi:-webkit-isolate;unicode-bidi:isolate}',
+            $prefixer->prefixForTargets('.foo { unicode-bidi: isolate; }', ['opera' => 34])
+        );
+        $t->same(
+            '.foo{unicode-bidi:isolate}',
+            $prefixer->prefixForTargets('.foo { unicode-bidi: isolate; }', ['opera' => 35])
+        );
+        $t->same(
+            '.foo{unicode-bidi:-webkit-plaintext;unicode-bidi:-moz-plaintext;unicode-bidi:plaintext}',
+            $prefixer->prefixForTargets('.foo { unicode-bidi: plaintext; }', ['safari' => '10.1', 'firefox' => 49])
+        );
+        $t->same(
+            '.foo{unicode-bidi:plaintext}',
+            $prefixer->prefixForTargets('.foo { unicode-bidi: plaintext; }', ['chrome' => 47])
+        );
+        $t->same(
+            '.foo{unicode-bidi:-webkit-isolate-override;unicode-bidi:-moz-isolate-override;unicode-bidi:isolate-override}',
+            $prefixer->prefixForTargets('.foo { unicode-bidi: isolate-override; }', ['safari' => 7, 'firefox' => 17])
+        );
+        $t->same(
+            '.foo{unicode-bidi:isolate-override}',
+            $prefixer->prefixForTargets('.foo { unicode-bidi: isolate-override; }', ['safari' => 6, 'firefox' => 16])
+        );
+        $t->same(
+            '.foo{unicode-bidi:-webkit-isolate;unicode-bidi:isolate}',
+            $prefixer->prefixForTargets('.foo { unicode-bidi: -webkit-isolate; unicode-bidi: -moz-isolate; unicode-bidi: isolate; }', ['safari' => '10.1'])
+        );
+        $t->same(
+            '.foo{unicode-bidi:isolate}',
+            $prefixer->prefixForTargets('.foo { unicode-bidi: -webkit-isolate; unicode-bidi: -moz-isolate; unicode-bidi: isolate; }', ['chrome' => 48, 'firefox' => 50, 'safari' => 11])
+        );
+    },
     'transition prefixer maps upstream cursor value target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

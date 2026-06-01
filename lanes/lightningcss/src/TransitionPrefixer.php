@@ -358,6 +358,7 @@ final class TransitionPrefixer
         $cursorPrefixChanged = $this->rewriteCursorPrefixEntries($entries, $targetOptions);
         $boxSizingChanged = $this->rewriteBoxSizingPrefixEntries($entries, $targetOptions);
         $objectFitChanged = $this->rewriteObjectFitPrefixEntries($entries, $targetOptions);
+        $unicodeBidiChanged = $this->rewriteUnicodeBidiPrefixEntries($entries, $targetOptions);
         $textCompatibilityPrefixChanged = $this->rewriteTextCompatibilityPrefixEntries($entries, $targetOptions);
         $scrollSnapPrefixChanged = $this->rewriteScrollSnapPrefixEntries($entries, $targetOptions);
         $breakPrefixChanged = $this->rewriteBreakPrefixEntries($entries, $targetOptions);
@@ -438,7 +439,7 @@ final class TransitionPrefixer
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
         $selectorVariants = $this->selectorPrefixVariants($selectors, $targetOptions);
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $unicodeBidiChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
             return $this->serializeRulesForSelectors($selectorVariants ?? [$selectors], $entries) . implode('', $supportRules);
         }
 
@@ -1520,6 +1521,17 @@ final class TransitionPrefixer
             'textSizeAdjustNeedsMoz' => isset($normalized['firefox']),
             'textSizeAdjustNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [18])
                 || $this->targetAtLeast($normalized, 'ie', [10]),
+            'unicodeBidiIsolateNeedsWebkit' => $this->targetInRange($normalized, 'chrome', [16], [47])
+                || $this->targetInRange($normalized, 'ios_saf', [6], [10, 3])
+                || $this->targetInRange($normalized, 'opera', [15], [34])
+                || $this->targetInRange($normalized, 'safari', [6], [10, 1]),
+            'unicodeBidiIsolateNeedsMoz' => $this->targetInRange($normalized, 'firefox', [10], [49]),
+            'unicodeBidiPlaintextNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [6], [10, 3])
+                || $this->targetInRange($normalized, 'safari', [6], [10, 1]),
+            'unicodeBidiPlaintextNeedsMoz' => $this->targetInRange($normalized, 'firefox', [10], [49]),
+            'unicodeBidiIsolateOverrideNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [7], [10, 3])
+                || $this->targetInRange($normalized, 'safari', [7], [10, 1]),
+            'unicodeBidiIsolateOverrideNeedsMoz' => $this->targetInRange($normalized, 'firefox', [17], [49]),
             'hyphensNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [4, 2], [16, 5])
                 || $this->targetInRange($normalized, 'safari', [5, 1], [16, 5]),
             'hyphensNeedsMoz' => $this->targetInRange($normalized, 'firefox', [6], [42]),
@@ -5652,6 +5664,138 @@ final class TransitionPrefixer
             'vertical-rl' => 'tb-rl',
             'vertical-lr' => 'tb-lr',
             default => null,
+        };
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteUnicodeBidiPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $unprefixedValues = [];
+        $prefixedValues = [
+            '-webkit-' => [],
+            '-moz-' => [],
+        ];
+        $hasRelevantDeclaration = false;
+
+        foreach ($entries as $entry) {
+            if ($entry['property'] !== 'unicode-bidi') {
+                continue;
+            }
+
+            $info = $this->unicodeBidiPrefixInfo($entry['value']);
+            if ($info === null) {
+                continue;
+            }
+
+            $hasRelevantDeclaration = true;
+            if ($info['prefix'] === '' && !$entry['important']) {
+                $unprefixedValues[$info['keyword']] = true;
+                continue;
+            }
+
+            if ($info['prefix'] !== '') {
+                $prefixedValues[$info['prefix']][$info['keyword']] = true;
+            }
+        }
+
+        if (!$hasRelevantDeclaration || $unprefixedValues === []) {
+            return false;
+        }
+
+        $rewritten = [];
+        $changed = false;
+        foreach ($entries as $entry) {
+            if ($entry['property'] !== 'unicode-bidi') {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $info = $this->unicodeBidiPrefixInfo($entry['value']);
+            if ($info === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if (
+                $info['prefix'] !== ''
+                && !$entry['important']
+                && !$this->unicodeBidiPrefixNeeded($info['keyword'], $info['prefix'], $targetOptions)
+                && isset($unprefixedValues[$info['keyword']])
+            ) {
+                $changed = true;
+                continue;
+            }
+
+            if ($info['prefix'] === '' && !$entry['important']) {
+                foreach (['-webkit-', '-moz-'] as $prefix) {
+                    if (!$this->unicodeBidiPrefixNeeded($info['keyword'], $prefix, $targetOptions)) {
+                        continue;
+                    }
+                    if (isset($prefixedValues[$prefix][$info['keyword']])) {
+                        continue;
+                    }
+
+                    $rewritten[] = $this->declarationEntry('unicode-bidi', $prefix . $info['keyword']);
+                    $prefixedValues[$prefix][$info['keyword']] = true;
+                    $changed = true;
+                }
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+        return true;
+    }
+
+    /**
+     * @return array{keyword:string,prefix:string}|null
+     */
+    private function unicodeBidiPrefixInfo(string $value): ?array
+    {
+        $value = strtolower(trim($value));
+        $prefix = '';
+        foreach (['-webkit-', '-moz-'] as $candidate) {
+            if (str_starts_with($value, $candidate)) {
+                $prefix = $candidate;
+                $value = substr($value, strlen($candidate));
+                break;
+            }
+        }
+
+        if (!in_array($value, ['isolate', 'plaintext', 'isolate-override'], true)) {
+            return null;
+        }
+
+        return [
+            'keyword' => $value,
+            'prefix' => $prefix,
+        ];
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function unicodeBidiPrefixNeeded(string $keyword, string $prefix, array $targetOptions): bool
+    {
+        return match ($keyword) {
+            'isolate' => $prefix === '-webkit-'
+                ? ($targetOptions['unicodeBidiIsolateNeedsWebkit'] ?? false)
+                : ($targetOptions['unicodeBidiIsolateNeedsMoz'] ?? false),
+            'plaintext' => $prefix === '-webkit-'
+                ? ($targetOptions['unicodeBidiPlaintextNeedsWebkit'] ?? false)
+                : ($targetOptions['unicodeBidiPlaintextNeedsMoz'] ?? false),
+            'isolate-override' => $prefix === '-webkit-'
+                ? ($targetOptions['unicodeBidiIsolateOverrideNeedsWebkit'] ?? false)
+                : ($targetOptions['unicodeBidiIsolateOverrideNeedsMoz'] ?? false),
+            default => false,
         };
     }
 
