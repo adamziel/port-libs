@@ -879,6 +879,59 @@ return [
         $t->same(null, $config->value('user', null, 'unclosed'));
     },
 
+    'conditional include malformed POSIX class starts resume like gix wildmatch' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
+        $root = $tmpDir();
+        $worktree = $root . '/deploy-[ab]';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/digit-resume.config', "[section]\ndigitResume = matched\n");
+        $write($worktree . '/empty-resume.config', "[section]\nemptyResume = matched\n");
+        $write($worktree . '/double-colon.config', "[section]\ndoubleColon = should-not-load\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:deploy-[[:digit]ab]/"]
+        path = ../digit-resume.config
+        [includeIf "gitdir:deploy-[[:]ab]/"]
+        path = ../empty-resume.config
+        [includeIf "gitdir:deploy-[[::]ab]/"]
+        path = ../double-colon.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('matched', $config->value('section', null, 'digitResume'));
+        $t->same('matched', $config->value('section', null, 'emptyResume'));
+        $t->same(null, $config->value('section', null, 'doubleColon'));
+
+        $t->same('override-value', $loadConditionalValue('onbranch:release/[[:digit]ab]', [
+            'branchName' => 'refs/heads/release/[ab]',
+        ]));
+        $t->same('override-value', $loadConditionalValue('onbranch:release/[[:]ab]', [
+            'branchName' => 'refs/heads/release/[ab]',
+        ]));
+        $t->same('base-value', $loadConditionalValue('onbranch:release/[[::]ab]', [
+            'branchName' => 'refs/heads/release/[ab]',
+        ]));
+
+        $root = $tmpDir();
+        $write($root . '/digit-url', "[user]\ndigitResume = matched\n");
+        $write($root . '/empty-url', "[user]\nemptyResume = matched\n");
+        $write($root . '/double-colon-url', "[user]\ndoubleColon = should-not-load\n");
+        $write($root . '/config', <<<CFG
+        [remote "resume"]
+        url = https://git.example.test/wp-content/site-[ab].git
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[[:digit]ab].git"]
+        path = "digit-url"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[[:]ab].git"]
+        path = "empty-url"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[[::]ab].git"]
+        path = "double-colon-url"
+        CFG);
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same('matched', $config->value('user', null, 'digitResume'));
+        $t->same('matched', $config->value('user', null, 'emptyResume'));
+        $t->same(null, $config->value('user', null, 'doubleColon'));
+    },
+
     'conditional include wildmatch stays byte safe for malformed utf8 names' => static function (TestRunner $t) use ($tmpDir, $write): void {
         $legacyByte = "\xFF";
 
@@ -1452,6 +1505,8 @@ return [
         $t->same(null, $fixture['unboundedDoubleStarRejectedPolicy']);
         $t->same(null, $fixture['invalidPosixPolicy']);
         $t->same(null, $fixture['unclosedBracketPolicy']);
+        $t->same('matched', $fixture['malformedPosixResumeUrlPolicy']);
+        $t->same(null, $fixture['malformedPosixDoubleColonUrlPolicy']);
         $t->same(null, $fixture['trailingBackslashUrlPolicy']);
         $t->same('matched', $fixture['optionalPrefixPolicy']);
         $t->same(null, $fixture['tildeAloneGitdirPolicy']);
@@ -1507,6 +1562,8 @@ return [
         $t->same($fixture['unboundedDoubleStarRejectedPolicy'], $summary['unboundedDoubleStarRejectedPolicy']);
         $t->same($fixture['invalidPosixPolicy'], $summary['invalidPosixPolicy']);
         $t->same($fixture['unclosedBracketPolicy'], $summary['unclosedBracketPolicy']);
+        $t->same($fixture['malformedPosixResumeUrlPolicy'], $summary['malformedPosixResumeUrlPolicy']);
+        $t->same($fixture['malformedPosixDoubleColonUrlPolicy'], $summary['malformedPosixDoubleColonUrlPolicy']);
         $t->same($fixture['trailingBackslashUrlPolicy'], $summary['trailingBackslashUrlPolicy']);
         $t->same($fixture['optionalPrefixPolicy'], $summary['optionalPrefixPolicy']);
         $t->same($fixture['tildeAloneGitdirPolicy'], $summary['tildeAloneGitdirPolicy']);

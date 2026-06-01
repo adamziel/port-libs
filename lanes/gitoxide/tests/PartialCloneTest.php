@@ -125,6 +125,84 @@ $writePromisorConfigFixture = static function (bool|string $promisor = true): st
     return $gitDir;
 };
 
+$buildMultiPackIndex = static function (array $packs): string {
+    $packUInt64 = static function (int $value): string {
+        if ($value < 0) {
+            throw new RuntimeException('Cannot encode a negative 64-bit integer');
+        }
+
+        return pack('N2', intdiv($value, 4294967296), $value % 4294967296);
+    };
+    $padToFour = static function (string $bytes): string {
+        $padding = (4 - (strlen($bytes) % 4)) % 4;
+
+        return $bytes . str_repeat("\0", $padding);
+    };
+
+    ksort($packs, SORT_STRING);
+    $indexNames = array_keys($packs);
+    $entries = [];
+    foreach ($indexNames as $packIndex => $indexName) {
+        foreach ($packs[$indexName]->entries() as $entry) {
+            $entries[] = [
+                'oid' => $entry['oid'],
+                'packIndex' => $packIndex,
+                'offset' => $entry['offset'],
+            ];
+        }
+    }
+    usort($entries, static fn (array $a, array $b): int => strcmp($a['oid'], $b['oid']));
+
+    $fanout = array_fill(0, 256, 0);
+    foreach ($entries as $entry) {
+        $fanout[hexdec(substr($entry['oid'], 0, 2))]++;
+    }
+    $running = 0;
+    foreach ($fanout as $index => $count) {
+        $running += $count;
+        $fanout[$index] = $running;
+    }
+
+    $packNames = '';
+    foreach ($indexNames as $name) {
+        $packNames .= $name . "\0";
+    }
+    $fanoutBytes = '';
+    foreach ($fanout as $count) {
+        $fanoutBytes .= pack('N', $count);
+    }
+    $oidBytes = '';
+    $offsetBytes = '';
+    foreach ($entries as $entry) {
+        $oid = hex2bin($entry['oid']);
+        if ($oid === false || strlen($oid) !== 20) {
+            throw new RuntimeException('Invalid object id in test multi-pack-index');
+        }
+        $oidBytes .= $oid;
+        $offsetBytes .= pack('N2', $entry['packIndex'], $entry['offset']);
+    }
+
+    $chunks = [
+        'PNAM' => $padToFour($packNames),
+        'OIDF' => $fanoutBytes,
+        'OIDL' => $oidBytes,
+        'OOFF' => $offsetBytes,
+    ];
+    $header = 'MIDX' . chr(1) . chr(1) . chr(count($chunks)) . "\0" . pack('N', count($indexNames));
+    $chunkOffset = strlen($header) + (count($chunks) + 1) * 12;
+    $table = '';
+    $body = '';
+    foreach ($chunks as $id => $chunk) {
+        $table .= $id . $packUInt64($chunkOffset);
+        $body .= $chunk;
+        $chunkOffset += strlen($chunk);
+    }
+    $table .= "\0\0\0\0" . $packUInt64($chunkOffset);
+    $bytes = $header . $table . $body;
+
+    return $bytes . hex2bin(hash('sha1', $bytes));
+};
+
 return [
     'parses common partial clone fetch filter specs' => static function (TestRunner $t): void {
         $blobNone = FetchFilterSpec::parse('blob:none');
@@ -614,6 +692,42 @@ return [
         $t->same('promisor-present', $database->objectState($hydratedBlob->oid())['status']);
         $t->same('pack', $database->readHeader($hydratedBlob->oid())['source']);
         $t->same($hydratedBlob->body, $database->read($hydratedBlob->oid())->body);
+    },
+    'object database skips stale promisor multi-pack-indexes that reference orphan promisor indexes' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackResult, $buildMultiPackIndex): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $database = new ObjectDatabase($gitDir);
+        $packDir = $gitDir . '/objects/pack';
+        $hydratedBlob = new GitObject('blob', 'Hydrated WordPress asset beside stale promisor MIDX metadata');
+        $hydratedPack = PackBuilder::build([$hydratedBlob]);
+        $hydratedPromisor = $writePromisorPackResult($gitDir, $hydratedPack, "valid promisor pack beside stale MIDX\n");
+        $hydratedIndexName = substr($hydratedPromisor, 0, -9) . '.idx';
+        $orphanBlob = new GitObject('blob', 'Interrupted promisor MIDX index without pack bytes');
+        $orphanPack = PackBuilder::build([$orphanBlob]);
+        $orphanBase = 'pack-' . $orphanPack->packChecksum();
+        $orphanIndexName = $orphanBase . '.idx';
+        $orphanPromisorName = $orphanBase . '.promisor';
+
+        file_put_contents($packDir . '/' . $orphanIndexName, $orphanPack->indexBytes());
+        file_put_contents($packDir . '/' . $orphanPromisorName, "stale promisor MIDX orphan\n");
+        file_put_contents($packDir . '/multi-pack-index', $buildMultiPackIndex([
+            $hydratedIndexName => $hydratedPack,
+            $orphanIndexName => $orphanPack,
+        ]));
+
+        $promisorPacks = $database->promisorPackNames();
+        $promisorObjectIds = $database->promisorObjectIds();
+        $hydratedPrefix = $database->lookupPrefix(strtoupper(substr($hydratedBlob->oid(), 0, 12)));
+
+        $t->same(true, in_array($hydratedPromisor, $promisorPacks, true));
+        $t->same(false, in_array($orphanPromisorName, $promisorPacks, true));
+        $t->same(true, in_array($hydratedBlob->oid(), $promisorObjectIds, true));
+        $t->same(false, in_array($orphanBlob->oid(), $promisorObjectIds, true));
+        $t->same('promisor-present', $database->objectState($hydratedBlob->oid())['status']);
+        $t->same('promised-missing', $database->objectState($orphanBlob->oid())['status']);
+        $t->same('found', $hydratedPrefix['status']);
+        $t->same($hydratedBlob->oid(), $hydratedPrefix['oid']);
+        $t->same($hydratedBlob->body, $database->read($hydratedBlob->oid())->body);
+        $t->same('pack', $database->readHeader($hydratedBlob->oid())['source']);
     },
     'object database writes promisor thin pack bundles using alternate bases' => static function (TestRunner $t) use ($writePromisorPackFixture, $buildThinPromisorBlobs): void {
         [$gitDir] = $writePromisorPackFixture();
@@ -1146,6 +1260,16 @@ return [
         $t->same(false, in_array($summary['orphanPromisorObject'], $summary['orphanPromisorObjectIdsAfterRefresh'], true));
         $t->same(false, $summary['orphanPromisorIsPromisor']);
         $t->same('promised-missing', $summary['orphanPromisorState']['status']);
+        $t->same(true, in_array($summary['staleMidxValidPromisorPack'], $summary['staleMidxPromisorPacksAfterRefresh'], true));
+        $t->same(false, in_array($summary['staleMidxOrphanPromisorPack'], $summary['staleMidxPromisorPacksAfterRefresh'], true));
+        $t->same(true, in_array($summary['staleMidxValidObject'], $summary['staleMidxPromisorObjectIdsAfterRefresh'], true));
+        $t->same(false, in_array($summary['staleMidxOrphanObject'], $summary['staleMidxPromisorObjectIdsAfterRefresh'], true));
+        $t->same('promisor-present', $summary['staleMidxValidState']['status']);
+        $t->same('promised-missing', $summary['staleMidxOrphanState']['status']);
+        $t->same('found', $summary['staleMidxPrefix']['status']);
+        $t->same($summary['staleMidxValidObject'], $summary['staleMidxPrefix']['oid']);
+        $t->same(true, $summary['staleMidxValidBodyMatches']);
+        $t->same('pack', $summary['staleMidxValidHeader']['source']);
         $t->same('promised-missing', $summary['refreshNeverReturnedBefore']['status']);
         $t->same([$summary['refreshNeverReturnedObject']], $summary['refreshNeverReturnedRequests']);
         $t->same('present', $summary['refreshNeverReturnedAfter']['status']);

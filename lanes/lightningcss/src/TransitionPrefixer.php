@@ -1370,6 +1370,10 @@ final class TransitionPrefixer
                 '-webkit-' => $targetOptions['printColorAdjustNeedsWebkit'] ?? false,
                 '-moz-' => $targetOptions['printColorAdjustNeedsMoz'] ?? false,
             ],
+            'color-adjust' => [
+                '-webkit-' => $targetOptions['printColorAdjustNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['printColorAdjustNeedsMoz'] ?? false,
+            ],
             'user-select' => [
                 '-webkit-' => $targetOptions['userSelectNeedsWebkit'] ?? false,
                 '-moz-' => $targetOptions['userSelectNeedsMoz'] ?? false,
@@ -6113,10 +6117,16 @@ final class TransitionPrefixer
      */
     private function rewritePrintColorAdjustPrefixEntries(array &$entries, array $targetOptions): bool
     {
-        return $this->rewriteVendorPrefixedDeclarationGroup($entries, 'print-color-adjust', [
+        $printColorAdjustChanged = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'print-color-adjust', [
             '-webkit-' => $targetOptions['printColorAdjustNeedsWebkit'] ?? false,
             '-moz-' => $targetOptions['printColorAdjustNeedsMoz'] ?? false,
         ]);
+        $colorAdjustChanged = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'color-adjust', [
+            '-webkit-' => $targetOptions['printColorAdjustNeedsWebkit'] ?? false,
+            '-moz-' => $targetOptions['printColorAdjustNeedsMoz'] ?? false,
+        ]);
+
+        return $printColorAdjustChanged || $colorAdjustChanged;
     }
 
     /**

@@ -989,6 +989,79 @@ CSS;
             $prefixer->prefixForTargets('@supports ((-webkit-print-color-adjust: exact) or (-moz-print-color-adjust: exact) or (print-color-adjust: exact)) { .foo { -webkit-print-color-adjust: exact; -moz-print-color-adjust: exact; print-color-adjust: exact; } }', ['firefox' => 96])
         );
     },
+    'transition prefixer maps upstream color-adjust target boundary' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-color-adjust:exact;color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { color-adjust: exact; }', ['chrome' => 135])
+        );
+        $t->same(
+            '.foo{color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { color-adjust: exact; }', ['chrome' => 136])
+        );
+        $t->same(
+            '.foo{-moz-color-adjust:exact;color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { color-adjust: exact; }', ['firefox' => 96])
+        );
+        $t->same(
+            '.foo{color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { color-adjust: exact; }', ['firefox' => 97])
+        );
+        $t->same(
+            '.foo{-webkit-color-adjust:exact;color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { color-adjust: exact; }', ['safari' => '15.2'])
+        );
+        $t->same(
+            '.foo{color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { color-adjust: exact; }', ['safari' => '15.3'])
+        );
+        $t->same(
+            '.foo{-webkit-color-adjust:exact;color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { color-adjust: exact; }', ['samsung' => 28])
+        );
+        $t->same(
+            '.foo{color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { color-adjust: exact; }', ['samsung' => 29])
+        );
+        $t->same(
+            '.foo{-webkit-color-adjust:exact;-moz-color-adjust:exact;color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { color-adjust: exact; }', ['chrome' => 135, 'firefox' => 96])
+        );
+        $t->same(
+            '@supports ((-webkit-color-adjust:exact) or (-moz-color-adjust:exact) or (color-adjust:exact)){.foo{-webkit-color-adjust:exact;-moz-color-adjust:exact;color-adjust:exact}}',
+            $prefixer->prefixForTargets('@supports (color-adjust: exact) { .foo { color-adjust: exact; } }', ['chrome' => 135, 'firefox' => 96])
+        );
+    },
+    'transition prefixer prunes stale color-adjust target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $stale = '.foo { -webkit-color-adjust: exact; -moz-color-adjust: exact; color-adjust: exact; }';
+
+        $t->same(
+            '.foo{color-adjust:exact}',
+            $prefixer->prefixForTargets($stale, ['chrome' => 136, 'firefox' => 97])
+        );
+        $t->same(
+            '.foo{-webkit-color-adjust:exact;color-adjust:exact}',
+            $prefixer->prefixForTargets($stale, ['chrome' => 135])
+        );
+        $t->same(
+            '.foo{-moz-color-adjust:exact;color-adjust:exact}',
+            $prefixer->prefixForTargets($stale, ['firefox' => 96])
+        );
+        $t->same(
+            '@supports (color-adjust:exact){.foo{color-adjust:exact}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-color-adjust: exact) or (-moz-color-adjust: exact) or (color-adjust: exact)) { .foo { -webkit-color-adjust: exact; -moz-color-adjust: exact; color-adjust: exact; } }', ['chrome' => 136, 'firefox' => 97])
+        );
+        $t->same(
+            '@supports (-webkit-color-adjust:exact) or (color-adjust:exact){.foo{-webkit-color-adjust:exact;color-adjust:exact}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-color-adjust: exact) or (-moz-color-adjust: exact) or (color-adjust: exact)) { .foo { -webkit-color-adjust: exact; -moz-color-adjust: exact; color-adjust: exact; } }', ['chrome' => 135])
+        );
+        $t->same(
+            '@supports (-moz-color-adjust:exact) or (color-adjust:exact){.foo{-moz-color-adjust:exact;color-adjust:exact}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-color-adjust: exact) or (-moz-color-adjust: exact) or (color-adjust: exact)) { .foo { -webkit-color-adjust: exact; -moz-color-adjust: exact; color-adjust: exact; } }', ['firefox' => 96])
+        );
+    },
     'transition prefixer maps upstream image-rendering pixelated browser boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $css = '.foo { image-rendering: pixelated; }';

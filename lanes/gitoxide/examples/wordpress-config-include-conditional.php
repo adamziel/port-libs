@@ -36,6 +36,8 @@ return [
     'unboundedDoubleStarRejectedPolicy' => $fixture['unboundedDoubleStarRejectedPolicy'],
     'invalidPosixPolicy' => $fixture['invalidPosixPolicy'],
     'unclosedBracketPolicy' => $fixture['unclosedBracketPolicy'],
+    'malformedPosixResumeUrlPolicy' => $fixture['malformedPosixResumeUrlPolicy'],
+    'malformedPosixDoubleColonUrlPolicy' => $fixture['malformedPosixDoubleColonUrlPolicy'],
     'trailingBackslashUrlPolicy' => $fixture['trailingBackslashUrlPolicy'],
     'optionalPrefixPolicy' => $fixture['optionalPrefixPolicy'],
     'tildeAloneGitdirPolicy' => $fixture['tildeAloneGitdirPolicy'],

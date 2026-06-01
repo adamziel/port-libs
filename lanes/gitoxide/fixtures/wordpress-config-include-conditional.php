@@ -155,6 +155,16 @@ $write($repo . '/unclosed-bracket.config', <<<CFG
 unclosedBracket = should-not-load
 CFG);
 
+$write($repo . '/malformed-posix-resume-url.config', <<<CFG
+[wordpress]
+malformedPosixResumeUrl = matched
+CFG);
+
+$write($repo . '/malformed-posix-double-colon-url.config', <<<CFG
+[wordpress]
+malformedPosixDoubleColonUrl = should-not-load
+CFG);
+
 $write($repo . '/trailing-backslash-url.config', <<<CFG
 [wordpress]
 trailingBackslashUrl = should-not-load
@@ -326,6 +336,8 @@ url = https://git.example.test/wp-content/legacy-dot.git
 url = https://git.example.test/wp-content/site-[[:word:]].git
 [remote "unclosed-bracket"]
 url = https://git.example.test/wp-content/site-[.git
+[remote "malformed-posix-resume"]
+url = https://git.example.test/wp-content/site-[ab].git
 [remote "trailing-backslash"]
 url = "{$escapedTrailingBackslashUrl}"
 [includeIf "onbranch:deploy/"]
@@ -380,6 +392,10 @@ path = ../unbounded-double-star.config
 path = ../invalid-posix.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[.git"]
 path = ../unclosed-bracket.config
+[includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[[:digit]ab].git"]
+path = ../malformed-posix-resume-url.config
+[includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[[::]ab].git"]
+path = ../malformed-posix-double-colon-url.config
 [includeIf "hasconfig:remote.*.url:{$escapedTrailingBackslashUrl}"]
 path = ../trailing-backslash-url.config
 [includeIf "gitdir::(optional)wp-content.git/"]
@@ -553,6 +569,8 @@ return [
     'unboundedDoubleStarRejectedPolicy' => $config->value('wordpress', null, 'unboundedDoubleStar'),
     'invalidPosixPolicy' => $config->value('wordpress', null, 'invalidPosix'),
     'unclosedBracketPolicy' => $config->value('wordpress', null, 'unclosedBracket'),
+    'malformedPosixResumeUrlPolicy' => $config->value('wordpress', null, 'malformedPosixResumeUrl'),
+    'malformedPosixDoubleColonUrlPolicy' => $config->value('wordpress', null, 'malformedPosixDoubleColonUrl'),
     'trailingBackslashUrlPolicy' => $config->value('wordpress', null, 'trailingBackslashUrl'),
     'optionalPrefixPolicy' => $config->value('wordpress', null, 'optionalPrefix'),
     'tildeAloneGitdirPolicy' => $config->value('wordpress', null, 'tildeAloneGitdir'),

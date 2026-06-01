@@ -1254,6 +1254,9 @@ final class ObjectDatabase
             $bundlesByIndexName = $bundlesByDirectory[$packDirectory] ?? [];
             foreach ($index->indexNames() as $indexName) {
                 if (!isset($bundlesByIndexName[$indexName])) {
+                    if (self::isOrphanPromisorIndex($packDirectory, $indexName)) {
+                        continue 2;
+                    }
                     throw new \RuntimeException("Pack index referenced by multi-pack-index not found: {$packDirectory}/{$indexName}");
                 }
             }
@@ -1268,6 +1271,18 @@ final class ObjectDatabase
         }
 
         return $this->multiPacks;
+    }
+
+    private static function isOrphanPromisorIndex(string $packDirectory, string $indexName): bool
+    {
+        if (basename($indexName) !== $indexName || !str_ends_with($indexName, '.idx')) {
+            return false;
+        }
+
+        $indexPath = $packDirectory . '/' . $indexName;
+        $basePath = substr($indexPath, 0, -4);
+
+        return is_file($indexPath) && !is_file($basePath . '.pack') && is_file($basePath . '.promisor');
     }
 
     /**

@@ -212,11 +212,48 @@ return [
         $t->same('host.xz', $defaultGitPort->host);
         $t->same('~repo', $defaultGitPort->path);
 
+        $nonDefaultGitPort = (new CredentialContext(url: 'git://HOST.xz:9419/~repo'))->destructureUrl();
+        $t->same('git', $nonDefaultGitPort->protocol);
+        $t->same('host.xz:9419', $nonDefaultGitPort->host);
+        $t->same('~repo', $nonDefaultGitPort->path);
+
+        $defaultHttpPort = (new CredentialContext(url: 'http://example.com:80/wp-content.git'))->destructureUrl(true);
+        $t->same('http', $defaultHttpPort->protocol);
+        $t->same('example.com', $defaultHttpPort->host);
+        $t->same('wp-content.git', $defaultHttpPort->path);
+
+        $nonDefaultHttpPort = (new CredentialContext(url: 'http://example.com:8080/wp-content.git'))->destructureUrl(true);
+        $t->same('http', $nonDefaultHttpPort->protocol);
+        $t->same('example.com:8080', $nonDefaultHttpPort->host);
+        $t->same('wp-content.git', $nonDefaultHttpPort->path);
+
+        $defaultHttpsPort = (new CredentialContext(url: 'https://example.com:443/wp-content.git'))->destructureUrl(true);
+        $t->same('https', $defaultHttpsPort->protocol);
+        $t->same('example.com', $defaultHttpsPort->host);
+        $t->same('wp-content.git', $defaultHttpsPort->path);
+
+        $nonDefaultHttpsPort = (new CredentialContext(url: 'https://example.com:8443/wp-content.git'))->destructureUrl(true);
+        $t->same('https', $nonDefaultHttpsPort->protocol);
+        $t->same('example.com:8443', $nonDefaultHttpsPort->host);
+        $t->same('wp-content.git', $nonDefaultHttpsPort->path);
+
         $sshIpv6 = (new CredentialContext(url: 'ssh://user@[::1]:22/repo'))->destructureUrl();
         $t->same('ssh', $sshIpv6->protocol);
         $t->same('user', $sshIpv6->username);
         $t->same('::1', $sshIpv6->host);
         $t->same('repo', $sshIpv6->path);
+
+        $defaultSshPort = (new CredentialContext(url: 'ssh://git@host.xz:22/repo.git'))->destructureUrl();
+        $t->same('ssh', $defaultSshPort->protocol);
+        $t->same('git', $defaultSshPort->username);
+        $t->same('host.xz', $defaultSshPort->host);
+        $t->same('repo.git', $defaultSshPort->path);
+
+        $sshIpv6NonDefaultPort = (new CredentialContext(url: 'ssh://git@[2001:db8::1]:2222/repo.git'))->destructureUrl();
+        $t->same('ssh', $sshIpv6NonDefaultPort->protocol);
+        $t->same('git', $sshIpv6NonDefaultPort->username);
+        $t->same('2001:db8::1:2222', $sshIpv6NonDefaultPort->host);
+        $t->same('repo.git', $sshIpv6NonDefaultPort->path);
 
         $scpLike = (new CredentialContext(url: 'User@HOST.xz:repo.git'))->destructureUrl();
         $t->same('ssh', $scpLike->protocol);
@@ -402,6 +439,22 @@ return [
             'promptUrl' => 'http://example.com/~byron/hello',
         ], $fixture['emptyUserHttpContext']);
         $t->same([
+            'protocol' => 'https',
+            'host' => 'deploy.example.test',
+            'path' => 'wp-content.git',
+        ], $fixture['defaultPortContext']);
+        $t->same([
+            'protocol' => 'https',
+            'host' => 'deploy.example.test:8443',
+            'path' => 'wp-content.git',
+        ], $fixture['nonDefaultPortContext']);
+        $t->same([
+            'protocol' => 'ssh',
+            'username' => 'deploy',
+            'host' => '2001:db8::1:2222',
+            'path' => 'wp-content.git',
+        ], $fixture['sshNonDefaultPortContext']);
+        $t->same([
             'protocol' => 'file',
             'host' => null,
             'username' => null,
@@ -477,6 +530,9 @@ return [
         $t->same($fixture['httpPathDisabledContext'], $summary['httpPathDisabledContext']);
         $t->same($fixture['passwordOnlyHttpContext'], $summary['passwordOnlyHttpContext']);
         $t->same($fixture['emptyUserHttpContext'], $summary['emptyUserHttpContext']);
+        $t->same($fixture['defaultPortContext'], $summary['defaultPortContext']);
+        $t->same($fixture['nonDefaultPortContext'], $summary['nonDefaultPortContext']);
+        $t->same($fixture['sshNonDefaultPortContext'], $summary['sshNonDefaultPortContext']);
         $t->same($fixture['localRelativeContext'], $summary['localRelativeContext']);
         $t->same($fixture['localAbsoluteWhitespaceContext'], $summary['localAbsoluteWhitespaceContext']);
         $t->same($fixture['localTildeContext'], $summary['localTildeContext']);

@@ -564,6 +564,63 @@ final class DeclarationBlock
         'list-style-image',
         'list-style-type',
     ];
+    private const LIST_STYLE_PREDEFINED_TYPES = [
+        'decimal',
+        'decimal-leading-zero',
+        'arabic-indic',
+        'armenian',
+        'upper-armenian',
+        'lower-armenian',
+        'bengali',
+        'cambodian',
+        'khmer',
+        'cjk-decimal',
+        'devanagari',
+        'georgian',
+        'gujarati',
+        'gurmukhi',
+        'hebrew',
+        'kannada',
+        'lao',
+        'malayalam',
+        'mongolian',
+        'myanmar',
+        'oriya',
+        'persian',
+        'lower-roman',
+        'upper-roman',
+        'tamil',
+        'telugu',
+        'thai',
+        'tibetan',
+        'lower-alpha',
+        'lower-latin',
+        'upper-alpha',
+        'upper-latin',
+        'lower-greek',
+        'hiragana',
+        'hiragana-iroha',
+        'katakana',
+        'katakana-iroha',
+        'disc',
+        'circle',
+        'square',
+        'disclosure-open',
+        'disclosure-closed',
+        'cjk-earthly-branch',
+        'cjk-heavenly-stem',
+        'japanese-informal',
+        'japanese-formal',
+        'korean-hangul-formal',
+        'korean-hanja-informal',
+        'korean-hanja-formal',
+        'simp-chinese-informal',
+        'simp-chinese-formal',
+        'trad-chinese-informal',
+        'trad-chinese-formal',
+        'ethiopic-numeric',
+    ];
+    private const LIST_STYLE_SYMBOLS_TYPES = ['cyclic', 'numeric', 'alphabetic', 'symbolic', 'fixed'];
     private const TEXT_DECORATION_LONGHANDS = [
         'text-decoration-line',
         'text-decoration-thickness',
@@ -8037,6 +8094,13 @@ final class DeclarationBlock
         };
     }
 
+    private function normalizeListStyleShorthandValue(string $value): string
+    {
+        $components = $this->parseListStyleComponents($value);
+
+        return $components === null ? trim($value) : $this->serializeListStyleComponents($components);
+    }
+
     private function normalizeListStyleTypeValue(string $value): string
     {
         $value = trim($value);
@@ -8044,7 +8108,69 @@ final class DeclarationBlock
             return $this->normalizeCssStringToken($value);
         }
 
-        return strtolower($value) === 'none' ? 'none' : $value;
+        $symbols = $this->normalizeListStyleSymbolsTypeValue($value);
+        if ($symbols !== null) {
+            return $symbols;
+        }
+
+        $identifier = $this->readCssIdentifierToken($value, 0);
+        if ($identifier === null || $identifier['end'] !== strlen($value)) {
+            return $value;
+        }
+
+        $lower = strtolower($identifier['name']);
+        if ($lower === 'none' || in_array($lower, self::LIST_STYLE_PREDEFINED_TYPES, true)) {
+            return $lower;
+        }
+
+        return $this->serializeCssIdentifier($identifier['name']);
+    }
+
+    private function normalizeListStyleSymbolsTypeValue(string $value): ?string
+    {
+        $trimmed = trim($value);
+        if (!str_starts_with(strtolower($trimmed), 'symbols(') || substr($trimmed, -1) !== ')') {
+            return null;
+        }
+
+        $inner = trim(substr($trimmed, 8, -1));
+        $tokens = $this->splitWhitespaceTopLevel($inner);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $parts = [];
+        $first = strtolower($tokens[0]);
+        if (in_array($first, self::LIST_STYLE_SYMBOLS_TYPES, true)) {
+            if ($first !== 'symbolic') {
+                $parts[] = $first;
+            }
+            array_shift($tokens);
+        }
+
+        foreach ($tokens as $token) {
+            $parts[] = $this->normalizeListStyleSymbolToken($token);
+        }
+
+        return 'symbols(' . implode(' ', $parts) . ')';
+    }
+
+    private function normalizeListStyleSymbolToken(string $token): string
+    {
+        $token = trim($token);
+        if ($this->isQuotedStringToken($token)) {
+            return $this->normalizeCssStringToken($token);
+        }
+        if (preg_match('/^url\(/i', $token) === 1) {
+            return $this->normalizeCssUrlToken($token);
+        }
+
+        $identifier = $this->readCssIdentifierToken($token, 0);
+        if ($identifier !== null && $identifier['end'] === strlen($token)) {
+            return $this->serializeCssIdentifier($identifier['name']);
+        }
+
+        return $token;
     }
 
     private function normalizeListStyleImageValue(string $value): string
@@ -14278,6 +14404,14 @@ final class DeclarationBlock
         }
         if ($property === 'animation-composition') {
             return $this->normalizeAnimationCompositionList($value);
+        }
+
+        if ($property === 'list-style') {
+            return $this->normalizeListStyleShorthandValue($value);
+        }
+
+        if ($this->isListStyleLonghand($property)) {
+            return $this->normalizeListStyleLonghandValue($property, $value);
         }
 
         $transitionBase = $this->baseTransitionProperty($property);

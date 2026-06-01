@@ -12,6 +12,84 @@ use PortLibs\Gitoxide\PackData;
 use PortLibs\Gitoxide\PackIndex;
 use PortLibs\Gitoxide\PromisorObjectResolver;
 
+$buildMultiPackIndex = static function (array $packs): string {
+    $packUInt64 = static function (int $value): string {
+        if ($value < 0) {
+            throw new RuntimeException('Cannot encode a negative 64-bit integer');
+        }
+
+        return pack('N2', intdiv($value, 4294967296), $value % 4294967296);
+    };
+    $padToFour = static function (string $bytes): string {
+        $padding = (4 - (strlen($bytes) % 4)) % 4;
+
+        return $bytes . str_repeat("\0", $padding);
+    };
+
+    ksort($packs, SORT_STRING);
+    $indexNames = array_keys($packs);
+    $entries = [];
+    foreach ($indexNames as $packIndex => $indexName) {
+        foreach ($packs[$indexName]->entries() as $entry) {
+            $entries[] = [
+                'oid' => $entry['oid'],
+                'packIndex' => $packIndex,
+                'offset' => $entry['offset'],
+            ];
+        }
+    }
+    usort($entries, static fn (array $a, array $b): int => strcmp($a['oid'], $b['oid']));
+
+    $fanout = array_fill(0, 256, 0);
+    foreach ($entries as $entry) {
+        $fanout[hexdec(substr($entry['oid'], 0, 2))]++;
+    }
+    $running = 0;
+    foreach ($fanout as $index => $count) {
+        $running += $count;
+        $fanout[$index] = $running;
+    }
+
+    $packNames = '';
+    foreach ($indexNames as $name) {
+        $packNames .= $name . "\0";
+    }
+    $fanoutBytes = '';
+    foreach ($fanout as $count) {
+        $fanoutBytes .= pack('N', $count);
+    }
+    $oidBytes = '';
+    $offsetBytes = '';
+    foreach ($entries as $entry) {
+        $oid = hex2bin($entry['oid']);
+        if ($oid === false || strlen($oid) !== 20) {
+            throw new RuntimeException('Invalid object id in example multi-pack-index');
+        }
+        $oidBytes .= $oid;
+        $offsetBytes .= pack('N2', $entry['packIndex'], $entry['offset']);
+    }
+
+    $chunks = [
+        'PNAM' => $padToFour($packNames),
+        'OIDF' => $fanoutBytes,
+        'OIDL' => $oidBytes,
+        'OOFF' => $offsetBytes,
+    ];
+    $header = 'MIDX' . chr(1) . chr(1) . chr(count($chunks)) . "\0" . pack('N', count($indexNames));
+    $chunkOffset = strlen($header) + (count($chunks) + 1) * 12;
+    $table = '';
+    $body = '';
+    foreach ($chunks as $id => $chunk) {
+        $table .= $id . $packUInt64($chunkOffset);
+        $body .= $chunk;
+        $chunkOffset += strlen($chunk);
+    }
+    $table .= "\0\0\0\0" . $packUInt64($chunkOffset);
+    $bytes = $header . $table . $body;
+
+    return $bytes . hex2bin(hash('sha1', $bytes));
+};
+
 $fixture = require __DIR__ . '/../fixtures/wordpress-pack-data.php';
 $gitDir = sys_get_temp_dir() . '/port-libs-git-lazy-promisor-' . bin2hex(random_bytes(4)) . '/.git';
 $packDir = $gitDir . '/objects/pack';
@@ -282,6 +360,30 @@ $orphanPromisorObjectIdsAfterRefresh = $database->promisorObjectIds();
 $orphanPromisorIsPromisor = $database->isPromisorObject($orphanBlob->oid());
 $orphanPromisorState = $database->objectState($orphanBlob->oid());
 
+$staleMidxValidBlob = new GitObject('blob', 'WordPress stale MIDX valid promisor pack bytes');
+$staleMidxValidPack = PackBuilder::build([$staleMidxValidBlob]);
+$staleMidxValidWrite = $database->writePromisorPackBundle(
+    $staleMidxValidPack,
+    "WordPress stale promisor MIDX valid pack\n"
+);
+$staleMidxValidIndexName = substr($staleMidxValidWrite['promisorName'], 0, -9) . '.idx';
+$staleMidxOrphanBlob = new GitObject('blob', 'WordPress stale promisor MIDX orphan pack bytes');
+$staleMidxOrphanPack = PackBuilder::build([$staleMidxOrphanBlob]);
+$staleMidxOrphanBase = 'pack-' . $staleMidxOrphanPack->packChecksum();
+file_put_contents($packDir . '/' . $staleMidxOrphanBase . '.idx', $staleMidxOrphanPack->indexBytes());
+file_put_contents($packDir . '/' . $staleMidxOrphanBase . '.promisor', "WordPress stale promisor MIDX orphan\n");
+file_put_contents($packDir . '/multi-pack-index', $buildMultiPackIndex([
+    $staleMidxValidIndexName => $staleMidxValidPack,
+    $staleMidxOrphanBase . '.idx' => $staleMidxOrphanPack,
+]));
+$staleMidxPromisorPacksAfterRefresh = $database->promisorPackNames();
+$staleMidxPromisorObjectIdsAfterRefresh = $database->promisorObjectIds();
+$staleMidxValidState = $database->objectState($staleMidxValidBlob->oid());
+$staleMidxOrphanState = $database->objectState($staleMidxOrphanBlob->oid());
+$staleMidxPrefix = $database->lookupPrefix(strtoupper(substr($staleMidxValidBlob->oid(), 0, 12)));
+$staleMidxValidBodyMatches = $database->read($staleMidxValidBlob->oid())->body === $staleMidxValidBlob->body;
+$staleMidxValidHeader = $database->readHeader($staleMidxValidBlob->oid());
+
 $deepChainStable = '';
 for ($i = 0; $i < 96; $i++) {
     $deepChainStable .= hash('sha1', 'wordpress-deep-promisor-chain-' . $i) . "\n";
@@ -444,6 +546,17 @@ return [
     'orphanPromisorObjectIdsAfterRefresh' => $orphanPromisorObjectIdsAfterRefresh,
     'orphanPromisorIsPromisor' => $orphanPromisorIsPromisor,
     'orphanPromisorState' => $orphanPromisorState,
+    'staleMidxValidObject' => $staleMidxValidBlob->oid(),
+    'staleMidxValidPromisorPack' => $staleMidxValidWrite['promisorName'],
+    'staleMidxOrphanObject' => $staleMidxOrphanBlob->oid(),
+    'staleMidxOrphanPromisorPack' => $staleMidxOrphanBase . '.promisor',
+    'staleMidxPromisorPacksAfterRefresh' => $staleMidxPromisorPacksAfterRefresh,
+    'staleMidxPromisorObjectIdsAfterRefresh' => $staleMidxPromisorObjectIdsAfterRefresh,
+    'staleMidxValidState' => $staleMidxValidState,
+    'staleMidxOrphanState' => $staleMidxOrphanState,
+    'staleMidxPrefix' => $staleMidxPrefix,
+    'staleMidxValidBodyMatches' => $staleMidxValidBodyMatches,
+    'staleMidxValidHeader' => $staleMidxValidHeader,
     'deepChainObjectCount' => count($deepChainObjects),
     'deepChainTargetObject' => $deepChainTargetOid,
     'deepChainTargetPack' => $deepChainWrites[40]['promisorName'],

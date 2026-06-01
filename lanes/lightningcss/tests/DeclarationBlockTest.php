@@ -2397,6 +2397,16 @@ return [
             )
         );
         $t->same(['value' => 'none', 'important' => true], $block->getProperty('list-style: none !important', 'list-style-type'));
+        $t->same(
+            [
+                'list-style-type' => 'upper-roman',
+                'list-style' => 'inside url(marker.svg) square',
+                '--List-Style' => 'Upper-Roman',
+            ],
+            $block->parse('list-style-type: Upper-Roman; list-style: Inside URL("marker.svg") Square; --List-Style: Upper-Roman')
+        );
+        $t->same(['value' => 'symbols("A" "B")', 'important' => false], $block->getProperty('list-style-type: Symbols(Symbolic "A" "B")', 'list-style-type'));
+        $t->same(['value' => 'wp-marker', 'important' => false], $block->getProperty('list-style-type: wp\2d marker', 'list-style-type'));
     },
     'declaration block reads upstream text decoration cssom shorthand and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
@@ -3631,6 +3641,18 @@ return [
         $t->same(
             'list-style: square; list-style-position: inside !important',
             $block->setProperty('list-style: square', 'list-style-position', 'inside', true)
+        );
+        $t->same(
+            'list-style: upper-roman',
+            $block->setProperty('list-style: square', 'list-style-type', 'Upper-Roman')
+        );
+        $t->same(
+            'list-style: symbols("A" "B")',
+            $block->setProperty('list-style: square', 'list-style-type', 'Symbols(Symbolic "A" "B")')
+        );
+        $t->same(
+            'list-style: inside url(marker.svg) square',
+            $block->setProperty('list-style: disc', 'list-style', 'Inside URL("marker.svg") Square')
         );
     },
     'declaration block sets upstream text decoration cssom longhands in existing shorthand' => static function (TestRunner $t): void {

@@ -594,6 +594,151 @@ final class SQLiteRealPagerBoundaryPlan
         return $rows;
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function peerLockJournalCleanupRows(int $count = 1000): array
+    {
+        if ($count < 1) {
+            throw new \InvalidArgumentException('SQLite pager peer-lock journal cleanup corpus row count must be positive');
+        }
+
+        $phases = ['wal-exclusive-peer-open', 'persist-delete-peer-writer', 'persist-delete-open-blob'];
+        $pageSizes = [512, 1024, 2048, 4096, 8192];
+        $rows = [];
+
+        for ($case = 1; $case <= $count; $case++) {
+            $phase = $phases[($case - 1) % count($phases)];
+            $pageSize = $pageSizes[intdiv($case - 1, count($phases)) % count($pageSizes)];
+            $payloadBytes = 96 + (($case * 37) % 700);
+            $journalPages = 1 + (($case * 11) % 6);
+            $baseRow = ['a-' . $case, 'b-' . (($case * 3) % 97)];
+            $retryRow = ['c-' . $case, 'd-' . (($case * 5) % 101)];
+            $peerRow = ['e-' . $case, 'f-' . (($case * 7) % 103)];
+
+            $row = [
+                'case' => $case,
+                'script' => 'pager1.test',
+                'page_size' => $pageSize,
+                'payload_bytes' => $payloadBytes,
+                'journal_pages_before_cleanup' => $journalPages,
+                'journal_bytes_before_cleanup' => 28 + ($journalPages * ($pageSize + 8)),
+                'initial_rows' => [$baseRow],
+                'retry_row' => $retryRow,
+                'peer_row' => $peerRow,
+                'pragma_result' => 'delete',
+                'integrity_check_after_final_commit' => 'ok',
+                'source' => 'pager1.test pager1-28.* peer locking and deferred PERSIST to DELETE journal cleanup',
+                'dependencies' => [
+                    'real-upstream-corpus-pager1',
+                    'sqlite-pager-peer-lock-boundary',
+                    'sqlite-pager-persist-delete-deferred-cleanup',
+                ],
+            ];
+
+            if ($phase === 'wal-exclusive-peer-open') {
+                $rows[] = array_merge($row, [
+                    'section' => 'pager1-28.1..28.4',
+                    'upstream' => sprintf('pager1.test pager1-28.1..28.4 WAL exclusive peer-open dynamic case %04d', $case),
+                    'phase' => $phase,
+                    'journal_mode_before' => 'wal',
+                    'locking_mode_request' => 'exclusive',
+                    'locking_mode_result' => 'exclusive',
+                    'peer_connection_open' => true,
+                    'peer_read_rows' => [$baseRow],
+                    'begin_write_allowed_with_peer' => false,
+                    'begin_write_error' => 'database is locked',
+                    'retry_after_peer_reopen_allowed' => true,
+                    'journal_exists_before_cleanup' => false,
+                    'journal_exists_after_pragma' => false,
+                    'journal_exists_after_peer_commit' => false,
+                    'wal_frames_before_retry' => 2 + ($case % 7),
+                    'wal_frames_after_retry' => 3 + ($case % 7),
+                    'final_rows' => [$baseRow, $retryRow],
+                    'lock_sequence' => [
+                        'client1:wal:exclusive-request',
+                        'client2:reader:shared',
+                        'client1:begin-write:blocked',
+                        'client2:close-reopen',
+                        'client1:begin-write:ok',
+                        'client1:commit:ok',
+                    ],
+                    'dependencies' => array_merge($row['dependencies'], [
+                        'sqlite-wal-exclusive-peer-open',
+                        'sqlite-pager-locking-mode-exclusive',
+                    ]),
+                ]);
+                continue;
+            }
+
+            if ($phase === 'persist-delete-peer-writer') {
+                $rows[] = array_merge($row, [
+                    'section' => 'pager1-28.5..28.12',
+                    'upstream' => sprintf('pager1.test pager1-28.5..28.12 PERSIST delete deferred by peer writer dynamic case %04d', $case),
+                    'phase' => $phase,
+                    'journal_mode_before' => 'persist',
+                    'journal_mode_after_pragma' => 'delete',
+                    'peer_reserved_lock' => true,
+                    'open_blob_reader' => false,
+                    'can_obtain_reserved_lock_for_cleanup' => false,
+                    'journal_exists_before_cleanup' => true,
+                    'journal_exists_after_pragma' => true,
+                    'peer_commit_allowed_before_reader_close' => true,
+                    'peer_commit_error' => null,
+                    'journal_exists_after_peer_commit' => false,
+                    'final_rows' => [$baseRow, $peerRow],
+                    'lock_sequence' => [
+                        'client1:persist:journal-created',
+                        'client2:begin-write:reserved',
+                        'client1:pragma-delete:cleanup-deferred',
+                        'client2:commit:ok',
+                        'pager:delete-stale-journal',
+                    ],
+                    'dependencies' => array_merge($row['dependencies'], [
+                        'sqlite-pager-persist-delete-writer-deferred',
+                        'sqlite-pager-reserved-lock-cleanup',
+                    ]),
+                ]);
+                continue;
+            }
+
+            $rows[] = array_merge($row, [
+                'section' => 'pager1-28.13..28.20',
+                'upstream' => sprintf('pager1.test pager1-28.13..28.20 PERSIST delete deferred by blob reader dynamic case %04d', $case),
+                'phase' => $phase,
+                'journal_mode_before' => 'persist',
+                'journal_mode_after_pragma' => 'delete',
+                'peer_reserved_lock' => true,
+                'open_blob_reader' => true,
+                'blob_read_result' => 'c',
+                'can_obtain_reserved_lock_for_cleanup' => false,
+                'journal_exists_before_cleanup' => true,
+                'journal_exists_after_pragma' => true,
+                'peer_commit_allowed_before_reader_close' => false,
+                'peer_commit_error' => 'database is locked',
+                'journal_exists_after_peer_commit' => false,
+                'final_rows' => [$baseRow, $peerRow],
+                'lock_sequence' => [
+                    'client1:blob-reader:open',
+                    'client1:persist:journal-created',
+                    'client2:begin-write:reserved',
+                    'client1:pragma-delete:cleanup-deferred',
+                    'client2:commit:blocked',
+                    'client1:blob-reader:read-c',
+                    'client1:blob-reader:close',
+                    'client2:commit:ok',
+                    'pager:delete-stale-journal',
+                ],
+                'dependencies' => array_merge($row['dependencies'], [
+                    'sqlite-pager-persist-delete-blob-reader-deferred',
+                    'sqlite-pager-incremental-blob-lock-boundary',
+                ]),
+            ]);
+        }
+
+        return $rows;
+    }
+
     private static function align(int $value, int $boundary): int
     {
         return intdiv($value + $boundary - 1, $boundary) * $boundary;
