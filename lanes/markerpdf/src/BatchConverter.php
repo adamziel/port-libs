@@ -260,6 +260,116 @@ final class BatchConverter
     }
 
     /**
+     * Native review boundary for convert.py::process_single_pdf preflight.
+     *
+     * Upstream checks marker.output::markdown_exists first, then applies the
+     * optional --min_length gate through marker.pdf.utils::find_filetype and
+     * marker.pdf.extract_text::get_length_of_text before loading models or
+     * saving Markdown. This records the same decision without invoking the
+     * supplied converter, Python workers, pdftext, pypdfium, or external tools.
+     *
+     * @param array{filepath: string, out_folder: string, metadata?: array<string, mixed>|null, min_length?: int|null} $task
+     * @return array<string, mixed>
+     */
+    public function processTaskPreflightPlan(array $task, ?callable $textLength = null): array
+    {
+        return $this->processFilePreflightPlan(
+            $task['filepath'],
+            $task['out_folder'],
+            $task['metadata'] ?? null,
+            $task['min_length'] ?? null,
+            $textLength
+        );
+    }
+
+    /**
+     * @param array<string, mixed>|null $metadata
+     * @return array<string, mixed>
+     */
+    public function processFilePreflightPlan(
+        string $filepath,
+        string $outputFolder,
+        ?array $metadata,
+        ?int $minLength,
+        ?callable $textLength = null
+    ): array {
+        $filename = basename($filepath);
+        $metadataKeys = $metadata === null ? [] : array_values(array_filter(array_keys($metadata), 'is_string'));
+        sort($metadataKeys, SORT_STRING);
+
+        $base = [
+            'schema' => 'markerpdf.convert_process_single_pdf_preflight.v1',
+            'source' => 'sddai/markerPDF convert.py::process_single_pdf + marker.output::markdown_exists + marker.pdf.utils::find_filetype + marker.pdf.extract_text::get_length_of_text',
+            'filename' => $filename,
+            'filepath' => $filepath,
+            'out_folder' => $outputFolder,
+            'metadata_keys' => $metadataKeys,
+            'min_length' => $minLength,
+            'preflight_order' => ['markdown_exists', 'find_filetype', 'get_length_of_text', 'convert_single_pdf', 'save_markdown'],
+            'existing_markdown' => $this->writer->markdownExists($outputFolder, $filename),
+            'filetype_checked' => false,
+            'filetype' => null,
+            'text_length_checked' => false,
+            'text_length' => null,
+            'skip_reason' => null,
+            'should_invoke_converter' => false,
+            'should_save_markdown_after_nonempty_output' => false,
+            'conversion_call' => [
+                'function' => 'convert_single_pdf',
+                'metadata_argument_source' => 'metadata_file basename lookup',
+                'receives_metadata' => $metadata !== null,
+            ],
+            'review_only' => true,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+
+        if ($base['existing_markdown']) {
+            return [
+                ...$base,
+                'status' => 'skipped-existing',
+                'skip_reason' => 'markdown_exists',
+            ];
+        }
+
+        if ($minLength !== null && $minLength > 0) {
+            $filetype = $this->filetypeDetector->findFiletype($filepath);
+            $base['filetype_checked'] = true;
+            $base['filetype'] = $filetype;
+
+            if ($filetype === 'other') {
+                return [
+                    ...$base,
+                    'status' => 'skipped-unsupported-filetype',
+                    'skip_reason' => 'unsupported-filetype',
+                ];
+            }
+
+            $length = $textLength === null
+                ? $this->embeddedTextLength($filepath)
+                : (int) $textLength($filepath);
+            $base['text_length_checked'] = true;
+            $base['text_length'] = $length;
+
+            if ($length < $minLength) {
+                return [
+                    ...$base,
+                    'status' => 'skipped-short-text',
+                    'skip_reason' => 'short-text',
+                ];
+            }
+        }
+
+        return [
+            ...$base,
+            'status' => 'ready-for-conversion',
+            'should_invoke_converter' => true,
+            'should_save_markdown_after_nonempty_output' => true,
+        ];
+    }
+
+    /**
      * @param array<string, mixed>|null $metadata
      * @return array<string, mixed>
      */
@@ -272,37 +382,22 @@ final class BatchConverter
         ?callable $textLength = null
     ): array {
         $filename = basename($filepath);
+        $preflight = $this->processFilePreflightPlan($filepath, $outputFolder, $metadata, $minLength, $textLength);
 
-        if ($this->writer->markdownExists($outputFolder, $filename)) {
-            return $this->result('skipped-existing', $filepath, ['filename' => $filename]);
-        }
-
-        if ($minLength !== null && $minLength > 0) {
-            $filetype = $this->filetypeDetector->findFiletype($filepath);
-            if ($filetype === 'other') {
-                return $this->result('skipped-unsupported-filetype', $filepath, [
-                    'filename' => $filename,
-                    'filetype' => $filetype,
-                ]);
-            }
-
-            $length = $textLength === null
-                ? $this->embeddedTextLength($filepath)
-                : (int) $textLength($filepath);
-            if ($length < $minLength) {
-                return $this->result('skipped-short-text', $filepath, [
-                    'filename' => $filename,
-                    'filetype' => $filetype,
-                    'text_length' => $length,
-                    'min_length' => $minLength,
-                ]);
-            }
+        if ($preflight['status'] !== 'ready-for-conversion') {
+            return $this->result((string) $preflight['status'], $filepath, [
+                'filename' => $filename,
+                'filetype' => $preflight['filetype'],
+                'text_length' => $preflight['text_length'],
+                'min_length' => $minLength,
+                'preflight' => $preflight,
+            ]);
         }
 
         try {
             $conversion = $this->normalizeConversion($converter($filepath, $metadata));
             if (trim($conversion['text']) === '') {
-                return $this->result('skipped-empty-output', $filepath, ['filename' => $filename]);
+                return $this->result('skipped-empty-output', $filepath, ['filename' => $filename, 'preflight' => $preflight]);
             }
 
             $subfolder = $this->writer->saveMarkdown(
@@ -318,6 +413,7 @@ final class BatchConverter
                 'error' => $throwable->getMessage(),
                 'error_output' => $this->conversionErrorOutput($filepath, $throwable),
                 'writes_markdown' => false,
+                'preflight' => $preflight,
                 'executes_python_or_models' => false,
                 'executes_external_pdf_tools' => false,
             ]);
@@ -328,6 +424,7 @@ final class BatchConverter
             'output_folder' => $subfolder,
             'markdown' => $this->writer->getMarkdownFilepath($outputFolder, $filename),
             'images' => array_keys($conversion['images']),
+            'preflight' => $preflight,
         ]);
     }
 

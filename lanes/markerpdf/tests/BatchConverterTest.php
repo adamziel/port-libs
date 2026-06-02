@@ -118,6 +118,116 @@ return [
             $removeTree($output);
         }
     },
+    'reviews convert.py process_single_pdf preflight order before converter invocation' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePdf): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            $writePdf($input . DIRECTORY_SEPARATOR . 'existing.pdf', 'Already converted');
+            $writePdf($input . DIRECTORY_SEPARATOR . 'short.pdf', 'Short native text');
+            $writePdf($input . DIRECTORY_SEPARATOR . 'ready.pdf', 'Ready native text for model conversion');
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'archive.pdf', "PK\x03\x04not a pdf");
+
+            (new OutputWriter())->saveMarkdown($output, 'existing.pdf', 'old output', [], []);
+
+            $lengthCalls = [];
+            $textLength = static function (string $filepath) use (&$lengthCalls): int {
+                $lengthCalls[] = basename($filepath);
+
+                return basename($filepath) === 'short.pdf' ? 12 : 120;
+            };
+            $batch = new BatchConverter();
+
+            $existing = $batch->processTaskPreflightPlan([
+                'filepath' => $input . DIRECTORY_SEPARATOR . 'existing.pdf',
+                'out_folder' => $output,
+                'metadata' => ['title' => 'Already Imported'],
+                'min_length' => 50,
+            ], $textLength);
+            $archive = $batch->processFilePreflightPlan($input . DIRECTORY_SEPARATOR . 'archive.pdf', $output, null, 50, $textLength);
+            $short = $batch->processFilePreflightPlan($input . DIRECTORY_SEPARATOR . 'short.pdf', $output, ['languages' => ['English']], 50, $textLength);
+            $ready = $batch->processFilePreflightPlan($input . DIRECTORY_SEPARATOR . 'ready.pdf', $output, ['languages' => ['English'], 'title' => 'Ready'], 50, $textLength);
+
+            $t->same('markerpdf.convert_process_single_pdf_preflight.v1', $ready['schema']);
+            $t->contains('convert.py::process_single_pdf', $ready['source']);
+            $t->same(['markdown_exists', 'find_filetype', 'get_length_of_text', 'convert_single_pdf', 'save_markdown'], $ready['preflight_order']);
+            $t->same('skipped-existing', $existing['status']);
+            $t->same('markdown_exists', $existing['skip_reason']);
+            $t->same(true, $existing['existing_markdown']);
+            $t->same(false, $existing['filetype_checked']);
+            $t->same(false, $existing['text_length_checked']);
+            $t->same(false, $existing['should_invoke_converter']);
+            $t->same(['title'], $existing['metadata_keys']);
+            $t->same('skipped-unsupported-filetype', $archive['status']);
+            $t->same('other', $archive['filetype']);
+            $t->same(true, $archive['filetype_checked']);
+            $t->same(false, $archive['text_length_checked']);
+            $t->same('unsupported-filetype', $archive['skip_reason']);
+            $t->same('skipped-short-text', $short['status']);
+            $t->same('pdf', $short['filetype']);
+            $t->same(12, $short['text_length']);
+            $t->same('short-text', $short['skip_reason']);
+            $t->same(false, $short['should_invoke_converter']);
+            $t->same('ready-for-conversion', $ready['status']);
+            $t->same('pdf', $ready['filetype']);
+            $t->same(120, $ready['text_length']);
+            $t->same(null, $ready['skip_reason']);
+            $t->same(true, $ready['should_invoke_converter']);
+            $t->same(true, $ready['should_save_markdown_after_nonempty_output']);
+            $t->same(['languages', 'title'], $ready['metadata_keys']);
+            $t->same(true, $ready['conversion_call']['receives_metadata']);
+            $t->same(['short.pdf', 'ready.pdf'], $lengthCalls);
+            $t->same(false, $ready['executes_python_or_models']);
+            $t->same(false, $ready['executes_multiprocessing']);
+            $t->same(false, $ready['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'carries process_single_pdf preflight metadata into conversion and skip results' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePdf): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            $writePdf($input . DIRECTORY_SEPARATOR . 'ready.pdf', 'Ready native text for conversion');
+            $writePdf($input . DIRECTORY_SEPARATOR . 'empty.pdf', 'Empty native text for conversion');
+
+            $batch = new BatchConverter();
+            $converted = $batch->processFile(
+                $input . DIRECTORY_SEPARATOR . 'ready.pdf',
+                $output,
+                ['title' => 'Ready Import'],
+                20,
+                static fn (): array => [
+                    'text' => '<!-- wp:paragraph --><p>Ready import</p><!-- /wp:paragraph -->',
+                    'images' => [],
+                    'metadata' => ['title' => 'Ready Import'],
+                ],
+                static fn (): int => 120
+            );
+            $empty = $batch->processFile(
+                $input . DIRECTORY_SEPARATOR . 'empty.pdf',
+                $output,
+                null,
+                20,
+                static fn (): array => ['', [], []],
+                static fn (): int => 120
+            );
+
+            $t->same('converted', $converted['status']);
+            $t->same('ready-for-conversion', $converted['preflight']['status']);
+            $t->same(true, $converted['preflight']['should_invoke_converter']);
+            $t->same(true, $converted['preflight']['should_save_markdown_after_nonempty_output']);
+            $t->same(['title'], $converted['preflight']['metadata_keys']);
+            $t->same(false, $converted['preflight']['executes_python_or_models']);
+            $t->same('skipped-empty-output', $empty['status']);
+            $t->same('ready-for-conversion', $empty['preflight']['status']);
+            $t->same(true, $empty['preflight']['should_invoke_converter']);
+            $t->same(false, is_file($output . DIRECTORY_SEPARATOR . 'empty' . DIRECTORY_SEPARATOR . 'empty.md'));
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'saves non-empty upstream tuple conversion output and skips empty output' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePdf): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

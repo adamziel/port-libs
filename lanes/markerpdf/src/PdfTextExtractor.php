@@ -183,6 +183,92 @@ final class PdfTextExtractor
     }
 
     /**
+     * Native review boundary for page resource image XObjects.
+     *
+     * Upstream markerPDF gets page text from pdftext/PDFium text pages, while
+     * image XObjects are rendered separately through marker.pdf.images and
+     * converted to RGB. This exposes image-resource metadata for WordPress
+     * review without promoting raster payload bytes into visible paragraphs.
+     *
+     * @return array{
+     *     source: string,
+     *     review_only: true,
+     *     encrypted: bool,
+     *     page_count: int,
+     *     image_xobject_count: int,
+     *     invoked_image_xobject_count: int,
+     *     uninvoked_image_xobject_count: int,
+     *     entries: list<array<string, mixed>>,
+     *     executes_python_or_models: false,
+     *     executes_external_pdf_tools: false
+     * }
+     */
+    public function extractImageXObjectBoundaryReview(string $pdfBytes): array
+    {
+        $review = [
+            'source' => 'pdf_image_xobject_boundary_review',
+            'review_only' => true,
+            'encrypted' => $this->hasEncryptedTrailer($pdfBytes),
+            'page_count' => 0,
+            'image_xobject_count' => 0,
+            'invoked_image_xobject_count' => 0,
+            'uninvoked_image_xobject_count' => 0,
+            'entries' => [],
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+
+        if ($review['encrypted']) {
+            return $review;
+        }
+
+        $objects = $this->pdfObjects($pdfBytes);
+        $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
+        $review['page_count'] = count($pageObjectNumbers);
+
+        foreach ($pageObjectNumbers as $pageIndex => $pageObjectNumber) {
+            if (!isset($objects[$pageObjectNumber])) {
+                continue;
+            }
+
+            $resourceDictionary = $this->pageResourceDictionaryBody($pageObjectNumber, $objects);
+            if ($resourceDictionary === null) {
+                continue;
+            }
+
+            $xObjectMap = $this->xObjectResourceObjectNumbers($resourceDictionary, $objects);
+            if ($xObjectMap === []) {
+                continue;
+            }
+
+            $invocations = $this->pageXObjectInvocationCounts($objects[$pageObjectNumber], $objects);
+            foreach ($xObjectMap as $resourceName => $objectNumber) {
+                $entry = $this->imageXObjectBoundaryEntry(
+                    $pageIndex,
+                    $pageObjectNumber,
+                    $resourceName,
+                    $objectNumber,
+                    $invocations[$resourceName] ?? 0,
+                    $objects
+                );
+                if ($entry === null) {
+                    continue;
+                }
+
+                $review['entries'][] = $entry;
+                $review['image_xobject_count']++;
+                if ($entry['invoked']) {
+                    $review['invoked_image_xobject_count']++;
+                } else {
+                    $review['uninvoked_image_xobject_count']++;
+                }
+            }
+        }
+
+        return $review;
+    }
+
+    /**
      * Review xref-stream type-2 object-stream member indexes before WordPress
      * text import. A zero-width third /W field has a strict default index of 0
      * in PDFium, while this native fallback can recover by object number for
@@ -3136,6 +3222,125 @@ final class PdfTextExtractor
         }
 
         return $resourceObjects;
+    }
+
+    /**
+     * @return array<string, int>
+     * @param array<int, string> $objects
+     */
+    private function pageXObjectInvocationCounts(string $pageBody, array $objects): array
+    {
+        $invocations = [];
+        foreach ($this->pageContentObjectNumbers($pageBody, $objects) as $contentObjectNumber) {
+            if (!isset($objects[$contentObjectNumber])) {
+                continue;
+            }
+
+            $decoded = $this->decodeStreamObject($objects[$contentObjectNumber], $objects);
+            if ($decoded === null) {
+                continue;
+            }
+
+            $operands = [];
+            foreach ($this->contentTokens($decoded) as $token) {
+                if ($token === 'Do') {
+                    $resourceName = $this->xObjectNameOperand($operands);
+                    if ($resourceName !== null) {
+                        $invocations[$resourceName] = ($invocations[$resourceName] ?? 0) + 1;
+                    }
+                    $operands = [];
+                    continue;
+                }
+
+                if ($this->isOperator($token)) {
+                    $operands = [];
+                    continue;
+                }
+
+                $operands[] = $token;
+            }
+        }
+
+        return $invocations;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     * @param array<int, string> $objects
+     */
+    private function imageXObjectBoundaryEntry(
+        int $pageIndex,
+        int $pageObjectNumber,
+        string $resourceName,
+        int $objectNumber,
+        int $invocationCount,
+        array $objects
+    ): ?array {
+        if (!isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        $stream = $this->streamDictionaryAndPayload($objects[$objectNumber], $objects);
+        if ($stream === null || !$this->isImageStreamDictionary($stream['dict'], $objects)) {
+            return null;
+        }
+
+        $filters = $this->streamFilters($stream['dict'], $objects);
+        $resolvedFilters = $filters === null
+            ? []
+            : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        $previewOnlyFilters = $this->previewOnlyImageXObjectFilters($resolvedFilters);
+        $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
+        $colorSpace = $this->imageColorSpaceFamily($stream['dict'], $objects);
+        $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
+            $stream['dict'],
+            'BitsPerComponent',
+            $objects
+        );
+        $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
+
+        return [
+            'page_index' => $pageIndex,
+            'page_object' => $pageObjectNumber,
+            'resource_name' => $resourceName,
+            'object_number' => $objectNumber,
+            'invoked' => $invocationCount > 0,
+            'invocation_count' => $invocationCount,
+            'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
+            'width' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
+            'height' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
+            'color_space' => $colorSpace,
+            'bits_per_component' => $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent,
+            'image_mask' => $imageMask,
+            'soft_mask_object' => $this->objectReferenceValueAfterName($stream['dict'], 'SMask'),
+            'filters_resolved' => $filters !== null,
+            'filters' => $resolvedFilters,
+            'preview_only_filters' => $previewOnlyFilters,
+            'native_raster_decode' => $previewOnlyFilters === [],
+            'raw_length' => strlen($stream['stream']),
+            'decoded_with_current_filters' => $decoded !== null,
+            'decoded_length' => $decoded === null ? null : strlen($decoded),
+            'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+            'payload_in_visible_text' => false,
+            'rgb_preview_boundary' => 'marker.pdf.images.render_image',
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param list<string> $filters
+     * @return list<string>
+     */
+    private function previewOnlyImageXObjectFilters(array $filters): array
+    {
+        return array_values(array_filter(
+            $filters,
+            static fn (string $filter): bool => in_array(
+                $filter,
+                ['DCTDecode', 'DCT', 'CCITTFaxDecode', 'CCF', 'JPXDecode', 'JBIG2Decode'],
+                true
+            )
+        ));
     }
 
     /**
@@ -16201,7 +16406,100 @@ final class PdfTextExtractor
             $widthMap['map'] = $cidMap;
         }
 
+        $zeroPaddedKeys = $this->zeroPaddedSourceKeysForFontWidths($hex, $widthMap, $toUnicodeMap);
+        if ($zeroPaddedKeys !== []) {
+            return $zeroPaddedKeys;
+        }
+
         return $this->textOperandSourceKeys($hex, $widthMap);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function zeroPaddedSourceKeysForFontWidths(string $hex, array $widthMap, array $toUnicodeMap): array
+    {
+        $codeSpaceRanges = $widthMap['codeSpaceRanges'] ?? [];
+        if (is_array($codeSpaceRanges) && $codeSpaceRanges !== []) {
+            return [];
+        }
+
+        $mappings = $widthMap['map'] ?? [];
+        if (!is_array($mappings) || $mappings === []) {
+            return [];
+        }
+
+        $keyLengths = array_values(array_unique(array_map('strlen', array_keys($mappings))));
+        rsort($keyLengths, SORT_NUMERIC);
+        if ($keyLengths === []) {
+            return [];
+        }
+
+        $normalized = $this->normalizeHexKey($hex);
+        if ($normalized === '') {
+            return [];
+        }
+
+        $keys = [];
+        $collapsed = false;
+        $offset = 0;
+        $length = strlen($normalized);
+        while ($offset < $length) {
+            $matched = false;
+            foreach ($keyLengths as $keyLength) {
+                if ($keyLength <= 0 || $offset + $keyLength > $length) {
+                    continue;
+                }
+
+                $exact = substr($normalized, $offset, $keyLength);
+                if (array_key_exists($exact, $mappings)) {
+                    $keys[] = $exact;
+                    $offset += $keyLength;
+                    $matched = true;
+                    break;
+                }
+
+                if (
+                    preg_match('/^(?:00)+$/', $exact) !== 1
+                    || $offset + ($keyLength * 2) > $length
+                ) {
+                    continue;
+                }
+
+                $suffix = substr($normalized, $offset + $keyLength, $keyLength);
+                if (!array_key_exists($suffix, $mappings)) {
+                    continue;
+                }
+
+                $combined = substr($normalized, $offset, $keyLength * 2);
+                if (!$this->fontWidthMapContainsCid(hexdec($combined), $toUnicodeMap)) {
+                    continue;
+                }
+
+                $keys[] = $combined;
+                $offset += $keyLength * 2;
+                $matched = true;
+                $collapsed = true;
+                break;
+            }
+
+            if (!$matched) {
+                return [];
+            }
+        }
+
+        return $collapsed ? $keys : [];
+    }
+
+    private function fontWidthMapContainsCid(int $cid, array $toUnicodeMap): bool
+    {
+        $cidWidths = $toUnicodeMap['cidWidths'] ?? [];
+        if (is_array($cidWidths) && array_key_exists($cid, $cidWidths)) {
+            return true;
+        }
+
+        $cidSet = $toUnicodeMap['cidSet'] ?? [];
+        return is_array($cidSet) && isset($cidSet[$cid]);
     }
 
     /**

@@ -29,6 +29,27 @@ $pdftextPage = static function (int $page, string $text, float $top = 72.0): arr
     ];
 };
 
+$pdftextLinesPage = static function (int $page, array $lines): array {
+    return [
+        'page' => $page,
+        'bbox' => [0.0, 0.0, 612.0, 792.0],
+        'rotation' => 0,
+        'blocks' => [[
+            'lines' => array_map(
+                static fn (array $line): array => [
+                    'bbox' => $line['bbox'],
+                    'spans' => [[
+                        'text' => $line['text'],
+                        'bbox' => $line['bbox'],
+                        'font' => ['name' => 'Times-Roman', 'flags' => null, 'weight' => 400, 'size' => 11.0],
+                    ]],
+                ],
+                $lines
+            ),
+        ]],
+    ];
+};
+
 return [
     'slices supplied pdftext dictionary pages like upstream get_text_blocks' => static function (TestRunner $t) use ($pdftextPage): void {
         $toc = [
@@ -111,5 +132,54 @@ return [
         $t->same(1, count($blocks));
         $t->same('Shared-hosting document conversion', $blocks[0]['text']);
         $t->same(1, $blocks[0]['pnum']);
+    },
+    'applies supplied layout order to selected pdftext dictionary pages before WordPress merge' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(3, [
+                    ['text' => 'Skipped cover page', 'bbox' => [72.0, 80.0, 260.0, 94.0]],
+                ]),
+                $pdftextLinesPage(4, [
+                    ['text' => 'Second selected column', 'bbox' => [330.0, 112.0, 540.0, 126.0]],
+                    ['text' => 'First selected column', 'bbox' => [72.0, 112.0, 270.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 286.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 560.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: ['selected-rendered-page'],
+            maxPages: 1,
+            startPage: 1,
+            toc: [['title' => 'Selected import', 'level' => 1, 'page_index' => 4]]
+        );
+
+        $processor = new MarkdownPostProcessor();
+        $blocks = $processor->mergeBlocks($processor->mergeSpans($result['pages']));
+
+        $t->same([1], $result['page_range']);
+        $t->same(4, $result['pages'][0]['pnum']);
+        $t->same('0_0', $result['pages'][0]['blocks'][1]['lines'][0]['spans'][0]['span_id']);
+        $t->same(['First selected column', 'Second selected column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First selected column Second selected column', $blocks[0]['text']);
+        $t->same(['pdftext-dictionary', 'layout-order'], $result['metadata']['supplied_boundaries']);
+        $t->same([
+            'image_count' => 1,
+            'page_count' => 1,
+            'layout_bbox_counts' => [0],
+            'requested_bboxes' => [[]],
+            'order_result_count' => 1,
+            'assigned_pages' => 1,
+            'batch_size' => 6,
+            'order_max_bboxes' => 255,
+        ], $result['metadata']['order_plan']);
     },
 ];

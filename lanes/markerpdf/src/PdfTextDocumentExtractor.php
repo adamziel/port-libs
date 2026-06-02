@@ -88,4 +88,59 @@ final class PdfTextDocumentExtractor
             'page_range' => $pageRange,
         ];
     }
+
+    /**
+     * Native supplied-data bridge across marker.pdf.extract_text::get_text_blocks
+     * and marker.layout.order::sort_blocks_in_reading_order.
+     *
+     * Upstream trims the PDFium document to the selected page range before
+     * rendering layout/order images, then zips ordering predictions with the
+     * relative pdftext pages. This helper preserves that boundary for callers
+     * that already have pdftext dictionaries and supplied order-model output.
+     *
+     * @param list<array<string, mixed>> $pdftextPages
+     * @param list<array<string, mixed>> $orderResults
+     * @param list<mixed> $orderImages
+     * @param list<array<string, mixed>> $toc
+     * @return array{
+     *     pages: list<array<string, mixed>>,
+     *     toc: list<array<string, mixed>>,
+     *     metadata: array<string, mixed>,
+     *     page_range: list<int>
+     * }
+     */
+    public function getOrderedTextBlocks(
+        array $pdftextPages,
+        array $orderResults,
+        array $orderImages = [],
+        ?int $maxPages = null,
+        ?int $startPage = null,
+        array $toc = [],
+        bool $flattenPdf = false,
+        ?int $workers = null,
+        float $batchMultiplier = 1.0,
+        ?LayoutOrderer $orderer = null
+    ): array {
+        $document = $this->getTextBlocks(
+            $pdftextPages,
+            maxPages: $maxPages,
+            startPage: $startPage,
+            toc: $toc,
+            flattenPdf: $flattenPdf,
+            workers: $workers
+        );
+        $orderer ??= new LayoutOrderer();
+
+        $ordered = $orderer->runWithSuppliedOrder(
+            $orderImages,
+            $document['pages'],
+            $orderResults,
+            $batchMultiplier
+        );
+        $document['pages'] = $orderer->sortBlocksInReadingOrder($ordered['pages']);
+        $document['metadata']['order_plan'] = $ordered['plan'];
+        $document['metadata']['supplied_boundaries'] = ['pdftext-dictionary', 'layout-order'];
+
+        return $document;
+    }
 }

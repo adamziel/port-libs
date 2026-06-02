@@ -157,6 +157,7 @@ final class PdfMetadataExtractor
      *     document_name_trees?: array<string, mixed>,
      *     structure_tree?: array<string, mixed>,
      *     document_destinations?: array<string, mixed>,
+     *     document_outline?: array<string, mixed>,
      *     document_security_store?: array<string, mixed>,
      *     pdfa_associated_name_tree?: array<string, mixed>,
      *     pdfa_associated_files?: array<string, mixed>,
@@ -890,6 +891,11 @@ final class PdfMetadataExtractor
         $documentDestinations = $this->documentDestinationMetadata($catalog, $objects);
         if ($documentDestinations !== []) {
             $metadata['document_destinations'] = $documentDestinations;
+        }
+
+        $documentOutline = $this->documentOutlineMetadata($catalog, $objects);
+        if ($documentOutline !== []) {
+            $metadata['document_outline'] = $documentOutline;
         }
 
         $documentNameTrees = $this->catalogNameTreeReviewMetadata($catalog, $objects);
@@ -2394,6 +2400,271 @@ final class PdfMetadataExtractor
             'names' => array_values(array_map(static fn (array $destination): string => $destination['name'], $destinations)),
             'destinations' => $destinations,
             'unresolved_count' => $unresolved,
+        ];
+    }
+
+    /**
+     * Catalog /Outlines is navigation metadata, not page text. Summarize the
+     * current xref-selected outline tree here so WordPress import can review
+     * document bookmarks alongside XMP/Info metadata without relying on stale
+     * duplicate objects appended outside the current xref chain.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function documentOutlineMetadata(string $catalog, array $objects): array
+    {
+        $outlineRoot = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Outlines'), $objects);
+        if ($outlineRoot === null) {
+            return [];
+        }
+
+        $pageObjectNumbers = $this->orderedDestinationPageObjectNumbers($catalog, $objects);
+        $pageIndexes = [];
+        foreach ($pageObjectNumbers as $index => $pageObjectNumber) {
+            $pageIndexes[$pageObjectNumber] = $index;
+        }
+
+        $destinationsByName = $this->documentDestinationRawMap($catalog, $objects);
+        $items = $this->documentOutlineItemMetadataRows(
+            $this->dictionaryTopLevelRawValue($outlineRoot['body'], 'First'),
+            $objects,
+            $pageIndexes,
+            $destinationsByName,
+            15
+        );
+
+        $declaredCount = $this->dictionaryIntegerValue($outlineRoot['body'], 'Count', $objects);
+        $resolvedCount = count(array_filter(
+            $items,
+            static fn (array $item): bool => ($item['destination_resolved'] ?? false) === true
+        ));
+        $maxLevel = 0;
+        foreach ($items as $item) {
+            if (is_int($item['level'] ?? null)) {
+                $maxLevel = max($maxLevel, $item['level']);
+            }
+        }
+
+        $metadata = [
+            'source' => 'catalog_outlines',
+            'review_only' => true,
+            'payload_included' => false,
+            'outline_root_object' => $outlineRoot['object'],
+            'first_item_object' => $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'First') ?? ''),
+            'last_item_object' => $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'Last') ?? ''),
+            'declared_visible_count' => $declaredCount,
+            'item_count' => count($items),
+            'resolved_destination_count' => $resolvedCount,
+            'unresolved_destination_count' => count($items) - $resolvedCount,
+            'max_depth' => $maxLevel,
+            'titles' => array_values(array_map(static fn (array $item): string => $item['title'], $items)),
+            'items' => $items,
+        ];
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, string>
+     */
+    private function documentDestinationRawMap(string $catalog, array $objects): array
+    {
+        $entries = [];
+        $names = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Names'), $objects);
+        $nameTreeRoot = $names === null
+            ? null
+            : $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($names['body'], 'Dests'), $objects);
+        if ($nameTreeRoot !== null) {
+            $seenNameTreeObjects = [];
+            $this->collectDestinationNameTreeEntries($nameTreeRoot, $objects, $entries, $seenNameTreeObjects);
+        }
+
+        $legacyDests = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Dests'), $objects);
+        if ($legacyDests !== null) {
+            foreach ($this->dictionaryTopLevelEntries($legacyDests['body']) as $name => $value) {
+                $entries[] = [
+                    'name' => $name,
+                    'value' => $value,
+                    'source' => 'legacy_dests',
+                ];
+            }
+        }
+
+        $destinations = [];
+        foreach ($entries as $entry) {
+            if (!isset($destinations[$entry['name']])) {
+                $destinations[$entry['name']] = $entry['value'];
+            }
+        }
+
+        return $destinations;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, int> $pageIndexes
+     * @param array<string, string> $destinationsByName
+     * @param array<int, true> $seen
+     * @return list<array<string, mixed>>
+     */
+    private function documentOutlineItemMetadataRows(
+        ?string $firstItemValue,
+        array $objects,
+        array $pageIndexes,
+        array $destinationsByName,
+        int $maxDepth,
+        int $level = 1,
+        array $seen = []
+    ): array {
+        if ($level > $maxDepth) {
+            return [];
+        }
+
+        $items = [];
+        $current = $firstItemValue === null ? null : $this->objectNumberFromReference($firstItemValue);
+        while ($current !== null && !isset($seen[$current])) {
+            $seen[$current] = true;
+            $dictionary = isset($objects[$current]) ? $this->dictionaryObjectBody($objects[$current]) : null;
+            if ($dictionary === null) {
+                break;
+            }
+
+            $title = $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($dictionary, 'Title'), $objects);
+            if ($title !== null) {
+                $items[] = $this->documentOutlineItemMetadataRow(
+                    $dictionary,
+                    $current,
+                    $title,
+                    $level,
+                    $objects,
+                    $pageIndexes,
+                    $destinationsByName
+                );
+            }
+
+            foreach ($this->documentOutlineItemMetadataRows(
+                $this->dictionaryTopLevelRawValue($dictionary, 'First'),
+                $objects,
+                $pageIndexes,
+                $destinationsByName,
+                $maxDepth,
+                $level + 1,
+                $seen
+            ) as $child) {
+                $items[] = $child;
+            }
+
+            $current = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Next') ?? '');
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, int> $pageIndexes
+     * @param array<string, string> $destinationsByName
+     * @return array<string, mixed>
+     */
+    private function documentOutlineItemMetadataRow(
+        string $dictionary,
+        int $objectNumber,
+        string $title,
+        int $level,
+        array $objects,
+        array $pageIndexes,
+        array $destinationsByName
+    ): array {
+        $firstChild = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'First') ?? '');
+        $lastChild = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Last') ?? '');
+        $count = $this->dictionaryIntegerValue($dictionary, 'Count', $objects);
+        $hasChildren = $firstChild !== null || $lastChild !== null;
+        $destination = $this->documentOutlineItemDestination($dictionary, $objects);
+
+        $row = [
+            'title' => $title,
+            'level' => $level,
+            'outline_object' => $objectNumber,
+            'parent_object' => $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Parent') ?? ''),
+            'previous_object' => $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Prev') ?? ''),
+            'next_object' => $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Next') ?? ''),
+            'first_child_object' => $firstChild,
+            'last_child_object' => $lastChild,
+            'has_children' => $hasChildren,
+            'outline_count' => $count,
+            'descendant_count' => $count === null ? null : abs($count),
+            'is_open' => $count === null ? null : $count >= 0,
+            'is_collapsed' => $count === null ? null : $count < 0,
+            'structure_state' => $count === null
+                ? ($hasChildren ? 'parent' : 'leaf')
+                : ($count < 0 ? 'collapsed' : ($hasChildren ? 'expanded' : 'leaf')),
+            'destination' => $destination['name'],
+            'destination_resolved' => false,
+            'action_type' => $destination['action_type'],
+            'action_object' => $destination['action_object'],
+        ];
+
+        $styleFlags = $this->dictionaryIntegerValue($dictionary, 'F', $objects);
+        if ($styleFlags !== null) {
+            $row['style_flags'] = $styleFlags;
+            $row['is_italic'] = ($styleFlags & 1) !== 0;
+            $row['is_bold'] = ($styleFlags & 2) !== 0;
+        }
+
+        if ($destination['value'] !== null && $pageIndexes !== []) {
+            $details = $this->documentDestinationDetails(
+                $destination['value'],
+                $objects,
+                $pageIndexes,
+                $destinationsByName,
+                $destination['name']
+            );
+            if ($details !== null) {
+                $row['destination_resolved'] = true;
+                foreach (['destination', 'page', 'page_number', 'page_object', 'view_mode', 'view_position', 'view_parameters'] as $key) {
+                    $row[$key] = $details[$key] ?? null;
+                }
+            }
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{value: string|null, name: string|null, action_type: string|null, action_object: int|null}
+     */
+    private function documentOutlineItemDestination(string $dictionary, array $objects): array
+    {
+        $destination = $this->dictionaryTopLevelRawValue($dictionary, 'Dest');
+        if ($destination !== null) {
+            return [
+                'value' => $destination,
+                'name' => $this->destinationNameFromRaw($destination, $objects),
+                'action_type' => null,
+                'action_object' => null,
+            ];
+        }
+
+        $actionValue = $this->dictionaryTopLevelRawValue($dictionary, 'A');
+        $action = $this->resolveDictionaryFromValue($actionValue, $objects);
+        if ($action === null) {
+            return [
+                'value' => null,
+                'name' => null,
+                'action_type' => null,
+                'action_object' => null,
+            ];
+        }
+
+        $actionDestination = $this->dictionaryTopLevelRawValue($action['body'], 'D');
+        return [
+            'value' => $actionDestination,
+            'name' => $actionDestination === null ? null : $this->destinationNameFromRaw($actionDestination, $objects),
+            'action_type' => $this->dictionaryNameValue($action['body'], 'S', $objects),
+            'action_object' => $action['object'],
         ];
     }
 
@@ -4364,7 +4635,7 @@ final class PdfMetadataExtractor
             $result['pdfa_extension_schemas'] = array_values($pdfaExtensionSchemas);
         }
 
-        foreach (['language', 'mark_info', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'associated_files', 'embedded_files', 'document_name_trees', 'structure_tree', 'document_destinations', 'document_security_store'] as $field) {
+        foreach (['language', 'mark_info', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'associated_files', 'embedded_files', 'document_name_trees', 'structure_tree', 'document_destinations', 'document_outline', 'document_security_store'] as $field) {
             if (array_key_exists($field, $catalog)) {
                 $result[$field] = $catalog[$field];
             }
