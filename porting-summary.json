@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 15:26:59 UTC",
-    "sourceCommit": "0ce2e39a6c1cb456d87fbcac113f798790c7786f",
-    "sourceCommitShort": "0ce2e39a6c1c",
+    "generated": "2026-06-02 15:34:20 UTC",
+    "sourceCommit": "e3679c74abc866e9a78992b37a49085dd00f8c64",
+    "sourceCommitShort": "e3679c74abc8",
     "sourceBranch": "main",
-    "dashboardCommit": "0ce2e39a6c1cb456d87fbcac113f798790c7786f",
-    "dashboardCommitShort": "0ce2e39a6c1c",
+    "dashboardCommit": "e3679c74abc866e9a78992b37a49085dd00f8c64",
+    "dashboardCommitShort": "e3679c74abc8",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "375",
-            "coverage": "375 / 78 (480.8%)",
-            "mapPercent": "480.8%",
+            "mapped": "376",
+            "coverage": "376 / 78 (482.1%)",
+            "mapPercent": "482.1%",
             "unmapped": "0",
-            "php": "528 pass / 0 fail",
+            "php": "529 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 0ce2e39a; full m...",
-            "currentWork": "PdfImageRenderer now defaults missing /Decode on Indexed image color spaces to [0 hiv...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit e3679c74; full m...",
+            "currentWork": "PdfTextExtractor now uses the nearest page-resource dictionary for font ToUnicode/CID...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "0ce2e39"
+            "commit": "e3679c7"
         },
         {
             "lane": "readability",
