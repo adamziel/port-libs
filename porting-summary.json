@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 13:50:39 UTC",
-    "sourceCommit": "362755322eeda2c5b7c5a6929d4536addb4383c0",
-    "sourceCommitShort": "362755322eed",
+    "generated": "2026-06-02 13:55:54 UTC",
+    "sourceCommit": "96c5a556a21fc5d50cd0df4c8e12d43c2d23d9b4",
+    "sourceCommitShort": "96c5a556a21f",
     "sourceBranch": "main",
-    "dashboardCommit": "362755322eeda2c5b7c5a6929d4536addb4383c0",
-    "dashboardCommitShort": "362755322eed",
+    "dashboardCommit": "96c5a556a21fc5d50cd0df4c8e12d43c2d23d9b4",
+    "dashboardCommitShort": "96c5a556a21f",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "360",
-            "coverage": "360 / 78 (461.5%)",
-            "mapPercent": "461.5%",
+            "mapped": "361",
+            "coverage": "361 / 78 (462.8%)",
+            "mapPercent": "462.8%",
             "unmapped": "0",
-            "php": "512 pass / 0 fail",
+            "php": "513 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 36275532; full m...",
-            "currentWork": "Catalog /DSS validation-material review metadata is integrated and full-lane green; c...",
-            "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 96c5a556; full m...",
+            "currentWork": "RichMediaExecute target-instance media review metadata is integrated and full-lane gr...",
+            "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "3627553"
+            "commit": "96c5a55"
         },
         {
             "lane": "readability",
