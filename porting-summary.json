@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 11:32:38 UTC",
-    "sourceCommit": "16a29fef73befbca444ae1afd3cc4566ac7aef3e",
-    "sourceCommitShort": "16a29fef73be",
+    "generated": "2026-06-02 11:36:24 UTC",
+    "sourceCommit": "841c65d2c28741d4b4bd367edb12f8b9bc958780",
+    "sourceCommitShort": "841c65d2c287",
     "sourceBranch": "main",
-    "dashboardCommit": "16a29fef73befbca444ae1afd3cc4566ac7aef3e",
-    "dashboardCommitShort": "16a29fef73be",
+    "dashboardCommit": "841c65d2c28741d4b4bd367edb12f8b9bc958780",
+    "dashboardCommitShort": "841c65d2c287",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "334",
-            "coverage": "334 / 78 (428.2%)",
-            "mapPercent": "428.2%",
+            "mapped": "335",
+            "coverage": "335 / 78 (429.5%)",
+            "mapPercent": "429.5%",
             "unmapped": "0",
-            "php": "486 pass / 0 fail",
+            "php": "487 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Screen Rendition playback and screen policy review metadata is integrated and fully g...",
+            "currentWork": "Separation/DeviceN image color-space preview metadata is integrated and fully green;...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "16a29fe"
+            "commit": "841c65d"
         },
         {
             "lane": "readability",
