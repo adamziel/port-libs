@@ -303,6 +303,75 @@ return [
             unlink($path);
         }
     },
+    'routes upstream OCR prediction objects through forced table recognition' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-prediction-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% forced OCR table prediction supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'Scanned import matrix', 'bbox' => [72.0, 48.0, 340.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Stale pdftext table line should not survive.', 'bbox' => [72.0, 178.0, 430.0, 196.0]],
+                ['text' => 'Review after table.', 'bbox' => [72.0, 276.0, 430.0, 294.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 48.0, 340.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 430.0, 230.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 276.0, 430.0, 294.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 360.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 40.0, 360.0, 70.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 170.0, 80.0]],
+                    ['col_id' => 1, 'bbox' => [190.0, 0.0, 360.0, 80.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_detector_cells' => [[
+                        ['bbox' => [12.0, 8.0, 160.0, 28.0], 'text' => null],
+                        ['bbox' => [198.0, 8.0, 344.0, 28.0], 'text' => null],
+                        ['bbox' => [12.0, 44.0, 160.0, 66.0], 'text' => null],
+                        ['bbox' => [198.0, 44.0, 344.0, 66.0], 'text' => null],
+                    ]],
+                    'table_ocr_text_lines' => [[
+                        'text_lines' => [
+                            ['text' => 'Metric'],
+                            ['text' => 'State'],
+                            ['text' => 'Prediction OCR'],
+                            ['text' => 'Recovered'],
+                        ],
+                    ]],
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                    'ocr_all_pages' => true,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $t->contains('# Scanned Import Matrix', $result['text']);
+            $t->contains('| Metric         | State     |', $result['text']);
+            $t->contains('| Prediction OCR | Recovered |', $result['text']);
+            $t->contains('Review after table.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Stale pdftext table line should not survive.'));
+            $t->same(['layout', 'table-cell-routing', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same([true], $result['metadata']['table_needs_ocr']);
+            $t->same(true, $result['metadata']['table_detect_boxes']);
+            $t->same([4], $result['metadata']['table_cell_counts']);
+            $t->same('Prediction OCR', $result['metadata']['table_assigned_cells'][0][2]['text']);
+        } finally {
+            unlink($path);
+        }
+    },
     'converts a fuller multicolcnn supplied dictionary excerpt with upstream finalization metadata' => static function (TestRunner $t): void {
         $fixture = require __DIR__ . '/../fixtures/upstream-multicolcnn-supplied-document.php';
         $path = sys_get_temp_dir() . '/markerpdf-multicolcnn-supplied-' . bin2hex(random_bytes(4)) . '.pdf';

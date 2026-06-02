@@ -108,7 +108,7 @@ final class TableRecognizer
      * @param list<list<array<string, mixed>>> $tableCells
      * @param list<bool> $needsOcr
      * @param list<array<string, mixed>> $suppliedTableResults
-     * @param array<int, list<string|array{text?: string}>> $suppliedOcrTextLines
+     * @param array<int, list<string|array{text?: string}>|array{text_lines?: list<string|array{text?: string}>, lines?: list<string|array{text?: string}>}> $suppliedOcrTextLines
      * @return list<array{cells: list<array<string, mixed>>, rows: list<array<string, mixed>>, cols: list<array<string, mixed>>}>
      */
     public function recognizeTables(
@@ -259,7 +259,7 @@ final class TableRecognizer
      */
     private function applyOcrText(array $cells, array $ocrTextLines): array
     {
-        foreach ($ocrTextLines as $idx => $ocrLine) {
+        foreach ($this->ocrTextLineItems($ocrTextLines) as $idx => $ocrLine) {
             if (!isset($cells[$idx])) {
                 break;
             }
@@ -267,6 +267,30 @@ final class TableRecognizer
         }
 
         return $cells;
+    }
+
+    /**
+     * @param list<string|array{text?: string}>|array{text_lines?: list<string|array{text?: string}>, lines?: list<string|array{text?: string}>} $ocrTextLines
+     * @return list<string|array{text?: string}>
+     */
+    private function ocrTextLineItems(array $ocrTextLines): array
+    {
+        if (array_is_list($ocrTextLines)) {
+            return $ocrTextLines;
+        }
+
+        foreach (['text_lines', 'lines'] as $field) {
+            if (!array_key_exists($field, $ocrTextLines)) {
+                continue;
+            }
+            if (!is_array($ocrTextLines[$field]) || !array_is_list($ocrTextLines[$field])) {
+                throw new InvalidArgumentException('Supplied OCR prediction ' . $field . ' must be a list.');
+            }
+
+            return $ocrTextLines[$field];
+        }
+
+        throw new InvalidArgumentException('Supplied OCR prediction must be a list or include text_lines.');
     }
 
     /**

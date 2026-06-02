@@ -327,6 +327,40 @@ return [
         $t->same('Block', $recognized[0]['cells'][0]['text']);
         $t->same("| Block | Status |\n|-------|--------|", $formatted['markdown_tables'][0]);
     },
+    'unwraps upstream OCR prediction text_lines before table recognition' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $recognized = $recognizer->recognizeTables(
+            [[
+                ['bbox' => [10.0, 5.0, 90.0, 25.0], 'text' => ''],
+                ['bbox' => [130.0, 5.0, 230.0, 25.0], 'text' => ''],
+                ['bbox' => [10.0, 45.0, 90.0, 65.0], 'text' => ''],
+                ['bbox' => [130.0, 45.0, 230.0, 65.0], 'text' => ''],
+            ]],
+            [true],
+            [[
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 240.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 40.0, 240.0, 70.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 100.0, 80.0]],
+                    ['col_id' => 1, 'bbox' => [120.0, 0.0, 240.0, 80.0]],
+                ],
+            ]],
+            [[
+                'text_lines' => [
+                    ['text' => 'Metric'],
+                    ['text' => 'State'],
+                    ['text' => 'OCR table'],
+                    ['text' => 'Recovered'],
+                ],
+            ]]
+        );
+        $formatted = $recognizer->formatRecognizedTables($recognized, [['width' => 240, 'height' => 80]]);
+
+        $t->same(['Metric', 'State', 'OCR table', 'Recovered'], array_column($recognized[0]['cells'], 'text'));
+        $t->contains('| OCR table | Recovered |', $formatted['markdown_tables'][0]);
+    },
     'falls back to heuristic row layout when model rows and columns leave most cells unassigned' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $assigned = $recognizer->assignRowsColumns(
