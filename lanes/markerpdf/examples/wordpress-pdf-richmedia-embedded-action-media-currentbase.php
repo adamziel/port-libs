@@ -10,6 +10,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 $pageContent = 'BT /F1 12 Tf 72 720 Td (Article Body) Tj ET';
 $appearanceText = 'BT /F1 12 Tf 0 0 Td (Embedded Action Appearance Noise) Tj ET';
 $mediaBytes = "MP4 bytes with (Embedded Action Media Payload Leak) Tj ET";
+$mediaChecksum = strtoupper(hash('md5', $mediaBytes));
 $scriptBytes = "app.alert('embedded action script leak')";
 
 $pdf = "%PDF-1.7\n"
@@ -23,7 +24,7 @@ $pdf = "%PDF-1.7\n"
     . "35 0 obj\n<< /Names [(action-video.mp4) 31 0 R (controller.js) 32 0 R] >>\nendobj\n"
     . "31 0 obj\n<< /Type /Filespec /F (action-video.mp4) /UF <FEFF0061006300740069006F006E002D0076006900640065006F002E006D00700034> /Desc (Current action video asset) /AFRelationship /Data /EF << /F 33 0 R >> >>\nendobj\n"
     . "32 0 obj\n<< /Type /Filespec /F (controller.js) /EF << /F 34 0 R >> >>\nendobj\n"
-    . "33 0 obj\n<< /Type /EmbeddedFile /Subtype /video#2Fmp4 /Length " . strlen($mediaBytes) . " >>\nstream\n{$mediaBytes}\nendstream\nendobj\n"
+    . "33 0 obj\n<< /Type /EmbeddedFile /Subtype /video#2Fmp4 /Params << /Size " . strlen($mediaBytes) . " /CheckSum <{$mediaChecksum}> /CreationDate (D:20260602141000Z) /ModDate (D:20260602141100Z) >> /Length " . strlen($mediaBytes) . " >>\nstream\n{$mediaBytes}\nendstream\nendobj\n"
     . "34 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjavascript /Length " . strlen($scriptBytes) . " >>\nstream\n{$scriptBytes}\nendstream\nendobj\n"
     . "40 0 obj\n<< /Type /RichMediaConfiguration /Subtype /Video /Name (Primary video configuration) /Instances [41 0 R 42 0 R] >>\nendobj\n"
     . "41 0 obj\n<< /Type /RichMediaInstance /Subtype /Video /Asset 31 0 R /Params 43 0 R >>\nendobj\n"
@@ -55,10 +56,17 @@ $execute = $actions[0] ?? [];
 $legacy = $actions[2] ?? [];
 $targetInstance = is_array($execute['target_instance'] ?? null) ? $execute['target_instance'] : [];
 $asset = is_array($targetInstance['asset'] ?? null) ? $targetInstance['asset'] : [];
+$assetStreams = is_array($asset['embedded_file_streams'] ?? null) ? $asset['embedded_file_streams'] : [];
+$assetStream = $assetStreams[0] ?? [];
 $params = is_array($targetInstance['params'] ?? null) ? $targetInstance['params'] : [];
 $fileNames = is_array($annotation['file_names'] ?? null) ? $annotation['file_names'] : [];
 
-if (count($annotations) !== 1 || count($actions) !== 3 || ($execute['command'] ?? null) !== 'cueChapter') {
+if (
+    count($annotations) !== 1
+    || count($actions) !== 3
+    || ($execute['command'] ?? null) !== 'cueChapter'
+    || ($assetStream['checksum_matches'] ?? null) !== true
+) {
     throw new RuntimeException('Expected one RichMedia annotation with direct and legacy RichMediaExecute review rows.');
 }
 
@@ -74,6 +82,12 @@ echo '<!-- markerpdf-pdf-richmedia-embedded-action-media-currentbase ' . htmlspe
     'target_instance_object' => $execute['target_instance_object'] ?? null,
     'target_instance_asset' => $asset['filename'] ?? null,
     'target_instance_mime_types' => $asset['mime_types'] ?? [],
+    'target_instance_asset_size' => $assetStream['size'] ?? null,
+    'target_instance_asset_sha256' => $assetStream['content_sha256'] ?? null,
+    'target_instance_asset_declared_size' => $assetStream['declared_size'] ?? null,
+    'target_instance_asset_checksum_matches' => $assetStream['checksum_matches'] ?? null,
+    'target_instance_asset_created_at' => $assetStream['created_at'] ?? null,
+    'target_instance_asset_modified_at' => $assetStream['modified_at'] ?? null,
     'command_arguments' => $execute['command_arguments'] ?? null,
     'legacy_command_arguments' => $legacy['command_arguments'] ?? null,
     'flash_vars' => $params['flash_vars'] ?? null,

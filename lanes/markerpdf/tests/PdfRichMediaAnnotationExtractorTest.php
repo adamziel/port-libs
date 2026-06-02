@@ -234,6 +234,7 @@ $richMediaEmbeddedActionMediaPdf = static function (): string {
     $pageContent = 'BT /F1 12 Tf 72 720 Td (Article Body) Tj ET';
     $appearanceText = 'BT /F1 12 Tf 0 0 Td (Embedded Action Appearance Noise) Tj ET';
     $mediaBytes = "MP4 bytes with (Embedded Action Media Payload Leak) Tj ET";
+    $mediaChecksum = strtoupper(hash('md5', $mediaBytes));
     $scriptBytes = "app.alert('embedded action script leak')";
 
     return "%PDF-1.7\n"
@@ -247,7 +248,7 @@ $richMediaEmbeddedActionMediaPdf = static function (): string {
         . "35 0 obj\n<< /Names [(action-video.mp4) 31 0 R (controller.js) 32 0 R] >>\nendobj\n"
         . "31 0 obj\n<< /Type /Filespec /F (action-video.mp4) /UF <FEFF0061006300740069006F006E002D0076006900640065006F002E006D00700034> /Desc (Current action video asset) /AFRelationship /Data /EF << /F 33 0 R >> >>\nendobj\n"
         . "32 0 obj\n<< /Type /Filespec /F (controller.js) /EF << /F 34 0 R >> >>\nendobj\n"
-        . "33 0 obj\n<< /Type /EmbeddedFile /Subtype /video#2Fmp4 /Length " . strlen($mediaBytes) . " >>\nstream\n{$mediaBytes}\nendstream\nendobj\n"
+        . "33 0 obj\n<< /Type /EmbeddedFile /Subtype /video#2Fmp4 /Params << /Size " . strlen($mediaBytes) . " /CheckSum <{$mediaChecksum}> /CreationDate (D:20260602141000Z) /ModDate (D:20260602141100Z) >> /Length " . strlen($mediaBytes) . " >>\nstream\n{$mediaBytes}\nendstream\nendobj\n"
         . "34 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjavascript /Length " . strlen($scriptBytes) . " >>\nstream\n{$scriptBytes}\nendstream\nendobj\n"
         . "40 0 obj\n<< /Type /RichMediaConfiguration /Subtype /Video /Name (Primary video configuration) /Instances [41 0 R 42 0 R] >>\nendobj\n"
         . "41 0 obj\n<< /Type /RichMediaInstance /Subtype /Video /Asset 31 0 R /Params 43 0 R >>\nendobj\n"
@@ -834,6 +835,21 @@ return [
         $t->same(true, $execute['target_instance']['asset']['has_embedded_file']);
         $t->same([33], $execute['target_instance']['asset']['embedded_file_objects']);
         $t->same(['video/mp4'], $execute['target_instance']['asset']['mime_types']);
+        $t->same(1, count($execute['target_instance']['asset']['embedded_file_streams']));
+        $stream = $execute['target_instance']['asset']['embedded_file_streams'][0];
+        $t->same('F', $stream['key']);
+        $t->same(33, $stream['object']);
+        $t->same('video/mp4', $stream['mime_type']);
+        $t->same(strlen("MP4 bytes with (Embedded Action Media Payload Leak) Tj ET"), $stream['size']);
+        $t->same(hash('sha256', "MP4 bytes with (Embedded Action Media Payload Leak) Tj ET"), $stream['content_sha256']);
+        $t->same(strlen("MP4 bytes with (Embedded Action Media Payload Leak) Tj ET"), $stream['declared_length']);
+        $t->same(strlen("MP4 bytes with (Embedded Action Media Payload Leak) Tj ET"), $stream['declared_size']);
+        $t->same(hash('md5', "MP4 bytes with (Embedded Action Media Payload Leak) Tj ET"), $stream['checksum']);
+        $t->same('md5', $stream['checksum_algorithm']);
+        $t->same(hash('md5', "MP4 bytes with (Embedded Action Media Payload Leak) Tj ET"), $stream['computed_checksum']);
+        $t->same(true, $stream['checksum_matches']);
+        $t->same('D:20260602141000Z', $stream['created_at']);
+        $t->same('D:20260602141100Z', $stream['modified_at']);
         $t->same(43, $execute['target_instance']['params']['dictionary_object']);
         $t->same('Foreground', $execute['target_instance']['params']['binding']);
         $t->same('src=action-video.mp4&autoplay=false', $execute['target_instance']['params']['flash_vars']);
@@ -861,6 +877,39 @@ return [
         $t->true(!str_contains($plainText, 'Embedded Action Media Payload Leak'));
         $t->true(!str_contains($plainText, 'embedded action script leak'));
         $t->true(!str_contains($plainText, 'embedded action blocked'));
+        $t->true(!str_contains($plainText, 'Stale RichMedia Payload Leak'));
+    },
+    'reviews rich media target asset EmbeddedFile Params metadata without payload promotion' => static function (TestRunner $t) use ($richMediaEmbeddedActionMediaPdf): void {
+        $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($richMediaEmbeddedActionMediaPdf());
+        $annotation = $pages[0]['annotations'][0];
+        $execute = $annotation['actions'][0];
+        $asset = $execute['target_instance']['asset'];
+        $stream = $asset['embedded_file_streams'][0];
+        $mediaBytes = "MP4 bytes with (Embedded Action Media Payload Leak) Tj ET";
+
+        $t->same('action-video.mp4', $asset['filename']);
+        $t->same([33], $asset['embedded_file_objects']);
+        $t->same(['F'], $asset['embedded_file_keys']);
+        $t->same([33], array_column($asset['embedded_file_streams'], 'object'));
+        $t->same('F', $stream['key']);
+        $t->same(33, $stream['object']);
+        $t->same('video/mp4', $stream['mime_type']);
+        $t->same(strlen($mediaBytes), $stream['size']);
+        $t->same(hash('sha256', $mediaBytes), $stream['content_sha256']);
+        $t->same(strlen($mediaBytes), $stream['declared_length']);
+        $t->same(strlen($mediaBytes), $stream['declared_size']);
+        $t->same(hash('md5', $mediaBytes), $stream['checksum']);
+        $t->same('md5', $stream['checksum_algorithm']);
+        $t->same(hash('md5', $mediaBytes), $stream['computed_checksum']);
+        $t->same(true, $stream['checksum_matches']);
+        $t->same('D:20260602141000Z', $stream['created_at']);
+        $t->same('D:20260602141100Z', $stream['modified_at']);
+        $t->same(null, $stream['filters'] ?? null);
+        $t->true(!in_array(51, array_column($asset['embedded_file_streams'], 'object'), true));
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($richMediaEmbeddedActionMediaPdf());
+        $t->same(['Article Body'], (new PdfTextExtractor())->extractTextLines($richMediaEmbeddedActionMediaPdf()));
+        $t->true(!str_contains($plainText, 'Embedded Action Media Payload Leak'));
         $t->true(!str_contains($plainText, 'Stale RichMedia Payload Leak'));
     },
 ];

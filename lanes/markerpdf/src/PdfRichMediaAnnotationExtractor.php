@@ -1375,6 +1375,7 @@ final class PdfRichMediaAnnotationExtractor
         $details['has_embedded_file'] = true;
         $embeddedObjects = [];
         $embeddedKeys = [];
+        $embeddedStreams = [];
         $mimeTypes = [];
         foreach ($this->topLevelDictionaryEntries($ef['body']) as $entry) {
             if (!in_array($entry['name'], ['F', 'UF', 'DOS', 'Unix', 'Mac'], true)) {
@@ -1387,9 +1388,18 @@ final class PdfRichMediaAnnotationExtractor
             }
             $embeddedKeys[] = $entry['name'];
 
-            $stream = $this->resolvedDictionaryFromValue($entry['value'], $objects);
-            if ($stream !== null) {
-                $mimeType = $this->topLevelNameValueAfterName($stream['body'], 'Subtype');
+            $streamReview = $this->embeddedFileStreamReviewFromValue($entry['value'], $objects, $entry['name']);
+            if ($streamReview !== null) {
+                $embeddedStreams[] = $streamReview;
+                if (isset($streamReview['mime_type']) && is_string($streamReview['mime_type']) && $streamReview['mime_type'] !== '') {
+                    $mimeTypes[] = $streamReview['mime_type'];
+                }
+                continue;
+            }
+
+            $streamDictionary = $this->resolvedDictionaryFromValue($entry['value'], $objects);
+            if ($streamDictionary !== null) {
+                $mimeType = $this->topLevelNameValueAfterName($streamDictionary['body'], 'Subtype');
                 if ($mimeType !== null && $mimeType !== '') {
                     $mimeTypes[] = $mimeType;
                 }
@@ -1402,11 +1412,277 @@ final class PdfRichMediaAnnotationExtractor
         if ($embeddedKeys !== []) {
             $details['embedded_file_keys'] = array_values(array_unique($embeddedKeys));
         }
+        if ($embeddedStreams !== []) {
+            $details['embedded_file_streams'] = $embeddedStreams;
+        }
         if ($mimeTypes !== []) {
             $details['mime_types'] = $this->dedupeStrings($mimeTypes);
         }
 
         return $details;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function embeddedFileStreamReviewFromValue(string $value, array $objects, string $key): ?array
+    {
+        $objectNumber = $this->objectReferenceFromValue($value);
+        $objectBody = $objectNumber !== null ? ($objects[$objectNumber] ?? null) : trim($value);
+        if ($objectBody === null || trim($objectBody) === '') {
+            return null;
+        }
+
+        $stream = $this->decodeStreamObject($objectBody, $objects);
+        if ($stream === null) {
+            return null;
+        }
+
+        $review = [
+            'key' => $key,
+            'object' => $objectNumber,
+        ];
+
+        $mimeType = $this->topLevelNameValueAfterName($stream['dictionary'], 'Subtype');
+        if ($mimeType !== null && $mimeType !== '') {
+            $review['mime_type'] = $mimeType;
+        }
+
+        $declaredLength = $this->topLevelNumberValueAfterName($stream['dictionary'], 'Length', $objects);
+        if ($declaredLength !== null) {
+            $review['declared_length'] = (int) $declaredLength;
+        }
+
+        if ($stream['filters'] !== []) {
+            $review['filters'] = $stream['filters'];
+        }
+
+        if ($stream['content'] !== null) {
+            $review['size'] = strlen($stream['content']);
+            $review['content_sha256'] = hash('sha256', $stream['content']);
+        } else {
+            $review['decode_failed'] = true;
+        }
+
+        foreach ($this->embeddedFileParamsReview($stream['dictionary'], $objects, $stream['content']) as $metadataKey => $metadataValue) {
+            $review[$metadataKey] = $metadataValue;
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{dictionary: string, content: string|null, filters: list<string>}|null
+     */
+    private function decodeStreamObject(string $objectBody, array $objects): ?array
+    {
+        if (preg_match('/<<(.*?)>>\s*stream(?:\r\n|\n|\r)?(.*?)(?:\r\n|\n|\r)?endstream/s', $objectBody, $match) !== 1) {
+            return null;
+        }
+
+        $dictionary = $match[1];
+        $stream = $match[2];
+        $filters = $this->streamFilterNames($dictionary, $objects);
+
+        foreach ($filters as $filter) {
+            $decoded = match ($filter) {
+                'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
+                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream),
+                default => null,
+            };
+
+            if ($decoded === null) {
+                return [
+                    'dictionary' => $dictionary,
+                    'content' => null,
+                    'filters' => $filters,
+                ];
+            }
+
+            $stream = $decoded;
+        }
+
+        return [
+            'dictionary' => $dictionary,
+            'content' => $stream,
+            'filters' => $filters,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function streamFilterNames(string $dictionary, array $objects): array
+    {
+        $filterValue = $this->topLevelValueAfterName($dictionary, 'Filter');
+        if ($filterValue === null) {
+            return [];
+        }
+
+        $arrayValues = $this->arrayValuesFromPdfValue($filterValue, $objects);
+        if ($arrayValues !== null) {
+            $filters = [];
+            foreach ($arrayValues as $arrayValue) {
+                $name = $this->nameFromPdfValue($arrayValue, $objects);
+                if ($name !== null && $name !== '') {
+                    $filters[] = $name;
+                }
+            }
+
+            return $this->dedupeStrings($filters);
+        }
+
+        $filter = $this->nameFromPdfValue($filterValue, $objects);
+        return $filter === null || $filter === '' ? [] : [$filter];
+    }
+
+    private function decodeAsciiHexStream(string $stream): ?string
+    {
+        $body = strstr($stream, '>', true);
+        if ($body === false) {
+            $body = $stream;
+        }
+
+        $hex = preg_replace('/\s+/', '', $body);
+        if ($hex === null || preg_match('/^[\da-fA-F]*$/', $hex) !== 1) {
+            return null;
+        }
+
+        if (strlen($hex) % 2 === 1) {
+            $hex .= '0';
+        }
+
+        $decoded = hex2bin($hex);
+        return $decoded === false ? null : $decoded;
+    }
+
+    private function decodeFlateStream(string $stream): ?string
+    {
+        $inflated = @gzuncompress($stream);
+        if ($inflated === false) {
+            $inflated = @gzinflate($stream);
+        }
+        if ($inflated === false) {
+            $inflated = @gzdecode($stream);
+        }
+
+        return $inflated === false ? null : $inflated;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function embeddedFileParamsReview(string $streamDictionary, array $objects, ?string $content): array
+    {
+        $params = $this->dictionaryFromTopLevelValue($streamDictionary, 'Params', $objects);
+        if ($params === null) {
+            return [];
+        }
+
+        $metadata = [];
+        $declaredSize = $this->topLevelNumberValueAfterName($params['body'], 'Size', $objects);
+        if ($declaredSize !== null) {
+            $metadata['declared_size'] = (int) $declaredSize;
+        }
+
+        $checksum = $this->checksumValueAfterName($params['body'], 'CheckSum', $objects);
+        if ($checksum !== null && $checksum !== '') {
+            $metadata['checksum'] = $checksum;
+            $metadata['checksum_algorithm'] = 'md5';
+            if ($content !== null) {
+                $metadata['computed_checksum'] = hash('md5', $content);
+                $metadata['checksum_matches'] = hash_equals($metadata['computed_checksum'], $checksum);
+            }
+        }
+
+        foreach ([
+            'created_at' => $this->topLevelStringValueAfterName($params['body'], 'CreationDate', $objects),
+            'modified_at' => $this->topLevelStringValueAfterName($params['body'], 'ModDate', $objects),
+        ] as $key => $value) {
+            if (is_string($value) && $value !== '') {
+                $metadata[$key] = $value;
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function checksumValueAfterName(string $dictionary, string $name, array $objects): ?string
+    {
+        $value = $this->topLevelValueAfterName($dictionary, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $bytes = $this->byteStringFromPdfValue($value, $objects);
+        if ($bytes === null) {
+            return null;
+        }
+
+        if (strlen($bytes) === 32 && preg_match('/^[\da-fA-F]{32}$/', $bytes) === 1) {
+            return strtolower($bytes);
+        }
+
+        return bin2hex($bytes);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function byteStringFromPdfValue(string $value, array $objects): ?string
+    {
+        $resolved = $this->rawValueFromPdfValue($value, $objects);
+        if ($resolved === null) {
+            return null;
+        }
+
+        $resolved = trim($resolved);
+        if ($resolved === '') {
+            return null;
+        }
+
+        if ($resolved[0] === '(') {
+            $endOffset = $this->skipLiteralString($resolved, 0);
+            return $this->decodeLiteralString(substr($resolved, 1, $endOffset - 2));
+        }
+
+        if ($resolved[0] === '<' && !str_starts_with($resolved, '<<')) {
+            $endOffset = $this->skipHexString($resolved, 0);
+            $hex = preg_replace('/\s+/', '', substr($resolved, 1, $endOffset - 2));
+            if ($hex === null || $hex === '' || preg_match('/^[\da-fA-F]+$/', $hex) !== 1) {
+                return null;
+            }
+
+            if (strlen($hex) % 2 === 1) {
+                $hex .= '0';
+            }
+
+            $bytes = hex2bin($hex);
+            return $bytes === false ? null : $bytes;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function rawValueFromPdfValue(string $value, array $objects): ?string
+    {
+        $value = trim($value);
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) !== 1) {
+            return $value;
+        }
+
+        $objectNumber = (int) $match[1];
+        return $objects[$objectNumber] ?? null;
     }
 
     /**
