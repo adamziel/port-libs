@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 14:05:08 UTC",
-    "sourceCommit": "15f6e0376971c9098e61d51e783415865a08eab8",
-    "sourceCommitShort": "15f6e0376971",
+    "generated": "2026-06-02 14:08:54 UTC",
+    "sourceCommit": "d85d709e5a6e30eac4b0fad08d554e7b7805b165",
+    "sourceCommitShort": "d85d709e5a6e",
     "sourceBranch": "main",
-    "dashboardCommit": "15f6e0376971c9098e61d51e783415865a08eab8",
-    "dashboardCommitShort": "15f6e0376971",
+    "dashboardCommit": "d85d709e5a6e30eac4b0fad08d554e7b7805b165",
+    "dashboardCommitShort": "d85d709e5a6e",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "363",
-            "coverage": "363 / 78 (465.4%)",
-            "mapPercent": "465.4%",
+            "mapped": "364",
+            "coverage": "364 / 78 (466.7%)",
+            "mapPercent": "466.7%",
             "unmapped": "0",
-            "php": "515 pass / 0 fail",
+            "php": "516 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 15f6e037; full m...",
-            "currentWork": "Hybrid xref object-stream generation repair is integrated and full-lane green; contin...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit d85d709e; full m...",
+            "currentWork": "Merged-cell table grid geometry is integrated and full-lane green; continue markerPDF...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "15f6e03"
+            "commit": "d85d709"
         },
         {
             "lane": "readability",
