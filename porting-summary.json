@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 14:57:22 UTC",
-    "sourceCommit": "7caaade64213b692e3fce14d6859ad479e1f8b5f",
-    "sourceCommitShort": "7caaade64213",
+    "generated": "2026-06-02 15:04:23 UTC",
+    "sourceCommit": "957920a097f5e4f82efd578d8ffdfec4dc99df18",
+    "sourceCommitShort": "957920a097f5",
     "sourceBranch": "main",
-    "dashboardCommit": "7caaade64213b692e3fce14d6859ad479e1f8b5f",
-    "dashboardCommitShort": "7caaade64213",
+    "dashboardCommit": "957920a097f5e4f82efd578d8ffdfec4dc99df18",
+    "dashboardCommitShort": "957920a097f5",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "371",
-            "coverage": "371 / 78 (475.6%)",
-            "mapPercent": "475.6%",
+            "mapped": "372",
+            "coverage": "372 / 78 (476.9%)",
+            "mapPercent": "476.9%",
             "unmapped": "0",
-            "php": "524 pass / 0 fail",
+            "php": "525 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 7caaade; full ma...",
-            "currentWork": "PdfTextExtractor stream dictionaries now resolve escaped top-level /Fil#74er and /Len...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 957920a0; full m...",
+            "currentWork": "PdfAcroFormExtractor now exposes terminal field hierarchy metadata with object/name p...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "7caaade"
+            "commit": "957920a"
         },
         {
             "lane": "readability",
