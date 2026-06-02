@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 13:16:11 UTC",
-    "sourceCommit": "9674da5f0a87cf64a251ca3c254638e0662af931",
-    "sourceCommitShort": "9674da5f0a87",
+    "generated": "2026-06-02 13:25:33 UTC",
+    "sourceCommit": "0e92195c96db11794de72474ee37b99bc2696a06",
+    "sourceCommitShort": "0e92195c96db",
     "sourceBranch": "main",
-    "dashboardCommit": "9674da5f0a87cf64a251ca3c254638e0662af931",
-    "dashboardCommitShort": "9674da5f0a87",
+    "dashboardCommit": "0e92195c96db11794de72474ee37b99bc2696a06",
+    "dashboardCommitShort": "0e92195c96db",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "355",
-            "coverage": "355 / 78 (455.1%)",
-            "mapPercent": "455.1%",
+            "mapped": "356",
+            "coverage": "356 / 78 (456.4%)",
+            "mapPercent": "456.4%",
             "unmapped": "0",
-            "php": "507 pass / 0 fail",
+            "php": "508 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Rich-media screen rendition action review metadata is integrated and full-lane green;...",
+            "currentWork": "Standard annotation non-JavaScript action review metadata is integrated and full-lane...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "9674da5"
+            "commit": "0e92195"
         },
         {
             "lane": "readability",
