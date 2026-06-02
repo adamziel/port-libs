@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 11:26:24 UTC",
-    "sourceCommit": "63e6fa08c7051e3ca21b9c057186f811e9beb9be",
-    "sourceCommitShort": "63e6fa08c705",
-    "sourceBranch": "unknown",
-    "dashboardCommit": "63e6fa08c7051e3ca21b9c057186f811e9beb9be",
-    "dashboardCommitShort": "63e6fa08c705",
+    "generated": "2026-06-02 11:32:38 UTC",
+    "sourceCommit": "16a29fef73befbca444ae1afd3cc4566ac7aef3e",
+    "sourceCommitShort": "16a29fef73be",
+    "sourceBranch": "main",
+    "dashboardCommit": "16a29fef73befbca444ae1afd3cc4566ac7aef3e",
+    "dashboardCommitShort": "16a29fef73be",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "333",
-            "coverage": "333 / 78 (426.9%)",
-            "mapPercent": "426.9%",
+            "mapped": "334",
+            "coverage": "334 / 78 (428.2%)",
+            "mapPercent": "428.2%",
             "unmapped": "0",
-            "php": "485 pass / 0 fail",
+            "php": "486 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Outline name-tree target page presentation/action metadata is integrated and fully gr...",
+            "currentWork": "Screen Rendition playback and screen policy review metadata is integrated and fully g...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "63e6fa0"
+            "commit": "16a29fe"
         },
         {
             "lane": "readability",
