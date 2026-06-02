@@ -104,11 +104,85 @@ $xrefPrevObjectStreamGenerationCurrentBasePdf = static function (): string {
     return $pdf;
 };
 
+$xrefPrevObjectStreamGenerationPreservedCurrentBasePdf = static function (): string {
+    $previousContent = 'BT /F1 12 Tf 72 720 Td (Preserved Prev compressed page) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current repeated carrier page) Tj T* (Same carrier storage kept) Tj ET';
+
+    $objectData = '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>' . "\n";
+    $header = '4 0';
+    $compressedObjectStream = gzcompress($header . "\n" . $objectData);
+    if (!is_string($compressedObjectStream)) {
+        throw new RuntimeException('Unable to compress preserved object-stream fixture.');
+    }
+
+    $pdf = "%PDF-1.5\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber . ':' . $generation] = $offset;
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $row = static fn (int $type, int $fieldTwo, int $fieldThree = 0): string => chr($type) . pack('N', $fieldTwo) . chr($fieldThree);
+    $rowZeroGeneration = static fn (int $type, int $fieldTwo): string => chr($type) . pack('N', $fieldTwo);
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [4 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(5, 0, "<< /Length " . strlen($previousContent) . " >>\nstream\n{$previousContent}\nendstream");
+    $addObject(6, 0, '<< /Type /ObjStm /N 1 /First ' . (strlen($header) + 1) . ' /Filter /FlateDecode /Length ' . strlen($compressedObjectStream) . " >>\nstream\n{$compressedObjectStream}\nendstream");
+
+    $previousRows = ''
+        . $row(1, $offsets['1:0'])
+        . $row(1, $offsets['2:0'])
+        . $row(1, $offsets['3:0'])
+        . $row(2, 6, 0)
+        . $row(1, $offsets['5:0'])
+        . $row(1, $offsets['6:0']);
+    $previousCompressedXref = gzcompress($previousRows);
+    if (!is_string($previousCompressedXref)) {
+        throw new RuntimeException('Unable to compress previous preserved xref-stream fixture.');
+    }
+    $previousXrefOffset = $addObject(
+        20,
+        0,
+        '<< /Type /XRef /Size 21 /Root 1 0 R /Index [1 6] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($previousCompressedXref) . " >>\nstream\n{$previousCompressedXref}\nendstream"
+    );
+    $pdf .= "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $addObject(1, 1, '<< /Type /Catalog /Pages 2 1 R >>');
+    $addObject(2, 1, '<< /Type /Pages /Kids [8 0 R 4 0 R] /Count 2 >>');
+    $addObject(8, 0, '<< /Type /Page /Parent 2 1 R /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>');
+    $addObject(9, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+
+    $currentRows = ''
+        . $rowZeroGeneration(1, $offsets['1:1'])
+        . $rowZeroGeneration(1, $offsets['2:1'])
+        . $rowZeroGeneration(1, $offsets['6:0'])
+        . $rowZeroGeneration(1, $offsets['8:0'])
+        . $rowZeroGeneration(1, $offsets['9:0']);
+    $currentCompressedXref = gzcompress($currentRows);
+    if (!is_string($currentCompressedXref)) {
+        throw new RuntimeException('Unable to compress current preserved xref-stream fixture.');
+    }
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "21 0 obj\n"
+        . '<< /Type /XRef /Size 22 /Root 1 1 R /Prev ' . $previousXrefOffset . ' /Index [1 2 6 1 8 2] /W [1 4 0] /Filter /FlateDecode /Length ' . strlen($currentCompressedXref) . " >>\n"
+        . "stream\n{$currentCompressedXref}\nendstream\nendobj\n"
+        . "startxref\n{$currentXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 return [
     'skips Prev type-2 rows when the object-stream carrier is only a compressed previous-generation decoy' => static function (TestRunner $t) use ($xrefPrevObjectStreamGenerationCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
         $pdf = $xrefPrevObjectStreamGenerationCurrentBasePdf();
         $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractXrefPrevObjectStreamGenerationReview($pdf);
+        $entries = array_column($review['entries'], null, 'object_number');
 
         $t->same(['Current object-stream generation guard', 'Reused carrier generation ignored'], $extractor->extractTextLines($pdf));
         $t->same(['Current object-stream generation guard', 'Reused carrier generation ignored'], $extractor->extractTextRuns($pdf));
@@ -121,5 +195,51 @@ return [
         $t->true(!str_contains($text, 'replacement generation carrier member'));
         $t->true(!str_contains($text, 'compressed carrier generation decoy'));
         $t->true(!str_contains($text, "\0"));
+        $t->same('pdf_xref_prev_object_stream_generation_review', $review['source']);
+        $t->same(2, $review['inherited_type2_entry_count']);
+        $t->same(1, $review['preserved_type2_entry_count']);
+        $t->same(1, $review['skipped_type2_entry_count']);
+        $t->same(1, $review['skipped_unselected_carrier_count']);
+        $t->same(0, $review['skipped_replaced_carrier_count']);
+        $t->same('skipped_prev_carrier_not_direct', $entries[4]['owner_policy']);
+        $t->same(2, $entries[4]['previous_carrier_type']);
+        $t->same(false, $entries[4]['current_carrier_present']);
+        $t->same('preserved_prev_carrier_storage', $entries[6]['owner_policy']);
+        $t->same(7, $entries[6]['object_stream']);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+
+    'preserves Prev type-2 rows when the latest section repeats the same object-stream carrier storage' => static function (TestRunner $t) use ($xrefPrevObjectStreamGenerationPreservedCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $xrefPrevObjectStreamGenerationPreservedCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractXrefPrevObjectStreamGenerationReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+
+        $t->same(['Current repeated carrier page', 'Same carrier storage kept', 'Preserved Prev compressed page'], $extractor->extractTextLines($pdf));
+        $t->same(['Current repeated carrier page', 'Same carrier storage kept', 'Preserved Prev compressed page'], $extractor->extractTextRuns($pdf));
+        $t->same("Current repeated carrier page\nSame carrier storage kept\nPreserved Prev compressed page", $text);
+        $t->same("Current repeated carrier page\nSame carrier storage kept\nPreserved Prev compressed page\n", $extractor->naiveGetText($pdf));
+        $t->same(2, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1', '2'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, "\0"));
+        $t->same('pdf_xref_prev_object_stream_generation_review', $review['source']);
+        $t->same(1, $review['inherited_type2_entry_count']);
+        $t->same(1, $review['preserved_type2_entry_count']);
+        $t->same(0, $review['skipped_type2_entry_count']);
+        $t->same(0, $review['skipped_unselected_carrier_count']);
+        $t->same(0, $review['skipped_replaced_carrier_count']);
+        $t->same(1, $review['same_carrier_storage_count']);
+        $t->same(4, $entry['object_number']);
+        $t->same(6, $entry['object_stream']);
+        $t->same('preserved_same_carrier_storage', $entry['owner_policy']);
+        $t->same(true, $entry['current_carrier_present']);
+        $t->same(true, $entry['same_carrier_storage']);
+        $t->same(0, $entry['previous_carrier_generation']);
+        $t->same(0, $entry['current_carrier_generation']);
+        $t->same($entry['previous_carrier_offset'], $entry['current_carrier_offset']);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
     },
 ];

@@ -6,6 +6,17 @@ namespace PortLibs\MarkerPDF;
 
 final class PdfEmbeddedFileExtractor
 {
+    private const ASSOCIATED_FILE_RELATIONSHIP_ROLES = [
+        'Source' => 'original_source',
+        'Data' => 'base_data_for_visual_presentation',
+        'Alternative' => 'alternative_representation',
+        'Supplement' => 'supplemental_representation',
+        'EncryptedPayload' => 'encrypted_payload',
+        'FormData' => 'form_data',
+        'Schema' => 'schema_definition',
+        'Unspecified' => 'unspecified',
+    ];
+
     /**
      * Native boundary for catalog /Names /EmbeddedFiles and /AF attachment lookup.
      *
@@ -244,10 +255,582 @@ final class PdfEmbeddedFileExtractor
                 $file['portfolio_field_values'] = $portfolioFieldValues;
             }
 
+            $provenance = $this->portfolioFileSpecProvenanceReview(
+                $file,
+                $body,
+                $portfolioMetadata,
+                $catalogPieceInfo,
+                $objects
+            );
+            if ($provenance !== []) {
+                $file['provenance_review'] = $provenance;
+            }
+
             return $file;
         }
 
         return null;
+    }
+
+    /**
+     * Portfolio attachment metadata is review state for WordPress import. Keep
+     * FileSpec-local XMP, PieceInfo private streams, and OutputIntent ICC bytes
+     * hashed and typed instead of exposing those payloads as document metadata.
+     *
+     * @param array<string, mixed> $file
+     * @param array<string, mixed> $portfolioMetadata
+     * @param array<string, mixed> $catalogPieceInfo
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function portfolioFileSpecProvenanceReview(
+        array $file,
+        string $fileSpecBody,
+        array $portfolioMetadata,
+        array $catalogPieceInfo,
+        array $objects
+    ): array {
+        $sources = [];
+        $hasPortfolioMetadata = false;
+        $metadata = [
+            'source' => 'portfolio_filespec_provenance',
+            'review_only' => true,
+            'metadata_payloads_included' => false,
+            'payload_content_returned' => array_key_exists('content', $file),
+        ];
+
+        $relationship = $file['relationship'] ?? null;
+        if (is_string($relationship) && $relationship !== '') {
+            $metadata['relationship'] = $relationship;
+            $metadata['relationship_role'] = self::ASSOCIATED_FILE_RELATIONSHIP_ROLES[$relationship] ?? 'unrecognized';
+            $metadata['relationship_status'] = array_key_exists($relationship, self::ASSOCIATED_FILE_RELATIONSHIP_ROLES)
+                ? 'standard_pdf_associated_file_relationship'
+                : 'unrecognized_pdf_associated_file_relationship';
+            $sources[] = 'filespec_afrelationship';
+        }
+
+        $payload = $this->embeddedPayloadProvenance($file);
+        if ($payload !== []) {
+            $metadata['payload'] = $payload;
+            $sources[] = 'embedded_file_payload';
+        }
+
+        $portfolio = $this->portfolioCollectionProvenance($portfolioMetadata);
+        if ($portfolio !== []) {
+            $metadata['portfolio'] = $portfolio;
+            $sources[] = 'catalog_collection';
+            $hasPortfolioMetadata = true;
+        }
+
+        $portfolioFields = $this->portfolioFieldProvenance($file['portfolio_field_values'] ?? null);
+        if ($portfolioFields !== []) {
+            $metadata['portfolio_fields'] = $portfolioFields;
+            $sources[] = 'filespec_collection_item';
+            $hasPortfolioMetadata = true;
+        }
+
+        $catalogPieceInfoSummary = $this->pieceInfoSummaryFromMetadata($catalogPieceInfo);
+        if ($catalogPieceInfoSummary !== []) {
+            $metadata['catalog_piece_info'] = $catalogPieceInfoSummary;
+            $sources[] = 'catalog_pieceinfo';
+            $hasPortfolioMetadata = true;
+        }
+
+        $xmpMetadata = $this->metadataStreamProvenance(
+            $this->dictionaryRawValue($fileSpecBody, 'Metadata'),
+            $objects
+        );
+        if ($xmpMetadata !== []) {
+            $metadata['xmp_metadata'] = $xmpMetadata;
+            $sources[] = 'filespec_metadata_stream';
+            $hasPortfolioMetadata = true;
+        }
+
+        $pieceInfo = $this->pieceInfoProvenance(
+            $this->dictionaryRawValue($fileSpecBody, 'PieceInfo'),
+            $objects
+        );
+        if ($pieceInfo !== []) {
+            $metadata['piece_info'] = $pieceInfo;
+            $sources[] = 'filespec_pieceinfo';
+            $hasPortfolioMetadata = true;
+        }
+
+        $outputIntents = $this->outputIntentProvenance(
+            $this->dictionaryRawValue($fileSpecBody, 'OutputIntents'),
+            $objects
+        );
+        if ($outputIntents !== []) {
+            $metadata['pdfa_output_intents'] = $outputIntents;
+            $sources[] = 'filespec_output_intents';
+            $hasPortfolioMetadata = true;
+        }
+
+        if (!$hasPortfolioMetadata || $sources === []) {
+            return [];
+        }
+
+        $metadata['sources'] = $sources;
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $file
+     * @return array<string, mixed>
+     */
+    private function embeddedPayloadProvenance(array $file): array
+    {
+        $payload = [];
+        foreach (['filename', 'mime_type', 'content_sha256'] as $key) {
+            if (isset($file[$key]) && is_string($file[$key]) && $file[$key] !== '') {
+                $payload[$key === 'content_sha256' ? 'sha256' : $key] = $file[$key];
+            }
+        }
+
+        if (isset($file['size']) && is_int($file['size'])) {
+            $payload['bytes'] = $file['size'];
+        }
+        if (isset($file['declared_size']) && is_int($file['declared_size'])) {
+            $payload['declared_size'] = $file['declared_size'];
+            if (isset($payload['bytes'])) {
+                $payload['size_matches_declared'] = $payload['bytes'] === $payload['declared_size'];
+            }
+        }
+
+        foreach (['checksum_algorithm', 'checksum', 'computed_checksum', 'checksum_matches'] as $key) {
+            if (array_key_exists($key, $file)) {
+                $payload[$key] = $file[$key];
+            }
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @param array<string, mixed> $portfolioMetadata
+     * @return array<string, mixed>
+     */
+    private function portfolioCollectionProvenance(array $portfolioMetadata): array
+    {
+        if ($portfolioMetadata === []) {
+            return [];
+        }
+
+        $metadata = ['source' => 'catalog_collection'];
+        foreach (['type', 'view', 'default_document'] as $key) {
+            if (isset($portfolioMetadata[$key]) && is_string($portfolioMetadata[$key]) && $portfolioMetadata[$key] !== '') {
+                $metadata[$key] = $portfolioMetadata[$key];
+            }
+        }
+
+        $schema = $portfolioMetadata['schema'] ?? null;
+        if (is_array($schema) && $schema !== []) {
+            $metadata['schema_fields'] = array_keys($schema);
+            $metadata['schema_field_count'] = count($schema);
+        }
+
+        $sort = $portfolioMetadata['sort'] ?? null;
+        if (is_array($sort)) {
+            $keys = $sort['keys'] ?? null;
+            if (is_array($keys) && $keys !== []) {
+                $metadata['sort_keys'] = array_values($keys);
+            }
+
+            $ascending = $sort['ascending'] ?? null;
+            if (is_array($ascending) && $ascending !== []) {
+                $metadata['sort_ascending'] = array_values($ascending);
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param mixed $portfolioFieldValues
+     * @return array<string, mixed>
+     */
+    private function portfolioFieldProvenance(mixed $portfolioFieldValues): array
+    {
+        if (!is_array($portfolioFieldValues) || $portfolioFieldValues === []) {
+            return [];
+        }
+
+        return [
+            'source' => 'filespec_collection_item',
+            'field_count' => count($portfolioFieldValues),
+            'field_names' => array_keys($portfolioFieldValues),
+            'values' => $portfolioFieldValues,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $pieceInfo
+     * @return array<string, mixed>
+     */
+    private function pieceInfoSummaryFromMetadata(array $pieceInfo): array
+    {
+        if ($pieceInfo === []) {
+            return [];
+        }
+
+        return [
+            'source' => 'pieceinfo_review',
+            'count' => count($pieceInfo),
+            'applications' => array_keys($pieceInfo),
+            'entries' => $pieceInfo,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function metadataStreamProvenance(?string $value, array $objects): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $objectNumber = $this->objectNumberFromReference($value);
+        $body = $objectNumber === null
+            ? trim($this->resolveRawValue($value, $objects) ?? $value)
+            : ($objects[$objectNumber] ?? null);
+        if ($body === null || $body === '') {
+            return [];
+        }
+
+        $stream = $this->decodeStreamObject($body, $objects);
+        if ($stream === null) {
+            return [];
+        }
+
+        $metadata = [
+            'object_number' => $objectNumber,
+            'bytes' => strlen($stream['content']),
+            'sha256' => hash('sha256', $stream['content']),
+            'payload_included' => false,
+        ];
+
+        foreach ([
+            'type' => $this->dictionaryNameValue($stream['dictionary'], 'Type', $objects),
+            'subtype' => $this->dictionaryNameValue($stream['dictionary'], 'Subtype', $objects),
+        ] as $key => $value) {
+            if (is_string($value) && $value !== '') {
+                $metadata[$key] = $value;
+            }
+        }
+
+        if ($stream['filters'] !== []) {
+            $metadata['filters'] = $stream['filters'];
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function pieceInfoProvenance(?string $pieceInfoValue, array $objects): array
+    {
+        $pieceInfo = $this->resolveDictionaryFromValue($pieceInfoValue, $objects);
+        if ($pieceInfo === null) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($this->dictionaryEntries($pieceInfo['body']) as $application => $pieceValue) {
+            $piece = $this->resolveDictionaryFromValue($pieceValue, $objects);
+            if ($piece === null) {
+                continue;
+            }
+
+            $entry = ['application' => $application];
+            $lastModified = $this->dictionaryStringValue($piece['body'], 'LastModified', $objects);
+            if ($lastModified !== null && $lastModified !== '') {
+                $entry['last_modified'] = $lastModified;
+            }
+
+            $private = $this->pieceInfoPrivateProvenance($this->dictionaryRawValue($piece['body'], 'Private'), $objects);
+            foreach ($private as $key => $value) {
+                $entry[$key] = $value;
+            }
+
+            if (count($entry) > 1) {
+                $entries[] = $entry;
+            }
+        }
+
+        if ($entries === []) {
+            return [];
+        }
+
+        return [
+            'source' => 'filespec_pieceinfo_provenance',
+            'review_only' => true,
+            'payload_included' => false,
+            'count' => count($entries),
+            'applications' => $this->uniqueStrings(array_map(
+                static fn (array $entry): string => (string) $entry['application'],
+                $entries
+            )),
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function pieceInfoPrivateProvenance(?string $privateValue, array $objects): array
+    {
+        if ($privateValue === null) {
+            return [];
+        }
+
+        $stream = $this->pieceInfoPrivateStreamMetadata($privateValue, $objects);
+        if ($stream !== null) {
+            return [
+                'private_keys' => ['Private'],
+                'private_streams' => [['key' => 'Private'] + $stream],
+            ];
+        }
+
+        $private = $this->resolveDictionaryFromValue($privateValue, $objects);
+        if ($private === null) {
+            $reviewValue = $this->reviewValueFromRaw($privateValue, $objects);
+            return ($reviewValue === null || $reviewValue === '') ? [] : ['private_value' => $reviewValue];
+        }
+
+        $keys = [];
+        $metadataStreams = [];
+        $privateStreams = [];
+        $outputIntents = [];
+        foreach ($this->dictionaryEntries($private['body']) as $key => $value) {
+            $keys[] = $key;
+            if ($key === 'Metadata') {
+                $metadata = $this->metadataStreamProvenance($value, $objects);
+                if ($metadata !== []) {
+                    $metadataStreams[] = $metadata;
+                }
+                continue;
+            }
+
+            if ($key === 'OutputIntents') {
+                $outputIntent = $this->outputIntentProvenance($value, $objects);
+                if ($outputIntent !== []) {
+                    $outputIntents = $outputIntent;
+                }
+                continue;
+            }
+
+            $stream = $this->pieceInfoPrivateStreamMetadata($value, $objects);
+            if ($stream !== null) {
+                $privateStreams[] = ['key' => $key] + $stream;
+            }
+        }
+
+        $metadata = [];
+        if ($keys !== []) {
+            $metadata['private_keys'] = $keys;
+        }
+        if ($metadataStreams !== []) {
+            $metadata['metadata_streams'] = $metadataStreams;
+        }
+        if ($privateStreams !== []) {
+            $metadata['private_streams'] = $privateStreams;
+        }
+        if ($outputIntents !== []) {
+            $metadata['output_intents'] = $outputIntents;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function outputIntentProvenance(?string $value, array $objects): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $intents = [];
+        foreach ($this->outputIntentDictionariesFromValue($value, $objects) as $dictionary) {
+            $intent = $this->outputIntentProvenanceFromDictionary($dictionary, $objects);
+            if ($intent !== null) {
+                $intents[] = $intent;
+            }
+        }
+
+        if ($intents === []) {
+            return [];
+        }
+
+        $pdfa = $this->pdfaOutputIntentSummary($intents);
+
+        return [
+            'count' => count($intents),
+            'has_pdfa_output_intent' => $pdfa !== null,
+            'output_condition_identifiers' => $pdfa['output_condition_identifiers'] ?? [],
+            'profile_sha256' => $pdfa['profile_sha256'] ?? [],
+            'intents' => $intents,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function outputIntentDictionariesFromValue(string $value, array $objects): array
+    {
+        $resolved = trim($this->resolveRawValue($value, $objects) ?? $value);
+        if ($resolved === '') {
+            return [];
+        }
+
+        if (str_starts_with($resolved, '[')) {
+            $dictionaries = [];
+            foreach ($this->arrayItemsFromValue($resolved, $objects) as $item) {
+                foreach ($this->outputIntentDictionariesFromValue($item, $objects) as $dictionary) {
+                    $dictionaries[] = $dictionary;
+                }
+            }
+
+            return $dictionaries;
+        }
+
+        if (str_starts_with($resolved, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($resolved, 0);
+            return $dictionary === null ? [] : [$dictionary['body']];
+        }
+
+        $dictionary = $this->dictionaryObjectBody($resolved);
+
+        return $dictionary === null ? [] : [$dictionary];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function outputIntentProvenanceFromDictionary(string $dictionary, array $objects): ?array
+    {
+        $subtype = $this->dictionaryNameValue($dictionary, 'S', $objects);
+        $identifier = $this->dictionaryStringValue($dictionary, 'OutputConditionIdentifier', $objects);
+        $condition = $this->dictionaryStringValue($dictionary, 'OutputCondition', $objects);
+        $registryName = $this->dictionaryStringValue($dictionary, 'RegistryName', $objects);
+        $info = $this->dictionaryStringValue($dictionary, 'Info', $objects);
+        $type = $this->dictionaryNameValue($dictionary, 'Type', $objects);
+
+        if ($subtype === null && $identifier === null && $condition === null && $info === null) {
+            return null;
+        }
+
+        $intent = [
+            'is_pdfa' => $subtype === 'GTS_PDFA1',
+        ];
+
+        foreach ([
+            'type' => $type,
+            'subtype' => $subtype,
+            'output_condition_identifier' => $identifier,
+            'output_condition' => $condition,
+            'registry_name' => $registryName,
+            'info' => $info,
+        ] as $key => $value) {
+            if (is_string($value) && $value !== '') {
+                $intent[$key] = $value;
+            }
+        }
+
+        $profile = $this->outputProfileMetadata($dictionary, $objects);
+        if ($profile !== null) {
+            $intent['dest_output_profile'] = $profile;
+        }
+
+        return $intent;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function outputProfileMetadata(string $dictionary, array $objects): ?array
+    {
+        $value = $this->dictionaryRawValue($dictionary, 'DestOutputProfile');
+        if ($value === null) {
+            return null;
+        }
+
+        $objectNumber = $this->objectNumberFromReference($value);
+        if ($objectNumber === null || !isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        $stream = $this->decodeStreamObject($objects[$objectNumber], $objects);
+        if ($stream === null) {
+            return null;
+        }
+
+        $profile = [
+            'object_number' => $objectNumber,
+            'bytes' => strlen($stream['content']),
+            'sha256' => hash('sha256', $stream['content']),
+        ];
+
+        $components = $this->dictionaryIntegerValue($stream['dictionary'], 'N');
+        if ($components !== null) {
+            $profile['color_components'] = $components;
+        }
+
+        $alternate = $this->dictionaryNameValue($stream['dictionary'], 'Alternate', $objects);
+        if ($alternate !== null && $alternate !== '') {
+            $profile['alternate_color_space'] = $alternate;
+        }
+
+        if ($stream['filters'] !== []) {
+            $profile['filters'] = $stream['filters'];
+        }
+
+        return $profile;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $outputIntents
+     * @return array{has_output_intent: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>}|null
+     */
+    private function pdfaOutputIntentSummary(array $outputIntents): ?array
+    {
+        $identifiers = [];
+        $hashes = [];
+        foreach ($outputIntents as $intent) {
+            if (($intent['subtype'] ?? null) !== 'GTS_PDFA1') {
+                continue;
+            }
+
+            if (isset($intent['output_condition_identifier']) && is_string($intent['output_condition_identifier'])) {
+                $identifiers[] = $intent['output_condition_identifier'];
+            }
+
+            $profile = $intent['dest_output_profile'] ?? null;
+            if (is_array($profile) && isset($profile['sha256']) && is_string($profile['sha256'])) {
+                $hashes[] = $profile['sha256'];
+            }
+        }
+
+        if ($identifiers === [] && $hashes === []) {
+            return null;
+        }
+
+        return [
+            'has_output_intent' => true,
+            'output_condition_identifiers' => $this->uniqueStrings($identifiers),
+            'profile_sha256' => $this->uniqueStrings($hashes),
+        ];
     }
 
     /**
@@ -2181,6 +2764,26 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $this->stringValueFromRaw($resolved, $objects);
+    }
+
+    /**
+     * @param list<string> $values
+     * @return list<string>
+     */
+    private function uniqueStrings(array $values): array
+    {
+        $seen = [];
+        $unique = [];
+        foreach ($values as $value) {
+            if ($value === '' || isset($seen[$value])) {
+                continue;
+            }
+
+            $seen[$value] = true;
+            $unique[] = $value;
+        }
+
+        return $unique;
     }
 
     private function decodePdfName(string $name): string

@@ -1013,7 +1013,7 @@ final class PdfImageRenderer
      * DeviceN into named tint values, with optional soft-mask alpha.
      *
      * @param array<string, mixed> $imagePlan
-     * @return array{source_color_space: string, base_color_space: string|null, raw_sample: float, decoded_index: float, palette_index: int, clamped_to_hival: bool, colorant_tints: array<string, float>, tint_values: list<float>, alternate_color_space: string|null, alternate_components: int|null, alternate_uses_icc_profile: bool, icc_profile: array<string, mixed>|null, tint_transform_object: int|null, tint_transform_function_type: int|null, tint_transform_preview_mode: string, soft_mask_alpha: float|null, output_color_mode: string}
+     * @return array{source_color_space: string, base_color_space: string|null, raw_sample: float, decoded_index: float, palette_index: int, clamped_to_hival: bool, colorant_tints: array<string, float>, tint_values: list<float>, alternate_color_space: string|null, alternate_components: int|null, alternate_uses_icc_profile: bool, icc_profile: array<string, mixed>|null, tint_transform_object: int|null, tint_transform_function_type: int|null, tint_transform_preview_mode: string, soft_mask_alpha: float|null, soft_mask_alpha_before_transfer: float|null, soft_mask_transfer_applied: bool, soft_mask_transfer_function: array<string, mixed>|null, output_color_mode: string}
      */
     public function indexedAlternateColorantSamplePreview(int|float $sample, array $imagePlan, int|float|null $softMaskSample = null): array
     {
@@ -1066,6 +1066,9 @@ final class PdfImageRenderer
             'tint_transform_function_type' => $functionType,
             'tint_transform_preview_mode' => $functionType === null ? 'none' : 'review_only',
             'soft_mask_alpha' => $indexedPreview['soft_mask_alpha'],
+            'soft_mask_alpha_before_transfer' => $indexedPreview['soft_mask_alpha_before_transfer'],
+            'soft_mask_transfer_applied' => $indexedPreview['soft_mask_transfer_applied'],
+            'soft_mask_transfer_function' => $indexedPreview['soft_mask_transfer_function'],
             'output_color_mode' => $indexedPreview['output_color_mode'],
         ];
     }
@@ -1147,6 +1150,8 @@ final class PdfImageRenderer
                 throw new InvalidArgumentException('Indexed image stream filters must be natively decoded before sample preview.');
             }
 
+            $indexedAlternate = $this->indexedAlternateColorSpacePreviewMetadata($plan);
+
             return [
                 'source_color_space' => (string) $plan['source_color_space'],
                 'width' => $width,
@@ -1161,6 +1166,7 @@ final class PdfImageRenderer
                 'image_stream' => $imageStreamMeta,
                 'soft_mask_stream' => $softMaskStreamMeta,
                 'indexed_color_space' => $plan['indexed_color_space'],
+                'indexed_alternate_color_space' => $indexedAlternate,
                 'image_decode' => $plan['image_decode'],
                 'pixels' => [],
                 'stream_notes' => $streamNotes,
@@ -1191,7 +1197,7 @@ final class PdfImageRenderer
             $rawSample = $imageSamples['pixels'][$index][0];
             $softMaskSample = is_array($softMaskSamples) ? $softMaskSamples['pixels'][$index][0] : null;
             $preview = $this->indexedSamplePreview($rawSample, $plan, $softMaskSample);
-            $pixels[] = [
+            $pixel = [
                 'pixel_index' => $index,
                 'x' => $index % $width,
                 'y' => intdiv($index, $width),
@@ -1203,7 +1209,18 @@ final class PdfImageRenderer
                 'soft_mask_sample' => $softMaskSample,
                 'soft_mask_alpha' => $preview['soft_mask_alpha'],
             ];
+            if ($this->indexedPlanUsesAlternateColorSpace($plan)) {
+                $alternatePreview = $this->indexedAlternateColorantSamplePreview($rawSample, $plan, $softMaskSample);
+                $pixel['colorant_tints'] = $alternatePreview['colorant_tints'];
+                $pixel['tint_values'] = $alternatePreview['tint_values'];
+                $pixel['soft_mask_alpha_before_transfer'] = $alternatePreview['soft_mask_alpha_before_transfer'];
+                $pixel['soft_mask_transfer_applied'] = $alternatePreview['soft_mask_transfer_applied'];
+            }
+
+            $pixels[] = $pixel;
         }
+
+        $indexedAlternate = $this->indexedAlternateColorSpacePreviewMetadata($plan);
 
         return [
             'source_color_space' => (string) $plan['source_color_space'],
@@ -1219,12 +1236,57 @@ final class PdfImageRenderer
             'image_stream' => $imageStreamMeta,
             'soft_mask_stream' => $softMaskStreamMeta,
             'indexed_color_space' => $plan['indexed_color_space'],
+            'indexed_alternate_color_space' => $indexedAlternate,
             'image_decode' => $plan['image_decode'],
             'pixels' => $pixels,
             'stream_notes' => $streamNotes,
             'notes' => array_values(array_unique(array_merge($plan['notes'] ?? [], $streamNotes))),
             'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $imagePlan
+     * @return array<string, mixed>|null
+     */
+    private function indexedAlternateColorSpacePreviewMetadata(array $imagePlan): ?array
+    {
+        if (!$this->indexedPlanUsesAlternateColorSpace($imagePlan)) {
+            return null;
+        }
+
+        $indexedPlan = $imagePlan['indexed_color_space'];
+        $alternate = $indexedPlan['base_alternate_color_space'];
+        $functionType = $alternate['tint_transform_function_type'] ?? null;
+
+        return [
+            'base_color_space' => $indexedPlan['base_color_space'] ?? null,
+            'colorant_names' => array_values(array_filter(
+                $alternate['colorant_names'] ?? [],
+                static fn (mixed $name): bool => is_string($name) && $name !== ''
+            )),
+            'alternate_color_space' => $alternate['alternate_color_space'] ?? null,
+            'alternate_components' => $alternate['alternate_components'] ?? null,
+            'alternate_uses_icc_profile' => ($alternate['alternate_uses_icc_profile'] ?? false) === true,
+            'icc_profile' => $indexedPlan['base_icc_profile'] ?? null,
+            'tint_transform_object' => $alternate['tint_transform_object'] ?? null,
+            'tint_transform_function_type' => $functionType,
+            'tint_transform_preview_mode' => $functionType === null ? 'none' : 'review_only',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $imagePlan
+     */
+    private function indexedPlanUsesAlternateColorSpace(array $imagePlan): bool
+    {
+        $indexedPlan = $imagePlan['indexed_color_space'] ?? null;
+        if (!is_array($indexedPlan)) {
+            return false;
+        }
+
+        return ($indexedPlan['base_uses_alternate_color_space'] ?? false) === true
+            && is_array($indexedPlan['base_alternate_color_space'] ?? null);
     }
 
     /**

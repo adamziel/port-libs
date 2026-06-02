@@ -325,6 +325,86 @@ final class PdfTextExtractor
     }
 
     /**
+     * Review inherited /Prev xref-stream type-2 rows before WordPress import.
+     *
+     * Upstream reaches object-stream members through pdftext/PDFium parser
+     * ownership. The native fallback exposes whether a previous compressed
+     * member is still backed by the same selected object-stream carrier, or is
+     * skipped because the current revision changed that carrier storage.
+     *
+     * @return array{
+     *     source: string,
+     *     review_only: true,
+     *     encrypted: bool,
+     *     inherited_type2_entry_count: int,
+     *     preserved_type2_entry_count: int,
+     *     skipped_type2_entry_count: int,
+     *     skipped_unselected_carrier_count: int,
+     *     skipped_replaced_carrier_count: int,
+     *     same_carrier_storage_count: int,
+     *     entries: list<array<string, mixed>>,
+     *     executes_python_or_models: false,
+     *     executes_external_pdf_tools: false
+     * }
+     */
+    public function extractXrefPrevObjectStreamGenerationReview(string $pdfBytes): array
+    {
+        $review = [
+            'source' => 'pdf_xref_prev_object_stream_generation_review',
+            'review_only' => true,
+            'encrypted' => $this->hasEncryptedTrailer($pdfBytes),
+            'inherited_type2_entry_count' => 0,
+            'preserved_type2_entry_count' => 0,
+            'skipped_type2_entry_count' => 0,
+            'skipped_unselected_carrier_count' => 0,
+            'skipped_replaced_carrier_count' => 0,
+            'same_carrier_storage_count' => 0,
+            'entries' => [],
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+
+        if ($review['encrypted']) {
+            return $review;
+        }
+
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        if ($definitions === []) {
+            return $review;
+        }
+
+        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
+        if ($offset === null) {
+            return $review;
+        }
+
+        $objects = $this->latestDirectObjects($definitions);
+        $entries = $this->xrefPrevObjectStreamGenerationReviewEntries($pdfBytes, $offset, $objects, $definitions);
+        foreach ($entries as $entry) {
+            $review['inherited_type2_entry_count']++;
+            if (($entry['skipped'] ?? false) === true) {
+                $review['skipped_type2_entry_count']++;
+            } else {
+                $review['preserved_type2_entry_count']++;
+            }
+
+            if (($entry['same_carrier_storage'] ?? false) === true) {
+                $review['same_carrier_storage_count']++;
+            }
+
+            $ownerPolicy = $entry['owner_policy'] ?? null;
+            if ($ownerPolicy === 'skipped_prev_carrier_absent' || $ownerPolicy === 'skipped_prev_carrier_not_direct') {
+                $review['skipped_unselected_carrier_count']++;
+            } elseif ($ownerPolicy === 'skipped_current_replaced_carrier_storage') {
+                $review['skipped_replaced_carrier_count']++;
+            }
+        }
+        $review['entries'] = $entries;
+
+        return $review;
+    }
+
+    /**
      * Review xref-stream /Filter and /Length operands before WordPress import.
      *
      * Upstream reaches this through pdftext/PDFium object loading. The native
@@ -9891,6 +9971,160 @@ final class PdfTextExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     * @return list<array<string, mixed>>
+     */
+    private function xrefPrevObjectStreamGenerationReviewEntries(
+        string $pdfBytes,
+        int $offset,
+        array $objects,
+        array $definitions,
+        array $seenOffsets = []
+    ): array {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return [];
+        }
+        $seenOffsets[$offset] = true;
+
+        $section = $this->xrefSectionEntriesAndPreviousOffset($pdfBytes, $offset, $objects, $definitions, $seenOffsets);
+        if ($section === null) {
+            return [];
+        }
+
+        $reviewEntries = [];
+        $previousOffset = $section['previousOffset'];
+        if ($previousOffset !== null && $previousOffset >= 0) {
+            $previousEntries = $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
+            foreach ($previousEntries as $objectNumber => $entry) {
+                if (($entry['type'] ?? null) !== 2 || !isset($entry['objectStream'])) {
+                    continue;
+                }
+
+                if (isset($section['entries'][$objectNumber])) {
+                    continue;
+                }
+
+                $objectStreamNumber = (int) $entry['objectStream'];
+                $previousCarrierEntry = $previousEntries[$objectStreamNumber] ?? null;
+                $currentCarrierEntry = $section['entries'][$objectStreamNumber] ?? null;
+                $sameCarrierStorage = $previousCarrierEntry !== null
+                    && $currentCarrierEntry !== null
+                    && $this->xrefEntriesSelectSameStorage($currentCarrierEntry, $previousCarrierEntry);
+                $ownerPolicy = $this->xrefPrevObjectStreamGenerationOwnerPolicy($previousCarrierEntry, $currentCarrierEntry);
+                $skipped = str_starts_with($ownerPolicy, 'skipped_');
+
+                $reviewEntries[] = [
+                    'object_number' => $objectNumber,
+                    'object_stream' => $objectStreamNumber,
+                    'member_index' => (int) ($entry['index'] ?? 0),
+                    'index_is_explicit' => ($entry['indexIsExplicit'] ?? true) === true,
+                    'current_section_source' => $section['source'],
+                    'current_xref_offset' => $section['offset'],
+                    'previous_xref_offset' => $previousOffset,
+                    'previous_carrier_selected' => ($previousCarrierEntry['type'] ?? null) === 1,
+                    'previous_carrier_type' => $previousCarrierEntry['type'] ?? null,
+                    'previous_carrier_generation' => $previousCarrierEntry['generation'] ?? null,
+                    'previous_carrier_offset' => $previousCarrierEntry['offset'] ?? null,
+                    'current_carrier_present' => $currentCarrierEntry !== null,
+                    'current_carrier_type' => $currentCarrierEntry['type'] ?? null,
+                    'current_carrier_generation' => $currentCarrierEntry['generation'] ?? null,
+                    'current_carrier_offset' => $currentCarrierEntry['offset'] ?? null,
+                    'same_carrier_storage' => $sameCarrierStorage,
+                    'skipped' => $skipped,
+                    'owner_policy' => $ownerPolicy,
+                    'review_only' => true,
+                ];
+            }
+
+            $reviewEntries = array_merge(
+                $reviewEntries,
+                $this->xrefPrevObjectStreamGenerationReviewEntries($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets)
+            );
+        }
+
+        return $reviewEntries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     * @return array{
+     *     source: string,
+     *     offset: int,
+     *     entries: array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>,
+     *     previousOffset: int|null
+     * }|null
+     */
+    private function xrefSectionEntriesAndPreviousOffset(
+        string $pdfBytes,
+        int $offset,
+        array $objects,
+        array $definitions,
+        array $seenOffsets
+    ): ?array {
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
+        if ($tableSection !== null) {
+            $entries = $tableSection['entries'];
+            $trailer = $tableSection['trailer'];
+            $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
+            if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
+                foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions) as $objectNumber => $entry) {
+                    if (!isset($entries[$objectNumber])) {
+                        $entries[$objectNumber] = $entry;
+                    }
+                }
+            }
+
+            return [
+                'source' => 'xref_table',
+                'offset' => $offset,
+                'entries' => $entries,
+                'previousOffset' => $this->pdfIntegerValueAfterName($trailer, 'Prev'),
+            ];
+        }
+
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        if ($streamSection === null) {
+            return null;
+        }
+
+        return [
+            'source' => 'xref_stream',
+            'offset' => $offset,
+            'entries' => $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects),
+            'previousOffset' => $this->pdfIntegerValueAfterName($streamSection['body'], 'Prev'),
+        ];
+    }
+
+    /**
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}|null $previousCarrierEntry
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}|null $currentCarrierEntry
+     */
+    private function xrefPrevObjectStreamGenerationOwnerPolicy(?array $previousCarrierEntry, ?array $currentCarrierEntry): string
+    {
+        if ($previousCarrierEntry === null) {
+            return 'skipped_prev_carrier_absent';
+        }
+
+        if (($previousCarrierEntry['type'] ?? null) !== 1) {
+            return 'skipped_prev_carrier_not_direct';
+        }
+
+        if ($currentCarrierEntry === null) {
+            return 'preserved_prev_carrier_storage';
+        }
+
+        if ($this->xrefEntriesSelectSameStorage($currentCarrierEntry, $previousCarrierEntry)) {
+            return 'preserved_same_carrier_storage';
+        }
+
+        return 'skipped_current_replaced_carrier_storage';
     }
 
     /**
