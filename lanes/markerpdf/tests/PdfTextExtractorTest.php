@@ -476,6 +476,26 @@ return [
         $t->same('Queue: AAAAAA', $extractor->extractPlainText($repeatedPdf));
         $t->same('', $extractor->extractPlainText("%PDF-1.4\n1 0 obj\n<< /Filter /RunLengthDecode >>\nstream\n\x04bad\nendstream\nendobj\n%%EOF"));
     },
+    'uses stream Length boundaries for ASCIIHex and RunLength filter decoding' => static function (TestRunner $t) use ($runLengthEncode): void {
+        $content = 'BT /F1 12 Tf 72 720 Td (Visible endstream Word) Tj ET';
+        $encoded = $runLengthEncode($content);
+        $pdf = "%PDF-1.4\n1 0 obj\n<< /Filter /RunLengthDecode /Length " . strlen($encoded) . " >>\nstream\n{$encoded}\nendstream\nendobj\n%%EOF";
+
+        $indirectLengthPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Filter /RL /Length 2 0 R >>\nstream\n{$encoded}\nendstream\nendobj\n"
+            . "2 0 obj\n" . strlen($encoded) . "\nendobj\n%%EOF";
+
+        $stackedContent = 'BT /F1 12 Tf 72 720 Td (ASCIIHex RunLength Stack) Tj T* (Length Safe) Tj ET';
+        $stacked = chunk_split(strtoupper(bin2hex($runLengthEncode($stackedContent))), 20, "\r\n");
+        $stackedPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Filter [ /ASCIIHexDecode /RunLengthDecode ] /Length " . strlen($stacked) . " >>\n"
+            . "stream\r\n{$stacked}\r\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $t->same('Visible endstream Word', $extractor->extractPlainText($pdf));
+        $t->same('Visible endstream Word', $extractor->extractPlainText($indirectLengthPdf));
+        $t->same("ASCIIHex RunLength Stack\nLength Safe", $extractor->extractPlainText($stackedPdf));
+    },
     'extracts LZW stream filters before WordPress paragraph rendering' => static function (TestRunner $t) use ($lzwPackCodes, $lzwLiteralEncode): void {
         $prefix = 'BT /F1 12 Tf 72 720 Td (';
         $suffix = ') Tj T* (Stack Ready) Tj ET';

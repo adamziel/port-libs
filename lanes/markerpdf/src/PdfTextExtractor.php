@@ -1862,17 +1862,22 @@ final class PdfTextExtractor
     private function allDecodedStreams(string $pdfBytes, array $objects): array
     {
         $streams = [];
-        if (!preg_match_all('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
+        if (!preg_match_all('/<<(.*?)>>\s*stream(?:\r\n|\r|\n)?/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
             return $streams;
         }
 
         foreach ($matches as $match) {
-            $dict = $match[1];
+            $dict = $match[1][0];
             if ($this->isImageStreamDictionary($dict, $objects)) {
                 continue;
             }
 
-            $stream = $match[2];
+            $streamStart = $match[0][1] + strlen($match[0][0]);
+            $stream = $this->streamPayloadAt($pdfBytes, $streamStart, $dict, $objects);
+            if ($stream === null) {
+                continue;
+            }
+
             $decoded = $this->decodeStream($dict, $stream, $objects);
             if ($decoded === null) {
                 continue;
@@ -2379,15 +2384,112 @@ final class PdfTextExtractor
      */
     private function decodeStreamObject(string $objectBody, array $objects): ?string
     {
-        if (!preg_match('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $objectBody, $match)) {
+        $entry = $this->streamDictionaryAndPayload($objectBody, $objects);
+        if ($entry === null) {
             return null;
         }
 
-        if ($this->isImageStreamDictionary($match[1], $objects)) {
+        if ($this->isImageStreamDictionary($entry['dict'], $objects)) {
             return null;
         }
 
-        return $this->decodeStream($match[1], $match[2], $objects);
+        return $this->decodeStream($entry['dict'], $entry['stream'], $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{dict: string, stream: string}|null
+     */
+    private function streamDictionaryAndPayload(string $value, array $objects): ?array
+    {
+        if (preg_match('/<<(.*?)>>\s*stream(?:\r\n|\r|\n)?/s', $value, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        $dict = $match[1][0];
+        $streamStart = $match[0][1] + strlen($match[0][0]);
+        $stream = $this->streamPayloadAt($value, $streamStart, $dict, $objects);
+        if ($stream === null) {
+            return null;
+        }
+
+        return [
+            'dict' => $dict,
+            'stream' => $stream,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamPayloadAt(string $value, int $streamStart, string $dict, array $objects): ?string
+    {
+        $length = $this->streamLength($dict, $objects);
+        if ($length !== null) {
+            if ($length < 0 || $streamStart + $length > strlen($value)) {
+                return null;
+            }
+
+            return substr($value, $streamStart, $length);
+        }
+
+        $end = strpos($value, 'endstream', $streamStart);
+        if ($end === false) {
+            return null;
+        }
+
+        return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $end - $streamStart));
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamLength(string $dict, array $objects): ?int
+    {
+        $offset = $this->nameValueOffset($dict, 'Length');
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->streamLengthValueAt($dict, $offset, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     */
+    private function streamLengthValueAt(string $value, int $offset, array $objects, array $seen = []): ?int
+    {
+        $offset = $this->skipPdfWhitespace($value, $offset);
+        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) === 1) {
+            $objectNumber = (int) $match[1];
+            if ($objectNumber <= 0 || isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return null;
+            }
+
+            $seen[$objectNumber] = true;
+            return $this->streamLengthValueAt(trim($objects[$objectNumber]), 0, $objects, $seen);
+        }
+
+        if (preg_match('/\G([+-]?\d+)/s', $value, $match, 0, $offset) === 1) {
+            $length = (int) $match[1];
+            return $length < 0 ? null : $length;
+        }
+
+        return null;
+    }
+
+    private function stripStreamTerminatingLineEnding(string $stream): string
+    {
+        if (str_ends_with($stream, "\r\n")) {
+            return substr($stream, 0, -2);
+        }
+
+        if (str_ends_with($stream, "\n") || str_ends_with($stream, "\r")) {
+            return substr($stream, 0, -1);
+        }
+
+        return $stream;
     }
 
     /**
