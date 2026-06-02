@@ -336,6 +336,11 @@ final class TableFormatter
             $review['caption'] = $caption;
         }
 
+        $pageReview = $this->tablePageReviewContext($page, $region['page_bbox']);
+        if ($pageReview !== []) {
+            $review['page_review'] = $pageReview;
+        }
+
         $review['has_section'] = isset($review['section']);
         $review['has_caption'] = isset($review['caption']);
 
@@ -517,6 +522,197 @@ final class TableFormatter
         $overlap = max(0.0, min($bbox[2], $other[2]) - max($bbox[0], $other[0]));
 
         return $overlap / $width;
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     * @param list<float> $tablePageBbox
+     * @return array<string, mixed>
+     */
+    private function tablePageReviewContext(array $page, array $tablePageBbox): array
+    {
+        $source = is_array($page['page_review_metadata'] ?? null) ? $page['page_review_metadata'] : $page;
+        $context = [
+            'source' => 'table_page_review_context',
+            'review_only' => true,
+            'visible_text_source' => false,
+        ];
+
+        foreach ([
+            'pnum',
+            'page',
+            'page_number',
+            'page_label',
+            'page_object',
+            'struct_parents',
+            'parent_tree',
+            'mark_info',
+            'page_presentation',
+        ] as $key) {
+            if (array_key_exists($key, $source)) {
+                $context[$key] = $source[$key];
+            }
+        }
+
+        if (isset($source['piece_info']) && is_array($source['piece_info']) && $source['piece_info'] !== []) {
+            $context['page_piece_info'] = $source['piece_info'];
+            $context['page_piece_info_review_only'] = true;
+        }
+
+        if (isset($source['page_associated_files']) && is_array($source['page_associated_files']) && $source['page_associated_files'] !== []) {
+            $context['page_associated_files'] = $this->compactReviewRows($source['page_associated_files']);
+            $context['page_associated_file_count'] = count($context['page_associated_files']);
+        }
+
+        $structureRows = $this->compactReviewRows($source['structure_marked_content'] ?? []);
+        if ($structureRows !== []) {
+            $context['structure_marked_content'] = $structureRows;
+            $context['structure_marked_content_count'] = count($structureRows);
+            $roles = $this->stringValues(array_map(static fn (array $row): mixed => $row['role'] ?? null, $structureRows));
+            if ($roles !== []) {
+                $context['structure_roles'] = $roles;
+            }
+        }
+
+        $annotationRows = $this->reviewRowsIntersectingTable(
+            $source['annotation_structure_parent_rows'] ?? [],
+            $tablePageBbox
+        );
+        if ($annotationRows !== []) {
+            $context['annotation_structure_parent_rows'] = $annotationRows;
+            $context['annotation_structure_parent_count'] = count($annotationRows);
+            $context['annotation_struct_parents'] = $this->integerValues(
+                array_map(static fn (array $row): mixed => $row['struct_parent'] ?? null, $annotationRows)
+            );
+        }
+
+        $markupRows = $this->reviewRowsIntersectingTable(
+            $source['text_markup_annotations'] ?? [],
+            $tablePageBbox
+        );
+        if ($markupRows !== []) {
+            $context['text_markup_annotations'] = $markupRows;
+            $context['text_markup_annotation_count'] = count($markupRows);
+        }
+
+        $hasReviewRows = isset($context['page_piece_info'])
+            || isset($context['page_associated_files'])
+            || isset($context['structure_marked_content'])
+            || isset($context['annotation_structure_parent_rows'])
+            || isset($context['text_markup_annotations']);
+
+        return $hasReviewRows ? $this->compactReviewRow($context) : [];
+    }
+
+    /**
+     * @param mixed $rows
+     * @return list<array<string, mixed>>
+     */
+    private function compactReviewRows(mixed $rows): array
+    {
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $out[] = $this->compactReviewRow($row);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param mixed $rows
+     * @param list<float> $tablePageBbox
+     * @return list<array<string, mixed>>
+     */
+    private function reviewRowsIntersectingTable(mixed $rows, array $tablePageBbox): array
+    {
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (!is_array($row) || !$this->reviewRowIntersectsTable($row, $tablePageBbox)) {
+                continue;
+            }
+
+            $out[] = $this->compactReviewRow($row);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param list<float> $tablePageBbox
+     */
+    private function reviewRowIntersectsTable(array $row, array $tablePageBbox): bool
+    {
+        $rect = $this->bbox($row['rect'] ?? null);
+        if ($rect !== null) {
+            return $this->layout->intersectionPct($rect, $tablePageBbox) > 0.0;
+        }
+
+        foreach (['quad_rects', 'pdftext_quad_rects'] as $key) {
+            if (!isset($row[$key]) || !is_array($row[$key])) {
+                continue;
+            }
+
+            foreach ($row[$key] as $quadRect) {
+                $bbox = $this->bbox($quadRect);
+                if ($bbox !== null && $this->layout->intersectionPct($bbox, $tablePageBbox) > 0.0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function compactReviewRow(array $row): array
+    {
+        return array_filter($row, static fn (mixed $value): bool => $value !== null && $value !== []);
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return list<int>
+     */
+    private function integerValues(array $values): array
+    {
+        $out = [];
+        foreach ($values as $value) {
+            if (is_int($value) || is_float($value) || (is_string($value) && preg_match('/^-?\d+$/', $value) === 1)) {
+                $out[] = (int) $value;
+            }
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return list<string>
+     */
+    private function stringValues(array $values): array
+    {
+        $out = [];
+        foreach ($values as $value) {
+            if (is_scalar($value) && (string) $value !== '') {
+                $out[] = (string) $value;
+            }
+        }
+
+        return array_values(array_unique($out));
     }
 
     /**

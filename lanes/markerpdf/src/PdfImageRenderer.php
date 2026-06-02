@@ -756,6 +756,52 @@ final class PdfImageRenderer
     }
 
     /**
+     * Dispatches a current PDF image stream through the native color-space,
+     * soft-mask, and transfer-function preview path used before Marker's RGB
+     * image handoff.
+     *
+     * @param array<int|string, mixed> $objects
+     * @return array<string, mixed>
+     */
+    public function imageRenderingColorSpaceSoftMaskTransferBundle(
+        string $imageObject,
+        array $objects = [],
+        int $maxPixels = 16
+    ): array {
+        if ($maxPixels < 1) {
+            throw new InvalidArgumentException('Image rendering bundle preview requires at least one preview pixel.');
+        }
+
+        $dictionary = $this->streamDictionaryFromValue($imageObject) ?? trim($imageObject);
+        $plan = $this->imageColorSpaceSoftMaskPlan($dictionary, $objects);
+        $selectedPreview = null;
+
+        if (($plan['uses_indexed_color_space'] ?? false) === true) {
+            $selectedPreview = 'indexed';
+            $preview = $this->indexedImageStreamPreviewRows($imageObject, $objects, $maxPixels);
+        } elseif (($plan['uses_alternate_color_space'] ?? false) === true) {
+            $selectedPreview = 'alternate_colorant';
+            $preview = $this->alternateColorantStreamPreviewRows($imageObject, $objects, $maxPixels);
+        } elseif (($plan['uses_calibrated_color_space'] ?? false) === true) {
+            $selectedPreview = 'calibrated';
+            $preview = $this->calibratedImageStreamPreviewRows($imageObject, $objects, $maxPixels);
+        } elseif (($plan['source_color_space'] ?? null) === 'ICCBased') {
+            $selectedPreview = 'iccbased';
+            $preview = $this->iccBasedImageStreamPreviewRows($imageObject, $objects, $maxPixels);
+        } elseif (($plan['source_color_space'] ?? null) === 'DeviceGray') {
+            $selectedPreview = 'devicegray';
+            $preview = $this->deviceGrayImageStreamPreviewRows($imageObject, $objects, $maxPixels);
+        } else {
+            throw new InvalidArgumentException('Image rendering bundle preview requires an Indexed, alternate, calibrated, ICCBased, or DeviceGray image stream.');
+        }
+
+        $preview['render_bundle'] = $this->imageRenderingBundleSummary($selectedPreview, $plan, $preview);
+        $preview['notes'] = $this->imageRenderingBundleNotes($selectedPreview, $plan, $preview);
+
+        return $preview;
+    }
+
+    /**
      * Native review boundary for PDF content-stream inline images.
      *
      * Inline images use short dictionary names and values, have no object
@@ -3096,6 +3142,91 @@ final class PdfImageRenderer
     private function pdfaOutputIntentCanProfileDeviceSpace(string $colorSpace): bool
     {
         return in_array($colorSpace, ['DeviceGray', 'DeviceRGB', 'DeviceCMYK'], true);
+    }
+
+    /**
+     * @param array<string, mixed> $plan
+     * @param array<string, mixed> $preview
+     * @return array<string, mixed>
+     */
+    private function imageRenderingBundleSummary(string $selectedPreview, array $plan, array $preview): array
+    {
+        $imageStream = is_array($preview['image_stream'] ?? null) ? $preview['image_stream'] : null;
+        $softMaskStream = is_array($preview['soft_mask_stream'] ?? null) ? $preview['soft_mask_stream'] : null;
+        $softMaskBoundary = is_array($preview['soft_mask_filter_boundary'] ?? null)
+            ? $preview['soft_mask_filter_boundary']
+            : (is_array($plan['soft_mask_filter_boundary'] ?? null) ? $plan['soft_mask_filter_boundary'] : null);
+        $softMask = is_array($preview['soft_mask'] ?? null)
+            ? $preview['soft_mask']
+            : (is_array($plan['soft_mask'] ?? null) ? $plan['soft_mask'] : null);
+        $transferFunction = is_array($preview['soft_mask_transfer_function'] ?? null)
+            ? $preview['soft_mask_transfer_function']
+            : (is_array($plan['soft_mask_transfer_function'] ?? null) ? $plan['soft_mask_transfer_function'] : null);
+
+        return [
+            'source' => 'marker.pdf.images.render_image_rgb',
+            'selected_preview' => $selectedPreview,
+            'source_color_space' => (string) ($preview['source_color_space'] ?? $plan['source_color_space'] ?? 'DeviceRGB'),
+            'color_space_resource_name' => $plan['color_space_resource_name'] ?? null,
+            'color_space_resource_source' => $plan['color_space_resource_source'] ?? null,
+            'color_space_resolved_from_resources' => ($plan['color_space_resolved_from_resources'] ?? false) === true,
+            'image_stream_decoded' => $imageStream['decoded_with_current_filters'] ?? null,
+            'image_stream_review_only' => ($preview['review_only_image_stream'] ?? false) === true,
+            'soft_mask_present' => is_array($softMask) && ($softMask['present'] ?? false) === true,
+            'soft_mask_source_object' => $softMaskBoundary['source_object'] ?? null,
+            'soft_mask_uses_current_object_map' => $softMaskBoundary['uses_current_object_map'] ?? null,
+            'soft_mask_stream_decoded' => $softMaskStream['decoded_with_current_filters']
+                ?? ($softMaskBoundary['decoded_with_current_filters'] ?? null),
+            'soft_mask_transfer_present' => is_array($transferFunction) && ($transferFunction['present'] ?? false) === true,
+            'soft_mask_transfer_applied_before_rgb' => ($preview['soft_mask_transfer_function_applied_before_rgb'] ?? $plan['soft_mask_transfer_function_applied_before_rgb'] ?? false) === true,
+            'soft_mask_transfer_sample_supported' => is_array($transferFunction) && ($transferFunction['sample_supported'] ?? false) === true,
+            'output_color_mode' => (string) ($preview['output_color_mode'] ?? $plan['output_color_mode'] ?? 'RGB'),
+            'alpha_output_mode' => (string) ($preview['alpha_output_mode'] ?? $plan['alpha_output_mode'] ?? 'opaque_rgb_preview'),
+            'executes_python_or_models' => false,
+            'executes_pypdfium_or_pil' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $plan
+     * @param array<string, mixed> $preview
+     * @return list<string>
+     */
+    private function imageRenderingBundleNotes(string $selectedPreview, array $plan, array $preview): array
+    {
+        $summary = is_array($preview['render_bundle'] ?? null) ? $preview['render_bundle'] : [];
+        $notes = array_merge(
+            is_array($plan['notes'] ?? null) ? $plan['notes'] : [],
+            is_array($preview['notes'] ?? null) ? $preview['notes'] : [],
+            [
+                'image_rendering_colorspace_softmask_transfer_bundle_currentbase',
+                'image_rendering_bundle_dispatches_' . $selectedPreview . '_preview',
+            ]
+        );
+
+        if (($summary['color_space_resolved_from_resources'] ?? false) === true) {
+            $notes[] = 'image_rendering_bundle_resolves_current_color_space_resource';
+        }
+        if (($summary['image_stream_decoded'] ?? false) === true) {
+            $notes[] = 'image_rendering_bundle_decodes_image_stream_before_rgb_conversion';
+        } elseif (($summary['image_stream_review_only'] ?? false) === true) {
+            $notes[] = 'image_rendering_bundle_keeps_preview_only_image_stream_review_only';
+        }
+        if (($summary['soft_mask_present'] ?? false) === true) {
+            $notes[] = 'image_rendering_bundle_preserves_soft_mask_before_rgb_conversion';
+        }
+        if (($summary['soft_mask_stream_decoded'] ?? false) === true) {
+            $notes[] = 'image_rendering_bundle_decodes_soft_mask_stream_before_rgb_conversion';
+        }
+        if (($summary['soft_mask_transfer_present'] ?? false) === true) {
+            $notes[] = 'image_rendering_bundle_preserves_soft_mask_transfer_function';
+        }
+        if (($summary['soft_mask_transfer_applied_before_rgb'] ?? false) === true) {
+            $notes[] = 'image_rendering_bundle_applies_soft_mask_transfer_before_rgb_conversion';
+        }
+
+        return array_values(array_unique($notes));
     }
 
     /**

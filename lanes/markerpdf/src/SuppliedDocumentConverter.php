@@ -62,6 +62,7 @@ final class SuppliedDocumentConverter
      *     table_rendered_image_sizes?: array<int, array{width?: int|float, height?: int|float}|list<int|float>>,
      *     table_dpi?: int|float,
      *     table_intersection_threshold?: int|float,
+     *     page_review_metadata?: list<array<string, mixed>>,
      *     table_detector_cells?: list<list<array<string, mixed>>>,
      *     table_ocr_text_lines?: list<list<string|array{text?: string}>>,
      *     table_detect_boxes?: bool,
@@ -180,6 +181,13 @@ final class SuppliedDocumentConverter
 
         $pages = $this->layoutOrderer->sortBlocksInReadingOrder($pages);
 
+        $pageReviewMetadata = $this->listOption($options, 'page_review_metadata');
+        if ($pageReviewMetadata !== []) {
+            $pages = $this->withPageReviewMetadata($pages, $pageReviewMetadata);
+            $metadata['page_review_metadata_count'] = count($pageReviewMetadata);
+            $metadata['supplied_boundaries'][] = 'page-review-metadata';
+        }
+
         $markdownTables = $this->listOption($options, 'markdown_tables');
         $recognizedTables = $this->listOption($options, 'recognized_tables');
         if ($recognizedTables !== []) {
@@ -273,6 +281,59 @@ final class SuppliedDocumentConverter
             'images' => $finalized['images'],
             'metadata' => $finalized['metadata'],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $pages
+     * @param list<mixed> $pageReviews
+     * @return list<array<string, mixed>>
+     */
+    private function withPageReviewMetadata(array $pages, array $pageReviews): array
+    {
+        $byPnum = [];
+        $byPageNumber = [];
+        $byPageObject = [];
+
+        foreach ($pageReviews as $review) {
+            if (!is_array($review)) {
+                throw new InvalidArgumentException('markerPDF supplied document option page_review_metadata must contain arrays.');
+            }
+
+            $pnum = $review['pnum'] ?? $review['page'] ?? null;
+            if (is_int($pnum) || is_float($pnum) || (is_string($pnum) && preg_match('/^-?\d+$/', $pnum) === 1)) {
+                $byPnum[(int) $pnum] = $review;
+            }
+
+            $pageNumber = $review['page_number'] ?? null;
+            if (is_int($pageNumber) || is_float($pageNumber) || (is_string($pageNumber) && preg_match('/^-?\d+$/', $pageNumber) === 1)) {
+                $byPageNumber[(int) $pageNumber - 1] = $review;
+            }
+
+            $pageObject = $review['page_object'] ?? null;
+            if (is_int($pageObject) || is_float($pageObject) || (is_string($pageObject) && preg_match('/^-?\d+$/', $pageObject) === 1)) {
+                $byPageObject[(int) $pageObject] = $review;
+            }
+        }
+
+        foreach ($pages as $index => $page) {
+            $pageObject = $page['page_object'] ?? null;
+            $pnum = $page['pnum'] ?? $page['page'] ?? $index;
+            $matched = null;
+            if ((is_int($pageObject) || is_float($pageObject)) && isset($byPageObject[(int) $pageObject])) {
+                $matched = $byPageObject[(int) $pageObject];
+            } elseif ((is_int($pnum) || is_float($pnum)) && isset($byPnum[(int) $pnum])) {
+                $matched = $byPnum[(int) $pnum];
+            } elseif (isset($byPageNumber[$index])) {
+                $matched = $byPageNumber[$index];
+            }
+
+            if ($matched !== null) {
+                $page['page_review_metadata'] = $matched;
+                $pages[$index] = $page;
+            }
+        }
+
+        return $pages;
     }
 
     /**
