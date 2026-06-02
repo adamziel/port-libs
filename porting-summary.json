@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 18:27:14 UTC",
-    "sourceCommit": "e7c29c5eb2066bb8accdd471e6ef58bdca4c56b5",
-    "sourceCommitShort": "e7c29c5eb206",
+    "generated": "2026-06-02 18:35:16 UTC",
+    "sourceCommit": "5816907c2ecf67e7b249df969148647a98071994",
+    "sourceCommitShort": "5816907c2ecf",
     "sourceBranch": "unknown",
-    "dashboardCommit": "e7c29c5eb2066bb8accdd471e6ef58bdca4c56b5",
-    "dashboardCommitShort": "e7c29c5eb206",
+    "dashboardCommit": "5816907c2ecf67e7b249df969148647a98071994",
+    "dashboardCommitShort": "5816907c2ecf",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "467",
-            "coverage": "467 / 78 (598.7%)",
-            "mapPercent": "598.7%",
+            "mapped": "471",
+            "coverage": "471 / 78 (603.8%)",
+            "mapPercent": "603.8%",
             "unmapped": "0",
-            "php": "640 pass / 0 fail",
+            "php": "645 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit e7c29c5e; accept...",
-            "currentWork": "MarkerPDF now rejects stale-generation indirect stream Filter references when the cur...",
-            "nextTarget": "Score newly ready markerPDF handoffs from security37, image40...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 5816907c; accept...",
+            "currentWork": "MarkerPDF now maps Indexed JPX image streams with decoded soft-mask review boundaries...",
+            "nextTarget": "Score newly ready markerPDF handoffs from table36, outline35,...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "e7c29c5"
+            "commit": "5816907"
         },
         {
             "lane": "readability",
