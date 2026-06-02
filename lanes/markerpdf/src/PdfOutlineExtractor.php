@@ -1107,6 +1107,9 @@ final class PdfOutlineExtractor
         if (is_array($details['target_article_thread_titles'] ?? null)) {
             $context['destination_action_target_article_thread_titles'] = $details['target_article_thread_titles'];
         }
+        if (is_array($details['target_page_review'] ?? null)) {
+            $context['destination_action_target_page_review'] = $details['target_page_review'];
+        }
 
         return $context;
     }

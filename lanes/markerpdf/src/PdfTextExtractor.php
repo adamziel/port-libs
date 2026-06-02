@@ -5919,6 +5919,13 @@ final class PdfTextExtractor
                 $widths[$code] = $width;
             }
 
+            if ($this->isSimpleFontBody($body)) {
+                $missingWidth = $this->fontDescriptorMissingWidth($body, $objects);
+                if ($missingWidth !== null) {
+                    $defaultWidth = $missingWidth;
+                }
+            }
+
             $widthArray = $this->pdfArrayValueAfterNameResolvingObjects($body, 'W', $objects);
             if ($widthArray !== null) {
                 $hasWidthArray = true;
@@ -6425,6 +6432,19 @@ final class PdfTextExtractor
 
         $offset = strpos($fontBody, '<<', $match[0][1]);
         return $offset === false ? null : $this->readPdfDictionaryAt($fontBody, $offset);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function fontDescriptorMissingWidth(string $fontBody, array $objects): ?float
+    {
+        $descriptor = $this->fontDescriptorBody($fontBody, $objects);
+        if ($descriptor === null) {
+            return null;
+        }
+
+        return $this->pdfNumberValueAfterNameResolvingObjects($descriptor, 'MissingWidth', $objects);
     }
 
     /**
@@ -8289,9 +8309,15 @@ final class PdfTextExtractor
                 }
 
                 $dict = $this->directObjectStreamDictionaryBeforeKeyword($pdfBytes, $objectBodyStart, $index);
-                $streamEnd = $dict === null
-                    ? null
-                    : $this->filteredEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, []);
+                $streamEnd = null;
+                if ($dict !== null) {
+                    $streamEnd = $this->filteredEndstreamTerminatorOffset(
+                        $pdfBytes,
+                        $streamStart,
+                        $dict,
+                        $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart)
+                    );
+                }
                 $streamEnd ??= $this->endstreamTerminatorOffset($pdfBytes, $streamStart, null);
                 if ($streamEnd !== null) {
                     $index = $streamEnd + strlen('endstream');
@@ -8367,6 +8393,127 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function directObjectStreamFilterObjectsBeforeOffset(string $pdfBytes, string $dict, int $beforeOffset): array
+    {
+        $pending = [];
+        foreach (['Filter', 'DecodeParms'] as $name) {
+            $offset = $this->topLevelNameValueOffset($dict, $name);
+            if ($offset === null) {
+                continue;
+            }
+
+            $value = $this->pdfValueAtOffset($dict, $offset);
+            if ($value === null) {
+                continue;
+            }
+
+            foreach ($this->pdfObjectReferencePairs($value) as $reference) {
+                $pending[] = $reference;
+            }
+        }
+
+        $objects = [];
+        $seen = [];
+        while ($pending !== [] && count($objects) < 32) {
+            $reference = array_shift($pending);
+            if (!is_array($reference)) {
+                continue;
+            }
+
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
+            $key = $objectNumber . ':' . $generation;
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            $body = $this->directObjectBodyBeforeOffset($pdfBytes, $objectNumber, $generation, $beforeOffset);
+            if ($body === null || !$this->directObjectStreamFilterHelperBodyIsSafe($body)) {
+                continue;
+            }
+
+            $objects[$objectNumber] = $body;
+            foreach ($this->pdfObjectReferencePairs($body) as $nestedReference) {
+                $pending[] = $nestedReference;
+            }
+        }
+
+        return $objects;
+    }
+
+    /**
+     * @return list<array{objectNumber: int, generation: int}>
+     */
+    private function pdfObjectReferencePairs(string $value): array
+    {
+        if (!preg_match_all('/\b(\d+)\s+(\d+)\s+R\b/s', $value, $matches, PREG_SET_ORDER)) {
+            return [];
+        }
+
+        $references = [];
+        foreach ($matches as $match) {
+            $references[] = [
+                'objectNumber' => (int) $match[1],
+                'generation' => (int) $match[2],
+            ];
+        }
+
+        return $references;
+    }
+
+    private function directObjectBodyBeforeOffset(
+        string $pdfBytes,
+        int $objectNumber,
+        int $generation,
+        int $beforeOffset
+    ): ?string {
+        if ($objectNumber <= 0 || $generation < 0) {
+            return null;
+        }
+
+        $pattern = '/(?:^|[\r\n])' . preg_quote((string) $objectNumber, '/') . '\s+'
+            . preg_quote((string) $generation, '/') . '\s+obj\b/s';
+        $offset = 0;
+        $selected = null;
+        while (preg_match($pattern, $pdfBytes, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $objectOffset = $match[0][1];
+            if ($objectOffset >= $beforeOffset) {
+                break;
+            }
+
+            $bodyStart = $objectOffset + strlen($match[0][0]);
+            $bodyEnd = strpos($pdfBytes, 'endobj', $bodyStart);
+            if ($bodyEnd === false || $bodyEnd > $beforeOffset) {
+                break;
+            }
+
+            $selected = trim(substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart));
+            $offset = $bodyEnd + strlen('endobj');
+        }
+
+        return $selected;
+    }
+
+    private function directObjectStreamFilterHelperBodyIsSafe(string $body): bool
+    {
+        if ($body === '' || preg_match('/\b(?:obj|endobj|stream|endstream|xref|trailer|startxref)\b/s', $body) === 1) {
+            return false;
+        }
+
+        $offset = $this->skipPdfWhitespace($body, 0);
+        return $offset < strlen($body)
+            && (
+                $body[$offset] === '/'
+                || $body[$offset] === '['
+                || substr($body, $offset, 2) === '<<'
+                || preg_match('/\G(?:null|[+-]?\d+)\b/s', $body, $match, 0, $offset) === 1
+            );
     }
 
     private function directObjectSimpleIntegerBeforeOffset(
@@ -9104,6 +9251,10 @@ final class PdfTextExtractor
         $objectStreamNumber = $entry['objectStream'];
         $previousObjectStreamEntry = $previousEntries[$objectStreamNumber] ?? null;
         if ($previousObjectStreamEntry === null) {
+            return true;
+        }
+
+        if (($previousObjectStreamEntry['type'] ?? null) !== 1) {
             return true;
         }
 

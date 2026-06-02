@@ -7,6 +7,76 @@ namespace PortLibs\MarkerPDF;
 final class PdfPagePropertyExtractor
 {
     /**
+     * Native boundary for page dictionary metadata that affects extraction but
+     * should remain review-only for WordPress imports.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function extractPageBoundaryMetadata(string $pdfBytes): array
+    {
+        $objects = $this->pdfObjects($pdfBytes);
+        $catalog = $this->catalogObjectBody($pdfBytes, $objects);
+        if ($catalog === null) {
+            return [];
+        }
+
+        $pageObjectNumbers = $this->orderedPageObjectNumbers($catalog, $objects);
+        if ($pageObjectNumbers === []) {
+            return [];
+        }
+
+        $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
+        $pagePresentationsByObject = $this->pagePresentationMetadataByPageObject($pdfBytes);
+        $structTreeRoot = $this->resolveDictionaryFromValue($this->dictionaryRawValue($catalog, 'StructTreeRoot'), $objects);
+        $roleMap = $structTreeRoot === null ? [] : $this->structureRoleMap($structTreeRoot['body'], $objects);
+        $parentTreeArrays = $structTreeRoot === null ? [] : $this->structureParentTreeArrays($structTreeRoot['body'], $objects);
+
+        $pages = [];
+        foreach ($pageObjectNumbers as $pnum => $pageObjectNumber) {
+            $pageBody = $this->dictionaryObjectBody($objects[$pageObjectNumber] ?? '');
+            if ($pageBody === null) {
+                continue;
+            }
+
+            $structParents = $this->dictionaryIntegerValue($pageBody, 'StructParents');
+            $parentTree = $structParents === null
+                ? null
+                : $this->parentTreeMetadata($structParents, $parentTreeArrays[$structParents] ?? null, $objects, $roleMap);
+            $resources = $this->effectivePageResourcesMetadata($pageObjectNumber, $objects);
+            $pagePresentation = $pagePresentationsByObject[$pageObjectNumber] ?? null;
+
+            if ($structParents === null && $resources === null && $pagePresentation === null) {
+                continue;
+            }
+
+            $page = [
+                'source' => 'page_boundary_review',
+                'pnum' => $pnum,
+                'page_number' => $pnum + 1,
+                'page_object' => $pageObjectNumber,
+                'page_label' => $pageLabels[$pnum] ?? (string) ($pnum + 1),
+            ];
+
+            if ($structParents !== null) {
+                $page['struct_parents'] = $structParents;
+                $page['parent_tree'] = $parentTree;
+            }
+
+            if ($resources !== null) {
+                $page['resources'] = $resources;
+            }
+
+            if ($pagePresentation !== null) {
+                $page['page_presentation'] = $pagePresentation;
+            }
+
+            $pages[] = $page;
+        }
+
+        return $pages;
+    }
+
+    /**
      * Native boundary for page-scoped /PieceInfo and tagged-PDF /UserProperties
      * review metadata. The rows are non-executing metadata only.
      *
@@ -334,6 +404,253 @@ final class PdfPagePropertyExtractor
         }
 
         return $presentations;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $parentTreeArrays
+     * @param array<string, string> $roleMap
+     * @return array<string, mixed>
+     */
+    private function parentTreeMetadata(int $structParents, ?string $parentTreeArray, array $objects, array $roleMap): array
+    {
+        $metadata = [
+            'source' => 'struct_tree_parent_tree',
+            'key' => $structParents,
+            'entries' => [],
+            'mcids' => [],
+            'roles' => [],
+        ];
+        if ($parentTreeArray === null) {
+            return $metadata;
+        }
+
+        $roles = [];
+        foreach ($this->arrayItemsFromValue($parentTreeArray, $objects) as $mcid => $parentValue) {
+            $parent = $this->resolveDictionaryFromValue($parentValue, $objects);
+            if ($parent === null) {
+                continue;
+            }
+
+            $rawRole = $this->dictionaryNameValue($parent['body'], 'S', $objects);
+            if ($rawRole === null || $rawRole === '') {
+                continue;
+            }
+
+            $role = $roleMap[$rawRole] ?? $rawRole;
+            $entry = [
+                'mcid' => $mcid,
+                'struct_object' => $parent['object'],
+                'raw_role' => $rawRole,
+                'role' => $role,
+                'role_mapped' => $role !== $rawRole,
+            ];
+
+            $metadata['entries'][] = $entry;
+            $metadata['mcids'][] = $mcid;
+            $roles[$role] = $role;
+        }
+
+        $metadata['roles'] = array_values($roles);
+        $metadata['entry_count'] = count($metadata['entries']);
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<int, string>
+     */
+    private function structureParentTreeArrays(string $structTreeRoot, array $objects): array
+    {
+        $parentTree = $this->resolveDictionaryFromValue($this->dictionaryRawValue($structTreeRoot, 'ParentTree'), $objects);
+        if ($parentTree === null) {
+            return [];
+        }
+
+        $arrays = [];
+        $this->collectStructureParentTreeArrays($parentTree['body'], $objects, $arrays);
+
+        return $arrays;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $arrays
+     * @param array<int, true> $seenObjects
+     */
+    private function collectStructureParentTreeArrays(
+        string $dictionary,
+        array $objects,
+        array &$arrays,
+        array $seenObjects = [],
+        int $depth = 0
+    ): void {
+        if ($depth > 20) {
+            return;
+        }
+
+        $nums = $this->dictionaryRawValue($dictionary, 'Nums');
+        if ($nums !== null) {
+            $items = $this->arrayItemsFromValue($nums, $objects);
+            for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
+                $key = trim($items[$index]);
+                if (preg_match('/^[+-]?\d+$/', $key) !== 1) {
+                    continue;
+                }
+
+                $array = $this->pdfArrayFromValue($items[$index + 1], $objects);
+                if ($array !== null) {
+                    $arrays[(int) $key] = $array;
+                }
+            }
+        }
+
+        $kids = $this->dictionaryRawValue($dictionary, 'Kids');
+        if ($kids === null) {
+            return;
+        }
+
+        foreach ($this->arrayItemsFromValue($kids, $objects) as $kidValue) {
+            $kidObjectNumber = $this->objectNumberFromReference($kidValue);
+            if ($kidObjectNumber === null || isset($seenObjects[$kidObjectNumber]) || !isset($objects[$kidObjectNumber])) {
+                continue;
+            }
+
+            $kidDictionary = $this->dictionaryObjectBody($objects[$kidObjectNumber]);
+            if ($kidDictionary === null) {
+                continue;
+            }
+
+            $nextSeen = $seenObjects;
+            $nextSeen[$kidObjectNumber] = true;
+            $this->collectStructureParentTreeArrays($kidDictionary, $objects, $arrays, $nextSeen, $depth + 1);
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, string>
+     */
+    private function structureRoleMap(string $structTreeRoot, array $objects): array
+    {
+        $roleMap = $this->resolveDictionaryFromValue($this->dictionaryRawValue($structTreeRoot, 'RoleMap'), $objects);
+        if ($roleMap === null) {
+            return [];
+        }
+
+        $roles = [];
+        foreach ($this->dictionaryEntries($roleMap['body']) as $sourceRole => $targetValue) {
+            $resolved = trim($this->resolveRawValue($targetValue, $objects) ?? $targetValue);
+            if (preg_match('/^\/([^\s\[\]()<>{}\/%]+)/s', $resolved, $match) !== 1) {
+                continue;
+            }
+
+            $roles[$sourceRole] = $this->decodePdfName($match[1]);
+        }
+
+        return $roles;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function effectivePageResourcesMetadata(int $pageObjectNumber, array $objects): ?array
+    {
+        foreach ($this->pageObjectLineage($pageObjectNumber, $objects) as $objectNumber) {
+            $objectDictionary = $this->dictionaryObjectBody($objects[$objectNumber] ?? '');
+            if ($objectDictionary === null) {
+                continue;
+            }
+
+            $resourceValue = $this->dictionaryRawValue($objectDictionary, 'Resources');
+            if ($resourceValue === null) {
+                continue;
+            }
+
+            $resources = $this->resolveDictionaryFromValue($resourceValue, $objects);
+            if ($resources === null) {
+                continue;
+            }
+
+            $resourceBody = $resources['body'];
+            $metadata = [
+                'source' => 'page_tree_resources',
+                'resource_owner_object' => $objectNumber,
+                'resource_object' => $resources['object'],
+                'inherited' => $objectNumber !== $pageObjectNumber,
+                'categories' => array_keys($this->dictionaryEntries($resourceBody)),
+            ];
+
+            foreach ([
+                'Font' => 'font_names',
+                'XObject' => 'xobject_names',
+                'Properties' => 'properties_names',
+                'ColorSpace' => 'color_space_names',
+                'ExtGState' => 'extgstate_names',
+                'Pattern' => 'pattern_names',
+                'Shading' => 'shading_names',
+            ] as $resourceKey => $metadataKey) {
+                $names = $this->resourceSubdictionaryNames($resourceBody, $resourceKey, $objects);
+                if ($names !== []) {
+                    $metadata[$metadataKey] = $names;
+                }
+            }
+
+            return $metadata;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function resourceSubdictionaryNames(string $resourceDictionary, string $key, array $objects): array
+    {
+        $subdictionary = $this->resolveDictionaryFromValue($this->dictionaryRawValue($resourceDictionary, $key), $objects);
+        if ($subdictionary === null) {
+            return [];
+        }
+
+        return array_keys($this->dictionaryEntries($subdictionary['body']));
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function pageObjectLineage(int $pageObjectNumber, array $objects): array
+    {
+        $lineage = [];
+        $seen = [];
+        $objectNumber = $pageObjectNumber;
+
+        while (isset($objects[$objectNumber]) && !isset($seen[$objectNumber])) {
+            $seen[$objectNumber] = true;
+            $lineage[] = $objectNumber;
+
+            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            if ($dictionary === null) {
+                break;
+            }
+
+            $parentObjectNumber = $this->objectReferenceValueAfterName($dictionary, 'Parent');
+            if ($parentObjectNumber === null || !isset($objects[$parentObjectNumber])) {
+                break;
+            }
+
+            $parentDictionary = $this->dictionaryObjectBody($objects[$parentObjectNumber]);
+            if ($parentDictionary === null || preg_match('/\/Type\s*\/Pages\b/s', $parentDictionary) !== 1) {
+                break;
+            }
+
+            $objectNumber = $parentObjectNumber;
+        }
+
+        return $lineage;
     }
 
     /**
@@ -1033,6 +1350,21 @@ final class PdfPagePropertyExtractor
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfArrayFromValue(string $value, array $objects): ?string
+    {
+        $resolved = trim($this->resolveRawValue($value, $objects) ?? $value);
+        if ($resolved === '' || !str_starts_with($resolved, '[')) {
+            return null;
+        }
+
+        $array = $this->readPdfArrayAt($resolved, 0);
+
+        return $array === null ? null : $array['raw'];
     }
 
     /**

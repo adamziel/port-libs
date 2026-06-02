@@ -8,18 +8,22 @@ use PortLibs\MarkerPDF\PdfTextExtractor;
 $outlineNamedDestinationActionThreadReviewPdf = static function (): string {
     $pageOneContent = 'BT /F1 12 Tf 72 720 Td (Intro article page remains visible) Tj ET';
     $pageTwoContent = 'BT /F1 12 Tf 72 720 Td (Threaded action target text remains visible) Tj ET';
+    $reviewPayload = '<wp-outline-review action="ArticleAction"/>';
+    $reviewChecksum = strtoupper(hash('md5', $reviewPayload));
 
     return "%PDF-1.7\n"
         . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R /Names << /Dests 8 0 R >> /PageLabels 25 0 R /Threads [20 0 R] >>\nendobj\n"
         . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
         . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 31 0 R >>\nendobj\n"
-        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 32 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 32 0 R /PieceInfo << /WPThread << /LastModified (D:20260602173100Z) /Private << /ReviewState (action-thread-review) /NeedsReview true >> >> >> /AF [12 0 R] >>\nendobj\n"
         . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Count 1 >>\nendobj\n"
         . "6 0 obj\n<< /Title (Threaded Named Action) /Parent 5 0 R /Dest /ArticleAction >>\nendobj\n"
         . "8 0 obj\n<< /Names [(ArticleAction) 9 0 R (ArticleStory) [4 0 R /FitH 690]] >>\nendobj\n"
         . "9 0 obj\n<< /S /GoTo /D /ArticleStory /Next [10 0 R 11 0 R 11 0 R] >>\nendobj\n"
         . "10 0 obj\n<< /S /URI /URI (https://example.com/thread-review) >>\nendobj\n"
         . "11 0 obj\n<< /S /JavaScript /JS (app.alert\\('hidden thread named action script'\\)) >>\nendobj\n"
+        . "12 0 obj\n<< /Type /Filespec /F (article-review.xml) /Desc (Article action review source) /AFRelationship /Source /EF << /F 13 0 R >> >>\nendobj\n"
+        . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($reviewPayload) . " /CheckSum <{$reviewChecksum}> >> /Length " . strlen($reviewPayload) . " >>\nstream\n{$reviewPayload}\nendstream\nendobj\n"
         . "20 0 obj\n<< /Type /Thread /F 21 0 R /I << /Title (Named Action Article Thread) >> >>\nendobj\n"
         . "21 0 obj\n<< /Type /Bead /T 20 0 R /P 4 0 R /R [58 690 280 732] /N 22 0 R /V 22 0 R >>\nendobj\n"
         . "22 0 obj\n<< /Type /Bead /T 20 0 R /P 4 0 R /R [300 690 540 732] /N 21 0 R /V 21 0 R >>\nendobj\n"
@@ -64,6 +68,23 @@ return [
         ]);
         $t->same([false, false, false], array_column($actions, 'executes_on_import'));
     },
+    'propagates named destination action target page-review context to chained rows' => static function (TestRunner $t) use ($outlineNamedDestinationActionThreadReviewPdf): void {
+        $metadata = (new PdfOutlineExtractor())->getNavigationReviewMetadata($outlineNamedDestinationActionThreadReviewPdf());
+        $actions = $metadata['outline_action_review_actions'];
+
+        $gotoReview = $actions[0]['target_page_review'] ?? [];
+        $t->same('action-thread-review', $gotoReview['piece_info']['WPThread']['private']['ReviewState'] ?? null);
+        $t->same('article-review.xml', $gotoReview['page_associated_files'][0]['filename'] ?? null);
+        $t->same(true, $gotoReview['page_associated_files'][0]['checksum_matches'] ?? null);
+
+        $uriTargetReview = $actions[1]['destination_action_target_page_review'] ?? [];
+        $jsTargetReview = $actions[2]['destination_action_target_page_review'] ?? [];
+        $t->same('action-thread-review', $uriTargetReview['piece_info']['WPThread']['private']['ReviewState'] ?? null);
+        $t->same('article-review.xml', $uriTargetReview['page_associated_files'][0]['filename'] ?? null);
+        $t->same(true, $uriTargetReview['page_associated_files'][0]['checksum_matches'] ?? null);
+        $t->same('action-thread-review', $jsTargetReview['piece_info']['WPThread']['private']['ReviewState'] ?? null);
+        $t->same([21, 22], array_column($actions[2]['destination_action_target_article_beads'] ?? [], 'bead_object'));
+    },
     'keeps named destination action thread operands out of visible WordPress text' => static function (TestRunner $t) use ($outlineNamedDestinationActionThreadReviewPdf): void {
         $pdf = $outlineNamedDestinationActionThreadReviewPdf();
         $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
@@ -76,5 +97,7 @@ return [
         $t->true(!str_contains($plainText, 'thread-review'));
         $t->true(!str_contains($plainText, 'hidden thread named action script'));
         $t->true(!str_contains($plainText, 'Named Action Article Thread'));
+        $t->true(!str_contains($plainText, 'wp-outline-review'));
+        $t->true(!str_contains($plainText, 'action-thread-review'));
     },
 ];

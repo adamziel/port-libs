@@ -726,6 +726,72 @@ return [
         $t->contains('color_key_mask_component_mismatch', implode(',', $mismatch['notes']));
         $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->colorKeyMaskSamplePreview([0, 128, 240, 255], $mismatch));
     },
+    'suppresses ColorKey Mask application when an ICCBased image has a soft mask' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            10 => "<< /N 3 /Alternate /DeviceRGB /Range [0 1 0 1 0 1] /Length 11 >>\nstream\nICC-PROFILE\nendstream",
+            11 => "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Decode [1 0] /Length 1 >>\nstream\nM\nendstream",
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace [/ICCBased 10 0 R] /BitsPerComponent 8 /Decode [0 1 0 1 0 1] /Mask [0 10 20 30 40 50] /SMask 11 0 R >>',
+            $objects
+        );
+
+        $t->same('ICCBased', $plan['source_color_space']);
+        $t->same(true, $plan['uses_icc_profile']);
+        $t->same([
+            'components' => 3,
+            'alternate_color_space' => 'DeviceRGB',
+            'range' => [0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+            'length' => 11,
+        ], $plan['icc_profile']);
+        $t->same([
+            'present' => true,
+            'ranges' => [
+                ['min' => 0, 'max' => 10],
+                ['min' => 20, 'max' => 30],
+                ['min' => 40, 'max' => 50],
+            ],
+            'component_count' => 3,
+            'expected_components' => 3,
+            'valid_for_components' => true,
+            'source' => 'explicit',
+            'compares_before_decode' => true,
+            'transparent_when_all_components_match' => true,
+        ], $plan['color_key_mask']);
+        $t->same(false, $plan['color_key_mask_applied_before_rgb']);
+        $t->same(true, $plan['color_key_mask_suppressed_by_soft_mask']);
+        $t->same(false, $plan['color_key_mask_component_mismatch']);
+        $t->same(true, $plan['soft_mask_applied_before_rgb']);
+        $t->same(true, $plan['soft_mask_decode_applied_before_rgb']);
+        $t->same('soft_mask_composited_to_rgb_preview', $plan['alpha_output_mode']);
+        $t->same([
+            'icc_profile_color_space',
+            'image_decode_applied_before_rgb_conversion',
+            'color_key_mask_suppressed_by_soft_mask',
+            'soft_mask_overrides_color_key_mask',
+            'soft_mask_applied_before_rgb_conversion',
+            'soft_mask_decode_applied_before_rgb_conversion',
+            'soft_mask_decode_inverts_alpha',
+        ], $plan['notes']);
+
+        $decoded = $renderer->imageSampleDecodeValues([5, 25, 45], $plan['image_decode'], $plan['bits_per_component']);
+        $t->true(abs($decoded[0] - (5 / 255)) < 0.000001);
+        $t->true(abs($decoded[1] - (25 / 255)) < 0.000001);
+        $t->true(abs($decoded[2] - (45 / 255)) < 0.000001);
+        $t->true($renderer->softMaskSampleOpacity(64, $plan['soft_mask']) > 0.0);
+        $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->colorKeyMaskSamplePreview([5, 25, 45], $plan));
+
+        $none = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace [/ICCBased 10 0 R] /BitsPerComponent 8 /Mask [0 10 20 30 40 50] /SMask /None >>',
+            $objects
+        );
+
+        $t->same(true, $none['color_key_mask_applied_before_rgb']);
+        $t->same(false, $none['color_key_mask_suppressed_by_soft_mask']);
+        $t->same('color_key_mask_composited_to_rgb_preview', $none['alpha_output_mode']);
+    },
     'plans soft-mask transfer functions over Indexed transparency groups before RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $groupPayload = "q /Im1 Do Q\n";
@@ -1023,6 +1089,100 @@ return [
         $t->contains('alternate_icc_profile_color_space', implode(',', $plan['notes']));
         $t->contains('soft_mask_stream_filters_decoded_before_rgb_conversion', implode(',', $plan['notes']));
         $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->alternateColorantSamplePreview([1, 2, 3], $plan));
+    },
+    'maps decoded DeviceN ICCBased image and soft-mask stream rows before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $imageBytes = "\x40\x80\xff\x00\x00\xff";
+        $maskBytes = "\x00\x40\xff";
+        $compressedImage = gzcompress($imageBytes);
+        $compressedMask = gzcompress($maskBytes);
+        if (!is_string($compressedImage) || !is_string($compressedMask)) {
+            throw new RuntimeException('Unable to compress DeviceN stream fixtures.');
+        }
+
+        $imageHex = strtoupper(bin2hex($compressedImage)) . '>';
+        $maskHex = strtoupper(bin2hex($compressedMask)) . '>';
+        $objects = [
+            71 => '[/ICCBased 72 0 R]',
+            72 => "<< /N 3 /Alternate /DeviceRGB /Range [0 1 0 1 0 1] /Length 15 >>\nstream\nICC-DEVICE-N\nendstream",
+            73 => "<< /FunctionType 4 /Domain [0 1 0 1] /Range [0 1 0 1 0 1] /Length 24 >>\nstream\n{ exch dup mul exch }\nendstream",
+            74 => "<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /Decode [1 0] /DecodeParms [null << /Predictor 1 /Columns 3 /Colors 1 /BitsPerComponent 8 >>] /Length " . strlen($maskHex) . " >>\nstream\n{$maskHex}\nendstream",
+            99 => "<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length 9 >>\nstream\nSTALEMASK\nendstream",
+        ];
+        $imageObject = "<< /Subtype /Image /Width 3 /Height 1 /ColorSpace [/DeviceN [/Spot#20Blue /Spot#20Varnish] 71 0 R 73 0 R << /Subtype /NChannel >>] /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /Decode [1 0 0 1] /DecodeParms [null << /Predictor 1 /Columns 6 /Colors 1 /BitsPerComponent 8 >>] /SMask 74 0 R /Length " . strlen($imageHex) . " >>\nstream\n{$imageHex}\nendstream";
+
+        $preview = $renderer->alternateColorantStreamPreviewRows($imageObject, $objects, 3);
+
+        $t->same('DeviceN', $preview['source_color_space']);
+        $t->same(3, $preview['width']);
+        $t->same(1, $preview['height']);
+        $t->same(2, $preview['components_per_pixel']);
+        $t->same(8, $preview['bits_per_component']);
+        $t->same(3, $preview['expected_pixel_count']);
+        $t->same(3, $preview['preview_pixel_count']);
+        $t->same(true, $preview['complete_image_sample_data']);
+        $t->same(true, $preview['complete_soft_mask_sample_data']);
+        $t->same([
+            'filters' => ['ASCIIHexDecode', 'FlateDecode'],
+            'preview_only_filters' => [],
+            'unsupported_filters' => [],
+            'raw_length' => strlen($imageHex),
+            'decoded_length' => 6,
+            'decoded_sha256' => hash('sha256', $imageBytes),
+            'decoded_preview_hex' => '4080FF0000FF',
+            'decoded_with_current_filters' => true,
+            'decode_failed' => false,
+        ], $preview['image_stream']);
+        $t->same([
+            'filters' => ['ASCIIHexDecode', 'FlateDecode'],
+            'preview_only_filters' => [],
+            'unsupported_filters' => [],
+            'raw_length' => strlen($maskHex),
+            'decoded_length' => 3,
+            'decoded_sha256' => hash('sha256', $maskBytes),
+            'decoded_preview_hex' => '0040FF',
+            'decoded_with_current_filters' => true,
+            'decode_failed' => false,
+        ], $preview['soft_mask_stream']);
+        $t->same('ICCBased', $preview['alternate_color_space']);
+        $t->same(true, $preview['alternate_uses_icc_profile']);
+        $t->same(73, $preview['tint_transform_object']);
+        $t->same(4, $preview['tint_transform_function_type']);
+        $t->same('review_only', $preview['tint_transform_preview_mode']);
+        $t->same(['image_stream_filters_decoded_before_rgb_conversion', 'soft_mask_stream_filters_decoded_before_rgb_conversion'], $preview['stream_notes']);
+
+        $first = $preview['pixels'][0];
+        $t->same(0, $first['pixel_index']);
+        $t->same(0, $first['x']);
+        $t->same(0, $first['y']);
+        $t->same([64.0, 128.0], $first['raw_sample']);
+        $t->true(abs($first['colorant_tints']['Spot Blue'] - (1.0 - (64 / 255))) < 0.000001);
+        $t->true(abs($first['colorant_tints']['Spot Varnish'] - (128 / 255)) < 0.000001);
+        $t->same(0.0, $first['soft_mask_sample']);
+        $t->same(1.0, $first['soft_mask_alpha']);
+
+        $second = $preview['pixels'][1];
+        $t->same([255.0, 0.0], $second['raw_sample']);
+        $t->same(0.0, $second['colorant_tints']['Spot Blue']);
+        $t->same(0.0, $second['colorant_tints']['Spot Varnish']);
+        $t->same(64.0, $second['soft_mask_sample']);
+        $t->true(abs($second['soft_mask_alpha'] - (1.0 - (64 / 255))) < 0.000001);
+
+        $third = $preview['pixels'][2];
+        $t->same([0.0, 255.0], $third['raw_sample']);
+        $t->same(1.0, $third['colorant_tints']['Spot Blue']);
+        $t->same(1.0, $third['colorant_tints']['Spot Varnish']);
+        $t->same(255.0, $third['soft_mask_sample']);
+        $t->same(0.0, $third['soft_mask_alpha']);
+        $t->same('RGB', $preview['output_color_mode']);
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->alternateColorantStreamPreviewRows(
+                "<< /Subtype /Image /Filter /JPXDecode /Width 1 /Height 1 /ColorSpace [/DeviceN [/Spot#20Blue /Spot#20Varnish] 71 0 R 73 0 R << /Subtype /NChannel >>] /BitsPerComponent 8 /Length 3 >>\nstream\nJPX\nendstream",
+                $objects
+            )
+        );
     },
     'maps calibrated image color spaces and soft-mask alpha before RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();

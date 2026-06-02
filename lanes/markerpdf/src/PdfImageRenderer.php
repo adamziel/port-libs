@@ -375,6 +375,7 @@ final class PdfImageRenderer
      *     image_decode_component_mismatch: bool,
      *     color_key_mask: array{present: bool, ranges: list<array{min: int, max: int}>, component_count: int, expected_components: int|null, valid_for_components: bool, source: string, compares_before_decode: bool, transparent_when_all_components_match: bool}|null,
      *     color_key_mask_applied_before_rgb: bool,
+     *     color_key_mask_suppressed_by_soft_mask: bool,
      *     color_key_mask_component_mismatch: bool,
      *     image_mask: array{present: bool, width: int|null, height: int|null, bits_per_component: int, decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}, opacity_for_zero: float, opacity_for_one: float, inverted: bool}|null,
      *     image_mask_applied_before_rgb: bool,
@@ -434,10 +435,13 @@ final class PdfImageRenderer
             $imageMask = $this->imageMaskDetails($imageDictionary, $objects, $imageDecode);
         }
         $colorKeyMask = $imageMaskPresent ? null : $this->colorKeyMaskDetails($imageDictionary, $objects, $colorSpace['components']);
-        $colorKeyMaskValid = $colorKeyMask !== null && $colorKeyMask['valid_for_components'];
-        $colorKeyMaskMismatch = $colorKeyMask !== null && !$colorKeyMask['valid_for_components'];
         $softMask = $this->imageSoftMaskDetails($imageDictionary, $objects);
         $softMaskPresent = $softMask !== null && $softMask['present'] === true;
+        $colorKeyMaskSuppressedBySoftMask = $colorKeyMask !== null && $softMaskPresent;
+        $colorKeyMaskValid = $colorKeyMask !== null
+            && $colorKeyMask['valid_for_components']
+            && !$colorKeyMaskSuppressedBySoftMask;
+        $colorKeyMaskMismatch = $colorKeyMask !== null && !$colorKeyMask['valid_for_components'];
         $softMaskGroup = $this->imageSoftMaskGroupDetails($imageDictionary, $objects);
         $softMaskTransferFunction = is_array($softMaskGroup) ? ($softMaskGroup['transfer_function'] ?? null) : null;
         $softMaskFilterBoundary = $softMask !== null ? $this->imageSoftMaskFilterBoundary($imageDictionary, $objects) : null;
@@ -485,6 +489,9 @@ final class PdfImageRenderer
         if ($colorKeyMaskValid) {
             $notes[] = 'color_key_mask_applied_before_rgb_conversion';
             $notes[] = 'color_key_mask_compares_raw_samples_before_decode';
+        } elseif ($colorKeyMaskSuppressedBySoftMask) {
+            $notes[] = 'color_key_mask_suppressed_by_soft_mask';
+            $notes[] = 'soft_mask_overrides_color_key_mask';
         } elseif ($colorKeyMaskMismatch) {
             $notes[] = 'color_key_mask_component_mismatch';
         }
@@ -573,6 +580,7 @@ final class PdfImageRenderer
             'image_decode_component_mismatch' => $imageDecodeMismatch,
             'color_key_mask' => $colorKeyMask,
             'color_key_mask_applied_before_rgb' => $colorKeyMaskValid,
+            'color_key_mask_suppressed_by_soft_mask' => $colorKeyMaskSuppressedBySoftMask,
             'color_key_mask_component_mismatch' => $colorKeyMaskMismatch,
             'image_mask' => $imageMask,
             'image_mask_applied_before_rgb' => $imageMaskPresent,
@@ -761,6 +769,7 @@ final class PdfImageRenderer
      * @param array{
      *     bits_per_component?: int,
      *     color_key_mask?: array{present?: bool, ranges?: list<array{min: int, max: int}>, valid_for_components?: bool}|null,
+     *     color_key_mask_suppressed_by_soft_mask?: bool,
      *     image_decode?: array{ranges: list<array{min: float, max: float}>, valid_for_components?: bool}|null,
      *     output_color_mode?: string
      * } $imagePlan
@@ -771,6 +780,9 @@ final class PdfImageRenderer
         $mask = $imagePlan['color_key_mask'] ?? null;
         if (!is_array($mask) || ($mask['present'] ?? false) !== true) {
             throw new InvalidArgumentException('ColorKey mask preview requires a present /Mask array plan.');
+        }
+        if (($imagePlan['color_key_mask_suppressed_by_soft_mask'] ?? false) === true) {
+            throw new InvalidArgumentException('ColorKey mask is suppressed by a present soft mask and must not be applied.');
         }
         if (($mask['valid_for_components'] ?? false) !== true || !isset($mask['ranges']) || !is_array($mask['ranges'])) {
             throw new InvalidArgumentException('ColorKey mask ranges must match the image component count.');
@@ -916,6 +928,145 @@ final class PdfImageRenderer
             'tint_transform_preview_mode' => $functionType === null ? 'none' : 'review_only',
             'soft_mask_alpha' => $softMaskAlpha,
             'output_color_mode' => (string) ($imagePlan['output_color_mode'] ?? 'RGB'),
+        ];
+    }
+
+    /**
+     * Decodes a bounded Separation/DeviceN image stream into per-pixel tint rows
+     * and attaches matching soft-mask alpha before the Marker RGB preview handoff.
+     *
+     * This is intentionally a parser-side preview boundary. It only accepts image
+     * streams whose filters are natively decoded here and leaves tint-transform
+     * and ICC conversion as review metadata for a future raster backend.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    public function alternateColorantStreamPreviewRows(string $imageObject, array $objects = [], int $maxPixels = 16): array
+    {
+        if ($maxPixels < 1) {
+            throw new InvalidArgumentException('Alternate colorant stream preview requires at least one preview pixel.');
+        }
+
+        $dictionary = $this->streamDictionaryFromValue($imageObject) ?? trim($imageObject);
+        $plan = $this->imageColorSpaceSoftMaskPlan($dictionary, $objects);
+        if (($plan['uses_alternate_color_space'] ?? false) !== true) {
+            throw new InvalidArgumentException('Alternate colorant stream preview requires a Separation or DeviceN image.');
+        }
+
+        $width = $this->integerNameValue($dictionary, 'Width');
+        $height = $this->integerNameValue($dictionary, 'Height');
+        $components = $plan['components'] ?? null;
+        $bitsPerComponent = max(1, (int) ($plan['bits_per_component'] ?? 8));
+        if (!is_int($width) || !is_int($height) || $width < 1 || $height < 1) {
+            throw new InvalidArgumentException('Alternate colorant stream preview requires positive image Width and Height.');
+        }
+        if (!is_int($components) || $components < 1) {
+            throw new InvalidArgumentException('Alternate colorant stream preview requires a positive colorant count.');
+        }
+
+        $expectedPixelCount = $width * $height;
+        $imageStream = $this->decodedImageStreamPreviewBoundary($dictionary, $imageObject, $objects);
+        if (($imageStream['decoded_with_current_filters'] ?? false) !== true || !is_string($imageStream['decoded_bytes'] ?? null)) {
+            throw new InvalidArgumentException('Alternate colorant image stream filters must be natively decoded before RGB preview.');
+        }
+
+        $imageSamples = $this->packedImagePixelSamples(
+            $imageStream['decoded_bytes'],
+            $components,
+            $bitsPerComponent,
+            $expectedPixelCount
+        );
+        if (!$imageSamples['complete']) {
+            throw new InvalidArgumentException('Alternate colorant image stream does not contain complete image sample data.');
+        }
+
+        $softMaskSamples = null;
+        $softMaskStream = null;
+        $softMask = $plan['soft_mask'] ?? null;
+        if (is_array($softMask) && ($softMask['present'] ?? false) === true) {
+            if (($plan['soft_mask_applied_before_rgb'] ?? false) !== true) {
+                throw new InvalidArgumentException('Alternate colorant stream preview requires a grayscale soft-mask image.');
+            }
+            if (is_int($softMask['width'] ?? null) && $softMask['width'] !== $width) {
+                throw new InvalidArgumentException('Alternate colorant soft-mask width must match the image width.');
+            }
+            if (is_int($softMask['height'] ?? null) && $softMask['height'] !== $height) {
+                throw new InvalidArgumentException('Alternate colorant soft-mask height must match the image height.');
+            }
+
+            $softMaskStream = $this->decodedSoftMaskStreamPreviewBoundary($dictionary, $objects);
+            if ($softMaskStream === null || ($softMaskStream['decoded_with_current_filters'] ?? false) !== true || !is_string($softMaskStream['decoded_bytes'] ?? null)) {
+                throw new InvalidArgumentException('Alternate colorant soft-mask stream filters must be natively decoded before RGB preview.');
+            }
+
+            $softMaskSamples = $this->packedImagePixelSamples(
+                $softMaskStream['decoded_bytes'],
+                1,
+                max(1, (int) ($softMask['bits_per_component'] ?? 8)),
+                $expectedPixelCount
+            );
+            if (!$softMaskSamples['complete']) {
+                throw new InvalidArgumentException('Alternate colorant soft-mask stream does not contain complete alpha sample data.');
+            }
+        }
+
+        $limit = min($maxPixels, $expectedPixelCount);
+        $pixels = [];
+        for ($index = 0; $index < $limit; $index++) {
+            $rawSample = $imageSamples['pixels'][$index];
+            $softMaskSample = is_array($softMaskSamples) ? $softMaskSamples['pixels'][$index][0] : null;
+            $preview = $this->alternateColorantSamplePreview($rawSample, $plan, $softMaskSample);
+            $pixels[] = [
+                'pixel_index' => $index,
+                'x' => $index % $width,
+                'y' => intdiv($index, $width),
+                'raw_sample' => $rawSample,
+                'colorant_tints' => $preview['colorant_tints'],
+                'tint_values' => $preview['tint_values'],
+                'soft_mask_sample' => $softMaskSample,
+                'soft_mask_alpha' => $preview['soft_mask_alpha'],
+            ];
+        }
+
+        $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
+        $softMaskStreamMeta = is_array($softMaskStream) ? $this->streamBoundaryPublicMetadata($softMaskStream) : null;
+        $streamNotes = [
+            $imageStreamMeta['filters'] === []
+                ? 'image_stream_unfiltered_samples_before_rgb_conversion'
+                : 'image_stream_filters_decoded_before_rgb_conversion',
+        ];
+        if ($softMaskStreamMeta !== null) {
+            $streamNotes[] = $softMaskStreamMeta['filters'] === []
+                ? 'soft_mask_stream_unfiltered_samples_before_rgb_conversion'
+                : 'soft_mask_stream_filters_decoded_before_rgb_conversion';
+        }
+
+        $alternate = $plan['alternate_color_space'];
+
+        return [
+            'source_color_space' => (string) $plan['source_color_space'],
+            'width' => $width,
+            'height' => $height,
+            'components_per_pixel' => $components,
+            'bits_per_component' => $bitsPerComponent,
+            'expected_pixel_count' => $expectedPixelCount,
+            'preview_pixel_count' => count($pixels),
+            'complete_image_sample_data' => $imageSamples['complete'],
+            'complete_soft_mask_sample_data' => $softMaskSamples === null ? null : $softMaskSamples['complete'],
+            'image_stream' => $imageStreamMeta,
+            'soft_mask_stream' => $softMaskStreamMeta,
+            'alternate_color_space' => is_array($alternate) ? ($alternate['alternate_color_space'] ?? null) : null,
+            'alternate_components' => is_array($alternate) ? ($alternate['alternate_components'] ?? null) : null,
+            'alternate_uses_icc_profile' => is_array($alternate) && ($alternate['alternate_uses_icc_profile'] ?? false) === true,
+            'icc_profile' => $plan['icc_profile'] ?? null,
+            'tint_transform_object' => is_array($alternate) ? ($alternate['tint_transform_object'] ?? null) : null,
+            'tint_transform_function_type' => is_array($alternate) ? ($alternate['tint_transform_function_type'] ?? null) : null,
+            'tint_transform_preview_mode' => is_array($alternate) && ($alternate['tint_transform_function_type'] ?? null) !== null ? 'review_only' : 'none',
+            'pixels' => $pixels,
+            'stream_notes' => $streamNotes,
+            'notes' => array_values(array_unique(array_merge($plan['notes'] ?? [], $streamNotes))),
+            'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
         ];
     }
 
@@ -2127,6 +2278,132 @@ final class PdfImageRenderer
             'decode_failed' => $decodeFailed,
             'uses_current_object_map' => $usesCurrentObjectMap,
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function decodedImageStreamPreviewBoundary(string $dictionary, string $imageObject, array $objects): array
+    {
+        $stream = $this->streamPayloadBytes($imageObject);
+        $filters = $this->imageFilterNames($dictionary, $objects);
+        $decoded = null;
+        $unsupportedFilters = [];
+        $decodeFailed = false;
+
+        if ($stream !== null) {
+            $decodeResult = $this->decodeImageStreamByFilters($dictionary, $stream, $objects);
+            $decoded = $decodeResult['decoded'];
+            $unsupportedFilters = $decodeResult['unsupported_filters'];
+            $decodeFailed = $decodeResult['decode_failed'];
+        } elseif ($filters !== []) {
+            $decodeFailed = true;
+        }
+
+        $previewOnlyFilters = array_values(array_filter(
+            $filters,
+            fn (string $filter): bool => $this->isPreviewOnlyStreamFilter($filter)
+        ));
+        foreach ($previewOnlyFilters as $filter) {
+            if (!in_array($filter, $unsupportedFilters, true)) {
+                $unsupportedFilters[] = $filter;
+            }
+        }
+
+        return [
+            'filters' => $filters,
+            'preview_only_filters' => $previewOnlyFilters,
+            'unsupported_filters' => array_values($unsupportedFilters),
+            'raw_length' => $stream === null ? null : strlen($stream),
+            'decoded_length' => $decoded === null ? null : strlen($decoded),
+            'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+            'decoded_preview_hex' => $decoded === null ? null : strtoupper(bin2hex(substr($decoded, 0, 16))),
+            'decoded_with_current_filters' => $decoded !== null,
+            'decode_failed' => $decodeFailed,
+            'decoded_bytes' => $decoded,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function decodedSoftMaskStreamPreviewBoundary(string $dictionary, array $objects): ?array
+    {
+        $value = $this->extractPdfNameValue($dictionary, 'SMask');
+        if ($value === null || $this->pdfNameValue($value) === 'None') {
+            return null;
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects));
+        $maskDictionary = $this->streamDictionaryFromValue($resolved) ?? $resolved;
+
+        return $this->decodedImageStreamPreviewBoundary($maskDictionary, $resolved, $objects);
+    }
+
+    /**
+     * @param array<string, mixed> $boundary
+     * @return array{filters: list<string>, preview_only_filters: list<string>, unsupported_filters: list<string>, raw_length: int|null, decoded_length: int|null, decoded_sha256: string|null, decoded_preview_hex: string|null, decoded_with_current_filters: bool, decode_failed: bool}
+     */
+    private function streamBoundaryPublicMetadata(array $boundary): array
+    {
+        return [
+            'filters' => $boundary['filters'],
+            'preview_only_filters' => $boundary['preview_only_filters'],
+            'unsupported_filters' => $boundary['unsupported_filters'],
+            'raw_length' => $boundary['raw_length'],
+            'decoded_length' => $boundary['decoded_length'],
+            'decoded_sha256' => $boundary['decoded_sha256'],
+            'decoded_preview_hex' => $boundary['decoded_preview_hex'],
+            'decoded_with_current_filters' => $boundary['decoded_with_current_filters'],
+            'decode_failed' => $boundary['decode_failed'],
+        ];
+    }
+
+    /**
+     * @return array{pixels: list<list<float>>, available_pixel_count: int, complete: bool}
+     */
+    private function packedImagePixelSamples(string $bytes, int $components, int $bitsPerComponent, int $pixelCount): array
+    {
+        if ($components < 1 || $bitsPerComponent < 1 || $bitsPerComponent > 30 || $pixelCount < 0) {
+            throw new InvalidArgumentException('Image sample packing parameters are invalid.');
+        }
+
+        $requiredSamples = $pixelCount * $components;
+        $availableSamples = intdiv(strlen($bytes) * 8, $bitsPerComponent);
+        $availablePixels = intdiv($availableSamples, $components);
+        $readPixels = min($pixelCount, $availablePixels);
+        $pixels = [];
+        $bitOffset = 0;
+
+        for ($pixel = 0; $pixel < $readPixels; $pixel++) {
+            $sample = [];
+            for ($component = 0; $component < $components; $component++) {
+                $sample[] = (float) $this->readPackedBits($bytes, $bitOffset, $bitsPerComponent);
+                $bitOffset += $bitsPerComponent;
+            }
+            $pixels[] = $sample;
+        }
+
+        return [
+            'pixels' => $pixels,
+            'available_pixel_count' => $availablePixels,
+            'complete' => $availableSamples >= $requiredSamples,
+        ];
+    }
+
+    private function readPackedBits(string $bytes, int $bitOffset, int $bitCount): int
+    {
+        $value = 0;
+        for ($bit = 0; $bit < $bitCount; $bit++) {
+            $absoluteBit = $bitOffset + $bit;
+            $byteIndex = intdiv($absoluteBit, 8);
+            $shift = 7 - ($absoluteBit % 8);
+            $value = ($value << 1) | ((ord($bytes[$byteIndex]) >> $shift) & 1);
+        }
+
+        return $value;
     }
 
     private function streamDictionaryFromValue(string $resolved): ?string
