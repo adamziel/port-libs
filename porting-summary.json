@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 15:40:00 UTC",
-    "sourceCommit": "2394410090d30146ebd86abc251c33c4907d6ce9",
-    "sourceCommitShort": "2394410090d3",
+    "generated": "2026-06-02 15:45:59 UTC",
+    "sourceCommit": "24a393c91902d5a148e1d6a4ccc5df820410117c",
+    "sourceCommitShort": "24a393c91902",
     "sourceBranch": "main",
-    "dashboardCommit": "2394410090d30146ebd86abc251c33c4907d6ce9",
-    "dashboardCommitShort": "2394410090d3",
+    "dashboardCommit": "24a393c91902d5a148e1d6a4ccc5df820410117c",
+    "dashboardCommitShort": "24a393c91902",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "377",
-            "coverage": "377 / 78 (483.3%)",
-            "mapPercent": "483.3%",
+            "mapped": "378",
+            "coverage": "378 / 78 (484.6%)",
+            "mapPercent": "484.6%",
             "unmapped": "0",
-            "php": "530 pass / 0 fail",
+            "php": "531 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 23944100; full m...",
-            "currentWork": "PdfTextExtractor now resolves horizontal CIDFont /W arrays through indirect objects s...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 24a393c9; full m...",
+            "currentWork": "PdfTextExtractor now treats live /Type /ObjStm streams as compressed-object container...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "2394410"
+            "commit": "24a393c"
         },
         {
             "lane": "readability",
