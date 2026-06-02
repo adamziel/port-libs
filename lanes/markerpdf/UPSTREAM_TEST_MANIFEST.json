@@ -12,8 +12,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": 78,
-        "inventorySummary": "78 tracked upstream repository paths inventoried from the cloned repository, with 78 targeted upstream lane-relevant paths inspected (workflows, benchmark/scoring scripts, committed example outputs, cleaner/postprocessor/layout/OCR/image/PDF-image-render/equation/table/output/settings/schema/debug/source/model utility modules, marker_app.py preview helpers, marker/logger.py logging setup, run_marker_app.py Streamlit runtime launcher, marker_server.py API/upload helpers, top-level batch, single-document, and chunk conversion scripts, and support scripts), plus the locked tabled-pdf 0.1.4 table-detection/recognition/assignment/heuristic-column/formatting helper source for merge and supplied table-recognition semantics, 6 README benchmark document identifiers, 2 actual CI benchmark PDF/reference pairs from benchmark_data_short.zip, Type0 Identity-H/V font CMap fallback, Form XObject invocation, page-tree inherited resource font lookup, and PDF 1.5 object-stream/xref parser recovery; 0 committed Python unit test files found",
-        "mapped": 183,
+        "inventorySummary": "78 tracked upstream repository paths inventoried from the cloned repository, with 78 targeted upstream lane-relevant paths inspected (workflows, benchmark/scoring scripts, committed example outputs, cleaner/postprocessor/layout/OCR/image/PDF-image-render/equation/table/output/settings/schema/debug/source/model utility modules, marker_app.py preview helpers, marker/logger.py logging setup, run_marker_app.py Streamlit runtime launcher, marker_server.py API/upload helpers, top-level batch, single-document, and chunk conversion scripts, and support scripts), plus the locked tabled-pdf 0.1.4 table-detection/recognition/assignment/heuristic-column/formatting helper source for merge and supplied table-recognition semantics, 6 README benchmark document identifiers, 2 actual CI benchmark PDF/reference pairs from benchmark_data_short.zip, Type0 Identity-H/V font CMap fallback, Form XObject invocation, page-tree inherited resource font lookup, PDF 1.5 object-stream/xref parser recovery, ToUnicode source-width fallback, malformed ToUnicode fallback, and Image XObject fallback exclusion; 0 committed Python unit test files found",
+        "mapped": 186,
         "mappedBenchmarkPairs": 2,
         "mappedBenchmarkSurrogatePairs": 4,
         "mappedBenchmarkSuppliedDocumentExcerpts": 4,
@@ -209,7 +209,13 @@
             "pdfPageResourceInheritanceBehaviors": 1,
             "mappedPdfPageResourceInheritanceBehaviors": 1,
             "pdfObjectStreamXrefParserBehaviors": 1,
-            "mappedPdfObjectStreamXrefParserBehaviors": 1
+            "mappedPdfObjectStreamXrefParserBehaviors": 1,
+            "pdfToUnicodeSourceWidthFallbackBehaviors": 1,
+            "mappedPdfToUnicodeSourceWidthFallbackBehaviors": 1,
+            "pdfMalformedToUnicodeCMapFilterFallbackBehaviors": 1,
+            "mappedPdfMalformedToUnicodeCMapFilterFallbackBehaviors": 1,
+            "pdfImageXObjectBoundaryBehaviors": 1,
+            "mappedPdfImageXObjectBoundaryBehaviors": 1
         },
         "benchmarkDocuments": [
             "multicolcnn.pdf",
