@@ -266,9 +266,15 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-inline-image-boundary-import.php` maps inline image `BI ... ID ... EI` page-content data into a WordPress import path. It emits only the surrounding paragraphs and excludes text-looking image payload bytes without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+`examples/wordpress-pdf-optional-content-layer-import.php` maps PDF optional content group layer visibility into a WordPress import path. It honors catalog `/OCProperties` default view state, page resource `/Properties` names, marked-content `/OC ... BDC ... EMC` spans, and Form XObject `/OC` visibility so hidden review/drafting layers do not leak into Gutenberg paragraphs without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 `examples/wordpress-pdf-nested-xobject-form-import.php` maps nested Form XObject resource font scoping into a WordPress import path. It emits page text, a parent form paragraph, and a child form paragraph while proving reused `/F1` names resolve through each form's own `/Resources`, without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
 `examples/wordpress-pdf-cidset-glyph-widths-import.php` maps descendant CIDFont `/CIDSet` subset membership into a WordPress import path. It emits `WideBlock` as one Gutenberg paragraph from embedded-subset CID glyphs whose `/W` array is absent but whose present CIDs use the CIDFont default `/DW 1000` advance, without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
+`examples/wordpress-pdf-marked-content-actualtext-import.php` maps PDF marked-content `/ActualText` and `/Alt` accessibility replacements into a WordPress import path. It emits ActualText-backed paragraphs, falls back to Alt text for no-text figure content and marked spans, resolves named `/Properties` resources, and excludes original glyph/image payload noise without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
+`examples/wordpress-pdf-type3-charproc-widths-import.php` maps Type3 font `/CharProcs` d0/d1 width declarations into a WordPress import path. It uses declared glyph widths to keep wide Type3 glyph clusters together and insert spacing for narrow advances, emitting `WideBlock` and `Thin Text` without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
 ## Next Task
 
