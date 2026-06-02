@@ -321,6 +321,52 @@ $appearanceDefaultResourcesPdf = static function (): string {
         . "%%EOF";
 };
 
+$appearanceValueActionBoundaryPdf = static function (): array {
+    $selectedAppearance = 'q BT /FApp 10 Tf 0 0 Td (Stale appearance text must stay review metadata) Tj ET Q';
+    $compressedSelectedAppearance = gzcompress($selectedAppearance);
+    if (!is_string($compressedSelectedAppearance)) {
+        throw new RuntimeException('Unable to compress selected AcroForm appearance fixture.');
+    }
+
+    $staleAppearance = 'BT /FApp 10 Tf 0 0 Td (Stale alternate appearance) Tj ET';
+    $offAppearance = '';
+    $directAppearance = 'BT /FApp 10 Tf 0 0 Td (Direct appearance value must not replace field V) Tj ET';
+    $nestedStampAppearance = 'BT /FApp 8 Tf 0 0 Td (Nested stamp review only) Tj ET';
+    $focusScript = "app.alert('focus review only');";
+    $compressedFocusScript = gzcompress($focusScript);
+    if (!is_string($compressedFocusScript)) {
+        throw new RuntimeException('Unable to compress focus action fixture.');
+    }
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 12 0 R 16 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R 14 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (article.title) /V (Final field value) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 320 664] /P 3 0 R /F 4 /AS /Fresh /AP << /N << /Fresh 30 0 R /Stale 31 0 R /Off 32 0 R >> >> /AA << /Fo 40 0 R >> >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (article.stale_state) /V (Current value despite stale AS) /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 320 624] /P 3 0 R /F 4 /AS /Ghost /AP << /N << /Fresh 30 0 R /Off 32 0 R >> >> >>\nendobj\n"
+        . "14 0 obj\n<< /FT /Tx /T (summary.note) /V (Direct stream field value) /Kids [16 0 R] >>\nendobj\n"
+        . "16 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [72 560 320 584] /P 3 0 R /F 4 /AP << /N 33 0 R >> /A << /S /JavaScript /JS (app.alert\\('activation review only'\\);) >> >>\nendobj\n"
+        . "30 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 24] /Matrix [1 0 0 1 72 640] /Resources 50 0 R /Length " . strlen($compressedSelectedAppearance) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressedSelectedAppearance
+        . "\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 24] /Length " . strlen($staleAppearance) . " >>\nstream\n{$staleAppearance}\nendstream\nendobj\n"
+        . "32 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 24] /Length " . strlen($offAppearance) . " >>\nstream\n{$offAppearance}\nendstream\nendobj\n"
+        . "33 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 240 24] /Resources 50 0 R /Length " . strlen($directAppearance) . " >>\nstream\n{$directAppearance}\nendstream\nendobj\n"
+        . "40 0 obj\n<< /S /JavaScript /JS 41 0 R >>\nendobj\n"
+        . "41 0 obj\n<< /Length " . strlen($compressedFocusScript) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressedFocusScript
+        . "\nendstream\nendobj\n"
+        . "50 0 obj\n<< /Font << /FApp 51 0 R >> /XObject << /Stamp 52 0 R >> >>\nendobj\n"
+        . "51 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "52 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 40 12] /Length " . strlen($nestedStampAppearance) . " >>\nstream\n{$nestedStampAppearance}\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, $selectedAppearance, $directAppearance, $focusScript];
+};
+
 return [
     'extracts inherited field flags and field default appearance strings' => static function (TestRunner $t) use ($acroFormPdf, $fieldsByName): void {
         $form = (new PdfAcroFormExtractor())->extractForm($acroFormPdf());
@@ -957,5 +1003,84 @@ return [
         $t->same(false, $signatureState['executes_signing']);
         $t->same(false, $signatureState['executes_action']);
         $t->same(false, $signatureField['signature_lock_state']['effective_locked']);
+    },
+    'resolves selected widget normal appearance streams without replacing current field values or executing actions' => static function (TestRunner $t) use ($appearanceValueActionBoundaryPdf, $fieldsByName): void {
+        [$pdf, $selectedAppearanceBytes, $directAppearanceBytes, $focusScript] = $appearanceValueActionBoundaryPdf();
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($pdf));
+
+        $title = $fields['article.title'];
+        $titleWidget = $title['widgets'][0];
+        $titleAppearance = $titleWidget['normal_appearance'];
+        $selected = $titleAppearance['selected_appearance'];
+        $focusAction = $titleWidget['actions'][0];
+
+        $t->same('Final field value', $title['value']);
+        $t->same('Final field value', $title['value_state']['current']);
+        $t->same('Fresh', $titleWidget['appearance_state']);
+        $t->same(['Fresh', 'Stale', 'Off'], $titleWidget['appearance_states']);
+        $t->same('state_dictionary', $titleAppearance['normal_appearance_type']);
+        $t->same('Fresh', $titleAppearance['selected_state']);
+        $t->true($titleAppearance['state_matches_appearance']);
+        $t->same(false, $titleAppearance['stale_appearance_state']);
+        $t->same(false, $titleAppearance['appearance_value_used_for_import']);
+        $t->same(false, $titleAppearance['payload_text_exposed']);
+        $t->same(false, $titleAppearance['executes_appearance_streams']);
+        $t->same(false, $titleAppearance['renders_appearances']);
+
+        $t->same('normal_state', $selected['source']);
+        $t->same('Fresh', $selected['state']);
+        $t->same(30, $selected['object']);
+        $t->same('XObject', $selected['type']);
+        $t->same('Form', $selected['subtype']);
+        $t->true($selected['form_xobject']);
+        $t->same([0.0, 0.0, 220.0, 24.0], $selected['bbox']);
+        $t->same([1.0, 0.0, 0.0, 1.0, 72.0, 640.0], $selected['matrix']);
+        $t->same(['FlateDecode'], $selected['filters']);
+        $t->true($selected['decoded_stream_available']);
+        $t->same(strlen($selectedAppearanceBytes), $selected['decoded_length_bytes']);
+        $t->same(hash('sha256', $selectedAppearanceBytes), $selected['decoded_sha256']);
+        $t->same(['FApp'], $selected['resource_font_names']);
+        $t->same(['Stamp'], $selected['resource_xobject_names']);
+        $t->same(false, $selected['payload_text_exposed']);
+        $t->same(false, $selected['imports_visible_text']);
+        $t->same(false, $selected['executes_appearance_streams']);
+        $t->same(false, $selected['executes_action']);
+
+        $t->same('JavaScript', $focusAction['action_type']);
+        $t->same('Fo', $focusAction['trigger']);
+        $t->same('focus', $focusAction['trigger_label']);
+        $t->same(40, $focusAction['action_object']);
+        $t->same($focusScript, $focusAction['script_preview']);
+        $t->same(hash('sha256', $focusScript), $focusAction['script_sha256']);
+        $t->same(['FlateDecode'], $focusAction['script_filters']);
+        $t->same(false, $focusAction['executes_javascript']);
+        $t->same(false, $focusAction['executes_action']);
+
+        $stale = $fields['article.stale_state'];
+        $staleAppearance = $stale['widgets'][0]['normal_appearance'];
+        $t->same('Current value despite stale AS', $stale['value']);
+        $t->same('Ghost', $stale['widgets'][0]['appearance_state']);
+        $t->same(['Fresh', 'Off'], $stale['widgets'][0]['appearance_states']);
+        $t->same(null, $staleAppearance['selected_state']);
+        $t->same(null, $staleAppearance['selected_appearance']);
+        $t->same(false, $staleAppearance['state_matches_appearance']);
+        $t->true($staleAppearance['stale_appearance_state']);
+        $t->same(false, $staleAppearance['appearance_value_used_for_import']);
+
+        $direct = $fields['summary.note'];
+        $directAppearance = $direct['widgets'][0]['normal_appearance'];
+        $directSelected = $directAppearance['selected_appearance'];
+        $t->same('Direct stream field value', $direct['value']);
+        $t->same('direct_stream', $directAppearance['normal_appearance_type']);
+        $t->same([], $directAppearance['available_states']);
+        $t->same(null, $directAppearance['selected_state']);
+        $t->same(33, $directSelected['object']);
+        $t->same('normal_direct', $directSelected['source']);
+        $t->same([0.0, 0.0, 240.0, 24.0], $directSelected['bbox']);
+        $t->same(strlen($directAppearanceBytes), $directSelected['decoded_length_bytes']);
+        $t->same(hash('sha256', $directAppearanceBytes), $directSelected['decoded_sha256']);
+        $t->same(false, $directSelected['imports_visible_text']);
+        $t->same('JavaScript', $direct['widgets'][0]['actions'][0]['action_type']);
+        $t->same(false, $direct['widgets'][0]['actions'][0]['executes_action']);
     },
 ];

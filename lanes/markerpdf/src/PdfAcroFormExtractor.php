@@ -2330,6 +2330,8 @@ final class PdfAcroFormExtractor
             $annotationFlags = $this->numberValueAfterName($body, 'F');
             $widgetAppearance = $this->widgetDefaultAppearance($body, $fieldDefaultAppearance, $effective, $objects);
             $referencedFromPageAnnots = isset($pageWidgets[$widgetRef]);
+            $appearanceState = $this->pdfNameValueAfterName($body, 'AS');
+            $normalAppearance = $this->normalAppearanceReview($body, $objects, $appearanceState);
 
             $widgets[] = [
                 'object' => $widgetRef,
@@ -2345,8 +2347,9 @@ final class PdfAcroFormExtractor
                 'visible' => !$this->annotationFlagsHideWidget($annotationFlags ?? 0),
                 'printable' => $this->hasFlagBit($annotationFlags ?? 0, 3),
                 'no_view' => $this->hasFlagBit($annotationFlags ?? 0, 6),
-                'appearance_state' => $this->pdfNameValueAfterName($body, 'AS'),
-                'appearance_states' => $this->normalAppearanceStates($body),
+                'appearance_state' => $appearanceState,
+                'appearance_states' => is_array($normalAppearance) ? $normalAppearance['available_states'] : [],
+                'normal_appearance' => $normalAppearance,
                 'default_appearance' => $widgetAppearance,
                 'actions' => $this->actionsFromDictionary($body, $objects, $fieldNamesByObject, 'widget', $widgetRef),
             ];
@@ -3018,31 +3021,271 @@ final class PdfAcroFormExtractor
     }
 
     /**
-     * @return list<string>
+     * @return array<string, mixed>|null
+     * @param array<int, string> $objects
      */
-    private function normalAppearanceStates(string $widgetBody): array
+    private function normalAppearanceReview(string $widgetBody, array $objects, ?string $appearanceState): ?array
     {
-        $ap = $this->valueAfterName($widgetBody, 'AP');
-        if ($ap === null || !str_starts_with(trim($ap), '<<')) {
+        $apValue = $this->valueAfterName($widgetBody, 'AP');
+        if ($apValue === null) {
+            return null;
+        }
+
+        $ap = $this->resolvedDictionaryFromValue($apValue, $objects);
+        if ($ap === null) {
+            return [
+                'source' => 'widget_appearance_dictionary',
+                'appearance_dictionary_object' => null,
+                'normal_appearance_type' => 'unresolved',
+                'appearance_state' => $appearanceState,
+                'available_states' => [],
+                'selected_state' => null,
+                'selected_appearance' => null,
+                'state_matches_appearance' => null,
+                'appearance_value_used_for_import' => false,
+                'payload_text_exposed' => false,
+                'executes_appearance_streams' => false,
+                'renders_appearances' => false,
+                'executes_action' => false,
+            ];
+        }
+
+        $normalValue = $this->valueAfterName($ap['body'], 'N');
+        if ($normalValue === null) {
+            return [
+                'source' => 'widget_appearance_dictionary',
+                'appearance_dictionary_object' => $ap['object'],
+                'normal_appearance_type' => 'missing',
+                'appearance_state' => $appearanceState,
+                'available_states' => [],
+                'selected_state' => null,
+                'selected_appearance' => null,
+                'state_matches_appearance' => null,
+                'appearance_value_used_for_import' => false,
+                'payload_text_exposed' => false,
+                'executes_appearance_streams' => false,
+                'renders_appearances' => false,
+                'executes_action' => false,
+            ];
+        }
+
+        if ($this->valueReferencesStreamObject($normalValue, $objects)) {
+            return [
+                'source' => 'widget_appearance_dictionary',
+                'appearance_dictionary_object' => $ap['object'],
+                'normal_appearance_type' => 'direct_stream',
+                'appearance_state' => $appearanceState,
+                'available_states' => [],
+                'selected_state' => null,
+                'selected_appearance' => $this->appearanceStreamReviewFromValue($normalValue, $objects, null, 'normal_direct'),
+                'state_matches_appearance' => null,
+                'appearance_value_used_for_import' => false,
+                'payload_text_exposed' => false,
+                'executes_appearance_streams' => false,
+                'renders_appearances' => false,
+                'executes_action' => false,
+            ];
+        }
+
+        $normalDictionary = $this->resolvedDictionaryFromValue($normalValue, $objects);
+        if ($normalDictionary === null) {
+            return [
+                'source' => 'widget_appearance_dictionary',
+                'appearance_dictionary_object' => $ap['object'],
+                'normal_appearance_type' => 'unresolved',
+                'appearance_state' => $appearanceState,
+                'available_states' => [],
+                'selected_state' => null,
+                'selected_appearance' => null,
+                'state_matches_appearance' => null,
+                'appearance_value_used_for_import' => false,
+                'payload_text_exposed' => false,
+                'executes_appearance_streams' => false,
+                'renders_appearances' => false,
+                'executes_action' => false,
+            ];
+        }
+
+        $entries = $this->dictionaryNameValueMap($normalDictionary['body']);
+        $availableStates = array_keys($entries);
+        $selectedValue = null;
+        if ($appearanceState !== null && array_key_exists($appearanceState, $entries)) {
+            $selectedValue = $entries[$appearanceState];
+        }
+
+        return [
+            'source' => 'widget_appearance_dictionary',
+            'appearance_dictionary_object' => $ap['object'],
+            'normal_appearance_object' => $normalDictionary['object'],
+            'normal_appearance_type' => 'state_dictionary',
+            'appearance_state' => $appearanceState,
+            'available_states' => $availableStates,
+            'selected_state' => $selectedValue === null ? null : $appearanceState,
+            'selected_appearance' => $selectedValue === null
+                ? null
+                : $this->appearanceStreamReviewFromValue($selectedValue, $objects, $appearanceState, 'normal_state'),
+            'state_matches_appearance' => $appearanceState === null ? null : $selectedValue !== null,
+            'stale_appearance_state' => $appearanceState !== null && $selectedValue === null,
+            'appearance_value_used_for_import' => false,
+            'payload_text_exposed' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+            'executes_action' => false,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     * @param array<int, string> $objects
+     */
+    private function appearanceStreamReviewFromValue(string $value, array $objects, ?string $state, string $source): ?array
+    {
+        $value = trim($value);
+        $objectNumber = null;
+        $objectBody = null;
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            $objectBody = $objects[$objectNumber] ?? null;
+        } elseif (str_starts_with($value, '<<')) {
+            $objectBody = $value;
+        }
+
+        if ($objectBody === null) {
+            return null;
+        }
+
+        $dictionaryBody = $this->dictionaryObjectBody($objectBody) ?? (str_starts_with(trim($objectBody), '<<') ? $this->readPdfDictionaryAt($objectBody, 0) : null);
+        if ($dictionaryBody === null) {
+            return null;
+        }
+
+        $decodedStream = $this->decodeStreamObject($objectBody, $objects);
+        $resources = $this->appearanceResourceReview($dictionaryBody, $objects);
+
+        return [
+            'source' => $source,
+            'state' => $state,
+            'object' => $objectNumber,
+            'type' => $this->pdfNameValueAfterName($dictionaryBody, 'Type'),
+            'subtype' => $this->pdfNameValueAfterName($dictionaryBody, 'Subtype'),
+            'form_xobject' => $this->pdfNameValueAfterName($dictionaryBody, 'Type') === 'XObject'
+                && $this->pdfNameValueAfterName($dictionaryBody, 'Subtype') === 'Form',
+            'bbox' => $this->numericArrayValueAfterName($dictionaryBody, 'BBox'),
+            'matrix' => $this->numericArrayValueAfterName($dictionaryBody, 'Matrix'),
+            'declared_length_bytes' => $this->numberValueAfterName($dictionaryBody, 'Length'),
+            'filters' => $this->streamObjectFilters($objectBody, $objects),
+            'decoded_stream_available' => $decodedStream !== null,
+            'decoded_length_bytes' => $decodedStream === null ? null : strlen($decodedStream),
+            'decoded_sha256' => $decodedStream === null ? null : hash('sha256', $decodedStream),
+            'resource_object' => $resources['object'],
+            'resource_font_names' => $resources['font_names'],
+            'resource_xobject_names' => $resources['xobject_names'],
+            'payload_text_exposed' => false,
+            'imports_visible_text' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+            'executes_action' => false,
+        ];
+    }
+
+    /**
+     * @return array{object: int|null, font_names: list<string>, xobject_names: list<string>}
+     * @param array<int, string> $objects
+     */
+    private function appearanceResourceReview(string $appearanceDictionaryBody, array $objects): array
+    {
+        $resourcesValue = $this->valueAfterName($appearanceDictionaryBody, 'Resources');
+        $resources = $resourcesValue === null ? null : $this->resolvedDictionaryFromValue($resourcesValue, $objects);
+        if ($resources === null) {
+            return [
+                'object' => null,
+                'font_names' => [],
+                'xobject_names' => [],
+            ];
+        }
+
+        return [
+            'object' => $resources['object'],
+            'font_names' => array_keys($this->fontResourcesFromDefaultResourceDictionary($resources['body'], $objects)),
+            'xobject_names' => $this->xobjectResourceNamesFromResourceDictionary($resources['body'], $objects),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     * @param array<int, string> $objects
+     */
+    private function xobjectResourceNamesFromResourceDictionary(string $resourceDictionary, array $objects): array
+    {
+        $xobjectValue = $this->valueAfterName($resourceDictionary, 'XObject');
+        $xobjects = $xobjectValue === null ? null : $this->resolvedDictionaryFromValue($xobjectValue, $objects);
+        if ($xobjects === null) {
             return [];
         }
 
-        $normal = $this->valueAfterName($ap, 'N');
-        if ($normal === null || !str_starts_with(trim($normal), '<<')) {
-            return [];
-        }
+        return array_keys($this->dictionaryNameValueMap($xobjects['body']));
+    }
 
-        $states = [];
-        if (preg_match_all('/\/((?:#[0-9A-Fa-f]{2}|[^\s\[\]\(\)<>{}\/%])+)\b/', $normal, $matches)) {
-            foreach ($matches[1] as $name) {
-                $decoded = $this->decodePdfName('/' . $name);
-                if (!in_array($decoded, $states, true)) {
-                    $states[] = $decoded;
-                }
+    /**
+     * @return array<string, string>
+     */
+    private function dictionaryNameValueMap(string $dictionaryBody): array
+    {
+        $entries = [];
+        $offset = 0;
+        $length = strlen($dictionaryBody);
+        while ($offset < $length) {
+            $this->skipWhitespace($dictionaryBody, $offset);
+            if ($offset >= $length) {
+                break;
             }
+
+            if ($dictionaryBody[$offset] !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $nameEnd = $this->skipPdfName($dictionaryBody, $offset);
+            $name = $this->decodePdfName(substr($dictionaryBody, $offset, $nameEnd - $offset));
+            $offset = $nameEnd;
+            $endOffset = null;
+            $value = $this->readPdfValueAt($dictionaryBody, $offset, $endOffset);
+            if ($value === null || $endOffset === null) {
+                continue;
+            }
+
+            $entries[$name] = $value;
+            $offset = $endOffset;
         }
 
-        return $states;
+        return $entries;
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function numericArrayValueAfterName(string $body, string $name): ?array
+    {
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null || !str_starts_with(trim($value), '[')) {
+            return null;
+        }
+
+        $arrayBody = $this->arrayBodyFromValue($value);
+        if ($arrayBody === null) {
+            return [];
+        }
+
+        return $this->numbersFromPdfArray($arrayBody);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function valueReferencesStreamObject(string $value, array $objects): bool
+    {
+        return preg_match('/^(\d+)\s+\d+\s+R\b/', trim($value), $match) === 1
+            && str_contains($objects[(int) $match[1]] ?? '', 'stream');
     }
 
     /**
@@ -3411,6 +3654,66 @@ final class PdfAcroFormExtractor
         }
 
         return substr($body, $offset, max(0, $end - $offset));
+    }
+
+    private function readPdfValueAt(string $body, int $offset, ?int &$endOffset = null): ?string
+    {
+        $this->skipWhitespace($body, $offset);
+        if ($offset >= strlen($body)) {
+            return null;
+        }
+
+        if (preg_match('/\G\d+\s+\d+\s+R\b/s', $body, $ref, 0, $offset) === 1) {
+            $endOffset = $offset + strlen($ref[0]);
+            return $ref[0];
+        }
+
+        if ($body[$offset] === '[') {
+            $end = null;
+            $this->readPdfArrayAt($body, $offset, $end);
+            if ($end === null) {
+                return null;
+            }
+            $endOffset = $end;
+            return substr($body, $offset, $end - $offset);
+        }
+
+        if (substr($body, $offset, 2) === '<<') {
+            $end = null;
+            $this->readPdfDictionaryAt($body, $offset, $end);
+            if ($end === null) {
+                return null;
+            }
+            $endOffset = $end;
+            return substr($body, $offset, $end - $offset);
+        }
+
+        if ($body[$offset] === '(') {
+            $endOffset = $this->skipLiteralString($body, $offset);
+            return substr($body, $offset, $endOffset - $offset);
+        }
+
+        if ($body[$offset] === '<') {
+            $endOffset = $this->skipHexString($body, $offset);
+            return substr($body, $offset, $endOffset - $offset);
+        }
+
+        if ($body[$offset] === '/') {
+            $endOffset = $this->skipPdfName($body, $offset);
+            return substr($body, $offset, $endOffset - $offset);
+        }
+
+        $end = $offset;
+        while ($end < strlen($body) && !ctype_space($body[$end]) && !str_contains('[]()<>{}/%', $body[$end])) {
+            $end++;
+        }
+
+        if ($end === $offset) {
+            return null;
+        }
+
+        $endOffset = $end;
+        return substr($body, $offset, $end - $offset);
     }
 
     /**
