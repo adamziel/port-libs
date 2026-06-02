@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 16:51:52 UTC",
-    "sourceCommit": "50e95b14d9ddffc88d082d066bb3b9ff4308c374",
-    "sourceCommitShort": "50e95b14d9dd",
+    "generated": "2026-06-02 16:58:45 UTC",
+    "sourceCommit": "48450e76344e90b150fb8572401806c6f42e5ee4",
+    "sourceCommitShort": "48450e76344e",
     "sourceBranch": "unknown",
-    "dashboardCommit": "50e95b14d9ddffc88d082d066bb3b9ff4308c374",
-    "dashboardCommitShort": "50e95b14d9dd",
+    "dashboardCommit": "48450e76344e90b150fb8572401806c6f42e5ee4",
+    "dashboardCommitShort": "48450e76344e",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "414",
-            "coverage": "414 / 78 (530.8%)",
-            "mapPercent": "530.8%",
+            "mapped": "419",
+            "coverage": "419 / 78 (537.2%)",
+            "mapPercent": "537.2%",
             "unmapped": "0",
-            "php": "577 pass / 0 fail",
+            "php": "582 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 50e95b14; rebase...",
-            "currentWork": "MarkerPDF now adds inline image review, OCR table-header grouping, page attachment ch...",
-            "nextTarget": "Score the newly completed current-base xref/image/page/font/p...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 48450e763; five...",
+            "currentWork": "MarkerPDF now adds StructParents ParentTree tagged reading-order review, associated-f...",
+            "nextTarget": "Resolve and score the remaining conflicted security29, outlin...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "50e95b1"
+            "commit": "48450e7"
         },
         {
             "lane": "readability",
