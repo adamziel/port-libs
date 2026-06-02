@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 11:50:19 UTC",
-    "sourceCommit": "3c3fe878121315829ae828e54d4e59633fd738dc",
-    "sourceCommitShort": "3c3fe8781213",
+    "generated": "2026-06-02 11:55:14 UTC",
+    "sourceCommit": "96a5d7f9701b7e2f6af6484fad32fbb25e216f55",
+    "sourceCommitShort": "96a5d7f9701b",
     "sourceBranch": "main",
-    "dashboardCommit": "3c3fe878121315829ae828e54d4e59633fd738dc",
-    "dashboardCommitShort": "3c3fe8781213",
+    "dashboardCommit": "96a5d7f9701b7e2f6af6484fad32fbb25e216f55",
+    "dashboardCommitShort": "96a5d7f9701b",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "338",
-            "coverage": "338 / 78 (433.3%)",
-            "mapPercent": "433.3%",
+            "mapped": "339",
+            "coverage": "339 / 78 (434.6%)",
+            "mapPercent": "434.6%",
             "unmapped": "0",
-            "php": "490 pass / 0 fail",
+            "php": "491 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "ToUnicode CMap declared row-count handling is integrated and fully green; continue ma...",
+            "currentWork": "Portfolio collection schema field-value review is integrated and fully green; continu...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "3c3fe87"
+            "commit": "96a5d7f"
         },
         {
             "lane": "readability",
