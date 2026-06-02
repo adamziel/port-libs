@@ -51,6 +51,23 @@ return [
         $t->same([[0.0, 0.0, 612.0, 792.0], [0.0, 0.0, 300.0, 400.0]], array_column($summary['pages'], 'bbox'));
         $t->same(['pages', 'pages'], array_column($summary['pages'], 'bbox_source'));
     },
+    'guards cyclic Kids arrays and duplicate leaves for preview page inventory' => static function (TestRunner $t): void {
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [10 0 R 2 0 R 10 0 R 20 0 R] /Count 99 >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids [3 0 R 10 0 R 3 0 R] /Count 77 /MediaBox [0 0 300 400] >>\nendobj\n"
+            . "20 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids [8 0 R 20 0 R] /Count 88 /MediaBox [0 0 500 600] >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 10 0 R >>\nendobj\n"
+            . "8 0 obj\n<< /Type /Page /Parent 20 0 R >>\nendobj\n"
+            . "%%EOF\n";
+        $summary = (new MarkerAppPreview())->openPdfSummary($pdf);
+
+        $t->same(2, $summary['page_count']);
+        $t->same([3, 8], array_column($summary['pages'], 'object_id'));
+        $t->same([1, 2], array_column($summary['pages'], 'page_number'));
+        $t->same([[0.0, 0.0, 300.0, 400.0], [0.0, 0.0, 500.0, 600.0]], array_column($summary['pages'], 'bbox'));
+        $t->same(['pages', 'pages'], array_column($summary['pages'], 'bbox_source'));
+    },
     'tracks inherited crop boxes rotation and page UserUnit for preview geometry' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.6\n"
             . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"

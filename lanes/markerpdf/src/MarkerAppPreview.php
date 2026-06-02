@@ -106,7 +106,7 @@ final class MarkerAppPreview
 
             $pagesId = $this->reference($object['body'], 'Pages');
             if ($pagesId !== null && isset($objects[$pagesId])) {
-                $pages = $this->collectPages($pagesId, $objects);
+                $pages = $this->uniquePagesByObjectId($this->collectPages($pagesId, $objects));
                 break;
             }
         }
@@ -130,6 +130,31 @@ final class MarkerAppPreview
         }
 
         return array_values($pages);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $pages
+     * @return list<array<string, mixed>>
+     */
+    private function uniquePagesByObjectId(array $pages): array
+    {
+        $unique = [];
+        $seen = [];
+        foreach ($pages as $page) {
+            $objectId = $page['object_id'] ?? null;
+            if (!is_int($objectId)) {
+                continue;
+            }
+
+            if (isset($seen[$objectId])) {
+                continue;
+            }
+
+            $seen[$objectId] = true;
+            $unique[] = $page;
+        }
+
+        return $unique;
     }
 
     /**
@@ -343,6 +368,10 @@ final class MarkerAppPreview
         while ($parentId !== null && !isset($seen[$parentId]) && isset($objects[$parentId])) {
             $seen[$parentId] = true;
             $body = $objects[$parentId]['body'];
+            if ($this->objectType($body) !== 'Pages') {
+                break;
+            }
+
             $ancestors[] = $body;
             $parentId = $this->reference($body, 'Parent');
         }

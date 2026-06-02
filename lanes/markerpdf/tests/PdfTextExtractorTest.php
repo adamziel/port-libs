@@ -2358,6 +2358,43 @@ return [
         $t->same(['1', '2'], $extractor->extractPageLabels($pdf));
         $t->same(2, $extractor->extractOutlineMetadata($pdf)['pages']);
     },
+    'guards cyclic page tree Kids while preserving inherited resources before WordPress text extraction' => static function (TestRunner $t) use ($toUnicodeCMap): void {
+        $pageOne = 'BT /F1 12 Tf 72 720 Td <41> Tj ET';
+        $pageTwo = 'BT /F1 12 Tf 72 720 Td <41> Tj ET';
+        $orphan = 'BT /F1 12 Tf 72 720 Td (Orphan fallback leak) Tj ET';
+        $cmapOne = $toUnicodeCMap([
+            '41' => 'Cycle Resource First',
+        ]);
+        $cmapTwo = $toUnicodeCMap([
+            '41' => 'Cycle Resource Second',
+        ]);
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [10 0 R 2 0 R 10 0 R 20 0 R] /Count 99 >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids [3 0 R 10 0 R 3 0 R] /Count 77 /Resources << /Font << /F1 4 0 R >> >> >>\nendobj\n"
+            . "20 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids [8 0 R 20 0 R] /Count 88 /Resources << /Font << /F1 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 10 0 R /Contents 5 0 R >>\nendobj\n"
+            . "8 0 obj\n<< /Type /Page /Parent 20 0 R /Contents 9 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CycleFirst /Encoding /Identity-H /ToUnicode 11 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($pageOne) . " >>\nstream\n{$pageOne}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CycleSecond /Encoding /Identity-H /ToUnicode 12 0 R >>\nendobj\n"
+            . "7 0 obj\n<< /Length " . strlen($orphan) . " >>\nstream\n{$orphan}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($pageTwo) . " >>\nstream\n{$pageTwo}\nendstream\nendobj\n"
+            . "11 0 obj\n<< /Length " . strlen($cmapOne) . " >>\nstream\n{$cmapOne}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Length " . strlen($cmapTwo) . " >>\nstream\n{$cmapTwo}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Cycle Resource First', 'Cycle Resource Second'], $extractor->extractTextLines($pdf));
+        $t->same(['Cycle Resource First', 'Cycle Resource Second'], $extractor->extractTextRuns($pdf));
+        $t->same("Cycle Resource First\nCycle Resource Second", $plainText);
+        $t->same("Cycle Resource First\nCycle Resource Second\n", $extractor->naiveGetText($pdf));
+        $t->same(['1', '2'], $extractor->extractPageLabels($pdf));
+        $t->same(2, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(1, substr_count($plainText, 'Cycle Resource First'));
+        $t->same(1, substr_count($plainText, 'Cycle Resource Second'));
+        $t->true(!str_contains($plainText, 'Orphan fallback leak'));
+    },
     'uses tagged PDF StructTreeRoot MCID order before content stream order' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf '
             . '/P << /MCID 1 >> BDC 72 704 Td (Body paragraph second) Tj EMC '

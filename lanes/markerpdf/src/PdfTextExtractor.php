@@ -3073,7 +3073,7 @@ final class PdfTextExtractor
 
             $pages = $this->pageObjectNumbersFromTree((int) $match[1], $objects);
             if ($pages !== []) {
-                return $pages;
+                return array_values(array_unique($pages, SORT_REGULAR));
             }
         }
 
@@ -3420,6 +3420,11 @@ final class PdfTextExtractor
     private function isPageObject(string $body): bool
     {
         return preg_match('/\/Type\s*\/Page\b/', $body) === 1;
+    }
+
+    private function isPagesObject(string $body): bool
+    {
+        return preg_match('/\/Type\s*\/Pages\b/', $body) === 1;
     }
 
     /**
@@ -4446,7 +4451,12 @@ final class PdfTextExtractor
                 break;
             }
 
-            $objectNumber = (int) $match[1];
+            $parentObjectNumber = (int) $match[1];
+            if (!isset($objects[$parentObjectNumber]) || !$this->isPagesObject($objects[$parentObjectNumber])) {
+                break;
+            }
+
+            $objectNumber = $parentObjectNumber;
         }
 
         return $lineage;
