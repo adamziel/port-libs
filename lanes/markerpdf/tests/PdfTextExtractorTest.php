@@ -111,12 +111,86 @@ $lzwPackCodes = static function (array $codes): string {
     return $encoded;
 };
 
-$lzwLiteralEncode = static function (string $bytes) use ($lzwPackCodes): string {
-    return $lzwPackCodes([
+$lzwPackPdfCodes = static function (array $codes, int $earlyChange = 1): string {
+    $earlyChange = $earlyChange === 0 ? 0 : 1;
+    $dictionary = [];
+    $nextCode = 258;
+    $codeSize = 9;
+    $bits = '';
+
+    $resetDictionary = static function () use (&$dictionary, &$nextCode, &$codeSize): void {
+        $dictionary = [];
+        for ($code = 0; $code < 256; $code++) {
+            $dictionary[$code] = chr($code);
+        }
+        $nextCode = 258;
+        $codeSize = 9;
+    };
+
+    $writeCode = static function (int $code) use (&$bits, &$codeSize): void {
+        if ($code < 0 || $code >= (1 << $codeSize)) {
+            throw new RuntimeException('Focused LZW fixture code does not fit the current code size.');
+        }
+
+        for ($shift = $codeSize - 1; $shift >= 0; $shift--) {
+            $bits .= (($code >> $shift) & 1) === 1 ? '1' : '0';
+        }
+    };
+
+    $resetDictionary();
+    $previous = null;
+    foreach ($codes as $code) {
+        if (!is_int($code) || $code < 0 || $code > 4095) {
+            throw new RuntimeException('Focused LZW fixture codes must be 12-bit integers.');
+        }
+
+        $writeCode($code);
+        if ($code === 256) {
+            $resetDictionary();
+            $previous = null;
+            continue;
+        }
+
+        if ($code === 257) {
+            break;
+        }
+
+        if (isset($dictionary[$code])) {
+            $entry = $dictionary[$code];
+        } elseif ($code === $nextCode && $previous !== null) {
+            $entry = $previous . $previous[0];
+        } else {
+            throw new RuntimeException('Focused LZW fixture references an unknown dictionary code.');
+        }
+
+        if ($previous !== null && $nextCode < 4096) {
+            $dictionary[$nextCode] = $previous . $entry[0];
+            $nextCode++;
+            if ($codeSize < 12 && $nextCode + $earlyChange >= (1 << $codeSize)) {
+                $codeSize++;
+            }
+        }
+        $previous = $entry;
+    }
+
+    $encoded = '';
+    for ($offset = 0, $length = strlen($bits); $offset < $length; $offset += 8) {
+        $byte = substr($bits, $offset, 8);
+        if (strlen($byte) < 8) {
+            $byte = str_pad($byte, 8, '0');
+        }
+        $encoded .= chr(bindec($byte));
+    }
+
+    return $encoded;
+};
+
+$lzwLiteralEncode = static function (string $bytes, int $earlyChange = 1) use ($lzwPackPdfCodes): string {
+    return $lzwPackPdfCodes([
         256,
         ...array_map('ord', str_split($bytes)),
         257,
-    ]);
+    ], $earlyChange);
 };
 
 $pngPredictorEncode = static function (string $bytes, int $columns): string {
@@ -311,6 +385,26 @@ return [
         $t->same(['ABABABA', 'Stack Ready'], $extractor->extractTextRuns($pdf));
         $t->same('LZW Flate Import', $extractor->extractPlainText($stackedPdf));
         $t->same('', $extractor->extractPlainText("%PDF-1.4\n1 0 obj\n<< /Filter /LZWDecode >>\nstream\n\x80\nendstream\nendobj\n%%EOF"));
+    },
+    'applies LZW DecodeParms boundaries before WordPress paragraph rendering' => static function (TestRunner $t) use ($lzwLiteralEncode, $tiffPredictorEncode): void {
+        $longText = str_repeat('Boundary ', 32) . 'EarlyChange Zero';
+        $earlyChangeContent = 'BT /F1 12 Tf 72 720 Td (' . $longText . ') Tj ET';
+        $earlyChangeEncoded = $lzwLiteralEncode($earlyChangeContent, 0);
+        $earlyChangePdf = "%PDF-1.4\n1 0 obj\n<< /Filter /LZWDecode /DecodeParms << /EarlyChange 0 >> /Length " . strlen($earlyChangeEncoded) . " >>\nstream\n{$earlyChangeEncoded}\nendstream\nendobj\n%%EOF";
+
+        $predictorContent = 'BT /F1 12 Tf 72 720 Td (LZW Predictor Import) Tj T* (DecodeParms Rows) Tj ET';
+        $predicted = $tiffPredictorEncode($predictorContent, strlen($predictorContent));
+        $predictorEncoded = $lzwLiteralEncode($predicted);
+        $predictorPdf = "%PDF-1.4\n1 0 obj\n<< /Filter /LZWDecode /DecodeParms << /Predictor 2 /Columns " . strlen($predictorContent) . " >> /Length " . strlen($predictorEncoded) . " >>\nstream\n{$predictorEncoded}\nendstream\nendobj\n%%EOF";
+
+        $invalidContent = 'BT /F1 12 Tf 72 720 Td (Invalid EarlyChange Leak) Tj ET';
+        $invalidEncoded = $lzwLiteralEncode($invalidContent);
+        $invalidPdf = "%PDF-1.4\n1 0 obj\n<< /Filter /LZWDecode /DecodeParms << /EarlyChange 2 >> /Length " . strlen($invalidEncoded) . " >>\nstream\n{$invalidEncoded}\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $t->same($longText, $extractor->extractPlainText($earlyChangePdf));
+        $t->same("LZW Predictor Import\nDecodeParms Rows", $extractor->extractPlainText($predictorPdf));
+        $t->same('', $extractor->extractPlainText($invalidPdf));
     },
     'skips DCTDecode JPEG streams before WordPress text extraction' => static function (TestRunner $t): void {
         $visibleContent = 'BT /F1 12 Tf 72 720 Td (DCT Boundary Import) Tj T* (Clean Text Stream) Tj ET';

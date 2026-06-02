@@ -1557,6 +1557,14 @@ final class PdfTextExtractor
             return false;
         }
 
+        if (
+            in_array($filter, ['LZWDecode', 'LZW'], true)
+            && preg_match('/\/EarlyChange\s+(-?\d+)/', $decodeParms, $match) === 1
+            && !in_array((int) $match[1], [0, 1], true)
+        ) {
+            return false;
+        }
+
         return true;
     }
 

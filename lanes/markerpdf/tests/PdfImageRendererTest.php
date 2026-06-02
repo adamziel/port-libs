@@ -5,6 +5,21 @@ declare(strict_types=1);
 use PortLibs\MarkerPDF\MarkerSettings;
 use PortLibs\MarkerPDF\PdfImageRenderer;
 
+$dctJpeg = static function (?int $adobeTransform, int $components = 4): string {
+    $segment = static fn (int $marker, string $payload): string => "\xff" . chr($marker) . pack('n', strlen($payload) + 2) . $payload;
+    $bytes = "\xff\xd8";
+    if ($adobeTransform !== null) {
+        $bytes .= $segment(0xee, 'Adobe' . pack('n', 100) . pack('n', 0) . pack('n', 0) . chr($adobeTransform));
+    }
+
+    $sofPayload = "\x08" . pack('n', 1) . pack('n', 1) . chr($components);
+    for ($component = 1; $component <= $components; $component++) {
+        $sofPayload .= chr($component) . "\x11\x00";
+    }
+
+    return $bytes . $segment(0xc0, $sofPayload) . "\xff\xd9";
+};
+
 return [
     'maps upstream render_image dpi scale and RGB/no-annotation output boundary' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
@@ -64,5 +79,67 @@ return [
 
         $t->contains('data-marker-crop="120,200,560,440"', $html);
         $t->contains('0_image_0.png', $html);
+    },
+    'plans DCTDecode CMYK Adobe transform before WordPress RGB image preview' => static function (TestRunner $t) use ($dctJpeg): void {
+        $renderer = new PdfImageRenderer();
+        $plan = $renderer->dctDecodeImageColorPlan(
+            '<< /Filter /DCTDecode /ColorSpace /DeviceCMYK /BitsPerComponent 8 /DecodeParms << /ColorTransform 0 >> >>',
+            $dctJpeg(2)
+        );
+
+        $t->same('DCTDecode', $plan['filter']);
+        $t->same('DeviceCMYK', $plan['source_color_space']);
+        $t->same(4, $plan['components']);
+        $t->same(8, $plan['bits_per_component']);
+        $t->same(2, $plan['adobe_app14_transform']);
+        $t->same(0, $plan['decode_parms_color_transform']);
+        $t->same(2, $plan['effective_color_transform']);
+        $t->same(true, $plan['adobe_marker_overrides_decode_parms']);
+        $t->same(true, $plan['needs_cmyk_to_rgb']);
+        $t->same(true, $plan['uses_ycck_transform']);
+        $t->same('RGB', $plan['output_color_mode']);
+        $t->same(
+            ['adobe_app14_transform_overrides_decodeparms', 'render_rgb_preview_from_cmyk', 'apply_ycck_to_cmyk_before_rgb'],
+            $plan['notes']
+        );
+        $t->same(['red' => 254, 'green' => 0, 'blue' => 0], $renderer->dctDecodeSampleToRgb([76, 85, 255, 0], $plan));
+
+        $invertedPlan = $renderer->dctDecodeImageColorPlan(
+            '<< /Filter /DCT /ColorSpace /DeviceCMYK /BitsPerComponent 8 >>',
+            $dctJpeg(0)
+        );
+
+        $t->same('DCT', $invertedPlan['filter']);
+        $t->same(0, $invertedPlan['adobe_app14_transform']);
+        $t->same(0, $invertedPlan['effective_color_transform']);
+        $t->same(false, $invertedPlan['uses_ycck_transform']);
+        $t->same(['red' => 255, 'green' => 0, 'blue' => 0], $renderer->dctDecodeSampleToRgb([255, 0, 0, 255], $invertedPlan));
+    },
+    'uses DCTDecode DecodeParms and CMYK defaults when Adobe marker is absent' => static function (TestRunner $t) use ($dctJpeg): void {
+        $renderer = new PdfImageRenderer();
+        $decodeParmsPlan = $renderer->dctDecodeImageColorPlan(
+            '<< /Filter /DCTDecode /ColorSpace /DeviceCMYK /BitsPerComponent 8 /DecodeParms << /ColorTransform 1 >> >>',
+            $dctJpeg(null)
+        );
+        $defaultCmykPlan = $renderer->dctDecodeImageColorPlan(
+            '<< /Filter /DCTDecode /ColorSpace /DeviceCMYK /BitsPerComponent 8 >>',
+            $dctJpeg(null)
+        );
+        $defaultRgbPlan = $renderer->dctDecodeImageColorPlan(
+            '<< /Filter /DCTDecode /ColorSpace /DeviceRGB /BitsPerComponent 8 >>',
+            $dctJpeg(null, 3)
+        );
+
+        $t->same(null, $decodeParmsPlan['adobe_app14_transform']);
+        $t->same(1, $decodeParmsPlan['decode_parms_color_transform']);
+        $t->same(1, $decodeParmsPlan['effective_color_transform']);
+        $t->same(true, $decodeParmsPlan['uses_ycck_transform']);
+        $t->same(0, $defaultCmykPlan['effective_color_transform']);
+        $t->same(false, $defaultCmykPlan['uses_ycck_transform']);
+        $t->same(['red' => 255, 'green' => 0, 'blue' => 0], $renderer->dctDecodeSampleToRgb([0, 255, 255, 0], $defaultCmykPlan));
+        $t->same(3, $defaultRgbPlan['components']);
+        $t->same(1, $defaultRgbPlan['effective_color_transform']);
+        $t->same(false, $defaultRgbPlan['needs_cmyk_to_rgb']);
+        $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->dctDecodeSampleToRgb([0, 255, 255], $defaultCmykPlan));
     },
 ];
