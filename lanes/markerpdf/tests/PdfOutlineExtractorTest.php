@@ -186,6 +186,34 @@ $navigationReviewPdf = static function (): string {
         . "%%EOF";
 };
 
+$navigationTaggedStructurePdf = static function (): string {
+    $pageOneContent = 'BT /F1 12 Tf 72 720 Td (Preface page stays visible) Tj ET';
+    $pageTwoContent = 'BT /F1 12 Tf '
+        . '/BodyAlias << /MCID 1 >> BDC 72 704 Td (Target body second) Tj EMC '
+        . '/DeckTitle << /MCID 0 >> BDC 72 720 Td (Target heading first) Tj EMC '
+        . '/Artifact << /MCID 2 >> BDC 72 680 Td (Target artifact noise) Tj EMC ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R /OpenAction 40 0 R /Names << /Dests 8 0 R >> /PageLabels 20 0 R /MarkInfo << /Marked true >> /StructTreeRoot 50 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 7 0 R >> >> /Contents 30 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /StructParents 0 /Resources << /Font << /F1 7 0 R >> >> /Contents 31 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Count 1 >>\nendobj\n"
+        . "6 0 obj\n<< /Title (Accessible Chapter Target) /Parent 5 0 R /Dest /ChapterStart >>\nendobj\n"
+        . "7 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "8 0 obj\n<< /Names [(ChapterStart) [4 0 R /FitH 640] (StaleTarget) [99 0 R /Fit]] >>\nendobj\n"
+        . "20 0 obj\n<< /Nums [0 << /S /r /P (front-) /St 2 >> 1 << /S /D /P (Body ) /St 1 >>] >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($pageOneContent) . " >>\nstream\n{$pageOneContent}\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Length " . strlen($pageTwoContent) . " >>\nstream\n{$pageTwoContent}\nendstream\nendobj\n"
+        . "40 0 obj\n<< /S /GoTo /D /ChapterStart >>\nendobj\n"
+        . "50 0 obj\n<< /Type /StructTreeRoot /RoleMap 60 0 R /ParentTree 55 0 R /K [52 0 R 53 0 R] >>\nendobj\n"
+        . "52 0 obj\n<< /Type /StructElem /S /DeckTitle /P 50 0 R /K 0 >>\nendobj\n"
+        . "53 0 obj\n<< /Type /StructElem /S /BodyAlias /P 50 0 R /K 1 >>\nendobj\n"
+        . "55 0 obj\n<< /Nums [0 [52 0 R 53 0 R]] >>\nendobj\n"
+        . "60 0 obj\n<< /DeckTitle /H2 /BodyAlias /P >>\nendobj\n"
+        . "%%EOF";
+};
+
 $outlineNameTreeTransitionActionPdf = static function (): string {
     $pageOneContent = 'BT /F1 12 Tf 72 720 Td (Title slide stays visible) Tj ET';
     $pageTwoContent = 'BT /F1 12 Tf 72 720 Td (Deck target stays visible) Tj ET';
@@ -710,6 +738,38 @@ return [
         $t->contains('Preface text stays visible', $text);
         $t->contains('Chapter target text stays visible', $text);
         $t->true(!str_contains($text, 'https://example.com/chapter-notes'));
+    },
+    'attaches StructElem tagged content to page-label named-destination navigation review' => static function (TestRunner $t) use ($navigationTaggedStructurePdf): void {
+        $extractor = new PdfOutlineExtractor();
+        $pdf = $navigationTaggedStructurePdf();
+        $metadata = $extractor->getNavigationReviewMetadata($pdf);
+
+        $t->same(['outline', 'open_action', 'tagged_content'], $metadata['source']);
+        $t->same(1, count($metadata['outline']));
+        $t->same('Accessible Chapter Target', $metadata['outline'][0]['title']);
+        $t->same(1, $metadata['outline'][0]['page']);
+        $t->same('Body 1', $metadata['outline'][0]['page_label']);
+        $t->same('ChapterStart', $metadata['outline'][0]['destination']);
+        $t->same('FitH', $metadata['outline'][0]['view_mode']);
+        $t->same(['top' => 640.0], $metadata['outline'][0]['view_parameters']);
+        $t->same(['H2', 'P'], $metadata['outline'][0]['target_structure_roles']);
+        $t->same(['Target heading first', 'Target body second'], array_column($metadata['outline'][0]['target_tagged_content'], 'text'));
+        $t->same([0, 1], array_column($metadata['outline'][0]['target_tagged_content'], 'mcid'));
+        $t->same(['DeckTitle', 'BodyAlias'], array_column($metadata['outline'][0]['target_tagged_content'], 'raw_role'));
+
+        $t->same(1, count($metadata['open_action_review_actions']));
+        $t->same('Body 1', $metadata['open_action_review_actions'][0]['page_label']);
+        $t->same(['H2', 'P'], $metadata['open_action_review_actions'][0]['target_structure_roles']);
+        $t->same(['Target heading first', 'Target body second'], array_column($metadata['open_action_review_actions'][0]['target_tagged_content'], 'text'));
+
+        $t->true(isset($metadata['open_action_destination']));
+        $t->same('Body 1', $metadata['open_action_destination']['page_label']);
+        $t->same(['H2', 'P'], $metadata['open_action_destination']['target_structure_roles']);
+        $t->same(['Target heading first', 'Target body second'], array_column($metadata['open_action_destination']['target_tagged_content'], 'text'));
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $t->contains("Target heading first\nTarget body second", $plainText);
+        $t->true(!str_contains($plainText, 'Target artifact noise'));
     },
     'annotates outline name tree targets with page transition and action review metadata' => static function (TestRunner $t) use ($outlineNameTreeTransitionActionPdf): void {
         $extractor = new PdfOutlineExtractor();

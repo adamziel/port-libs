@@ -348,6 +348,7 @@ final class PdfOutlineExtractor
         $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
         $pagePresentations = $this->getPageTransitionActionMetadata($pdfBytes);
         $pagePresentationsByPage = $this->pagePresentationsByPageIndex($pagePresentations);
+        $taggedContentByPage = $this->taggedContentByPageIndex($pdfBytes);
         $articleThreads = $this->articleThreadNavigationMetadata($catalog, $objects, $pageIndexes, $pageLabels);
         $articleBeadsByPage = $this->articleBeadsByPageIndex($articleThreads);
         $pageReviews = $includePageReview ? (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdfBytes) : [];
@@ -361,7 +362,8 @@ final class PdfOutlineExtractor
                     $pageLabels,
                     $pagePresentationsByPage,
                     $articleBeadsByPage,
-                    $pageReviewsByPage
+                    $pageReviewsByPage,
+                    $taggedContentByPage
                 );
                 $metadata['outline'][] = $item;
             }
@@ -378,6 +380,7 @@ final class PdfOutlineExtractor
                 $pagePresentationsByPage,
                 $articleBeadsByPage,
                 $pageReviewsByPage,
+                $taggedContentByPage,
                 15
             );
             if ($outlineActionReviews !== []) {
@@ -396,7 +399,8 @@ final class PdfOutlineExtractor
                         $pageLabels,
                         $pagePresentationsByPage,
                         $articleBeadsByPage,
-                        $pageReviewsByPage
+                        $pageReviewsByPage,
+                        $taggedContentByPage
                     );
                 }
             }
@@ -422,10 +426,15 @@ final class PdfOutlineExtractor
                     $pageLabels,
                     $pagePresentationsByPage,
                     $articleBeadsByPage,
-                    $pageReviewsByPage
+                    $pageReviewsByPage,
+                    $taggedContentByPage
                 );
                 $metadata['open_action_destination'] = $details;
             }
+        }
+
+        if ($this->metadataHasTaggedTargets($metadata)) {
+            $metadata['source'][] = 'tagged_content';
         }
 
         if ($articleThreads !== []) {
@@ -572,6 +581,7 @@ final class PdfOutlineExtractor
      * @param array<int, array<string, mixed>> $pagePresentationsByPage
      * @param array<int, list<array<string, mixed>>> $articleBeadsByPage
      * @param array<int, array<string, mixed>> $pageReviewsByPage
+     * @param array<int, list<array<string, mixed>>> $taggedContentByPage
      * @return array<string, mixed>
      */
     private function withNavigationTargetMetadata(
@@ -579,7 +589,8 @@ final class PdfOutlineExtractor
         array $pageLabels,
         array $pagePresentationsByPage,
         array $articleBeadsByPage,
-        array $pageReviewsByPage
+        array $pageReviewsByPage,
+        array $taggedContentByPage
     ): array {
         $pageIndex = $item['page'] ?? null;
         if (!is_int($pageIndex)) {
@@ -592,8 +603,41 @@ final class PdfOutlineExtractor
 
         $item = $this->withTargetPagePresentation($item, $pagePresentationsByPage);
         $item = $this->withTargetPageReview($item, $pageReviewsByPage);
+        $item = $this->withTargetTaggedContent($item, $taggedContentByPage);
 
         return $this->withTargetArticleBeads($item, $articleBeadsByPage);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<int, list<array<string, mixed>>> $taggedContentByPage
+     * @return array<string, mixed>
+     */
+    private function withTargetTaggedContent(array $item, array $taggedContentByPage): array
+    {
+        $pageIndex = $item['page'] ?? null;
+        if (!is_int($pageIndex) || !array_key_exists($pageIndex, $taggedContentByPage)) {
+            return $item;
+        }
+
+        $rows = $taggedContentByPage[$pageIndex];
+        if ($rows === []) {
+            return $item;
+        }
+
+        $item['target_tagged_content'] = $rows;
+        $roles = [];
+        foreach ($rows as $row) {
+            $role = $row['role'] ?? null;
+            if (is_string($role) && $role !== '') {
+                $roles[$role] = $role;
+            }
+        }
+        if ($roles !== []) {
+            $item['target_structure_roles'] = array_values($roles);
+        }
+
+        return $item;
     }
 
     /**
@@ -821,6 +865,47 @@ final class PdfOutlineExtractor
     }
 
     /**
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function taggedContentByPageIndex(string $pdfBytes): array
+    {
+        $taggedContentByPage = [];
+        foreach ((new PdfTextExtractor())->extractTaggedContent($pdfBytes) as $row) {
+            $pageIndex = $row['page_index'] ?? null;
+            if (!is_int($pageIndex)) {
+                continue;
+            }
+
+            $taggedContentByPage[$pageIndex][] = $row;
+        }
+
+        return $taggedContentByPage;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function metadataHasTaggedTargets(array $metadata): bool
+    {
+        foreach (['outline', 'open_action_review_actions', 'outline_action_review_actions'] as $field) {
+            $rows = $metadata[$field] ?? null;
+            if (!is_array($rows)) {
+                continue;
+            }
+
+            foreach ($rows as $row) {
+                if (is_array($row) && isset($row['target_tagged_content']) && $row['target_tagged_content'] !== []) {
+                    return true;
+                }
+            }
+        }
+
+        return isset($metadata['open_action_destination']['target_tagged_content'])
+            && is_array($metadata['open_action_destination']['target_tagged_content'])
+            && $metadata['open_action_destination']['target_tagged_content'] !== [];
+    }
+
+    /**
      * @param array<int, mixed> $objects
      * @param array<int, int> $pageIndexes
      * @param array<string, mixed> $destinations
@@ -828,6 +913,7 @@ final class PdfOutlineExtractor
      * @param array<int, array<string, mixed>> $pagePresentationsByPage
      * @param array<int, list<array<string, mixed>>> $articleBeadsByPage
      * @param array<int, array<string, mixed>> $pageReviewsByPage
+     * @param array<int, list<array<string, mixed>>> $taggedContentByPage
      * @param array<int, true> $seen
      * @return list<array<string, mixed>>
      */
@@ -840,6 +926,7 @@ final class PdfOutlineExtractor
         array $pagePresentationsByPage,
         array $articleBeadsByPage,
         array $pageReviewsByPage,
+        array $taggedContentByPage,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -876,7 +963,8 @@ final class PdfOutlineExtractor
                                 $pageLabels,
                                 $pagePresentationsByPage,
                                 $articleBeadsByPage,
-                                $pageReviewsByPage
+                                $pageReviewsByPage,
+                                $taggedContentByPage
                             );
                         }
 
@@ -887,10 +975,40 @@ final class PdfOutlineExtractor
                 $destination = $this->outlineDestination($dict, $objects);
                 $destinationAction = $this->destinationActionReviewValue($destination['value'], $objects, $destinations, $destination['name']);
                 if ($destinationAction !== null) {
+                    $destinationActionContext = [];
+                    if ($destinationAction['destination_name'] !== null) {
+                        $details = $this->destinationViewDetails(
+                            $destination['value'],
+                            $objects,
+                            $pageIndexes,
+                            $destinations,
+                            $destination['name']
+                        );
+                        if ($details !== null) {
+                            $destinationActionContext = $this->destinationActionTargetContext(
+                                $this->withNavigationTargetMetadata(
+                                    $details,
+                                    $pageLabels,
+                                    $pagePresentationsByPage,
+                                    $articleBeadsByPage,
+                                    $pageReviewsByPage,
+                                    $taggedContentByPage
+                                )
+                            );
+                        }
+                    }
+
                     $seenActions = [];
                     $actions = $this->reviewActionsFromValue($destinationAction['value'], $objects, $pageIndexes, $destinations, $seenActions);
                     if ($this->shouldSurfaceOutlineActionRows($actions)) {
                         foreach ($actions as $action) {
+                            if ($destinationAction['destination_name'] !== null) {
+                                $action['destination_action_name'] = $destinationAction['destination_name'];
+                                foreach ($destinationActionContext as $key => $value) {
+                                    $action[$key] = $value;
+                                }
+                            }
+
                             if (
                                 ($action['action_type'] ?? null) === 'GoTo'
                                 && ($action['safety'] ?? null) === 'local-destination'
@@ -913,7 +1031,8 @@ final class PdfOutlineExtractor
                                     $pageLabels,
                                     $pagePresentationsByPage,
                                     $articleBeadsByPage,
-                                    $pageReviewsByPage
+                                    $pageReviewsByPage,
+                                    $taggedContentByPage
                                 );
                             }
 
@@ -933,6 +1052,7 @@ final class PdfOutlineExtractor
                     $pagePresentationsByPage,
                     $articleBeadsByPage,
                     $pageReviewsByPage,
+                    $taggedContentByPage,
                     $maxDepth,
                     $level + 1,
                     $seen
@@ -966,6 +1086,29 @@ final class PdfOutlineExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, mixed> $details
+     * @return array<string, mixed>
+     */
+    private function destinationActionTargetContext(array $details): array
+    {
+        $context = [];
+        if (is_int($details['page'] ?? null)) {
+            $context['destination_action_target_page'] = $details['page'];
+        }
+        if (is_string($details['page_label'] ?? null)) {
+            $context['destination_action_target_page_label'] = $details['page_label'];
+        }
+        if (is_array($details['target_article_beads'] ?? null)) {
+            $context['destination_action_target_article_beads'] = $details['target_article_beads'];
+        }
+        if (is_array($details['target_article_thread_titles'] ?? null)) {
+            $context['destination_action_target_article_thread_titles'] = $details['target_article_thread_titles'];
+        }
+
+        return $context;
     }
 
     /**
@@ -1896,7 +2039,14 @@ final class PdfOutlineExtractor
             }
             $seenNames[$name] = true;
 
-            return $this->destinationViewDetails($destinations[$name], $objects, $pageIndexes, $destinations, $name, $seenNames);
+            return $this->destinationViewDetails(
+                $destinations[$name],
+                $objects,
+                $pageIndexes,
+                $destinations,
+                $destinationName ?? $name,
+                $seenNames
+            );
         }
 
         $dict = $this->dictionaryItems($resolved);

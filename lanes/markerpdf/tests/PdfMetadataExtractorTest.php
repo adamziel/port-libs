@@ -1090,6 +1090,106 @@ return [
         $t->true(!str_contains($plainText, 'Expanded actual text should stay review'));
         $t->true(!str_contains($plainText, 'Content Management System'));
     },
+    'reviews structure element associated FileSpec XMP and OutputIntent provenance' => static function (TestRunner $t) use ($xmpPacket): void {
+        $rootProfile = 'Root tagged PDF/A ICC bytes';
+        $associatedProfile = 'Structure-associated ICC bytes should stay review-only';
+        $sourcePayload = '<wp-export><post id="1721"/></wp-export>';
+        $mathPayload = '<math><mi>x</mi><mo>=</mo><mn>1</mn></math>';
+        $sourceChecksum = strtoupper(hash('md5', $sourcePayload));
+        $sourceXmpPacket = $xmpPacket([
+            'title' => 'Structure Associated XMP Title',
+            'description' => 'Tagged structure FileSpec XMP stays review-only',
+        ]);
+        $rootProfileStream = gzcompress($rootProfile);
+        $associatedProfileStream = gzcompress($associatedProfile);
+        $sourceXmpStream = gzcompress($sourceXmpPacket);
+        if (!is_string($rootProfileStream) || !is_string($associatedProfileStream) || !is_string($sourceXmpStream)) {
+            throw new RuntimeException('Unable to compress structure-associated FileSpec fixture streams.');
+        }
+
+        $content = 'BT /F1 12 Tf /Formula << /MCID 0 >> BDC 72 720 Td (Visible formula caption) Tj EMC ET';
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /MarkInfo << /Marked true >> /StructTreeRoot 20 0 R /OutputIntents [9 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($sourceXmpStream) . " >>\nstream\n{$sourceXmpStream}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($rootProfileStream) . " >>\nstream\n{$rootProfileStream}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($associatedProfileStream) . " >>\nstream\n{$associatedProfileStream}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Root Structure sRGB) /Info (Root tagged PDF/A profile) /DestOutputProfile 7 0 R >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (source.xml) /Desc (Original WordPress source for formula) /AFRelationship /Source /Metadata 5 0 R /OutputIntents [13 0 R] /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " /CheckSum <{$sourceChecksum}> /ModDate (D:20260602172100Z) >> /Length " . strlen($sourcePayload) . " >>\nstream\n{$sourcePayload}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fmathml#2Bxml /Params << /Size " . strlen($mathPayload) . " >> /Length " . strlen($mathPayload) . " >>\nstream\n{$mathPayload}\nendstream\nendobj\n"
+            . "13 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Structure Associated sRGB) /Info (Attachment-local structure PDF/A) /DestOutputProfile 8 0 R >>\nendobj\n"
+            . "20 0 obj\n<< /Type /StructTreeRoot /RoleMap << /Formula /Formula >> /K [21 0 R] >>\nendobj\n"
+            . "21 0 obj\n<< /Type /StructElem /S /Formula /Pg 3 0 R /Alt (Equation alternate text) /AF [10 0 R << /Type /Filespec /F (equation.mathml) /Desc (Accessible equation source) /AFRelationship /Supplement /EF << /F 12 0 R >> >>] /K << /Type /MCR /Pg 3 0 R /MCID 0 >> >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $structure = $metadata['structure_tree'] ?? [];
+        $formula = $structure['elements'][0] ?? [];
+        $files = $formula['associated_files'] ?? [];
+
+        $t->same(['catalog', 'output_intents'], $metadata['source']);
+        $t->same('Visible formula caption', $plainText);
+        $t->same(['Root Structure sRGB'], $metadata['pdfa']['output_condition_identifiers']);
+        $t->same('catalog_struct_tree_root', $structure['source'] ?? null);
+        $t->same(1, $structure['element_count'] ?? null);
+        $t->same('Formula', $formula['role'] ?? null);
+        $t->same('Equation alternate text', $formula['alternate_text'] ?? null);
+        $t->same([0], $formula['mcids'] ?? []);
+        $t->same(2, $formula['associated_file_count'] ?? null);
+        $t->same(2, count($files));
+
+        $source = $files[0];
+        $sourceProvenance = $source['provenance_review'];
+        $t->same('structure_element_associated_files', $source['source']);
+        $t->same(true, $source['associated_file']);
+        $t->same(0, $source['associated_file_index']);
+        $t->same('source.xml', $source['filename']);
+        $t->same('Original WordPress source for formula', $source['description']);
+        $t->same('Source', $source['relationship']);
+        $t->same('text/xml', $source['mime_type']);
+        $t->same(10, $source['file_spec_object']);
+        $t->same(11, $source['embedded_file_object']);
+        $t->same(strlen($sourcePayload), $source['declared_size']);
+        $t->same(hash('sha256', $sourcePayload), $source['content_sha256']);
+        $t->same(strtolower($sourceChecksum), $source['checksum']);
+        $t->same(true, $source['checksum_matches']);
+        $t->true(!array_key_exists('content', $source));
+        $t->same('associated_file_provenance', $sourceProvenance['source']);
+        $t->same('original_source', $sourceProvenance['relationship_role']);
+        $t->same(false, $sourceProvenance['payload_included']);
+        $t->same('source.xml', $sourceProvenance['payload']['filename']);
+        $t->same(hash('sha256', $sourcePayload), $sourceProvenance['payload']['sha256']);
+        $t->same(5, $sourceProvenance['xmp_metadata']['object_number']);
+        $t->same(hash('sha256', $sourceXmpPacket), $sourceProvenance['xmp_metadata']['sha256']);
+        $t->same(['Structure Associated sRGB'], $sourceProvenance['pdfa_output_intents']['output_condition_identifiers']);
+        $t->same([hash('sha256', $associatedProfile)], $sourceProvenance['pdfa_output_intents']['profile_sha256']);
+        $t->same('GTS_PDFA1', $source['output_intents_review'][0]['S']);
+
+        $supplement = $files[1];
+        $supplementProvenance = $supplement['provenance_review'];
+        $t->same('structure_element_associated_files', $supplement['source']);
+        $t->same(1, $supplement['associated_file_index']);
+        $t->same('equation.mathml', $supplement['filename']);
+        $t->same('Supplement', $supplement['relationship']);
+        $t->same('supplemental_representation', $supplementProvenance['relationship_role']);
+        $t->same('application/mathml+xml', $supplement['mime_type']);
+        $t->same(strlen($mathPayload), $supplementProvenance['payload']['bytes']);
+        $t->same(hash('sha256', $mathPayload), $supplementProvenance['payload']['sha256']);
+        $t->true(!array_key_exists('content', $supplement));
+
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Structure Associated XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $sourcePayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $mathPayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $associatedProfile));
+        $t->true(!str_contains($plainText, '<wp-export>'));
+        $t->true(!str_contains($plainText, '<math>'));
+        $t->true(!str_contains($plainText, 'Structure-associated ICC bytes'));
+    },
     'extracts direct viewer preferences and escaped preference names' => static function (TestRunner $t) use ($pdfWithCatalogReview): void {
         $pdf = $pdfWithCatalogReview(
             ' /Lang (en-US) /PageLayout /SinglePage /PageMode /FullScreen'

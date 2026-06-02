@@ -1438,6 +1438,12 @@ final class PdfMetadataExtractor
             $row['namespace'] = $namespace;
         }
 
+        $associatedFiles = $this->structureAssociatedFiles($this->dictionaryTopLevelRawValue($dictionary, 'AF'), $objects);
+        if ($associatedFiles !== []) {
+            $row['associated_file_count'] = count($associatedFiles);
+            $row['associated_files'] = $associatedFiles;
+        }
+
         $markedContent = $this->structureMarkedContentFromKidValue(
             $this->dictionaryTopLevelRawValue($dictionary, 'K'),
             $objects,
@@ -1472,6 +1478,36 @@ final class PdfMetadataExtractor
             $seenObjects,
             $depth + 1
         );
+    }
+
+    /**
+     * Structure-element associated files connect attachment provenance to a
+     * tagged PDF region. Keep them review-only so fallback text extraction does
+     * not ingest payload, nested XMP, or nested OutputIntent bytes.
+     *
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function structureAssociatedFiles(?string $associatedFilesValue, array $objects): array
+    {
+        if ($associatedFilesValue === null) {
+            return [];
+        }
+
+        $files = [];
+        foreach ($this->arrayItemsFromValue($associatedFilesValue, $objects) as $index => $fileSpecValue) {
+            $file = $this->associatedFileReviewFromValue(
+                $fileSpecValue,
+                $index,
+                $objects,
+                'structure_element_associated_files'
+            );
+            if ($file !== null) {
+                $files[] = $file;
+            }
+        }
+
+        return $files;
     }
 
     /**
@@ -3939,6 +3975,15 @@ final class PdfMetadataExtractor
      */
     private function outputIntentAssociatedFileFromValue(string $value, int $index, array $objects): ?array
     {
+        return $this->associatedFileReviewFromValue($value, $index, $objects, 'output_intent_associated_files');
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function associatedFileReviewFromValue(string $value, int $index, array $objects, string $source): ?array
+    {
         $fileSpec = $this->resolveDictionaryFromValue($value, $objects);
         if ($fileSpec === null) {
             return null;
@@ -3955,7 +4000,7 @@ final class PdfMetadataExtractor
             ?? $this->firstDictionaryString($body, ['F', 'DOS', 'Unix', 'Mac'])
             ?? 'embedded-file';
         $file = [
-            'source' => 'output_intent_associated_files',
+            'source' => $source,
             'associated_file' => true,
             'associated_file_index' => $index,
             'name' => $filename,

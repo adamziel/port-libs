@@ -66,7 +66,7 @@ final class PdfAcroFormExtractor
     /**
      * Native boundary for PDF AcroForm field dictionaries.
      *
-     * @return array{need_appearances: bool, default_resources: array<string, mixed>, permissions: array<string, mixed>, signature_flags: array<string, mixed>, xfa_overrides_page_content: bool, xfa_packets: list<array<string, mixed>>, calculation_order: list<array{object: int, field_name: string|null}>, fields: list<array<string, mixed>>}
+     * @return array{need_appearances: bool, default_resources: array<string, mixed>, permissions: array<string, mixed>, signature_flags: array<string, mixed>, xfa_overrides_page_content: bool, xfa_packets: list<array<string, mixed>>, calculation_order: list<array{object: int, field_name: string|null}>, calculation_order_review: list<array<string, mixed>>, fields: list<array<string, mixed>>}
      */
     public function extractForm(string $pdfBytes): array
     {
@@ -83,6 +83,7 @@ final class PdfAcroFormExtractor
                 'xfa_overrides_page_content' => false,
                 'xfa_packets' => [],
                 'calculation_order' => [],
+                'calculation_order_review' => [],
                 'fields' => [],
             ];
         }
@@ -97,6 +98,7 @@ final class PdfAcroFormExtractor
         $fieldRefs = $this->fieldReferencesFromAcroForm($acroForm);
         $fieldNamesByObject = $this->fieldNamesByObject($fieldRefs, $objects);
         $calculationOrder = $this->calculationOrderFromAcroForm($acroForm, $fieldNamesByObject);
+        $calculationOrderReview = $this->calculationOrderReviewFromAcroForm($acroForm, $objects, $fieldNamesByObject);
         $signatureFlags = $this->acroFormSignatureFlags($acroForm);
 
         foreach ($fieldRefs as $fieldRef) {
@@ -117,7 +119,7 @@ final class PdfAcroFormExtractor
 
         $fields = $this->annotateSubmitResetActionValueReviews($fields);
         $fields = $this->markCertifyingSignatureFields($fields, $permissions);
-        $fields = $this->annotateCalculationAndSignatureState($fields, $calculationOrder, $signatureFlags);
+        $fields = $this->annotateCalculationAndSignatureState($fields, $calculationOrder, $calculationOrderReview, $signatureFlags);
         if ($xfaPackets !== []) {
             $fields = $this->annotateXfaFieldBoundaries($fields, $xfaPackets);
         }
@@ -131,6 +133,7 @@ final class PdfAcroFormExtractor
             'xfa_overrides_page_content' => $xfaPackets !== [],
             'xfa_packets' => $xfaPackets,
             'calculation_order' => $calculationOrder,
+            'calculation_order_review' => $calculationOrderReview,
             'fields' => $fields,
         ];
     }
@@ -197,22 +200,27 @@ final class PdfAcroFormExtractor
     /**
      * @param list<array<string, mixed>> $fields
      * @param list<array{object: int, field_name: string|null}> $calculationOrder
+     * @param list<array<string, mixed>> $calculationOrderReview
      * @param array<string, mixed> $signatureFlags
      * @return list<array<string, mixed>>
      */
-    private function annotateCalculationAndSignatureState(array $fields, array $calculationOrder, array $signatureFlags): array
+    private function annotateCalculationAndSignatureState(array $fields, array $calculationOrder, array $calculationOrderReview, array $signatureFlags): array
     {
         $calculationIndexesByObject = [];
         $calculationIndexesByName = [];
         foreach ($calculationOrder as $index => $entry) {
-            $calculationIndexesByObject[(int) $entry['object']] = $index;
+            if (!array_key_exists((int) $entry['object'], $calculationIndexesByObject)) {
+                $calculationIndexesByObject[(int) $entry['object']] = $index;
+            }
             if (is_string($entry['field_name']) && $entry['field_name'] !== '') {
-                $calculationIndexesByName[$entry['field_name']] = $index;
+                if (!array_key_exists($entry['field_name'], $calculationIndexesByName)) {
+                    $calculationIndexesByName[$entry['field_name']] = $index;
+                }
             }
         }
 
         foreach ($fields as $index => $field) {
-            $fields[$index]['calculation_state'] = $this->fieldCalculationState($field, $calculationOrder, $calculationIndexesByObject, $calculationIndexesByName);
+            $fields[$index]['calculation_state'] = $this->fieldCalculationState($field, $calculationOrder, $calculationOrderReview, $calculationIndexesByObject, $calculationIndexesByName);
             if (($field['field_type'] ?? null) === 'Sig') {
                 $fields[$index]['signature_state'] = $this->fieldSignatureState($field, $signatureFlags);
             }
@@ -241,6 +249,7 @@ final class PdfAcroFormExtractor
     private function fieldCalculationState(
         array $field,
         array $calculationOrder,
+        array $calculationOrderReview,
         array $calculationIndexesByObject,
         array $calculationIndexesByName
     ): array {
@@ -250,6 +259,7 @@ final class PdfAcroFormExtractor
             ? $calculationIndexesByObject[$objectNumber]
             : (is_string($name) && array_key_exists($name, $calculationIndexesByName) ? $calculationIndexesByName[$name] : null);
         $orderEntry = $orderIndex === null ? null : ($calculationOrder[$orderIndex] ?? null);
+        $orderReview = $orderIndex === null ? null : ($calculationOrderReview[$orderIndex] ?? null);
         $calculateActions = $this->calculateActionSources($field);
 
         return [
@@ -258,11 +268,23 @@ final class PdfAcroFormExtractor
             'calculation_order_index' => $orderIndex,
             'calculation_order_object' => is_array($orderEntry) ? $orderEntry['object'] : null,
             'calculation_order_field_name' => is_array($orderEntry) ? $orderEntry['field_name'] : null,
+            'calculation_order_target_kind' => is_array($orderReview) ? ($orderReview['target_kind'] ?? null) : null,
+            'calculation_order_field_object' => is_array($orderReview) ? ($orderReview['field_object'] ?? null) : null,
+            'calculation_order_widget_object' => is_array($orderReview) ? ($orderReview['widget_object'] ?? null) : null,
+            'calculation_order_resolved_from_widget' => is_array($orderReview) && ($orderReview['resolved_from_widget'] ?? false) === true,
+            'calculation_order_appearance_state' => is_array($orderReview) ? ($orderReview['appearance_state'] ?? null) : null,
+            'calculation_order_appearance_states' => is_array($orderReview) ? ($orderReview['appearance_states'] ?? []) : [],
+            'calculation_order_selected_appearance_object' => is_array($orderReview) ? ($orderReview['selected_appearance_object'] ?? null) : null,
+            'calculation_order_stale_appearance_state' => is_array($orderReview) ? ($orderReview['stale_appearance_state'] ?? null) : null,
             'has_calculate_action' => $calculateActions !== [],
             'calculate_actions' => $calculateActions,
             'value_is_static_review' => true,
+            'appearance_value_used_for_calculation' => false,
+            'appearance_value_used_for_import' => false,
             'executes_javascript' => false,
             'executes_action' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
         ];
     }
 
@@ -2045,6 +2067,145 @@ final class PdfAcroFormExtractor
         }
 
         return $order;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $fieldNamesByObject
+     * @return list<array<string, mixed>>
+     */
+    private function calculationOrderReviewFromAcroForm(string $acroForm, array $objects, array $fieldNamesByObject): array
+    {
+        $value = $this->valueAfterName($acroForm, 'CO');
+        if ($value === null || !str_starts_with(trim($value), '[')) {
+            return [];
+        }
+
+        $body = $this->arrayBodyFromValue($value);
+        if ($body === null) {
+            return [];
+        }
+
+        $reviews = [];
+        foreach (array_values(array_unique($this->objectReferences($body))) as $index => $objectNumber) {
+            $reviews[] = $this->calculationOrderReviewEntry(
+                $index,
+                $objectNumber,
+                $objects,
+                $fieldNamesByObject
+            );
+        }
+
+        return $reviews;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $fieldNamesByObject
+     * @return array<string, mixed>
+     */
+    private function calculationOrderReviewEntry(
+        int $index,
+        int $objectNumber,
+        array $objects,
+        array $fieldNamesByObject
+    ): array {
+        $body = isset($objects[$objectNumber])
+            ? ($this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]))
+            : null;
+        $isWidget = is_string($body) && $this->isWidget($body);
+        $parentFieldObject = is_string($body) ? $this->objectReferenceValueAfterName($body, 'Parent') : null;
+        $fieldObject = $parentFieldObject !== null && isset($fieldNamesByObject[$parentFieldObject])
+            ? $parentFieldObject
+            : (isset($fieldNamesByObject[$objectNumber]) ? $objectNumber : null);
+        $fieldName = $fieldObject !== null
+            ? ($fieldNamesByObject[$fieldObject] ?? null)
+            : ($fieldNamesByObject[$objectNumber] ?? null);
+        $targetKind = 'unresolved';
+        if ($body !== null && $isWidget && $parentFieldObject !== null) {
+            $targetKind = 'widget';
+        } elseif ($body !== null && $isWidget) {
+            $targetKind = 'field_widget';
+        } elseif ($body !== null && isset($fieldNamesByObject[$objectNumber])) {
+            $targetKind = 'field';
+        } elseif ($body !== null) {
+            $targetKind = 'non_field_object';
+        }
+
+        $appearance = $isWidget && $body !== null
+            ? $this->calculationOrderWidgetAppearanceReview($body, $objects)
+            : $this->emptyCalculationOrderAppearanceReview();
+
+        return [
+            'source' => 'acroform_calculation_order_review_boundary',
+            'index' => $index,
+            'object' => $objectNumber,
+            'target_kind' => $targetKind,
+            'field_name' => $fieldName,
+            'field_object' => $fieldObject,
+            'widget_object' => $isWidget ? $objectNumber : null,
+            'resolved_from_widget' => $isWidget && $fieldObject !== null && $fieldObject !== $objectNumber,
+            'unresolved' => $fieldName === null,
+            'appearance_state' => $appearance['appearance_state'],
+            'appearance_states' => $appearance['appearance_states'],
+            'normal_appearance_type' => $appearance['normal_appearance_type'],
+            'selected_appearance_state' => $appearance['selected_appearance_state'],
+            'selected_appearance_object' => $appearance['selected_appearance_object'],
+            'selected_appearance_decoded_sha256' => $appearance['selected_appearance_decoded_sha256'],
+            'state_matches_appearance' => $appearance['state_matches_appearance'],
+            'stale_appearance_state' => $appearance['stale_appearance_state'],
+            'appearance_value_used_for_calculation' => false,
+            'appearance_value_used_for_import' => false,
+            'review_only' => true,
+            'executes_calculation' => false,
+            'executes_javascript' => false,
+            'executes_action' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function calculationOrderWidgetAppearanceReview(string $widgetBody, array $objects): array
+    {
+        $appearanceState = $this->pdfNameValueAfterName($widgetBody, 'AS');
+        $appearance = $this->normalAppearanceReview($widgetBody, $objects, $appearanceState);
+        if ($appearance === null) {
+            return $this->emptyCalculationOrderAppearanceReview($appearanceState);
+        }
+
+        $selected = is_array($appearance['selected_appearance'] ?? null) ? $appearance['selected_appearance'] : null;
+
+        return [
+            'appearance_state' => $appearanceState,
+            'appearance_states' => $appearance['available_states'] ?? [],
+            'normal_appearance_type' => $appearance['normal_appearance_type'] ?? null,
+            'selected_appearance_state' => $appearance['selected_state'] ?? null,
+            'selected_appearance_object' => is_array($selected) ? ($selected['object'] ?? null) : null,
+            'selected_appearance_decoded_sha256' => is_array($selected) ? ($selected['decoded_sha256'] ?? null) : null,
+            'state_matches_appearance' => $appearance['state_matches_appearance'] ?? null,
+            'stale_appearance_state' => $appearance['stale_appearance_state'] ?? null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyCalculationOrderAppearanceReview(?string $appearanceState = null): array
+    {
+        return [
+            'appearance_state' => $appearanceState,
+            'appearance_states' => [],
+            'normal_appearance_type' => null,
+            'selected_appearance_state' => null,
+            'selected_appearance_object' => null,
+            'selected_appearance_decoded_sha256' => null,
+            'state_matches_appearance' => null,
+            'stale_appearance_state' => null,
+        ];
     }
 
     /**

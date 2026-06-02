@@ -293,6 +293,116 @@ final class PdfTextExtractor
     }
 
     /**
+     * Review xref-stream /Filter and /Length operands before WordPress import.
+     *
+     * Upstream reaches this through pdftext/PDFium object loading. The native
+     * fallback exposes whether indirect xref-stream stream operands are backed
+     * by current xref-selected direct objects, instead of silently trusting
+     * scanned fallback objects.
+     *
+     * @return array{
+     *     source: string,
+     *     review_only: true,
+     *     encrypted: bool,
+     *     xref_stream_count: int,
+     *     indirect_filter_count: int,
+     *     indirect_length_count: int,
+     *     xref_selected_operand_count: int,
+     *     unresolved_operand_count: int,
+     *     entries: list<array<string, mixed>>,
+     *     executes_python_or_models: false,
+     *     executes_external_pdf_tools: false
+     * }
+     */
+    public function extractXrefStreamFilterLengthOwnerReview(string $pdfBytes): array
+    {
+        $review = [
+            'source' => 'pdf_xref_stream_filter_length_owner_review',
+            'review_only' => true,
+            'encrypted' => $this->hasEncryptedTrailer($pdfBytes),
+            'xref_stream_count' => 0,
+            'indirect_filter_count' => 0,
+            'indirect_length_count' => 0,
+            'xref_selected_operand_count' => 0,
+            'unresolved_operand_count' => 0,
+            'entries' => [],
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+
+        if ($review['encrypted']) {
+            return $review;
+        }
+
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        if ($definitions === []) {
+            return $review;
+        }
+
+        $objects = $this->latestDirectObjects($definitions);
+        $xrefEntries = $this->xrefEntries($pdfBytes, $objects, $definitions);
+        $startxrefOffset = $this->latestStartxrefOffset($pdfBytes);
+
+        foreach ($definitions as $objectNumber => $objectDefinitions) {
+            foreach ($objectDefinitions as $definition) {
+                if (preg_match('/\/Type\s*\/XRef\b/s', $definition['body']) !== 1) {
+                    continue;
+                }
+
+                $review['xref_stream_count']++;
+                $dict = $this->dictionaryObjectBody($definition['body']);
+                if ($dict === null) {
+                    continue;
+                }
+
+                $filterOperands = $this->xrefStreamOperandReviews($dict, 'Filter', $objects, $xrefEntries, $definitions);
+                $lengthOperands = $this->xrefStreamOperandReviews($dict, 'Length', $objects, $xrefEntries, $definitions);
+                $operands = array_merge($filterOperands, $lengthOperands);
+
+                $filterIndirectCount = $this->xrefStreamIndirectOperandCount($filterOperands);
+                $lengthIndirectCount = $this->xrefStreamIndirectOperandCount($lengthOperands);
+                $selectedOperandCount = $this->xrefStreamSelectedOperandCount($operands);
+                $unresolvedOperandCount = $this->xrefStreamUnresolvedOperandCount($operands);
+
+                $review['indirect_filter_count'] += $filterIndirectCount;
+                $review['indirect_length_count'] += $lengthIndirectCount;
+                $review['xref_selected_operand_count'] += $selectedOperandCount;
+                $review['unresolved_operand_count'] += $unresolvedOperandCount;
+
+                $filters = $this->streamFilters($dict, $objects);
+                $decodedEntries = $this->xrefStreamEntriesFromDefinition($definition, $objects);
+                $review['entries'][] = [
+                    'object_number' => $objectNumber,
+                    'generation' => $definition['generation'],
+                    'offset' => $definition['offset'],
+                    'startxref_selected' => $startxrefOffset === $definition['offset'],
+                    'filters' => $filters ?? [],
+                    'filter_resolution_failed' => $filters === null,
+                    'declared_length' => $this->streamLength($dict, $objects),
+                    'filter_operands' => $filterOperands,
+                    'length_operand' => $lengthOperands[0] ?? [
+                        'name' => 'Length',
+                        'kind' => 'absent',
+                        'resolved' => false,
+                        'xref_selected' => false,
+                        'owner_policy' => 'missing_operand',
+                    ],
+                    'indirect_filter_count' => $filterIndirectCount,
+                    'indirect_length_count' => $lengthIndirectCount,
+                    'xref_selected_operand_count' => $selectedOperandCount,
+                    'unresolved_operand_count' => $unresolvedOperandCount,
+                    'decoded_entry_count' => count($decodedEntries),
+                    'decoded_with_current_operands' => $decodedEntries !== [] && $unresolvedOperandCount === 0,
+                    'owner_policy' => $this->xrefStreamOperandOwnerPolicy($selectedOperandCount, $unresolvedOperandCount, $operands),
+                    'review_only' => true,
+                ];
+            }
+        }
+
+        return $review;
+    }
+
+    /**
      * @return list<array{page_index: int, page_number: int, page_label: string, text: string}>
      */
     public function extractLabeledPageTexts(string $pdfBytes): array
@@ -3455,7 +3565,7 @@ final class PdfTextExtractor
         $xrefEntries = $this->xrefEntries($pdfBytes, $this->latestDirectObjects($definitions), $definitions);
         $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes);
         $linearizedHintObjectNumbers = array_fill_keys(
-            $this->linearizedHintTableObjectNumbers($pdfBytes, $definitions, $linearizedHintRanges),
+            $this->linearizedHintTableObjectNumbers($pdfBytes, $definitions, $linearizedHintRanges, $objects),
             true
         );
         $embeddedFilePayloadObjectNumbers = $this->embeddedFilePayloadObjectNumbers($objects);
@@ -4335,6 +4445,23 @@ final class PdfTextExtractor
      */
     private function streamDictionaryAndPayload(string $value, array $objects): ?array
     {
+        $entry = $this->streamDictionaryAndPayloadWithOffsets($value, $objects);
+        if ($entry === null) {
+            return null;
+        }
+
+        return [
+            'dict' => $entry['dict'],
+            'stream' => $entry['stream'],
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{dict: string, stream: string, streamStart: int, streamEnd: int}|null
+     */
+    private function streamDictionaryAndPayloadWithOffsets(string $value, array $objects): ?array
+    {
         $dictionaryOffset = $this->skipPdfWhitespace($value, 0);
         $dictionaryEndOffset = $dictionaryOffset;
         $dict = $this->readPdfDictionaryTokenAt($value, $dictionaryEndOffset);
@@ -4362,6 +4489,8 @@ final class PdfTextExtractor
         return [
             'dict' => $dict,
             'stream' => $stream,
+            'streamStart' => $streamStart,
+            'streamEnd' => $streamStart + strlen($stream),
         ];
     }
 
@@ -4395,6 +4524,7 @@ final class PdfTextExtractor
         }
 
         $end = $this->endstreamTerminatorOffset($value, $streamStart, null);
+        $end = $this->filteredEndstreamTerminatorOffset($value, $streamStart, $dict, $objects) ?? $end;
         if ($end === null) {
             return null;
         }
@@ -4501,6 +4631,57 @@ final class PdfTextExtractor
 
         $after = $offset + 9;
         return $after >= strlen($value) || ctype_space($value[$after]);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function filteredEndstreamTerminatorOffset(string $value, int $streamStart, string $dict, array $objects): ?int
+    {
+        $filters = $this->streamFilters($dict, $objects);
+        if ($filters === null || !$this->hasVerifiableStreamFilter($filters)) {
+            return null;
+        }
+
+        $offset = $streamStart;
+        while (($candidate = strpos($value, 'endstream', $offset)) !== false) {
+            $offset = $candidate + 9;
+            if (!$this->endstreamTerminatorAt($value, $candidate, $streamStart)) {
+                continue;
+            }
+
+            $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $candidate - $streamStart));
+            if ($this->decodeStream($dict, $payload, $objects) !== null) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function hasVerifiableStreamFilter(array $filters): bool
+    {
+        foreach ($filters as $filter) {
+            if (in_array($filter, [
+                'ASCII85Decode',
+                'A85',
+                'ASCIIHexDecode',
+                'AHx',
+                'FlateDecode',
+                'Fl',
+                'LZWDecode',
+                'LZW',
+                'RunLengthDecode',
+                'RL',
+            ], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function stripStreamTerminatingLineEnding(string $stream): string
@@ -5343,7 +5524,7 @@ final class PdfTextExtractor
 
             if ($cmap !== null && ($cmap['map'] !== [] || $cmap['codeSpaceRanges'] !== [] || $descriptorInfo['name'] !== null || $descriptorInfo['flags'] !== null)) {
                 $cmap = $this->withFontCidEncodingMap($cmap, $cidEncodingMap);
-                $cmap = $this->withFontWidthMetrics($cmap, $widthMetrics, $this->fontWritingMode($body, $cmap, $cidEncodingMap));
+                $cmap = $this->withFontWidthMetrics($cmap, $widthMetrics, $this->fontWritingMode($body, $cmap, $cidEncodingMap, $objects));
                 $cmap = $this->withFontDescriptorInfo($cmap, $descriptorInfo);
                 $fontObjectMaps[$objectNumber] = $cmap;
             }
@@ -5756,7 +5937,7 @@ final class PdfTextExtractor
             return [];
         }
 
-        $glyphNamesByCode = $this->encodingDifferencesGlyphNames($fontBody);
+        $glyphNamesByCode = $this->encodingDifferencesGlyphNames($fontBody, $objects);
         $charProcObjectNumbers = $this->charProcObjectNumbers($fontBody, $objects);
         if ($glyphNamesByCode === [] || $charProcObjectNumbers === []) {
             return [];
@@ -5780,14 +5961,27 @@ final class PdfTextExtractor
 
     /**
      * @return array<int, string>
+     * @param array<int, string> $objects
      */
-    private function encodingDifferencesGlyphNames(string $fontBody): array
+    private function encodingDifferencesGlyphNames(string $fontBody, array $objects = []): array
     {
-        if (preg_match('/\/Differences\s*\[(.*?)\]/s', $fontBody, $match) !== 1) {
+        $encodingObjectNumber = $this->objectReferenceValueAfterName($fontBody, 'Encoding');
+        if ($encodingObjectNumber !== null && isset($objects[$encodingObjectNumber])) {
+            $encodingObject = trim($objects[$encodingObjectNumber]);
+            if (str_starts_with($encodingObject, '<<')) {
+                $objectGlyphNames = $this->encodingDifferencesGlyphNames($encodingObject, $objects);
+                if ($objectGlyphNames !== []) {
+                    return $objectGlyphNames;
+                }
+            }
+        }
+
+        $differences = $this->pdfArrayValueAfterNameResolvingObjects($fontBody, 'Differences', $objects);
+        if ($differences === null) {
             return [];
         }
 
-        preg_match_all('/\/[^\s\[\]()<>{}\/%]+|[+-]?\d+/', $match[1], $tokens);
+        preg_match_all('/\/[^\s\[\]()<>{}\/%]+|[+-]?\d+/', $differences, $tokens);
         $glyphNames = [];
         $code = null;
         foreach ($tokens[0] ?? [] as $token) {
@@ -6301,10 +6495,10 @@ final class PdfTextExtractor
      * @param array<string, mixed> $cmap
      * @param array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, writingMode?: int}|null $cidEncodingMap
      */
-    private function fontWritingMode(string $fontBody, array $cmap, ?array $cidEncodingMap = null): int
+    private function fontWritingMode(string $fontBody, array $cmap, ?array $cidEncodingMap = null, array $objects = []): int
     {
-        if (preg_match('/\/Encoding\s+\/([^\s\[\]()<>{}\/%]+)/', $fontBody, $match)) {
-            $encodingName = $this->decodePdfName($match[1]);
+        $encodingName = $this->pdfNameValueAfterNameResolvingObjects($fontBody, 'Encoding', $objects);
+        if ($encodingName !== null) {
             $writingMode = $this->cMapNameWritingMode($encodingName);
             if ($writingMode !== null) {
                 return $writingMode;
@@ -7761,11 +7955,19 @@ final class PdfTextExtractor
         $objects = $this->liveDirectObjects($definitions, $xrefEntries);
         $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
         $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes);
-        foreach ($this->linearizedHintTableObjectNumbers($pdfBytes, $definitions, $linearizedHintRanges) as $objectNumber) {
+        $linearizedHintObjectStreamMemberNumbers = $this->linearizedHintTableObjectStreamMemberNumbers(
+            $objects,
+            $definitions,
+            $linearizedHintRanges
+        );
+        foreach ($this->linearizedHintTableObjectNumbers($pdfBytes, $definitions, $linearizedHintRanges, $objects) as $objectNumber) {
             unset($objects[$objectNumber]);
         }
 
         $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
+        foreach ($linearizedHintObjectStreamMemberNumbers as $objectNumber) {
+            unset($objects[$objectNumber]);
+        }
         ksort($objects, SORT_NUMERIC);
 
         $rootObjectNumber = $this->trailerRootObjectNumberFromStartxrefChain($pdfBytes, $definitions);
@@ -8043,7 +8245,11 @@ final class PdfTextExtractor
                     }
                 }
 
-                $streamEnd = $this->endstreamTerminatorOffset($pdfBytes, $streamStart, null);
+                $dict = $this->directObjectStreamDictionaryBeforeKeyword($pdfBytes, $objectBodyStart, $index);
+                $streamEnd = $dict === null
+                    ? null
+                    : $this->filteredEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, []);
+                $streamEnd ??= $this->endstreamTerminatorOffset($pdfBytes, $streamStart, null);
                 if ($streamEnd !== null) {
                     $index = $streamEnd + strlen('endstream');
                     continue;
@@ -8066,10 +8272,8 @@ final class PdfTextExtractor
         int $streamKeywordOffset,
         int $streamStart
     ): ?int {
-        $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $objectBodyStart);
-        $dictionaryEndOffset = $dictionaryOffset;
-        $dict = $this->readPdfDictionaryTokenAt($pdfBytes, $dictionaryEndOffset);
-        if ($dict === null || $this->skipPdfWhitespace($pdfBytes, $dictionaryEndOffset) !== $streamKeywordOffset) {
+        $dict = $this->directObjectStreamDictionaryBeforeKeyword($pdfBytes, $objectBodyStart, $streamKeywordOffset);
+        if ($dict === null) {
             return null;
         }
 
@@ -8085,6 +8289,21 @@ final class PdfTextExtractor
 
         $declaredEnd = $streamStart + $length;
         return $declaredEnd <= strlen($pdfBytes) ? $declaredEnd : null;
+    }
+
+    private function directObjectStreamDictionaryBeforeKeyword(
+        string $pdfBytes,
+        int $objectBodyStart,
+        int $streamKeywordOffset
+    ): ?string {
+        $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $objectBodyStart);
+        $dictionaryEndOffset = $dictionaryOffset;
+        $dict = $this->readPdfDictionaryTokenAt($pdfBytes, $dictionaryEndOffset);
+        if ($dict === null || $this->skipPdfWhitespace($pdfBytes, $dictionaryEndOffset) !== $streamKeywordOffset) {
+            return null;
+        }
+
+        return $dict;
     }
 
     private function directObjectStreamLengthAt(string $pdfBytes, string $dict, int $offset, int $beforeOffset): ?int
@@ -8229,36 +8448,122 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
      * @param list<array{start: int, end: int}> $ranges
      * @return list<int>
      */
-    private function linearizedHintTableObjectNumbers(string $pdfBytes, array $definitions, array $ranges): array
+    private function linearizedHintTableObjectStreamMemberNumbers(array $objects, array $definitions, array $ranges): array
     {
         if ($ranges === []) {
             return [];
         }
 
         $objectNumbers = [];
-        foreach ($ranges as $range) {
-            foreach ([$range['start'], max($range['start'], $range['end'] - 1)] as $offset) {
-                $objectNumber = $this->directObjectNumberAtOffset($pdfBytes, $offset, $definitions);
-                if ($objectNumber !== null) {
-                    $objectNumbers[$objectNumber] = true;
+        foreach ($definitions as $carrierObjectNumber => $entries) {
+            if (!isset($objects[$carrierObjectNumber])) {
+                continue;
+            }
+
+            foreach ($entries as $definition) {
+                if ($objects[$carrierObjectNumber] !== $definition['body']) {
+                    continue;
+                }
+
+                $entry = $this->streamDictionaryAndPayloadWithOffsets($definition['body'], $objects);
+                if ($entry === null || !$this->isObjectStreamDictionary($entry['dict'], $objects)) {
+                    continue;
+                }
+
+                $filters = $this->streamFilters($entry['dict'], $objects);
+                if ($filters !== []) {
+                    continue;
+                }
+
+                $memberTable = $this->decodedObjectStreamMemberTable($definition['body'], $objects);
+                if ($memberTable === null) {
+                    continue;
+                }
+
+                foreach ($memberTable['members'] as $index => $member) {
+                    $nextOffset = isset($memberTable['members'][$index + 1])
+                        ? $memberTable['members'][$index + 1]['offset']
+                        : strlen($memberTable['decoded']) - $memberTable['first'];
+                    $memberStart = $definition['bodyStart'] + $entry['streamStart'] + $memberTable['first'] + $member['offset'];
+                    $memberEnd = $definition['bodyStart'] + $entry['streamStart'] + $memberTable['first'] + $nextOffset;
+                    if ($memberEnd <= $memberStart) {
+                        continue;
+                    }
+
+                    foreach ($ranges as $range) {
+                        if ($this->byteRangesOverlap($memberStart, $memberEnd, $range['start'], $range['end'])) {
+                            $objectNumbers[$member['objectNumber']] = true;
+                            break;
+                        }
+                    }
                 }
             }
         }
 
+        return array_keys($objectNumbers);
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     * @param list<array{start: int, end: int}> $ranges
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function linearizedHintTableObjectNumbers(string $pdfBytes, array $definitions, array $ranges, array $objects): array
+    {
+        if ($ranges === []) {
+            return [];
+        }
+
+        $objectNumbers = [];
         foreach ($definitions as $objectNumber => $entries) {
             foreach ($entries as $definition) {
                 if ($this->offsetInPdfByteRanges($definition['offset'], $ranges)) {
                     $objectNumbers[$objectNumber] = true;
                     break;
                 }
+
+                foreach ($ranges as $range) {
+                    if (!$this->byteRangesOverlap($definition['bodyStart'], $definition['bodyEnd'], $range['start'], $range['end'])) {
+                        continue;
+                    }
+
+                    if ($this->linearizedHintRangeHitsObjectStreamPayload($definition, $range, $objects)) {
+                        continue;
+                    }
+
+                    $objectNumbers[$objectNumber] = true;
+                    break 2;
+                }
             }
         }
 
         return array_keys($objectNumbers);
+    }
+
+    /**
+     * @param array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string} $definition
+     * @param array{start: int, end: int} $range
+     * @param array<int, string> $objects
+     */
+    private function linearizedHintRangeHitsObjectStreamPayload(array $definition, array $range, array $objects): bool
+    {
+        $entry = $this->streamDictionaryAndPayloadWithOffsets($definition['body'], $objects);
+        if ($entry === null || !$this->isObjectStreamDictionary($entry['dict'], $objects)) {
+            return false;
+        }
+
+        return $this->byteRangesOverlap(
+            $definition['bodyStart'] + $entry['streamStart'],
+            $definition['bodyStart'] + $entry['streamEnd'],
+            $range['start'],
+            $range['end']
+        );
     }
 
     /**
@@ -8273,6 +8578,11 @@ final class PdfTextExtractor
         }
 
         return false;
+    }
+
+    private function byteRangesOverlap(int $leftStart, int $leftEnd, int $rightStart, int $rightEnd): bool
+    {
+        return $leftStart < $rightEnd && $rightStart < $leftEnd;
     }
 
     /**
@@ -8940,6 +9250,306 @@ final class PdfTextExtractor
         }
 
         return $indexIsExplicit ? 'explicit_member_index_mismatch' : 'recovered_by_header_object_number';
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     * @return list<array<string, mixed>>
+     */
+    private function xrefStreamOperandReviews(
+        string $dict,
+        string $name,
+        array $objects,
+        array $xrefEntries,
+        array $definitions
+    ): array {
+        $offset = $this->topLevelNameValueOffset($dict, $name);
+        if ($offset === null) {
+            return [];
+        }
+
+        $value = $this->pdfValueAtOffset($dict, $offset);
+        if ($value === null) {
+            return [[
+                'name' => $name,
+                'kind' => 'malformed',
+                'resolved' => false,
+                'xref_selected' => false,
+                'owner_policy' => 'malformed_operand',
+            ]];
+        }
+
+        $items = $this->xrefStreamOperandItems($value);
+        if ($items === []) {
+            return [[
+                'name' => $name,
+                'kind' => 'empty',
+                'resolved' => false,
+                'xref_selected' => false,
+                'owner_policy' => 'empty_operand',
+            ]];
+        }
+
+        $reviews = [];
+        foreach ($items as $item) {
+            $item = trim($item);
+            if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $item, $match) === 1) {
+                $reviews[] = $this->xrefStreamIndirectOperandReview(
+                    $name,
+                    (int) $match[1],
+                    (int) $match[2],
+                    $objects,
+                    $xrefEntries,
+                    $definitions
+                );
+                continue;
+            }
+
+            $reviews[] = [
+                'name' => $name,
+                'kind' => 'direct',
+                'value' => $this->xrefStreamDirectOperandValue($item),
+                'resolved' => true,
+                'xref_selected' => false,
+                'owner_policy' => 'direct_operand',
+            ];
+        }
+
+        return $reviews;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xrefStreamOperandItems(string $value): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return [];
+        }
+
+        if (str_starts_with($value, '[') && str_ends_with($value, ']')) {
+            return $this->pdfArrayItems(substr($value, 1, -1));
+        }
+
+        return [$value];
+    }
+
+    private function xrefStreamDirectOperandValue(string $item): mixed
+    {
+        if ($item === 'null') {
+            return null;
+        }
+
+        if (str_starts_with($item, '/')) {
+            return $this->decodePdfName(substr($item, 1));
+        }
+
+        if (preg_match('/^[+-]?\d+$/', $item) === 1) {
+            return (int) $item;
+        }
+
+        return $item;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     * @return array<string, mixed>
+     */
+    private function xrefStreamIndirectOperandReview(
+        string $name,
+        int $objectNumber,
+        int $generation,
+        array $objects,
+        array $xrefEntries,
+        array $definitions
+    ): array {
+        $definition = $this->directObjectDefinitionForGeneration($definitions[$objectNumber] ?? [], $generation)
+            ?? $this->latestDirectObjectDefinition($definitions[$objectNumber] ?? []);
+        $xrefEntry = $xrefEntries[$objectNumber] ?? null;
+        $selected = $xrefEntry === null
+            ? null
+            : $this->liveDirectObjectDefinition($definitions[$objectNumber] ?? [], $xrefEntry);
+        $xrefSelected = $definition !== null
+            && $selected !== null
+            && $selected['offset'] === $definition['offset'];
+        $ownerPolicy = $this->xrefStreamIndirectOperandOwnerPolicy(
+            $objectNumber,
+            $objects,
+            $xrefEntry,
+            $definition,
+            $selected,
+            $xrefSelected
+        );
+
+        $body = $this->xrefStreamIndirectOperandBody($objectNumber, $objects, $xrefEntry, $definition, $selected);
+
+        return [
+            'name' => $name,
+            'kind' => 'indirect',
+            'object_number' => $objectNumber,
+            'generation' => $generation,
+            'resolved' => $body !== null,
+            'xref_selected' => $xrefSelected,
+            'xref_entry_type' => $xrefEntry['type'] ?? null,
+            'xref_offset' => $xrefEntry['offset'] ?? null,
+            'definition_offset' => $definition['offset'] ?? null,
+            'selected_offset' => $selected['offset'] ?? null,
+            'owner_policy' => $ownerPolicy,
+            'value_preview' => $body === null ? null : $this->xrefStreamOperandValuePreview($body),
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}|null $xrefEntry
+     * @param array{generation: int, offset: int, body: string}|null $definition
+     * @param array{generation: int, offset: int, body: string}|null $selected
+     */
+    private function xrefStreamIndirectOperandOwnerPolicy(
+        int $objectNumber,
+        array $objects,
+        ?array $xrefEntry,
+        ?array $definition,
+        ?array $selected,
+        bool $xrefSelected
+    ): string {
+        if ($xrefEntry === null) {
+            if (!isset($objects[$objectNumber]) || $definition === null) {
+                return 'missing_object';
+            }
+
+            return 'scanned_without_xref_entry';
+        }
+
+        if (($xrefEntry['type'] ?? null) === 0) {
+            return 'free_xref_entry';
+        }
+
+        if (($xrefEntry['type'] ?? null) === 2) {
+            return isset($objects[$objectNumber]) ? 'compressed_operand_after_xref_decode' : 'missing_compressed_operand';
+        }
+
+        if (!isset($objects[$objectNumber]) || $definition === null) {
+            return 'missing_object';
+        }
+
+        if (($xrefEntry['type'] ?? null) === 1 && $xrefSelected) {
+            return 'xref_selected_direct_object';
+        }
+
+        if (($xrefEntry['type'] ?? null) === 1 && $selected !== null) {
+            return 'xref_entry_points_elsewhere';
+        }
+
+        return 'unsupported_xref_entry';
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}|null $xrefEntry
+     * @param array{generation: int, offset: int, body: string}|null $definition
+     * @param array{generation: int, offset: int, body: string}|null $selected
+     */
+    private function xrefStreamIndirectOperandBody(
+        int $objectNumber,
+        array $objects,
+        ?array $xrefEntry,
+        ?array $definition,
+        ?array $selected
+    ): ?string {
+        if (($xrefEntry['type'] ?? null) === 2) {
+            return $objects[$objectNumber] ?? null;
+        }
+
+        if ($definition !== null) {
+            return $definition['body'];
+        }
+
+        if ($selected !== null) {
+            return $selected['body'];
+        }
+
+        return $objects[$objectNumber] ?? null;
+    }
+
+    private function xrefStreamOperandValuePreview(string $body): string
+    {
+        $preview = trim($body);
+        $preview = (string) preg_replace('/\s+/', ' ', $preview);
+        if (strlen($preview) > 80) {
+            return substr($preview, 0, 77) . '...';
+        }
+
+        return $preview;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $operands
+     */
+    private function xrefStreamIndirectOperandCount(array $operands): int
+    {
+        $count = 0;
+        foreach ($operands as $operand) {
+            if (($operand['kind'] ?? null) === 'indirect') {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $operands
+     */
+    private function xrefStreamSelectedOperandCount(array $operands): int
+    {
+        $count = 0;
+        foreach ($operands as $operand) {
+            if (($operand['kind'] ?? null) === 'indirect' && ($operand['xref_selected'] ?? false) === true) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $operands
+     */
+    private function xrefStreamUnresolvedOperandCount(array $operands): int
+    {
+        $count = 0;
+        foreach ($operands as $operand) {
+            if (
+                ($operand['kind'] ?? null) !== 'direct'
+                && (($operand['resolved'] ?? false) !== true || ($operand['xref_selected'] ?? false) !== true)
+            ) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $operands
+     */
+    private function xrefStreamOperandOwnerPolicy(int $selectedOperandCount, int $unresolvedOperandCount, array $operands): string
+    {
+        if ($operands === []) {
+            return 'direct_or_absent_operands';
+        }
+
+        if ($unresolvedOperandCount > 0) {
+            return 'unresolved_or_unselected_indirect_operands';
+        }
+
+        return $selectedOperandCount > 0 ? 'xref_selected_indirect_operands' : 'direct_operands';
     }
 
     /**
