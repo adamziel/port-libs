@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PortLibs\MarkerPDF;
 
 use InvalidArgumentException;
+use JsonException;
 use RuntimeException;
 use Throwable;
 
@@ -36,7 +37,8 @@ final class BenchmarkRunner
      *     error: string|null,
      *     telemetry: array<string, mixed>|null,
      *     executes_external_tools: false,
-     *     executes_python_or_models: false
+     *     executes_python_or_models: false,
+     *     error_artifact: array<string, mixed>|null
      * }
      */
     public function runWithErrorTelemetry(
@@ -47,7 +49,8 @@ final class BenchmarkRunner
         ?string $markdownOutputFolder = null,
         array $chunkLengths = [],
         ?string $reportOutputFile = null,
-        array $runtimeOptions = []
+        array $runtimeOptions = [],
+        ?string $errorArtifactFile = null
     ): array {
         $this->activeRuntimeFailureContext = [
             'phase' => 'preflight',
@@ -76,15 +79,21 @@ final class BenchmarkRunner
                 'telemetry' => null,
                 'executes_external_tools' => false,
                 'executes_python_or_models' => false,
+                'error_artifact' => null,
             ];
         } catch (Throwable $throwable) {
+            $telemetry = $this->runtimeFailureTelemetry($throwable, $this->activeRuntimeFailureContext ?? []);
+
             return [
                 'success' => false,
                 'result' => null,
                 'error' => $throwable->getMessage(),
-                'telemetry' => $this->runtimeFailureTelemetry($throwable, $this->activeRuntimeFailureContext ?? []),
+                'telemetry' => $telemetry,
                 'executes_external_tools' => false,
                 'executes_python_or_models' => false,
+                'error_artifact' => $errorArtifactFile === null
+                    ? null
+                    : $this->writeBenchmarkErrorArtifactJson($errorArtifactFile, $telemetry),
             ];
         } finally {
             $this->activeRuntimeFailureContext = null;
@@ -488,6 +497,65 @@ final class BenchmarkRunner
         }
 
         return 'Benchmark runner failed during ' . $phase . ': ' . $throwable->getMessage();
+    }
+
+    /**
+     * @param array<string, mixed> $telemetry
+     * @return array{path: string, filename: string, format: string, success_report_written: false, review_only: true, size: int, sha256: string}
+     */
+    private function writeBenchmarkErrorArtifactJson(string $errorArtifactFile, array $telemetry): array
+    {
+        $errorArtifactFile = trim($errorArtifactFile);
+        if ($errorArtifactFile === '') {
+            throw new InvalidArgumentException('Benchmark error artifact JSON file must not be empty.');
+        }
+
+        $artifact = [
+            'path' => $errorArtifactFile,
+            'filename' => basename($errorArtifactFile),
+            'format' => 'json',
+            'success_report_written' => false,
+            'review_only' => true,
+        ];
+        $payload = [
+            'schema' => 'markerpdf.benchmark_error.v1',
+            'source' => 'sddai/markerPDF benchmarks/overall.py',
+            'status' => 'error',
+            'success' => false,
+            'error' => $telemetry['error'] ?? null,
+            'message_line' => $telemetry['message_line'] ?? null,
+            'telemetry' => $telemetry,
+            'artifact' => $artifact,
+            'default_runner_fails_fast' => true,
+            'success_report_written' => false,
+            'executes_external_tools' => false,
+            'executes_python_or_models' => false,
+            'review_only' => true,
+        ];
+
+        try {
+            $json = json_encode(
+                $payload,
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR
+            );
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException('Unable to encode markerPDF benchmark error artifact as JSON.', previous: $exception);
+        }
+
+        if (@file_put_contents($errorArtifactFile, $json) === false) {
+            throw new RuntimeException('Unable to write markerPDF benchmark error artifact: ' . $errorArtifactFile);
+        }
+
+        clearstatcache(true, $errorArtifactFile);
+        $hash = hash_file('sha256', $errorArtifactFile);
+        if (!is_string($hash)) {
+            throw new RuntimeException('Unable to fingerprint markerPDF benchmark error artifact: ' . $errorArtifactFile);
+        }
+
+        return $artifact + [
+            'size' => filesize($errorArtifactFile) ?: 0,
+            'sha256' => $hash,
+        ];
     }
 
     /**

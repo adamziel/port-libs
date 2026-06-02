@@ -173,7 +173,7 @@ final class BenchmarkReportBuilder
             throw new InvalidArgumentException('Unable to encode markerPDF benchmark report as JSON.', previous: $exception);
         }
 
-        if (file_put_contents($outputFile, $json) === false) {
+        if (@file_put_contents($outputFile, $json) === false) {
             throw new RuntimeException('Unable to write markerPDF benchmark report: ' . $outputFile);
         }
     }

@@ -121,4 +121,72 @@ MD;
             $removeTree($root);
         }
     },
+    'sanitizes current-base image artifact filenames and rewrites markdown metadata references' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $root = $makeTempDir();
+        try {
+            $writer = new OutputWriter();
+            $unsafeImage = '../WP-cover?.jpeg';
+            $markdown = <<<'MD'
+<!-- wp:image -->
+<figure class="wp-block-image"><img src="../WP-cover?.jpeg" alt="../WP-cover?.jpeg"/></figure>
+<!-- /wp:image -->
+
+![../WP-cover?.jpeg](../WP-cover?.jpeg)
+MD;
+
+            $subfolder = $writer->saveMarkdown(
+                $root,
+                'wordpress-sanitized-media.pdf',
+                $markdown,
+                [
+                    $unsafeImage => 'PNG-TRAVERSAL',
+                    '0_image_0.png' => 'PNG-UPSTREAM',
+                ],
+                [
+                    'scenario' => 'wordpress-pdf-output-artifact-sanitize-images',
+                    'images' => [$unsafeImage, '0_image_0.png'],
+                    'image_map' => [
+                        $unsafeImage => ['filename' => $unsafeImage],
+                    ],
+                ]
+            );
+
+            $markdownOut = (string) file_get_contents($subfolder . DIRECTORY_SEPARATOR . 'wordpress-sanitized-media.md');
+            $metadataOut = (string) file_get_contents($subfolder . DIRECTORY_SEPARATOR . 'wordpress-sanitized-media_meta.json');
+
+            $t->same('PNG-TRAVERSAL', file_get_contents($subfolder . DIRECTORY_SEPARATOR . 'WP-cover.png'));
+            $t->same('PNG-UPSTREAM', file_get_contents($subfolder . DIRECTORY_SEPARATOR . '0_image_0.png'));
+            $t->true(!is_file($root . DIRECTORY_SEPARATOR . 'WP-cover?.jpeg'));
+            $t->contains('<img src="WP-cover.png" alt="WP-cover.png"', $markdownOut);
+            $t->contains('![WP-cover.png](WP-cover.png)', $markdownOut);
+            $t->true(!str_contains($markdownOut, $unsafeImage));
+            $t->contains('"WP-cover.png"', $metadataOut);
+            $t->true(!str_contains($metadataOut, $unsafeImage));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'deduplicates colliding sanitized image artifact filenames before saving' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $root = $makeTempDir();
+        try {
+            $subfolder = (new OutputWriter())->saveMarkdown(
+                $root,
+                'wordpress-colliding-media.pdf',
+                'Image collision import.',
+                [
+                    '../cover.png' => 'PNG-FIRST',
+                    'cover?.jpg' => 'PNG-SECOND',
+                    'cover.png' => 'PNG-THIRD',
+                ],
+                []
+            );
+
+            $t->same('PNG-FIRST', file_get_contents($subfolder . DIRECTORY_SEPARATOR . 'cover.png'));
+            $t->same('PNG-SECOND', file_get_contents($subfolder . DIRECTORY_SEPARATOR . 'cover_2.png'));
+            $t->same('PNG-THIRD', file_get_contents($subfolder . DIRECTORY_SEPARATOR . 'cover_3.png'));
+            $t->true(!is_file($root . DIRECTORY_SEPARATOR . 'cover.png'));
+        } finally {
+            $removeTree($root);
+        }
+    },
 ];

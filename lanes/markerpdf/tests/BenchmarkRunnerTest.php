@@ -462,6 +462,68 @@ return [
             $removeTree($markdownFolder);
         }
     },
+    'writes benchmark failure telemetry as a review-only error JSON artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $prepareCiFolders): void {
+        $pdfFolder = $makeTempDir();
+        $referenceFolder = $makeTempDir();
+        $markdownFolder = $makeTempDir();
+        try {
+            $pairsByDocument = $prepareCiFolders($pdfFolder, $referenceFolder);
+            $missingReport = $markdownFolder . DIRECTORY_SEPARATOR . 'missing' . DIRECTORY_SEPARATOR . 'overall.json';
+            $errorArtifact = $markdownFolder . DIRECTORY_SEPARATOR . 'overall.error.json';
+
+            $response = (new BenchmarkRunner())->runWithErrorTelemetry(
+                $pdfFolder,
+                $referenceFolder,
+                [
+                    'marker' => static fn (string $pdfPath, string $document): string => $pairsByDocument[$document]['markerExcerpt'],
+                ],
+                static fn (): int => 2,
+                $markdownFolder,
+                array_map(static fn (array $pair): int => $pair['chunkLength'], $pairsByDocument),
+                $missingReport,
+                [],
+                $errorArtifact
+            );
+
+            $t->same(false, $response['success']);
+            $t->same(null, $response['result']);
+            $t->same('report_write', $response['telemetry']['phase']);
+            $t->same($missingReport, $response['telemetry']['report_output']);
+            $t->same($markdownFolder, $response['telemetry']['markdown_output_folder']);
+            $t->contains('Benchmark report write failed: Unable to write markerPDF benchmark report:', $response['telemetry']['message_line']);
+            $t->same(false, is_file($missingReport));
+            $t->same(true, is_file($markdownFolder . DIRECTORY_SEPARATOR . 'marker_multicolcnn.md'));
+            $t->same(true, is_file($markdownFolder . DIRECTORY_SEPARATOR . 'marker_switch_trans.md'));
+            $t->same(false, $response['executes_external_tools']);
+            $t->same(false, $response['executes_python_or_models']);
+
+            $artifact = $response['error_artifact'];
+            $t->same($errorArtifact, $artifact['path']);
+            $t->same('overall.error.json', $artifact['filename']);
+            $t->same('json', $artifact['format']);
+            $t->same(false, $artifact['success_report_written']);
+            $t->same(true, $artifact['review_only']);
+            $t->true($artifact['size'] > 100);
+            $t->same(hash_file('sha256', $errorArtifact), $artifact['sha256']);
+
+            $payload = json_decode((string) file_get_contents($errorArtifact), true, flags: JSON_THROW_ON_ERROR);
+            $t->same('markerpdf.benchmark_error.v1', $payload['schema']);
+            $t->same('sddai/markerPDF benchmarks/overall.py', $payload['source']);
+            $t->same('error', $payload['status']);
+            $t->same(false, $payload['success']);
+            $t->same('report_write', $payload['telemetry']['phase']);
+            $t->same($missingReport, $payload['telemetry']['report_output']);
+            $t->same(false, $payload['success_report_written']);
+            $t->same(false, $payload['artifact']['success_report_written']);
+            $t->same(true, $payload['review_only']);
+            $t->same(false, $payload['executes_external_tools']);
+            $t->same(false, $payload['executes_python_or_models']);
+        } finally {
+            $removeTree($pdfFolder);
+            $removeTree($referenceFolder);
+            $removeTree($markdownFolder);
+        }
+    },
     'rejects malformed benchmark runner supplied boundaries' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $pdfFolder = $makeTempDir();
         $referenceFolder = $makeTempDir();

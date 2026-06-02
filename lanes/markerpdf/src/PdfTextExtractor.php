@@ -13083,7 +13083,12 @@ final class PdfTextExtractor
                         $currentTextLeading = -$moveY;
                     }
                 }
-                if ($this->textMoveBreaksLine($operands)) {
+                $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
+                if (
+                    $this->mapWritingMode($toUnicodeMap) === 1
+                    ? $this->verticalTextMoveBreaksLine($operands)
+                    : $this->textMoveBreaksLine($operands)
+                ) {
                     $this->pushSpanLine($lines, $spans);
                 }
                 $currentTextX = $this->textMoveX($operands, $currentTextX);
@@ -13093,8 +13098,13 @@ final class PdfTextExtractor
             }
 
             if ($token === 'Tm') {
+                $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
                 $matrixY = $this->textMatrixY($operands);
-                if ($matrixY !== null && $currentTextY !== null && abs($matrixY - $currentTextY) > 0.000001) {
+                if (
+                    $this->mapWritingMode($toUnicodeMap) === 1
+                    ? $this->verticalTextMatrixBreaksLine($operands, $currentTextX)
+                    : ($matrixY !== null && $currentTextY !== null && abs($matrixY - $currentTextY) > 0.000001)
+                ) {
                     $this->pushSpanLine($lines, $spans);
                 }
                 $currentTextX = $this->textMatrixX($operands);
@@ -13490,11 +13500,21 @@ final class PdfTextExtractor
                         $currentTextLeading = -$moveY;
                     }
                 }
-                if ($this->textMoveBreaksLine($operands)) {
-                    $this->pushLine($lines, $currentLine);
-                    $pendingPositionWordGap = false;
-                } elseif ($this->textMoveCreatesWordGap($operands)) {
-                    $pendingPositionWordGap = $currentLine !== '';
+                $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
+                if ($this->mapWritingMode($toUnicodeMap) === 1) {
+                    if ($this->verticalTextMoveBreaksLine($operands)) {
+                        $this->pushLine($lines, $currentLine);
+                        $pendingPositionWordGap = false;
+                    } elseif ($this->verticalTextMoveCreatesWordGap($operands, $currentTextY, $currentTextEndY)) {
+                        $pendingPositionWordGap = $currentLine !== '';
+                    }
+                } else {
+                    if ($this->textMoveBreaksLine($operands)) {
+                        $this->pushLine($lines, $currentLine);
+                        $pendingPositionWordGap = false;
+                    } elseif ($this->textMoveCreatesWordGap($operands)) {
+                        $pendingPositionWordGap = $currentLine !== '';
+                    }
                 }
                 $currentTextX = $this->textMoveX($operands, $currentTextX);
                 $currentTextY = $this->textMoveY($operands, $currentTextY);
@@ -14406,6 +14426,36 @@ final class PdfTextExtractor
         }
 
         return $tx >= self::POSITIONED_TEXT_WORD_GAP;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function verticalTextMoveBreaksLine(array $operands): bool
+    {
+        $tx = $this->textMoveOperandX($operands);
+        if ($tx === null) {
+            return true;
+        }
+
+        return abs($tx) > 0.000001;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function verticalTextMoveCreatesWordGap(array $operands, ?float $currentTextY, ?float $currentTextEndY): bool
+    {
+        if ($currentTextY === null || $currentTextEndY === null) {
+            return false;
+        }
+
+        $nextY = $this->textMoveY($operands, $currentTextY);
+        if ($nextY === null) {
+            return false;
+        }
+
+        return abs($nextY - $currentTextEndY) >= self::POSITIONED_TEXT_WORD_GAP;
     }
 
     /**

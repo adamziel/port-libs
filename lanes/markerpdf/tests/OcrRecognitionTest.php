@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\MarkerSettings;
+use PortLibs\MarkerPDF\OcrLanguage;
 use PortLibs\MarkerPDF\OcrRecognition;
 
 $page = static function (string $text, array $bbox = [72.0, 96.0, 540.0, 120.0]): array {
@@ -90,6 +91,67 @@ return [
         $result = $recognition->runWithSuppliedPages($pages, $recognizedPages);
         $t->same(1, $result['stats']['ocr_success']);
         $t->same('Recovered OCR text for a WordPress paragraph.', $result['pages'][0]['blocks'][0]['lines'][0]['spans'][0]['text']);
+    },
+    'preserves OCR language and confidence review while triaging recognized pages by upstream text quality' => static function (TestRunner $t) use ($page): void {
+        $languages = new OcrLanguage();
+        $suryaLanguages = $languages->normalizeAndValidate(['English', 'Spanish'], 'surya');
+        $recognition = new OcrRecognition();
+        $pages = [
+            $page('@@@ ### !!!', [72.0, 96.0, 540.0, 120.0]),
+            $page('### !!! @@@', [72.0, 150.0, 540.0, 174.0]),
+        ];
+
+        $recognizedPages = $recognition->buildSuryaRecognitionPages(
+            $pages,
+            [0, 1],
+            [
+                [
+                    [
+                        'text' => 'Recovered multilingual WordPress import text.',
+                        'bbox' => [120.0, 192.0, 540.0, 232.0],
+                        'confidence' => 0.08,
+                    ],
+                ],
+                [
+                    [
+                        'text' => '@@@ ### !!!',
+                        'bbox' => [120.0, 300.0, 540.0, 348.0],
+                        'confidence' => 0.99,
+                    ],
+                ],
+            ],
+            [
+                ['width' => 1200, 'height' => 1600],
+                ['width' => 1200, 'height' => 1600],
+            ],
+            $suryaLanguages
+        );
+
+        $result = $recognition->runWithSuppliedPages($pages, $recognizedPages);
+        $paragraph = htmlspecialchars(
+            (string) $result['pages'][0]['blocks'][0]['lines'][0]['spans'][0]['text'],
+            ENT_QUOTES | ENT_SUBSTITUTE,
+            'UTF-8'
+        );
+        $html = "<!-- wp:paragraph -->\n<p>{$paragraph}</p>\n<!-- /wp:paragraph -->\n";
+
+        $t->same(['en', 'es'], $suryaLanguages);
+        $t->same([65555, 65557], $languages->langTokenIds($suryaLanguages ?? []));
+        $t->same([
+            'ocr_pages' => 2,
+            'ocr_failed' => 1,
+            'ocr_success' => 1,
+            'ocr_engine' => 'surya',
+        ], $result['stats']);
+        $t->same(['en', 'es'], $result['pages'][0]['ocr_languages']);
+        $t->same(['count' => 1, 'min' => 0.08, 'max' => 0.08, 'average' => 0.08], $result['pages'][0]['ocr_confidence']);
+        $t->same(0.08, $result['pages'][0]['blocks'][0]['lines'][0]['confidence']);
+        $t->same(0.08, $result['pages'][0]['blocks'][0]['lines'][0]['spans'][0]['confidence']);
+        $t->same('Recovered multilingual WordPress import text.', $result['pages'][0]['blocks'][0]['lines'][0]['spans'][0]['text']);
+        $t->same('### !!! @@@', $result['pages'][1]['prelim_text']);
+        $t->true(!isset($result['pages'][1]['ocr_method']));
+        $t->contains('Recovered multilingual WordPress import text.', $html);
+        $t->true(!str_contains($html, '@@@ ### !!!'));
     },
     'replaces successful supplied OCR pages and reports upstream stats' => static function (TestRunner $t) use ($page): void {
         $recognition = new OcrRecognition();

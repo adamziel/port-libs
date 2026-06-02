@@ -105,15 +105,17 @@ final class OcrRecognition
      *
      * @param list<array<string, mixed>> $pages
      * @param list<int> $pageIndexes
-     * @param list<list<array{text?: string, bbox?: list<float|int>}>> $recognizedTextLines
+     * @param list<list<array{text?: string, bbox?: list<float|int>, confidence?: float|int}>> $recognizedTextLines
      * @param list<array{width?: int|float, height?: int|float}|list<int|float>> $imageSizes
+     * @param list<string>|null $languages
      * @return list<array<string, mixed>>
      */
     public function buildSuryaRecognitionPages(
         array $pages,
         array $pageIndexes,
         array $recognizedTextLines,
-        array $imageSizes
+        array $imageSizes,
+        ?array $languages = null
     ): array {
         $count = count($pageIndexes);
         if (count($recognizedTextLines) !== $count || count($imageSizes) !== $count) {
@@ -133,6 +135,7 @@ final class OcrRecognition
                 ?? [0.0, 0.0, (float) $imageSize['width'], (float) $imageSize['height']];
 
             $blocks = [];
+            $confidenceValues = [];
             foreach ($recognizedTextLines[$position] as $lineIndex => $line) {
                 if (!is_array($line)) {
                     continue;
@@ -149,28 +152,39 @@ final class OcrRecognition
                     $sourceBbox
                 );
 
+                $confidence = $this->confidence($line['confidence'] ?? null);
+                if ($confidence !== null) {
+                    $confidenceValues[] = $confidence;
+                }
+
+                $span = [
+                    'text' => (string) ($line['text'] ?? ''),
+                    'bbox' => $scaledBbox,
+                    'span_id' => (string) $pageIndex . '_' . $lineIndex,
+                    'font' => '',
+                    'font_weight' => 0,
+                    'font_size' => 0,
+                ];
+                if ($confidence !== null) {
+                    $span['confidence'] = $confidence;
+                }
+
+                $pageLine = [
+                    'bbox' => $scaledBbox,
+                    'spans' => [$span],
+                ];
+                if ($confidence !== null) {
+                    $pageLine['confidence'] = $confidence;
+                }
+
                 $blocks[] = [
                     'bbox' => $scaledBbox,
                     'pnum' => (int) $pageIndex,
-                    'lines' => [
-                        [
-                            'bbox' => $scaledBbox,
-                            'spans' => [
-                                [
-                                    'text' => (string) ($line['text'] ?? ''),
-                                    'bbox' => $scaledBbox,
-                                    'span_id' => (string) $pageIndex . '_' . $lineIndex,
-                                    'font' => '',
-                                    'font_weight' => 0,
-                                    'font_size' => 0,
-                                ],
-                            ],
-                        ],
-                    ],
+                    'lines' => [$pageLine],
                 ];
             }
 
-            $newPages[] = [
+            $page = [
                 'blocks' => $blocks,
                 'pnum' => (int) $pageIndex,
                 'bbox' => $imageBbox,
@@ -178,6 +192,14 @@ final class OcrRecognition
                 'text_lines' => $oldPage['text_lines'] ?? null,
                 'ocr_method' => 'surya',
             ];
+            if ($languages !== null) {
+                $page['ocr_languages'] = array_values(array_map(static fn (mixed $language): string => (string) $language, $languages));
+            }
+            if ($confidenceValues !== []) {
+                $page['ocr_confidence'] = $this->confidenceSummary($confidenceValues);
+            }
+
+            $newPages[] = $page;
         }
 
         return $newPages;
@@ -360,6 +382,34 @@ final class OcrRecognition
         }
 
         throw new InvalidArgumentException('OCR image size must provide width and height.');
+    }
+
+    private function confidence(mixed $value): ?float
+    {
+        if (!is_int($value) && !is_float($value)) {
+            return null;
+        }
+
+        $confidence = (float) $value;
+        if ($confidence < 0.0 || $confidence > 1.0) {
+            return null;
+        }
+
+        return $confidence;
+    }
+
+    /**
+     * @param non-empty-list<float> $values
+     * @return array{count: int, min: float, max: float, average: float}
+     */
+    private function confidenceSummary(array $values): array
+    {
+        return [
+            'count' => count($values),
+            'min' => min($values),
+            'max' => max($values),
+            'average' => round(array_sum($values) / count($values), 6),
+        ];
     }
 
     /**
