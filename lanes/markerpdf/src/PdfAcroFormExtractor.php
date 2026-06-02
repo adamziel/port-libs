@@ -4513,9 +4513,9 @@ final class PdfAcroFormExtractor
             $widgetAppearance = $this->widgetDefaultAppearance($body, $fieldDefaultAppearance, $effective, $objects, $widgetRef);
             $referencedFromPageAnnots = isset($pageWidgets[$widgetRef]);
             $appearanceState = $this->pdfNameValueAfterName($body, 'AS');
-            $normalAppearance = $this->normalAppearanceReview($body, $objects, $appearanceState);
-            $rolloverAppearance = $this->interactiveAppearanceReview($body, $objects, $appearanceState, 'R', 'rollover');
-            $downAppearance = $this->interactiveAppearanceReview($body, $objects, $appearanceState, 'D', 'down');
+            $normalAppearance = $this->normalAppearanceReview($body, $objects, $appearanceState, $fieldNamesByObject);
+            $rolloverAppearance = $this->interactiveAppearanceReview($body, $objects, $appearanceState, 'R', 'rollover', $fieldNamesByObject);
+            $downAppearance = $this->interactiveAppearanceReview($body, $objects, $appearanceState, 'D', 'down', $fieldNamesByObject);
             $highlightMode = $this->pdfNameValueAfterName($body, 'H') ?? 'I';
             $appearanceCharacteristics = $this->widgetAppearanceCharacteristics($body, $objects);
 
@@ -6611,7 +6611,7 @@ final class PdfAcroFormExtractor
      * @return array<string, mixed>|null
      * @param array<int, string> $objects
      */
-    private function normalAppearanceReview(string $widgetBody, array $objects, ?string $appearanceState): ?array
+    private function normalAppearanceReview(string $widgetBody, array $objects, ?string $appearanceState, array $fieldNamesByObject = []): ?array
     {
         $apValue = $this->valueAfterName($widgetBody, 'AP');
         if ($apValue === null) {
@@ -6664,7 +6664,7 @@ final class PdfAcroFormExtractor
                 'appearance_state' => $appearanceState,
                 'available_states' => [],
                 'selected_state' => null,
-                'selected_appearance' => $this->appearanceStreamReviewFromValue($normalValue, $objects, null, 'normal_direct'),
+                'selected_appearance' => $this->appearanceStreamReviewFromValue($normalValue, $objects, null, 'normal_direct', $fieldNamesByObject),
                 'state_matches_appearance' => null,
                 'appearance_value_used_for_import' => false,
                 'payload_text_exposed' => false,
@@ -6710,7 +6710,7 @@ final class PdfAcroFormExtractor
             'selected_state' => $selectedValue === null ? null : $appearanceState,
             'selected_appearance' => $selectedValue === null
                 ? null
-                : $this->appearanceStreamReviewFromValue($selectedValue, $objects, $appearanceState, 'normal_state'),
+                : $this->appearanceStreamReviewFromValue($selectedValue, $objects, $appearanceState, 'normal_state', $fieldNamesByObject),
             'state_matches_appearance' => $appearanceState === null ? null : $selectedValue !== null,
             'stale_appearance_state' => $appearanceState !== null && $selectedValue === null,
             'appearance_value_used_for_import' => false,
@@ -6730,7 +6730,8 @@ final class PdfAcroFormExtractor
         array $objects,
         ?string $appearanceState,
         string $appearanceKey,
-        string $appearanceMode
+        string $appearanceMode,
+        array $fieldNamesByObject = []
     ): ?array {
         $apValue = $this->valueAfterName($widgetBody, 'AP');
         if ($apValue === null) {
@@ -6757,7 +6758,7 @@ final class PdfAcroFormExtractor
                 'appearance_state' => $appearanceState,
                 'available_states' => [],
                 'selected_state' => null,
-                'selected_appearance' => $this->appearanceStreamReviewFromValue($appearanceValue, $objects, null, $appearanceMode . '_direct'),
+                'selected_appearance' => $this->appearanceStreamReviewFromValue($appearanceValue, $objects, null, $appearanceMode . '_direct', $fieldNamesByObject),
                 'state_matches_appearance' => null,
                 'stale_appearance_state' => null,
                 'appearance_value_used_for_import' => false,
@@ -6809,7 +6810,7 @@ final class PdfAcroFormExtractor
             'selected_state' => $selectedValue === null ? null : $appearanceState,
             'selected_appearance' => $selectedValue === null
                 ? null
-                : $this->appearanceStreamReviewFromValue($selectedValue, $objects, $appearanceState, $appearanceMode . '_state'),
+                : $this->appearanceStreamReviewFromValue($selectedValue, $objects, $appearanceState, $appearanceMode . '_state', $fieldNamesByObject),
             'state_matches_appearance' => $appearanceState === null ? null : $selectedValue !== null,
             'stale_appearance_state' => $appearanceState !== null && $selectedValue === null,
             'appearance_value_used_for_import' => false,
@@ -6824,7 +6825,7 @@ final class PdfAcroFormExtractor
      * @return array<string, mixed>|null
      * @param array<int, string> $objects
      */
-    private function appearanceStreamReviewFromValue(string $value, array $objects, ?string $state, string $source): ?array
+    private function appearanceStreamReviewFromValue(string $value, array $objects, ?string $state, string $source, array $fieldNamesByObject = []): ?array
     {
         $value = trim($value);
         $objectNumber = null;
@@ -6846,7 +6847,7 @@ final class PdfAcroFormExtractor
         }
 
         $decodedStream = $this->decodeStreamObject($objectBody, $objects);
-        $resources = $this->appearanceResourceReview($dictionaryBody, $objects);
+        $resources = $this->appearanceResourceReview($dictionaryBody, $objects, $fieldNamesByObject);
 
         return [
             'source' => $source,
@@ -6866,19 +6867,25 @@ final class PdfAcroFormExtractor
             'resource_object' => $resources['object'],
             'resource_font_names' => $resources['font_names'],
             'resource_xobject_names' => $resources['xobject_names'],
+            'resource_xobject_reviews' => $resources['xobject_reviews'],
+            'resource_xobject_action_count' => $resources['xobject_action_count'],
+            'resource_xobject_action_types' => $resources['xobject_action_types'],
+            'resource_xobject_action_objects' => $resources['xobject_action_objects'],
+            'resource_xobject_payload_text_exposed' => false,
             'payload_text_exposed' => false,
             'imports_visible_text' => false,
             'executes_appearance_streams' => false,
             'renders_appearances' => false,
             'executes_action' => false,
+            'executes_javascript' => false,
         ];
     }
 
     /**
-     * @return array{object: int|null, font_names: list<string>, xobject_names: list<string>}
+     * @return array{object: int|null, font_names: list<string>, xobject_names: list<string>, xobject_reviews: list<array<string, mixed>>, xobject_action_count: int, xobject_action_types: list<mixed>, xobject_action_objects: list<int>}
      * @param array<int, string> $objects
      */
-    private function appearanceResourceReview(string $appearanceDictionaryBody, array $objects): array
+    private function appearanceResourceReview(string $appearanceDictionaryBody, array $objects, array $fieldNamesByObject = []): array
     {
         $resourcesValue = $this->valueAfterName($appearanceDictionaryBody, 'Resources');
         $resources = $resourcesValue === null ? null : $this->resolvedDictionaryFromValue($resourcesValue, $objects);
@@ -6887,14 +6894,102 @@ final class PdfAcroFormExtractor
                 'object' => null,
                 'font_names' => [],
                 'xobject_names' => [],
+                'xobject_reviews' => [],
+                'xobject_action_count' => 0,
+                'xobject_action_types' => [],
+                'xobject_action_objects' => [],
             ];
+        }
+
+        $xobjectReviews = $this->xobjectResourceReviewsFromResourceDictionary($resources['body'], $objects, $fieldNamesByObject);
+        $xobjectActions = [];
+        foreach ($xobjectReviews as $review) {
+            foreach ($this->arrayRows($review['actions'] ?? []) as $action) {
+                $xobjectActions[] = $action;
+            }
         }
 
         return [
             'object' => $resources['object'],
             'font_names' => array_keys($this->fontResourcesFromDefaultResourceDictionary($resources['body'], $objects)),
             'xobject_names' => $this->xobjectResourceNamesFromResourceDictionary($resources['body'], $objects),
+            'xobject_reviews' => $xobjectReviews,
+            'xobject_action_count' => count($xobjectActions),
+            'xobject_action_types' => $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['action_type'] ?? null,
+                $xobjectActions
+            )),
+            'xobject_action_objects' => $this->integerValuesFromRows($xobjectActions, 'action_object'),
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $fieldNamesByObject
+     * @return list<array<string, mixed>>
+     */
+    private function xobjectResourceReviewsFromResourceDictionary(string $resourceDictionary, array $objects, array $fieldNamesByObject): array
+    {
+        $xobjectValue = $this->valueAfterName($resourceDictionary, 'XObject');
+        $xobjects = $xobjectValue === null ? null : $this->resolvedDictionaryFromValue($xobjectValue, $objects);
+        if ($xobjects === null) {
+            return [];
+        }
+
+        $reviews = [];
+        foreach ($this->dictionaryNameValueMap($xobjects['body']) as $resourceName => $value) {
+            $objectNumber = $this->objectNumberFromReferenceValue($value);
+            $objectBody = $objectNumber === null ? trim($value) : ($objects[$objectNumber] ?? null);
+            if ($objectBody === null || $objectBody === '') {
+                continue;
+            }
+
+            $dictionaryBody = $this->dictionaryObjectBody($objectBody)
+                ?? (str_starts_with(trim($objectBody), '<<') ? $this->readPdfDictionaryAt($objectBody, 0) : null);
+            if ($dictionaryBody === null) {
+                continue;
+            }
+
+            $sourceObject = $objectNumber ?? 0;
+            $actionReview = $this->actionsWithReviewFromDictionary(
+                $dictionaryBody,
+                $objects,
+                $fieldNamesByObject,
+                'appearance_resource_xobject',
+                $sourceObject
+            );
+            $actions = $actionReview['actions'];
+
+            $reviews[] = [
+                'source' => 'acroform_widget_appearance_resource_xobject_review_boundary',
+                'resource_name' => $resourceName,
+                'xobject_object' => $objectNumber,
+                'type' => $this->pdfNameValueAfterName($dictionaryBody, 'Type'),
+                'subtype' => $this->pdfNameValueAfterName($dictionaryBody, 'Subtype'),
+                'bbox' => $this->numericArrayValueAfterName($dictionaryBody, 'BBox'),
+                'matrix' => $this->numericArrayValueAfterName($dictionaryBody, 'Matrix'),
+                'declared_length_bytes' => $this->numberValueAfterName($dictionaryBody, 'Length'),
+                'filters' => $this->streamObjectFilters($objectBody, $objects),
+                'decoded_stream_available' => $this->decodeStreamObject($objectBody, $objects) !== null,
+                'action_count' => count($actions),
+                'action_types' => $this->uniqueScalarValues(array_map(
+                    static fn (array $action): mixed => $action['action_type'] ?? null,
+                    $actions
+                )),
+                'action_objects' => $this->integerValuesFromRows($actions, 'action_object'),
+                'actions' => $actions,
+                'action_review' => $actionReview['review'],
+                'review_only' => true,
+                'payload_text_exposed' => false,
+                'imports_visible_text' => false,
+                'executes_action' => false,
+                'executes_javascript' => false,
+                'executes_appearance_streams' => false,
+                'renders_appearances' => false,
+            ];
+        }
+
+        return $reviews;
     }
 
     /**

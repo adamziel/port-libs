@@ -1032,6 +1032,7 @@ final class PdfOutlineExtractor
             }
 
             $title = $this->stringOrNameValue($this->resolveValue($dict['Title'] ?? null, $objects));
+            $outlineContext = $this->outlineActionStructureContext($dict, $objects);
             if ($title !== null && array_key_exists('A', $dict)) {
                 $seenActions = [];
                 $actions = $this->reviewActionsFromValue($dict['A'], $objects, $pageIndexes, $destinations, $seenActions);
@@ -1055,7 +1056,7 @@ final class PdfOutlineExtractor
                             'outline_title' => $title,
                             'outline_level' => $level,
                             'outline_object' => $current,
-                        ] + $action;
+                        ] + $outlineContext + $action;
 
                         $page = $row['page'] ?? null;
                         if (is_int($page)) {
@@ -1133,7 +1134,7 @@ final class PdfOutlineExtractor
                                 'outline_title' => $title,
                                 'outline_level' => $level,
                                 'outline_object' => $current,
-                            ] + $action;
+                            ] + $outlineContext + $action;
 
                             $page = $row['page'] ?? null;
                             if (is_int($page)) {
@@ -1197,6 +1198,50 @@ final class PdfOutlineExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, mixed> $outline
+     * @param array<int, mixed> $objects
+     * @return array<string, mixed>
+     */
+    private function outlineActionStructureContext(array $outline, array $objects): array
+    {
+        $context = [
+            'outline_parent_object' => $this->referenceObjectNumber($outline['Parent'] ?? null),
+            'outline_previous_object' => $this->referenceObjectNumber($outline['Prev'] ?? null),
+            'outline_next_object' => $this->referenceObjectNumber($outline['Next'] ?? null),
+            'outline_first_child_object' => $this->referenceObjectNumber($outline['First'] ?? null),
+            'outline_last_child_object' => $this->referenceObjectNumber($outline['Last'] ?? null),
+        ];
+
+        foreach ($this->outlineStructureState($outline, $objects) as $key => $value) {
+            $context[
+                match ($key) {
+                    'has_children' => 'outline_has_children',
+                    'descendant_count' => 'outline_descendant_count',
+                    'is_open' => 'outline_is_open',
+                    'is_collapsed' => 'outline_is_collapsed',
+                    'structure_state' => 'outline_structure_state',
+                    default => $key,
+                }
+            ] = $value;
+        }
+
+        foreach ($this->outlineStyleMetadata($outline, $objects) as $key => $value) {
+            $context[
+                match ($key) {
+                    'style_flags' => 'outline_style_flags',
+                    'is_italic' => 'outline_is_italic',
+                    'is_bold' => 'outline_is_bold',
+                    'text_color_rgb' => 'outline_text_color_rgb',
+                    'text_color_hex' => 'outline_text_color_hex',
+                    default => 'outline_' . $key,
+                }
+            ] = $value;
+        }
+
+        return $context;
     }
 
     /**
@@ -1927,6 +1972,17 @@ final class PdfOutlineExtractor
                     $pageReviewsByPage,
                     $taggedContentByPage
                 );
+                $row += $this->outlineDestinationActionContext(
+                    $destination,
+                    $objects,
+                    $pageIndexes,
+                    $destinations,
+                    $pageLabels,
+                    $pagePresentationsByPage,
+                    $articleBeadsByPage,
+                    $pageReviewsByPage,
+                    $taggedContentByPage
+                );
 
                 $items[] = $row;
             }
@@ -1955,6 +2011,143 @@ final class PdfOutlineExtractor
         }
 
         return $items;
+    }
+
+    /**
+     * @param array{name: string|null, value: mixed} $destination
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @param array<string, mixed> $destinations
+     * @param list<string> $pageLabels
+     * @param array<int, array<string, mixed>> $pagePresentationsByPage
+     * @param array<int, list<array<string, mixed>>> $articleBeadsByPage
+     * @param array<int, array<string, mixed>> $pageReviewsByPage
+     * @param array<int, list<array<string, mixed>>> $taggedContentByPage
+     * @return array<string, mixed>
+     */
+    private function outlineDestinationActionContext(
+        array $destination,
+        array $objects,
+        array $pageIndexes,
+        array $destinations,
+        array $pageLabels,
+        array $pagePresentationsByPage,
+        array $articleBeadsByPage,
+        array $pageReviewsByPage,
+        array $taggedContentByPage
+    ): array {
+        $destinationAction = $this->destinationActionReviewValue($destination['value'], $objects, $destinations, $destination['name']);
+        if ($destinationAction === null) {
+            return [];
+        }
+
+        $seenTargetContext = [];
+        $targetContext = $this->actionChainTargetContext(
+            $destinationAction['value'],
+            $objects,
+            $pageIndexes,
+            $destinations,
+            $pageLabels,
+            $pagePresentationsByPage,
+            $articleBeadsByPage,
+            $pageReviewsByPage,
+            $taggedContentByPage,
+            $seenTargetContext
+        );
+
+        if ($destinationAction['destination_name'] !== null) {
+            $details = $this->destinationViewDetails(
+                $destination['value'],
+                $objects,
+                $pageIndexes,
+                $destinations,
+                $destination['name']
+            );
+            if ($details !== null) {
+                $targetContext = $this->destinationActionTargetContext(
+                    $this->withNavigationTargetMetadata(
+                        $details,
+                        $pageLabels,
+                        $pagePresentationsByPage,
+                        $articleBeadsByPage,
+                        $pageReviewsByPage,
+                        $taggedContentByPage
+                    )
+                );
+            }
+        }
+
+        $seenActions = [];
+        $actions = [];
+        foreach ($this->reviewActionsFromValue($destinationAction['value'], $objects, $pageIndexes, $destinations, $seenActions) as $action) {
+            if ($destinationAction['destination_name'] !== null) {
+                $action['destination_action_name'] = $destinationAction['destination_name'];
+            }
+
+            $action = $this->withActionChainTargetContext($action, $targetContext);
+            if (
+                ($action['action_type'] ?? null) === 'GoTo'
+                && ($action['safety'] ?? null) === 'local-destination'
+                && ($action['destination'] ?? null) === null
+                && $destinationAction['destination_name'] !== null
+            ) {
+                $action['destination'] = $destinationAction['destination_name'];
+            }
+
+            if (is_int($action['page'] ?? null)) {
+                $action = $this->withNavigationTargetMetadata(
+                    $action,
+                    $pageLabels,
+                    $pagePresentationsByPage,
+                    $articleBeadsByPage,
+                    $pageReviewsByPage,
+                    $taggedContentByPage
+                );
+            }
+
+            $actions[] = $action;
+        }
+
+        if ($actions === []) {
+            return $targetContext;
+        }
+
+        $context = $targetContext;
+        if ($destinationAction['destination_name'] !== null) {
+            $context['destination_action_name'] = $destinationAction['destination_name'];
+        }
+
+        $actionObject = $this->referenceObjectNumber($destinationAction['value']);
+        if ($actionObject !== null) {
+            $context['destination_action_object'] = $actionObject;
+        }
+
+        $actionDictionary = $this->resolveDictionary($destinationAction['value'], $objects);
+        $actionType = $actionDictionary === null ? null : $this->nameValue($actionDictionary['S'] ?? null);
+        if ($actionType !== null) {
+            $context['destination_action_type'] = $actionType;
+        }
+
+        $context['destination_action_types'] = array_values(array_map(
+            static fn (array $action): ?string => is_string($action['action_type'] ?? null) ? $action['action_type'] : null,
+            $actions
+        ));
+        $context['destination_action_safeties'] = array_values(array_map(
+            static fn (array $action): ?string => is_string($action['safety'] ?? null) ? $action['safety'] : null,
+            $actions
+        ));
+        $context['destination_action_chained_count'] = count(array_filter(
+            $actions,
+            static fn (array $action): bool => ($action['chained'] ?? false) === true
+        ));
+        $context['destination_action_all_review_only'] = array_reduce(
+            $actions,
+            static fn (bool $carry, array $action): bool => $carry && ($action['executes_on_import'] ?? true) === false,
+            true
+        );
+        $context['destination_action_review_actions'] = $actions;
+
+        return $context;
     }
 
     /**

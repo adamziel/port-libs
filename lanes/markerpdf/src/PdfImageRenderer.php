@@ -2479,6 +2479,298 @@ final class PdfImageRenderer
     }
 
     /**
+     * Maps one ICCBased image sample through the image Decode array before the
+     * Marker RGB preview handoff and attaches the matching soft-mask alpha.
+     *
+     * The ICC transform itself remains review metadata for a future raster
+     * backend; this boundary makes the parsed component and transparency rows
+     * deterministic without running pypdfium/PIL.
+     *
+     * @param list<int|float> $sample
+     * @param array<string, mixed> $imagePlan
+     * @return array<string, mixed>
+     */
+    public function iccBasedSamplePreview(array $sample, array $imagePlan, int|float|null $softMaskSample = null): array
+    {
+        $iccProfile = $imagePlan['icc_profile'] ?? null;
+        if (($imagePlan['source_color_space'] ?? null) !== 'ICCBased' || ($imagePlan['uses_icc_profile'] ?? false) !== true || !is_array($iccProfile)) {
+            throw new InvalidArgumentException('ICCBased preview requires an ICCBased image plan.');
+        }
+
+        $expectedComponents = $imagePlan['components'] ?? null;
+        if (!is_int($expectedComponents) || $expectedComponents < 1) {
+            throw new InvalidArgumentException('ICCBased preview requires a positive component count.');
+        }
+
+        $values = array_values($sample);
+        if (count($values) !== $expectedComponents) {
+            throw new InvalidArgumentException('ICCBased sample count must match the image component count.');
+        }
+        foreach ($values as $value) {
+            if (!is_int($value) && !is_float($value)) {
+                throw new InvalidArgumentException('ICCBased sample values must be numeric.');
+            }
+        }
+
+        $bitsPerComponent = max(1, (int) ($imagePlan['bits_per_component'] ?? 8));
+        $decode = $imagePlan['image_decode'] ?? null;
+        $decodeSource = null;
+        $usesProfileRangeDecode = false;
+        if (is_array($decode)) {
+            if (($decode['valid_for_components'] ?? false) !== true) {
+                throw new InvalidArgumentException('ICCBased Decode array must match the image component count.');
+            }
+
+            $decoded = $this->imageSampleDecodeValues($values, $decode, $bitsPerComponent);
+            $decodeSource = $decode['source'] ?? null;
+        } else {
+            $profileRange = $iccProfile['range'] ?? [];
+            $useProfileRange = is_array($profileRange) && count($profileRange) === $expectedComponents * 2;
+            $maxSample = (2 ** min($bitsPerComponent, 30)) - 1;
+            $decoded = [];
+            foreach ($values as $index => $value) {
+                $ratio = $maxSample <= 0 ? 0.0 : max(0.0, min(1.0, (float) $value / $maxSample));
+                if ($useProfileRange) {
+                    $min = (float) $profileRange[$index * 2];
+                    $max = (float) $profileRange[($index * 2) + 1];
+                    $decoded[] = $min + (($max - $min) * $ratio);
+                    continue;
+                }
+
+                $decoded[] = $ratio;
+            }
+
+            $decodeSource = $useProfileRange ? 'default-icc-profile-range' : 'default-normalized';
+            $usesProfileRangeDecode = $useProfileRange;
+        }
+
+        $softMaskAlpha = null;
+        $softMaskAlphaBeforeTransfer = null;
+        $softMaskTransferApplied = false;
+        $softMaskTransferFunction = null;
+        if ($softMaskSample !== null) {
+            $softMaskAlphaPreview = $this->softMaskAlphaPreview($softMaskSample, $imagePlan, 'ICCBased');
+            $softMaskAlpha = $softMaskAlphaPreview['alpha'];
+            $softMaskAlphaBeforeTransfer = $softMaskAlphaPreview['alpha_before_transfer'];
+            $softMaskTransferApplied = $softMaskAlphaPreview['transfer_applied'];
+            $softMaskTransferFunction = $softMaskAlphaPreview['transfer_function'];
+        }
+
+        return [
+            'source_color_space' => 'ICCBased',
+            'raw_sample' => array_map(static fn (int|float $value): float => (float) $value, $values),
+            'decoded_components' => $decoded,
+            'icc_profile' => $iccProfile,
+            'profile_components' => $iccProfile['components'] ?? null,
+            'alternate_color_space' => $iccProfile['alternate_color_space'] ?? null,
+            'profile_range' => $iccProfile['range'] ?? [],
+            'decode_source' => $decodeSource,
+            'uses_profile_range_decode' => $usesProfileRangeDecode,
+            'soft_mask_alpha' => $softMaskAlpha,
+            'soft_mask_alpha_before_transfer' => $softMaskAlphaBeforeTransfer,
+            'soft_mask_transfer_applied' => $softMaskTransferApplied,
+            'soft_mask_transfer_function' => $softMaskTransferFunction,
+            'output_color_mode' => (string) ($imagePlan['output_color_mode'] ?? 'RGB'),
+        ];
+    }
+
+    /**
+     * Decodes bounded ICCBased image stream rows when the filter chain is
+     * native, applies image Decode ranges, and attaches matching soft-mask alpha
+     * rows before the Marker RGB preview handoff.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    public function iccBasedImageStreamPreviewRows(string $imageObject, array $objects = [], int $maxPixels = 16): array
+    {
+        if ($maxPixels < 1) {
+            throw new InvalidArgumentException('ICCBased image stream preview requires at least one preview pixel.');
+        }
+
+        $dictionary = $this->streamDictionaryFromValue($imageObject) ?? trim($imageObject);
+        $plan = $this->imageColorSpaceSoftMaskPlan($dictionary, $objects);
+        if (($plan['source_color_space'] ?? null) !== 'ICCBased' || ($plan['uses_icc_profile'] ?? false) !== true) {
+            throw new InvalidArgumentException('ICCBased image stream preview requires an ICCBased image.');
+        }
+
+        $width = $this->integerNameValue($dictionary, 'Width');
+        $height = $this->integerNameValue($dictionary, 'Height');
+        $components = $plan['components'] ?? null;
+        $bitsPerComponent = max(1, (int) ($plan['bits_per_component'] ?? 8));
+        if (!is_int($width) || !is_int($height) || $width < 1 || $height < 1) {
+            throw new InvalidArgumentException('ICCBased image stream preview requires positive image Width and Height.');
+        }
+        if (!is_int($components) || $components < 1) {
+            throw new InvalidArgumentException('ICCBased image stream preview requires a positive component count.');
+        }
+
+        $expectedPixelCount = $width * $height;
+        $imageStream = $this->decodedImageStreamPreviewBoundary($dictionary, $imageObject, $objects);
+        $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
+        $imageStreamDecoded = ($imageStream['decoded_with_current_filters'] ?? false) === true
+            && is_string($imageStream['decoded_bytes'] ?? null);
+        $imageStreamReviewOnly = !$imageStreamDecoded && $imageStreamMeta['preview_only_filters'] !== [];
+        if (!$imageStreamDecoded && !$imageStreamReviewOnly) {
+            throw new InvalidArgumentException('ICCBased image stream filters must be natively decoded before RGB preview.');
+        }
+
+        $softMaskSamples = null;
+        $softMaskStream = null;
+        $softMaskStreamMeta = null;
+        $softMask = $plan['soft_mask'] ?? null;
+        $softMaskGroup = $plan['soft_mask_group'] ?? null;
+        $softMaskIsTransparencyGroup = is_array($softMask)
+            && ($softMask['present'] ?? false) === true
+            && is_array($softMaskGroup)
+            && !is_int($softMask['width'] ?? null)
+            && !is_int($softMask['height'] ?? null);
+        if (is_array($softMask) && ($softMask['present'] ?? false) === true) {
+            if (($plan['soft_mask_applied_before_rgb'] ?? false) !== true) {
+                throw new InvalidArgumentException('ICCBased image stream preview requires a grayscale soft-mask image.');
+            }
+            if (is_int($softMask['width'] ?? null) && $softMask['width'] !== $width) {
+                throw new InvalidArgumentException('ICCBased soft-mask width must match the image width.');
+            }
+            if (is_int($softMask['height'] ?? null) && $softMask['height'] !== $height) {
+                throw new InvalidArgumentException('ICCBased soft-mask height must match the image height.');
+            }
+            if ($softMaskIsTransparencyGroup && !$imageStreamReviewOnly) {
+                throw new InvalidArgumentException('ICCBased image stream preview requires sampled soft-mask alpha for transparency groups.');
+            }
+
+            if (!$softMaskIsTransparencyGroup) {
+                $softMaskStream = $this->decodedSoftMaskStreamPreviewBoundary($dictionary, $objects);
+                $softMaskStreamMeta = is_array($softMaskStream) ? $this->streamBoundaryPublicMetadata($softMaskStream) : null;
+                if (is_array($softMaskStream) && ($softMaskStream['decoded_with_current_filters'] ?? false) === true && is_string($softMaskStream['decoded_bytes'] ?? null)) {
+                    $softMaskSamples = $this->packedImagePixelSamples(
+                        $softMaskStream['decoded_bytes'],
+                        1,
+                        max(1, (int) ($softMask['bits_per_component'] ?? 8)),
+                        $expectedPixelCount
+                    );
+                } elseif (!$imageStreamReviewOnly) {
+                    throw new InvalidArgumentException('ICCBased soft-mask stream filters must be natively decoded before RGB preview.');
+                }
+
+                if (is_array($softMaskSamples) && !$softMaskSamples['complete']) {
+                    throw new InvalidArgumentException('ICCBased soft-mask stream does not contain complete alpha sample data.');
+                }
+            }
+        }
+
+        $streamNotes = [
+            $imageStreamMeta['filters'] === []
+                ? 'iccbased_image_stream_unfiltered_samples_before_rgb_conversion'
+                : 'iccbased_image_stream_filters_decoded_before_rgb_conversion',
+        ];
+        if (!$imageStreamMeta['decoded_with_current_filters'] && $imageStreamMeta['preview_only_filters'] !== []) {
+            $streamNotes[0] = 'iccbased_image_stream_preview_only_before_rgb_conversion';
+        }
+        if ($softMaskStreamMeta !== null) {
+            $streamNotes[] = $softMaskStreamMeta['filters'] === []
+                ? 'soft_mask_stream_unfiltered_samples_before_rgb_conversion'
+                : 'soft_mask_stream_filters_decoded_before_rgb_conversion';
+        } elseif ($softMaskIsTransparencyGroup && $imageStreamReviewOnly) {
+            $streamNotes[] = 'soft_mask_transfer_function_reviewed_without_raster_samples';
+        }
+
+        if (!$imageStreamDecoded) {
+            return [
+                'source_color_space' => (string) $plan['source_color_space'],
+                'width' => $width,
+                'height' => $height,
+                'components_per_pixel' => $components,
+                'bits_per_component' => $bitsPerComponent,
+                'expected_pixel_count' => $expectedPixelCount,
+                'preview_pixel_count' => 0,
+                'review_only_image_stream' => true,
+                'complete_image_sample_data' => false,
+                'complete_soft_mask_sample_data' => $softMaskSamples === null ? null : $softMaskSamples['complete'],
+                'image_filter_boundary' => $plan['image_filter_boundary'],
+                'image_filter_details' => $plan['image_filter_details'],
+                'image_stream' => $imageStreamMeta,
+                'soft_mask_stream' => $softMaskStreamMeta,
+                'soft_mask' => $softMask,
+                'soft_mask_group' => $softMaskGroup,
+                'soft_mask_filter_boundary' => $plan['soft_mask_filter_boundary'],
+                'icc_profile' => $plan['icc_profile'],
+                'image_decode' => $plan['image_decode'],
+                'soft_mask_transfer_function' => $plan['soft_mask_transfer_function'],
+                'soft_mask_transfer_function_applied_before_rgb' => $plan['soft_mask_transfer_function_applied_before_rgb'],
+                'pixels' => [],
+                'stream_notes' => $streamNotes,
+                'notes' => array_values(array_unique(array_merge($plan['notes'] ?? [], $streamNotes))),
+                'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+                'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'opaque_rgb_preview'),
+            ];
+        }
+
+        $imageSamples = $this->packedImagePixelSamples(
+            $imageStream['decoded_bytes'],
+            $components,
+            $bitsPerComponent,
+            $expectedPixelCount
+        );
+        if (!$imageSamples['complete']) {
+            throw new InvalidArgumentException('ICCBased image stream does not contain complete image sample data.');
+        }
+        if (is_array($softMask) && ($softMask['present'] ?? false) === true && !$softMaskIsTransparencyGroup && $softMaskSamples === null) {
+            throw new InvalidArgumentException('ICCBased soft-mask stream filters must be natively decoded before RGB preview.');
+        }
+
+        $limit = min($maxPixels, $expectedPixelCount);
+        $pixels = [];
+        for ($index = 0; $index < $limit; $index++) {
+            $rawSample = $imageSamples['pixels'][$index];
+            $softMaskSample = is_array($softMaskSamples) ? $softMaskSamples['pixels'][$index][0] : null;
+            $preview = $this->iccBasedSamplePreview($rawSample, $plan, $softMaskSample);
+            $pixels[] = [
+                'pixel_index' => $index,
+                'x' => $index % $width,
+                'y' => intdiv($index, $width),
+                'raw_sample' => $rawSample,
+                'decoded_components' => $preview['decoded_components'],
+                'decode_source' => $preview['decode_source'],
+                'uses_profile_range_decode' => $preview['uses_profile_range_decode'],
+                'soft_mask_sample' => $softMaskSample,
+                'soft_mask_alpha' => $preview['soft_mask_alpha'],
+                'soft_mask_alpha_before_transfer' => $preview['soft_mask_alpha_before_transfer'],
+                'soft_mask_transfer_applied' => $preview['soft_mask_transfer_applied'],
+            ];
+        }
+
+        return [
+            'source_color_space' => (string) $plan['source_color_space'],
+            'width' => $width,
+            'height' => $height,
+            'components_per_pixel' => $components,
+            'bits_per_component' => $bitsPerComponent,
+            'expected_pixel_count' => $expectedPixelCount,
+            'preview_pixel_count' => count($pixels),
+            'review_only_image_stream' => false,
+            'complete_image_sample_data' => $imageSamples['complete'],
+            'complete_soft_mask_sample_data' => $softMaskSamples === null ? null : $softMaskSamples['complete'],
+            'image_filter_boundary' => $plan['image_filter_boundary'],
+            'image_filter_details' => $plan['image_filter_details'],
+            'image_stream' => $imageStreamMeta,
+            'soft_mask_stream' => $softMaskStreamMeta,
+            'soft_mask' => $softMask,
+            'soft_mask_group' => $softMaskGroup,
+            'soft_mask_filter_boundary' => $plan['soft_mask_filter_boundary'],
+            'icc_profile' => $plan['icc_profile'],
+            'image_decode' => $plan['image_decode'],
+            'soft_mask_transfer_function' => $plan['soft_mask_transfer_function'],
+            'soft_mask_transfer_function_applied_before_rgb' => $plan['soft_mask_transfer_function_applied_before_rgb'],
+            'pixels' => $pixels,
+            'stream_notes' => $streamNotes,
+            'notes' => array_values(array_unique(array_merge($plan['notes'] ?? [], $streamNotes))),
+            'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+            'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'opaque_rgb_preview'),
+        ];
+    }
+
+    /**
      * @param array{width?: int|float, height?: int|float}|list<int|float> $renderedImageSize
      * @return list<float>
      */

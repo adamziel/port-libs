@@ -10715,6 +10715,10 @@ final class PdfTextExtractor
                         continue;
                     }
 
+                    if ($this->previousFreeEntryShadowsCurrentObjectStreamBase($objectNumber, $entry, $entries, $definitions, $previousOffset, $offset)) {
+                        continue;
+                    }
+
                     if ($this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries)) {
                         continue;
                     }
@@ -10737,6 +10741,10 @@ final class PdfTextExtractor
             $previousEntries = $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
             foreach ($previousEntries as $objectNumber => $entry) {
                 if (isset($entries[$objectNumber])) {
+                    continue;
+                }
+
+                if ($this->previousFreeEntryShadowsCurrentObjectStreamBase($objectNumber, $entry, $entries, $definitions, $previousOffset, $offset)) {
                     continue;
                 }
 
@@ -10937,6 +10945,48 @@ final class PdfTextExtractor
         }
 
         return !$this->xrefEntriesSelectSameStorage($currentEntries[$objectStreamNumber], $previousObjectStreamEntry);
+    }
+
+    /**
+     * A previous free row for an object-stream carrier should not suppress a
+     * current direct /ObjStm body when the latest xref section has type-2
+     * members that name that carrier.
+     *
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $currentEntries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function previousFreeEntryShadowsCurrentObjectStreamBase(
+        int $objectNumber,
+        array $entry,
+        array $currentEntries,
+        array $definitions,
+        int $previousOffset,
+        int $currentOffset
+    ): bool {
+        if (($entry['type'] ?? null) !== 0) {
+            return false;
+        }
+
+        $currentType2ReferencesCarrier = false;
+        foreach ($currentEntries as $currentEntry) {
+            if (($currentEntry['type'] ?? null) === 2 && ($currentEntry['objectStream'] ?? null) === $objectNumber) {
+                $currentType2ReferencesCarrier = true;
+                break;
+            }
+        }
+
+        if (!$currentType2ReferencesCarrier) {
+            return false;
+        }
+
+        $currentObjectStreamBase = $this->latestDirectObjectStreamDefinition($definitions[$objectNumber] ?? []);
+        if ($currentObjectStreamBase === null) {
+            return false;
+        }
+
+        return $currentObjectStreamBase['offset'] > $previousOffset
+            && $currentObjectStreamBase['offset'] < $currentOffset;
     }
 
     /**
