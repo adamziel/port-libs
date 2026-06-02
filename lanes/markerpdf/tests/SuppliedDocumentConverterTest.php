@@ -1880,6 +1880,80 @@ return [
             unlink($path);
         }
     },
+    'surfaces pdftext table-cell crop boundary metadata for WordPress review' => static function (TestRunner $t) use ($pdftextPage, $pdfTextChars, $pdfTextLine): void {
+        $path = sys_get_temp_dir() . '/markerpdf-table-text-cell-boundary-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% table text cell boundary supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'Table text cell boundary review', 'bbox' => [72.0, 48.0, 440.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Legacy crop-edge table text should be replaced.', 'bbox' => [72.0, 178.0, 430.0, 196.0]],
+                ['text' => 'After crop cell review.', 'bbox' => [72.0, 276.0, 430.0, 294.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 48.0, 440.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 430.0, 230.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 276.0, 430.0, 294.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 358.0, 32.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 170.0, 80.0]],
+                    ['col_id' => 1, 'bbox' => [180.0, 0.0, 358.0, 80.0]],
+                ],
+            ];
+            $tableTextLines = [[
+                'width' => 612,
+                'height' => 792,
+                'rotation' => 0,
+                'blocks' => [[
+                    'lines' => [
+                        $pdfTextLine([
+                            $pdfTextChars('Margin', 66.0, 160.0),
+                            $pdfTextChars('Value', 260.0, 160.0),
+                        ]),
+                    ],
+                ]],
+            ]];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_text_lines' => $tableTextLines,
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $review = $result['metadata']['table_text_cell_boundary_reviews'][0] ?? [];
+
+            $t->contains('# Table Text Cell Boundary Review', $result['text']);
+            $t->contains('| Margin | Value |', $result['text']);
+            $t->contains('After crop cell review.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Legacy crop-edge table text should be replaced.'));
+            $t->same(['layout', 'table-cell-routing', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same([false], $result['metadata']['table_needs_ocr']);
+            $t->same([2], $result['metadata']['table_cell_counts']);
+            $t->same([-6.0, 10.0, 47.0, 24.0], $result['metadata']['table_assigned_cells'][0][0]['bbox']);
+            $t->same('table_text_cell_geometry_boundary', $review['review_target'] ?? null);
+            $t->same(['width' => 358, 'height' => 80], $review['table_crop_size'] ?? null);
+            $t->same(1, $review['clipped_cell_count'] ?? null);
+            $t->same('clipped_to_table_image', $review['cells'][0]['status'] ?? null);
+            $t->same([-6.0, 10.0, 47.0, 24.0], $review['cells'][0]['original_bbox'] ?? null);
+            $t->same([0.0, 10.0, 47.0, 24.0], $review['cells'][0]['bounded_bbox'] ?? null);
+            $t->same(true, $review['cells'][0]['upstream_cell_bbox_retained'] ?? null);
+        } finally {
+            unlink($path);
+        }
+    },
     'clips supplied table grid geometry to rendered crop boundaries before WordPress review metadata' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-table-geometry-boundary-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% table geometry boundary supplied pipeline\n%%EOF");

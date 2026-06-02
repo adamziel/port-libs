@@ -218,6 +218,10 @@ final class SuppliedDocumentConverter
                 $metadata['table_needs_ocr'] = $cells['needs_ocr'];
                 $metadata['table_detect_boxes'] = $detectBoxes;
                 $metadata['table_cell_counts'] = array_map(static fn (array $cells): int => count($cells), $cells['table_cells']);
+                $cellBoundaryReviews = $this->tableTextCellBoundaryReviews($cells['table_text_cell_boundary_reviews'] ?? []);
+                if ($cellBoundaryReviews !== []) {
+                    $metadata['table_text_cell_boundary_reviews'] = $cellBoundaryReviews;
+                }
                 $metadata['supplied_boundaries'][] = 'table-cell-routing';
             }
             $recognition = $this->tableRecognizer->formatRecognizedTables($recognizedTables, $tablePlan['image_sizes']);
@@ -418,6 +422,31 @@ final class SuppliedDocumentConverter
         }
 
         return $sizes;
+    }
+
+    /**
+     * @param mixed $reviews
+     * @return list<array<string, mixed>|null>
+     */
+    private function tableTextCellBoundaryReviews(mixed $reviews): array
+    {
+        if (!is_array($reviews)) {
+            return [];
+        }
+
+        $normalized = [];
+        $hasReview = false;
+        foreach ($reviews as $review) {
+            if (is_array($review)) {
+                $normalized[] = $review;
+                $hasReview = true;
+                continue;
+            }
+
+            $normalized[] = null;
+        }
+
+        return $hasReview ? $normalized : [];
     }
 
     /**

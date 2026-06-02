@@ -5837,7 +5837,7 @@ final class PdfTextExtractor
             }
 
             $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $candidate - $streamStart));
-            if ($this->decodeStream($dict, $payload, $objects) !== null) {
+            if ($this->decodeStream($dict, $payload, $objects, true) !== null) {
                 return $candidate;
             }
         }
@@ -5996,7 +5996,12 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      */
-    private function decodeStream(string $dict, string $stream, array $objects = []): ?string
+    private function decodeStream(
+        string $dict,
+        string $stream,
+        array $objects = [],
+        bool $requireExplicitFilterEndMarkers = false
+    ): ?string
     {
         $filters = $this->streamFilters($dict, $objects);
         if ($filters === null) {
@@ -6014,6 +6019,13 @@ final class PdfTextExtractor
 
             $filterDecodeParms = $decodeParms[$index] ?? null;
             if (!$this->canApplyDecodeParms($filter, $filterDecodeParms, $objects)) {
+                return null;
+            }
+
+            if (
+                $requireExplicitFilterEndMarkers
+                && !$this->streamFilterInputHasExplicitEndMarker($filter, $stream)
+            ) {
                 return null;
             }
 
@@ -6036,6 +6048,15 @@ final class PdfTextExtractor
         }
 
         return $stream;
+    }
+
+    private function streamFilterInputHasExplicitEndMarker(string $filter, string $stream): bool
+    {
+        return match ($filter) {
+            'ASCIIHexDecode', 'AHx' => strpos($stream, '>') !== false,
+            'ASCII85Decode', 'A85' => strpos($stream, '~>') !== false,
+            default => true,
+        };
     }
 
     /**

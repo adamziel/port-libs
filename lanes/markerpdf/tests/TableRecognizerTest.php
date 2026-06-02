@@ -289,6 +289,47 @@ return [
         $t->same([10.0, 10.0, 36.0, 24.0], $cells['table_cells'][0][0]['bbox']);
         $t->same([10.0, 50.0, 81.0, 64.0], $cells['table_cells'][0][2]['bbox']);
     },
+    'reports crop-crossing pdftext cell geometry without changing upstream table-local bboxes' => static function (TestRunner $t) use ($pdfTextChars, $pdfTextLine): void {
+        $recognizer = new TableRecognizer();
+        $fullText = [
+            'width' => 1000,
+            'height' => 800,
+            'rotation' => 0,
+            'blocks' => [[
+                'lines' => [
+                    $pdfTextLine([
+                        $pdfTextChars('Margin', 92.0, 210.0),
+                        $pdfTextChars('Value', 250.0, 210.0),
+                    ]),
+                ],
+            ]],
+        ];
+
+        $cells = $recognizer->getCells(
+            [[100.0, 200.0, 500.0, 320.0]],
+            [['width' => 1000, 'height' => 800]],
+            [$fullText]
+        );
+        $review = $cells['table_text_cell_boundary_reviews'][0] ?? [];
+
+        $t->same([false], $cells['needs_ocr']);
+        $t->same(['Margin', 'Value'], array_column($cells['table_cells'][0], 'text'));
+        $t->same([-8.0, 10.0, 45.0, 24.0], $cells['table_cells'][0][0]['bbox']);
+        $t->same([150.0, 10.0, 194.0, 24.0], $cells['table_cells'][0][1]['bbox']);
+        $t->same('table_text_cell_geometry_boundary', $review['review_target'] ?? null);
+        $t->same('pdftext_dictionary_lines', $review['source'] ?? null);
+        $t->same('surya.input.pdflines.get_table_blocks', $review['upstream_boundary'] ?? null);
+        $t->same(['width' => 400, 'height' => 120], $review['table_crop_size'] ?? null);
+        $t->same(2, $review['cell_count'] ?? null);
+        $t->same(1, $review['within_cell_count'] ?? null);
+        $t->same(1, $review['clipped_cell_count'] ?? null);
+        $t->same(0, $review['outside_cell_count'] ?? null);
+        $t->same('clipped_to_table_image', $review['cells'][0]['status'] ?? null);
+        $t->same([-8.0, 10.0, 45.0, 24.0], $review['cells'][0]['original_bbox'] ?? null);
+        $t->same([0.0, 10.0, 45.0, 24.0], $review['cells'][0]['bounded_bbox'] ?? null);
+        $t->same(true, $review['cells'][0]['upstream_cell_bbox_retained'] ?? null);
+        $t->same('within_table_image', $review['cells'][1]['status'] ?? null);
+    },
     'forces supplied detector cells when detect_boxes is enabled' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $cells = $recognizer->getCells(

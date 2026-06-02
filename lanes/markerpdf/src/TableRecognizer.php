@@ -59,7 +59,7 @@ final class TableRecognizer
      * @param list<array{width?: int|float, height?: int|float}|list<int|float>> $imageSizes
      * @param list<mixed> $textLines
      * @param array<int, list<array<string, mixed>>> $suppliedDetections
-     * @return array{table_cells: list<list<array<string, mixed>>>, needs_ocr: list<bool>}
+     * @return array{table_cells: list<list<array<string, mixed>>>, needs_ocr: list<bool>, table_text_cell_boundary_reviews: list<array<string, mixed>|null>}
      */
     public function getCells(
         array $tableBboxes,
@@ -75,6 +75,7 @@ final class TableRecognizer
 
         $tableCells = [];
         $needsOcr = [];
+        $cellBoundaryReviews = [];
 
         for ($idx = 0; $idx < $count; $idx++) {
             $tableBbox = $this->bbox($tableBboxes[$idx]);
@@ -83,22 +84,25 @@ final class TableRecognizer
             $textLine = $textLines[$idx];
             $textBlocks = $this->tableBlocksFromTextLine($textLine, $tableBbox, $imageSize);
 
-            if ($textLine === null || $detectBoxes || $textBlocks === []) {
+            if ($textLine === null || $detectBoxes || $textBlocks['cells'] === []) {
                 if (!array_key_exists($idx, $suppliedDetections)) {
                     throw new InvalidArgumentException('Missing supplied detector cells for table index ' . $idx . '.');
                 }
                 $tableCells[] = $this->normalizePositiveAreaCells($suppliedDetections[$idx]);
                 $needsOcr[] = true;
+                $cellBoundaryReviews[] = null;
                 continue;
             }
 
-            $tableCells[] = $this->normalizeCells($textBlocks);
+            $tableCells[] = $this->normalizeCells($textBlocks['cells']);
             $needsOcr[] = false;
+            $cellBoundaryReviews[] = $textBlocks['boundary_review'];
         }
 
         return [
             'table_cells' => $tableCells,
             'needs_ocr' => $needsOcr,
+            'table_text_cell_boundary_reviews' => $cellBoundaryReviews,
         ];
     }
 
@@ -1210,12 +1214,15 @@ final class TableRecognizer
      * @param mixed $textLine
      * @param list<float> $tableBbox
      * @param array{width: int, height: int} $imageSize
-     * @return list<array<string, mixed>>
+     * @return array{cells: list<array<string, mixed>>, boundary_review: array<string, mixed>|null}
      */
     private function tableBlocksFromTextLine(mixed $textLine, array $tableBbox, array $imageSize): array
     {
         if (!is_array($textLine)) {
-            return [];
+            return [
+                'cells' => [],
+                'boundary_review' => null,
+            ];
         }
 
         $rotation = (int) ($textLine['rotation'] ?? 0);
@@ -1245,14 +1252,17 @@ final class TableRecognizer
             );
         }
 
-        return [];
+        return [
+            'cells' => [],
+            'boundary_review' => null,
+        ];
     }
 
     /**
      * @param list<array<string, mixed>> $blocks
      * @param list<float> $tableBbox
      * @param array{width: int, height: int} $imageSize
-     * @return list<array<string, mixed>>
+     * @return array{cells: list<array<string, mixed>>, boundary_review: array<string, mixed>|null}
      */
     private function filterTextBlocksToTable(array $blocks, array $tableBbox, array $imageSize, int $rotation = 0): array
     {
@@ -1264,7 +1274,12 @@ final class TableRecognizer
         ];
 
         if ($this->containsPdfTextLines($blocks)) {
-            return $this->pdfTextCellsForTable($blocks, $tableBbox, $imageSize, $rotation);
+            $cells = $this->pdfTextCellsForTable($blocks, $tableBbox, $imageSize, $rotation);
+
+            return [
+                'cells' => $cells,
+                'boundary_review' => $this->tableTextCellBoundaryReview($cells, $tableBbox, 'pdftext_dictionary_lines'),
+            ];
         }
 
         $filtered = [];
@@ -1275,7 +1290,12 @@ final class TableRecognizer
             }
         }
 
-        return $this->sortTextCells($filtered);
+        $filtered = $this->sortTextCells($filtered);
+
+        return [
+            'cells' => $filtered,
+            'boundary_review' => $this->tableTextCellBoundaryReview($filtered, $tableBbox, 'supplied_table_blocks'),
+        ];
     }
 
     /**
@@ -1670,6 +1690,89 @@ final class TableRecognizer
             $bbox[1] - $tableBbox[1],
             $bbox[2] - $tableBbox[0],
             $bbox[3] - $tableBbox[1],
+        ];
+    }
+
+    /**
+     * Upstream returns pdftext-derived cell bboxes relative to the input table
+     * crop. Preserve those bboxes for recognition while surfacing a bounded
+     * WordPress review row when a cell crosses the crop image boundary.
+     *
+     * @param list<array<string, mixed>> $cells
+     * @param list<float> $tableBbox
+     * @return array<string, mixed>|null
+     */
+    private function tableTextCellBoundaryReview(array $cells, array $tableBbox, string $source): ?array
+    {
+        if ($cells === []) {
+            return null;
+        }
+
+        $cropSize = [
+            'width' => (int) round(max(0.0, $tableBbox[2] - $tableBbox[0])),
+            'height' => (int) round(max(0.0, $tableBbox[3] - $tableBbox[1])),
+        ];
+        if ($cropSize['width'] <= 0 || $cropSize['height'] <= 0) {
+            return null;
+        }
+
+        $imageSize = $this->imageSize($cropSize);
+        $rows = [];
+        $clippedCount = 0;
+        $outsideCount = 0;
+
+        foreach ($cells as $index => $cell) {
+            $bbox = $this->nullableBbox($cell['bbox'] ?? null);
+            if ($bbox === null) {
+                continue;
+            }
+
+            $clipped = $this->clipBboxToImage($bbox, $imageSize);
+            $originalPositive = $this->positiveArea($bbox) > 0.0;
+            $clippedPositive = $this->positiveArea($clipped) > 0.0;
+            $status = 'within_table_image';
+            if (!$originalPositive) {
+                $status = 'excluded_non_positive_area';
+                $outsideCount++;
+            } elseif (!$clippedPositive) {
+                $status = 'outside_table_image';
+                $outsideCount++;
+            } elseif ($clipped !== $bbox) {
+                $status = 'clipped_to_table_image';
+                $clippedCount++;
+            }
+
+            $row = [
+                'cell_index' => $index,
+                'text' => (string) ($cell['text'] ?? ''),
+                'original_bbox' => $bbox,
+                'bounded_bbox' => $clippedPositive ? $clipped : null,
+                'clipped_bbox' => $clipped,
+                'status' => $status,
+                'active' => $originalPositive && $clippedPositive,
+                'upstream_cell_bbox_retained' => true,
+            ];
+            $rows[] = $row;
+        }
+
+        if ($rows === []) {
+            return null;
+        }
+
+        return [
+            'review_target' => 'table_text_cell_geometry_boundary',
+            'source' => $source,
+            'upstream_boundary' => 'surya.input.pdflines.get_table_blocks',
+            'table_bbox' => $tableBbox,
+            'table_crop_size' => $imageSize,
+            'cell_count' => count($rows),
+            'within_cell_count' => count(array_filter(
+                $rows,
+                static fn (array $row): bool => ($row['status'] ?? null) === 'within_table_image'
+            )),
+            'clipped_cell_count' => $clippedCount,
+            'outside_cell_count' => $outsideCount,
+            'cells' => $rows,
         ];
     }
 
