@@ -2363,6 +2363,35 @@ return [
         $t->true(!str_contains($plainText, 'Inline Image Noise'));
         $t->true(!str_contains($plainText, 'rawEIbytes'));
     },
+    'uses inline image abbreviations and DecodeParms before accepting EI bytes in compressed data' => static function (TestRunner $t): void {
+        $imageRow = 'raw EI BT /F1 12 Tf 72 690 Td (Inline DP Image Noise) Tj ET';
+        $compressedImage = gzcompress("\0" . $imageRow, 0);
+        if (!is_string($compressedImage)) {
+            throw new RuntimeException('Unable to build inline image fixture.');
+        }
+        $t->true(str_contains($compressedImage, ' EI '));
+
+        $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
+            . 'BI /W ' . strlen($imageRow) . ' /H 1 /CS /G /BPC 8 /F /Fl '
+            . '/DP << /Predictor 12 /Columns ' . strlen($imageRow) . " /Colors 1 /BitsPerComponent 8 >> ID "
+            . $compressedImage . "\nEI\n"
+            . 'BT /F1 12 Tf 72 704 Td (After DP Inline Image) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Before DP Inline Image', 'After DP Inline Image'], $extractor->extractTextLines($pdf));
+        $t->same(['Before DP Inline Image', 'After DP Inline Image'], $extractor->extractTextRuns($pdf));
+        $t->same("Before DP Inline Image\nAfter DP Inline Image", $plainText);
+        $t->same("Before DP Inline Image\nAfter DP Inline Image\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Inline DP Image Noise'));
+        $t->true(!str_contains($plainText, 'raw EI'));
+    },
     'inherits page tree font resources per page before WordPress text extraction' => static function (TestRunner $t) use ($toUnicodeCMap): void {
         $pageOne = 'BT /F1 12 Tf 72 720 Td <4142> Tj ET';
         $pageTwo = 'BT /F1 12 Tf 72 720 Td <4142> Tj ET';

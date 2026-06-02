@@ -8,6 +8,30 @@ final class PdfTextExtractor
 {
     private const POSITIONED_TEXT_WORD_GAP = 12.0;
     private const SIMPLE_TEXT_ADVANCE_RATIO = 0.5;
+    private const INLINE_IMAGE_KEY_ABBREVIATIONS = [
+        'BPC' => 'BitsPerComponent',
+        'CS' => 'ColorSpace',
+        'D' => 'Decode',
+        'DP' => 'DecodeParms',
+        'F' => 'Filter',
+        'H' => 'Height',
+        'I' => 'Interpolate',
+        'IM' => 'ImageMask',
+        'W' => 'Width',
+    ];
+    private const INLINE_IMAGE_VALUE_ABBREVIATIONS = [
+        'A85' => 'ASCII85Decode',
+        'AHx' => 'ASCIIHexDecode',
+        'CCF' => 'CCITTFaxDecode',
+        'CMYK' => 'DeviceCMYK',
+        'DCT' => 'DCTDecode',
+        'Fl' => 'FlateDecode',
+        'G' => 'DeviceGray',
+        'I' => 'Indexed',
+        'LZW' => 'LZWDecode',
+        'RGB' => 'DeviceRGB',
+        'RL' => 'RunLengthDecode',
+    ];
     private const BASE14_FONT_WIDTH_ALIASES = [
         'Courier' => 'Courier',
         'Courier-Bold' => 'Courier',
@@ -8299,49 +8323,15 @@ final class PdfTextExtractor
     private function skipInlineImage(string $stream, int &$index): void
     {
         $length = strlen($stream);
-        $foundImageData = false;
+        $dictionary = $this->readInlineImageDictionary($stream, $index);
 
-        while ($index < $length) {
-            $this->skipContentWhitespaceAndComments($stream, $index);
-            if ($index >= $length) {
-                break;
-            }
-
-            $char = $stream[$index];
-            if ($char === '(') {
-                $this->readLiteralToken($stream, $index);
-                continue;
-            }
-            if ($char === '<' && ($index + 1 >= $length || $stream[$index + 1] !== '<')) {
-                $this->readHexToken($stream, $index);
-                continue;
-            }
-            if ($char === '[') {
-                $this->readArrayToken($stream, $index);
-                continue;
-            }
-
-            $start = $index;
-            while ($index < $length && !$this->isDelimiter($stream[$index])) {
-                $index++;
-            }
-
-            if (substr($stream, $start, $index - $start) === 'ID') {
-                $foundImageData = true;
-                break;
-            }
-
-            if ($index === $start) {
-                $index++;
-            }
-        }
-
-        if (!$foundImageData) {
+        if ($dictionary === null) {
             $index = $length;
             return;
         }
 
         $this->consumeInlineImageDataPrefixWhitespace($stream, $index);
+        $dataStart = $index;
         while ($index < $length) {
             $end = strpos($stream, 'EI', $index);
             if ($end === false) {
@@ -8350,12 +8340,239 @@ final class PdfTextExtractor
             }
 
             if ($this->inlineImageEndMarkerAt($stream, $end)) {
-                $index = $end + 2;
-                return;
+                $candidate = $this->inlineImageDataCandidate($stream, $dataStart, $end);
+                if ($this->inlineImageCandidateMatchesDictionary($dictionary, $candidate)) {
+                    $index = $end + 2;
+                    return;
+                }
             }
 
             $index = $end + 2;
         }
+    }
+
+    private function readInlineImageDictionary(string $stream, int &$index): ?string
+    {
+        $entries = [];
+        $length = strlen($stream);
+
+        while ($index < $length) {
+            $this->skipContentWhitespaceAndComments($stream, $index);
+            if ($index >= $length) {
+                return null;
+            }
+
+            $keyToken = $this->readInlineImageToken($stream, $index);
+            if ($keyToken === null) {
+                return null;
+            }
+
+            if ($keyToken === 'ID') {
+                return implode(' ', $entries);
+            }
+
+            if (!str_starts_with($keyToken, '/')) {
+                continue;
+            }
+
+            $this->skipContentWhitespaceAndComments($stream, $index);
+            if ($index >= $length) {
+                return null;
+            }
+
+            $valueToken = $this->readInlineImageToken($stream, $index);
+            if ($valueToken === null) {
+                return null;
+            }
+
+            if ($valueToken === 'ID') {
+                return implode(' ', $entries);
+            }
+
+            $key = $this->canonicalInlineImageKey($keyToken);
+            $entries[] = $key . ' ' . $this->canonicalInlineImageValue($valueToken);
+        }
+
+        return null;
+    }
+
+    private function readInlineImageToken(string $stream, int &$index): ?string
+    {
+        $this->skipContentWhitespaceAndComments($stream, $index);
+        if ($index >= strlen($stream)) {
+            return null;
+        }
+
+        $char = $stream[$index];
+        if ($char === '(') {
+            return $this->readLiteralToken($stream, $index);
+        }
+
+        if ($char === '<' && ($index + 1 >= strlen($stream) || $stream[$index + 1] !== '<')) {
+            return $this->readHexToken($stream, $index);
+        }
+
+        if ($char === '<' && $index + 1 < strlen($stream) && $stream[$index + 1] === '<') {
+            return $this->readDictionaryToken($stream, $index);
+        }
+
+        if ($char === '[') {
+            return $this->readArrayToken($stream, $index);
+        }
+
+        $start = $index;
+        while ($index < strlen($stream) && !$this->isDelimiter($stream[$index])) {
+            $index++;
+        }
+
+        return $index === $start ? null : substr($stream, $start, $index - $start);
+    }
+
+    private function canonicalInlineImageKey(string $token): string
+    {
+        $name = $this->decodePdfName(substr($token, 1));
+        return '/' . (self::INLINE_IMAGE_KEY_ABBREVIATIONS[$name] ?? $name);
+    }
+
+    private function canonicalInlineImageValue(string $token): string
+    {
+        if (str_starts_with($token, '/')) {
+            $name = $this->decodePdfName(substr($token, 1));
+            return '/' . (self::INLINE_IMAGE_VALUE_ABBREVIATIONS[$name] ?? $name);
+        }
+
+        if (!str_starts_with($token, '[')) {
+            return $token;
+        }
+
+        return (string) preg_replace_callback(
+            '/\/([^\s\[\]\(\)<>{}\/%]+)/',
+            function (array $match): string {
+                $name = $this->decodePdfName($match[1]);
+                return '/' . (self::INLINE_IMAGE_VALUE_ABBREVIATIONS[$name] ?? $name);
+            },
+            $token
+        );
+    }
+
+    private function inlineImageDataCandidate(string $stream, int $dataStart, int $markerOffset): string
+    {
+        $dataEnd = $markerOffset;
+        if ($dataEnd > $dataStart && ctype_space($stream[$dataEnd - 1])) {
+            $dataEnd--;
+            if ($dataEnd > $dataStart && $stream[$dataEnd - 1] === "\r" && ($stream[$dataEnd] ?? '') === "\n") {
+                $dataEnd--;
+            }
+        }
+
+        return substr($stream, $dataStart, $dataEnd - $dataStart);
+    }
+
+    private function inlineImageCandidateMatchesDictionary(string $dictionary, string $candidate): bool
+    {
+        $filters = $this->streamFilters($dictionary, []);
+        if ($filters === null) {
+            return true;
+        }
+
+        if ($filters === []) {
+            return true;
+        }
+
+        if (!$this->hasVerifiableInlineImageFilter($filters)) {
+            return true;
+        }
+
+        $decoded = $this->decodeStream($dictionary, $candidate, []);
+        if ($decoded === null) {
+            return false;
+        }
+
+        $expectedLength = $this->inlineImageExpectedDecodedLength($dictionary);
+        return $expectedLength === null || strlen($decoded) === $expectedLength;
+    }
+
+    /**
+     * @param list<string> $filters
+     */
+    private function hasVerifiableInlineImageFilter(array $filters): bool
+    {
+        foreach ($filters as $filter) {
+            if (in_array($filter, [
+                'ASCII85Decode',
+                'ASCIIHexDecode',
+                'FlateDecode',
+                'LZWDecode',
+                'RunLengthDecode',
+            ], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function inlineImageExpectedDecodedLength(string $dictionary): ?int
+    {
+        $width = $this->pdfIntegerValueAfterName($dictionary, 'Width');
+        $height = $this->pdfIntegerValueAfterName($dictionary, 'Height');
+        if ($width === null || $height === null || $width < 1 || $height < 1) {
+            return null;
+        }
+
+        $imageMask = $this->pdfBooleanValueAfterName($dictionary, 'ImageMask') === true;
+        $components = $imageMask ? 1 : $this->inlineImageColorComponents($dictionary);
+        if ($components === null) {
+            return null;
+        }
+
+        $bitsPerComponent = $imageMask
+            ? 1
+            : ($this->pdfIntegerValueAfterName($dictionary, 'BitsPerComponent') ?? null);
+        if ($bitsPerComponent === null || $bitsPerComponent < 1) {
+            return null;
+        }
+
+        return intdiv(($width * $height * $components * $bitsPerComponent) + 7, 8);
+    }
+
+    private function inlineImageColorComponents(string $dictionary): ?int
+    {
+        $colorSpace = $this->pdfValueAfterName($dictionary, 'ColorSpace');
+        if ($colorSpace === null) {
+            return null;
+        }
+
+        $colorSpace = trim($colorSpace);
+        if (str_starts_with($colorSpace, '[')) {
+            return str_contains($colorSpace, '/Indexed') ? 1 : null;
+        }
+
+        return match ($colorSpace) {
+            '/DeviceGray' => 1,
+            '/DeviceRGB' => 3,
+            '/DeviceCMYK' => 4,
+            '/Indexed' => 1,
+            default => null,
+        };
+    }
+
+    private function pdfBooleanValueAfterName(string $body, string $name): ?bool
+    {
+        $offset = $this->nameValueOffset($body, $name);
+        if ($offset === null) {
+            return null;
+        }
+
+        if (preg_match('/\Gtrue\b/s', $body, $match, 0, $offset) === 1) {
+            return true;
+        }
+
+        if (preg_match('/\Gfalse\b/s', $body, $match, 0, $offset) === 1) {
+            return false;
+        }
+
+        return null;
     }
 
     private function skipContentWhitespaceAndComments(string $stream, int &$index): void
