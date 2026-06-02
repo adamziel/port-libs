@@ -470,6 +470,47 @@ return [
         $t->same(['Fallback Visible Text'], $extractor->extractTextRuns($fallbackPdf));
         $t->true(!str_contains($fallbackText, 'Fallback Fax Noise'));
     },
+    'skips JPXDecode and JBIG2Decode image filters before WordPress text parsing' => static function (TestRunner $t): void {
+        $visibleBefore = 'BT /F1 12 Tf 72 720 Td (JPX JBIG2 Boundary) Tj ET';
+        $visibleAfter = 'BT /F1 12 Tf 72 688 Td (Native Import) Tj ET';
+        $jpxNoise = "\x00\x00\x00\x0cjP  \r\n\x87\nBT /F1 12 Tf 72 704 Td (Raster JPX Noise) Tj ET";
+        $jbig2Noise = "\x97JB2\r\n\x1a\nBT /F1 12 Tf 72 672 Td (Raster JBIG2 Noise) Tj ET";
+
+        $pagePdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 5 0 R 6 0 R 7 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($visibleBefore) . " >>\nstream\n{$visibleBefore}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Filter /JPXDecode /ColorSpace /DeviceRGB /BitsPerComponent 8 /Width 1 /Height 1 /Length " . strlen($jpxNoise) . " >>\nstream\n{$jpxNoise}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Filter /JBIG2Decode /DecodeParms 8 0 R /Width 1 /Height 1 /Length " . strlen($jbig2Noise) . " >>\nstream\n{$jbig2Noise}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /JBIG2Globals 9 0 R >>\nendobj\n"
+            . "9 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+            . "%%EOF";
+
+        $fallbackVisible = 'BT /F1 12 Tf 72 720 Td (Fallback JPX Visible) Tj ET';
+        $stackedNoise = 'BT /F1 12 Tf 72 704 Td (Stacked JPX Noise) Tj ET';
+        $stackedEncodedNoise = strtoupper(bin2hex($stackedNoise)) . '>';
+        $fallbackPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Length " . strlen($fallbackVisible) . " >>\nstream\n{$fallbackVisible}\nendstream\nendobj\n"
+            . "2 0 obj\n<< /Filter /JBIG2Decode /Length " . strlen($jbig2Noise) . " >>\nstream\n{$jbig2Noise}\nendstream\nendobj\n"
+            . "3 0 obj\n<< /Filter [ /ASCIIHexDecode /JPXDecode ] /Length " . strlen($stackedEncodedNoise) . " >>\nstream\n{$stackedEncodedNoise}\nendstream\nendobj\n"
+            . "%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $pageText = $extractor->extractPlainText($pagePdf);
+        $fallbackText = $extractor->extractPlainText($fallbackPdf);
+
+        $t->same("JPX JBIG2 Boundary\nNative Import", $pageText);
+        $t->same(['JPX JBIG2 Boundary', 'Native Import'], $extractor->extractTextRuns($pagePdf));
+        $t->same("JPX JBIG2 Boundary\nNative Import\n", $extractor->naiveGetText($pagePdf));
+        $t->true(!str_contains($pageText, 'Raster JPX Noise'));
+        $t->true(!str_contains($pageText, 'Raster JBIG2 Noise'));
+        $t->same('Fallback JPX Visible', $fallbackText);
+        $t->same(['Fallback JPX Visible'], $extractor->extractTextRuns($fallbackPdf));
+        $t->true(!str_contains($fallbackText, 'Raster JBIG2 Noise'));
+        $t->true(!str_contains($fallbackText, 'Stacked JPX Noise'));
+    },
     'resolves indirect stream filters and benign DecodeParms for WordPress extraction' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Indirect Filter Import) Tj T* (DecodeParms Predictor One) Tj ET';
         $compressed = gzcompress($content);

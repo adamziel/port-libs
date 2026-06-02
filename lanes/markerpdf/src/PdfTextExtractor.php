@@ -1444,6 +1444,7 @@ final class PdfTextExtractor
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms),
                 'DCTDecode', 'DCT' => null,
                 'CCITTFaxDecode', 'CCF' => null,
+                'JPXDecode', 'JBIG2Decode' => null,
                 default => $stream,
             };
 
