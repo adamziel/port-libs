@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 09:48:57 UTC",
-    "sourceCommit": "570f23b80dfbdb245bfa5007fa222410c2eeed6e",
-    "sourceCommitShort": "570f23b80dfb",
+    "generated": "2026-06-02 09:52:07 UTC",
+    "sourceCommit": "d201446625b898e43cc4871608ab8946fe96498c",
+    "sourceCommitShort": "d201446625b8",
     "sourceBranch": "unknown",
-    "dashboardCommit": "570f23b80dfbdb245bfa5007fa222410c2eeed6e",
-    "dashboardCommitShort": "570f23b80dfb",
+    "dashboardCommit": "d201446625b898e43cc4871608ab8946fe96498c",
+    "dashboardCommitShort": "d201446625b8",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "310",
-            "coverage": "310 / 78 (397.4%)",
-            "mapPercent": "397.4%",
+            "mapped": "311",
+            "coverage": "311 / 78 (398.7%)",
+            "mapPercent": "398.7%",
             "unmapped": "0",
-            "php": "458 pass / 0 fail",
+            "php": "459 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Linearized incremental indirect /H hint-object boundaries are accepted on markerPDF w...",
+            "currentWork": "Movie, Sound, and Rendition annotation popup boundaries are accepted on markerPDF wit...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "570f23b"
+            "commit": "d201446"
         },
         {
             "lane": "readability",
