@@ -1377,6 +1377,48 @@ return [
         $t->same($longText, $extractor->extractPlainText($lzwPdf));
         $t->same('', $extractor->extractPlainText($invalidPdf));
     },
+    'fails closed when DecodeParms integer values are malformed or unresolved before WordPress text parsing' => static function (TestRunner $t) use ($pngPredictorEncode, $lzwLiteralEncode): void {
+        $rowOne = 'BT /F1 12 Tf 72 720 Td (Valid DecodeParms Boundary) Tj T* ';
+        $rowTwo = str_pad('(Recovered Predictor Rows) Tj ET', strlen($rowOne));
+        $predicted = $pngPredictorEncode($rowOne . $rowTwo, strlen($rowOne));
+        $validCompressed = gzcompress($predicted);
+        $t->true(is_string($validCompressed), 'Valid DecodeParms boundary fixture should compress.');
+
+        $malformedPredictorLeak = 'BT /F1 12 Tf 72 704 Td (Malformed Predictor Leak) Tj ET';
+        $malformedPredictorCompressed = gzcompress($malformedPredictorLeak);
+        $t->true(is_string($malformedPredictorCompressed), 'Malformed Predictor fixture should compress.');
+
+        $unresolvedColumnsLeak = 'BT /F1 12 Tf 72 688 Td (Unresolved Columns Leak) Tj ET';
+        $unresolvedColumnsCompressed = gzcompress($unresolvedColumnsLeak);
+        $t->true(is_string($unresolvedColumnsCompressed), 'Unresolved Columns fixture should compress.');
+
+        $unresolvedEarlyChangeLeak = 'BT /F1 12 Tf 72 672 Td (Unresolved EarlyChange Leak) Tj ET';
+        $unresolvedEarlyChangeEncoded = $lzwLiteralEncode($unresolvedEarlyChangeLeak);
+
+        $visibleAfter = 'BT /F1 12 Tf 72 656 Td (Visible After DecodeParms Boundary) Tj ET';
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 5 0 R 6 0 R 7 0 R 8 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 12 /Columns " . strlen($rowOne) . " >> /Length " . strlen($validCompressed) . " >>\nstream\n{$validCompressed}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor /Twelve >> /Length " . strlen($malformedPredictorCompressed) . " >>\nstream\n{$malformedPredictorCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Columns 99 0 R >> /Length " . strlen($unresolvedColumnsCompressed) . " >>\nstream\n{$unresolvedColumnsCompressed}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Filter /LZWDecode /DecodeParms << /EarlyChange 99 0 R >> /Length " . strlen($unresolvedEarlyChangeEncoded) . " >>\nstream\n{$unresolvedEarlyChangeEncoded}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+            . "%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $text = $extractor->extractPlainText($pdf);
+
+        $t->same("Valid DecodeParms Boundary\nRecovered Predictor Rows\nVisible After DecodeParms Boundary", $text);
+        $t->same(['Valid DecodeParms Boundary', 'Recovered Predictor Rows', 'Visible After DecodeParms Boundary'], $extractor->extractTextLines($pdf));
+        $t->same(['Valid DecodeParms Boundary', 'Recovered Predictor Rows', 'Visible After DecodeParms Boundary'], $extractor->extractTextRuns($pdf));
+        $t->same("Valid DecodeParms Boundary\nRecovered Predictor Rows\nVisible After DecodeParms Boundary\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($text, 'Malformed Predictor Leak'));
+        $t->true(!str_contains($text, 'Unresolved Columns Leak'));
+        $t->true(!str_contains($text, 'Unresolved EarlyChange Leak'));
+    },
     'uses ToUnicode CMap codespacerange widths for variable-length WordPress text' => static function (TestRunner $t): void {
         $content = 'BT /Fcid 12 Tf 72 720 Td <8141208142> Tj ET';
         $cmap = "/CIDInit /ProcSet findresource begin\n"

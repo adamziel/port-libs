@@ -4537,6 +4537,15 @@ final class PdfTextExtractor
             return true;
         }
 
+        foreach (['Predictor', 'Columns', 'Colors', 'BitsPerComponent', 'EarlyChange'] as $name) {
+            if (
+                $this->decodeParmsHasName($decodeParms, $name)
+                && $this->decodeParmsInt($decodeParms, $name, $objects) === null
+            ) {
+                return false;
+            }
+        }
+
         $predictor = $this->decodeParmsInt($decodeParms, 'Predictor', $objects);
         if (
             $predictor !== null
@@ -4544,6 +4553,13 @@ final class PdfTextExtractor
             && !in_array($filter, ['FlateDecode', 'Fl', 'LZWDecode', 'LZW'], true)
         ) {
             return false;
+        }
+
+        foreach (['Columns', 'Colors', 'BitsPerComponent'] as $name) {
+            $value = $this->decodeParmsInt($decodeParms, $name, $objects);
+            if ($value !== null && $value < 1) {
+                return false;
+            }
         }
 
         $earlyChange = $this->decodeParmsInt($decodeParms, 'EarlyChange', $objects);
@@ -4556,6 +4572,11 @@ final class PdfTextExtractor
         }
 
         return true;
+    }
+
+    private function decodeParmsHasName(?string $decodeParms, string $name): bool
+    {
+        return $decodeParms !== null && $this->nameValueOffset($decodeParms, $name) !== null;
     }
 
     private function decodeAsciiHexStream(string $stream): ?string
