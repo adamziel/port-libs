@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 23:00:50 UTC",
-    "sourceCommit": "aa4a665e727e471deb1519b9f96c946744418767",
-    "sourceCommitShort": "aa4a665e727e",
+    "generated": "2026-06-02 23:03:55 UTC",
+    "sourceCommit": "eaee97af1b7d69c5ad4da1e1c8c438c0df2321b1",
+    "sourceCommitShort": "eaee97af1b7d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "aa4a665e727e471deb1519b9f96c946744418767",
-    "dashboardCommitShort": "aa4a665e727e",
+    "dashboardCommit": "eaee97af1b7d69c5ad4da1e1c8c438c0df2321b1",
+    "dashboardCommitShort": "eaee97af1b7d",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "664",
-            "coverage": "664 / 78 (851.3%)",
-            "mapPercent": "851.3%",
+            "mapped": "671",
+            "coverage": "671 / 78 (860.3%)",
+            "mapPercent": "860.3%",
             "unmapped": "0",
-            "php": "945 pass / 0 fail",
+            "php": "957 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor output table-image artifact integration: ac...",
-            "currentWork": "MarkerPDF now maps Markdown table image artifact accounting for saved, embedded, miss...",
-            "nextTarget": "Keep 10-11 visible markerPDF lanes active; next score newly r...",
+            "audit": "2026-06-02 UTC supervisor seven-handoff markerPDF integration: accept...",
+            "currentWork": "MarkerPDF now maps metadata associated PieceInfo OutputIntent review, public-key DSS...",
+            "nextTarget": "Keep 10-11 visible markerPDF lanes active with auto-refill; n...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "15f1e6c"
+            "commit": "eaee97a"
         },
         {
             "lane": "readability",
