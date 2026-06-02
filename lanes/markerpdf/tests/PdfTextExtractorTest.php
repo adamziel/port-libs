@@ -2842,6 +2842,50 @@ return [
         $t->true(!str_contains($plainText, 'Parent Contents Leak'));
         $t->true(!str_contains($plainText, 'Orphan Stream Leak'));
     },
+    'keeps leaf Resources from inheriting ancestor font ToUnicode widths before WordPress text' => static function (TestRunner $t) use ($toUnicodeCMap): void {
+        $ancestorCMap = $toUnicodeCMap([
+            '41' => 'Ancestor',
+            '42' => 'Leak',
+        ]);
+        $localCMap = $toUnicodeCMap([
+            '43' => 'Local Resource',
+        ]);
+        $content = 'BT /F1 12 Tf 1 0 0 1 72 720 Tm <41> Tj 1 0 0 1 92 720 Tm <42> Tj '
+            . 'T* /F2 12 Tf <43> Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 4 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F2 6 0 R >> >> /Contents 8 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /AncestorSubset /Encoding /Identity-H /DescendantFonts [5 0 R] /ToUnicode 9 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /AncestorSubset /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 2000 /W [65 66 2000] >>\nendobj\n"
+            . "6 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /LocalSubset /Encoding /Identity-H /ToUnicode 7 0 R >>\nendobj\n"
+            . "7 0 obj\n<< /Length " . strlen($localCMap) . " >>\nstream\n{$localCMap}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($ancestorCMap) . " >>\nstream\n{$ancestorCMap}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['A B', 'Local Resource'], $extractor->extractTextLines($pdf));
+        $t->same(['A', 'B', 'Local Resource'], $extractor->extractTextRuns($pdf));
+        $t->same("A B\nLocal Resource", $plainText);
+        $t->true(!str_contains($plainText, 'Ancestor'));
+        $t->true(!str_contains($plainText, 'Leak'));
+
+        $emptyResourcePdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 4 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << >> /Contents 6 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /AncestorSubset /Encoding /Identity-H /DescendantFonts [5 0 R] /ToUnicode 7 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /AncestorSubset /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 2000 /W [65 66 2000] >>\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Length " . strlen($ancestorCMap) . " >>\nstream\n{$ancestorCMap}\nendstream\nendobj\n%%EOF";
+        $emptyResourceText = $extractor->extractPlainText($emptyResourcePdf);
+
+        $t->same(['A B', 'C'], $extractor->extractTextLines($emptyResourcePdf));
+        $t->same(['A', 'B', 'C'], $extractor->extractTextRuns($emptyResourcePdf));
+        $t->true(!str_contains($emptyResourceText, 'Ancestor'));
+        $t->true(!str_contains($emptyResourceText, 'Leak'));
+    },
     'extracts catalog PageLabels number tree for WordPress page boundaries' => static function (TestRunner $t): void {
         $contents = [
             10 => 'BT /F1 12 Tf 72 720 Td (Preface imported) Tj ET',

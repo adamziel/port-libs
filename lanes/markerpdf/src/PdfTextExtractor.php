@@ -5047,24 +5047,17 @@ final class PdfTextExtractor
      */
     private function pageFontToUnicodeMaps(int $pageObjectNumber, array $objects, array $fontObjectMaps): array
     {
-        $maps = [];
-        foreach (array_reverse($this->pageObjectLineage($pageObjectNumber, $objects)) as $objectNumber) {
-            $resourceDictionary = $this->resourceDictionaryBody($objects[$objectNumber], $objects);
-            if ($resourceDictionary === null) {
-                continue;
-            }
-
-            foreach ($this->fontResourceMapsFromResourceDictionary($resourceDictionary, $objects, $fontObjectMaps) as $name => $map) {
-                $maps[$name] = $map;
-            }
+        $resourceDictionary = $this->pageResourceDictionaryBody($pageObjectNumber, $objects);
+        if ($resourceDictionary !== null) {
+            return $this->fontResourceMapsFromResourceDictionary($resourceDictionary, $objects, $fontObjectMaps);
         }
 
-        if ($maps === [] && count($fontObjectMaps) === 1) {
+        if (count($fontObjectMaps) === 1) {
             $onlyMap = reset($fontObjectMaps);
             return is_array($onlyMap) ? ['' => $onlyMap] : [];
         }
 
-        return $maps;
+        return [];
     }
 
     /**
@@ -5093,6 +5086,21 @@ final class PdfTextExtractor
         }
 
         return $lineage;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pageResourceDictionaryBody(int $pageObjectNumber, array $objects): ?string
+    {
+        foreach ($this->pageObjectLineage($pageObjectNumber, $objects) as $objectNumber) {
+            $resourceDictionary = $this->resourceDictionaryBody($objects[$objectNumber], $objects);
+            if ($resourceDictionary !== null) {
+                return $resourceDictionary;
+            }
+        }
+
+        return null;
     }
 
     /**
