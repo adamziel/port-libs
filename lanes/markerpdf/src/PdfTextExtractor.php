@@ -574,6 +574,8 @@ final class PdfTextExtractor
      *     indirect_operand_count: int,
      *     xref_selected_operand_count: int,
      *     unresolved_operand_count: int,
+     *     invalid_filter_operand_count: int,
+     *     dictionary_filter_operand_count: int,
      *     entries: list<array<string, mixed>>,
      *     executes_python_or_models: false,
      *     executes_external_pdf_tools: false
@@ -589,6 +591,8 @@ final class PdfTextExtractor
             'indirect_operand_count' => 0,
             'xref_selected_operand_count' => 0,
             'unresolved_operand_count' => 0,
+            'invalid_filter_operand_count' => 0,
+            'dictionary_filter_operand_count' => 0,
             'entries' => [],
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
@@ -645,6 +649,8 @@ final class PdfTextExtractor
                 $indirectOperandCount = $this->xrefStreamIndirectOperandCount($operands);
                 $selectedOperandCount = $this->xrefStreamSelectedOperandCount($operands);
                 $unresolvedOperandCount = $this->xrefStreamUnresolvedOperandCount($operands);
+                $invalidFilterOperandCount = $this->invalidStreamFilterOperandCount($operandGroups['Filter'] ?? []);
+                $dictionaryFilterOperandCount = $this->dictionaryStreamFilterOperandCount($operandGroups['Filter'] ?? []);
                 $memberTable = $this->decodedObjectStreamMemberTable($body, $objects);
                 $filters = $this->streamFilters($dict, $objects);
                 $decodeParms = $this->streamDecodeParms($dict, $objects);
@@ -653,6 +659,8 @@ final class PdfTextExtractor
                 $review['indirect_operand_count'] += $indirectOperandCount;
                 $review['xref_selected_operand_count'] += $selectedOperandCount;
                 $review['unresolved_operand_count'] += $unresolvedOperandCount;
+                $review['invalid_filter_operand_count'] += $invalidFilterOperandCount;
+                $review['dictionary_filter_operand_count'] += $dictionaryFilterOperandCount;
                 $review['entries'][] = [
                     'object_number' => $definition['objectNumber'],
                     'generation' => $definition['generation'],
@@ -667,6 +675,13 @@ final class PdfTextExtractor
                     'filters' => $filters ?? [],
                     'filter_resolution_failed' => $filters === null,
                     'decodeparms_resolution_failed' => $decodeParms === null,
+                    'invalid_filter_operand_count' => $invalidFilterOperandCount,
+                    'dictionary_filter_operand_count' => $dictionaryFilterOperandCount,
+                    'filter_operand_policy' => $this->streamFilterOperandPolicy(
+                        $filters,
+                        $invalidFilterOperandCount,
+                        $dictionaryFilterOperandCount
+                    ),
                     'decoded_member_count' => $memberTable === null ? 0 : count($memberTable['members']),
                     'decoded_with_current_operands' => $memberTable !== null && $unresolvedOperandCount === 0,
                     'owner_policy' => $this->xrefStreamOperandOwnerPolicy($selectedOperandCount, $unresolvedOperandCount, $operands),
@@ -11496,6 +11511,73 @@ final class PdfTextExtractor
         }
 
         return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $operands
+     */
+    private function invalidStreamFilterOperandCount(array $operands): int
+    {
+        $count = 0;
+        foreach ($operands as $operand) {
+            if (
+                ($operand['kind'] ?? null) !== 'direct'
+                && (($operand['resolved'] ?? false) !== true || ($operand['xref_selected'] ?? false) !== true)
+            ) {
+                $count++;
+                continue;
+            }
+
+            if ($this->streamFilterOperandIsDictionary($operand)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $operands
+     */
+    private function dictionaryStreamFilterOperandCount(array $operands): int
+    {
+        $count = 0;
+        foreach ($operands as $operand) {
+            if ($this->streamFilterOperandIsDictionary($operand)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array<string, mixed> $operand
+     */
+    private function streamFilterOperandIsDictionary(array $operand): bool
+    {
+        $preview = $operand['value_preview'] ?? $operand['value'] ?? null;
+        return is_string($preview) && str_starts_with(ltrim($preview), '<<');
+    }
+
+    /**
+     * @param list<string|null>|null $filters
+     */
+    private function streamFilterOperandPolicy(?array $filters, int $invalidCount, int $dictionaryCount): string
+    {
+        if ($dictionaryCount > 0) {
+            return 'reject_dictionary_filter_operands';
+        }
+
+        if ($invalidCount > 0) {
+            return 'reject_unresolved_filter_operands';
+        }
+
+        if ($filters === null) {
+            return 'filter_resolution_failed';
+        }
+
+        return 'filters_resolved';
     }
 
     /**

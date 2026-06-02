@@ -96,6 +96,89 @@ final class PdfActionReviewExtractor
     }
 
     /**
+     * @param list<array<string, mixed>> $actions
+     * @param array<string, mixed> $structureParent
+     * @return list<array<string, mixed>>
+     */
+    public static function actionsWithAnnotationStructureParentContext(
+        array $actions,
+        ?int $annotationObject,
+        int $structParent,
+        array $structureParent
+    ): array {
+        if ($actions === []) {
+            return [];
+        }
+
+        $context = self::compactAnnotationStructureParentActionContext($structureParent);
+        $associatedFiles = is_array($structureParent['associated_files'] ?? null)
+            ? array_values($structureParent['associated_files'])
+            : [];
+        $associatedFileCount = is_int($structureParent['associated_file_count'] ?? null)
+            ? $structureParent['associated_file_count']
+            : count($associatedFiles);
+
+        return array_map(
+            static function (array $action) use (
+                $annotationObject,
+                $structParent,
+                $context,
+                $associatedFiles,
+                $associatedFileCount
+            ): array {
+                $action['source_annotation_object'] = $annotationObject;
+                $action['annotation_struct_parent'] = $structParent;
+                $action['annotation_structure_parent'] = $context;
+                if ($associatedFileCount > 0) {
+                    $action['annotation_associated_file_count'] = $associatedFileCount;
+                    $action['annotation_associated_files'] = $associatedFiles;
+                }
+
+                return $action;
+            },
+            $actions
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $structureParent
+     * @return array<string, mixed>
+     */
+    private static function compactAnnotationStructureParentActionContext(array $structureParent): array
+    {
+        $context = [];
+        foreach ([
+            'source',
+            'key',
+            'struct_object',
+            'annotation_object',
+            'raw_role',
+            'role',
+            'role_mapped',
+            'title',
+            'language',
+            'language_inherited',
+            'alternate_text',
+            'actual_text',
+            'expansion_text',
+            'id',
+            'classes',
+            'associated_file_count',
+            'associated_files',
+            'current_annotation_object_ref_matched',
+            'current_page_annotation',
+            'review_only',
+            'visible_text_source',
+        ] as $key) {
+            if (array_key_exists($key, $structureParent)) {
+                $context[$key] = $structureParent[$key];
+            }
+        }
+
+        return array_filter($context, static fn (mixed $value): bool => $value !== null && $value !== []);
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     private function additionalActionMetadata(mixed $value): array

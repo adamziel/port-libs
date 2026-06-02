@@ -416,11 +416,151 @@ final class SuppliedDocumentConverter
             if (($contextReview['has_section'] ?? false) === true && isset($contextReview['section']) && is_array($contextReview['section'])) {
                 $contextReview['section']['review_target'] = 'table_span_grid';
             }
+            $contextReview['accessibility'] = $this->tableAccessibilityReview($contextReview, $gridReview, $tableIndex);
+            if (($contextReview['caption'] ?? null) !== null && is_array($contextReview['caption']) && ($contextReview['accessibility']['caption_id'] ?? null) !== null) {
+                $contextReview['caption']['caption_id'] = $contextReview['accessibility']['caption_id'];
+                $contextReview['caption']['describes_table_id'] = $contextReview['accessibility']['table_id'];
+            }
+            if (($contextReview['section'] ?? null) !== null && is_array($contextReview['section']) && ($contextReview['accessibility']['section_id'] ?? null) !== null) {
+                $contextReview['section']['section_id'] = $contextReview['accessibility']['section_id'];
+                $contextReview['section']['labels_table_id'] = $contextReview['accessibility']['table_id'];
+            }
 
             $reviews[] = $contextReview;
         }
 
         return $reviews;
+    }
+
+    /**
+     * @param array<string, mixed> $contextReview
+     * @param array<string, mixed> $gridReview
+     * @return array<string, mixed>
+     */
+    private function tableAccessibilityReview(array $contextReview, array $gridReview, int $tableIndex): array
+    {
+        $tableId = 'markerpdf-table-' . $tableIndex;
+        $caption = isset($contextReview['caption']) && is_array($contextReview['caption']) ? $contextReview['caption'] : [];
+        $section = isset($contextReview['section']) && is_array($contextReview['section']) ? $contextReview['section'] : [];
+        $captionText = trim((string) ($caption['text'] ?? ''));
+        $sectionText = trim((string) ($section['text'] ?? ''));
+        $captionId = $captionText === '' ? null : $tableId . '-caption';
+        $sectionId = $sectionText === '' ? null : $tableId . '-section';
+
+        $headerCells = isset($gridReview['header_cells']) && is_array($gridReview['header_cells'])
+            ? array_values(array_filter($gridReview['header_cells'], static fn (mixed $cell): bool => is_array($cell)))
+            : [];
+        $dataCells = isset($gridReview['data_cells']) && is_array($gridReview['data_cells'])
+            ? array_values(array_filter($gridReview['data_cells'], static fn (mixed $cell): bool => is_array($cell)))
+            : [];
+        $renderCells = isset($gridReview['render_cells']) && is_array($gridReview['render_cells'])
+            ? array_values(array_filter($gridReview['render_cells'], static fn (mixed $cell): bool => is_array($cell)))
+            : [];
+
+        $rowspanCells = [];
+        $colspanCells = [];
+        foreach ($renderCells as $renderCell) {
+            $rowspan = (int) ($renderCell['rowspan'] ?? 1);
+            $colspan = (int) ($renderCell['colspan'] ?? 1);
+            if ($rowspan <= 1 && $colspan <= 1) {
+                continue;
+            }
+
+            $summary = [
+                'text' => (string) ($renderCell['text'] ?? ''),
+                'row_ids' => $this->integerValues($renderCell['row_ids'] ?? []),
+                'col_ids' => $this->integerValues($renderCell['col_ids'] ?? []),
+                'anchor' => $renderCell['anchor'] ?? null,
+                'rowspan' => $rowspan,
+                'colspan' => $colspan,
+                'tag' => (string) ($renderCell['tag'] ?? 'td'),
+                'scope' => $renderCell['scope'] ?? null,
+                'header_id' => $renderCell['header_id'] ?? null,
+                'headers' => $this->stringValues($renderCell['headers'] ?? []),
+            ];
+            if ($rowspan > 1) {
+                $rowspanCells[] = $summary;
+            }
+            if ($colspan > 1) {
+                $colspanCells[] = $summary;
+            }
+        }
+
+        $dataCellHeaders = [];
+        foreach ($dataCells as $dataCell) {
+            $entry = [
+                'render_cell_index' => (int) ($dataCell['render_cell_index'] ?? 0),
+                'text' => (string) ($dataCell['text'] ?? ''),
+                'row_ids' => $this->integerValues($dataCell['row_ids'] ?? []),
+                'col_ids' => $this->integerValues($dataCell['col_ids'] ?? []),
+                'anchor' => $dataCell['anchor'] ?? null,
+                'headers' => $this->stringValues($dataCell['headers'] ?? []),
+                'column_header_ids' => $this->stringValues($dataCell['column_header_ids'] ?? []),
+                'row_header_ids' => $this->stringValues($dataCell['row_header_ids'] ?? []),
+                'header_texts' => $this->stringValues($dataCell['header_texts'] ?? []),
+                'header_text' => (string) ($dataCell['header_text'] ?? ''),
+                'caption_id' => $captionId,
+            ];
+            $dataCellHeaders[] = $entry;
+        }
+
+        return [
+            'review_target' => 'table_span_grid_accessibility',
+            'table_id' => $tableId,
+            'caption_id' => $captionId,
+            'section_id' => $sectionId,
+            'caption_text' => $captionText,
+            'caption_position' => $caption['position'] ?? null,
+            'section_text' => $sectionText,
+            'aria_describedby' => $captionId === null ? [] : [$captionId],
+            'aria_labelledby' => $sectionId === null ? [] : [$sectionId],
+            'header_ids' => $this->stringValues(array_map(static fn (array $cell): mixed => $cell['header_id'] ?? null, $headerCells)),
+            'data_cell_headers' => $dataCellHeaders,
+            'rowspan_cells' => $rowspanCells,
+            'colspan_cells' => $colspanCells,
+            'rowspan_cell_count' => count($rowspanCells),
+            'colspan_cell_count' => count($colspanCells),
+            'data_cell_count' => count($dataCellHeaders),
+            'accessible_caption_bound' => $captionId !== null,
+        ];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function integerValues(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($values as $value) {
+            if (is_int($value) || is_float($value) || (is_string($value) && preg_match('/^-?\d+$/', $value) === 1)) {
+                $out[] = (int) $value;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringValues(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($values as $value) {
+            if (is_scalar($value) && (string) $value !== '') {
+                $out[] = (string) $value;
+            }
+        }
+
+        return array_values(array_unique($out));
     }
 
     /**

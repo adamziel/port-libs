@@ -206,6 +206,18 @@ final class PdfAnnotationExtractor
                 $structureParent['field_chain'] = $inheritedStructParent['field_chain'];
             }
             $row['structure_parent'] = $structureParent;
+            $row['actions'] = PdfActionReviewExtractor::actionsWithAnnotationStructureParentContext(
+                $row['actions'],
+                $record['object'],
+                $structParent,
+                $structureParent
+            );
+            $row['additional_actions'] = PdfActionReviewExtractor::actionsWithAnnotationStructureParentContext(
+                $row['additional_actions'],
+                $record['object'],
+                $structParent,
+                $structureParent
+            );
         }
 
         $appearance = $this->appearanceFromAnnotation($body, $objects);

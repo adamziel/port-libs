@@ -2272,6 +2272,16 @@ final class PdfMetadataExtractor
             }
         }
 
+        $metadataReview = $this->associatedFileMetadataStreamProvenance($entries['Metadata'] ?? null, $objects);
+        if ($metadataReview !== []) {
+            $review['metadata_review'] = $metadataReview;
+        }
+
+        $outputIntentsReview = $this->associatedFileOutputIntentProvenance($entries['OutputIntents'] ?? null, $objects);
+        if ($outputIntentsReview !== []) {
+            $review['output_intents_review'] = $outputIntentsReview;
+        }
+
         return $review;
     }
 
@@ -2284,11 +2294,21 @@ final class PdfMetadataExtractor
         $objectNumber = $this->objectNumberFromReference($value);
         if ($objectNumber !== null) {
             $stream = isset($objects[$objectNumber]) ? $this->decodeStreamEntryObject($objects[$objectNumber], $objects) : null;
-            return [
+            $review = [
                 'source_type' => $stream === null ? 'object' : 'stream',
                 'object' => $objectNumber,
                 'payload_included' => false,
             ];
+            if ($stream !== null) {
+                $review['bytes'] = strlen($stream['content']);
+                $review['sha256'] = hash('sha256', $stream['content']);
+                $filters = $this->streamFilters($stream['dictionary'], $objects);
+                if ($filters !== []) {
+                    $review['filters'] = $filters;
+                }
+            }
+
+            return $review;
         }
 
         $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
@@ -4429,21 +4449,171 @@ final class PdfMetadataExtractor
      */
     private function directObjectDefinitions(string $pdfBytes): array
     {
-        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
-            return [];
-        }
-
         $definitions = [];
-        foreach ($matches as $match) {
+        $offset = 0;
+        while (preg_match('/(\d+)\s+(\d+)\s+obj\b/s', $pdfBytes, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $bodyStart = $match[0][1] + strlen($match[0][0]);
+            $bodyEnd = $this->pdfObjectEndOffset($pdfBytes, $bodyStart);
+            if ($bodyEnd === null) {
+                break;
+            }
+
             $definitions[(int) $match[1][0]][] = [
                 'generation' => (int) $match[2][0],
                 'offset' => $match[1][1],
-                'body' => $match[3][0],
+                'body' => substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart),
             ];
+            $offset = $bodyEnd + strlen('endobj');
         }
 
         ksort($definitions, SORT_NUMERIC);
         return $definitions;
+    }
+
+    private function pdfObjectEndOffset(string $pdfBytes, int $offset): ?int
+    {
+        $objectBodyStart = $offset;
+        $index = $offset;
+        $length = strlen($pdfBytes);
+        while ($index < $length) {
+            $char = $pdfBytes[$index];
+            if ($char === '%') {
+                $index = $this->lineCommentEndOffset($pdfBytes, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $index = $this->literalTokenEndOffset($pdfBytes, $index);
+                continue;
+            }
+
+            if ($char === '<') {
+                if ($index + 1 < $length && $pdfBytes[$index + 1] === '<') {
+                    $dictionary = $this->readPdfDictionaryAt($pdfBytes, $index);
+                    if ($dictionary !== null) {
+                        $index += strlen($dictionary) + 4;
+                        continue;
+                    }
+                } else {
+                    $hexEnd = strpos($pdfBytes, '>', $index + 1);
+                    if ($hexEnd !== false) {
+                        $index = $hexEnd + 1;
+                        continue;
+                    }
+                }
+            }
+
+            if ($char === '[') {
+                $array = $this->readPdfArrayAt($pdfBytes, $index);
+                if ($array !== null) {
+                    $index += strlen($array);
+                    continue;
+                }
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $index, 'stream')) {
+                $streamEnd = $this->directObjectStreamEndOffset($pdfBytes, $objectBodyStart, $index);
+                if ($streamEnd !== null) {
+                    $index = $streamEnd + strlen('endstream');
+                    continue;
+                }
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $index, 'endobj')) {
+                return $index;
+            }
+
+            $index++;
+        }
+
+        return null;
+    }
+
+    private function directObjectStreamEndOffset(string $pdfBytes, int $objectBodyStart, int $streamKeywordOffset): ?int
+    {
+        $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $objectBodyStart);
+        $dictionary = $this->readPdfDictionaryAt($pdfBytes, $dictionaryOffset);
+        if ($dictionary === null) {
+            return null;
+        }
+
+        if ($this->skipPdfWhitespace($pdfBytes, $dictionaryOffset + strlen($dictionary) + 4) !== $streamKeywordOffset) {
+            return null;
+        }
+
+        $streamStart = $streamKeywordOffset + strlen('stream');
+        if (substr($pdfBytes, $streamStart, 2) === "\r\n") {
+            $streamStart += 2;
+        } elseif (($pdfBytes[$streamStart] ?? '') === "\n" || ($pdfBytes[$streamStart] ?? '') === "\r") {
+            $streamStart++;
+        }
+
+        $lengthValue = $this->dictionaryTopLevelRawValue($dictionary, 'Length');
+        if ($lengthValue !== null && preg_match('/^[+-]?\d+$/', trim($lengthValue)) === 1) {
+            $declaredEnd = $streamStart + max(0, (int) trim($lengthValue));
+            if ($declaredEnd <= strlen($pdfBytes)) {
+                return $this->streamLengthTerminatorOffset($pdfBytes, $declaredEnd)
+                    ?? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd);
+            }
+        }
+
+        return $this->filteredEndstreamTerminatorOffset($pdfBytes, $streamStart, $dictionary, [])
+            ?? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, null);
+    }
+
+    private function lineCommentEndOffset(string $value, int $offset): int
+    {
+        $end = strcspn($value, "\r\n", $offset);
+        return $offset + $end;
+    }
+
+    private function literalTokenEndOffset(string $value, int $offset): int
+    {
+        $depth = 0;
+        for ($index = $offset, $length = strlen($value); $index < $length; $index++) {
+            $char = $value[$index];
+            if ($char === '\\') {
+                $index++;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth--;
+                if ($depth <= 0) {
+                    return $index + 1;
+                }
+            }
+        }
+
+        return strlen($value);
+    }
+
+    private function pdfKeywordAt(string $value, int $offset, string $keyword): bool
+    {
+        $keywordLength = strlen($keyword);
+        if (substr($value, $offset, $keywordLength) !== $keyword) {
+            return false;
+        }
+
+        if ($offset > 0) {
+            $before = $value[$offset - 1];
+            if ($before === '/' || (!ctype_space($before) && !str_contains('[]()<>{}%', $before))) {
+                return false;
+            }
+        }
+
+        $afterOffset = $offset + $keywordLength;
+        if ($afterOffset >= strlen($value)) {
+            return true;
+        }
+
+        $after = $value[$afterOffset];
+        return ctype_space($after) || str_contains('[]()<>{}/%', $after);
     }
 
     /**
@@ -5020,15 +5190,183 @@ final class PdfMetadataExtractor
      */
     private function decodeStreamEntryObject(string $objectBody, array $objects): ?array
     {
-        if (!preg_match('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $objectBody, $match)) {
+        $dictionaryOffset = $this->skipPdfWhitespace($objectBody, 0);
+        $dictionary = $this->readPdfDictionaryAt($objectBody, $dictionaryOffset);
+        if ($dictionary === null) {
             return null;
         }
 
-        $content = $this->decodeStream($match[1], $match[2], $objects);
+        $streamKeywordOffset = $this->skipPdfWhitespace($objectBody, $dictionaryOffset + strlen($dictionary) + 4);
+        if (!$this->pdfKeywordAt($objectBody, $streamKeywordOffset, 'stream')) {
+            return null;
+        }
+
+        $streamStart = $streamKeywordOffset + strlen('stream');
+        if (substr($objectBody, $streamStart, 2) === "\r\n") {
+            $streamStart += 2;
+        } elseif (($objectBody[$streamStart] ?? '') === "\n" || ($objectBody[$streamStart] ?? '') === "\r") {
+            $streamStart++;
+        }
+
+        $streamEnd = $this->streamPayloadEndOffset($objectBody, $streamStart, $dictionary, $objects);
+        if ($streamEnd === null || $streamEnd < $streamStart) {
+            return null;
+        }
+
+        $stream = $this->stripStreamTerminatingLineEnding(substr($objectBody, $streamStart, $streamEnd - $streamStart));
+        $content = $this->decodeStream($dictionary, $stream, $objects);
         return $content === null ? null : [
-            'dictionary' => $match[1],
+            'dictionary' => $dictionary,
             'content' => $content,
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamPayloadEndOffset(string $value, int $streamStart, string $dictionary, array $objects): ?int
+    {
+        $length = $this->streamLength($dictionary, $objects);
+        if ($length !== null) {
+            $declaredEnd = $streamStart + $length;
+            if ($length >= 0 && $declaredEnd <= strlen($value)) {
+                return $this->streamLengthTerminatorOffset($value, $declaredEnd)
+                    ?? $this->endstreamTerminatorOffset($value, $streamStart, $declaredEnd)
+                    ?? $declaredEnd;
+            }
+        }
+
+        return $this->filteredEndstreamTerminatorOffset($value, $streamStart, $dictionary, $objects)
+            ?? $this->endstreamTerminatorOffset($value, $streamStart, null);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamLength(string $dictionary, array $objects): ?int
+    {
+        $value = $this->dictionaryTopLevelRawValue($dictionary, 'Length');
+        if ($value === null) {
+            return null;
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        if (preg_match('/^[+-]?\d+$/', $resolved) !== 1) {
+            return null;
+        }
+
+        $length = (int) $resolved;
+        return $length < 0 ? null : $length;
+    }
+
+    private function streamLengthTerminatorOffset(string $value, int $declaredEnd): ?int
+    {
+        $offset = $declaredEnd;
+        if (substr($value, $offset, 2) === "\r\n") {
+            $offset += 2;
+        } elseif (($value[$offset] ?? '') === "\n" || ($value[$offset] ?? '') === "\r") {
+            $offset++;
+        }
+
+        return $this->endstreamKeywordAt($value, $offset) ? $offset : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function filteredEndstreamTerminatorOffset(string $value, int $streamStart, string $dictionary, array $objects): ?int
+    {
+        if (!$this->hasVerifiableStreamFilter($this->streamFilters($dictionary, $objects))) {
+            return null;
+        }
+
+        $offset = $streamStart;
+        while (($candidate = strpos($value, 'endstream', $offset)) !== false) {
+            $offset = $candidate + strlen('endstream');
+            if (!$this->endstreamTerminatorAt($value, $candidate, $streamStart)) {
+                continue;
+            }
+
+            $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $candidate - $streamStart));
+            if ($this->decodeStream($dictionary, $payload, $objects) !== null) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $filters
+     */
+    private function hasVerifiableStreamFilter(array $filters): bool
+    {
+        foreach ($filters as $filter) {
+            if (in_array($filter, ['ASCIIHexDecode', 'AHx', 'FlateDecode', 'Fl'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function endstreamTerminatorOffset(string $value, int $streamStart, ?int $declaredEnd): ?int
+    {
+        $fallback = null;
+        $beforeDeclaredEnd = null;
+        $offset = $streamStart;
+        while (($candidate = strpos($value, 'endstream', $offset)) !== false) {
+            $fallback ??= $candidate;
+            $offset = $candidate + strlen('endstream');
+            if (!$this->endstreamTerminatorAt($value, $candidate, $streamStart)) {
+                continue;
+            }
+
+            if ($declaredEnd === null || $candidate >= $declaredEnd) {
+                return $candidate;
+            }
+
+            $beforeDeclaredEnd = $candidate;
+        }
+
+        return $beforeDeclaredEnd ?? $fallback;
+    }
+
+    private function endstreamTerminatorAt(string $value, int $offset, int $streamStart): bool
+    {
+        if (!$this->endstreamKeywordAt($value, $offset)) {
+            return false;
+        }
+
+        if ($offset <= $streamStart) {
+            return true;
+        }
+
+        $previous = $value[$offset - 1] ?? '';
+        return $previous === "\n" || $previous === "\r";
+    }
+
+    private function endstreamKeywordAt(string $value, int $offset): bool
+    {
+        if (substr($value, $offset, strlen('endstream')) !== 'endstream') {
+            return false;
+        }
+
+        $after = $offset + strlen('endstream');
+        return $after >= strlen($value) || ctype_space($value[$after]);
+    }
+
+    private function stripStreamTerminatingLineEnding(string $stream): string
+    {
+        if (str_ends_with($stream, "\r\n")) {
+            return substr($stream, 0, -2);
+        }
+
+        if (str_ends_with($stream, "\n") || str_ends_with($stream, "\r")) {
+            return substr($stream, 0, -1);
+        }
+
+        return $stream;
     }
 
     /**

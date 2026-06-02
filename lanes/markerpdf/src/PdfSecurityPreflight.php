@@ -23,6 +23,7 @@ final class PdfSecurityPreflight
         $objectSpans = $this->pdfObjectByteSpans($pdfBytes);
         $signatureByteRangeRevisionReview = $this->signatureByteRangeRevisionReview($signatures);
         $documentSecurityStoreSignatureReview = $this->documentSecurityStoreSignatureReview($documentSecurityStore, $signatures, $objectSpans);
+        $documentSecurityStoreSignatureReferenceTransformReview = $this->documentSecurityStoreSignatureReferenceTransformReview($documentSecurityStoreSignatureReview);
         $documentActionReview = $this->documentActionSecurityReview(
             $pdfBytes,
             $signatures,
@@ -104,6 +105,9 @@ final class PdfSecurityPreflight
             'document_security_store_signature_review' => $documentSecurityStoreSignatureReview,
             'document_security_store_signature_match_count' => (int) $documentSecurityStoreSignatureReview['signature_vri_match_count'],
             'document_security_store_unmatched_vri_count' => (int) $documentSecurityStoreSignatureReview['unmatched_vri_count'],
+            'document_security_store_signature_reference_transform_review' => $documentSecurityStoreSignatureReferenceTransformReview,
+            'document_security_store_signature_reference_transform_count' => (int) $documentSecurityStoreSignatureReferenceTransformReview['signature_reference_transform_count'],
+            'document_security_store_signature_reference_transform_methods' => $documentSecurityStoreSignatureReferenceTransformReview['signature_reference_transform_methods'],
             'document_security_store_vri_revision_review_count' => (int) $documentSecurityStoreSignatureReview['vri_revision_review_count'],
             'document_security_store_vri_after_signed_revision_count' => (int) $documentSecurityStoreSignatureReview['vri_after_signed_revision_count'],
             'document_security_store_vri_revision_statuses' => $documentSecurityStoreSignatureReview['vri_revision_statuses'],
@@ -2333,6 +2337,7 @@ final class PdfSecurityPreflight
             }
             $revisionReviews = $this->dssVriRevisionCoverageReviews($vri, $matches, $objectSpans);
             $revisionStatus = $this->dssVriRevisionStatus($revisionReviews, $matches);
+            $referenceTransformRows = $this->dssSignatureReferenceTransformRows($matches);
 
             $rows[] = [
                 'source' => 'dss_vri_signature_digest_review',
@@ -2344,6 +2349,9 @@ final class PdfSecurityPreflight
                 'matched_signature_count' => count($matches),
                 'matched_signature_objects' => $this->signatureMatchIntegers($matches, 'signature_object'),
                 'matched_field_names' => $this->signatureMatchStrings($matches, 'field_name'),
+                'signature_reference_transform_count' => count($referenceTransformRows),
+                'signature_reference_transform_methods' => $this->uniqueStringColumn($referenceTransformRows, 'transform_method'),
+                'signature_reference_transform_rows' => $referenceTransformRows,
                 'vri_revision_status' => $revisionStatus,
                 'vri_in_signed_revision' => $revisionStatus === 'vri_covered_by_signed_revision',
                 'vri_after_signed_revision' => $revisionStatus === 'vri_after_signed_revision',
@@ -2390,6 +2398,15 @@ final class PdfSecurityPreflight
             'matched_field_names' => $this->uniqueStringsFromRows($matchedRows, 'matched_field_names'),
             'unmatched_vri_keys' => $this->uniqueStringColumn($unmatchedRows, 'key'),
             'vri_match_statuses' => $this->uniqueStringColumn($rows, 'match_status'),
+            'vri_with_reference_transform_count' => count(array_filter(
+                $rows,
+                static fn (array $row): bool => (int) ($row['signature_reference_transform_count'] ?? 0) > 0
+            )),
+            'signature_reference_transform_count' => array_sum(array_map(
+                static fn (array $row): int => (int) ($row['signature_reference_transform_count'] ?? 0),
+                $rows
+            )),
+            'signature_reference_transform_methods' => $this->uniqueStringsFromRows($rows, 'signature_reference_transform_methods'),
             'vri_revision_review_count' => count(array_filter(
                 $rows,
                 static fn (array $row): bool => (int) ($row['revision_coverage_review_count'] ?? 0) > 0
@@ -2411,6 +2428,174 @@ final class PdfSecurityPreflight
             'raw_signature_contents_exposed' => false,
             'raw_validation_bytes_exposed' => false,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $documentSecurityStoreSignatureReview
+     * @return array<string, mixed>
+     */
+    private function documentSecurityStoreSignatureReferenceTransformReview(array $documentSecurityStoreSignatureReview): array
+    {
+        $vriRows = array_values(array_filter(
+            $documentSecurityStoreSignatureReview['vri_signature_rows'] ?? [],
+            static fn (mixed $row): bool => is_array($row)
+        ));
+        $rows = [];
+        foreach ($vriRows as $vriRow) {
+            foreach ($vriRow['signature_reference_transform_rows'] ?? [] as $row) {
+                if (is_array($row)) {
+                    $rows[] = $row + [
+                        'vri_key' => is_string($vriRow['key'] ?? null) ? $vriRow['key'] : null,
+                        'vri_object_number' => is_int($vriRow['vri_object_number'] ?? null) ? $vriRow['vri_object_number'] : null,
+                    ];
+                }
+            }
+        }
+
+        $vriWithTransforms = array_values(array_filter(
+            $vriRows,
+            static fn (array $row): bool => (int) ($row['signature_reference_transform_count'] ?? 0) > 0
+        ));
+
+        return [
+            'source' => 'document_security_store_signature_reference_transform_review',
+            'present' => $rows !== [],
+            'vri_count' => count($vriRows),
+            'matched_vri_count' => (int) ($documentSecurityStoreSignatureReview['matched_vri_count'] ?? 0),
+            'vri_with_reference_transform_count' => count($vriWithTransforms),
+            'signature_reference_transform_count' => count($rows),
+            'signature_reference_transform_methods' => $this->uniqueStringColumn($rows, 'transform_method'),
+            'signature_reference_transform_categories' => $this->uniqueStringColumn($rows, 'transform_category'),
+            'doc_mdp_reference_transform_count' => count(array_filter(
+                $rows,
+                static fn (array $row): bool => ($row['transform_method'] ?? null) === 'DocMDP'
+            )),
+            'field_mdp_reference_transform_count' => count(array_filter(
+                $rows,
+                static fn (array $row): bool => ($row['transform_method'] ?? null) === 'FieldMDP'
+            )),
+            'usage_rights_reference_transform_count' => count(array_filter(
+                $rows,
+                static fn (array $row): bool => in_array($row['transform_method'] ?? null, ['UR', 'UR3'], true)
+            )),
+            'vri_keys' => $this->uniqueStringColumn($rows, 'vri_key'),
+            'matched_signature_objects' => $this->uniqueIntegerColumn($rows, 'signature_object'),
+            'matched_field_names' => $this->uniqueStringColumn($rows, 'field_name'),
+            'review_only' => true,
+            'executes_signature_validation' => false,
+            'executes_revocation_check' => false,
+            'executes_trust_chain_validation' => false,
+            'executes_rights_enforcement' => false,
+            'executes_signing' => false,
+            'raw_signature_contents_exposed' => false,
+            'raw_digest_values_exposed' => false,
+            'raw_validation_bytes_exposed' => false,
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $matches
+     * @return list<array<string, mixed>>
+     */
+    private function dssSignatureReferenceTransformRows(array $matches): array
+    {
+        $rows = [];
+        $seen = [];
+        foreach ($matches as $match) {
+            $signatureObject = is_int($match['signature_object'] ?? null) ? $match['signature_object'] : null;
+            foreach ($match['reference_transforms'] ?? [] as $transform) {
+                if (!is_array($transform) || !is_string($transform['transform_method'] ?? null)) {
+                    continue;
+                }
+
+                $dedupeKey = implode(':', [
+                    (string) ($signatureObject ?? 'null'),
+                    (string) ($match['digest_algorithm'] ?? 'unknown'),
+                    (string) ($transform['object'] ?? 'direct'),
+                    $transform['transform_method'],
+                ]);
+                if (isset($seen[$dedupeKey])) {
+                    continue;
+                }
+                $seen[$dedupeKey] = true;
+                $rows[] = $this->dssSignatureReferenceTransformRow($match, $transform);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string, mixed> $match
+     * @param array<string, mixed> $transform
+     * @return array<string, mixed>
+     */
+    private function dssSignatureReferenceTransformRow(array $match, array $transform): array
+    {
+        $method = is_string($transform['transform_method'] ?? null) ? $transform['transform_method'] : null;
+        $row = [
+            'source' => 'dss_signature_reference_transform_review_row',
+            'field_name' => is_string($match['field_name'] ?? null) ? $match['field_name'] : null,
+            'signature_object' => is_int($match['signature_object'] ?? null) ? $match['signature_object'] : null,
+            'signature_digest_algorithm' => is_string($match['digest_algorithm'] ?? null) ? $match['digest_algorithm'] : null,
+            'transform_object' => is_int($transform['object'] ?? null) ? $transform['object'] : null,
+            'transform_type' => is_string($transform['type'] ?? null) ? $transform['type'] : null,
+            'transform_method' => $method,
+            'transform_category' => is_string($transform['transform_category'] ?? null) ? $transform['transform_category'] : 'unknown',
+            'data_object' => is_int($transform['data_object'] ?? null) ? $transform['data_object'] : null,
+            'digest_method' => is_string($transform['digest_method'] ?? null) ? $transform['digest_method'] : null,
+            'digest_value_present' => ($transform['digest_value_present'] ?? false) === true,
+            'digest_value_exposed' => false,
+            'transform_params_object' => is_int($transform['transform_params_object'] ?? null) ? $transform['transform_params_object'] : null,
+            'transform_params_type' => is_string($transform['transform_params_type'] ?? null) ? $transform['transform_params_type'] : null,
+            'transform_params_version' => is_string($transform['transform_params_version'] ?? null) ? $transform['transform_params_version'] : null,
+            'review_only' => true,
+            'cryptographic_signature_validated' => false,
+            'executes_signature_validation' => false,
+            'executes_revocation_check' => false,
+            'executes_trust_chain_validation' => false,
+            'executes_rights_enforcement' => false,
+            'executes_signing' => false,
+            'raw_signature_contents_exposed' => false,
+            'raw_digest_value_exposed' => false,
+            'raw_validation_bytes_exposed' => false,
+        ];
+
+        if ($method === 'DocMDP') {
+            $row += [
+                'permission_level' => is_int($transform['permission_level'] ?? null) ? $transform['permission_level'] : null,
+                'permission_label' => is_string($transform['permission_label'] ?? null) ? $transform['permission_label'] : null,
+                'permission_valid' => ($transform['permission_valid'] ?? false) === true,
+                'allowed_changes' => $this->stringList($transform['allowed_changes'] ?? []),
+            ];
+        } elseif ($method === 'FieldMDP') {
+            $row += [
+                'field_mdp_action' => is_string($transform['action'] ?? null) ? $transform['action'] : null,
+                'field_mdp_action_valid' => ($transform['action_valid'] ?? false) === true,
+                'field_mdp_action_label' => is_string($transform['action_label'] ?? null) ? $transform['action_label'] : null,
+                'field_mdp_field_names' => $this->stringList($transform['field_names'] ?? []),
+                'field_mdp_included_fields' => $this->stringList($transform['included_fields'] ?? []),
+                'field_mdp_excluded_fields' => $this->stringList($transform['excluded_fields'] ?? []),
+                'field_mdp_locks_all_fields' => ($transform['locks_all_fields'] ?? false) === true,
+            ];
+        } elseif ($method === 'UR' || $method === 'UR3') {
+            $rights = is_array($transform['rights'] ?? null) ? $transform['rights'] : [];
+            $row += [
+                'usage_right_categories' => $this->stringList($transform['right_categories'] ?? []),
+                'usage_right_count' => (int) ($transform['right_count'] ?? 0),
+                'usage_rights' => [
+                    'document' => $this->stringList($rights['document'] ?? []),
+                    'form' => $this->stringList($rights['form'] ?? []),
+                    'signature' => $this->stringList($rights['signature'] ?? []),
+                    'annotations' => $this->stringList($rights['annotations'] ?? []),
+                    'embedded_files' => $this->stringList($rights['embedded_files'] ?? []),
+                ],
+                'message_present' => is_string($transform['message'] ?? null) && $transform['message'] !== '',
+            ];
+        }
+
+        return $row;
     }
 
     /**
@@ -2506,8 +2691,12 @@ final class PdfSecurityPreflight
                 $index[$key][] = [
                     'digest_algorithm' => $algorithm,
                     'field_name' => $signature['field_name'] ?? null,
+                    'field_object' => $signature['field_object'] ?? null,
                     'signature_object' => $signature['signature_object'] ?? null,
                     'byte_range' => is_array($signature['byte_range'] ?? null) ? $signature['byte_range'] : [],
+                    'reference_transform_count' => (int) ($signature['reference_transform_count'] ?? 0),
+                    'reference_transform_methods' => $this->stringList($signature['reference_transform_methods'] ?? []),
+                    'reference_transforms' => $this->signatureReferenceTransforms($signature),
                 ];
             }
         }

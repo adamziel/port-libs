@@ -1493,6 +1493,26 @@ final class PdfOutlineExtractor
                     )
                 );
             }
+
+            $destinationAction = $this->destinationActionReviewValue($dict['D'], $objects, $destinations);
+            if ($destinationAction !== null) {
+                $context = $this->actionChainTargetContext(
+                    $destinationAction['value'],
+                    $objects,
+                    $pageIndexes,
+                    $destinations,
+                    $pageLabels,
+                    $pagePresentationsByPage,
+                    $articleBeadsByPage,
+                    $pageReviewsByPage,
+                    $taggedContentByPage,
+                    $seen,
+                    $depth + 1
+                );
+                if ($context !== []) {
+                    return $context;
+                }
+            }
         }
 
         if (array_key_exists('Next', $dict)) {
@@ -3036,13 +3056,30 @@ final class PdfOutlineExtractor
         $action = $type === 'JavaScript'
             ? $this->reviewAction('JavaScript', 'blocked-javascript', null, null, null, null, null, null, null)
             : $this->openActionReviewAction($value, $objects, $pageIndexes, $destinations);
+        $destinationActionRows = [];
+        if ($action === null && $type === 'GoTo' && array_key_exists('D', $dict)) {
+            $destinationAction = $this->destinationActionReviewValue($dict['D'], $objects, $destinations);
+            if ($destinationAction !== null) {
+                foreach ($this->reviewActionsFromValue($destinationAction['value'], $objects, $pageIndexes, $destinations, $seen, $depth + 1) as $destinationActionRow) {
+                    if ($destinationAction['destination_name'] !== null && !array_key_exists('destination_action_name', $destinationActionRow)) {
+                        $destinationActionRow['destination_action_name'] = $destinationAction['destination_name'];
+                    }
 
-        if ($action === null && $type !== null) {
+                    $destinationActionRows[] = $destinationActionRow;
+                }
+            }
+        }
+
+        if ($action === null && $destinationActionRows === [] && $type !== null) {
             $action = $this->reviewAction($type, 'unsupported-action-review', null, null, null, null, null, null, null);
         }
 
         $actions = [];
-        if ($action !== null) {
+        if ($destinationActionRows !== []) {
+            foreach ($destinationActionRows as $destinationActionRow) {
+                $actions[] = $destinationActionRow;
+            }
+        } elseif ($action !== null) {
             if ($actionObject !== null) {
                 $action['action_object'] = $actionObject;
             }

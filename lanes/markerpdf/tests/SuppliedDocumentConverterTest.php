@@ -838,6 +838,109 @@ return [
             unlink($path);
         }
     },
+    'links rowspanned OCR table captions to accessible header grids' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-table-rowspan-caption-accessibility-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% table rowspan caption accessibility supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'Import asset metrics', 'bbox' => [72.0, 48.0, 360.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Stale accessible rowspan table text should be replaced.', 'bbox' => [72.0, 176.0, 510.0, 196.0]],
+                ['text' => 'Table 7: Asset OCR review counts.', 'bbox' => [72.0, 282.0, 430.0, 300.0]],
+                ['text' => 'Reviewer note after accessible table.', 'bbox' => [72.0, 326.0, 480.0, 344.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Section-header', 'bbox' => [72.0, 48.0, 360.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 430.0, 270.0]],
+                    ['label' => 'Caption', 'bbox' => [72.0, 282.0, 430.0, 300.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 326.0, 480.0, 344.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 320.0, 28.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 32.0, 320.0, 60.0]],
+                    ['row_id' => 2, 'bbox' => [0.0, 72.0, 320.0, 100.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 90.0, 110.0]],
+                    ['col_id' => 1, 'bbox' => [100.0, 0.0, 200.0, 110.0]],
+                    ['col_id' => 2, 'bbox' => [210.0, 0.0, 320.0, 110.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_detector_cells' => [[
+                        ['bbox' => [5.0, 5.0, 85.0, 45.0], 'text' => null],
+                        ['bbox' => [105.0, 5.0, 315.0, 24.0], 'text' => null],
+                        ['bbox' => [110.0, 36.0, 190.0, 56.0], 'text' => null],
+                        ['bbox' => [220.0, 36.0, 310.0, 56.0], 'text' => null],
+                        ['bbox' => [5.0, 76.0, 85.0, 96.0], 'text' => null],
+                        ['bbox' => [110.0, 76.0, 190.0, 96.0], 'text' => null],
+                        ['bbox' => [220.0, 76.0, 310.0, 96.0], 'text' => null],
+                    ]],
+                    'table_ocr_text_lines' => [[
+                        'lines' => [
+                            ['text' => 'Import group'],
+                            ['text' => 'Assets'],
+                            ['text' => 'Images'],
+                            ['text' => 'State'],
+                            ['text' => 'Media'],
+                            ['text' => '12'],
+                            ['text' => 'Ready'],
+                        ],
+                    ]],
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                    'ocr_all_pages' => true,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $context = $result['metadata']['table_section_caption_review'][0] ?? [];
+            $accessibility = $context['accessibility'] ?? [];
+            $dataByText = [];
+            foreach (($accessibility['data_cell_headers'] ?? []) as $dataCell) {
+                $dataByText[$dataCell['text']] = $dataCell;
+            }
+
+            $t->contains('## Import Asset Metrics', $result['text']);
+            $t->contains('Table 7: Asset OCR review counts.', $result['text']);
+            $t->contains('Reviewer note after accessible table.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Stale accessible rowspan table text should be replaced.'));
+            $t->same('markerpdf-table-0', $accessibility['table_id']);
+            $t->same('markerpdf-table-0-caption', $accessibility['caption_id']);
+            $t->same('markerpdf-table-0-section', $accessibility['section_id']);
+            $t->same(['markerpdf-table-0-caption'], $accessibility['aria_describedby']);
+            $t->same(['markerpdf-table-0-section'], $accessibility['aria_labelledby']);
+            $t->same('Table 7: Asset OCR review counts.', $accessibility['caption_text']);
+            $t->same('after', $accessibility['caption_position']);
+            $t->same('table_span_grid_accessibility', $accessibility['review_target']);
+            $t->same('markerpdf-table-0-caption', $context['caption']['caption_id']);
+            $t->same('markerpdf-table-0-section', $context['section']['section_id']);
+            $t->same(['h-r0-c0', 'h-r0-c1', 'h-r1-c1', 'h-r1-c2'], $accessibility['header_ids']);
+            $t->same(1, $accessibility['rowspan_cell_count']);
+            $t->same(1, $accessibility['colspan_cell_count']);
+            $t->same('Import group', $accessibility['rowspan_cells'][0]['text']);
+            $t->same([2, 1], [$accessibility['rowspan_cells'][0]['rowspan'], $accessibility['rowspan_cells'][0]['colspan']]);
+            $t->same('Assets', $accessibility['colspan_cells'][0]['text']);
+            $t->same([1, 2], [$accessibility['colspan_cells'][0]['rowspan'], $accessibility['colspan_cells'][0]['colspan']]);
+            $t->same(['h-r0-c1', 'h-r1-c1'], $dataByText['12']['headers']);
+            $t->same(['Assets', 'Images'], $dataByText['12']['header_texts']);
+            $t->same('markerpdf-table-0-caption', $dataByText['12']['caption_id']);
+            $t->same(['h-r0-c1', 'h-r1-c2'], $dataByText['Ready']['headers']);
+            $t->same(['h-r0-c0'], $dataByText['Media']['headers']);
+            $t->same(true, $accessibility['accessible_caption_bound']);
+        } finally {
+            unlink($path);
+        }
+    },
     'keeps multiline OCR table headers together in WordPress grid review' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-ocr-multiline-header-grid-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% OCR multiline header grid supplied pipeline\n%%EOF");

@@ -361,6 +361,20 @@ final class PdfLinkAnnotationExtractor
 
         if ($annotationObject !== null && isset($structureReviewsByAnnotationObject[$annotationObject])) {
             $link += $structureReviewsByAnnotationObject[$annotationObject];
+            if (is_int($link['struct_parent'] ?? null) && is_array($link['structure_parent'] ?? null)) {
+                $link['actions'] = PdfActionReviewExtractor::actionsWithAnnotationStructureParentContext(
+                    $link['actions'],
+                    $annotationObject,
+                    $link['struct_parent'],
+                    $link['structure_parent']
+                );
+                $link['additional_actions'] = PdfActionReviewExtractor::actionsWithAnnotationStructureParentContext(
+                    $link['additional_actions'],
+                    $annotationObject,
+                    $link['struct_parent'],
+                    $link['structure_parent']
+                );
+            }
         }
 
         return $link;

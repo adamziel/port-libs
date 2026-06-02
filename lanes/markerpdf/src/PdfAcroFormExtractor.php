@@ -158,6 +158,7 @@ final class PdfAcroFormExtractor
         }
         $fields = $this->annotateRichTextXfaActionStateReviews($fields);
         $fields = $this->annotateSignatureWidgetReviews($fields);
+        $fields = $this->annotateSubmitResetAppearanceLockReviews($fields);
 
         return [
             'need_appearances' => $this->boolValueAfterName($acroForm, 'NeedAppearances') === true,
@@ -1049,6 +1050,313 @@ final class PdfAcroFormExtractor
         }
 
         return $fields;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fields
+     * @return list<array<string, mixed>>
+     */
+    private function annotateSubmitResetAppearanceLockReviews(array $fields): array
+    {
+        $fieldsByName = [];
+        foreach ($fields as $field) {
+            $name = $field['name'] ?? null;
+            if (is_string($name) && $name !== '') {
+                $fieldsByName[$name] = $field;
+            }
+        }
+
+        foreach ($fields as $index => $field) {
+            $fieldActions = $this->submitResetActions($this->arrayRows($field['actions'] ?? []));
+            $widgetActions = [];
+            foreach ($this->arrayRows($field['widgets'] ?? []) as $widget) {
+                foreach ($this->submitResetActions($this->arrayRows($widget['actions'] ?? [])) as $action) {
+                    $widgetActions[] = $action;
+                }
+            }
+
+            $actions = array_merge($fieldActions, $widgetActions);
+            if ($actions === []) {
+                continue;
+            }
+
+            $fields[$index]['submit_reset_appearance_lock_review'] = $this->submitResetAppearanceLockReview($field, $actions, $fieldActions, $widgetActions, $fieldsByName);
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @return list<array<string, mixed>>
+     */
+    private function submitResetActions(array $actions): array
+    {
+        return array_values(array_filter(
+            $actions,
+            static fn (array $action): bool => in_array($action['action_type'] ?? null, ['SubmitForm', 'ResetForm'], true)
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @param list<array<string, mixed>> $fieldActions
+     * @param list<array<string, mixed>> $widgetActions
+     * @param array<string, array<string, mixed>> $fieldsByName
+     * @return array<string, mixed>
+     */
+    private function submitResetAppearanceLockReview(array $field, array $actions, array $fieldActions, array $widgetActions, array $fieldsByName): array
+    {
+        $selectedFieldNames = [];
+        $submittedFieldNames = [];
+        $resetFieldNames = [];
+        $fieldModes = [];
+
+        foreach ($actions as $action) {
+            $review = is_array($action['field_value_review'] ?? null) ? $action['field_value_review'] : [];
+            foreach ($this->fieldNamesFromRows($this->arrayRows($review['field_rows'] ?? [])) as $name) {
+                $this->appendUniqueString($selectedFieldNames, $name);
+            }
+            foreach ($this->stringListValue($review['submitted_field_names'] ?? []) as $name) {
+                $this->appendUniqueString($submittedFieldNames, $name);
+            }
+            foreach ($this->stringListValue($review['reset_field_names'] ?? []) as $name) {
+                $this->appendUniqueString($resetFieldNames, $name);
+            }
+            if (is_string($action['fields_mode'] ?? null)) {
+                $this->appendUniqueString($fieldModes, $action['fields_mode']);
+            }
+        }
+
+        $targetRows = $this->submitResetAppearanceLockTargetRows($selectedFieldNames, $fieldsByName);
+        $lockedTargetRows = array_values(array_filter(
+            $targetRows,
+            static fn (array $row): bool => ($row['locked_by_signed_signature'] ?? false) === true
+        ));
+        $appearanceRows = array_values(array_filter(
+            $targetRows,
+            static fn (array $row): bool => ($row['appearance_states'] ?? []) !== [] || ($row['selected_appearance_objects'] ?? []) !== []
+        ));
+        $staleAppearanceRows = array_values(array_filter(
+            $targetRows,
+            static fn (array $row): bool => ($row['stale_appearance_state_count'] ?? 0) > 0
+        ));
+        $selectedAppearanceObjects = [];
+        foreach ($appearanceRows as $row) {
+            foreach ($this->integerListValue($row['selected_appearance_objects'] ?? []) as $objectNumber) {
+                if (!in_array($objectNumber, $selectedAppearanceObjects, true)) {
+                    $selectedAppearanceObjects[] = $objectNumber;
+                }
+            }
+        }
+
+        return [
+            'source' => 'acroform_submit_reset_appearance_lock_currentbase_review_boundary',
+            'field_name' => $field['name'] ?? null,
+            'field_object' => $field['object'] ?? null,
+            'field_type' => $field['field_type'] ?? null,
+            'action_count' => count($actions),
+            'field_action_count' => count($fieldActions),
+            'widget_action_count' => count($widgetActions),
+            'submit_form_action_count' => $this->actionCountWithType($actions, 'SubmitForm'),
+            'reset_form_action_count' => $this->actionCountWithType($actions, 'ResetForm'),
+            'action_objects' => $this->integerValuesFromRows($actions, 'action_object'),
+            'action_source_objects' => $this->integerValuesFromRows($actions, 'source_object'),
+            'action_triggers' => $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['trigger'] ?? null,
+                $actions
+            )),
+            'action_trigger_labels' => $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['trigger_label'] ?? null,
+                $actions
+            )),
+            'fields_modes' => $fieldModes,
+            'selected_field_count' => count($selectedFieldNames),
+            'selected_field_names' => $selectedFieldNames,
+            'submitted_field_names' => $submittedFieldNames,
+            'reset_field_names' => $resetFieldNames,
+            'target_field_count' => count($targetRows),
+            'target_fields' => $targetRows,
+            'locked_target_field_names' => $this->fieldNamesFromRows($lockedTargetRows),
+            'locked_submit_field_names' => $this->lockedSubmitResetActionFieldNames($submittedFieldNames, $fieldsByName),
+            'locked_reset_field_names' => $this->lockedSubmitResetActionFieldNames($resetFieldNames, $fieldsByName),
+            'appearance_field_names' => $this->fieldNamesFromRows($appearanceRows),
+            'selected_appearance_objects' => $selectedAppearanceObjects,
+            'stale_appearance_field_names' => $this->fieldNamesFromRows($staleAppearanceRows),
+            'stale_appearance_state_count' => array_sum(array_map(
+                static fn (array $row): int => (int) ($row['stale_appearance_state_count'] ?? 0),
+                $targetRows
+            )),
+            'current_value_field_names' => $this->fieldNamesFromRows(array_filter(
+                $targetRows,
+                static fn (array $row): bool => ($row['has_current_value'] ?? false) === true
+            )),
+            'default_value_field_names' => $this->fieldNamesFromRows(array_filter(
+                $targetRows,
+                static fn (array $row): bool => ($row['has_default_value'] ?? false) === true
+            )),
+            'changed_from_default_field_names' => $this->fieldNamesFromRows(array_filter(
+                $targetRows,
+                static fn (array $row): bool => ($row['changed_from_default'] ?? false) === true
+            )),
+            'field_value_authoritative' => true,
+            'default_value_authoritative_for_reset_review' => true,
+            'submit_values_review_only' => true,
+            'reset_values_review_only' => true,
+            'signature_locks_enforced_on_import' => false,
+            'appearance_value_used_for_import' => false,
+            'appearance_payload_text_exposed' => false,
+            'submits_form_data' => false,
+            'resets_form_values' => false,
+            'executes_action' => false,
+            'executes_javascript' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+        ];
+    }
+
+    /**
+     * @param list<string> $fieldNames
+     * @param array<string, array<string, mixed>> $fieldsByName
+     * @return list<string>
+     */
+    private function lockedSubmitResetActionFieldNames(array $fieldNames, array $fieldsByName): array
+    {
+        $locked = [];
+        foreach ($fieldNames as $name) {
+            $field = $fieldsByName[$name] ?? null;
+            $lockState = is_array($field['signature_lock_state'] ?? null) ? $field['signature_lock_state'] : null;
+            if ($lockState !== null && ($lockState['effective_locked'] ?? false) === true) {
+                $locked[] = $name;
+            }
+        }
+
+        return $locked;
+    }
+
+    /**
+     * @param list<string> $fieldNames
+     * @param array<string, array<string, mixed>> $fieldsByName
+     * @return list<array<string, mixed>>
+     */
+    private function submitResetAppearanceLockTargetRows(array $fieldNames, array $fieldsByName): array
+    {
+        $rows = [];
+        foreach ($fieldNames as $name) {
+            $field = $fieldsByName[$name] ?? null;
+            if ($field === null) {
+                continue;
+            }
+
+            $valueState = is_array($field['value_state'] ?? null) ? $field['value_state'] : [];
+            $lockState = is_array($field['signature_lock_state'] ?? null) ? $field['signature_lock_state'] : [];
+            $appearance = $this->fieldWidgetAppearanceSummary($field);
+
+            $rows[] = [
+                'source' => 'acroform_submit_reset_appearance_lock_target_currentbase',
+                'field_name' => $name,
+                'field_object' => $field['object'] ?? null,
+                'field_type' => $field['field_type'] ?? null,
+                'field_type_label' => $field['field_type_label'] ?? null,
+                'flags' => $field['flags'] ?? 0,
+                'flag_names' => $field['flag_names'] ?? [],
+                'has_current_value' => (bool) ($valueState['has_current_value'] ?? false),
+                'has_default_value' => (bool) ($valueState['has_default_value'] ?? false),
+                'current' => $valueState['effective_current_state'] ?? ($valueState['current'] ?? ($field['value'] ?? null)),
+                'default' => $valueState['default'] ?? ($field['default_value'] ?? null),
+                'current_source' => $valueState['state_source'] ?? ($valueState['current_source'] ?? null),
+                'default_source' => $valueState['default_source'] ?? null,
+                'changed_from_default' => $valueState['changed_from_default'] ?? null,
+                'locked_by_signed_signature' => (bool) ($lockState['effective_locked'] ?? false),
+                'locked_by_signatures' => $lockState['locked_by_signatures'] ?? [],
+                'locked_by_signature_count' => (int) ($lockState['locked_by_signature_count'] ?? 0),
+                'signature_lock_permission_labels' => $lockState['permission_labels'] ?? [],
+                'widget_count' => $appearance['widget_count'],
+                'page_referenced_widget_count' => $appearance['page_referenced_widget_count'],
+                'widget_objects' => $appearance['widget_objects'],
+                'appearance_states' => $appearance['appearance_states'],
+                'selected_appearance_objects' => $appearance['selected_appearance_objects'],
+                'selected_appearance_decoded_sha256' => $appearance['selected_appearance_decoded_sha256'],
+                'checked_widget_count' => $valueState['checked_widget_count'] ?? $appearance['checked_widget_count'],
+                'widget_state_consistent' => $valueState['widget_state_consistent'] ?? null,
+                'stale_appearance_state_count' => $appearance['stale_appearance_state_count'],
+                'appearance_value_used_for_import' => false,
+                'appearance_payload_text_exposed' => false,
+                'executes_appearance_streams' => false,
+                'renders_appearances' => false,
+                'executes_action' => false,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array{widget_count: int, page_referenced_widget_count: int, widget_objects: list<int>, appearance_states: list<string>, selected_appearance_objects: list<int>, selected_appearance_decoded_sha256: list<string>, checked_widget_count: int, stale_appearance_state_count: int}
+     */
+    private function fieldWidgetAppearanceSummary(array $field): array
+    {
+        $widgets = $this->arrayRows($field['widgets'] ?? []);
+        $appearanceStates = [];
+        $selectedObjects = [];
+        $selectedHashes = [];
+        $staleCount = 0;
+        $checkedCount = 0;
+
+        foreach ($widgets as $widget) {
+            foreach ($this->stringListValue($widget['appearance_states'] ?? []) as $state) {
+                $this->appendUniqueString($appearanceStates, $state);
+            }
+            if (($widget['checked'] ?? false) === true) {
+                $checkedCount++;
+            }
+
+            $normalAppearance = is_array($widget['normal_appearance'] ?? null) ? $widget['normal_appearance'] : null;
+            if ($normalAppearance !== null && ($normalAppearance['stale_appearance_state'] ?? false) === true) {
+                $staleCount++;
+            }
+
+            $selected = is_array($normalAppearance['selected_appearance'] ?? null)
+                ? $normalAppearance['selected_appearance']
+                : null;
+            if ($selected === null) {
+                continue;
+            }
+
+            $objectNumber = $selected['object'] ?? null;
+            if (is_int($objectNumber) && !in_array($objectNumber, $selectedObjects, true)) {
+                $selectedObjects[] = $objectNumber;
+            }
+
+            $hash = $selected['decoded_sha256'] ?? null;
+            if (is_string($hash) && $hash !== '') {
+                $this->appendUniqueString($selectedHashes, $hash);
+            }
+        }
+
+        return [
+            'widget_count' => count($widgets),
+            'page_referenced_widget_count' => count(array_filter(
+                $widgets,
+                static fn (array $widget): bool => ($widget['referenced_from_page_annots'] ?? false) === true
+            )),
+            'widget_objects' => $this->integerValuesFromRows($widgets, 'object'),
+            'appearance_states' => $appearanceStates,
+            'selected_appearance_objects' => $selectedObjects,
+            'selected_appearance_decoded_sha256' => $selectedHashes,
+            'checked_widget_count' => $checkedCount,
+            'stale_appearance_state_count' => $staleCount,
+        ];
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private function appendUniqueString(array &$values, string $value): void
+    {
+        if ($value !== '' && !in_array($value, $values, true)) {
+            $values[] = $value;
+        }
     }
 
     /**
