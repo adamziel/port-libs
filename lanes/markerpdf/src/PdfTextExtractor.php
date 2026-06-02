@@ -10225,7 +10225,8 @@ final class PdfTextExtractor
         $cidWidths = $toUnicodeMap['cidWidths'] ?? [];
         $defaultWidth = $toUnicodeMap['cidDefaultWidth'] ?? null;
         $cidSet = $toUnicodeMap['cidSet'] ?? null;
-        if ((!is_array($cidWidths) || $cidWidths === []) && $defaultWidth === null && !is_array($cidSet)) {
+        $hasWidthData = (is_array($cidWidths) && $cidWidths !== []) || $defaultWidth !== null || is_array($cidSet);
+        if (!$hasWidthData && !$this->hasSourceBoundaryDataForGlyphAdvance($toUnicodeMap)) {
             return null;
         }
 
@@ -10234,8 +10235,17 @@ final class PdfTextExtractor
             return [];
         }
 
+        $sourceKeys = $this->textOperandSourceKeysForFontWidths($hex, $toUnicodeMap);
+        if ($sourceKeys === []) {
+            return [];
+        }
+
+        if (!$hasWidthData) {
+            return array_fill(0, count($sourceKeys), 500.0);
+        }
+
         $widths = [];
-        foreach ($this->textOperandSourceKeysForFontWidths($hex, $toUnicodeMap) as $key) {
+        foreach ($sourceKeys as $key) {
             $cid = $this->cidForWidthSourceKey($key, $toUnicodeMap);
             if (is_array($cidWidths) && array_key_exists($cid, $cidWidths)) {
                 $widths[] = (float) $cidWidths[$cid];
@@ -10249,6 +10259,18 @@ final class PdfTextExtractor
         }
 
         return $widths;
+    }
+
+    private function hasSourceBoundaryDataForGlyphAdvance(array $toUnicodeMap): bool
+    {
+        foreach (['map', 'codeSpaceRanges', 'cidMap', 'cidCodeSpaceRanges'] as $key) {
+            $value = $toUnicodeMap[$key] ?? null;
+            if (is_array($value) && $value !== []) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

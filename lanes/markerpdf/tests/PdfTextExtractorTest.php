@@ -1340,6 +1340,36 @@ return [
         $t->same(['Import Blocks'], $extractor->extractTextRuns($pdf));
         $t->true(!str_contains($extractor->extractPlainText($pdf), "\u{2021}"));
     },
+    'uses CMap source glyph boundaries for bidi surrogate text advance before WordPress text' => static function (TestRunner $t): void {
+        $content = 'BT /Fsur 12 Tf 1 0 0 1 72 720 Tm <01> Tj 1 0 0 1 92 720 Tm <02> Tj ET';
+        $cmap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "1 begincodespacerange\n"
+            . "<00> <FF>\n"
+            . "endcodespacerange\n"
+            . "2 beginbfchar\n"
+            . "<01> <2067D83DDE002069>\n"
+            . "<02> <0057006F00720064>\n"
+            . "endbfchar\n"
+            . "endcmap\n"
+            . "CMapName currentdict /CMap defineresource pop\n"
+            . "end\n"
+            . "end\n";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fsur 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /CustomBidiSurrogate /ToUnicode 3 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $expected = "\u{2067}\u{1F600}\u{2069} Word";
+
+        $t->same([$expected], $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractPlainText($pdf));
+        $t->same(["\u{2067}\u{1F600}\u{2069}", 'Word'], $extractor->extractTextRuns($pdf));
+        $t->true(str_contains($extractor->extractPlainText($pdf), "\u{1F600}"));
+        $t->true(!str_contains($extractor->extractPlainText($pdf), "\0"));
+    },
     'decodes simple font Encoding Differences before WordPress paragraph rendering' => static function (TestRunner $t): void {
         $content = 'BT /Fdiff 12 Tf 72 720 Td <202122232425262728292A2B2C2D2E2F> Tj ET';
         $pdf = "%PDF-1.4\n"
