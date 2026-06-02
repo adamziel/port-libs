@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 00:07:35 UTC",
-    "sourceCommit": "0e5b108efaf0a0706761b3d16611327c2fa2e4cf",
-    "sourceCommitShort": "0e5b108efaf0",
+    "generated": "2026-06-02 00:12:02 UTC",
+    "sourceCommit": "0cae1589ac782ecd425fe57abfd7c55a69f7056e",
+    "sourceCommitShort": "0cae1589ac78",
     "sourceBranch": "main",
-    "dashboardCommit": "0e5b108efaf0a0706761b3d16611327c2fa2e4cf",
-    "dashboardCommitShort": "0e5b108efaf0",
+    "dashboardCommit": "0cae1589ac782ecd425fe57abfd7c55a69f7056e",
+    "dashboardCommitShort": "0cae1589ac78",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "178",
-            "coverage": "178 / 78 (228.2%)",
-            "mapPercent": "228.2%",
+            "mapped": "179",
+            "coverage": "179 / 78 (229.5%)",
+            "mapPercent": "229.5%",
             "unmapped": "0",
-            "php": "294 pass / 0 fail",
+            "php": "297 pass / 0 fail",
             "phase": "cloned inventory + inspected CI benchmark archive + locked tabled hel...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Reduced page /Contents stream handoff.",
-            "nextTarget": "Choose the next bounded markerPDF text extraction gap, likely...",
+            "currentWork": "DocumentStructureBoundary now resolves layout regions in page coordinates so Table re...",
+            "nextTarget": "Choose the next bounded markerPDF gap: XObject/Form content i...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "0e5b108"
+            "commit": "0cae158"
         },
         {
             "lane": "readability",
