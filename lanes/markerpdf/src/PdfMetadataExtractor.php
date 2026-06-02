@@ -51,6 +51,16 @@ final class PdfMetadataExtractor
         ['mask' => 1024, 'name' => 'assemble_document', 'minimum_revision' => 3],
         ['mask' => 2048, 'name' => 'high_quality_print', 'minimum_revision' => 3],
     ];
+    private const ASSOCIATED_FILE_RELATIONSHIP_ROLES = [
+        'Source' => 'original_source',
+        'Data' => 'base_data_for_visual_presentation',
+        'Alternative' => 'alternative_representation',
+        'Supplement' => 'supplemental_representation',
+        'EncryptedPayload' => 'encrypted_payload',
+        'FormData' => 'form_data',
+        'Schema' => 'schema_definition',
+        'Unspecified' => 'unspecified',
+    ];
 
     private const NS_DC = 'http://purl.org/dc/elements/1.1/';
     private const NS_PDF = 'http://ns.adobe.com/pdf/1.3/';
@@ -790,6 +800,11 @@ final class PdfMetadataExtractor
         $outputIntentReview = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($body, 'OutputIntents'), $objects);
         if (is_array($outputIntentReview) && $outputIntentReview !== []) {
             $file['output_intents_review'] = $outputIntentReview;
+        }
+
+        $provenanceReview = $this->associatedFileProvenanceReview($file, $body, $objects);
+        if ($provenanceReview !== []) {
+            $file['provenance_review'] = $provenanceReview;
         }
 
         return $file;
@@ -3657,7 +3672,243 @@ final class PdfMetadataExtractor
             $file['output_intents_review'] = $outputIntentReview;
         }
 
+        $provenanceReview = $this->associatedFileProvenanceReview($file, $body, $objects);
+        if ($provenanceReview !== []) {
+            $file['provenance_review'] = $provenanceReview;
+        }
+
         return $file;
+    }
+
+    /**
+     * Attachment-local XMP/PDF-A provenance is review metadata. Hash decoded
+     * streams, but do not expose payload bytes or promote nested roots.
+     *
+     * @param array<string, mixed> $file
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function associatedFileProvenanceReview(array $file, string $fileSpecBody, array $objects): array
+    {
+        $sources = [];
+        $metadata = [
+            'source' => 'associated_file_provenance',
+            'review_only' => true,
+            'payload_included' => false,
+        ];
+
+        $relationship = $file['relationship'] ?? null;
+        if (is_string($relationship) && $relationship !== '') {
+            $metadata['relationship'] = $relationship;
+            $metadata['relationship_role'] = self::ASSOCIATED_FILE_RELATIONSHIP_ROLES[$relationship] ?? 'unrecognized';
+            $metadata['relationship_status'] = array_key_exists($relationship, self::ASSOCIATED_FILE_RELATIONSHIP_ROLES)
+                ? 'standard_pdf_associated_file_relationship'
+                : 'unrecognized_pdf_associated_file_relationship';
+            $sources[] = 'filespec_afrelationship';
+        } else {
+            $metadata['relationship_status'] = 'missing_pdf_associated_file_relationship';
+        }
+
+        $payload = $this->associatedFilePayloadProvenance($file);
+        if ($payload !== []) {
+            $metadata['payload'] = $payload;
+            $sources[] = 'embedded_file_payload_hash';
+            if (array_key_exists('checksum', $payload) || array_key_exists('computed_checksum', $payload)) {
+                $sources[] = 'embedded_file_params_checksum';
+            }
+        }
+
+        $xmpMetadata = $this->associatedFileMetadataStreamProvenance(
+            $this->dictionaryTopLevelRawValue($fileSpecBody, 'Metadata'),
+            $objects
+        );
+        if ($xmpMetadata !== []) {
+            $metadata['xmp_metadata'] = $xmpMetadata;
+            $sources[] = 'filespec_metadata_stream';
+        }
+
+        $outputIntents = $this->associatedFileOutputIntentProvenance(
+            $this->dictionaryTopLevelRawValue($fileSpecBody, 'OutputIntents'),
+            $objects
+        );
+        if ($outputIntents !== []) {
+            $metadata['pdfa_output_intents'] = $outputIntents;
+            $sources[] = 'filespec_output_intents';
+        }
+
+        if ($sources === []) {
+            return [];
+        }
+
+        $metadata['sources'] = $sources;
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $file
+     * @return array<string, mixed>
+     */
+    private function associatedFilePayloadProvenance(array $file): array
+    {
+        $payload = [];
+
+        foreach ([
+            'filename' => 'filename',
+            'mime_type' => 'mime_type',
+        ] as $target => $source) {
+            if (isset($file[$source]) && is_string($file[$source]) && $file[$source] !== '') {
+                $payload[$target] = $file[$source];
+            }
+        }
+
+        if (isset($file['size']) && is_int($file['size'])) {
+            $payload['bytes'] = $file['size'];
+        }
+        if (isset($file['declared_size']) && is_int($file['declared_size'])) {
+            $payload['declared_size'] = $file['declared_size'];
+            if (isset($payload['bytes'])) {
+                $payload['size_matches_declared'] = $payload['bytes'] === $payload['declared_size'];
+            }
+        }
+        if (isset($file['content_sha256']) && is_string($file['content_sha256']) && $file['content_sha256'] !== '') {
+            $payload['sha256'] = $file['content_sha256'];
+        }
+
+        foreach ([
+            'checksum_algorithm',
+            'checksum',
+            'computed_checksum',
+            'checksum_matches',
+        ] as $key) {
+            if (array_key_exists($key, $file)) {
+                $payload[$key] = $file[$key];
+            }
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function associatedFileMetadataStreamProvenance(?string $value, array $objects): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $objectNumber = $this->objectNumberFromReference($value);
+        $body = $objectNumber === null
+            ? trim($this->resolvePdfValue($value, $objects) ?? $value)
+            : ($objects[$objectNumber] ?? null);
+        if ($body === null || $body === '') {
+            return [];
+        }
+
+        $stream = $this->decodeStreamEntryObject($body, $objects);
+        if ($stream === null) {
+            return [];
+        }
+
+        $metadata = [
+            'object_number' => $objectNumber,
+            'bytes' => strlen($stream['content']),
+            'sha256' => hash('sha256', $stream['content']),
+            'payload_included' => false,
+        ];
+
+        foreach ([
+            'type' => $this->dictionaryStringValue($stream['dictionary'], 'Type'),
+            'subtype' => $this->dictionaryStringValue($stream['dictionary'], 'Subtype'),
+        ] as $key => $metadataValue) {
+            if (is_string($metadataValue) && $metadataValue !== '') {
+                $metadata[$key] = $metadataValue;
+            }
+        }
+
+        $filters = $this->streamFilters($stream['dictionary'], $objects);
+        if ($filters !== []) {
+            $metadata['filters'] = $filters;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function associatedFileOutputIntentProvenance(?string $value, array $objects): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $intents = [];
+        foreach ($this->outputIntentDictionariesFromValue($value, $objects) as $dictionary) {
+            $intent = $this->outputIntentProvenanceFromDictionary($dictionary, $objects);
+            if ($intent !== null) {
+                $intents[] = $intent;
+            }
+        }
+
+        if ($intents === []) {
+            return [];
+        }
+
+        $pdfa = $this->pdfaOutputIntentSummary($intents);
+
+        return [
+            'count' => count($intents),
+            'has_pdfa_output_intent' => $pdfa !== null,
+            'output_condition_identifiers' => $pdfa['output_condition_identifiers'] ?? [],
+            'profile_sha256' => $pdfa['profile_sha256'] ?? [],
+            'intents' => $intents,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function outputIntentProvenanceFromDictionary(string $dictionary, array $objects): ?array
+    {
+        $subtype = $this->dictionaryStringValue($dictionary, 'S');
+        $identifier = $this->dictionaryStringValue($dictionary, 'OutputConditionIdentifier');
+        $condition = $this->dictionaryStringValue($dictionary, 'OutputCondition');
+        $registryName = $this->dictionaryStringValue($dictionary, 'RegistryName');
+        $info = $this->dictionaryStringValue($dictionary, 'Info');
+        $type = $this->dictionaryStringValue($dictionary, 'Type');
+
+        if ($subtype === null && $identifier === null && $condition === null && $info === null) {
+            return null;
+        }
+
+        $intent = [
+            'is_pdfa' => $subtype === 'GTS_PDFA1',
+        ];
+
+        foreach ([
+            'type' => $type,
+            'subtype' => $subtype,
+            'output_condition_identifier' => $identifier,
+            'output_condition' => $condition,
+            'registry_name' => $registryName,
+            'info' => $info,
+        ] as $key => $metadataValue) {
+            if (is_string($metadataValue) && $metadataValue !== '') {
+                $intent[$key] = $metadataValue;
+            }
+        }
+
+        $profile = $this->outputProfileMetadata($dictionary, $objects);
+        if ($profile !== null) {
+            $intent['dest_output_profile'] = $profile;
+        }
+
+        return $intent;
     }
 
     /**

@@ -653,6 +653,94 @@ return [
         $t->true(!str_contains($text, 'wp-export'));
         $t->true(!str_contains($text, 'Associated FileSpec ICC bytes'));
     },
+    'summarizes associated FileSpec XMP and PDF/A provenance without promoting payloads' => static function (TestRunner $t) use ($xmpPacket): void {
+        $rootProfile = 'Root provenance PDF/A ICC bytes';
+        $associatedProfile = 'Associated provenance ICC bytes should stay review-only';
+        $sourcePayload = '<wp-export><post id="1642"/></wp-export>';
+        $schemaPayload = '<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>';
+        $sourceChecksum = strtoupper(hash('md5', $sourcePayload));
+        $sourceXmpPacket = $xmpPacket([
+            'title' => 'Associated Provenance XMP Title',
+            'description' => 'Attachment-local provenance XMP stays review-only',
+        ]);
+        $rootProfileStream = gzcompress($rootProfile);
+        $associatedProfileStream = gzcompress($associatedProfile);
+        $sourceXmpStream = gzcompress($sourceXmpPacket);
+        if (!is_string($rootProfileStream) || !is_string($associatedProfileStream) || !is_string($sourceXmpStream)) {
+            throw new RuntimeException('Unable to compress associated provenance fixture streams.');
+        }
+
+        $content = 'BT /F1 12 Tf 72 720 Td (Associated Provenance Body) Tj ET';
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OutputIntents [9 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($sourceXmpStream) . " >>\nstream\n{$sourceXmpStream}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($rootProfileStream) . " >>\nstream\n{$rootProfileStream}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($associatedProfileStream) . " >>\nstream\n{$associatedProfileStream}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Root Provenance sRGB) /Info (Root provenance PDF/A profile) /DestOutputProfile 7 0 R /AF [10 0 R << /Type /Filespec /F (schema.xsd) /Desc (XMP extension schema) /AFRelationship /Schema /Metadata 5 0 R /OutputIntents [13 0 R] /EF << /F 12 0 R >> >>] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (source.xml) /Desc (Original WordPress source export) /AFRelationship /Source /Metadata 5 0 R /OutputIntents [13 0 R] /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " /CheckSum <{$sourceChecksum}> /ModDate (D:202606021642Z) >> /Length " . strlen($sourcePayload) . " >>\nstream\n{$sourcePayload}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fxml /Params << /Size " . strlen($schemaPayload) . " >> /Length " . strlen($schemaPayload) . " >>\nstream\n{$schemaPayload}\nendstream\nendobj\n"
+            . "13 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Associated Provenance sRGB) /Info (Attachment-local PDF/A provenance) /DestOutputProfile 8 0 R >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['output_intents'], $metadata['source']);
+        $t->same('Associated Provenance Body', $text);
+        $t->same(['Root Provenance sRGB'], $metadata['pdfa']['output_condition_identifiers']);
+        $t->same(2, count($metadata['output_intents'][0]['associated_files']));
+
+        $source = $metadata['output_intents'][0]['associated_files'][0];
+        $sourceProvenance = $source['provenance_review'];
+        $t->same('associated_file_provenance', $sourceProvenance['source']);
+        $t->same(['filespec_afrelationship', 'embedded_file_payload_hash', 'embedded_file_params_checksum', 'filespec_metadata_stream', 'filespec_output_intents'], $sourceProvenance['sources']);
+        $t->same('Source', $sourceProvenance['relationship']);
+        $t->same('original_source', $sourceProvenance['relationship_role']);
+        $t->same('standard_pdf_associated_file_relationship', $sourceProvenance['relationship_status']);
+        $t->same(false, $sourceProvenance['payload_included']);
+        $t->same('source.xml', $sourceProvenance['payload']['filename']);
+        $t->same('text/xml', $sourceProvenance['payload']['mime_type']);
+        $t->same(strlen($sourcePayload), $sourceProvenance['payload']['bytes']);
+        $t->same(strlen($sourcePayload), $sourceProvenance['payload']['declared_size']);
+        $t->same(true, $sourceProvenance['payload']['size_matches_declared']);
+        $t->same(hash('sha256', $sourcePayload), $sourceProvenance['payload']['sha256']);
+        $t->same(strtolower($sourceChecksum), $sourceProvenance['payload']['checksum']);
+        $t->same(hash('md5', $sourcePayload), $sourceProvenance['payload']['computed_checksum']);
+        $t->same(true, $sourceProvenance['payload']['checksum_matches']);
+        $t->same(5, $sourceProvenance['xmp_metadata']['object_number']);
+        $t->same('Metadata', $sourceProvenance['xmp_metadata']['type']);
+        $t->same('XML', $sourceProvenance['xmp_metadata']['subtype']);
+        $t->same(['FlateDecode'], $sourceProvenance['xmp_metadata']['filters']);
+        $t->same(strlen($sourceXmpPacket), $sourceProvenance['xmp_metadata']['bytes']);
+        $t->same(hash('sha256', $sourceXmpPacket), $sourceProvenance['xmp_metadata']['sha256']);
+        $t->same(false, $sourceProvenance['xmp_metadata']['payload_included']);
+        $t->same(1, $sourceProvenance['pdfa_output_intents']['count']);
+        $t->same(true, $sourceProvenance['pdfa_output_intents']['has_pdfa_output_intent']);
+        $t->same(['Associated Provenance sRGB'], $sourceProvenance['pdfa_output_intents']['output_condition_identifiers']);
+        $t->same([hash('sha256', $associatedProfile)], $sourceProvenance['pdfa_output_intents']['profile_sha256']);
+        $t->same('GTS_PDFA1', $sourceProvenance['pdfa_output_intents']['intents'][0]['subtype']);
+        $t->same(8, $sourceProvenance['pdfa_output_intents']['intents'][0]['dest_output_profile']['object_number']);
+
+        $schema = $metadata['output_intents'][0]['associated_files'][1];
+        $schemaProvenance = $schema['provenance_review'];
+        $t->same('Schema', $schemaProvenance['relationship']);
+        $t->same('schema_definition', $schemaProvenance['relationship_role']);
+        $t->same(true, $schemaProvenance['payload']['size_matches_declared'] ?? null);
+        $t->same('application/xml', $schemaProvenance['payload']['mime_type']);
+
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Associated Provenance XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $sourcePayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $schemaPayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $associatedProfile));
+        $t->true(!str_contains($text, 'Associated Provenance XMP Title'));
+        $t->true(!str_contains($text, '<wp-export>'));
+        $t->true(!str_contains($text, 'Associated provenance ICC bytes'));
+    },
     'keeps catalog PieceInfo private Metadata and OutputIntents from document metadata roots' => static function (TestRunner $t) use ($xmpPacket): void {
         $privateXmp = $xmpPacket([
             'title' => 'PieceInfo Private XMP Title',

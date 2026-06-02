@@ -1125,6 +1125,19 @@ final class PdfTextExtractor
 
         $order = [];
         $this->collectStructureMcidOrder($k, $objects, null, $order);
+        $parentTreeOrder = $this->structureParentTreeMcidOrderByPage($objects, $rootDictionary);
+        foreach ($parentTreeOrder as $pageObjectNumber => $mcids) {
+            $order[$pageObjectNumber] ??= [];
+            $knownMcids = array_fill_keys($order[$pageObjectNumber], true);
+            foreach ($mcids as $mcid) {
+                if (isset($knownMcids[$mcid])) {
+                    continue;
+                }
+
+                $order[$pageObjectNumber][] = $mcid;
+                $knownMcids[$mcid] = true;
+            }
+        }
 
         foreach ($order as $pageObjectNumber => $mcids) {
             $deduped = [];
@@ -1153,6 +1166,7 @@ final class PdfTextExtractor
             return [];
         }
 
+        $roleMap = $this->structureRoleMap($rootDictionary, $objects);
         $entries = [];
         $this->collectStructureMcidEntries(
             $k,
@@ -1160,9 +1174,26 @@ final class PdfTextExtractor
             null,
             null,
             null,
-            $this->structureRoleMap($rootDictionary, $objects),
+            $roleMap,
             $entries
         );
+        $parentTreeEntries = $this->structureParentTreeMcidEntriesByPage($objects, $rootDictionary, $roleMap);
+        foreach ($parentTreeEntries as $pageObjectNumber => $pageEntries) {
+            $entries[$pageObjectNumber] ??= [];
+            $knownMcids = [];
+            foreach ($entries[$pageObjectNumber] as $entry) {
+                $knownMcids[$entry['mcid']] = true;
+            }
+
+            foreach ($pageEntries as $entry) {
+                if (isset($knownMcids[$entry['mcid']])) {
+                    continue;
+                }
+
+                $entries[$pageObjectNumber][] = $entry;
+                $knownMcids[$entry['mcid']] = true;
+            }
+        }
 
         foreach ($entries as $pageObjectNumber => $pageEntries) {
             $deduped = [];
@@ -1173,6 +1204,127 @@ final class PdfTextExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @return array<int, list<int>>
+     * @param array<int, string> $objects
+     */
+    private function structureParentTreeMcidOrderByPage(array $objects, string $rootDictionary): array
+    {
+        $entries = $this->structureParentTreeMcidEntriesByPage($objects, $rootDictionary, $this->structureRoleMap($rootDictionary, $objects));
+        $order = [];
+        foreach ($entries as $pageObjectNumber => $pageEntries) {
+            foreach ($pageEntries as $entry) {
+                $order[$pageObjectNumber][] = $entry['mcid'];
+            }
+        }
+
+        return $order;
+    }
+
+    /**
+     * @return array<int, list<array{mcid: int, rawRole: string|null, role: string|null}>>
+     * @param array<int, string> $objects
+     * @param array<string, string> $roleMap
+     */
+    private function structureParentTreeMcidEntriesByPage(array $objects, string $rootDictionary, array $roleMap): array
+    {
+        $parentTreeDictionary = $this->pdfDictionaryValueAfterNameResolved($rootDictionary, 'ParentTree', $objects);
+        if ($parentTreeDictionary === null) {
+            return [];
+        }
+
+        $parentArraysByStructParents = [];
+        $this->collectStructureParentTreeArrays($parentTreeDictionary, $objects, $parentArraysByStructParents);
+        if ($parentArraysByStructParents === []) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($objects as $pageObjectNumber => $pageBody) {
+            if (!$this->isPageObject($pageBody)) {
+                continue;
+            }
+
+            $structParents = $this->pdfIntegerValueAfterName($pageBody, 'StructParents');
+            if ($structParents === null || !isset($parentArraysByStructParents[$structParents])) {
+                continue;
+            }
+
+            foreach ($this->pdfArrayItems($parentArraysByStructParents[$structParents]) as $mcid => $parentValue) {
+                $dictionary = $this->pdfDictionaryFromValue($parentValue, $objects);
+                if ($dictionary === null) {
+                    continue;
+                }
+
+                $rawRole = $this->pdfNameValueAfterName($dictionary, 'S');
+                if ($rawRole === null) {
+                    continue;
+                }
+
+                $entries[$pageObjectNumber][] = [
+                    'mcid' => $mcid,
+                    'rawRole' => $rawRole,
+                    'role' => $this->resolveStructureRole($rawRole, $roleMap),
+                ];
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $arrays
+     * @param array<int, true> $seenObjects
+     */
+    private function collectStructureParentTreeArrays(
+        string $dictionary,
+        array $objects,
+        array &$arrays,
+        array $seenObjects = [],
+        int $depth = 0
+    ): void {
+        if ($depth > 20) {
+            return;
+        }
+
+        $nums = $this->pdfArrayValueAfterNameResolved($dictionary, 'Nums', $objects);
+        if ($nums !== null) {
+            $items = $this->pdfArrayItems($nums);
+            for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
+                $key = trim($items[$index]);
+                if (preg_match('/^[+-]?\d+$/', $key) !== 1) {
+                    continue;
+                }
+
+                $array = $this->pdfArrayFromValue($items[$index + 1], $objects);
+                if ($array !== null) {
+                    $arrays[(int) $key] = $array;
+                }
+            }
+        }
+
+        $kids = $this->pdfArrayValueAfterNameResolved($dictionary, 'Kids', $objects);
+        if ($kids === null) {
+            return;
+        }
+
+        foreach ($this->objectReferences($kids) as $kidObjectNumber) {
+            if (isset($seenObjects[$kidObjectNumber]) || !isset($objects[$kidObjectNumber])) {
+                continue;
+            }
+
+            $kidDictionary = $this->dictionaryObjectBody($objects[$kidObjectNumber]);
+            if ($kidDictionary === null) {
+                continue;
+            }
+
+            $nextSeen = $seenObjects;
+            $nextSeen[$kidObjectNumber] = true;
+            $this->collectStructureParentTreeArrays($kidDictionary, $objects, $arrays, $nextSeen, $depth + 1);
+        }
     }
 
     /**
@@ -4410,6 +4562,10 @@ final class PdfTextExtractor
             return null;
         }
         foreach ($filters as $index => $filter) {
+            if ($filter === null) {
+                continue;
+            }
+
             $filterDecodeParms = $decodeParms[$index] ?? null;
             if (!$this->canApplyDecodeParms($filter, $filterDecodeParms, $objects)) {
                 return null;
@@ -4437,7 +4593,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<string>|null
+     * @return list<string|null>|null
      * @param array<int, string> $objects
      */
     private function streamFilters(string $dict, array $objects = []): ?array
@@ -4480,7 +4636,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<string>|null
+     * @return list<string|null>|null
      * @param array<int, string> $objects
      * @param array<int, true> $seenObjects
      */
@@ -4539,6 +4695,7 @@ final class PdfTextExtractor
             }
 
             if (preg_match('/\Gnull\b/s', $value, $match, 0, $offset) === 1) {
+                $filters[] = null;
                 $offset += strlen($match[0]);
                 continue;
             }
@@ -8932,8 +9089,9 @@ final class PdfTextExtractor
             return $entries;
         }
 
+        $decodedEntryCount = strlen($decoded) % $entryWidth === 0 ? intdiv(strlen($decoded), $entryWidth) : null;
         $offset = 0;
-        foreach ($this->xrefIndexRanges($body) as $range) {
+        foreach ($this->xrefIndexRanges($body, $decodedEntryCount) as $range) {
             [$startObject, $count] = $range;
             for ($index = 0; $index < $count; $index++) {
                 if ($offset + $entryWidth > strlen($decoded)) {
@@ -9006,7 +9164,7 @@ final class PdfTextExtractor
     /**
      * @return list<array{0: int, 1: int}>
      */
-    private function xrefIndexRanges(string $xrefBody): array
+    private function xrefIndexRanges(string $xrefBody, ?int $decodedEntryCount = null): array
     {
         if (preg_match('/\/Index\s*\[(.*?)\]/s', $xrefBody, $match) === 1) {
             $values = $this->integersFromPdfArray($match[1]);
@@ -9019,7 +9177,12 @@ final class PdfTextExtractor
         }
 
         if (preg_match('/\/Size\s+(\d+)/', $xrefBody, $match) === 1) {
-            return [[0, max(0, (int) $match[1])]];
+            $size = max(0, (int) $match[1]);
+            if ($decodedEntryCount !== null && $decodedEntryCount > $size) {
+                $size = $decodedEntryCount;
+            }
+
+            return [[0, $size]];
         }
 
         return [];
@@ -9228,26 +9391,12 @@ final class PdfTextExtractor
             $writingMode = (int) $wModeMatch[1] === 1 ? 1 : 0;
         }
 
-        if (preg_match_all('/begincidchar(.*?)endcidchar/s', $cmap, $charBlocks)) {
-            foreach ($charBlocks[1] as $block) {
-                if (!preg_match_all('/<([\da-fA-F\s]+)>\s+([+-]?\d+)/s', $block, $entries, PREG_SET_ORDER)) {
-                    continue;
-                }
-
-                foreach ($entries as $entry) {
-                    $source = $this->normalizeHexKey($entry[1]);
-                    $cid = (int) $entry[2];
-                    if ($source !== '' && $cid >= 0 && $cid <= 0xffff) {
-                        $cidMap[$source] = $cid;
-                    }
-                }
-            }
+        foreach ($this->cMapOperatorBlocks($cmap, 'begincidchar', 'endcidchar') as $charBlock) {
+            $this->parseCidChars($charBlock['body'], $cidMap, $charBlock['declaredCount']);
         }
 
-        if (preg_match_all('/begincidrange(.*?)endcidrange/s', $cmap, $rangeBlocks)) {
-            foreach ($rangeBlocks[1] as $block) {
-                $this->parseCidRanges($block, $cidMap);
-            }
+        foreach ($this->cMapOperatorBlocks($cmap, 'begincidrange', 'endcidrange') as $rangeBlock) {
+            $this->parseCidRanges($rangeBlock['body'], $cidMap, $rangeBlock['declaredCount']);
         }
 
         foreach ($this->parseCMapCodeSpaceRanges($cmap) as $range) {
@@ -9384,10 +9533,36 @@ final class PdfTextExtractor
     /**
      * @param array<string, int> $cidMap
      */
-    private function parseCidRanges(string $block, array &$cidMap): void
+    private function parseCidChars(string $block, array &$cidMap, ?int $declaredCount = null): void
+    {
+        if (!preg_match_all('/<([\da-fA-F\s]+)>\s+([+-]?\d+)/s', $block, $entries, PREG_SET_ORDER)) {
+            return;
+        }
+
+        if ($declaredCount !== null) {
+            $entries = array_slice($entries, 0, max(0, $declaredCount));
+        }
+
+        foreach ($entries as $entry) {
+            $source = $this->normalizeHexKey($entry[1]);
+            $cid = (int) $entry[2];
+            if ($source !== '' && $cid >= 0 && $cid <= 0xffff) {
+                $cidMap[$source] = $cid;
+            }
+        }
+    }
+
+    /**
+     * @param array<string, int> $cidMap
+     */
+    private function parseCidRanges(string $block, array &$cidMap, ?int $declaredCount = null): void
     {
         if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*([+-]?\d+)/s', $block, $ranges, PREG_SET_ORDER)) {
             return;
+        }
+
+        if ($declaredCount !== null) {
+            $ranges = array_slice($ranges, 0, max(0, $declaredCount));
         }
 
         foreach ($ranges as $range) {
@@ -10425,7 +10600,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<string> $filters
+     * @param list<string|null> $filters
      */
     private function hasVerifiableInlineImageFilter(array $filters): bool
     {

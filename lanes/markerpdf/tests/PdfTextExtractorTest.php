@@ -3400,6 +3400,35 @@ return [
         $t->true(!str_contains($plainText, 'Inline DP Image Noise'));
         $t->true(!str_contains($plainText, 'raw EI'));
     },
+    'aligns inline image DecodeParms with null filter-array entries before WordPress text extraction' => static function (TestRunner $t): void {
+        $imageRow = 'raw EI BT /F1 12 Tf 72 690 Td (Inline Null Filter Noise) Tj ET';
+        $compressedImage = gzcompress("\0" . $imageRow, 0);
+        if (!is_string($compressedImage)) {
+            throw new RuntimeException('Unable to build inline image null-filter fixture.');
+        }
+        $t->true(str_contains($compressedImage, ' EI '));
+
+        $content = "BT /F1 12 Tf 72 720 Td (Before Null Filter Image) Tj ET\n"
+            . 'BI /W ' . strlen($imageRow) . ' /H 1 /CS /G /BPC 8 /F [ null /Fl ] '
+            . '/DP [ null << /Predictor 12 /Columns ' . strlen($imageRow) . " /Colors 1 /BitsPerComponent 8 >> ] ID "
+            . $compressedImage . "\nEI\n"
+            . 'BT /F1 12 Tf 72 704 Td (After Null Filter Image) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Before Null Filter Image', 'After Null Filter Image'], $extractor->extractTextLines($pdf));
+        $t->same(['Before Null Filter Image', 'After Null Filter Image'], $extractor->extractTextRuns($pdf));
+        $t->same("Before Null Filter Image\nAfter Null Filter Image", $plainText);
+        $t->same("Before Null Filter Image\nAfter Null Filter Image\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Inline Null Filter Noise'));
+        $t->true(!str_contains($plainText, 'raw EI'));
+    },
     'inherits page tree font resources per page before WordPress text extraction' => static function (TestRunner $t) use ($toUnicodeCMap): void {
         $pageOne = 'BT /F1 12 Tf 72 720 Td <4142> Tj ET';
         $pageTwo = 'BT /F1 12 Tf 72 720 Td <4142> Tj ET';
@@ -3618,6 +3647,56 @@ return [
         $t->true(!str_contains($plainText, 'Body glyph noise'));
         $t->true(!str_contains($plainText, 'Artifact footer noise'));
         $t->true(!str_contains($plainText, "Body glyph noise\nChapter heading glyphs"));
+    },
+    'uses page StructParents ParentTree arrays for tagged-content reading-order review' => static function (TestRunner $t): void {
+        $pageOneContent = 'BT /F1 12 Tf '
+            . '/BodyAlias << /MCID 1 >> BDC 72 704 Td (Page one body second) Tj EMC '
+            . '/DeckTitle << /MCID 0 >> BDC 72 720 Td (Page one heading first) Tj EMC '
+            . '/Artifact << /MCID 2 >> BDC 72 680 Td (Page one artifact noise) Tj EMC ET';
+        $pageTwoContent = 'BT /F1 12 Tf '
+            . '/BodyAlias << /MCID 1 >> BDC 72 704 Td (Page two body second) Tj EMC '
+            . '/DeckTitle << /MCID 0 >> BDC 72 720 Td (Page two heading first) Tj EMC '
+            . '/Artifact << /MCID 2 >> BDC 72 680 Td (Page two artifact noise) Tj EMC ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 20 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /StructParents 0 /Resources << /Font << /F1 7 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R /StructParents 1 /Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($pageOneContent) . " >>\nstream\n{$pageOneContent}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($pageTwoContent) . " >>\nstream\n{$pageTwoContent}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "20 0 obj\n<< /Type /StructTreeRoot /RoleMap 40 0 R /ParentTree 30 0 R /K [21 0 R 22 0 R 24 0 R 25 0 R] >>\nendobj\n"
+            . "21 0 obj\n<< /Type /StructElem /S /DeckTitle /P 20 0 R /K 0 >>\nendobj\n"
+            . "22 0 obj\n<< /Type /StructElem /S /BodyAlias /P 20 0 R /K 1 >>\nendobj\n"
+            . "24 0 obj\n<< /Type /StructElem /S /DeckTitle /P 20 0 R /K 0 >>\nendobj\n"
+            . "25 0 obj\n<< /Type /StructElem /S /BodyAlias /P 20 0 R /K 1 >>\nendobj\n"
+            . "30 0 obj\n<< /Kids [31 0 R 32 0 R] >>\nendobj\n"
+            . "31 0 obj\n<< /Limits [0 0] /Nums [0 [21 0 R 22 0 R]] >>\nendobj\n"
+            . "32 0 obj\n<< /Limits [1 1] /Nums [1 [24 0 R 25 0 R]] >>\nendobj\n"
+            . "40 0 obj\n<< /DeckTitle /H2 /BodyAlias /P >>\nendobj\n"
+            . "%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $tagged = $extractor->extractTaggedContent($pdf);
+
+        $expected = [
+            'Page one heading first',
+            'Page one body second',
+            'Page two heading first',
+            'Page two body second',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same([1, 1, 2, 2], array_column($tagged, 'page_number'));
+        $t->same([0, 1, 0, 1], array_column($tagged, 'mcid'));
+        $t->same(['H2', 'P', 'H2', 'P'], array_column($tagged, 'role'));
+        $t->same(['DeckTitle', 'BodyAlias', 'DeckTitle', 'BodyAlias'], array_column($tagged, 'raw_role'));
+        $t->same($expected, array_column($tagged, 'text'));
+        $t->true(!str_contains($plainText, 'artifact noise'));
+        $t->true(!str_contains($plainText, "Page one body second\nPage one heading first"));
+        $t->true(!str_contains($plainText, "Page two body second\nPage two heading first"));
     },
     'uses catalog Threads bead order before raw page content order' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Article part one) Tj ET '
