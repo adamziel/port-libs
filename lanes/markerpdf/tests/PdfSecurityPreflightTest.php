@@ -74,6 +74,42 @@ $encryptedPdfWithoutStandardPermissions = static function (): string {
         . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
 };
 
+$signedPdfWithReferenceTransforms = static function (): string {
+    $content = 'BT /F1 12 Tf 72 720 Td (Signed transform review content) Tj ET';
+    $signatureContentsHex = str_repeat('A', 96);
+    $signatureContentsToken = '<' . $signatureContentsHex . '>';
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R 12 0 R 13 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 9 0 R 10 0 R] /SigFlags 3 >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Sig /T (approval.signature) /V 30 0 R /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 300 684] /P 3 0 R /F 4 >>\nendobj\n"
+        . "9 0 obj\n<< /FT /Tx /T (invoice.total) /V (42.00) /Kids [12 0 R] >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (internal.notes) /V (review after signature) /Kids [13 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 9 0 R /Rect [72 600 300 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "13 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 560 300 584] /P 3 0 R /F 4 >>\nendobj\n"
+        . "30 0 obj\n<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (Editor Reviewer) /M (D:20260602115648Z) /ByteRange [0 AAAAAAAAAA BBBBBBBBBB CCCCCCCCCC] /Contents {$signatureContentsToken} /Reference [31 0 R << /Type /SigRef /TransformMethod /UR3 /Data 1 0 R /TransformParams 33 0 R >>] >>\nendobj\n"
+        . "31 0 obj\n<< /Type /SigRef /TransformMethod /FieldMDP /Data 5 0 R /DigestMethod /SHA256 /DigestValue <DEADC0DE> /TransformParams 32 0 R >>\nendobj\n"
+        . "32 0 obj\n<< /Type /TransformParams /V /1.2 /Action /Include /Fields [(invoice.total) 10 0 R] >>\nendobj\n"
+        . "33 0 obj\n<< /Type /TransformParams /V /2.2 /Document [/FullSave] /Form [/FillIn /Import /Export] /Signature [/Modify] /Annots [/Create /Modify] /EF [/Create] /Msg (Reader rights review only) >>\nendobj\n"
+        . "%%EOF";
+
+    $gapStart = strpos($pdf, $signatureContentsToken);
+    if ($gapStart === false) {
+        throw new RuntimeException('Unable to locate signature contents token in focused fixture.');
+    }
+
+    $gapEnd = $gapStart + strlen($signatureContentsToken);
+
+    return strtr($pdf, [
+        'AAAAAAAAAA' => sprintf('%010d', $gapStart),
+        'BBBBBBBBBB' => sprintf('%010d', $gapEnd),
+        'CCCCCCCCCC' => sprintf('%010d', strlen($pdf) - $gapEnd),
+    ]);
+};
+
 return [
     'blocks encrypted text extraction and quarantines invalid signature byte ranges' => static function (TestRunner $t) use ($encryptedSignedPdf): void {
         $pdf = $encryptedSignedPdf();
@@ -188,5 +224,67 @@ return [
         $t->same(false, $report['executes_decryption']);
         $t->same(false, $report['executes_external_pdf_tools']);
         $t->true(is_string($encoded) && !str_contains($encoded, 'Unknown-permission encrypted leak'));
+    },
+    'summarizes FieldMDP and usage-rights signature reference transforms without enforcing signatures' => static function (TestRunner $t) use ($signedPdfWithReferenceTransforms): void {
+        $pdf = $signedPdfWithReferenceTransforms();
+        $report = (new PdfSecurityPreflight())->analyze($pdf);
+        $signature = $report['signatures'][0];
+        $fieldMdp = $signature['reference_transforms'][0];
+        $usageRights = $signature['reference_transforms'][1];
+        $encoded = json_encode($report, JSON_UNESCAPED_SLASHES);
+        $rawSignatureHex = str_repeat('A', 96);
+
+        $t->same('Signed transform review content', (new PdfTextExtractor())->extractPlainText($pdf));
+        $t->same(false, $report['encrypted']);
+        $t->same(true, $report['content_extraction_allowed']);
+        $t->same('review_required_signature_metadata', $report['import_decision']);
+        $t->same(['signed_signature_present', 'signature_reference_transforms_present'], $report['review_reasons']);
+        $t->same(1, $report['signature_field_count']);
+        $t->same(1, $report['signed_signature_count']);
+        $t->same(0, $report['invalid_signature_byte_range_count']);
+        $t->same(2, $report['signature_reference_transform_count']);
+        $t->same(['FieldMDP', 'UR3'], $report['signature_reference_transform_methods']);
+
+        $t->same(2, $signature['reference_transform_count']);
+        $t->same(['FieldMDP', 'UR3'], $signature['reference_transform_methods']);
+        $t->same(true, $signature['byte_range']['valid']);
+        $t->same('FieldMDP', $fieldMdp['transform_method']);
+        $t->same('SigRef', $fieldMdp['type']);
+        $t->same(5, $fieldMdp['data_object']);
+        $t->same('SHA256', $fieldMdp['digest_method']);
+        $t->same(true, $fieldMdp['digest_value_present']);
+        $t->same(false, $fieldMdp['digest_value_exposed']);
+        $t->same('field_modification_permissions', $fieldMdp['transform_category']);
+        $t->same('TransformParams', $fieldMdp['transform_params_type']);
+        $t->same('1.2', $fieldMdp['transform_params_version']);
+        $t->same('Include', $fieldMdp['action']);
+        $t->same(true, $fieldMdp['action_valid']);
+        $t->same('locks_included_fields', $fieldMdp['action_label']);
+        $t->same(['invoice.total', 'internal.notes'], $fieldMdp['field_names']);
+        $t->same(['invoice.total', 'internal.notes'], $fieldMdp['included_fields']);
+        $t->same([], $fieldMdp['excluded_fields']);
+        $t->same(false, $fieldMdp['executes_signature_validation']);
+        $t->same(false, $fieldMdp['executes_action']);
+
+        $t->same('UR3', $usageRights['transform_method']);
+        $t->same('usage_rights_ur3', $usageRights['transform_category']);
+        $t->same('2.2', $usageRights['transform_params_version']);
+        $t->same('Reader rights review only', $usageRights['message']);
+        $t->same(['document', 'form', 'signature', 'annotations', 'embedded_files'], $usageRights['right_categories']);
+        $t->same(['FullSave'], $usageRights['rights']['document']);
+        $t->same(['FillIn', 'Import', 'Export'], $usageRights['rights']['form']);
+        $t->same(['Modify'], $usageRights['rights']['signature']);
+        $t->same(['Create', 'Modify'], $usageRights['rights']['annotations']);
+        $t->same(['Create'], $usageRights['rights']['embedded_files']);
+        $t->same(8, $usageRights['right_count']);
+        $t->same(false, $usageRights['executes_rights_enforcement']);
+        $t->same(false, $usageRights['executes_signature_validation']);
+        $t->same(false, $usageRights['executes_action']);
+
+        $t->same(false, $report['executes_signature_validation']);
+        $t->same(false, $report['executes_signing']);
+        $t->same(false, $report['executes_python_or_models']);
+        $t->same(false, $report['executes_external_pdf_tools']);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'DEADC0DE') && !str_contains($encoded, $rawSignatureHex));
     },
 ];

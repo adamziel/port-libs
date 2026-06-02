@@ -29,12 +29,14 @@ final class PdfSecurityPreflight
             static fn (array $signature): bool => ($signature['byte_range']['present'] ?? false) === true
                 && ($signature['byte_range']['valid'] ?? false) !== true
         ));
+        $referenceTransformCount = $this->referenceTransformCount($signatures);
         $lockedFieldNames = $this->lockedFieldNames($form['fields'] ?? []);
         $permissionPreflight = $this->permissionPreflight($encrypted, $encryption);
         $reviewReasons = $this->reviewReasons(
             $encrypted,
             $signedSignatureCount,
             $invalidByteRangeCount,
+            $referenceTransformCount,
             $lockedFieldNames,
             $permissionPreflight
         );
@@ -55,6 +57,8 @@ final class PdfSecurityPreflight
             'signature_field_count' => count($signatures),
             'signed_signature_count' => $signedSignatureCount,
             'invalid_signature_byte_range_count' => $invalidByteRangeCount,
+            'signature_reference_transform_count' => $referenceTransformCount,
+            'signature_reference_transform_methods' => $this->referenceTransformMethods($signatures),
             'locked_field_names' => $lockedFieldNames,
             'signatures' => $signatures,
             'raw_owner_user_keys_exposed' => false,
@@ -153,6 +157,7 @@ final class PdfSecurityPreflight
             $seed = is_array($field['signature_seed_value'] ?? null) ? $field['signature_seed_value'] : [];
             $lock = is_array($field['signature_lock'] ?? null) ? $field['signature_lock'] : [];
             $byteRange = $state['byte_range'] ?? ($signature['byte_range'] ?? null);
+            $referenceTransforms = $this->signatureReferenceTransforms($signature);
 
             $reviews[] = [
                 'field_name' => $field['name'] ?? null,
@@ -167,6 +172,9 @@ final class PdfSecurityPreflight
                 'contents_present' => (bool) ($state['contents_present'] ?? ($signature['contents_present'] ?? false)),
                 'contents_length_bytes' => $state['contents_length_bytes'] ?? ($signature['contents_length_bytes'] ?? null),
                 'byte_range' => $this->byteRangeBoundary($byteRange, $pdfBytes),
+                'reference_transform_count' => count($referenceTransforms),
+                'reference_transform_methods' => $this->transformMethods($referenceTransforms),
+                'reference_transforms' => $referenceTransforms,
                 'seed_required_constraints' => $seed['required_constraints'] ?? [],
                 'lock_action' => $lock['action'] ?? null,
                 'lock_field_names' => $lock['field_names'] ?? [],
@@ -179,6 +187,76 @@ final class PdfSecurityPreflight
         }
 
         return $reviews;
+    }
+
+    /**
+     * @param array<string, mixed> $signature
+     * @return list<array<string, mixed>>
+     */
+    private function signatureReferenceTransforms(array $signature): array
+    {
+        return array_values(array_filter(
+            $signature['reference_transforms'] ?? [],
+            static fn (mixed $transform): bool => is_array($transform)
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     */
+    private function referenceTransformCount(array $signatures): int
+    {
+        $count = 0;
+        foreach ($signatures as $signature) {
+            $count += count(array_filter(
+                $signature['reference_transforms'] ?? [],
+                static fn (mixed $transform): bool => is_array($transform)
+            ));
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     * @return list<string>
+     */
+    private function referenceTransformMethods(array $signatures): array
+    {
+        $methods = [];
+        foreach ($signatures as $signature) {
+            foreach ($signature['reference_transforms'] ?? [] as $transform) {
+                if (!is_array($transform) || !is_string($transform['transform_method'] ?? null)) {
+                    continue;
+                }
+
+                if (!in_array($transform['transform_method'], $methods, true)) {
+                    $methods[] = $transform['transform_method'];
+                }
+            }
+        }
+
+        return $methods;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $transforms
+     * @return list<string>
+     */
+    private function transformMethods(array $transforms): array
+    {
+        $methods = [];
+        foreach ($transforms as $transform) {
+            if (!is_string($transform['transform_method'] ?? null)) {
+                continue;
+            }
+
+            if (!in_array($transform['transform_method'], $methods, true)) {
+                $methods[] = $transform['transform_method'];
+            }
+        }
+
+        return $methods;
     }
 
     /**
@@ -427,6 +505,7 @@ final class PdfSecurityPreflight
         bool $encrypted,
         int $signedSignatureCount,
         int $invalidByteRangeCount,
+        int $referenceTransformCount,
         array $lockedFieldNames,
         array $permissionPreflight
     ): array
@@ -447,6 +526,9 @@ final class PdfSecurityPreflight
         }
         if ($signedSignatureCount > 0 && !$encrypted) {
             $reasons[] = 'signed_signature_present';
+        }
+        if ($referenceTransformCount > 0) {
+            $reasons[] = 'signature_reference_transforms_present';
         }
         if ($lockedFieldNames !== []) {
             $reasons[] = 'signed_field_locks_present';

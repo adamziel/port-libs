@@ -358,6 +358,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-xref-generation-repair-boundary.php` maps hybrid xref generation repair into a WordPress paragraph import path. It keeps the current xref table direct generation row authoritative over a companion `/XRefStm` compressed stale member, emitting `Current direct generation page` and `Hybrid table boundary kept` while excluding previous-generation compressed text without Python, pdftext, pypdfium, Poppler, Ghostscript, models, or external PDF tools.
 
+`examples/wordpress-pdf-signature-reference-transform-review.php` maps PDF signature `/Reference` transform dictionaries into a WordPress security-review path. It exposes FieldMDP and UR3 usage-rights metadata, field locks, digest presence, and allowed right categories while suppressing digest/signature bytes and without executing signature validation, signing, rights enforcement, Python, models, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

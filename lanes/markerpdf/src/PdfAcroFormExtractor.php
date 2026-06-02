@@ -1010,7 +1010,7 @@ final class PdfAcroFormExtractor
         }
         if ($fieldType === 'Sig') {
             $field['signature'] = isset($effective['V'])
-                ? $this->signatureMetadataFromValue($effective['V']['value'], $objects)
+                ? $this->signatureMetadataFromValue($effective['V']['value'], $objects, $fieldNamesByObject)
                 : null;
             $field['signature_seed_value'] = $this->signatureSeedValueFromField($body, $objects);
             $field['signature_lock'] = $this->signatureLockFromField($body, $objects, $fieldNamesByObject);
@@ -1346,7 +1346,7 @@ final class PdfAcroFormExtractor
      * @param array<int, string> $objects
      * @return array<string, mixed>|null
      */
-    private function signatureMetadataFromValue(string $value, array $objects): ?array
+    private function signatureMetadataFromValue(string $value, array $objects, array $fieldNamesByObject = []): ?array
     {
         $signature = $this->resolvedDictionaryFromValue($value, $objects);
         if ($signature === null) {
@@ -1367,7 +1367,7 @@ final class PdfAcroFormExtractor
             'byte_range' => $this->integerArrayValueAfterName($body, 'ByteRange'),
             'contents_present' => $contentsValue !== null,
             'contents_length_bytes' => $contentsValue === null ? null : $this->signatureContentsLength($contentsValue, $objects),
-            'reference_transforms' => $this->signatureReferenceTransforms($body, $objects),
+            'reference_transforms' => $this->signatureReferenceTransforms($body, $objects, $fieldNamesByObject),
             'certifying_signature' => false,
         ];
 
@@ -1383,7 +1383,7 @@ final class PdfAcroFormExtractor
      * @param array<int, string> $objects
      * @return list<array<string, mixed>>
      */
-    private function signatureReferenceTransforms(string $signatureBody, array $objects): array
+    private function signatureReferenceTransforms(string $signatureBody, array $objects, array $fieldNamesByObject = []): array
     {
         $reference = $this->valueAfterName($signatureBody, 'Reference');
         if ($reference === null || !str_starts_with(trim($reference), '[')) {
@@ -1404,12 +1404,16 @@ final class PdfAcroFormExtractor
             }
 
             $transform = [
+                'object' => $dictionary['object'],
+                'type' => $this->pdfNameValueAfterName($transformBody, 'Type'),
                 'transform_method' => $method,
                 'data_object' => $this->objectReferenceValueAfterName($transformBody, 'Data'),
                 'digest_method' => $this->pdfNameValueAfterName($transformBody, 'DigestMethod'),
+                'digest_value_present' => $this->valueAfterName($transformBody, 'DigestValue') !== null,
+                'digest_value_exposed' => false,
             ];
 
-            $params = $this->docMdpTransformParams($transformBody, $objects, $method);
+            $params = $this->signatureTransformParams($transformBody, $objects, $method, $fieldNamesByObject);
             if ($params !== null) {
                 $transform += $params;
             }
@@ -1424,21 +1428,38 @@ final class PdfAcroFormExtractor
      * @param array<int, string> $objects
      * @return array<string, mixed>|null
      */
-    private function docMdpTransformParams(string $referenceBody, array $objects, string $method): ?array
+    private function signatureTransformParams(string $referenceBody, array $objects, string $method, array $fieldNamesByObject): ?array
     {
         $paramsValue = $this->valueAfterName($referenceBody, 'TransformParams');
         $params = $paramsValue === null ? null : $this->resolvedDictionaryFromValue($paramsValue, $objects);
-        if ($method !== 'DocMDP' && $params === null) {
+        if ($method === 'DocMDP') {
+            return $this->docMdpTransformParams($params);
+        }
+        if ($params === null) {
             return null;
         }
 
+        return match ($method) {
+            'FieldMDP' => $this->fieldMdpTransformParams($params, $objects, $fieldNamesByObject),
+            'UR', 'UR3' => $this->usageRightsTransformParams($params, $objects, $method),
+            default => $this->genericSignatureTransformParams($params),
+        };
+    }
+
+    /**
+     * @param array{body: string, object: int|null}|null $params
+     * @return array<string, mixed>|null
+     */
+    private function docMdpTransformParams(?array $params): ?array
+    {
         $paramsBody = $params['body'] ?? '';
         $level = $paramsBody === '' ? null : $this->numberValueAfterName($paramsBody, 'P');
-        if ($method === 'DocMDP' && $level === null) {
+        if ($level === null) {
             $level = 2;
         }
 
         return [
+            'transform_category' => 'certification_permissions',
             'transform_params_object' => $params['object'] ?? null,
             'transform_params_type' => $paramsBody === '' ? null : $this->pdfNameValueAfterName($paramsBody, 'Type'),
             'transform_params_version' => $paramsBody === '' ? null : $this->pdfNameValueAfterName($paramsBody, 'V'),
@@ -1446,6 +1467,109 @@ final class PdfAcroFormExtractor
             'permission_valid' => in_array($level, [1, 2, 3], true),
             'permission_label' => $this->docMdpPermissionLabel($level),
             'allowed_changes' => $this->docMdpAllowedChanges($level),
+            'review_only' => true,
+            'executes_signature_validation' => false,
+            'executes_action' => false,
+        ];
+    }
+
+    /**
+     * @param array{body: string, object: int|null} $params
+     * @param array<int, string> $objects
+     * @param array<int, string> $fieldNamesByObject
+     * @return array<string, mixed>
+     */
+    private function fieldMdpTransformParams(array $params, array $objects, array $fieldNamesByObject): array
+    {
+        $body = $params['body'];
+        $action = $this->pdfNameValueAfterName($body, 'Action');
+        $fieldNames = $this->signatureLockFieldNames($body, $objects, $fieldNamesByObject);
+
+        return [
+            'transform_category' => 'field_modification_permissions',
+            'transform_params_object' => $params['object'],
+            'transform_params_type' => $this->pdfNameValueAfterName($body, 'Type'),
+            'transform_params_version' => $this->pdfNameValueAfterName($body, 'V'),
+            'action' => $action,
+            'action_valid' => in_array($action, ['All', 'Include', 'Exclude'], true),
+            'action_label' => $this->fieldMdpActionLabel($action),
+            'field_names' => $fieldNames,
+            'included_fields' => $action === 'Include' ? $fieldNames : [],
+            'excluded_fields' => $action === 'Exclude' ? $fieldNames : [],
+            'locks_all_fields' => $action === 'All',
+            'review_only' => true,
+            'executes_signature_validation' => false,
+            'executes_action' => false,
+        ];
+    }
+
+    private function fieldMdpActionLabel(?string $action): string
+    {
+        return match ($action) {
+            'All' => 'locks_all_fields',
+            'Include' => 'locks_included_fields',
+            'Exclude' => 'locks_all_except_excluded_fields',
+            default => 'unknown',
+        };
+    }
+
+    /**
+     * @param array{body: string, object: int|null} $params
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function usageRightsTransformParams(array $params, array $objects, string $method): array
+    {
+        $body = $params['body'];
+        $rights = $this->usageRightsFromTransformParams($body, $objects);
+
+        return [
+            'transform_category' => $method === 'UR3' ? 'usage_rights_ur3' : 'usage_rights',
+            'transform_params_object' => $params['object'],
+            'transform_params_type' => $this->pdfNameValueAfterName($body, 'Type'),
+            'transform_params_version' => $this->pdfNameValueAfterName($body, 'V'),
+            'message' => $this->pdfStringValueAfterName($body, 'Msg', $objects),
+            'rights' => $rights,
+            'right_categories' => array_keys(array_filter($rights, static fn (array $values): bool => $values !== [])),
+            'right_count' => array_sum(array_map('count', $rights)),
+            'review_only' => true,
+            'executes_rights_enforcement' => false,
+            'executes_signature_validation' => false,
+            'executes_action' => false,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, list<string>>
+     */
+    private function usageRightsFromTransformParams(string $body, array $objects): array
+    {
+        return [
+            'document' => $this->scalarListValueAfterName($body, 'Document', $objects),
+            'form' => $this->scalarListValueAfterName($body, 'Form', $objects),
+            'signature' => $this->scalarListValueAfterName($body, 'Signature', $objects),
+            'annotations' => $this->scalarListValueAfterName($body, 'Annots', $objects),
+            'embedded_files' => $this->scalarListValueAfterName($body, 'EF', $objects),
+        ];
+    }
+
+    /**
+     * @param array{body: string, object: int|null} $params
+     * @return array<string, mixed>
+     */
+    private function genericSignatureTransformParams(array $params): array
+    {
+        $body = $params['body'];
+
+        return [
+            'transform_category' => 'unknown',
+            'transform_params_object' => $params['object'],
+            'transform_params_type' => $this->pdfNameValueAfterName($body, 'Type'),
+            'transform_params_version' => $this->pdfNameValueAfterName($body, 'V'),
+            'review_only' => true,
+            'executes_signature_validation' => false,
+            'executes_action' => false,
         ];
     }
 
