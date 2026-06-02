@@ -298,6 +298,12 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-acroform-submit-reset-actions.php` maps AcroForm `/SubmitForm` and `/ResetForm` actions into a review-only WordPress form path. It reports submit targets, reset modes, and field lists without submitting data, resetting state, or executing PDF actions.
 
+`examples/wordpress-pdf-associated-files-import.php` maps catalog `/AF` associated Filespec arrays into a WordPress import review path. It emits source and alternative file rows with `/AFRelationship`, description, MIME, size, and declared-size metadata while keeping payload bytes out of visible paragraph extraction.
+
+`examples/wordpress-pdf-javascript-action-safety.php` maps document name-tree, catalog, page, and annotation JavaScript actions into a non-executing safety-review path. It reports source, event, script preview, hashes, and object references while keeping JavaScript out of text extraction and Markdown links.
+
+`examples/wordpress-pdf-base14-font-metrics-import.php` maps Base14 and explicit simple-font width metrics into a WordPress text extraction path. It uses native width evidence for same-line gap decisions, preserving expected output such as `Ill Word`, `WWWImport`, `iii Word`, and `CourierText`.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
