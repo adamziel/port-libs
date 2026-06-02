@@ -183,6 +183,47 @@ XML;
     return [$pdf, hash('sha256', trim($xdpXml))];
 };
 
+$xfaSignatureFieldBoundaryPdf = static function (): array {
+    $xdpXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/">
+  <xfa:template xmlns:xfa="http://www.xfa.org/schema/xfa-template/3.3/">
+    <xfa:subform name="approval">
+      <xfa:field name="approval.signature"><xfa:caption><xfa:value><xfa:text>Signature</xfa:text></xfa:value></xfa:caption></xfa:field>
+      <xfa:field name="article.title"><xfa:caption><xfa:value><xfa:text>Title</xfa:text></xfa:value></xfa:caption></xfa:field>
+    </xfa:subform>
+  </xfa:template>
+  <xfa:datasets>
+    <xfa:data>
+      <approval><signature>xfa signature bytes must stay review metadata</signature></approval>
+      <article><title>XFA title should not replace AcroForm value</title></article>
+    </xfa:data>
+  </xfa:datasets>
+  <xfa:signature xmlns:xfa="http://www.xfa.org/schema/xfa-signature/3.3/">
+    <xfa:signData target="approval.signature">detached xfa signature payload</xfa:signData>
+  </xfa:signature>
+</xdp:xdp>
+XML;
+    $compressed = gzcompress($xdpXml);
+    assert(is_string($compressed));
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [6 0 R 9 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 9 0 R] /SigFlags 1 /XFA 30 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Subtype /Widget /FT /Sig /T (approval.signature) /TU (Unsigned XFA approval) /Rect [120 80 360 120] /P 3 0 R /F 4 /AS /Off /AP << /N << /Off 40 0 R /Signed 41 0 R >> >> >>\nendobj\n"
+        . "9 0 obj\n<< /Subtype /Widget /FT /Tx /T (article.title) /V (Static AcroForm title) /Rect [120 140 420 164] /P 3 0 R /F 4 >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($compressed) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressed
+        . "\nendstream\nendobj\n"
+        . "40 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "41 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, hash('sha256', trim($xdpXml))];
+};
+
 $submitResetActionPdf = static function (): string {
     return "%PDF-1.7\n"
         . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
@@ -789,6 +830,62 @@ return [
         $t->true($widget['no_view']);
         $t->same('Signed', $widget['appearance_state']);
         $t->same(['Signed', 'Off'], $widget['appearance_states']);
+    },
+    'keeps XFA signature field data review only and outside AcroForm signing state' => static function (TestRunner $t) use ($xfaSignatureFieldBoundaryPdf, $fieldsByName): void {
+        [$pdf, $xdpHash] = $xfaSignatureFieldBoundaryPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $packets = $form['xfa_packets'];
+
+        $t->true($form['xfa_overrides_page_content']);
+        $t->same(1, count($packets));
+        $packet = $packets[0];
+        $t->same('xdp:xdp', $packet['xml_root']);
+        $t->same($xdpHash, $packet['xml_sha256']);
+        $t->same(['template', 'datasets', 'signature'], $packet['xdp_packet_names']);
+        $t->same(['approval.signature', 'article.title'], $packet['field_names']);
+        $t->same(['approval.signature', 'article.title'], $packet['data_paths']);
+        $t->same(['approval.signature'], $packet['signature_field_names']);
+        $t->true($packet['has_signature_field']);
+        $t->same(false, $packet['signature_payload_exposed']);
+        $t->same(false, $packet['executes_signature_validation']);
+        $t->same(false, $packet['executes_signing']);
+
+        $signature = $fields['approval.signature'];
+        $signatureBoundary = $signature['xfa_boundary'];
+        $signatureState = $signature['signature_state'];
+        $signatureWidget = $signature['widgets'][0];
+
+        $t->same('Sig', $signature['field_type']);
+        $t->same(null, $signature['signature']);
+        $t->same(null, $signature['value']);
+        $t->same(false, $signatureState['has_signature_dictionary']);
+        $t->same(false, $signatureState['signed']);
+        $t->same(false, $signatureState['xfa_value_used_for_signature']);
+        $t->same(false, $signatureState['executes_signature_validation']);
+        $t->same(false, $signatureState['executes_signing']);
+        $t->same('Off', $signatureWidget['appearance_state']);
+        $t->same(['Off', 'Signed'], $signatureWidget['appearance_states']);
+
+        $t->same('acroform_xfa_field_boundary', $signatureBoundary['source']);
+        $t->true($signatureBoundary['referenced_by_xfa']);
+        $t->same(['xdp:xdp'], $signatureBoundary['packet_names']);
+        $t->same([30], $signatureBoundary['packet_objects']);
+        $t->same(['approval.signature'], $signatureBoundary['matched_field_names']);
+        $t->same(['approval.signature'], $signatureBoundary['matched_data_paths']);
+        $t->true($signatureBoundary['has_xfa_template_reference']);
+        $t->true($signatureBoundary['dynamic_value_present']);
+        $t->same(false, $signatureBoundary['value_used_for_import']);
+        $t->same(false, $signatureBoundary['xfa_payload_text_exposed']);
+        $t->same(false, $signatureBoundary['executes_xfa_javascript']);
+        $t->same(false, $signatureBoundary['executes_signature_validation']);
+        $t->same(false, $signatureBoundary['executes_signing']);
+
+        $title = $fields['article.title'];
+        $t->same('Static AcroForm title', $title['value']);
+        $t->same('Static AcroForm title', $title['value_state']['current']);
+        $t->true($title['xfa_boundary']['dynamic_value_present']);
+        $t->same(false, $title['xfa_boundary']['value_used_for_import']);
     },
     'extracts SubmitForm and ResetForm action review metadata without executing actions' => static function (TestRunner $t) use ($submitResetActionPdf, $fieldsByName): void {
         $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($submitResetActionPdf()));

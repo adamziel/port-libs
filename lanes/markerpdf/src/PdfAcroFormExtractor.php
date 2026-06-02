@@ -116,6 +116,9 @@ final class PdfAcroFormExtractor
 
         $fields = $this->markCertifyingSignatureFields($fields, $permissions);
         $fields = $this->annotateCalculationAndSignatureState($fields, $calculationOrder, $signatureFlags);
+        if ($xfaPackets !== []) {
+            $fields = $this->annotateXfaFieldBoundaries($fields, $xfaPackets);
+        }
 
         return [
             'need_appearances' => $this->boolValueAfterName($acroForm, 'NeedAppearances') === true,
@@ -631,6 +634,10 @@ final class PdfAcroFormExtractor
         $root = $this->xmlRootName($xml);
         $name = $packetName !== null && $packetName !== '' ? $packetName : ($root ?? 'xfa');
         $xdpPacketNames = $this->xdpPacketNames($xml);
+        $fieldNames = $this->xfaFieldNames($xml);
+        $dataNodeNames = $this->xfaDataNodeNames($xml);
+        $dataPaths = $this->xfaDataPaths($xml);
+        $signatureFieldNames = $this->xfaSignatureFieldNames($fieldNames, $dataPaths);
 
         return [
             'index' => $index,
@@ -645,12 +652,127 @@ final class PdfAcroFormExtractor
             'xml_sha256' => hash('sha256', $xml),
             'is_xdp_package' => $this->xmlLocalName($root) === 'xdp',
             'xdp_packet_names' => $xdpPacketNames,
-            'field_names' => $this->xfaFieldNames($xml),
-            'data_node_names' => $this->xfaDataNodeNames($xml),
+            'field_names' => $fieldNames,
+            'data_node_names' => $dataNodeNames,
+            'data_paths' => $dataPaths,
+            'signature_field_names' => $signatureFieldNames,
+            'has_signature_field' => $signatureFieldNames !== []
+                || in_array('signature', $xdpPacketNames, true)
+                || $this->xmlContainsElement($xml, 'signature')
+                || $this->xmlContainsElement($xml, 'signData'),
+            'signature_payload_exposed' => false,
+            'executes_signature_validation' => false,
+            'executes_signing' => false,
             'has_template' => $this->xfaPayloadHasRole($name, $root, $xdpPacketNames, $xml, 'template'),
             'has_datasets' => $this->xfaPayloadHasRole($name, $root, $xdpPacketNames, $xml, 'datasets'),
             'text_preview' => $this->xmlTextPreview($xml),
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fields
+     * @param list<array<string, mixed>> $xfaPackets
+     * @return list<array<string, mixed>>
+     */
+    private function annotateXfaFieldBoundaries(array $fields, array $xfaPackets): array
+    {
+        foreach ($fields as $index => $field) {
+            $fieldName = is_string($field['name'] ?? null) ? $field['name'] : null;
+            $fieldType = is_string($field['field_type'] ?? null) ? $field['field_type'] : null;
+            $boundary = $this->xfaBoundaryForField($fieldName, $fieldType, $xfaPackets);
+            $fields[$index]['xfa_boundary'] = $boundary;
+
+            if ($fieldType === 'Sig' && is_array($fields[$index]['signature_state'] ?? null)) {
+                $fields[$index]['signature_state']['xfa_referenced'] = $boundary['referenced_by_xfa'];
+                $fields[$index]['signature_state']['xfa_dynamic_value_present'] = $boundary['dynamic_value_present'];
+                $fields[$index]['signature_state']['xfa_value_used_for_signature'] = false;
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xfaPackets
+     * @return array<string, mixed>
+     */
+    private function xfaBoundaryForField(?string $fieldName, ?string $fieldType, array $xfaPackets): array
+    {
+        $packetIndexes = [];
+        $packetNames = [];
+        $packetObjects = [];
+        $matchedFieldNames = [];
+        $matchedDataPaths = [];
+
+        if ($fieldName !== null && $fieldName !== '') {
+            foreach ($xfaPackets as $packet) {
+                $fieldMatches = $this->matchingXfaNames($packet['field_names'] ?? [], $fieldName);
+                $dataMatches = $this->matchingXfaNames($packet['data_paths'] ?? [], $fieldName);
+                if ($fieldMatches === [] && $dataMatches === []) {
+                    continue;
+                }
+
+                if (is_int($packet['index'] ?? null)) {
+                    $packetIndexes[] = $packet['index'];
+                }
+                if (is_string($packet['name'] ?? null)) {
+                    $packetNames[] = $packet['name'];
+                }
+                if (is_int($packet['object'] ?? null)) {
+                    $packetObjects[] = $packet['object'];
+                }
+
+                $matchedFieldNames = array_merge($matchedFieldNames, $fieldMatches);
+                $matchedDataPaths = array_merge($matchedDataPaths, $dataMatches);
+            }
+        }
+
+        $matchedFieldNames = $this->uniqueStrings($matchedFieldNames);
+        $matchedDataPaths = $this->uniqueStrings($matchedDataPaths);
+        $boundary = [
+            'source' => 'acroform_xfa_field_boundary',
+            'field_name' => $fieldName,
+            'referenced_by_xfa' => $matchedFieldNames !== [] || $matchedDataPaths !== [],
+            'packet_count' => count($this->uniqueStrings(array_map('strval', $packetIndexes))),
+            'packet_indexes' => array_values(array_unique($packetIndexes)),
+            'packet_names' => $this->uniqueStrings($packetNames),
+            'packet_objects' => array_values(array_unique($packetObjects)),
+            'matched_field_names' => $matchedFieldNames,
+            'matched_data_paths' => $matchedDataPaths,
+            'has_xfa_template_reference' => $matchedFieldNames !== [],
+            'has_xfa_dataset_reference' => $matchedDataPaths !== [],
+            'dynamic_value_present' => $matchedDataPaths !== [],
+            'value_used_for_import' => false,
+            'xfa_payload_text_exposed' => false,
+            'executes_xfa_javascript' => false,
+            'executes_form_calculation' => false,
+        ];
+
+        if ($fieldType === 'Sig') {
+            $boundary += [
+                'xfa_value_used_for_signature' => false,
+                'executes_signature_validation' => false,
+                'executes_signing' => false,
+            ];
+        }
+
+        return $boundary;
+    }
+
+    /**
+     * @param mixed $names
+     * @return list<string>
+     */
+    private function matchingXfaNames(mixed $names, string $fieldName): array
+    {
+        if (!is_array($names)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $names,
+            static fn (mixed $name): bool => is_string($name) && $name === $fieldName
+        ));
     }
 
     /**
@@ -880,6 +1002,141 @@ final class PdfAcroFormExtractor
         }
 
         return $names;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xfaDataPaths(string $xml): array
+    {
+        $paths = [];
+        foreach ($this->xfaDataSections($xml) as $section) {
+            foreach ($this->xmlLeafTextPaths($section) as $path) {
+                if (!in_array($path, $paths, true)) {
+                    $paths[] = $path;
+                }
+            }
+        }
+
+        return $paths;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xfaDataSections(string $xml): array
+    {
+        if (preg_match_all('/<\s*(?:[A-Za-z_][A-Za-z0-9_.-]*:)?data\b[^>]*>(.*?)<\/\s*(?:[A-Za-z_][A-Za-z0-9_.-]*:)?data\s*>/si', $xml, $matches) === false) {
+            return [];
+        }
+
+        return $matches[1];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xmlLeafTextPaths(string $xml): array
+    {
+        $paths = [];
+        $stack = [];
+        $offset = 0;
+        while (preg_match('/<\s*(\/?)([A-Za-z_][A-Za-z0-9_.:-]*)\b[^>]*(\/?)>/s', $xml, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $tag = $match[0][0];
+            $tagStart = $match[0][1];
+            $tagEnd = $tagStart + strlen($tag);
+            $offset = $tagEnd;
+
+            $closing = $match[1][0] === '/';
+            $localName = $this->xmlLocalName($match[2][0]);
+            if ($localName === null || $localName === '') {
+                continue;
+            }
+
+            if ($closing) {
+                $this->popXmlStackTo($stack, $localName);
+                continue;
+            }
+
+            $selfClosing = str_ends_with(rtrim($tag), '/>');
+            if (!$selfClosing) {
+                $nextTagStart = strpos($xml, '<', $tagEnd);
+                $text = $nextTagStart === false
+                    ? substr($xml, $tagEnd)
+                    : substr($xml, $tagEnd, $nextTagStart - $tagEnd);
+                $text = trim($this->decodeXmlText($text));
+                if ($text !== '') {
+                    $path = implode('.', array_merge($stack, [$localName]));
+                    if ($path !== '' && !in_array($path, $paths, true)) {
+                        $paths[] = $path;
+                    }
+                }
+
+                $stack[] = $localName;
+            }
+        }
+
+        return $paths;
+    }
+
+    /**
+     * @param list<string> $stack
+     */
+    private function popXmlStackTo(array &$stack, string $localName): void
+    {
+        for ($index = count($stack) - 1; $index >= 0; $index--) {
+            if ($stack[$index] !== $localName) {
+                continue;
+            }
+
+            array_splice($stack, $index);
+            return;
+        }
+
+        array_pop($stack);
+    }
+
+    /**
+     * @param list<string> $fieldNames
+     * @param list<string> $dataPaths
+     * @return list<string>
+     */
+    private function xfaSignatureFieldNames(array $fieldNames, array $dataPaths): array
+    {
+        return $this->uniqueStrings(array_filter(
+            array_merge($fieldNames, $dataPaths),
+            fn (string $name): bool => $this->looksLikeSignatureFieldName($name)
+        ));
+    }
+
+    private function looksLikeSignatureFieldName(string $name): bool
+    {
+        $parts = preg_split('/[.:\s_-]+/', strtolower($name)) ?: [];
+        foreach ($parts as $part) {
+            if (in_array($part, ['sig', 'signature', 'signatures'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $values
+     * @return list<string>
+     */
+    private function uniqueStrings(array $values): array
+    {
+        $unique = [];
+        foreach ($values as $value) {
+            if ($value === '' || in_array($value, $unique, true)) {
+                continue;
+            }
+
+            $unique[] = $value;
+        }
+
+        return $unique;
     }
 
     private function xmlTextPreview(string $xml): string
