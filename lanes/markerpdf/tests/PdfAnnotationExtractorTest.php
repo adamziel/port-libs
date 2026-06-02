@@ -37,6 +37,30 @@ $geometryPdf = static function (): string {
         . "%%EOF";
 };
 
+$annotationAppearanceEdgePdf = static function (): string {
+    $pageStream = "BT /F1 12 Tf 72 744 Td (Page visible text) Tj ET";
+    $inkAppearance = "q BT /F1 10 Tf 72 690 Td (Ink AP selected) Tj ET Q";
+    $offAppearance = "q BT /F1 10 Tf 72 690 Td (Stale Off AP) Tj ET Q";
+    $soundAppearance = "q BT /F1 10 Tf 260 690 Td (Sound AP review) Tj ET Q";
+    $soundBytes = "LOUD PAYLOAD TEXT";
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R /Annots [6 0 R 8 0 R 10 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageStream) . " >>\nstream\n" . $pageStream . "\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Annot /Subtype /Ink /Rect [60 660 230 724] /Contents (Reviewer ink) /InkList [[72 700 92 708 120 690] [150 682 198 704]] /C [0 0 1] /BS << /W 2 /S /S >> /AS /BlueStroke /AP << /N << /BlueStroke 7 0 R /Off 12 0 R >> /R 13 0 R >> >>\nendobj\n"
+        . "7 0 obj\n<< /Type /XObject /Subtype /Form /BBox [60 660 230 724] /Matrix [1 0 0 1 0 0] /Resources << /Font << /F1 5 0 R >> >> /Length " . strlen($inkAppearance) . " >>\nstream\n" . $inkAppearance . "\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Type /Annot /Subtype /Sound /Rect [250 660 360 724] /Contents (Audio review) /Name /Speaker /Sound 9 0 R /AP << /N 11 0 R >> >>\nendobj\n"
+        . "9 0 obj\n<< /R 44100 /C 2 /B 16 /E /Signed /CO /ALaw /Filter /ASCIIHexDecode /Length " . strlen($soundBytes) . " >>\nstream\n" . bin2hex($soundBytes) . ">\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Type /Annot /Subtype /Popup /Rect [252 620 420 700] /Parent 8 0 R /Open false /Contents (Audio popup review) >>\nendobj\n"
+        . "11 0 obj\n<< /Type /XObject /Subtype /Form /BBox [250 660 360 724] /Matrix [1 0 0 1 0 0] /Length " . strlen($soundAppearance) . " >>\nstream\n" . $soundAppearance . "\nendstream\nendobj\n"
+        . "12 0 obj\n<< /Type /XObject /Subtype /Form /BBox [60 660 230 724] /Length " . strlen($offAppearance) . " >>\nstream\n" . $offAppearance . "\nendstream\nendobj\n"
+        . "13 0 obj\n<< /Type /XObject /Subtype /Form /BBox [60 660 230 724] /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts page annotation border color opacity and popup metadata' => static function (TestRunner $t) use ($annotationPdf): void {
         $pages = (new PdfAnnotationExtractor())->extractPageAnnotations($annotationPdf());
@@ -193,5 +217,40 @@ return [
         $t->same([70.0, 320.0, 260.0, 380.0], $callout['geometry']['rect']);
         $t->same([120.0, 344.0], $callout['geometry']['elbow_point']);
         $t->same(['None', 'OpenArrow'], $callout['geometry']['line_endings']);
+    },
+    'reviews ink annotation appearance dictionaries and sound stream metadata without playback' => static function (TestRunner $t) use ($annotationAppearanceEdgePdf): void {
+        $page = (new PdfAnnotationExtractor())->extractPageAnnotations($annotationAppearanceEdgePdf())[0];
+
+        $t->same(2, count($page['annotations']), 'reverse-linked sound Popup remains nested.');
+
+        $ink = $page['annotations'][0];
+        $t->same('Ink', $ink['subtype']);
+        $t->same('ink', $ink['geometry']['type']);
+        $t->same('BlueStroke', $ink['appearance']['normal']['selected_state']);
+        $t->same(['BlueStroke', 'Off'], $ink['appearance']['normal']['states']);
+        $t->same(7, $ink['appearance']['normal']['selected']['object']);
+        $t->same('Form', $ink['appearance']['normal']['selected']['subtype']);
+        $t->same([60.0, 660.0, 230.0, 724.0], $ink['appearance']['normal']['selected']['bbox']);
+        $t->same([1.0, 0.0, 0.0, 1.0, 0.0, 0.0], $ink['appearance']['normal']['selected']['matrix']);
+        $t->same(['Font'], $ink['appearance']['normal']['selected']['resource_keys']);
+        $t->same(13, $ink['appearance']['rollover']['object']);
+        $t->same(false, $ink['appearance']['renders_appearance']);
+        $t->same(false, $ink['appearance']['executes_actions']);
+
+        $sound = $page['annotations'][1];
+        $t->same('Sound', $sound['subtype']);
+        $t->same(9, $sound['sound']['stream_object']);
+        $t->same('Speaker', $sound['sound']['icon_name']);
+        $t->same(44100.0, $sound['sound']['sample_rate']);
+        $t->same(2, $sound['sound']['channels']);
+        $t->same(16, $sound['sound']['bits_per_sample']);
+        $t->same('Signed', $sound['sound']['encoding']);
+        $t->same('ALaw', $sound['sound']['compression']);
+        $t->same(strlen('LOUD PAYLOAD TEXT'), $sound['sound']['payload_length']);
+        $t->same(['ASCIIHexDecode'], $sound['sound']['filters']);
+        $t->same(false, $sound['sound']['plays_on_import']);
+        $t->same(11, $sound['appearance']['normal']['object']);
+        $t->same([250.0, 660.0, 360.0, 724.0], $sound['appearance']['normal']['bbox']);
+        $t->same('Audio popup review', $sound['popup']['contents']);
     },
 ];

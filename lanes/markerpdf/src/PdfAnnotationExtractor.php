@@ -86,12 +86,210 @@ final class PdfAnnotationExtractor
             'popup' => $this->popupFromAnnotation($body, $objects, $record['object'], $reversePopups),
         ];
 
+        $appearance = $this->appearanceFromAnnotation($body, $objects);
+        if ($appearance !== null) {
+            $row['appearance'] = $appearance;
+        }
+
+        $sound = $this->soundFromAnnotation($body, $objects);
+        if ($sound !== null) {
+            $row['sound'] = $sound;
+        }
+
         $geometry = $this->geometryFromAnnotation($body, $objects, $subtype, $rect);
         if ($geometry !== null) {
             $row['geometry'] = $geometry;
         }
 
         return $row;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function appearanceFromAnnotation(string $body, array $objects): ?array
+    {
+        $value = $this->dictionaryRawValue($body, 'AP') ?? $this->valueAfterName($body, 'AP');
+        if ($value === null) {
+            return null;
+        }
+
+        $appearance = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($appearance === null) {
+            return null;
+        }
+
+        $selectedState = $this->pdfNameValueAfterName($body, 'AS');
+        $details = [
+            'dictionary_object' => $appearance['object'],
+            'renders_appearance' => false,
+            'executes_actions' => false,
+        ];
+
+        foreach (['N' => 'normal', 'R' => 'rollover', 'D' => 'down'] as $pdfName => $key) {
+            $entryValue = $this->dictionaryRawValue($appearance['body'], $pdfName);
+            if ($entryValue === null) {
+                continue;
+            }
+
+            $entry = $this->appearanceEntryFromValue($entryValue, $objects, $selectedState);
+            if ($entry !== null) {
+                $details[$key] = $entry;
+            }
+        }
+
+        return count($details) > 3 ? $details : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function appearanceEntryFromValue(string $value, array $objects, ?string $selectedState): ?array
+    {
+        $record = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($record === null) {
+            return null;
+        }
+
+        if ($this->recordLooksLikeStream($record, $objects)) {
+            return $this->appearanceStreamSummary($record, $objects);
+        }
+
+        $states = [];
+        $appearances = [];
+        foreach ($this->dictionaryEntries($record['body']) as $entry) {
+            $summary = $this->appearanceStreamSummaryFromValue($entry['value'], $objects);
+            if ($summary === null) {
+                continue;
+            }
+
+            $states[] = $entry['name'];
+            $appearances[$entry['name']] = $summary;
+        }
+
+        if ($appearances === []) {
+            return null;
+        }
+
+        $selected = $selectedState !== null && isset($appearances[$selectedState])
+            ? $appearances[$selectedState]
+            : null;
+
+        return [
+            'kind' => 'state-dictionary',
+            'states' => $states,
+            'selected_state' => $selected === null ? null : $selectedState,
+            'selected' => $selected,
+            'appearances' => $appearances,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function appearanceStreamSummaryFromValue(string $value, array $objects): ?array
+    {
+        $record = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($record === null || !$this->recordLooksLikeStream($record, $objects)) {
+            return null;
+        }
+
+        return $this->appearanceStreamSummary($record, $objects);
+    }
+
+    /**
+     * @param array{body: string, object: int|null} $record
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function appearanceStreamSummary(array $record, array $objects): array
+    {
+        $filters = $this->nameArrayValueAfterName($record['body'], 'Filter', $objects) ?? [];
+        $summary = [
+            'kind' => 'stream',
+            'object' => $record['object'],
+            'type' => $this->pdfNameValueAfterName($record['body'], 'Type'),
+            'subtype' => $this->pdfNameValueAfterName($record['body'], 'Subtype'),
+            'bbox' => $this->numberArrayValueAfterName($record['body'], 'BBox', $objects),
+            'matrix' => $this->numberArrayValueAfterName($record['body'], 'Matrix', $objects),
+            'resource_keys' => $this->resourceKeysFromAppearanceStream($record['body'], $objects),
+            'declared_length' => $this->intValueAfterName($record['body'], 'Length', $objects),
+            'filters' => $filters,
+            'has_stream_payload' => $this->recordLooksLikeStream($record, $objects),
+            'payload_text_visible' => false,
+        ];
+
+        return array_filter($summary, static fn (mixed $value): bool => $value !== null);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function resourceKeysFromAppearanceStream(string $streamDictionary, array $objects): array
+    {
+        $value = $this->dictionaryRawValue($streamDictionary, 'Resources');
+        if ($value === null) {
+            return [];
+        }
+
+        $resources = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($resources === null) {
+            return [];
+        }
+
+        return array_values(array_map(
+            static fn (array $entry): string => $entry['name'],
+            $this->dictionaryEntries($resources['body'])
+        ));
+    }
+
+    /**
+     * @param array{body: string, object: int|null} $record
+     * @param array<int, string> $objects
+     */
+    private function recordLooksLikeStream(array $record, array $objects): bool
+    {
+        if ($record['object'] !== null && str_contains($objects[$record['object']] ?? '', 'stream')) {
+            return true;
+        }
+
+        return $this->pdfNameValueAfterName($record['body'], 'Subtype') === 'Form'
+            || $this->intValueAfterName($record['body'], 'Length', $objects) !== null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function soundFromAnnotation(string $body, array $objects): ?array
+    {
+        $value = $this->dictionaryRawValue($body, 'Sound');
+        if ($value === null) {
+            return null;
+        }
+
+        $sound = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($sound === null) {
+            return null;
+        }
+
+        return [
+            'stream_object' => $sound['object'],
+            'icon_name' => $this->pdfNameValueAfterName($body, 'Name'),
+            'sample_rate' => $this->floatValueAfterName($sound['body'], 'R', $objects),
+            'channels' => $this->intValueAfterName($sound['body'], 'C', $objects) ?? 1,
+            'bits_per_sample' => $this->intValueAfterName($sound['body'], 'B', $objects) ?? 8,
+            'encoding' => $this->pdfNameValueAfterName($sound['body'], 'E') ?? 'Raw',
+            'compression' => $this->pdfNameValueAfterName($sound['body'], 'CO'),
+            'payload_length' => $this->intValueAfterName($sound['body'], 'Length', $objects),
+            'filters' => $this->nameArrayValueAfterName($sound['body'], 'Filter', $objects) ?? [],
+            'plays_on_import' => false,
+            'payload_text_visible' => false,
+        ];
     }
 
     /**
@@ -799,6 +997,16 @@ final class PdfAnnotationExtractor
     /**
      * @param array<int, string> $objects
      */
+    private function intValueAfterName(string $body, string $name, array $objects): ?int
+    {
+        $value = $this->floatValueAfterName($body, $name, $objects);
+
+        return $value === null ? null : (int) $value;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
     private function pdfStringValueAfterName(string $body, string $name, array $objects): ?string
     {
         $value = $this->valueAfterName($body, $name);
@@ -884,40 +1092,51 @@ final class PdfAnnotationExtractor
 
     private function valueStartingAtOffset(string $body, int $offset): ?string
     {
+        return $this->valueStartingAtOffsetWithEnd($body, $offset);
+    }
+
+    private function valueStartingAtOffsetWithEnd(string $body, int $offset, ?int &$endOffset = null): ?string
+    {
         $this->skipWhitespace($body, $offset);
         if ($offset >= strlen($body)) {
             return null;
         }
 
         if (preg_match('/\G\d+\s+\d+\s+R\b/s', $body, $ref, 0, $offset) === 1) {
+            $endOffset = $offset + strlen($ref[0]);
             return $ref[0];
         }
 
         if ($body[$offset] === '[') {
-            $endOffset = null;
-            $this->readPdfArrayAt($body, $offset, $endOffset);
-            return $endOffset === null ? null : substr($body, $offset, $endOffset - $offset);
+            $arrayEndOffset = null;
+            $this->readPdfArrayAt($body, $offset, $arrayEndOffset);
+            $endOffset = $arrayEndOffset;
+            return $arrayEndOffset === null ? null : substr($body, $offset, $arrayEndOffset - $offset);
         }
 
         if (substr($body, $offset, 2) === '<<') {
-            $endOffset = null;
-            $this->readPdfDictionaryAt($body, $offset, $endOffset);
-            return $endOffset === null ? null : substr($body, $offset, $endOffset - $offset);
+            $dictionaryEndOffset = null;
+            $this->readPdfDictionaryAt($body, $offset, $dictionaryEndOffset);
+            $endOffset = $dictionaryEndOffset;
+            return $dictionaryEndOffset === null ? null : substr($body, $offset, $dictionaryEndOffset - $offset);
         }
 
         if ($body[$offset] === '(') {
-            $endOffset = $this->skipLiteralString($body, $offset);
-            return substr($body, $offset, $endOffset - $offset);
+            $literalEndOffset = $this->skipLiteralString($body, $offset);
+            $endOffset = $literalEndOffset;
+            return substr($body, $offset, $literalEndOffset - $offset);
         }
 
         if ($body[$offset] === '<') {
-            $endOffset = $this->skipHexString($body, $offset);
-            return substr($body, $offset, $endOffset - $offset);
+            $hexEndOffset = $this->skipHexString($body, $offset);
+            $endOffset = $hexEndOffset;
+            return substr($body, $offset, $hexEndOffset - $offset);
         }
 
         if ($body[$offset] === '/') {
-            $endOffset = $this->skipPdfName($body, $offset);
-            return substr($body, $offset, $endOffset - $offset);
+            $nameEndOffset = $this->skipPdfName($body, $offset);
+            $endOffset = $nameEndOffset;
+            return substr($body, $offset, $nameEndOffset - $offset);
         }
 
         $end = $offset;
@@ -925,7 +1144,58 @@ final class PdfAnnotationExtractor
             $end++;
         }
 
+        $endOffset = $end;
         return substr($body, $offset, max(0, $end - $offset));
+    }
+
+    private function dictionaryRawValue(string $body, string $name): ?string
+    {
+        foreach ($this->dictionaryEntries($body) as $entry) {
+            if ($entry['name'] === $name) {
+                return $entry['value'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array{name: string, value: string}>
+     */
+    private function dictionaryEntries(string $body): array
+    {
+        $entries = [];
+        $offset = 0;
+        $length = strlen($body);
+
+        while ($offset < $length) {
+            $this->skipWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($body[$offset] !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $nameEnd = $this->skipPdfName($body, $offset);
+            $name = $this->decodePdfName(substr($body, $offset + 1, $nameEnd - $offset - 1));
+            $valueEnd = null;
+            $value = $this->valueStartingAtOffsetWithEnd($body, $nameEnd, $valueEnd);
+            if ($value === null || $valueEnd === null || $valueEnd <= $nameEnd) {
+                $offset = max($nameEnd, $offset + 1);
+                continue;
+            }
+
+            $entries[] = [
+                'name' => $name,
+                'value' => $value,
+            ];
+            $offset = $valueEnd;
+        }
+
+        return $entries;
     }
 
     /**
