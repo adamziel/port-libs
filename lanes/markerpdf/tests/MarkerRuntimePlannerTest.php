@@ -40,6 +40,88 @@ return [
         $t->same('true', $env['IN_STREAMLIT']);
         $t->same('1', $env['PDFTEXT_CPU_WORKERS']);
     },
+    'records convert.py import-time environment setup for batch workers' => static function (TestRunner $t): void {
+        $env = (new MarkerRuntimePlanner())->conversionImportEnvironment();
+
+        $t->same('1', $env['PYTORCH_ENABLE_MPS_FALLBACK']);
+        $t->same('true', $env['IN_STREAMLIT']);
+        $t->same('1', $env['PDFTEXT_CPU_WORKERS']);
+    },
+    'plans convert.py spawn pool task tuples and shared model handoff without executing it' => static function (TestRunner $t): void {
+        $plan = (new MarkerRuntimePlanner())->convertPyMultiprocessingPlan(
+            [
+                [
+                    'filepath' => '/srv/import/a.pdf',
+                    'out_folder' => '/srv/out',
+                    'metadata' => ['languages' => ['English']],
+                    'min_length' => 80,
+                ],
+                [
+                    'filepath' => '/srv/import/b.pdf',
+                    'out_folder' => '/srv/out',
+                    'metadata' => null,
+                    'min_length' => 80,
+                ],
+            ],
+            workers: 5,
+            torchDevice: 'cuda',
+            torchDeviceModel: 'cuda'
+        );
+
+        $t->same('spawn', $plan['start_method']);
+        $t->same(2, $plan['total_processes']);
+        $t->same('process_single_pdf', $plan['pool']['process_function']);
+        $t->same('worker_init', $plan['pool']['initializer']);
+        $t->same('tqdm(pool.imap(process_single_pdf, task_args))', $plan['pool']['progress_iterator']);
+        $t->same(true, $plan['model_handoff']['main_load_all_models']);
+        $t->same(true, $plan['model_handoff']['share_memory_before_pool']);
+        $t->same('shared_model_list', $plan['model_handoff']['worker_init_argument']);
+        $t->same(false, $plan['model_handoff']['mps_disables_shared_model_list']);
+        $t->same('/srv/import/a.pdf', $plan['task_args'][0]['filepath']);
+        $t->same(['languages' => ['English']], $plan['task_args'][0]['metadata']);
+        $t->same(80, $plan['task_args'][1]['min_length']);
+        $t->same(false, $plan['executes_python_or_models']);
+        $t->same(false, $plan['executes_multiprocessing']);
+    },
+    'keeps MPS convert.py workers out of shared-memory model preload branch' => static function (TestRunner $t): void {
+        $plan = (new MarkerRuntimePlanner())->convertPyMultiprocessingPlan(
+            [
+                [
+                    'filepath' => '/srv/import/mps.pdf',
+                    'out_folder' => '/srv/out',
+                    'metadata' => null,
+                    'min_length' => null,
+                ],
+            ],
+            workers: 3,
+            torchDevice: 'mps',
+            torchDeviceModel: 'cpu'
+        );
+
+        $t->same(1, $plan['total_processes']);
+        $t->same(false, $plan['model_handoff']['main_load_all_models']);
+        $t->same(false, $plan['model_handoff']['share_memory_before_pool']);
+        $t->same(null, $plan['model_handoff']['worker_init_argument']);
+        $t->same(true, $plan['model_handoff']['worker_loads_models_when_init_arg_null']);
+        $t->same(true, $plan['model_handoff']['mps_disables_shared_model_list']);
+        $t->contains('Cannot use MPS with torch multiprocessing share_memory', (string) $plan['model_handoff']['warning']);
+    },
+    'rejects repeated convert.py spawn start method before WordPress queue planning' => static function (TestRunner $t): void {
+        $t->throws(
+            RuntimeException::class,
+            static fn (): array => (new MarkerRuntimePlanner())->convertPyMultiprocessingPlan(
+                [
+                    [
+                        'filepath' => '/srv/import/a.pdf',
+                        'out_folder' => '/srv/out',
+                        'metadata' => null,
+                        'min_length' => null,
+                    ],
+                ],
+                spawnStartMethodAlreadySet: true
+            )
+        );
+    },
     'rejects empty project directories before WordPress worker preflight planning' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): array => (new MarkerRuntimePlanner())->streamlitRunPlan(''));
     },

@@ -1390,13 +1390,18 @@ final class PdfOutlineExtractor
      * @param array<string, mixed> $destinations
      * @param array<int, true> $seen
      */
-    private function collectNameTreeDestinations(array $node, array $objects, array &$destinations, array $seen = []): void
+    private function collectNameTreeDestinations(array $node, array $objects, array &$destinations, array $seen = [], array $activeLimits = []): void
     {
+        $nodeLimits = $this->nameTreeLimits($node, $objects);
+        if ($nodeLimits !== null) {
+            $activeLimits[] = $nodeLimits;
+        }
+
         $names = $this->resolveArray($node['Names'] ?? null, $objects);
         if ($names !== null) {
             for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
                 $name = $this->destinationNameValue($names[$index], $objects);
-                if ($name !== null) {
+                if ($name !== null && $this->nameWithinNameTreeLimits($name, $activeLimits)) {
                     $destinations[$name] = $names[$index + 1];
                 }
             }
@@ -1418,9 +1423,44 @@ final class PdfOutlineExtractor
 
             $child = $this->resolveDictionary($kid, $objects);
             if ($child !== null) {
-                $this->collectNameTreeDestinations($child, $objects, $destinations, $seen);
+                $this->collectNameTreeDestinations($child, $objects, $destinations, $seen, $activeLimits);
             }
         }
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<int, mixed> $objects
+     * @return array{0: string, 1: string}|null
+     */
+    private function nameTreeLimits(array $node, array $objects): ?array
+    {
+        $limits = $this->resolveArray($node['Limits'] ?? null, $objects);
+        if ($limits === null || count($limits) < 2) {
+            return null;
+        }
+
+        $lower = $this->destinationNameValue($limits[0], $objects);
+        $upper = $this->destinationNameValue($limits[1], $objects);
+        if ($lower === null || $upper === null || strcmp($lower, $upper) > 0) {
+            return null;
+        }
+
+        return [$lower, $upper];
+    }
+
+    /**
+     * @param list<array{0: string, 1: string}> $limits
+     */
+    private function nameWithinNameTreeLimits(string $name, array $limits): bool
+    {
+        foreach ($limits as $limit) {
+            if (strcmp($name, $limit[0]) < 0 || strcmp($name, $limit[1]) > 0) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

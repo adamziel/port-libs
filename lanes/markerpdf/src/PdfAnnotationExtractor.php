@@ -101,6 +101,7 @@ final class PdfAnnotationExtractor
             }
 
             $reversePopups = $this->popupRecordsByParentObject($records);
+            $threadReview = $this->annotationThreadReviewForRecords($records, $objects);
             $annotations = [];
             foreach ($records as $record) {
                 $subtype = $this->subtypeFromAnnotation($record['body']);
@@ -108,15 +109,29 @@ final class PdfAnnotationExtractor
                     continue;
                 }
 
-                $annotations[] = $this->annotationReviewRow($record, $objects, $reversePopups, $actionReviewer);
+                $annotations[] = $this->annotationReviewRow(
+                    $record,
+                    $objects,
+                    $reversePopups,
+                    $actionReviewer,
+                    $threadReview['rows_by_object']
+                );
             }
 
             if ($annotations !== []) {
-                $pages[] = [
+                $page = [
                     'pnum' => $pnum,
                     'page_object' => $pageObjectNumber,
                     'annotations' => $annotations,
                 ];
+                if ($threadReview['threads'] !== []) {
+                    $page['annotation_threads'] = $threadReview['threads'];
+                }
+                if ($threadReview['detached_replies'] !== []) {
+                    $page['detached_annotation_thread_replies'] = $threadReview['detached_replies'];
+                }
+
+                $pages[] = $page;
             }
         }
 
@@ -133,7 +148,8 @@ final class PdfAnnotationExtractor
         array $record,
         array $objects,
         array $reversePopups,
-        PdfActionReviewExtractor $actionReviewer
+        PdfActionReviewExtractor $actionReviewer,
+        array $threadRowsByObject = []
     ): array
     {
         $body = $record['body'];
@@ -184,7 +200,232 @@ final class PdfAnnotationExtractor
             $row['geometry'] = $geometry;
         }
 
+        $annotationObject = $record['object'];
+        if ($annotationObject !== null && isset($threadRowsByObject[$annotationObject])) {
+            $row['reply_thread'] = $threadRowsByObject[$annotationObject];
+        }
+
         return $row;
+    }
+
+    /**
+     * PDF annotation reply threads are page-local review metadata. `/IRT`
+     * points at the annotation being replied to; `/RT`, `/State`, and
+     * `/StateModel` describe the review state but must not execute or render.
+     *
+     * @param list<array{body: string, object: int|null}> $records
+     * @param array<int, string> $objects
+     * @return array{rows_by_object: array<int, array<string, mixed>>, threads: list<array<string, mixed>>, detached_replies: list<array<string, mixed>>}
+     */
+    private function annotationThreadReviewForRecords(array $records, array $objects): array
+    {
+        $bodiesByObject = [];
+        $subtypesByObject = [];
+        foreach ($records as $record) {
+            $object = $record['object'];
+            if ($object === null || $this->subtypeFromAnnotation($record['body']) === 'Popup') {
+                continue;
+            }
+
+            $bodiesByObject[$object] = $record['body'];
+            $subtypesByObject[$object] = $this->subtypeFromAnnotation($record['body']);
+        }
+
+        if ($bodiesByObject === []) {
+            return ['rows_by_object' => [], 'threads' => [], 'detached_replies' => []];
+        }
+
+        $currentObjects = array_fill_keys(array_keys($bodiesByObject), true);
+        $parentByObject = [];
+        $repliesByObject = [];
+        foreach ($bodiesByObject as $object => $body) {
+            $parentObject = $this->objectReferenceValueAfterName($body, 'IRT');
+            if ($parentObject === null) {
+                continue;
+            }
+
+            $parentByObject[$object] = $parentObject;
+            if (isset($currentObjects[$parentObject])) {
+                $repliesByObject[$parentObject][] = $object;
+            }
+        }
+
+        $rowsByObject = [];
+        $detachedReplies = [];
+        foreach ($bodiesByObject as $object => $body) {
+            $parentObject = $parentByObject[$object] ?? null;
+            $directReplies = $repliesByObject[$object] ?? [];
+            $state = $this->annotationThreadValueAfterName($body, 'State', $objects);
+            $stateModel = $this->annotationThreadValueAfterName($body, 'StateModel', $objects);
+            if ($parentObject === null && $directReplies === [] && $state === null && $stateModel === null) {
+                continue;
+            }
+
+            $root = $parentObject === null
+                ? ['object' => $object, 'cycle_detected' => false]
+                : $this->annotationThreadRootObject($object, $parentByObject, $currentObjects);
+            $replyType = $this->pdfNameValueAfterName($body, 'RT') ?? ($parentObject === null ? null : 'R');
+
+            $row = [
+                'source' => 'page_annotation_reply_thread',
+                'annotation_object' => $object,
+                'root_annotation_object' => $root['object'],
+                'in_reply_to_object' => $parentObject,
+                'in_reply_to_current_page' => $parentObject !== null && isset($currentObjects[$parentObject]),
+                'detached_in_reply_to' => $parentObject !== null && !isset($currentObjects[$parentObject]),
+                'reply_type' => $replyType,
+                'reply_type_label' => $this->annotationReplyTypeLabel($replyType),
+                'state' => $state,
+                'state_model' => $stateModel,
+                'reply_count' => count($directReplies),
+                'reply_annotation_objects' => $directReplies,
+                'current_page_thread' => $root['object'] !== null,
+                'review_only' => true,
+                'visible_text_source' => false,
+                'executes_actions_on_import' => false,
+                'renders_annotation_thread' => false,
+            ];
+            if ($root['cycle_detected']) {
+                $row['cycle_detected'] = true;
+            }
+
+            $row = array_filter($row, static fn (mixed $value): bool => $value !== null);
+            $rowsByObject[$object] = $row;
+            if (($row['detached_in_reply_to'] ?? false) === true) {
+                $detachedReplies[] = $row;
+            }
+        }
+
+        $threads = [];
+        foreach ($repliesByObject as $rootObject => $_directReplies) {
+            if (isset($parentByObject[$rootObject])) {
+                continue;
+            }
+
+            $replyObjects = $this->annotationThreadReplyObjects($rootObject, $repliesByObject);
+            if ($replyObjects === []) {
+                continue;
+            }
+
+            $states = [];
+            $stateModels = [];
+            $replyTypes = [];
+            foreach ($replyObjects as $replyObject) {
+                $replyBody = $bodiesByObject[$replyObject] ?? null;
+                if ($replyBody === null) {
+                    continue;
+                }
+
+                $state = $this->annotationThreadValueAfterName($replyBody, 'State', $objects);
+                if ($state !== null && $state !== '') {
+                    $states[$state] = $state;
+                }
+
+                $stateModel = $this->annotationThreadValueAfterName($replyBody, 'StateModel', $objects);
+                if ($stateModel !== null && $stateModel !== '') {
+                    $stateModels[$stateModel] = $stateModel;
+                }
+
+                $replyType = $this->pdfNameValueAfterName($replyBody, 'RT') ?? 'R';
+                $replyTypes[$replyType] = $this->annotationReplyTypeLabel($replyType);
+            }
+
+            $rootBody = $bodiesByObject[$rootObject];
+            $threads[] = array_filter([
+                'source' => 'page_annotation_reply_thread',
+                'root_annotation_object' => $rootObject,
+                'root_subtype' => $subtypesByObject[$rootObject] ?? null,
+                'root_name' => $this->pdfStringValueAfterName($rootBody, 'NM', $objects),
+                'root_title' => $this->pdfStringValueAfterName($rootBody, 'T', $objects),
+                'reply_count' => count($replyObjects),
+                'reply_annotation_objects' => $replyObjects,
+                'reply_type_labels' => array_values($replyTypes),
+                'states' => array_values($states),
+                'state_models' => array_values($stateModels),
+                'current_page_thread' => true,
+                'review_only' => true,
+                'visible_text_source' => false,
+                'executes_actions_on_import' => false,
+                'renders_annotation_thread' => false,
+            ], static fn (mixed $value): bool => $value !== null && $value !== []);
+        }
+
+        return [
+            'rows_by_object' => $rowsByObject,
+            'threads' => $threads,
+            'detached_replies' => $detachedReplies,
+        ];
+    }
+
+    /**
+     * @param array<int, int> $parentByObject
+     * @param array<int, true> $currentObjects
+     * @return array{object: int|null, cycle_detected: bool}
+     */
+    private function annotationThreadRootObject(int $object, array $parentByObject, array $currentObjects): array
+    {
+        $seen = [];
+        $current = $object;
+        while (isset($parentByObject[$current])) {
+            if (isset($seen[$current])) {
+                return ['object' => $current, 'cycle_detected' => true];
+            }
+
+            $seen[$current] = true;
+            $parent = $parentByObject[$current];
+            if (!isset($currentObjects[$parent])) {
+                return ['object' => null, 'cycle_detected' => false];
+            }
+
+            $current = $parent;
+        }
+
+        return ['object' => $current, 'cycle_detected' => false];
+    }
+
+    /**
+     * @param array<int, list<int>> $repliesByObject
+     * @return list<int>
+     */
+    private function annotationThreadReplyObjects(int $rootObject, array $repliesByObject): array
+    {
+        $replyObjects = [];
+        $queue = $repliesByObject[$rootObject] ?? [];
+        $seen = [$rootObject => true];
+        while ($queue !== [] && count($seen) < 128) {
+            $object = array_shift($queue);
+            if (!is_int($object) || isset($seen[$object])) {
+                continue;
+            }
+
+            $seen[$object] = true;
+            $replyObjects[] = $object;
+            foreach ($repliesByObject[$object] ?? [] as $childObject) {
+                $queue[] = $childObject;
+            }
+        }
+
+        return $replyObjects;
+    }
+
+    private function annotationThreadValueAfterName(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->pdfValueToString($value, $objects);
+    }
+
+    private function annotationReplyTypeLabel(?string $replyType): ?string
+    {
+        return match ($replyType) {
+            'R' => 'reply',
+            'Group' => 'group',
+            null => null,
+            default => strtolower($replyType),
+        };
     }
 
     /**

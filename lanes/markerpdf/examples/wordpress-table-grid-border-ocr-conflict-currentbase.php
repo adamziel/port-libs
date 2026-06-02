@@ -113,6 +113,13 @@ echo json_encode([
     'source_order_assignment_used' => ($conflicts[0]['assignment_mode'] ?? null) === 'source_order_grid_border',
     'preserved_detector_grid_text' => array_column($assignedCells, 'text') === ['Feature', 'Status', 'Images', 'Ready'],
     'candidate_grid_cells_for_first_ocr_line' => $conflicts[0]['candidate_cell_indexes'] ?? [],
+    'candidate_grid_anchors_for_first_ocr_line' => $conflicts[0]['candidate_grid_anchors'] ?? [],
+    'first_conflict_grid_border_axis' => $conflicts[0]['grid_border_axis'] ?? null,
+    'first_conflict_assigned_grid_cell' => $conflicts[0]['assigned_grid_cell'] ?? null,
+    'grid_border_candidate_axes_reviewed' => array_map(
+        static fn (array $conflict): ?string => $conflict['grid_border_axis'] ?? null,
+        $conflicts
+    ),
     'excluded_stale_pdftext_table_line' => !str_contains($markdown, 'Stale grid border table text should be replaced.'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,

@@ -693,6 +693,146 @@ final class PdfImageRenderer
     }
 
     /**
+     * Decodes bounded inline `/ImageMask` samples into opacity preview rows.
+     *
+     * Inline image masks have no indirect stream object, but they still follow
+     * the PDF image Decode rules before the Marker RGB preview handoff. This
+     * keeps the payload excluded from visible text while making stencil alpha
+     * reviewable without pypdfium/PIL raster execution.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    public function inlineImageMaskPreviewRows(string $inlineImageDictionary, string $payload, array $objects = [], int $maxPixels = 16): array
+    {
+        if ($maxPixels < 1) {
+            throw new InvalidArgumentException('Inline ImageMask preview requires at least one preview pixel.');
+        }
+
+        $plan = $this->inlineImageReviewPlan($inlineImageDictionary, $payload, $objects);
+        $imageMask = $plan['image_mask'] ?? null;
+        if (!is_array($imageMask) || ($imageMask['present'] ?? false) !== true) {
+            throw new InvalidArgumentException('Inline ImageMask preview requires /ImageMask true.');
+        }
+
+        $width = $imageMask['width'] ?? null;
+        $height = $imageMask['height'] ?? null;
+        $bitsPerComponent = max(1, (int) ($imageMask['bits_per_component'] ?? 1));
+        if (!is_int($width) || !is_int($height) || $width < 1 || $height < 1) {
+            throw new InvalidArgumentException('Inline ImageMask preview requires positive Width and Height.');
+        }
+
+        $expectedPixelCount = $width * $height;
+        $canonical = (string) $plan['inline_image']['canonical_dictionary'];
+        $filters = $this->imageFilterNames($canonical, $objects);
+        $decodeResult = $this->decodeImageStreamByFilters($canonical, $payload, $objects);
+        $decoded = $decodeResult['decoded'];
+        $unsupportedFilters = $decodeResult['unsupported_filters'];
+        $previewOnlyFilters = array_values(array_filter(
+            $filters,
+            fn (string $filter): bool => $this->isPreviewOnlyStreamFilter($filter)
+        ));
+        foreach ($previewOnlyFilters as $filter) {
+            if (!in_array($filter, $unsupportedFilters, true)) {
+                $unsupportedFilters[] = $filter;
+            }
+        }
+
+        $imageStream = [
+            'filters' => $filters,
+            'preview_only_filters' => $previewOnlyFilters,
+            'unsupported_filters' => array_values($unsupportedFilters),
+            'raw_length' => strlen($payload),
+            'decoded_length' => $decoded === null ? null : strlen($decoded),
+            'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+            'decoded_preview_hex' => $decoded === null ? null : strtoupper(bin2hex(substr($decoded, 0, 16))),
+            'decoded_with_current_filters' => $decoded !== null,
+            'decode_failed' => (bool) $decodeResult['decode_failed'],
+        ];
+        $streamNotes = [
+            $filters === []
+                ? 'inline_image_mask_unfiltered_samples_before_rgb_conversion'
+                : 'inline_image_mask_stream_filters_decoded_before_rgb_conversion',
+        ];
+
+        if ($decoded === null) {
+            if ($previewOnlyFilters === []) {
+                throw new InvalidArgumentException('Inline ImageMask filters must be natively decoded before RGB preview.');
+            }
+
+            $streamNotes[0] = 'inline_image_mask_preview_only_before_rgb_conversion';
+
+            return [
+                'source_color_space' => 'ImageMask',
+                'width' => $width,
+                'height' => $height,
+                'components_per_pixel' => 1,
+                'bits_per_component' => $bitsPerComponent,
+                'expected_pixel_count' => $expectedPixelCount,
+                'preview_pixel_count' => 0,
+                'review_only_image_stream' => true,
+                'complete_image_sample_data' => false,
+                'image_stream' => $imageStream,
+                'image_mask' => $imageMask,
+                'inline_image' => $plan['inline_image'],
+                'inline_image_abbreviations_expanded' => $plan['inline_image_abbreviations_expanded'],
+                'inline_image_payload_excluded_from_text' => true,
+                'pixels' => [],
+                'stream_notes' => $streamNotes,
+                'notes' => array_values(array_unique(array_merge(
+                    $plan['notes'] ?? [],
+                    ['inline_image_mask_preview_only_before_rgb_conversion']
+                ))),
+                'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+                'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'image_mask_composited_to_rgb_preview'),
+            ];
+        }
+
+        $samples = $this->packedImagePixelSamples($decoded, 1, $bitsPerComponent, $expectedPixelCount);
+        if (!$samples['complete']) {
+            $streamNotes[] = 'inline_image_mask_sample_data_incomplete';
+        }
+
+        $limit = min($maxPixels, count($samples['pixels']));
+        $pixels = [];
+        for ($index = 0; $index < $limit; $index++) {
+            $rawSample = $samples['pixels'][$index][0];
+            $pixels[] = [
+                'pixel_index' => $index,
+                'x' => $index % $width,
+                'y' => intdiv($index, $width),
+                'raw_sample' => $rawSample,
+                'opacity' => $this->imageMaskSampleOpacity($rawSample, $imageMask),
+            ];
+        }
+
+        return [
+            'source_color_space' => 'ImageMask',
+            'width' => $width,
+            'height' => $height,
+            'components_per_pixel' => 1,
+            'bits_per_component' => $bitsPerComponent,
+            'expected_pixel_count' => $expectedPixelCount,
+            'preview_pixel_count' => count($pixels),
+            'review_only_image_stream' => false,
+            'complete_image_sample_data' => $samples['complete'],
+            'image_stream' => $imageStream,
+            'image_mask' => $imageMask,
+            'inline_image' => $plan['inline_image'],
+            'inline_image_abbreviations_expanded' => $plan['inline_image_abbreviations_expanded'],
+            'inline_image_payload_excluded_from_text' => true,
+            'pixels' => $pixels,
+            'stream_notes' => $streamNotes,
+            'notes' => array_values(array_unique(array_merge(
+                $plan['notes'] ?? [],
+                ['inline_image_mask_samples_decoded_before_rgb_conversion']
+            ))),
+            'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+            'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'image_mask_composited_to_rgb_preview'),
+        ];
+    }
+
+    /**
      * Expands an Indexed color-space sample index into normalized base color
      * components. This mirrors the PDF parser side of the RGB preview boundary
      * without rasterizing pixels.

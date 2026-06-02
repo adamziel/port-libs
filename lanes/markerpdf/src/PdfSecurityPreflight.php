@@ -20,6 +20,7 @@ final class PdfSecurityPreflight
         $documentSecurityStore = (new PdfDocumentSecurityStoreExtractor())->extract($pdfBytes);
         $encryption = is_array($metadata['encryption'] ?? null) ? $metadata['encryption'] : null;
         $signatures = $this->signatureReviews($form['fields'] ?? [], $pdfBytes, $documentSecurityStore);
+        $documentSecurityStoreSignatureReview = $this->documentSecurityStoreSignatureReview($documentSecurityStore, $signatures);
         $documentActionReview = $this->documentActionSecurityReview($pdfBytes, $signatures, $form);
         $encrypted = $encryption !== null;
         $hasDocumentSecurityStore = ($documentSecurityStore['present'] ?? false) === true;
@@ -73,6 +74,9 @@ final class PdfSecurityPreflight
             'locked_field_names' => $lockedFieldNames,
             'document_security_store_count' => $hasDocumentSecurityStore ? 1 : 0,
             'document_security_store' => $documentSecurityStore,
+            'document_security_store_signature_review' => $documentSecurityStoreSignatureReview,
+            'document_security_store_signature_match_count' => (int) $documentSecurityStoreSignatureReview['signature_vri_match_count'],
+            'document_security_store_unmatched_vri_count' => (int) $documentSecurityStoreSignatureReview['unmatched_vri_count'],
             'signatures' => $signatures,
             'signature_security_review_count' => count($signatures),
             'signature_security_reviews' => $this->signatureSecurityReviews($signatures),
@@ -1073,6 +1077,24 @@ final class PdfSecurityPreflight
     }
 
     /**
+     * @param list<array<string, mixed>> $matches
+     * @return list<int>
+     */
+    private function signatureMatchIntegers(array $matches, string $key): array
+    {
+        $values = [];
+        foreach ($matches as $match) {
+            if (!is_int($match[$key] ?? null) || in_array($match[$key], $values, true)) {
+                continue;
+            }
+
+            $values[] = $match[$key];
+        }
+
+        return $values;
+    }
+
+    /**
      * @return list<string>
      */
     private function stringList(mixed $value): array
@@ -1100,6 +1122,64 @@ final class PdfSecurityPreflight
             $value,
             static fn (mixed $item): bool => is_int($item)
         ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $matches
+     * @return list<string>
+     */
+    private function signatureMatchStrings(array $matches, string $key): array
+    {
+        $values = [];
+        foreach ($matches as $match) {
+            if (!is_string($match[$key] ?? null) || in_array($match[$key], $values, true)) {
+                continue;
+            }
+
+            $values[] = $match[$key];
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<int>
+     */
+    private function uniqueIntegersFromRows(array $rows, string $key): array
+    {
+        $values = [];
+        foreach ($rows as $row) {
+            foreach ($row[$key] ?? [] as $value) {
+                if (!is_int($value) || in_array($value, $values, true)) {
+                    continue;
+                }
+
+                $values[] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private function uniqueStringsFromRows(array $rows, string $key): array
+    {
+        $values = [];
+        foreach ($rows as $row) {
+            foreach ($row[$key] ?? [] as $value) {
+                if (!is_string($value) || in_array($value, $values, true)) {
+                    continue;
+                }
+
+                $values[] = $value;
+            }
+        }
+
+        return $values;
     }
 
     /**
@@ -1285,6 +1365,121 @@ final class PdfSecurityPreflight
 
         $empty['status'] = 'dss_vri_not_matched';
         return $empty;
+    }
+
+    /**
+     * @param array<string, mixed> $documentSecurityStore
+     * @param list<array<string, mixed>> $signatures
+     * @return array<string, mixed>
+     */
+    private function documentSecurityStoreSignatureReview(array $documentSecurityStore, array $signatures): array
+    {
+        $present = ($documentSecurityStore['present'] ?? false) === true;
+        $vriRows = array_values(array_filter(
+            $documentSecurityStore['vri'] ?? [],
+            static fn (mixed $row): bool => is_array($row)
+        ));
+        $signatureDigestIndex = $this->signatureDigestIndex($signatures);
+        $rows = [];
+        foreach ($vriRows as $vri) {
+            $key = is_string($vri['key'] ?? null) ? $vri['key'] : '';
+            $normalizedKey = strtoupper($key);
+            $matches = $normalizedKey === '' ? [] : ($signatureDigestIndex[$normalizedKey] ?? []);
+            $matchStatus = 'no_matching_signature_contents_digest';
+            $algorithm = null;
+            if ($matches !== []) {
+                $first = $matches[0];
+                $algorithm = is_string($first['digest_algorithm'] ?? null) ? $first['digest_algorithm'] : null;
+                $matchStatus = $algorithm === 'sha256'
+                    ? 'matched_signature_contents_sha256'
+                    : 'matched_signature_contents_sha1';
+            }
+
+            $rows[] = [
+                'source' => 'dss_vri_signature_digest_review',
+                'key' => $key,
+                'normalized_key' => $normalizedKey,
+                'vri_object_number' => $vri['object_number'] ?? null,
+                'match_status' => $matchStatus,
+                'signature_digest_algorithm' => $algorithm,
+                'matched_signature_count' => count($matches),
+                'matched_signature_objects' => $this->signatureMatchIntegers($matches, 'signature_object'),
+                'matched_field_names' => $this->signatureMatchStrings($matches, 'field_name'),
+                'validation_stream_count' => $this->dssVriValidationStreamCount($vri),
+                'validation_hashes' => $this->dssVriValidationHashes($vri),
+                'timestamp_update' => is_string($vri['timestamp_update'] ?? null) ? $vri['timestamp_update'] : null,
+                'review_only' => true,
+                'cryptographic_signature_validated' => false,
+                'executes_signature_validation' => false,
+                'executes_revocation_check' => false,
+                'executes_trust_chain_validation' => false,
+                'raw_signature_contents_exposed' => false,
+                'raw_validation_bytes_exposed' => false,
+            ];
+        }
+
+        $matchedRows = array_values(array_filter(
+            $rows,
+            static fn (array $row): bool => ($row['matched_signature_count'] ?? 0) > 0
+        ));
+        $unmatchedRows = array_values(array_filter(
+            $rows,
+            static fn (array $row): bool => ($row['matched_signature_count'] ?? 0) === 0
+        ));
+
+        return [
+            'source' => 'document_security_store_signature_review',
+            'present' => $present,
+            'signature_count' => count($signatures),
+            'signed_signature_count' => count(array_filter(
+                $signatures,
+                static fn (array $signature): bool => ($signature['signed'] ?? false) === true
+            )),
+            'vri_count' => count($rows),
+            'matched_vri_count' => count($matchedRows),
+            'unmatched_vri_count' => count($unmatchedRows),
+            'signature_vri_match_count' => array_sum(array_map(
+                static fn (array $row): int => (int) ($row['matched_signature_count'] ?? 0),
+                $rows
+            )),
+            'matched_signature_objects' => $this->uniqueIntegersFromRows($matchedRows, 'matched_signature_objects'),
+            'matched_field_names' => $this->uniqueStringsFromRows($matchedRows, 'matched_field_names'),
+            'unmatched_vri_keys' => $this->uniqueStringColumn($unmatchedRows, 'key'),
+            'vri_match_statuses' => $this->uniqueStringColumn($rows, 'match_status'),
+            'vri_signature_rows' => $rows,
+            'review_only' => true,
+            'executes_signature_validation' => false,
+            'executes_revocation_check' => false,
+            'executes_trust_chain_validation' => false,
+            'raw_signature_contents_exposed' => false,
+            'raw_validation_bytes_exposed' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function signatureDigestIndex(array $signatures): array
+    {
+        $index = [];
+        foreach ($signatures as $signature) {
+            $digest = is_array($signature['contents_digest'] ?? null) ? $signature['contents_digest'] : [];
+            foreach (['sha1', 'sha256'] as $algorithm) {
+                if (!is_string($digest[$algorithm] ?? null) || $digest[$algorithm] === '') {
+                    continue;
+                }
+
+                $key = strtoupper($digest[$algorithm]);
+                $index[$key][] = [
+                    'digest_algorithm' => $algorithm,
+                    'field_name' => $signature['field_name'] ?? null,
+                    'signature_object' => $signature['signature_object'] ?? null,
+                ];
+            }
+        }
+
+        return $index;
     }
 
     /**

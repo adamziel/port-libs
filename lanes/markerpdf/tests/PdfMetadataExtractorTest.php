@@ -952,6 +952,96 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'PieceInfo Private XMP Title'));
         $t->true(!str_contains($text, 'PieceInfo private ICC bytes'));
     },
+    'summarizes associated FileSpec related-file streams as review metadata' => static function (TestRunner $t): void {
+        $sourcePayload = '<wp-export><post id="184406"/></wp-export>';
+        $relatedJson = '{"source":"rf-sidecar","status":"current"}';
+        $relatedText = 'BT /F1 12 Tf 72 720 Td (Related File Payload Leak) Tj ET';
+        $relatedUnicode = '<wp-export><media id="related-unicode"/></wp-export>';
+        $sourceChecksum = strtoupper(hash('md5', $sourcePayload));
+        $relatedJsonChecksum = strtoupper(hash('md5', $relatedJson));
+        $relatedTextChecksum = str_repeat('5a', 16);
+        $compressedRelatedJson = gzcompress($relatedJson);
+        if (!is_string($compressedRelatedJson)) {
+            throw new RuntimeException('Unable to compress related-file metadata fixture.');
+        }
+
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AF [10 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (source.xml) /UF (source-unicode.xml) /Desc (Original WordPress source plus related files) /AFRelationship /Source /EF << /F 11 0 R >> /RF << /F [12 0 R 13 0 R] /UF [14 0 R] >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " /CheckSum <{$sourceChecksum}> >> /Length " . strlen($sourcePayload) . " >>\nstream\n{$sourcePayload}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjson /Filter /FlateDecode /Params << /Size " . strlen($relatedJson) . " /CheckSum <{$relatedJsonChecksum}> /ModDate (D:20260602184406Z) >> /Length " . strlen($compressedRelatedJson) . " >>\nstream\n{$compressedRelatedJson}\nendstream\nendobj\n"
+            . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fplain /Params << /Size " . strlen($relatedText) . " /CheckSum <{$relatedTextChecksum}> >> /Length " . strlen($relatedText) . " >>\nstream\n{$relatedText}\nendstream\nendobj\n"
+            . "14 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($relatedUnicode) . " >> /Length " . strlen($relatedUnicode) . " >>\nstream\n{$relatedUnicode}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['catalog'], $metadata['source']);
+        $t->same(1, count($metadata['associated_files']));
+
+        $source = $metadata['associated_files'][0];
+        $t->same('catalog_associated_files', $source['source']);
+        $t->same(true, $source['associated_file']);
+        $t->same(0, $source['associated_file_index']);
+        $t->same('source-unicode.xml', $source['filename']);
+        $t->same('source.xml', $source['platform_filename']);
+        $t->same('Source', $source['relationship']);
+        $t->same('Original WordPress source plus related files', $source['description']);
+        $t->same('text/xml', $source['mime_type']);
+        $t->same(10, $source['file_spec_object']);
+        $t->same(11, $source['embedded_file_object']);
+        $t->same('F', $source['ef_key']);
+        $t->same(strlen($sourcePayload), $source['declared_size']);
+        $t->same(strtolower($sourceChecksum), $source['checksum']);
+        $t->same(hash('sha256', $sourcePayload), $source['content_sha256']);
+        $t->same(3, $source['related_file_count']);
+
+        $related = $source['related_files'];
+        $t->same('F', $related[0]['rf_key']);
+        $t->same(0, $related[0]['related_file_index']);
+        $t->same(12, $related[0]['embedded_file_object']);
+        $t->same('application/json', $related[0]['mime_type']);
+        $t->same(['FlateDecode'], $related[0]['filters']);
+        $t->same(strlen($relatedJson), $related[0]['size']);
+        $t->same(strlen($relatedJson), $related[0]['declared_size']);
+        $t->same(strtolower($relatedJsonChecksum), $related[0]['checksum']);
+        $t->same(hash('md5', $relatedJson), $related[0]['computed_checksum']);
+        $t->same(true, $related[0]['checksum_matches']);
+        $t->same('D:20260602184406Z', $related[0]['modified_at']);
+        $t->same(hash('sha256', $relatedJson), $related[0]['content_sha256']);
+        $t->same(false, array_key_exists('content', $related[0]));
+
+        $t->same('F', $related[1]['rf_key']);
+        $t->same(1, $related[1]['related_file_index']);
+        $t->same(13, $related[1]['embedded_file_object']);
+        $t->same('text/plain', $related[1]['mime_type']);
+        $t->same($relatedTextChecksum, $related[1]['checksum']);
+        $t->same(hash('md5', $relatedText), $related[1]['computed_checksum']);
+        $t->same(false, $related[1]['checksum_matches']);
+
+        $t->same('UF', $related[2]['rf_key']);
+        $t->same(0, $related[2]['related_file_index']);
+        $t->same(14, $related[2]['embedded_file_object']);
+        $t->same('text/xml', $related[2]['mime_type']);
+        $t->same(hash('sha256', $relatedUnicode), $related[2]['content_sha256']);
+
+        $provenance = $source['provenance_review'];
+        $t->true(in_array('filespec_related_files', $provenance['sources'], true));
+        $t->same(3, $provenance['related_files']['count']);
+        $t->same(['F', 'UF'], $provenance['related_files']['rf_keys']);
+        $t->same([12, 13, 14], $provenance['related_files']['embedded_file_objects']);
+        $t->same([hash('sha256', $relatedJson), hash('sha256', $relatedText), hash('sha256', $relatedUnicode)], $provenance['related_files']['sha256']);
+        $t->same(false, $provenance['related_files']['payload_included']);
+
+        $t->same('', $text);
+        $t->true(is_string($encoded) && !str_contains($encoded, $sourcePayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $relatedJson));
+        $t->true(is_string($encoded) && !str_contains($encoded, $relatedText));
+        $t->true(is_string($encoded) && !str_contains($encoded, $relatedUnicode));
+    },
     'reviews catalog Collection schema with associated FileSpec rows as metadata' => static function (TestRunner $t) use ($xmpPacket): void {
         $sourcePayload = '<wp-export><post id="1628"/></wp-export>';
         $previewPayload = '{"preview":"metadata-schema"}';

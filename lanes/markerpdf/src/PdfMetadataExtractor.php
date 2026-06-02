@@ -822,6 +822,12 @@ final class PdfMetadataExtractor
             $file['piece_info'] = $pieceInfo;
         }
 
+        $relatedFiles = $this->relatedFileReviewRows($this->dictionaryTopLevelRawValue($body, 'RF'), $objects);
+        if ($relatedFiles !== []) {
+            $file['related_file_count'] = count($relatedFiles);
+            $file['related_files'] = $relatedFiles;
+        }
+
         $provenanceReview = $this->associatedFileProvenanceReview($file, $body, $objects);
         if ($provenanceReview !== []) {
             $file['provenance_review'] = $provenanceReview;
@@ -940,6 +946,12 @@ final class PdfMetadataExtractor
         $outputIntentReview = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($body, 'OutputIntents'), $objects);
         if (is_array($outputIntentReview) && $outputIntentReview !== []) {
             $file['output_intents_review'] = $outputIntentReview;
+        }
+
+        $relatedFiles = $this->relatedFileReviewRows($this->dictionaryTopLevelRawValue($body, 'RF'), $objects);
+        if ($relatedFiles !== []) {
+            $file['related_file_count'] = count($relatedFiles);
+            $file['related_files'] = $relatedFiles;
         }
 
         $provenanceReview = $this->associatedFileProvenanceReview($file, $body, $objects);
@@ -4709,12 +4721,65 @@ final class PdfMetadataExtractor
             $file['output_intents_review'] = $outputIntentReview;
         }
 
+        $relatedFiles = $this->relatedFileReviewRows($this->dictionaryTopLevelRawValue($body, 'RF'), $objects);
+        if ($relatedFiles !== []) {
+            $file['related_file_count'] = count($relatedFiles);
+            $file['related_files'] = $relatedFiles;
+        }
+
         $provenanceReview = $this->associatedFileProvenanceReview($file, $body, $objects);
         if ($provenanceReview !== []) {
             $file['provenance_review'] = $provenanceReview;
         }
 
         return $file;
+    }
+
+    /**
+     * FileSpec /RF related files are attachment-local review rows. They extend
+     * the primary /EF relationship without exposing related payload bytes as
+     * document metadata or visible text.
+     *
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function relatedFileReviewRows(?string $relatedFilesValue, array $objects): array
+    {
+        $relatedFiles = $this->resolveDictionaryFromValue($relatedFilesValue, $objects);
+        if ($relatedFiles === null) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($this->dictionaryTopLevelEntries($relatedFiles['body']) as $rfKey => $streamValues) {
+            if (!in_array($rfKey, ['F', 'UF', 'DOS', 'Unix', 'Mac'], true)) {
+                continue;
+            }
+
+            $items = $this->arrayItemsFromValue($streamValues, $objects);
+            if ($items === []) {
+                $items = [trim($streamValues)];
+            }
+
+            foreach ($items as $relatedFileIndex => $streamValue) {
+                $streamMetadata = $this->embeddedFileStreamReviewMetadata($streamValue, $objects);
+                if ($streamMetadata === null) {
+                    continue;
+                }
+
+                $row = [
+                    'source' => 'filespec_related_files',
+                    'rf_key' => $rfKey,
+                    'related_file_index' => $relatedFileIndex,
+                ];
+                foreach ($streamMetadata as $key => $metadataValue) {
+                    $row[$key] = $metadataValue;
+                }
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
     }
 
     /**
@@ -4893,6 +4958,12 @@ final class PdfMetadataExtractor
             $sources[] = 'filespec_output_intents';
         }
 
+        $relatedFiles = $this->associatedFileRelatedFilesProvenance($file['related_files'] ?? null);
+        if ($relatedFiles !== []) {
+            $metadata['related_files'] = $relatedFiles;
+            $sources[] = 'filespec_related_files';
+        }
+
         if ($sources === []) {
             return [];
         }
@@ -4944,6 +5015,62 @@ final class PdfMetadataExtractor
         }
 
         return $payload;
+    }
+
+    /**
+     * @param mixed $relatedFiles
+     * @return array<string, mixed>
+     */
+    private function associatedFileRelatedFilesProvenance(mixed $relatedFiles): array
+    {
+        if (!is_array($relatedFiles) || $relatedFiles === []) {
+            return [];
+        }
+
+        $keys = [];
+        $objectNumbers = [];
+        $hashes = [];
+        $mimeTypes = [];
+        foreach ($relatedFiles as $relatedFile) {
+            if (!is_array($relatedFile)) {
+                continue;
+            }
+
+            $key = $relatedFile['rf_key'] ?? null;
+            if (is_string($key) && $key !== '') {
+                $keys[] = $key;
+            }
+
+            $objectNumber = $relatedFile['embedded_file_object'] ?? null;
+            if (is_int($objectNumber)) {
+                $objectNumbers[] = $objectNumber;
+            }
+
+            $hash = $relatedFile['content_sha256'] ?? null;
+            if (is_string($hash) && $hash !== '') {
+                $hashes[] = $hash;
+            }
+
+            $mimeType = $relatedFile['mime_type'] ?? null;
+            if (is_string($mimeType) && $mimeType !== '') {
+                $mimeTypes[] = $mimeType;
+            }
+        }
+
+        if ($keys === [] && $objectNumbers === [] && $hashes === [] && $mimeTypes === []) {
+            return [];
+        }
+
+        return [
+            'source' => 'filespec_related_files',
+            'review_only' => true,
+            'payload_included' => false,
+            'count' => count($relatedFiles),
+            'rf_keys' => $this->uniqueStrings($keys),
+            'embedded_file_objects' => array_values(array_unique($objectNumbers)),
+            'mime_types' => $this->uniqueStrings($mimeTypes),
+            'sha256' => $this->uniqueStrings($hashes),
+        ];
     }
 
     /**

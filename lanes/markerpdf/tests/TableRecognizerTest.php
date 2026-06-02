@@ -821,6 +821,64 @@ return [
         $t->contains('| Images  | Ready  |', $formatted['markdown_tables'][0]);
         $t->same([], $recognized[0]['ocr_grid_border_conflicts'] ?? []);
     },
+    'labels OCR grid-border conflicts with assigned table row and column ids' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $recognized = $recognizer->recognizeTables(
+            [[
+                ['bbox' => [0.0, 0.0, 90.0, 24.0], 'text' => ''],
+                ['bbox' => [100.0, 0.0, 190.0, 24.0], 'text' => ''],
+                ['bbox' => [0.0, 40.0, 90.0, 64.0], 'text' => ''],
+                ['bbox' => [100.0, 40.0, 190.0, 64.0], 'text' => ''],
+            ]],
+            [true],
+            [[
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 200.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 38.0, 200.0, 70.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 96.0, 72.0]],
+                    ['col_id' => 1, 'bbox' => [98.0, 0.0, 200.0, 72.0]],
+                ],
+            ]],
+            [[
+                'lines' => [
+                    ['text' => 'Table-wide heading', 'bbox' => [0.0, 0.0, 190.0, 64.0]],
+                    ['text' => 'Column border', 'bbox' => [0.0, 0.0, 190.0, 24.0]],
+                    ['text' => 'Row border', 'bbox' => [0.0, 0.0, 90.0, 64.0]],
+                    ['text' => 'Cell value', 'bbox' => [100.0, 40.0, 190.0, 64.0]],
+                ],
+            ]]
+        );
+        $formatted = $recognizer->formatRecognizedTables($recognized, [['width' => 200, 'height' => 72]]);
+        $reviewConflicts = $recognizer->gridBorderConflictReview(
+            $recognized[0]['ocr_grid_border_conflicts'] ?? [],
+            $formatted['assigned_cells'][0]
+        );
+
+        $t->same(['Table-wide heading', 'Column border', 'Row border', 'Cell value'], array_column($recognized[0]['cells'], 'text'));
+        $t->same(3, count($reviewConflicts));
+        $t->same('both', $reviewConflicts[0]['grid_border_axis']);
+        $t->same(['column', 'row'], $reviewConflicts[0]['grid_border_axes']);
+        $t->same([0, 1], $reviewConflicts[0]['candidate_row_ids']);
+        $t->same([0, 1], $reviewConflicts[0]['candidate_col_ids']);
+        $t->same(
+            [
+                ['cell_index' => 0, 'row_id' => 0, 'col_id' => 0],
+                ['cell_index' => 1, 'row_id' => 0, 'col_id' => 1],
+                ['cell_index' => 2, 'row_id' => 1, 'col_id' => 0],
+                ['cell_index' => 3, 'row_id' => 1, 'col_id' => 1],
+            ],
+            $reviewConflicts[0]['candidate_grid_anchors']
+        );
+        $t->same(['cell_index' => 0, 'row_id' => 0, 'col_id' => 0, 'row_ids' => [0], 'col_ids' => [0], 'text' => 'Table-wide heading'], $reviewConflicts[0]['assigned_grid_cell']);
+        $t->same('column', $reviewConflicts[1]['grid_border_axis']);
+        $t->same([0], $reviewConflicts[1]['candidate_row_ids']);
+        $t->same([0, 1], $reviewConflicts[1]['candidate_col_ids']);
+        $t->same('row', $reviewConflicts[2]['grid_border_axis']);
+        $t->same([0, 1], $reviewConflicts[2]['candidate_row_ids']);
+        $t->same([0], $reviewConflicts[2]['candidate_col_ids']);
+    },
     'falls back to heuristic row layout when model rows and columns leave most cells unassigned' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $assigned = $recognizer->assignRowsColumns(

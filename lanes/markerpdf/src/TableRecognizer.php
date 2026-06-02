@@ -457,6 +457,94 @@ final class TableRecognizer
     }
 
     /**
+     * Review metadata for OCR lines whose bboxes cross detector grid borders.
+     *
+     * Upstream tabled zips OCR text back onto the detector-cell list before
+     * assign_rows_columns(), so the assigned SpanTableCell row/column ids are
+     * the stable grid coordinates a WordPress importer can use for review UI.
+     *
+     * @param list<array<string, mixed>> $conflicts Rows emitted by ocrGridBorderConflicts().
+     * @param list<array<string, mixed>> $assignedCells Assigned cells from assignRowsColumns().
+     * @return list<array<string, mixed>>
+     */
+    public function gridBorderConflictReview(array $conflicts, array $assignedCells): array
+    {
+        $assignedCells = $this->normalizeAssignedCells($assignedCells);
+        $review = [];
+
+        foreach ($conflicts as $conflict) {
+            if (!is_array($conflict)) {
+                continue;
+            }
+
+            $entry = $conflict;
+            $candidateIndexes = $this->integerList($conflict['candidate_cell_indexes'] ?? []);
+            $candidateGridCells = [];
+            $candidateAnchors = [];
+            foreach ($candidateIndexes as $cellIndex) {
+                if (!isset($assignedCells[$cellIndex])) {
+                    continue;
+                }
+
+                $cell = $assignedCells[$cellIndex];
+                $rowIds = $this->nonNullSortedIds($cell['row_ids']);
+                $colIds = $this->nonNullSortedIds($cell['col_ids']);
+                if ($rowIds === [] || $colIds === []) {
+                    continue;
+                }
+
+                $anchor = [
+                    'cell_index' => $cellIndex,
+                    'row_id' => $rowIds[0],
+                    'col_id' => $colIds[0],
+                ];
+                $candidateAnchors[] = $anchor;
+                $candidateGridCells[] = [
+                    'cell_index' => $cellIndex,
+                    'row_ids' => $rowIds,
+                    'col_ids' => $colIds,
+                    'anchor' => [
+                        'row_id' => $rowIds[0],
+                        'col_id' => $colIds[0],
+                    ],
+                    'text' => (string) $cell['text'],
+                    'bbox' => $cell['bbox'],
+                ];
+            }
+
+            if ($candidateGridCells !== []) {
+                $entry['candidate_grid_cells'] = $candidateGridCells;
+                $entry['candidate_grid_anchors'] = $candidateAnchors;
+                $entry['candidate_row_ids'] = $this->uniqueGridIds($candidateGridCells, 'row_ids');
+                $entry['candidate_col_ids'] = $this->uniqueGridIds($candidateGridCells, 'col_ids');
+                $entry['grid_border_axes'] = $this->gridBorderAxes($entry['candidate_row_ids'], $entry['candidate_col_ids']);
+                $entry['grid_border_axis'] = $this->headerAxisForAxes($entry['grid_border_axes']);
+            }
+
+            $assignedIndex = $this->nullableInteger($conflict['assigned_cell_index'] ?? null);
+            if ($assignedIndex !== null && isset($assignedCells[$assignedIndex])) {
+                $cell = $assignedCells[$assignedIndex];
+                $rowIds = $this->nonNullSortedIds($cell['row_ids']);
+                $colIds = $this->nonNullSortedIds($cell['col_ids']);
+                if ($rowIds !== [] && $colIds !== []) {
+                    $entry['assigned_grid_cell'] = [
+                        'cell_index' => $assignedIndex,
+                        'row_id' => $rowIds[0],
+                        'col_id' => $colIds[0],
+                        'row_ids' => $rowIds,
+                        'col_ids' => $colIds,
+                        'text' => (string) $cell['text'],
+                    ];
+                }
+            }
+
+            $review[] = $entry;
+        }
+
+        return $review;
+    }
+
+    /**
      * @param list<array<string, mixed>> $recognizedTables
      * @param list<array{width?: int|float, height?: int|float}|list<int|float>> $imageSizes
      * @return array{assigned_cells: list<list<array<string, mixed>>>, markdown_tables: list<string>}
@@ -1669,6 +1757,70 @@ final class TableRecognizer
         sort($out, SORT_NUMERIC);
 
         return $out;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function integerList(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($values as $value) {
+            if (is_int($value) || is_float($value) || (is_string($value) && preg_match('/^-?\d+$/', $value) === 1)) {
+                $out[] = (int) $value;
+            }
+        }
+
+        return $out;
+    }
+
+    private function nullableInteger(mixed $value): ?int
+    {
+        if (is_int($value) || is_float($value) || (is_string($value) && preg_match('/^-?\d+$/', $value) === 1)) {
+            return (int) $value;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $candidateGridCells
+     * @return list<int>
+     */
+    private function uniqueGridIds(array $candidateGridCells, string $field): array
+    {
+        $ids = [];
+        foreach ($candidateGridCells as $cell) {
+            foreach (($cell[$field] ?? []) as $id) {
+                if ($id !== null) {
+                    $ids[] = (int) $id;
+                }
+            }
+        }
+
+        return $this->nonNullSortedIds($ids);
+    }
+
+    /**
+     * @param list<int> $rowIds
+     * @param list<int> $colIds
+     * @return list<string>
+     */
+    private function gridBorderAxes(array $rowIds, array $colIds): array
+    {
+        $axes = [];
+        if (count($colIds) > 1) {
+            $axes[] = 'column';
+        }
+        if (count($rowIds) > 1) {
+            $axes[] = 'row';
+        }
+
+        return $axes;
     }
 
     /**

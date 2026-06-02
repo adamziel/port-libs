@@ -218,7 +218,7 @@ final class SuppliedDocumentConverter
             $metadata['table_assigned_cells'] = $recognition['assigned_cells'];
             $metadata['table_merged_cell_geometry'] = $this->mergedCellGeometryForTables($recognition['assigned_cells'], $recognizedTables);
             $metadata['table_spanning_grid_review'] = $this->spanningGridReviewForTables($recognition['assigned_cells'], $recognizedTables);
-            $ocrGridBorderConflicts = $this->ocrGridBorderConflictsForTables($recognizedTables);
+            $ocrGridBorderConflicts = $this->ocrGridBorderConflictsForTables($recognizedTables, $recognition['assigned_cells']);
             if ($ocrGridBorderConflicts !== []) {
                 $metadata['table_ocr_grid_border_conflicts'] = $ocrGridBorderConflicts;
             }
@@ -350,21 +350,26 @@ final class SuppliedDocumentConverter
 
     /**
      * @param list<array<string, mixed>> $recognizedTables
+     * @param list<list<array<string, mixed>>> $assignedTables
      * @return list<list<array<string, mixed>>>
      */
-    private function ocrGridBorderConflictsForTables(array $recognizedTables): array
+    private function ocrGridBorderConflictsForTables(array $recognizedTables, array $assignedTables): array
     {
         $conflicts = [];
-        foreach ($recognizedTables as $table) {
+        foreach ($recognizedTables as $tableIndex => $table) {
             if (!is_array($table) || !isset($table['ocr_grid_border_conflicts']) || !is_array($table['ocr_grid_border_conflicts'])) {
                 $conflicts[] = [];
                 continue;
             }
 
-            $conflicts[] = array_values(array_filter(
+            $tableConflicts = array_values(array_filter(
                 $table['ocr_grid_border_conflicts'],
                 static fn (mixed $item): bool => is_array($item)
             ));
+            $assignedCells = isset($assignedTables[$tableIndex]) && is_array($assignedTables[$tableIndex])
+                ? $assignedTables[$tableIndex]
+                : [];
+            $conflicts[] = $this->tableRecognizer->gridBorderConflictReview($tableConflicts, $assignedCells);
         }
 
         $hasConflict = false;

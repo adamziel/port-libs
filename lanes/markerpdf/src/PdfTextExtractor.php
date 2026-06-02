@@ -195,6 +195,7 @@ final class PdfTextExtractor
      *     compressed_entry_count: int,
      *     zero_width_index_entry_count: int,
      *     recovered_zero_width_member_count: int,
+     *     ambiguous_zero_width_member_count: int,
      *     strict_dependency_rejection_count: int,
      *     entries: list<array<string, mixed>>,
      *     executes_python_or_models: false,
@@ -210,6 +211,7 @@ final class PdfTextExtractor
             'compressed_entry_count' => 0,
             'zero_width_index_entry_count' => 0,
             'recovered_zero_width_member_count' => 0,
+            'ambiguous_zero_width_member_count' => 0,
             'strict_dependency_rejection_count' => 0,
             'entries' => [],
             'executes_python_or_models' => false,
@@ -253,21 +255,28 @@ final class PdfTextExtractor
                 : null;
             $members = $memberTable['members'] ?? [];
             $memberAtDefaultIndex = $members[$defaultMemberIndex] ?? null;
-            $memberByObjectNumber = null;
+            $membersByObjectNumber = [];
             foreach ($members as $member) {
                 if ($member['objectNumber'] === $objectNumber) {
-                    $memberByObjectNumber = $member;
-                    break;
+                    $membersByObjectNumber[] = $member;
                 }
             }
+            $matchingHeaderObjectNumberCount = count($membersByObjectNumber);
+            $memberByObjectNumber = $matchingHeaderObjectNumberCount === 1 ? $membersByObjectNumber[0] : null;
 
             $strictMemberMatch = $memberAtDefaultIndex !== null
                 && $memberAtDefaultIndex['objectNumber'] === $objectNumber;
             $recoveredByObjectNumber = !$indexIsExplicit
                 && !$strictMemberMatch
                 && $memberByObjectNumber !== null;
+            $ambiguousZeroWidthMember = !$indexIsExplicit
+                && !$strictMemberMatch
+                && $matchingHeaderObjectNumberCount > 1;
             if ($recoveredByObjectNumber) {
                 $review['recovered_zero_width_member_count']++;
+            }
+            if ($ambiguousZeroWidthMember) {
+                $review['ambiguous_zero_width_member_count']++;
             }
             if (!$strictMemberMatch) {
                 $review['strict_dependency_rejection_count']++;
@@ -282,13 +291,17 @@ final class PdfTextExtractor
                 'strict_member_index' => $defaultMemberIndex,
                 'actual_member_index' => $memberByObjectNumber['index'] ?? null,
                 'object_stream_member_count' => count($members),
+                'matching_header_object_number_count' => $matchingHeaderObjectNumberCount,
+                'duplicate_header_object_number' => $matchingHeaderObjectNumberCount > 1,
                 'strict_member_match' => $strictMemberMatch,
                 'recovered_by_object_number' => $recoveredByObjectNumber,
+                'ambiguous_zero_width_member' => $ambiguousZeroWidthMember,
                 'strict_dependency_would_reject' => !$strictMemberMatch,
                 'selection_policy' => $this->objectStreamIndexSelectionPolicy(
                     $indexIsExplicit,
                     $strictMemberMatch,
-                    $memberByObjectNumber !== null
+                    $matchingHeaderObjectNumberCount > 0,
+                    $ambiguousZeroWidthMember
                 ),
                 'review_only' => true,
             ];
@@ -346,7 +359,7 @@ final class PdfTextExtractor
 
         $objects = $this->latestDirectObjects($definitions);
         $xrefEntries = $this->xrefEntries($pdfBytes, $objects, $definitions);
-        $startxrefOffset = $this->latestStartxrefOffset($pdfBytes);
+        $startxrefOffset = $this->latestStartxrefOffset($pdfBytes, $definitions);
 
         foreach ($definitions as $objectNumber => $objectDefinitions) {
             foreach ($objectDefinitions as $definition) {
@@ -3664,8 +3677,12 @@ final class PdfTextExtractor
         foreach ($objects as $body) {
             foreach ($this->embeddedFileDictionariesFromBody($body, $objects) as $efDictionary) {
                 foreach (['F', 'UF', 'DOS', 'Unix', 'Mac'] as $key) {
-                    $objectNumber = $this->objectReferenceValueAfterName($efDictionary, $key);
-                    if ($objectNumber !== null) {
+                    $value = $this->pdfValueAfterName($efDictionary, $key);
+                    if ($value === null) {
+                        continue;
+                    }
+
+                    foreach ($this->objectReferences($value) as $objectNumber) {
                         $payloadObjectNumbers[$objectNumber] = true;
                     }
                 }
@@ -3801,7 +3818,7 @@ final class PdfTextExtractor
     {
         $dictionaries = [];
         $offset = 0;
-        while (preg_match('/\/EF\b/s', $body, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+        while (preg_match('/\/(?:EF|RF)\b/s', $body, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
             $valueOffset = $this->skipPdfWhitespace($body, $match[0][1] + strlen($match[0][0]));
             $value = $this->pdfValueAtOffset($body, $valueOffset);
             if ($value !== null) {
@@ -3811,7 +3828,7 @@ final class PdfTextExtractor
                 }
             }
 
-            $offset = max($valueOffset + 1, $match[0][1] + 3);
+            $offset = max($valueOffset + 1, $match[0][1] + strlen($match[0][0]));
         }
 
         return $dictionaries;
@@ -6055,7 +6072,7 @@ final class PdfTextExtractor
             $widthArray = $this->pdfArrayValueAfterNameResolvingObjects($body, 'W', $objects);
             if ($widthArray !== null) {
                 $hasWidthArray = true;
-                foreach ($this->cidWidthsFromWArray($widthArray) as $cid => $width) {
+                foreach ($this->cidWidthsFromWArray($widthArray, $objects) as $cid => $width) {
                     $widths[$cid] = $width;
                 }
             }
@@ -6408,15 +6425,16 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param array<int, string> $objects
      * @return array<int, float>
      */
-    private function cidWidthsFromWArray(string $arrayBody): array
+    private function cidWidthsFromWArray(string $arrayBody, array $objects): array
     {
-        $tokens = $this->contentTokens($arrayBody);
+        $tokens = $this->pdfArrayItems($arrayBody);
         $widths = [];
 
         for ($index = 0, $count = count($tokens); $index < $count;) {
-            $firstCid = $this->integerToken($tokens[$index] ?? '');
+            $firstCid = $this->cidWidthArrayInteger($tokens[$index] ?? '', $objects);
             if ($firstCid === null) {
                 $index++;
                 continue;
@@ -6429,7 +6447,7 @@ final class PdfTextExtractor
             }
 
             if (str_starts_with(trim($next), '[')) {
-                foreach ($this->numbersFromPdfArray(substr(trim($next), 1, -1)) as $offset => $width) {
+                foreach ($this->numbersFromPdfArrayResolvingObjects(substr(trim($next), 1, -1), $objects) as $offset => $width) {
                     $cid = $firstCid + $offset;
                     if ($cid >= 0 && $cid <= 0xffff) {
                         $widths[$cid] = (float) $width;
@@ -6439,8 +6457,8 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $lastCid = $this->integerToken($next);
-            $width = $this->numericOperand($tokens[$index + 1] ?? '');
+            $lastCid = $this->cidWidthArrayInteger($next, $objects);
+            $width = $this->pdfNumberValueAt($tokens[$index + 1] ?? '', 0, $objects);
             if ($lastCid === null || $width === null) {
                 $index++;
                 continue;
@@ -6457,6 +6475,20 @@ final class PdfTextExtractor
         }
 
         return $widths;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function cidWidthArrayInteger(string $item, array $objects): ?int
+    {
+        $value = $this->pdfNumberValueAt($item, 0, $objects);
+        if ($value === null) {
+            return null;
+        }
+
+        $integer = (int) round($value);
+        return abs($value - $integer) > 0.000001 ? null : $integer;
     }
 
     /**
@@ -8370,7 +8402,7 @@ final class PdfTextExtractor
      */
     private function trailerEncryptValueFromStartxrefChain(string $pdfBytes, array $definitions): array
     {
-        $offset = $this->latestStartxrefOffset($pdfBytes);
+        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
         if ($offset === null) {
             return ['parsed' => false, 'value' => null];
         }
@@ -9391,7 +9423,7 @@ final class PdfTextExtractor
      */
     private function xrefEntriesFromStartxrefChain(string $pdfBytes, array $objects, array $definitions): array
     {
-        $offset = $this->latestStartxrefOffset($pdfBytes);
+        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
         if ($offset === null) {
             return [];
         }
@@ -9404,7 +9436,7 @@ final class PdfTextExtractor
      */
     private function trailerRootObjectNumberFromStartxrefChain(string $pdfBytes, array $definitions): ?int
     {
-        $offset = $this->latestStartxrefOffset($pdfBytes);
+        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
         if ($offset === null) {
             return null;
         }
@@ -9467,18 +9499,30 @@ final class PdfTextExtractor
             : $this->trailerRootObjectNumberFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
     }
 
-    private function latestStartxrefOffset(string $pdfBytes): ?int
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>>|null $definitions
+     */
+    private function latestStartxrefOffset(string $pdfBytes, ?array $definitions = null): ?int
     {
-        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER) < 1) {
+        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
             return null;
         }
 
-        $latest = end($matches);
-        if (!is_array($latest)) {
-            return null;
+        for ($index = count($matches) - 1; $index >= 0; $index--) {
+            $match = $matches[$index];
+            $tokenOffset = $match[0][1] ?? null;
+            if (
+                $definitions !== null
+                && is_int($tokenOffset)
+                && $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+            ) {
+                continue;
+            }
+
+            return max(0, (int) ($match[1][0] ?? 0));
         }
 
-        return max(0, (int) $latest[1]);
+        return null;
     }
 
     /**
@@ -9715,6 +9759,7 @@ final class PdfTextExtractor
             $decoded = $memberTable['decoded'];
             $first = $memberTable['first'];
             $pairs = $memberTable['members'];
+            $memberObjectNumberCounts = $this->objectStreamMemberObjectNumberCounts($pairs);
             $hasCompressedXrefEntriesForStream = $this->hasCompressedXrefEntriesForObjectStream($xrefEntries, $objectStreamNumber);
             if ($hasSelectedXrefEntries && !$hasCompressedXrefEntriesForStream) {
                 continue;
@@ -9732,9 +9777,25 @@ final class PdfTextExtractor
                     if (
                         ($xrefEntry['type'] ?? null) !== 2
                         || ($xrefEntry['objectStream'] ?? null) !== $objectStreamNumber
-                        || (($xrefEntry['index'] ?? null) !== $index && ($xrefEntry['indexIsExplicit'] ?? true))
                     ) {
                         continue;
+                    }
+
+                    $xrefIndex = (int) ($xrefEntry['index'] ?? 0);
+                    $indexIsExplicit = ($xrefEntry['indexIsExplicit'] ?? true) === true;
+                    if ($indexIsExplicit) {
+                        if ($xrefIndex !== $index) {
+                            continue;
+                        }
+                    } else {
+                        $strictMember = $pairs[$xrefIndex] ?? null;
+                        if ($strictMember !== null && $strictMember['objectNumber'] === $objectNumber) {
+                            if ($xrefIndex !== $index) {
+                                continue;
+                            }
+                        } elseif (($memberObjectNumberCounts[$objectNumber] ?? 0) !== 1) {
+                            continue;
+                        }
                     }
                 } elseif ($hasCompressedXrefEntriesForStream) {
                     continue;
@@ -9755,10 +9816,34 @@ final class PdfTextExtractor
         return $expanded;
     }
 
-    private function objectStreamIndexSelectionPolicy(bool $indexIsExplicit, bool $strictMemberMatch, bool $memberExists): string
+    /**
+     * @param list<array{objectNumber: int, offset: int, index: int}> $members
+     * @return array<int, int>
+     */
+    private function objectStreamMemberObjectNumberCounts(array $members): array
+    {
+        $counts = [];
+        foreach ($members as $member) {
+            $objectNumber = $member['objectNumber'];
+            $counts[$objectNumber] = ($counts[$objectNumber] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
+    private function objectStreamIndexSelectionPolicy(
+        bool $indexIsExplicit,
+        bool $strictMemberMatch,
+        bool $memberExists,
+        bool $ambiguousZeroWidthMember = false
+    ): string
     {
         if ($strictMemberMatch) {
             return $indexIsExplicit ? 'explicit_member_index' : 'default_zero_member_index';
+        }
+
+        if ($ambiguousZeroWidthMember) {
+            return 'ambiguous_zero_width_duplicate_header_object_number';
         }
 
         if (!$memberExists) {

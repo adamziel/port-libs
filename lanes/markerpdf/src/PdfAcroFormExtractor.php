@@ -4806,9 +4806,18 @@ final class PdfAcroFormExtractor
         if ($actionType === 'Launch') {
             $targetValue = $this->dictionaryEntryValueAfterName($actionBody, 'F');
             $target = $targetValue === null ? null : $this->fileSpecificationFromValue($targetValue, $objects);
+            $platform = $this->launchPlatformMetadataFromAction($actionBody, $objects);
+            if ($target === null && is_string($platform['target'] ?? null)) {
+                $target = $platform['target'];
+            }
             $metadata['target'] = $target;
             $metadata['target_scheme'] = is_string($target) ? $this->uriScheme($target) : null;
             $metadata['new_window'] = $this->boolValueAfterName($actionBody, 'NewWindow');
+            foreach (['target_platform', 'operation', 'parameters', 'default_directory', 'platform_dictionary_object'] as $key) {
+                if (($platform[$key] ?? null) !== null) {
+                    $metadata[$key] = $platform[$key];
+                }
+            }
 
             return $metadata;
         }
@@ -4843,6 +4852,19 @@ final class PdfAcroFormExtractor
         if ($actionType === 'Named') {
             $nameValue = $this->dictionaryEntryValueAfterName($actionBody, 'N');
             $metadata['named_action'] = $nameValue === null ? null : $this->pdfValueToString($nameValue, $objects);
+
+            return $metadata;
+        }
+
+        if ($actionType === 'GoToE') {
+            $targetValue = $this->dictionaryEntryValueAfterName($actionBody, 'F');
+            $target = $targetValue === null ? null : $this->fileSpecificationFromValue($targetValue, $objects);
+            $metadata['target'] = $target;
+            $metadata['file'] = $target;
+            $metadata['target_scheme'] = is_string($target) ? $this->uriScheme($target) : null;
+            $metadata['destination'] = $this->actionDestinationValue($this->dictionaryEntryValueAfterName($actionBody, 'D'), $objects);
+            $metadata['embedded_target'] = $this->embeddedTargetFromValue($this->dictionaryEntryValueAfterName($actionBody, 'T'), $objects);
+            $metadata['new_window'] = $this->boolValueAfterName($actionBody, 'NewWindow');
 
             return $metadata;
         }
@@ -4882,8 +4904,105 @@ final class PdfAcroFormExtractor
             'Named' => 'named-action-review',
             'GoTo' => 'local-destination-review',
             'GoToR' => 'remote-document-review',
+            'GoToE' => 'embedded-document-review',
             default => 'unsupported-action-review',
         };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{target: string|null, target_platform: string|null, operation: string|null, parameters: string|null, default_directory: string|null, platform_dictionary_object: int|null}
+     */
+    private function launchPlatformMetadataFromAction(string $actionBody, array $objects): array
+    {
+        $empty = [
+            'target' => null,
+            'target_platform' => null,
+            'operation' => null,
+            'parameters' => null,
+            'default_directory' => null,
+            'platform_dictionary_object' => null,
+        ];
+
+        foreach (['Win', 'Unix', 'Mac', 'DOS'] as $platformName) {
+            $platformValue = $this->dictionaryEntryValueAfterName($actionBody, $platformName);
+            if ($platformValue === null) {
+                continue;
+            }
+
+            $platformDictionary = $this->resolvedDictionaryFromValue($platformValue, $objects);
+            if ($platformDictionary === null) {
+                $target = $this->pdfValueToString($platformValue, $objects);
+                $metadata = $empty;
+                $metadata['target'] = $target;
+                $metadata['target_platform'] = $platformName;
+
+                return $metadata;
+            }
+
+            $targetValue = $this->dictionaryEntryValueAfterName($platformDictionary['body'], 'F');
+            $target = $targetValue === null ? null : $this->fileSpecificationFromValue($targetValue, $objects);
+
+            return [
+                'target' => $target,
+                'target_platform' => $platformName,
+                'operation' => $this->pdfStringValueAfterName($platformDictionary['body'], 'O', $objects),
+                'parameters' => $this->pdfStringValueAfterName($platformDictionary['body'], 'P', $objects),
+                'default_directory' => $this->pdfStringValueAfterName($platformDictionary['body'], 'D', $objects),
+                'platform_dictionary_object' => $platformDictionary['object'],
+            ];
+        }
+
+        return $empty;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{relationship: string|null, relationship_label: string|null, name: string|null, page: int|null, annotation: mixed, nested_target: mixed}|null
+     */
+    private function embeddedTargetFromValue(?string $value, array $objects, int $depth = 0): ?array
+    {
+        if ($value === null || $depth > 8) {
+            return null;
+        }
+
+        $target = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($target === null) {
+            return null;
+        }
+
+        $relationshipValue = $this->dictionaryEntryValueAfterName($target['body'], 'R');
+        $relationship = $relationshipValue === null ? null : $this->pdfValueToString($relationshipValue, $objects);
+        $nameValue = $this->dictionaryEntryValueAfterName($target['body'], 'N');
+        $pageValue = $this->dictionaryEntryValueAfterName($target['body'], 'P');
+        $annotationValue = $this->dictionaryEntryValueAfterName($target['body'], 'A');
+        $nestedTargetValue = $this->dictionaryEntryValueAfterName($target['body'], 'T');
+
+        return [
+            'relationship' => $relationship,
+            'relationship_label' => $this->embeddedTargetRelationshipLabel($relationship),
+            'name' => $nameValue === null ? null : $this->pdfValueToString($nameValue, $objects),
+            'page' => $this->integerFromPdfValue($pageValue),
+            'annotation' => $annotationValue === null ? null : $this->pdfValueToPhpValue($annotationValue, $objects),
+            'nested_target' => $this->embeddedTargetFromValue($nestedTargetValue, $objects, $depth + 1),
+        ];
+    }
+
+    private function embeddedTargetRelationshipLabel(?string $relationship): ?string
+    {
+        return match ($relationship) {
+            'C' => 'child',
+            'P' => 'parent',
+            'R' => 'root',
+            default => $relationship === null ? null : 'unknown',
+        };
+    }
+
+    private function integerFromPdfValue(?string $value): ?int
+    {
+        return $value !== null && preg_match('/^[+-]?\d+\b/', trim($value), $match) === 1
+            ? (int) $match[0]
+            : null;
     }
 
     private function isSafeUri(string $uri): bool

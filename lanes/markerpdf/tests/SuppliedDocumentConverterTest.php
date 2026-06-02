@@ -889,6 +889,85 @@ return [
             unlink($path);
         }
     },
+    'exposes assigned grid-border conflict review metadata through supplied table conversion' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-grid-border-review-currentbase-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% OCR grid border assigned review supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'OCR grid border assigned review', 'bbox' => [72.0, 48.0, 450.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Stale assigned grid border table text should be replaced.', 'bbox' => [72.0, 176.0, 500.0, 196.0]],
+                ['text' => 'Reviewer note after assigned border review.', 'bbox' => [72.0, 276.0, 510.0, 294.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 48.0, 450.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 430.0, 230.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 276.0, 510.0, 294.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 200.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 38.0, 200.0, 70.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 96.0, 72.0]],
+                    ['col_id' => 1, 'bbox' => [98.0, 0.0, 200.0, 72.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_detector_cells' => [[
+                        ['bbox' => [0.0, 0.0, 90.0, 24.0], 'text' => null],
+                        ['bbox' => [100.0, 0.0, 190.0, 24.0], 'text' => null],
+                        ['bbox' => [0.0, 40.0, 90.0, 64.0], 'text' => null],
+                        ['bbox' => [100.0, 40.0, 190.0, 64.0], 'text' => null],
+                    ]],
+                    'table_ocr_text_lines' => [[
+                        'lines' => [
+                            ['text' => 'Table-wide heading', 'bbox' => [0.0, 0.0, 190.0, 64.0]],
+                            ['text' => 'Column border', 'bbox' => [0.0, 0.0, 190.0, 24.0]],
+                            ['text' => 'Row border', 'bbox' => [0.0, 0.0, 90.0, 64.0]],
+                            ['text' => 'Cell value', 'bbox' => [100.0, 40.0, 190.0, 64.0]],
+                        ],
+                    ]],
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                    'ocr_all_pages' => true,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $conflicts = $result['metadata']['table_ocr_grid_border_conflicts'][0] ?? [];
+
+            $t->contains('# Ocr Grid Border Assigned Review', $result['text']);
+            $t->contains('| Table\\-wide heading | Column border |', $result['text']);
+            $t->contains('| Row border          | Cell value    |', $result['text']);
+            $t->contains('Reviewer note after assigned border review.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Stale assigned grid border table text should be replaced.'));
+            $t->same(['layout', 'table-cell-routing', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same([true], $result['metadata']['table_needs_ocr']);
+            $t->same([4], $result['metadata']['table_cell_counts']);
+            $t->same(3, count($conflicts));
+            $t->same('both', $conflicts[0]['grid_border_axis']);
+            $t->same(['column', 'row'], $conflicts[0]['grid_border_axes']);
+            $t->same([0, 1], $conflicts[0]['candidate_row_ids']);
+            $t->same([0, 1], $conflicts[0]['candidate_col_ids']);
+            $t->same(['cell_index' => 0, 'row_id' => 0, 'col_id' => 0], $conflicts[0]['candidate_grid_anchors'][0]);
+            $t->same(['cell_index' => 3, 'row_id' => 1, 'col_id' => 1], $conflicts[0]['candidate_grid_anchors'][3]);
+            $t->same(['cell_index' => 0, 'row_id' => 0, 'col_id' => 0, 'row_ids' => [0], 'col_ids' => [0], 'text' => 'Table-wide heading'], $conflicts[0]['assigned_grid_cell']);
+            $t->same('column', $conflicts[1]['grid_border_axis']);
+            $t->same('row', $conflicts[2]['grid_border_axis']);
+        } finally {
+            unlink($path);
+        }
+    },
     'routes upstream OCR prediction objects through forced table recognition' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-prediction-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% forced OCR table prediction supplied pipeline\n%%EOF");

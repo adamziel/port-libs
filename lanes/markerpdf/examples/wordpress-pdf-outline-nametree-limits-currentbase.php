@@ -1,0 +1,84 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\MarkerPDF\PdfOutlineExtractor;
+use PortLibs\MarkerPDF\PdfTextExtractor;
+
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+$pageOneContent = 'BT /F1 12 Tf 72 720 Td (Current outline destination page stays visible) Tj ET';
+$pageTwoContent = 'BT /F1 12 Tf 72 720 Td (Stale destination page stays visible but is not the TOC target) Tj ET';
+
+$pdf = "%PDF-1.7\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R /Names << /Dests 8 0 R >> /OpenAction /DeckStart /PageLabels 20 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 30 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Dur 4 /Trans << /S /Wipe /D .25 /Di 90 >> /AA << /O 14 0 R >> /Contents 31 0 R >>\nendobj\n"
+    . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Count 2 >>\nendobj\n"
+    . "6 0 obj\n<< /Title (Current Deck Start) /Parent 5 0 R /Dest /DeckStart /Next 7 0 R >>\nendobj\n"
+    . "7 0 obj\n<< /Title (Valid Review Target) /Parent 5 0 R /Dest /DeckReview >>\nendobj\n"
+    . "8 0 obj\n<< /Kids [9 0 R 10 0 R 11 0 R] >>\nendobj\n"
+    . "9 0 obj\n<< /Limits [(A) (M)] /Names [(DeckStart) [3 0 R /FitH 700] (DeckReview) 12 0 R] >>\nendobj\n"
+    . "10 0 obj\n<< /Limits [(N) (Z)] /Names [(DeckStart) 13 0 R (ZedTarget) [4 0 R /Fit]] >>\nendobj\n"
+    . "11 0 obj\n<< /Limits [(Z) (Z)] /Names [(ZedTarget) [4 0 R /Fit]] >>\nendobj\n"
+    . "12 0 obj\n<< /D [3 0 R /XYZ 72 690 0] >>\nendobj\n"
+    . "13 0 obj\n<< /S /GoTo /D [4 0 R /FitH 640] /Next 14 0 R >>\nendobj\n"
+    . "14 0 obj\n<< /S /URI /URI (https://example.com/stale-outline-action) >>\nendobj\n"
+    . "20 0 obj\n<< /Nums [0 << /S /D /P (Current ) /St 1 >> 1 << /S /D /P (Stale ) /St 9 >>] >>\nendobj\n"
+    . "30 0 obj\n<< /Length " . strlen($pageOneContent) . " >>\nstream\n{$pageOneContent}\nendstream\nendobj\n"
+    . "31 0 obj\n<< /Length " . strlen($pageTwoContent) . " >>\nstream\n{$pageTwoContent}\nendstream\nendobj\n"
+    . "%%EOF";
+
+$outlineExtractor = new PdfOutlineExtractor();
+$textExtractor = new PdfTextExtractor();
+$toc = $outlineExtractor->getPdfTocWithDestinationViews($pdf);
+$navigation = $outlineExtractor->getNavigationReviewMetadata($pdf);
+$pages = $textExtractor->extractLabeledPageTexts($pdf);
+$plainText = $textExtractor->extractPlainText($pdf);
+
+if (array_column($toc, 'page') !== [0, 0]) {
+    throw new RuntimeException('Expected name-tree /Limits to keep stale duplicate destination rows from winning.');
+}
+if ($navigation['outline_action_review_actions'] !== []) {
+    throw new RuntimeException('Expected stale out-of-limits action dictionary to stay out of outline action review rows.');
+}
+if (($navigation['open_action_destination']['page'] ?? null) !== 0) {
+    throw new RuntimeException('Expected OpenAction named destination to resolve through the in-limits name-tree leaf.');
+}
+if (str_contains($plainText, 'https://example.com/stale-outline-action') || str_contains($plainText, 'DeckStart') || str_contains($plainText, 'DeckReview')) {
+    throw new RuntimeException('Expected name-tree destinations and stale action operands to stay out of visible WordPress text.');
+}
+
+echo '<!-- markerpdf-outline-nametree-limits-currentbase ' . htmlspecialchars(json_encode([
+    'support_component' => 'native-pdf-outline-name-tree-limits-parser',
+    'executes_python_or_models' => false,
+    'executes_external_pdf_tools' => false,
+    'native_boundary' => 'destination name-tree /Limits exclude stale duplicate leaf names before WordPress navigation review',
+    'toc_titles' => array_column($toc, 'title'),
+    'toc_pages' => array_column($toc, 'page'),
+    'toc_destinations' => array_column($toc, 'destination'),
+    'outline_action_count' => count($navigation['outline_action_review_actions']),
+    'open_action_page' => $navigation['open_action_destination']['page'] ?? null,
+    'visible_text_excludes_stale_action' => !str_contains($plainText, 'https://example.com/stale-outline-action'),
+], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
+
+foreach ($pages as $page) {
+    echo '<!-- wp:separator {"className":"markerpdf-page-break","metadata":{"name":"PDF page '
+        . htmlspecialchars($page['page_label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        . '"}} -->' . "\n";
+    echo '<hr class="wp-block-separator has-alpha-channel-opacity markerpdf-page-break"/>' . "\n";
+    echo "<!-- /wp:separator -->\n\n";
+    echo "<!-- wp:paragraph -->\n";
+    echo '<p>' . htmlspecialchars($page['text'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
+    echo "<!-- /wp:paragraph -->\n\n";
+}
+
+echo "<!-- wp:list -->\n<ul>\n";
+foreach ($toc as $item) {
+    echo '<li data-marker-outline-page="' . htmlspecialchars((string) $item['page'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        . '" data-marker-destination-name="' . htmlspecialchars((string) ($item['destination'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        . '" data-marker-view-mode="' . htmlspecialchars((string) ($item['view_mode'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        . '">Outline target: ' . htmlspecialchars($item['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</li>\n";
+}
+echo "</ul>\n<!-- /wp:list -->\n";
