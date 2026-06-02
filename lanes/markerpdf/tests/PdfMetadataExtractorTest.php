@@ -192,6 +192,43 @@ return [
         $t->same('Fixture–Writer', $metadata['producer']);
         $t->same('WordPress• PDF ﬁﬂ Import €', $metadata['info']['Title']);
     },
+    'decodes undeclared Windows-1252 XMP packet bytes and falls back to Info authors' => static function (TestRunner $t) use ($pdfWithMetadata): void {
+        $xmp = '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+            . '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+            . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+            . '<rdf:Description rdf:about=""'
+            . ' xmlns:dc="http://purl.org/dc/elements/1.1/"'
+            . ' xmlns:pdf="http://ns.adobe.com/pdf/1.3/"'
+            . ' xmlns:xmp="http://ns.adobe.com/xap/1.0/">'
+            . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Caf' . chr(0xe9) . ' ' . chr(0x93) . 'Review' . chr(0x94) . ' Packet</rdf:li></rdf:Alt></dc:title>'
+            . '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">WordPress import ' . chr(0x96) . ' encoded metadata</rdf:li></rdf:Alt></dc:description>'
+            . '<pdf:Keywords>caf' . chr(0xe9) . ', wp' . chr(0x96) . 'migration</pdf:Keywords>'
+            . '<xmp:CreatorTool>InDesign' . chr(0x99) . ' Exporter</xmp:CreatorTool>'
+            . '<xmp:CreateDate>2024-06-02T07:15:00-04:00</xmp:CreateDate>'
+            . '</rdf:Description>'
+            . '</rdf:RDF>'
+            . '</x:xmpmeta>'
+            . '<?xpacket end="w"?>';
+        $info = '<< /Title (Legacy Encoded Title) /Author (' . chr(0x95) . 'ukasz Editor; Site Owner) /Producer (Info Producer) >>';
+        $pdf = $pdfWithMetadata($xmp, $info);
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+
+        $t->same(['xmp', 'info'], $metadata['source']);
+        $t->same('Café “Review” Packet', $metadata['title']);
+        $t->same('WordPress import – encoded metadata', $metadata['description']);
+        $t->same(['café', 'wp–migration'], $metadata['keywords']);
+        $t->same('InDesign™ Exporter', $metadata['creator_tool']);
+        $t->same(['Łukasz Editor', 'Site Owner'], $metadata['authors']);
+        $t->same('Info Producer', $metadata['producer']);
+        $t->same('Windows-1252', $metadata['xmp']['packet_encoding']);
+        $t->true($metadata['xmp']['encoding_fallback']);
+        $t->same('2024-06-02T11:15:00Z', $metadata['created_at_utc']);
+        $t->same('Visible PDF Body', $plainText);
+        $t->true(!str_contains($plainText, 'Café'));
+        $t->true(!str_contains($plainText, 'Legacy Encoded Title'));
+    },
     'extracts trailer ID array as document fingerprint metadata' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Fingerprint Body) Tj ET';
         $permanentId = "WP PDF\x00ID-A";

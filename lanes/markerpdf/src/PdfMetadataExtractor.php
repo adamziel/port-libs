@@ -884,21 +884,44 @@ final class PdfMetadataExtractor
      */
     private function parseXmpPacket(string $xml): array
     {
-        $xml = trim($xml);
-        if ($xml === '' || !str_contains($xml, '<')) {
+        $xml = trim($xml, " \t\r\n");
+        if ($xml === '' || !$this->looksLikeXmlPacket($xml)) {
             return [];
         }
 
-        $previous = libxml_use_internal_errors(true);
-        $document = new DOMDocument();
-        $loaded = $document->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
+        foreach ($this->xmpXmlCandidates($xml) as $candidate) {
+            $previous = libxml_use_internal_errors(true);
+            $document = new DOMDocument();
+            $loaded = $document->loadXML($candidate['xml'], LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
 
-        if (!$loaded) {
-            return [];
+            if (!$loaded) {
+                continue;
+            }
+
+            $metadata = $this->metadataFromXmpDocument($document);
+            if ($metadata !== []) {
+                $metadata['packet_encoding'] = $candidate['packet_encoding'];
+                if ($candidate['decoded_to_utf8']) {
+                    $metadata['decoded_to_utf8'] = true;
+                }
+                if ($candidate['encoding_fallback']) {
+                    $metadata['encoding_fallback'] = true;
+                }
+            }
+
+            return $metadata;
         }
 
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metadataFromXmpDocument(DOMDocument $document): array
+    {
         $metadata = [];
 
         foreach ([
@@ -932,6 +955,156 @@ final class PdfMetadataExtractor
         }
 
         return $metadata;
+    }
+
+    private function looksLikeXmlPacket(string $xml): bool
+    {
+        return str_contains($xml, '<')
+            || str_starts_with($xml, "\xfe\xff")
+            || str_starts_with($xml, "\xff\xfe")
+            || str_starts_with($xml, "\xef\xbb\xbf");
+    }
+
+    /**
+     * @return list<array{xml: string, packet_encoding: string, encoding_fallback: bool, decoded_to_utf8: bool}>
+     */
+    private function xmpXmlCandidates(string $xml): array
+    {
+        $candidates = [];
+
+        if (str_starts_with($xml, "\xef\xbb\xbf")) {
+            $this->addXmpXmlCandidate($candidates, substr($xml, 3), 'UTF-8-BOM', false, true);
+        }
+
+        if (str_starts_with($xml, "\xfe\xff")) {
+            $candidate = $this->convertedXmpXmlCandidate(substr($xml, 2), 'UTF-16BE', false);
+            if ($candidate !== null) {
+                $this->addXmpXmlCandidate($candidates, $candidate['xml'], $candidate['packet_encoding'], false, true);
+            } else {
+                $this->addXmpXmlCandidate($candidates, $xml, 'UTF-16BE', false, false);
+            }
+
+            return $candidates;
+        }
+
+        if (str_starts_with($xml, "\xff\xfe")) {
+            $candidate = $this->convertedXmpXmlCandidate(substr($xml, 2), 'UTF-16LE', false);
+            if ($candidate !== null) {
+                $this->addXmpXmlCandidate($candidates, $candidate['xml'], $candidate['packet_encoding'], false, true);
+            } else {
+                $this->addXmpXmlCandidate($candidates, $xml, 'UTF-16LE', false, false);
+            }
+
+            return $candidates;
+        }
+
+        $declaredEncoding = $this->declaredXmlEncoding($xml);
+        $this->addXmpXmlCandidate($candidates, $xml, $declaredEncoding ?? 'UTF-8', false, false);
+
+        if ($declaredEncoding !== null && !$this->isUtf8EncodingName($declaredEncoding)) {
+            $candidate = $this->convertedXmpXmlCandidate($xml, $declaredEncoding, false);
+            if ($candidate !== null) {
+                $this->addXmpXmlCandidate($candidates, $candidate['xml'], $candidate['packet_encoding'], false, true);
+            }
+        }
+
+        if ($declaredEncoding === null && !$this->isValidUtf8($xml)) {
+            foreach (['Windows-1252', 'ISO-8859-1'] as $fallbackEncoding) {
+                $candidate = $this->convertedXmpXmlCandidate($xml, $fallbackEncoding, true);
+                if ($candidate !== null) {
+                    $this->addXmpXmlCandidate($candidates, $candidate['xml'], $candidate['packet_encoding'], true, true);
+                }
+            }
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * @param list<array{xml: string, packet_encoding: string, encoding_fallback: bool, decoded_to_utf8: bool}> $candidates
+     */
+    private function addXmpXmlCandidate(array &$candidates, string $xml, string $packetEncoding, bool $encodingFallback, bool $decodedToUtf8): void
+    {
+        if ($xml === '') {
+            return;
+        }
+
+        foreach ($candidates as $candidate) {
+            if ($candidate['xml'] === $xml) {
+                return;
+            }
+        }
+
+        $candidates[] = [
+            'xml' => $xml,
+            'packet_encoding' => $this->canonicalXmlEncodingLabel($packetEncoding),
+            'encoding_fallback' => $encodingFallback,
+            'decoded_to_utf8' => $decodedToUtf8,
+        ];
+    }
+
+    /**
+     * @return array{xml: string, packet_encoding: string}|null
+     */
+    private function convertedXmpXmlCandidate(string $xml, string $encoding, bool $fallback): ?array
+    {
+        if (!function_exists('iconv')) {
+            return null;
+        }
+
+        $converted = @iconv($encoding, 'UTF-8//IGNORE', $xml);
+        if ($converted === false || $converted === '') {
+            return null;
+        }
+
+        return [
+            'xml' => $fallback ? $converted : $this->forceUtf8XmlDeclaration($converted),
+            'packet_encoding' => $encoding,
+        ];
+    }
+
+    private function declaredXmlEncoding(string $xml): ?string
+    {
+        if (preg_match('/^\s*<\?xml\b[^>]*\bencoding\s*=\s*([\'"])([^\'"]+)\1/si', $xml, $match) !== 1) {
+            return null;
+        }
+
+        $encoding = trim($match[2]);
+        return $encoding === '' ? null : $encoding;
+    }
+
+    private function isUtf8EncodingName(string $encoding): bool
+    {
+        return in_array(strtoupper(str_replace(['_', '-'], '', $encoding)), ['UTF8'], true);
+    }
+
+    private function isValidUtf8(string $value): bool
+    {
+        return preg_match('//u', $value) === 1;
+    }
+
+    private function forceUtf8XmlDeclaration(string $xml): string
+    {
+        return preg_replace_callback(
+            '/^(\s*<\?xml\b[^>]*\bencoding\s*=\s*)([\'"])([^\'"]+)([\'"])/si',
+            static fn (array $match): string => $match[1] . $match[2] . 'UTF-8' . $match[4],
+            $xml,
+            1
+        ) ?? $xml;
+    }
+
+    private function canonicalXmlEncodingLabel(string $encoding): string
+    {
+        return match (strtoupper(str_replace('_', '-', $encoding))) {
+            'UTF8', 'UTF-8' => 'UTF-8',
+            'UTF-8-BOM' => 'UTF-8-BOM',
+            'UTF16', 'UTF-16' => 'UTF-16',
+            'UTF16BE', 'UTF-16BE' => 'UTF-16BE',
+            'UTF16LE', 'UTF-16LE' => 'UTF-16LE',
+            'WINDOWS-1252', 'CP1252' => 'Windows-1252',
+            'ISO-8859-1', 'ISO8859-1', 'LATIN1', 'LATIN-1' => 'ISO-8859-1',
+            default => $encoding,
+        };
     }
 
     private function xmpSingleValue(DOMDocument $document, string $namespace, string $localName, bool $preferAlt): ?string
