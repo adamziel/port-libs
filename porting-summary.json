@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 10:48:03 UTC",
-    "sourceCommit": "26be1d417a10a7abdc044f0b9ce112f710a915c1",
-    "sourceCommitShort": "26be1d417a10",
+    "generated": "2026-06-02 10:51:23 UTC",
+    "sourceCommit": "4564c9f3ab472d44511653a99c71d9fbb7ec239f",
+    "sourceCommitShort": "4564c9f3ab47",
     "sourceBranch": "unknown",
-    "dashboardCommit": "26be1d417a10a7abdc044f0b9ce112f710a915c1",
-    "dashboardCommitShort": "26be1d417a10",
+    "dashboardCommit": "4564c9f3ab472d44511653a99c71d9fbb7ec239f",
+    "dashboardCommitShort": "4564c9f3ab47",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "323",
-            "coverage": "323 / 78 (414.1%)",
-            "mapPercent": "414.1%",
+            "mapped": "324",
+            "coverage": "324 / 78 (415.4%)",
+            "mapPercent": "415.4%",
             "unmapped": "0",
-            "php": "473 pass / 0 fail",
+            "php": "474 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "StructTreeRoot RoleMap MCID replay now takes precedence over catalog Threads for mark...",
+            "currentWork": "Indirect Type0 /Encoding object names now feed markerPDF CIDSet width grouping and Fo...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "26be1d4"
+            "commit": "4564c9f"
         },
         {
             "lane": "readability",
