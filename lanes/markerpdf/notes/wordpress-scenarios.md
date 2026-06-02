@@ -264,6 +264,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-cidfont-widths-import.php` maps CIDFont `/W` and `/DW` width metrics into a WordPress import path. It keeps wide adjacent CID glyphs together as `WideBlock`, inserts the expected gap for narrow text as `Thin Text`, and emits Gutenberg paragraphs without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+`examples/wordpress-pdf-inline-image-boundary-import.php` maps inline image `BI ... ID ... EI` page-content data into a WordPress import path. It emits only the surrounding paragraphs and excludes text-looking image payload bytes without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring parser, font, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
