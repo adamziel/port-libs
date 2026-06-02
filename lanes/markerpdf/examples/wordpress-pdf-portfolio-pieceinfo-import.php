@@ -9,6 +9,11 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $exportXml = '<wp-export><post id="42"/></wp-export>';
 $notes = 'Portfolio review notes';
+$privateReview = 'BT /F1 12 Tf 72 720 Td (PieceInfo Private Leak) Tj ET';
+$compressedPrivateReview = gzcompress($privateReview);
+if (!is_string($compressedPrivateReview)) {
+    throw new RuntimeException('Unable to compress PieceInfo private stream fixture.');
+}
 $pageContent = 'BT /F1 12 Tf 72 720 Td (Portfolio Cover) Tj ET';
 
 $pdf = "%PDF-1.7\n"
@@ -21,10 +26,12 @@ $pdf = "%PDF-1.7\n"
     . "7 0 obj\n<< /Limits [(review-notes.txt) (wp-export.xml)] /Names [(wp-export.xml) 10 0 R (review-notes.txt) 20 0 R] >>\nendobj\n"
     . "10 0 obj\n<< /Type /Filespec /F (wp-export.xml) /Desc (Original WordPress export) /AFRelationship /Source /CI 30 0 R /PieceInfo 31 0 R /EF << /F 11 0 R >> >>\nendobj\n"
     . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($exportXml) . " >> /Length " . strlen($exportXml) . " >>\nstream\n{$exportXml}\nendstream\nendobj\n"
-    . "20 0 obj\n<< /Type /Filespec /F (review-notes.txt) /Desc (Portfolio review notes) /CI << /Subject (Editorial Notes) /Size " . strlen($notes) . " >> /EF << /F 21 0 R >> >>\nendobj\n"
+    . "20 0 obj\n<< /Type /Filespec /F (review-notes.txt) /Desc (Portfolio review notes) /CI << /Subject (Editorial Notes) /Size " . strlen($notes) . " >> /PieceInfo 32 0 R /EF << /F 21 0 R >> >>\nendobj\n"
     . "21 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fplain /Length " . strlen($notes) . " >>\nstream\n{$notes}\nendstream\nendobj\n"
     . "30 0 obj\n<< /Subject (WordPress Export) /Modified (D:20260602043100Z) /Size " . strlen($exportXml) . " /Review << /Type /CollectionSubitem /D (Approved) /P (Status: ) >> >>\nendobj\n"
     . "31 0 obj\n<< /WPImporter << /LastModified (D:20260602043200Z) /Private << /ManifestId (wp-42) /Preserve true /Priority 2 >> >> >>\nendobj\n"
+    . "32 0 obj\n<< /WPReview << /LastModified (D:20260602084600Z) /Private 33 0 R >> >>\nendobj\n"
+    . "33 0 obj\n<< /Type /Metadata /Subtype /application#2Fjson /Filter /FlateDecode /Length " . strlen($compressedPrivateReview) . " >>\nstream\n{$compressedPrivateReview}\nendstream\nendobj\n"
     . "trailer\n<< /Root 1 0 R >>\n%%EOF";
 
 $attachments = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
@@ -40,6 +47,10 @@ if (($first['portfolio']['default_document'] ?? null) !== 'wp-export.xml') {
 }
 if (($first['piece_info']['WPImporter']['private']['ManifestId'] ?? null) !== 'wp-42') {
     throw new RuntimeException('Expected Filespec PieceInfo metadata.');
+}
+$second = $attachments[1] ?? null;
+if (!is_array($second) || ($second['piece_info']['WPReview']['private_stream']['object'] ?? null) !== 33) {
+    throw new RuntimeException('Expected Filespec PieceInfo private stream metadata.');
 }
 
 $htmlJson = static function (array $value): string {
@@ -61,8 +72,13 @@ echo '<!-- markerpdf-pdf-portfolio-pieceinfo-smoke ' . $htmlJson([
         $attachments
     ),
     'piece_info_apps' => array_keys($first['piece_info'] ?? []),
+    'private_stream_piece_info_objects' => array_values(array_filter(array_map(
+        static fn (array $attachment): ?int => $attachment['piece_info']['WPReview']['private_stream']['object'] ?? null,
+        $attachments
+    ))),
     'catalog_piece_info_apps' => array_keys($first['catalog_piece_info'] ?? []),
     'excluded_attachment_payload_text' => !str_contains($plainText, 'wp-export') && !str_contains($plainText, 'Portfolio review notes'),
+    'excluded_pieceinfo_private_stream_text' => !str_contains($plainText, 'PieceInfo Private Leak'),
 ]) . " -->\n";
 
 echo "<!-- wp:paragraph -->\n";

@@ -292,6 +292,45 @@ return [
         $t->same($export['portfolio'], $review['portfolio']);
         $t->same($export['catalog_piece_info'], $review['catalog_piece_info']);
     },
+    'keeps Filespec PieceInfo private streams review-only and out of fallback text extraction' => static function (TestRunner $t): void {
+        $attachmentPayload = '<wp-export><post id="84"/></wp-export>';
+        $privatePayload = 'BT /F1 12 Tf 72 720 Td (PieceInfo Private Leak) Tj ET';
+        $compressedPrivatePayload = gzcompress($privatePayload);
+        if (!is_string($compressedPrivatePayload)) {
+            throw new RuntimeException('Unable to compress PieceInfo private stream fixture.');
+        }
+
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Collection 5 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "5 0 obj\n<< /Type /Collection /View /D /D (wp-export.xml) >>\nendobj\n"
+            . "6 0 obj\n<< /Names [(wp-export.xml) 10 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (wp-export.xml) /Desc (Original WordPress export) /AFRelationship /Source /PieceInfo 30 0 R /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($attachmentPayload) . " >> /Length " . strlen($attachmentPayload) . " >>\nstream\n{$attachmentPayload}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /WPImporter << /LastModified (D:20260602084600Z) /Private 31 0 R >> >>\nendobj\n"
+            . "31 0 obj\n<< /Type /Metadata /Subtype /application#2Fjson /Filter /FlateDecode /Length " . strlen($compressedPrivatePayload) . " >>\nstream\n{$compressedPrivatePayload}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+
+        $t->same(1, count($files));
+        $file = $files[0];
+        $t->same('wp-export.xml', $file['filename']);
+        $t->same('Source', $file['relationship']);
+        $t->same($attachmentPayload, $file['content']);
+        $t->same('D:20260602084600Z', $file['piece_info']['WPImporter']['last_modified']);
+
+        $privateStream = $file['piece_info']['WPImporter']['private_stream'];
+        $t->same(31, $privateStream['object']);
+        $t->same(strlen($compressedPrivatePayload), $privateStream['declared_length']);
+        $t->same(strlen($privatePayload), $privateStream['size']);
+        $t->same('application/json', $privateStream['mime_type']);
+        $t->same(['FlateDecode'], $privateStream['filters']);
+        $t->same(hash('sha256', $privatePayload), $privateStream['content_sha256']);
+        $t->same(false, array_key_exists('content', $privateStream));
+        $t->same('', $text);
+    },
     'returns no attachment review rows when catalog EmbeddedFiles is absent' => static function (TestRunner $t): void {
         $t->same([], (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles('%PDF-1.4 no catalog'));
         $t->same([], (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles("%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n%%EOF"));

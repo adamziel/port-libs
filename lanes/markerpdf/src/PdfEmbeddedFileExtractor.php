@@ -487,24 +487,88 @@ final class PdfEmbeddedFileExtractor
                 $entry['last_modified'] = $lastModified;
             }
 
-            $private = $this->resolveDictionaryFromValue($this->dictionaryRawValue($piece['body'], 'Private'), $objects);
-            if ($private !== null) {
-                $privateMetadata = [];
-                foreach ($this->dictionaryEntries($private['body']) as $name => $value) {
-                    $reviewValue = $this->reviewValueFromRaw($value, $objects);
-                    if ($reviewValue !== null && $reviewValue !== '') {
-                        $privateMetadata[$name] = $reviewValue;
-                    }
-                }
-
-                if ($privateMetadata !== []) {
-                    $entry['private'] = $privateMetadata;
-                }
+            foreach ($this->pieceInfoPrivateMetadata($this->dictionaryRawValue($piece['body'], 'Private'), $objects) as $key => $value) {
+                $entry[$key] = $value;
             }
 
             if ($entry !== []) {
                 $metadata[$application] = $entry;
             }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function pieceInfoPrivateMetadata(?string $privateValue, array $objects): array
+    {
+        if ($privateValue === null) {
+            return [];
+        }
+
+        $streamMetadata = $this->pieceInfoPrivateStreamMetadata($privateValue, $objects);
+        if ($streamMetadata !== null) {
+            return ['private_stream' => $streamMetadata];
+        }
+
+        $private = $this->resolveDictionaryFromValue($privateValue, $objects);
+        if ($private !== null) {
+            $privateMetadata = [];
+            foreach ($this->dictionaryEntries($private['body']) as $name => $value) {
+                $reviewValue = $this->reviewValueFromRaw($value, $objects);
+                if ($reviewValue !== null && $reviewValue !== '') {
+                    $privateMetadata[$name] = $reviewValue;
+                }
+            }
+
+            return $privateMetadata === [] ? [] : ['private' => $privateMetadata];
+        }
+
+        $reviewValue = $this->reviewValueFromRaw($privateValue, $objects);
+        return ($reviewValue === null || $reviewValue === '') ? [] : ['private' => $reviewValue];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function pieceInfoPrivateStreamMetadata(string $value, array $objects): ?array
+    {
+        $objectNumber = $this->objectNumberFromReference($value);
+        $body = $objectNumber !== null ? ($objects[$objectNumber] ?? null) : trim($value);
+        if ($body === null || $body === '') {
+            return null;
+        }
+
+        $stream = $this->decodeStreamObject($body, $objects);
+        if ($stream === null) {
+            return null;
+        }
+
+        $metadata = [
+            'size' => strlen($stream['content']),
+            'content_sha256' => hash('sha256', $stream['content']),
+        ];
+
+        if ($objectNumber !== null) {
+            $metadata['object'] = $objectNumber;
+        }
+
+        $declaredLength = $this->dictionaryIntegerValue($stream['dictionary'], 'Length');
+        if ($declaredLength !== null) {
+            $metadata['declared_length'] = $declaredLength;
+        }
+
+        $mimeType = $this->dictionaryNameValue($stream['dictionary'], 'Subtype', $objects);
+        if ($mimeType !== null && $mimeType !== '') {
+            $metadata['mime_type'] = $mimeType;
+        }
+
+        if ($stream['filters'] !== []) {
+            $metadata['filters'] = $stream['filters'];
         }
 
         return $metadata;

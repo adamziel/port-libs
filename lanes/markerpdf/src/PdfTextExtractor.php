@@ -3179,6 +3179,7 @@ final class PdfTextExtractor
 
         $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes);
         $embeddedFilePayloadObjectNumbers = $this->embeddedFilePayloadObjectNumbers($objects);
+        $pieceInfoPrivateObjectNumbers = $this->pieceInfoPrivateStreamObjectNumbers($objects);
         foreach ($matches as $match) {
             $dict = $match[1][0];
             $dictOffset = $match[1][1] - 2;
@@ -3188,6 +3189,7 @@ final class PdfTextExtractor
                 $this->offsetInPdfByteRanges($dictOffset, $linearizedHintRanges)
                 || $this->offsetInPdfByteRanges($streamStart, $linearizedHintRanges)
                 || ($streamObjectNumber !== null && isset($embeddedFilePayloadObjectNumbers[$streamObjectNumber]))
+                || ($streamObjectNumber !== null && isset($pieceInfoPrivateObjectNumbers[$streamObjectNumber]))
             ) {
                 continue;
             }
@@ -3230,6 +3232,60 @@ final class PdfTextExtractor
         }
 
         return $payloadObjectNumbers;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<int, true>
+     */
+    private function pieceInfoPrivateStreamObjectNumbers(array $objects): array
+    {
+        $streamObjectNumbers = [];
+        foreach ($objects as $body) {
+            foreach ($this->pieceInfoDictionariesFromBody($body, $objects) as $pieceInfoDictionary) {
+                $matchCount = preg_match_all('/\/Private\s+(\d+)\s+\d+\s+R\b/s', $pieceInfoDictionary, $matches);
+                if ($matchCount === false || $matchCount === 0) {
+                    continue;
+                }
+
+                foreach ($matches[1] as $objectNumber) {
+                    $privateObjectNumber = (int) $objectNumber;
+                    if (!isset($objects[$privateObjectNumber])) {
+                        continue;
+                    }
+
+                    if ($this->streamDictionaryAndPayload($objects[$privateObjectNumber], $objects) !== null) {
+                        $streamObjectNumbers[$privateObjectNumber] = true;
+                    }
+                }
+            }
+        }
+
+        return $streamObjectNumbers;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function pieceInfoDictionariesFromBody(string $body, array $objects): array
+    {
+        $dictionaries = [];
+        $offset = 0;
+        while (preg_match('/\/PieceInfo\b/s', $body, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $valueOffset = $this->skipPdfWhitespace($body, $match[0][1] + strlen($match[0][0]));
+            $value = $this->pdfValueAtOffset($body, $valueOffset);
+            if ($value !== null) {
+                $dictionary = $this->pdfDictionaryFromValue($value, $objects);
+                if ($dictionary !== null) {
+                    $dictionaries[] = $dictionary;
+                }
+            }
+
+            $offset = max($valueOffset + 1, $match[0][1] + strlen($match[0][0]));
+        }
+
+        return $dictionaries;
     }
 
     /**
