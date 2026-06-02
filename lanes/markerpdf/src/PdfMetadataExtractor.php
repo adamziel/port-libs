@@ -2045,11 +2045,25 @@ final class PdfMetadataExtractor
      */
     private function decodeStreamObject(string $objectBody, array $objects): ?string
     {
+        $entry = $this->decodeStreamEntryObject($objectBody, $objects);
+        return $entry['content'] ?? null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{dictionary: string, content: string}|null
+     */
+    private function decodeStreamEntryObject(string $objectBody, array $objects): ?array
+    {
         if (!preg_match('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $objectBody, $match)) {
             return null;
         }
 
-        return $this->decodeStream($match[1], $match[2], $objects);
+        $content = $this->decodeStream($match[1], $match[2], $objects);
+        return $content === null ? null : [
+            'dictionary' => $match[1],
+            'content' => $content,
+        ];
     }
 
     /**
@@ -2232,7 +2246,248 @@ final class PdfMetadataExtractor
             $intent['dest_output_profile'] = $profile;
         }
 
+        $associatedFiles = $this->outputIntentAssociatedFiles($dictionary, $objects);
+        if ($associatedFiles !== []) {
+            $intent['associated_files'] = $associatedFiles;
+        }
+
         return $intent;
+    }
+
+    /**
+     * OutputIntent-associated files are review attachments for color-profile or
+     * conformance context. They must not become document-level XMP/PDF-A roots.
+     *
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function outputIntentAssociatedFiles(string $dictionary, array $objects): array
+    {
+        $value = $this->dictionaryTopLevelRawValue($dictionary, 'AF');
+        if ($value === null) {
+            return [];
+        }
+
+        $files = [];
+        foreach ($this->arrayItemsFromValue($value, $objects) as $index => $fileSpecValue) {
+            $file = $this->outputIntentAssociatedFileFromValue($fileSpecValue, $index, $objects);
+            if ($file !== null) {
+                $files[] = $file;
+            }
+        }
+
+        return $files;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function outputIntentAssociatedFileFromValue(string $value, int $index, array $objects): ?array
+    {
+        $fileSpec = $this->resolveDictionaryFromValue($value, $objects);
+        if ($fileSpec === null) {
+            return null;
+        }
+
+        $body = $fileSpec['body'];
+        $ef = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($body, 'EF'), $objects);
+        if ($ef === null) {
+            return null;
+        }
+
+        $unicodeFilename = $this->dictionaryStringValue($body, 'UF');
+        $filename = $unicodeFilename
+            ?? $this->firstDictionaryString($body, ['F', 'DOS', 'Unix', 'Mac'])
+            ?? 'embedded-file';
+        $file = [
+            'source' => 'output_intent_associated_files',
+            'associated_file' => true,
+            'associated_file_index' => $index,
+            'name' => $filename,
+            'filename' => $filename,
+            'file_spec_object' => $fileSpec['object'],
+        ];
+
+        if ($unicodeFilename !== null && $unicodeFilename !== '') {
+            $file['unicode_filename'] = $unicodeFilename;
+        }
+
+        foreach ([
+            'description' => $this->dictionaryStringValue($body, 'Desc'),
+            'relationship' => $this->dictionaryNameValue($body, 'AFRelationship', $objects),
+        ] as $key => $metadataValue) {
+            if (is_string($metadataValue) && $metadataValue !== '') {
+                $file[$key] = $metadataValue;
+            }
+        }
+
+        $streamMetadata = null;
+        foreach ($this->embeddedFileKeys($unicodeFilename !== null) as $efKey) {
+            $streamValue = $this->dictionaryTopLevelRawValue($ef['body'], $efKey);
+            if ($streamValue === null) {
+                continue;
+            }
+
+            $streamMetadata = $this->embeddedFileStreamReviewMetadata($streamValue, $objects);
+            if ($streamMetadata === null) {
+                continue;
+            }
+
+            $file['ef_key'] = $efKey;
+            foreach ($streamMetadata as $key => $metadataValue) {
+                $file[$key] = $metadataValue;
+            }
+            break;
+        }
+
+        if ($streamMetadata === null) {
+            return null;
+        }
+
+        $metadataReview = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($body, 'Metadata'), $objects);
+        if (is_array($metadataReview) && $metadataReview !== []) {
+            $file['metadata_review'] = $metadataReview;
+        }
+
+        $outputIntentReview = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($body, 'OutputIntents'), $objects);
+        if (is_array($outputIntentReview) && $outputIntentReview !== []) {
+            $file['output_intents_review'] = $outputIntentReview;
+        }
+
+        return $file;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function embeddedFileKeys(bool $hasUnicodeFilename): array
+    {
+        return $hasUnicodeFilename
+            ? ['UF', 'F', 'DOS', 'Unix', 'Mac']
+            : ['F', 'UF', 'DOS', 'Unix', 'Mac'];
+    }
+
+    /**
+     * @param list<string> $keys
+     */
+    private function firstDictionaryString(string $dictionary, array $keys): ?string
+    {
+        foreach ($keys as $key) {
+            $value = $this->dictionaryStringValue($dictionary, $key);
+            if ($value !== null && $value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function embeddedFileStreamReviewMetadata(string $value, array $objects): ?array
+    {
+        $objectNumber = $this->objectNumberFromReference($value);
+        $body = $objectNumber === null
+            ? trim($this->resolvePdfValue($value, $objects) ?? $value)
+            : ($objects[$objectNumber] ?? null);
+        if ($body === null || $body === '') {
+            return null;
+        }
+
+        $stream = $this->decodeStreamEntryObject($body, $objects);
+        if ($stream === null) {
+            return null;
+        }
+
+        $metadata = [
+            'embedded_file_object' => $objectNumber,
+            'size' => strlen($stream['content']),
+            'content_sha256' => hash('sha256', $stream['content']),
+        ];
+
+        $mimeType = $this->dictionaryNameValue($stream['dictionary'], 'Subtype', $objects);
+        if ($mimeType !== null && $mimeType !== '') {
+            $metadata['mime_type'] = $mimeType;
+        }
+
+        $filters = $this->streamFilters($stream['dictionary'], $objects);
+        if ($filters !== []) {
+            $metadata['filters'] = $filters;
+        }
+
+        foreach ($this->embeddedFileParamsMetadata($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
+            $metadata[$key] = $metadataValue;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function embeddedFileParamsMetadata(string $streamDictionary, array $objects, string $content): array
+    {
+        $params = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($streamDictionary, 'Params'), $objects);
+        if ($params === null) {
+            return [];
+        }
+
+        $metadata = [];
+        $size = $this->dictionaryIntegerValue($params['body'], 'Size');
+        if ($size !== null) {
+            $metadata['declared_size'] = $size;
+        }
+
+        $checksum = $this->dictionaryChecksumValue($params['body'], 'CheckSum', $objects);
+        if ($checksum !== null && $checksum !== '') {
+            $metadata['checksum'] = $checksum;
+            $metadata['checksum_algorithm'] = 'md5';
+            $metadata['computed_checksum'] = hash('md5', $content);
+            $metadata['checksum_matches'] = hash_equals($metadata['computed_checksum'], $checksum);
+        }
+
+        foreach ([
+            'CreationDate' => 'created_at',
+            'ModDate' => 'modified_at',
+        ] as $pdfName => $key) {
+            $value = $this->dictionaryStringValue($params['body'], $pdfName);
+            if ($value !== null && $value !== '') {
+                $metadata[$key] = $value;
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dictionaryChecksumValue(string $dictionary, string $key, array $objects): ?string
+    {
+        $value = $this->resolvedDictionaryRawValue($dictionary, $key, $objects);
+        if ($value === null) {
+            return null;
+        }
+
+        $bytes = $this->pdfStringBytesFromValue($value, $objects);
+        if ($bytes === null || $bytes === '') {
+            return null;
+        }
+
+        if (strlen($bytes) === 16) {
+            return strtolower(bin2hex($bytes));
+        }
+
+        $decoded = $this->decodePdfStringBytes($bytes);
+        if (preg_match('/^[0-9a-fA-F]{32}$/', $decoded) === 1) {
+            return strtolower($decoded);
+        }
+
+        return strtolower(bin2hex($bytes));
     }
 
     /**

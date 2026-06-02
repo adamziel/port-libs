@@ -554,6 +554,105 @@ return [
         ], $metadata['pdfa']);
         $t->true(!str_contains($text, 'ICC profile bytes'));
     },
+    'keeps OutputIntent associated FileSpec metadata review-only' => static function (TestRunner $t) use ($xmpPacket): void {
+        $rootProfile = 'Root PDF/A ICC profile bytes';
+        $associatedProfile = 'Associated FileSpec ICC bytes should not become PDF/A root metadata';
+        $sourcePayload = '<wp-export><post id="1455"/></wp-export>';
+        $previewPayload = 'Rendered preview attachment bytes';
+        $sourceChecksum = strtoupper(hash('md5', $sourcePayload));
+        $compressedRootProfile = gzcompress($rootProfile);
+        $compressedAssociatedProfile = gzcompress($associatedProfile);
+        $sourceXmp = gzcompress($xmpPacket([
+            'title' => 'Associated Source XMP Title',
+            'description' => 'Nested FileSpec metadata should stay review-only',
+        ]));
+        $previewXmp = gzcompress($xmpPacket([
+            'title' => 'Associated Preview XMP Title',
+            'description' => 'Inline associated FileSpec metadata should stay review-only',
+        ]));
+        if (
+            !is_string($compressedRootProfile)
+            || !is_string($compressedAssociatedProfile)
+            || !is_string($sourceXmp)
+            || !is_string($previewXmp)
+        ) {
+            throw new RuntimeException('Unable to compress OutputIntent associated metadata fixture.');
+        }
+
+        $content = 'BT /F1 12 Tf 72 720 Td (OutputIntent Associated Body) Tj ET';
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OutputIntents [9 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($sourceXmp) . " >>\nstream\n{$sourceXmp}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($previewXmp) . " >>\nstream\n{$previewXmp}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($compressedRootProfile) . " >>\nstream\n{$compressedRootProfile}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($compressedAssociatedProfile) . " >>\nstream\n{$compressedAssociatedProfile}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Root sRGB) /Info (Root PDF/A profile) /DestOutputProfile 7 0 R /AF [10 0 R << /Type /Filespec /F (preview.pdf) /Desc (Rendered PDF preview) /AFRelationship /Alternative /Metadata 6 0 R /OutputIntents [13 0 R] /EF << /F 15 0 R >> >> 99 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (source.xml) /Desc (Original WordPress export) /AFRelationship /Source /Metadata 5 0 R /OutputIntents [13 0 R] /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " /CheckSum <{$sourceChecksum}> >> /Length " . strlen($sourcePayload) . " >>\nstream\n{$sourcePayload}\nendstream\nendobj\n"
+            . "13 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Associated sRGB) /Info (Nested associated PDF/A) /DestOutputProfile 8 0 R >>\nendobj\n"
+            . "15 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fpdf /Length " . strlen($previewPayload) . " >>\nstream\n{$previewPayload}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['output_intents'], $metadata['source']);
+        $t->same('OutputIntent Associated Body', $text);
+        $t->same(1, count($metadata['output_intents']));
+        $t->same('Root sRGB', $metadata['output_intents'][0]['output_condition_identifier']);
+        $t->same([
+            'has_output_intent' => true,
+            'output_condition_identifiers' => ['Root sRGB'],
+            'profile_sha256' => [hash('sha256', $rootProfile)],
+        ], $metadata['pdfa']);
+        $t->same(2, count($metadata['output_intents'][0]['associated_files']));
+
+        $source = $metadata['output_intents'][0]['associated_files'][0];
+        $t->same('output_intent_associated_files', $source['source']);
+        $t->same(true, $source['associated_file']);
+        $t->same(0, $source['associated_file_index']);
+        $t->same('source.xml', $source['filename']);
+        $t->same('Original WordPress export', $source['description']);
+        $t->same('Source', $source['relationship']);
+        $t->same('text/xml', $source['mime_type']);
+        $t->same(10, $source['file_spec_object']);
+        $t->same(11, $source['embedded_file_object']);
+        $t->same(strlen($sourcePayload), $source['declared_size']);
+        $t->same(strlen($sourcePayload), $source['size']);
+        $t->same(strtolower($sourceChecksum), $source['checksum']);
+        $t->same(hash('md5', $sourcePayload), $source['computed_checksum']);
+        $t->same(true, $source['checksum_matches']);
+        $t->same(hash('sha256', $sourcePayload), $source['content_sha256']);
+        $t->same('Metadata', $source['metadata_review']['Type']);
+        $t->same('XML', $source['metadata_review']['Subtype']);
+        $t->same('GTS_PDFA1', $source['output_intents_review'][0]['S']);
+        $t->same('Associated sRGB', $source['output_intents_review'][0]['OutputConditionIdentifier']);
+        $t->true(!array_key_exists('content', $source));
+
+        $preview = $metadata['output_intents'][0]['associated_files'][1];
+        $t->same('preview.pdf', $preview['filename']);
+        $t->same('Rendered PDF preview', $preview['description']);
+        $t->same('Alternative', $preview['relationship']);
+        $t->same('application/pdf', $preview['mime_type']);
+        $t->same(null, $preview['file_spec_object']);
+        $t->same(15, $preview['embedded_file_object']);
+        $t->same(strlen($previewPayload), $preview['size']);
+        $t->same('Metadata', $preview['metadata_review']['Type']);
+        $t->same('GTS_PDFA1', $preview['output_intents_review'][0]['S']);
+        $t->true(!array_key_exists('content', $preview));
+
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Associated Source XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Associated Preview XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $sourcePayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $previewPayload));
+        $t->true(!str_contains($text, 'Associated Source XMP Title'));
+        $t->true(!str_contains($text, 'wp-export'));
+        $t->true(!str_contains($text, 'Associated FileSpec ICC bytes'));
+    },
     'keeps catalog PieceInfo private Metadata and OutputIntents from document metadata roots' => static function (TestRunner $t) use ($xmpPacket): void {
         $privateXmp = $xmpPacket([
             'title' => 'PieceInfo Private XMP Title',
