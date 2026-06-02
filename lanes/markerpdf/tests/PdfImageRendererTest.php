@@ -315,6 +315,89 @@ return [
         $t->contains('soft_mask_decode_component_mismatch', implode(',', $mismatch['notes']));
         $t->throws(InvalidArgumentException::class, static fn (): float => $renderer->softMaskSampleOpacity(128, $mismatch['soft_mask']));
     },
+    'plans Indexed ICCBased JBIG2 image palette and soft-mask boundary before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            20 => "<< /N 3 /Alternate /DeviceRGB /Range [0 1 0 1 0 1] /Length 11 >>\nstream\nICC-PROFILE\nendstream",
+            21 => '[/ICCBased 20 0 R]',
+            22 => '<00000080FF40010203>',
+            23 => "<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Decode [1 0] /Length 3 >>\nstream\nMSK\nendstream",
+            24 => "<< /Length 4 >>\nstream\nGBLS\nendstream",
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Filter /JBIG2Decode /DecodeParms << /JBIG2Globals 24 0 R >> /Width 3 /Height 1 /ColorSpace [/Indexed 21 0 R 2 22 0 R] /BitsPerComponent 2 /Decode [0 2] /SMask 23 0 R >>',
+            $objects
+        );
+
+        $t->same('Indexed', $plan['source_color_space']);
+        $t->same(1, $plan['components']);
+        $t->same(2, $plan['bits_per_component']);
+        $t->same(['JBIG2Decode'], $plan['image_filters']);
+        $t->same([
+            'preview_only_filters' => ['JBIG2Decode'],
+            'jbig2_globals_present' => true,
+            'native_raster_decode' => false,
+        ], $plan['image_filter_boundary']);
+        $t->same(true, $plan['uses_indexed_color_space']);
+        $t->same(true, $plan['uses_icc_profile']);
+        $t->same([
+            'base_color_space' => 'ICCBased',
+            'base_components' => 3,
+            'base_uses_icc_profile' => true,
+            'base_icc_profile' => [
+                'components' => 3,
+                'alternate_color_space' => 'DeviceRGB',
+                'range' => [0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+                'length' => 11,
+            ],
+            'high_value' => 2,
+            'lookup_source' => 'hex_string',
+            'lookup_length' => 9,
+            'expected_lookup_length' => 9,
+            'lookup_length_matches' => true,
+            'lookup_entry_count' => 3,
+            'lookup_preview_hex' => '00000080FF40010203',
+            'lookup_bytes' => [0, 0, 0, 128, 255, 64, 1, 2, 3],
+        ], $plan['indexed_color_space']);
+        $t->same([
+            'ranges' => [
+                ['min' => 0.0, 'max' => 2.0],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [],
+            'source' => 'explicit',
+        ], $plan['image_decode']);
+        $t->same([0.0], $renderer->imageSampleDecodeValues([0], $plan['image_decode'], $plan['bits_per_component']));
+        $t->same([2.0], $renderer->imageSampleDecodeValues([3], $plan['image_decode'], $plan['bits_per_component']));
+        $t->same([128 / 255, 1.0, 64 / 255], $renderer->indexedSampleToBaseComponents(1, $plan['indexed_color_space']));
+        $t->same([1 / 255, 2 / 255, 3 / 255], $renderer->indexedSampleToBaseComponents(2, $plan['indexed_color_space']));
+        $t->same(true, $plan['soft_mask_applied_before_rgb']);
+        $t->same(true, $plan['soft_mask']['decode_inverted']);
+        $t->same(1.0, $renderer->softMaskSampleOpacity(0, $plan['soft_mask']));
+        $t->same(0.0, $renderer->softMaskSampleOpacity(255, $plan['soft_mask']));
+        $t->same([
+            'indexed_color_space_palette_before_rgb_conversion',
+            'indexed_base_icc_profile_color_space',
+            'icc_profile_color_space',
+            'image_decode_applied_before_rgb_conversion',
+            'jbig2_image_filter_review_only',
+            'soft_mask_applied_before_rgb_conversion',
+            'soft_mask_decode_applied_before_rgb_conversion',
+            'soft_mask_decode_inverts_alpha',
+        ], $plan['notes']);
+
+        $mismatch = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Filter /JBIG2Decode /Width 1 /Height 1 /ColorSpace [/Indexed /DeviceRGB 3 <000000FFFFFF>] /BitsPerComponent 2 >>'
+        );
+
+        $t->same(false, $mismatch['indexed_color_space']['lookup_length_matches']);
+        $t->contains('indexed_lookup_length_mismatch', implode(',', $mismatch['notes']));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->indexedSampleToBaseComponents(3, $mismatch['indexed_color_space']));
+    },
     'plans DCTDecode CMYK Adobe transform before WordPress RGB image preview' => static function (TestRunner $t) use ($dctJpeg): void {
         $renderer = new PdfImageRenderer();
         $plan = $renderer->dctDecodeImageColorPlan(
