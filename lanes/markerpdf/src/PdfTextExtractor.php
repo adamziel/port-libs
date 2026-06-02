@@ -5227,16 +5227,17 @@ final class PdfTextExtractor
             foreach ($pairs as $index => $pair) {
                 $objectNumber = (int) $pair[1];
                 $offset = (int) $pair[2];
-                if ($hasCompressedXrefEntriesForStream) {
-                    $xrefEntry = $xrefEntries[$objectNumber] ?? null;
+                $xrefEntry = $xrefEntries[$objectNumber] ?? null;
+                if ($xrefEntry !== null) {
                     if (
-                        $xrefEntry === null
-                        || ($xrefEntry['type'] ?? null) !== 2
-                        || $xrefEntry['objectStream'] !== $objectStreamNumber
-                        || $xrefEntry['index'] !== $index
+                        ($xrefEntry['type'] ?? null) !== 2
+                        || ($xrefEntry['objectStream'] ?? null) !== $objectStreamNumber
+                        || ($xrefEntry['index'] ?? null) !== $index
                     ) {
                         continue;
                     }
+                } elseif ($hasCompressedXrefEntriesForStream) {
+                    continue;
                 }
 
                 $nextOffset = isset($pairs[$index + 1]) ? (int) $pairs[$index + 1][2] : strlen($decoded) - $first;
