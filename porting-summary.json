@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 16:04:16 UTC",
-    "sourceCommit": "37bb9ea71f8dfb0cdfe11c020f646a21255e1642",
-    "sourceCommitShort": "37bb9ea71f8d",
+    "generated": "2026-06-02 16:12:44 UTC",
+    "sourceCommit": "b341eb7d7e50e7c90e94e60cd9618053aecccccb",
+    "sourceCommitShort": "b341eb7d7e50",
     "sourceBranch": "main",
-    "dashboardCommit": "37bb9ea71f8dfb0cdfe11c020f646a21255e1642",
-    "dashboardCommitShort": "37bb9ea71f8d",
+    "dashboardCommit": "b341eb7d7e50e7c90e94e60cd9618053aecccccb",
+    "dashboardCommitShort": "b341eb7d7e50",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "381",
-            "coverage": "381 / 78 (488.5%)",
-            "mapPercent": "488.5%",
+            "mapped": "385",
+            "coverage": "385 / 78 (493.6%)",
+            "mapPercent": "493.6%",
             "unmapped": "0",
-            "php": "534 pass / 0 fail",
+            "php": "538 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 37bb9ea71; full...",
-            "currentWork": "SuppliedDocumentConverter now emits table_merged_cell_geometry for forced-OCR recogni...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit b341eb7d; full m...",
+            "currentWork": "PdfTextExtractor resolves named Type0 CMap resources and protects current xref-stream...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "37bb9ea"
+            "commit": "b341eb7"
         },
         {
             "lane": "readability",
