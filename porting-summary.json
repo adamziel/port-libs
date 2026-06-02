@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 18:19:13 UTC",
-    "sourceCommit": "077b080e9b2858254f7a6a1da15c3fb37df16393",
-    "sourceCommitShort": "077b080e9b28",
+    "generated": "2026-06-02 18:27:14 UTC",
+    "sourceCommit": "e7c29c5eb2066bb8accdd471e6ef58bdca4c56b5",
+    "sourceCommitShort": "e7c29c5eb206",
     "sourceBranch": "unknown",
-    "dashboardCommit": "da265ebf577b75cf490742229c97cc63c8dd1404",
-    "dashboardCommitShort": "da265ebf577b",
+    "dashboardCommit": "e7c29c5eb2066bb8accdd471e6ef58bdca4c56b5",
+    "dashboardCommitShort": "e7c29c5eb206",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "466",
-            "coverage": "466 / 78 (597.4%)",
-            "mapPercent": "597.4%",
+            "mapped": "467",
+            "coverage": "467 / 78 (598.7%)",
+            "mapPercent": "598.7%",
             "unmapped": "0",
-            "php": "639 pass / 0 fail",
+            "php": "640 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 077b080e; accept...",
-            "currentWork": "MarkerPDF now adds overall.py-style benchmark output rows, catalog DSS/OutputIntent/n...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit e7c29c5e; accept...",
+            "currentWork": "MarkerPDF now rejects stale-generation indirect stream Filter references when the cur...",
             "nextTarget": "Score newly ready markerPDF handoffs from security37, image40...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "077b080"
+            "commit": "e7c29c5"
         },
         {
             "lane": "readability",
