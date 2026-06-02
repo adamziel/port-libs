@@ -6,6 +6,11 @@ namespace PortLibs\MarkerPDF;
 
 final class PdfOutlineExtractor
 {
+    private const PAGE_ACTION_EVENT_LABELS = [
+        'O' => 'page_open',
+        'C' => 'page_close',
+    ];
+
     /**
      * Native boundary for marker.cleaners.toc::get_pdf_toc when the PDF outline
      * uses named destinations that pypdfium would normally resolve for us.
@@ -202,6 +207,68 @@ final class PdfOutlineExtractor
         }
 
         return $metadata;
+    }
+
+    /**
+     * PDF page dictionaries may carry presentation transitions and additional
+     * actions that viewers can run when a page opens or closes. WordPress
+     * imports keep these as review-only metadata.
+     *
+     * @return list<array{
+     *     pnum: int,
+     *     page_object: int,
+     *     display_duration: float|null,
+     *     transition: array{
+     *         style: string|null,
+     *         duration: float|null,
+     *         dimension: string|null,
+     *         motion: string|null,
+     *         direction: float|string|null,
+     *         scale: float|null,
+     *         opaque_background: bool|null
+     *     }|null,
+     *     actions: list<array<string, mixed>>
+     * }>
+     */
+    public function getPageTransitionActionMetadata(string $pdfBytes): array
+    {
+        $objects = $this->parsedObjectValues($pdfBytes);
+        $catalog = $this->catalogDictionary($objects);
+        if ($catalog === null) {
+            return [];
+        }
+
+        $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
+        $pageIndexes = [];
+        foreach ($pageObjectNumbers as $index => $objectNumber) {
+            $pageIndexes[$objectNumber] = $index;
+        }
+        $destinations = $this->destinationMap($catalog, $objects);
+
+        $pages = [];
+        foreach ($pageObjectNumbers as $pnum => $pageObjectNumber) {
+            $page = $this->resolveDictionary($this->refValue($pageObjectNumber), $objects);
+            if ($page === null) {
+                continue;
+            }
+
+            $displayDuration = $this->numericOrNullValue($this->resolveValue($page['Dur'] ?? null, $objects));
+            $transition = $this->pageTransitionMetadata($page['Trans'] ?? null, $objects);
+            $actions = $this->pageAdditionalActionMetadata($page['AA'] ?? null, $objects, $pageIndexes, $destinations);
+            if ($displayDuration === null && $transition === null && $actions === []) {
+                continue;
+            }
+
+            $pages[] = [
+                'pnum' => $pnum,
+                'page_object' => $pageObjectNumber,
+                'display_duration' => $displayDuration,
+                'transition' => $transition,
+                'actions' => $actions,
+            ];
+        }
+
+        return $pages;
     }
 
     /**
@@ -729,6 +796,145 @@ final class PdfOutlineExtractor
             'is_safe_uri' => $isSafeUri,
             'executes_on_import' => false,
         ];
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @return array{
+     *     style: string|null,
+     *     duration: float|null,
+     *     dimension: string|null,
+     *     motion: string|null,
+     *     direction: float|string|null,
+     *     scale: float|null,
+     *     opaque_background: bool|null
+     * }|null
+     */
+    private function pageTransitionMetadata(mixed $value, array $objects): ?array
+    {
+        $transition = $this->resolveDictionary($value, $objects);
+        if ($transition === null) {
+            return null;
+        }
+        $opaqueBackground = $this->resolveValue($transition['B'] ?? null, $objects);
+
+        return [
+            'style' => $this->nameValue($this->resolveValue($transition['S'] ?? null, $objects)),
+            'duration' => $this->numericOrNullValue($this->resolveValue($transition['D'] ?? null, $objects)),
+            'dimension' => $this->nameValue($this->resolveValue($transition['Dm'] ?? null, $objects)),
+            'motion' => $this->nameValue($this->resolveValue($transition['M'] ?? null, $objects)),
+            'direction' => $this->directionValue($this->resolveValue($transition['Di'] ?? null, $objects)),
+            'scale' => $this->numericOrNullValue($this->resolveValue($transition['SS'] ?? null, $objects)),
+            'opaque_background' => is_bool($opaqueBackground) ? $opaqueBackground : null,
+        ];
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @param array<string, mixed> $destinations
+     * @return list<array<string, mixed>>
+     */
+    private function pageAdditionalActionMetadata(mixed $value, array $objects, array $pageIndexes, array $destinations): array
+    {
+        $additionalActions = $this->resolveDictionary($value, $objects);
+        if ($additionalActions === null) {
+            return [];
+        }
+
+        $actions = [];
+        foreach ($additionalActions as $event => $actionValue) {
+            $seen = [];
+            foreach ($this->reviewActionsFromValue($actionValue, $objects, $pageIndexes, $destinations, $seen) as $action) {
+                $actions[] = [
+                    'event' => $event,
+                    'event_label' => self::PAGE_ACTION_EVENT_LABELS[$event] ?? 'page_additional_action',
+                ] + $action;
+            }
+        }
+
+        return $actions;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @param array<string, mixed> $destinations
+     * @param array<string, true> $seen
+     * @return list<array<string, mixed>>
+     */
+    private function reviewActionsFromValue(
+        mixed $value,
+        array $objects,
+        array $pageIndexes,
+        array $destinations,
+        array &$seen,
+        int $depth = 0
+    ): array {
+        if ($value === null || $depth > 20) {
+            return [];
+        }
+
+        $resolved = $this->resolveValue($value, $objects);
+        $array = $this->arrayItems($resolved);
+        if ($array !== null) {
+            $actions = [];
+            foreach ($array as $item) {
+                foreach ($this->reviewActionsFromValue($item, $objects, $pageIndexes, $destinations, $seen, $depth + 1) as $action) {
+                    $actions[] = $action;
+                }
+            }
+
+            return $actions;
+        }
+
+        $dict = $this->dictionaryItems($resolved);
+        if ($dict === null) {
+            return [];
+        }
+
+        $actionObject = $this->referenceObjectNumber($value);
+        $identity = $actionObject === null ? 'dict:' . md5(serialize($dict)) : 'obj:' . $actionObject;
+        if (isset($seen[$identity])) {
+            return [];
+        }
+        $seen[$identity] = true;
+
+        $type = $this->nameValue($dict['S'] ?? null);
+        $action = $type === 'JavaScript'
+            ? $this->reviewAction('JavaScript', 'blocked-javascript', null, null, null, null, null, null, null)
+            : $this->openActionReviewAction($value, $objects, $pageIndexes, $destinations);
+
+        if ($action === null && $type !== null) {
+            $action = $this->reviewAction($type, 'unsupported-action-review', null, null, null, null, null, null, null);
+        }
+
+        $actions = [];
+        if ($action !== null) {
+            if ($actionObject !== null) {
+                $action['action_object'] = $actionObject;
+            }
+            $actions[] = $action;
+        }
+
+        if (array_key_exists('Next', $dict)) {
+            foreach ($this->reviewActionsFromValue($dict['Next'], $objects, $pageIndexes, $destinations, $seen, $depth + 1) as $nextAction) {
+                $nextAction['chained'] = true;
+                $actions[] = $nextAction;
+            }
+        }
+
+        return $actions;
+    }
+
+    private function directionValue(mixed $value): float|string|null
+    {
+        $name = $this->nameValue($value);
+        if ($name !== null) {
+            return $name;
+        }
+
+        return $this->numericOrNullValue($value);
     }
 
     /**

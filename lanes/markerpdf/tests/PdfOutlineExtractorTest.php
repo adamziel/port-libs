@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfOutlineExtractor;
+use PortLibs\MarkerPDF\PdfTextExtractor;
 
 $namedDestinationPdf = static function (): string {
     return "%PDF-1.4\n"
@@ -71,6 +72,24 @@ $destinationViewPdf = static function (): string {
         . "8 0 obj\n<< /Names [(review-start) [4 0 R /XYZ 144 640 0]] >>\nendobj\n"
         . "9 0 obj\n<< /Title (Width Fit) /Parent 5 0 R /A << /S /GoTo /D [4 0 R /FitH 700] >> /Next 10 0 R >>\nendobj\n"
         . "10 0 obj\n<< /Title (Page Ref Only) /Parent 5 0 R /Dest 3 0 R >>\nendobj\n"
+        . "%%EOF";
+};
+
+$pagePresentationPdf = static function (): string {
+    $pageOneContent = 'BT /F1 12 Tf 72 720 Td (Slide body stays visible) Tj ET';
+    $pageTwoContent = 'BT /F1 12 Tf 72 720 Td (Second slide stays clean) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /Dests 20 0 R >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Dur 8 /Trans 5 0 R /AA << /O 6 0 R /C << /S /GoToR /F (deck-appendix.pdf) /D /Slide#202 /NewWindow true >> >> /Contents 30 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Trans << /S /Split /D .75 /Dm /H /M /O /Di 90 /SS .5 /B true >> /AA << /O << /S /Launch /Win << /F (helper.exe) /O (print) >> >> /C << /S /URI /URI (javascript:alert\\(1\\)) /Next [7 0 R 7 0 R] >> >> /Contents 31 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /S /Dissolve /D 1.5 >>\nendobj\n"
+        . "6 0 obj\n<< /S /URI /URI (https://example.com/slide-notes) >>\nendobj\n"
+        . "7 0 obj\n<< /S /GoTo /D /Start >>\nendobj\n"
+        . "20 0 obj\n<< /Names [(Start) [3 0 R /Fit]] >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($pageOneContent) . " >>\nstream\n{$pageOneContent}\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Length " . strlen($pageTwoContent) . " >>\nstream\n{$pageTwoContent}\nendstream\nendobj\n"
         . "%%EOF";
 };
 
@@ -270,5 +289,81 @@ return [
         $t->same([], $toc[3]['view_position']);
         $t->same([], $toc[3]['view_parameters']);
         $t->same([], $extractor->getPdfTocWithDestinationViews('%PDF-1.4 no catalog here'));
+    },
+    'extracts page transition duration and additional action review metadata' => static function (TestRunner $t) use ($pagePresentationPdf): void {
+        $pages = (new PdfOutlineExtractor())->getPageTransitionActionMetadata($pagePresentationPdf());
+
+        $t->same(2, count($pages));
+        $t->same(0, $pages[0]['pnum']);
+        $t->same(3, $pages[0]['page_object']);
+        $t->same(8.0, $pages[0]['display_duration']);
+        $t->same(
+            [
+                'style' => 'Dissolve',
+                'duration' => 1.5,
+                'dimension' => null,
+                'motion' => null,
+                'direction' => null,
+                'scale' => null,
+                'opaque_background' => null,
+            ],
+            $pages[0]['transition']
+        );
+        $t->same(2, count($pages[0]['actions']));
+        $t->same('O', $pages[0]['actions'][0]['event']);
+        $t->same('page_open', $pages[0]['actions'][0]['event_label']);
+        $t->same('URI', $pages[0]['actions'][0]['action_type']);
+        $t->same('review-uri', $pages[0]['actions'][0]['safety']);
+        $t->same('https://example.com/slide-notes', $pages[0]['actions'][0]['uri']);
+        $t->same(true, $pages[0]['actions'][0]['is_safe_uri']);
+        $t->same(6, $pages[0]['actions'][0]['action_object']);
+        $t->same(false, $pages[0]['actions'][0]['executes_on_import']);
+        $t->same('C', $pages[0]['actions'][1]['event']);
+        $t->same('page_close', $pages[0]['actions'][1]['event_label']);
+        $t->same('GoToR', $pages[0]['actions'][1]['action_type']);
+        $t->same('remote-document-review', $pages[0]['actions'][1]['safety']);
+        $t->same('deck-appendix.pdf', $pages[0]['actions'][1]['file']);
+        $t->same('Slide 2', $pages[0]['actions'][1]['destination']);
+        $t->same(true, $pages[0]['actions'][1]['new_window']);
+
+        $t->same(1, $pages[1]['pnum']);
+        $t->same(4, $pages[1]['page_object']);
+        $t->same(null, $pages[1]['display_duration']);
+        $t->same(
+            [
+                'style' => 'Split',
+                'duration' => 0.75,
+                'dimension' => 'H',
+                'motion' => 'O',
+                'direction' => 90.0,
+                'scale' => 0.5,
+                'opaque_background' => true,
+            ],
+            $pages[1]['transition']
+        );
+        $t->same(3, count($pages[1]['actions']), 'duplicate chained actions are deduplicated within one page event.');
+        $t->same('Launch', $pages[1]['actions'][0]['action_type']);
+        $t->same('blocked-launch', $pages[1]['actions'][0]['safety']);
+        $t->same('helper.exe', $pages[1]['actions'][0]['file']);
+        $t->same('print', $pages[1]['actions'][0]['operation']);
+        $t->same('URI', $pages[1]['actions'][1]['action_type']);
+        $t->same('blocked-unsafe-uri', $pages[1]['actions'][1]['safety']);
+        $t->same(false, $pages[1]['actions'][1]['is_safe_uri']);
+        $t->same('GoTo', $pages[1]['actions'][2]['action_type']);
+        $t->same('local-destination', $pages[1]['actions'][2]['safety']);
+        $t->same(0, $pages[1]['actions'][2]['page']);
+        $t->same('Start', $pages[1]['actions'][2]['destination']);
+        $t->same(true, $pages[1]['actions'][2]['chained']);
+        $t->same(7, $pages[1]['actions'][2]['action_object']);
+    },
+    'keeps page transitions and actions as metadata outside visible text extraction' => static function (TestRunner $t) use ($pagePresentationPdf): void {
+        $text = (new PdfTextExtractor())->extractPlainText($pagePresentationPdf());
+        $empty = (new PdfOutlineExtractor())->getPageTransitionActionMetadata("%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n%%EOF");
+
+        $t->contains('Slide body stays visible', $text);
+        $t->contains('Second slide stays clean', $text);
+        $t->true(!str_contains($text, 'deck-appendix.pdf'));
+        $t->true(!str_contains($text, 'javascript:alert'));
+        $t->same([], $empty);
     },
 ];
