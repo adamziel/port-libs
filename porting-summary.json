@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 19:55:40 UTC",
-    "sourceCommit": "57caf1ec2e4dbdd3096a4a06ea024194c965fd9b",
-    "sourceCommitShort": "57caf1ec2e4d",
+    "generated": "2026-06-02 19:59:08 UTC",
+    "sourceCommit": "3c2249f2388feec92b1c41d8aebfafeb3a3a61b7",
+    "sourceCommitShort": "3c2249f2388f",
     "sourceBranch": "unknown",
-    "dashboardCommit": "57caf1ec2e4dbdd3096a4a06ea024194c965fd9b",
-    "dashboardCommitShort": "57caf1ec2e4d",
+    "dashboardCommit": "3c2249f2388feec92b1c41d8aebfafeb3a3a61b7",
+    "dashboardCommitShort": "3c2249f2388f",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "535",
-            "coverage": "535 / 78 (685.9%)",
-            "mapPercent": "685.9%",
+            "mapped": "537",
+            "coverage": "537 / 78 (688.5%)",
+            "mapPercent": "688.5%",
             "unmapped": "0",
-            "php": "749 pass / 0 fail",
+            "php": "753 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: accepted meta43/image47/xref42...",
-            "currentWork": "MarkerPDF now preserves portfolio FileSpec provenance, Indexed DeviceN soft-mask tran...",
-            "nextTarget": "Rebase deferred font44/security43/table42/xref41 handoffs if...",
+            "audit": "2026-06-02 UTC supervisor integration: accepted runtime44/outline42 m...",
+            "currentWork": "MarkerPDF now preserves marker_app runtime app-config planning and remote outline act...",
+            "nextTarget": "Score active 19:49Z/19:53Z/19:57Z markerPDF workers as they c...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "57caf1e"
+            "commit": "3c2249f"
         },
         {
             "lane": "readability",
