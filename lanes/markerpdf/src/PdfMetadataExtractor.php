@@ -178,9 +178,9 @@ final class PdfMetadataExtractor
         $catalog = $this->catalogObjectBody($pdfBytes, $objects);
         $trailer = $this->trailerDictionaryBody($pdfBytes);
         $encryptMetadata = ($encryption['encrypt_metadata'] ?? true) !== false;
-        $hasXmp = $catalog !== null && $this->dictionaryRawValue($catalog, 'Metadata') !== null;
+        $hasXmp = $catalog !== null && $this->dictionaryTopLevelRawValue($catalog, 'Metadata') !== null;
         $hasInfo = $trailer !== null && $this->dictionaryRawValue($trailer, 'Info') !== null;
-        $hasOutputIntents = $catalog !== null && $this->dictionaryRawValue($catalog, 'OutputIntents') !== null;
+        $hasOutputIntents = $catalog !== null && $this->dictionaryTopLevelRawValue($catalog, 'OutputIntents') !== null;
 
         $suppressed = [];
         $preserved = [];
@@ -251,7 +251,12 @@ final class PdfMetadataExtractor
     private function extractXmpMetadata(string $pdfBytes, array $objects): array
     {
         $catalog = $this->catalogObjectBody($pdfBytes, $objects);
-        if ($catalog === null || preg_match('/\/Metadata\s+(\d+)\s+\d+\s+R\b/s', $catalog, $match) !== 1) {
+        if ($catalog === null) {
+            return [];
+        }
+
+        $value = $this->dictionaryTopLevelRawValue($catalog, 'Metadata');
+        if ($value === null || preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($value), $match) !== 1) {
             return [];
         }
 
@@ -311,7 +316,7 @@ final class PdfMetadataExtractor
             return [];
         }
 
-        $value = $this->dictionaryRawValue($catalog, 'OutputIntents');
+        $value = $this->dictionaryTopLevelRawValue($catalog, 'OutputIntents');
         if ($value === null) {
             return [];
         }
@@ -525,6 +530,52 @@ final class PdfMetadataExtractor
         $viewerPreferences = $this->extractViewerPreferences($catalog, $objects);
         if ($viewerPreferences !== []) {
             $metadata['viewer_preferences'] = $viewerPreferences;
+        }
+
+        $pieceInfo = $this->pieceInfoMetadata($this->dictionaryTopLevelRawValue($catalog, 'PieceInfo'), $objects);
+        if ($pieceInfo !== []) {
+            $metadata['piece_info'] = $pieceInfo;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * Catalog /PieceInfo is application-private review metadata. It can carry
+     * keys named /Metadata or /OutputIntents, but those are not document-level
+     * XMP or PDF/A roots unless they are direct Catalog entries.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function pieceInfoMetadata(?string $pieceInfoValue, array $objects): array
+    {
+        $pieceInfo = $this->resolveDictionaryFromValue($pieceInfoValue, $objects);
+        if ($pieceInfo === null) {
+            return [];
+        }
+
+        $metadata = [];
+        foreach ($this->dictionaryTopLevelEntries($pieceInfo['body']) as $application => $pieceValue) {
+            $piece = $this->resolveDictionaryFromValue($pieceValue, $objects);
+            if ($piece === null) {
+                continue;
+            }
+
+            $entry = [];
+            $lastModified = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($piece['body'], 'LastModified'), $objects);
+            if (is_string($lastModified) && $lastModified !== '') {
+                $entry['last_modified'] = $lastModified;
+            }
+
+            $private = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($piece['body'], 'Private'), $objects);
+            if ($private !== null && $private !== '' && (!is_array($private) || $private !== [])) {
+                $entry['private'] = $private;
+            }
+
+            if ($entry !== []) {
+                $metadata[$application] = $entry;
+            }
         }
 
         return $metadata;
@@ -1954,6 +2005,213 @@ final class PdfMetadataExtractor
 
         $offset = $match[0][1] + strlen($match[0][0]);
         return $this->readPdfValueAt($dictionary, $offset);
+    }
+
+    private function dictionaryTopLevelRawValue(string $dictionary, string $key): ?string
+    {
+        $entries = $this->dictionaryTopLevelEntries($dictionary);
+
+        return $entries[$key] ?? null;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function dictionaryTopLevelEntries(string $dictionary): array
+    {
+        $body = $this->normalizedDictionaryBody($dictionary);
+        $entries = [];
+        for ($offset = 0, $length = strlen($body); $offset < $length;) {
+            $offset = $this->skipPdfWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($body[$offset] !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $remaining = substr($body, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $valueOffset = $this->skipPdfWhitespace($body, $offset + strlen($match[0]));
+            $value = $this->readPdfValueAt($body, $valueOffset);
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $entries[$this->decodePdfName($match[1])] = $value;
+            $offset = $valueOffset + strlen($value);
+        }
+
+        return $entries;
+    }
+
+    private function normalizedDictionaryBody(string $dictionary): string
+    {
+        $trimmed = trim($dictionary);
+        if (str_starts_with($trimmed, '<<')) {
+            return $this->readPdfDictionaryAt($trimmed, 0) ?? $dictionary;
+        }
+
+        return $dictionary;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{body: string, object: int|null}|null
+     */
+    private function resolveDictionaryFromValue(?string $value, array $objects): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $objectNumber = $this->objectNumberFromReference($value);
+        if ($objectNumber !== null) {
+            if (!isset($objects[$objectNumber])) {
+                return null;
+            }
+
+            $body = $this->dictionaryObjectBody($objects[$objectNumber]);
+            return $body === null ? null : ['body' => $body, 'object' => $objectNumber];
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        if ($resolved === '') {
+            return null;
+        }
+
+        if (str_starts_with($resolved, '<<')) {
+            $body = $this->readPdfDictionaryAt($resolved, 0);
+            return $body === null ? null : ['body' => $body, 'object' => null];
+        }
+
+        $body = $this->dictionaryObjectBody($resolved);
+        return $body === null ? null : ['body' => $body, 'object' => null];
+    }
+
+    private function objectNumberFromReference(string $value): ?int
+    {
+        return preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($value), $match) === 1 ? (int) $match[1] : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function arrayItemsFromValue(string $value, array $objects): array
+    {
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        $body = $this->arrayBody($resolved);
+        if ($body === null) {
+            return [];
+        }
+
+        $items = [];
+        for ($offset = 0, $length = strlen($body); $offset < $length;) {
+            $offset = $this->skipPdfWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $item = $this->readPdfValueAt($body, $offset);
+            if ($item === null) {
+                $offset++;
+                continue;
+            }
+
+            $items[] = $item;
+            $offset += strlen($item);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function reviewValueFromRaw(?string $value, array $objects, int $depth = 0): mixed
+    {
+        if ($value === null || $depth > 4) {
+            return null;
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        if ($resolved === '') {
+            return null;
+        }
+
+        if (str_starts_with($resolved, '[')) {
+            $items = [];
+            foreach ($this->arrayItemsFromValue($resolved, $objects) as $item) {
+                $reviewValue = $this->reviewValueFromRaw($item, $objects, $depth + 1);
+                if ($reviewValue !== null && $reviewValue !== '') {
+                    $items[] = $reviewValue;
+                }
+            }
+
+            return $items === [] ? null : $items;
+        }
+
+        if (str_starts_with($resolved, '<<')) {
+            $body = $this->readPdfDictionaryAt($resolved, 0);
+            if ($body === null) {
+                return null;
+            }
+
+            $metadata = [];
+            foreach ($this->dictionaryTopLevelEntries($body) as $name => $entryValue) {
+                $reviewValue = $this->reviewValueFromRaw($entryValue, $objects, $depth + 1);
+                if ($reviewValue !== null && $reviewValue !== '') {
+                    $metadata[$name] = $reviewValue;
+                }
+            }
+
+            return $metadata === [] ? null : $metadata;
+        }
+
+        if ($resolved === 'true') {
+            return true;
+        }
+
+        if ($resolved === 'false') {
+            return false;
+        }
+
+        if ($resolved === 'null') {
+            return null;
+        }
+
+        if (preg_match('/^-?\d+$/', $resolved) === 1) {
+            return (int) $resolved;
+        }
+
+        if (preg_match('/^-?(?:\d+\.\d*|\d*\.\d+)$/', $resolved) === 1) {
+            return (float) $resolved;
+        }
+
+        return $this->stringValueFromRaw($resolved);
+    }
+
+    private function stringValueFromRaw(string $value): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        return match ($value[0]) {
+            '(' => $this->literalStringValueAt($value, 0),
+            '<' => (strlen($value) > 1 && $value[1] !== '<') ? $this->hexStringValueAt($value, 0) : null,
+            '/' => $this->nameValueAt($value, 0),
+            default => preg_match('/^[^\s\[\]()<>{}\/%]+$/', $value) === 1 ? $this->cleanText($value) : null,
+        };
     }
 
     private function readPdfValueAt(string $value, int $offset): ?string

@@ -485,6 +485,48 @@ return [
         ], $metadata['pdfa']);
         $t->true(!str_contains($text, 'ICC profile bytes'));
     },
+    'keeps catalog PieceInfo private Metadata and OutputIntents from document metadata roots' => static function (TestRunner $t) use ($xmpPacket): void {
+        $privateXmp = $xmpPacket([
+            'title' => 'PieceInfo Private XMP Title',
+            'description' => 'Application-private XMP packet should stay review-only',
+        ]);
+        $compressedXmp = gzcompress($privateXmp);
+        $compressedProfile = gzcompress('PieceInfo private ICC bytes should not be promoted');
+        if (!is_string($compressedXmp) || !is_string($compressedProfile)) {
+            throw new RuntimeException('Unable to compress PieceInfo metadata boundary fixture.');
+        }
+
+        $content = 'BT /F1 12 Tf 72 720 Td (PieceInfo Boundary Body) Tj ET';
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PieceInfo << /WPMetadata << /LastModified (D:20260602105000Z) /Private << /Workflow (metadata-boundary) /ReviewFlag true /Metadata 5 0 R /OutputIntents [9 0 R] >> >> >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($compressedXmp) . " >>\nstream\n{$compressedXmp}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($compressedProfile) . " >>\nstream\n{$compressedProfile}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (PieceInfo sRGB) /Info (PieceInfo PDF/A) /DestOutputProfile 7 0 R >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['catalog'], $metadata['source']);
+        $t->same([], $metadata['xmp']);
+        $t->same([], $metadata['output_intents']);
+        $t->true(!isset($metadata['title']));
+        $t->true(!isset($metadata['pdfa']));
+        $t->same('D:20260602105000Z', $metadata['catalog']['piece_info']['WPMetadata']['last_modified']);
+        $t->same('metadata-boundary', $metadata['catalog']['piece_info']['WPMetadata']['private']['Workflow']);
+        $t->same(true, $metadata['catalog']['piece_info']['WPMetadata']['private']['ReviewFlag']);
+        $t->same('Metadata', $metadata['catalog']['piece_info']['WPMetadata']['private']['Metadata']['Type']);
+        $t->same('XML', $metadata['catalog']['piece_info']['WPMetadata']['private']['Metadata']['Subtype']);
+        $t->same('GTS_PDFA1', $metadata['catalog']['piece_info']['WPMetadata']['private']['OutputIntents'][0]['S']);
+        $t->same('PieceInfo sRGB', $metadata['catalog']['piece_info']['WPMetadata']['private']['OutputIntents'][0]['OutputConditionIdentifier']);
+        $t->same('PieceInfo Boundary Body', $text);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'PieceInfo Private XMP Title'));
+        $t->true(!str_contains($text, 'PieceInfo private ICC bytes'));
+    },
     'extracts catalog language and indirect viewer preferences for WordPress review' => static function (TestRunner $t) use ($pdfWithCatalogReview): void {
         $lang = strtoupper(bin2hex("\xfe\xff\x00e\x00s\x00-\x00M\x00X"));
         $viewerPreferences = "7 0 obj\n"
