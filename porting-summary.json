@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 18:35:16 UTC",
-    "sourceCommit": "5816907c2ecf67e7b249df969148647a98071994",
-    "sourceCommitShort": "5816907c2ecf",
+    "generated": "2026-06-02 18:41:58 UTC",
+    "sourceCommit": "e1cf8e82181f6dbba2f47c96ca6b91dfc31b55a4",
+    "sourceCommitShort": "e1cf8e82181f",
     "sourceBranch": "unknown",
-    "dashboardCommit": "5816907c2ecf67e7b249df969148647a98071994",
-    "dashboardCommitShort": "5816907c2ecf",
+    "dashboardCommit": "e1cf8e821b173774e12ce48dc966b6a347af8651",
+    "dashboardCommitShort": "e1cf8e821b17",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "471",
-            "coverage": "471 / 78 (603.8%)",
-            "mapPercent": "603.8%",
+            "mapped": "474",
+            "coverage": "474 / 78 (607.7%)",
+            "mapPercent": "607.7%",
             "unmapped": "0",
-            "php": "645 pass / 0 fail",
+            "php": "648 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 5816907c; accept...",
-            "currentWork": "MarkerPDF now maps Indexed JPX image streams with decoded soft-mask review boundaries...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit e1cf8e82; accept...",
+            "currentWork": "MarkerPDF now carries StructTree/PieceInfo/thread page review metadata, object-valued...",
             "nextTarget": "Score newly ready markerPDF handoffs from table36, outline35,...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "5816907"
+            "commit": "e1cf8e8"
         },
         {
             "lane": "readability",
