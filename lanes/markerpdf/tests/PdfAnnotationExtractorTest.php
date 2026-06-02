@@ -117,6 +117,33 @@ $annotationStandardActionAppearancePopupPdf = static function (): string {
         . "%%EOF";
 };
 
+$annotationWidgetAppearanceActionPdf = static function (): string {
+    $pageStream = "BT /F1 12 Tf 72 744 Td (Widget page base text) Tj ET";
+    $targetStream = "BT /F1 12 Tf 72 744 Td (Widget target page text) Tj ET";
+    $selectedAppearance = "q BT /F1 10 Tf 90 686 Td (Widget selected AP visible) Tj ET Q";
+    $offAppearance = "q BT /F1 10 Tf 90 686 Td (Stale widget Off AP hidden) Tj ET Q";
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 9 0 R >> >> /Contents 10 0 R /Annots [6 0 R 7 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 9 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [20 0 R 22 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Annot /Subtype /Widget /Rect [72 672 320 710] /P 3 0 R /F 4 /Parent 20 0 R /AS /Approved /H /P /MK << /BC [0 0 1] /BG [1 1 0] /CA (Approve import) /RC (Approve rollover) /AC (Approve down) /R 90 /TP 1 >> /AP << /N << /Approved 30 0 R /Off 31 0 R >> >> /A 40 0 R /AA << /Fo 41 0 R /Bl << /S /Hide /T [20 0 R] /H true >> >> >>\nendobj\n"
+        . "7 0 obj\n<< /Type /Annot /Subtype /Widget /Rect [72 620 260 646] /P 3 0 R /F 36 /Parent 22 0 R /AS /On /A << /S /URI /URI (https://example.com/hidden-widget) >> >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Rect [72 580 260 606] /Parent 22 0 R /AS /On /A << /S /JavaScript /JS (detachedWidget\\(\\)) >> >>\nendobj\n"
+        . "9 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "10 0 obj\n<< /Length " . strlen($pageStream) . " >>\nstream\n" . $pageStream . "\nendstream\nendobj\n"
+        . "11 0 obj\n<< /Length " . strlen($targetStream) . " >>\nstream\n" . $targetStream . "\nendstream\nendobj\n"
+        . "20 0 obj\n<< /FT /Btn /T (review.consent) /V /Approved /DV /Off /Ff 49152 /Kids [6 0 R] >>\nendobj\n"
+        . "22 0 obj\n<< /FT /Tx /T (hidden.token) /V (Hidden Value) /Kids [7 0 R 8 0 R] >>\nendobj\n"
+        . "30 0 obj\n<< /Type /XObject /Subtype /Form /BBox [72 672 320 710] /Matrix [1 0 0 1 0 0] /Resources << /Font << /F1 9 0 R >> >> /Length " . strlen($selectedAppearance) . " >>\nstream\n" . $selectedAppearance . "\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Type /XObject /Subtype /Form /BBox [72 672 320 710] /Resources << /Font << /F1 9 0 R >> >> /Length " . strlen($offAppearance) . " >>\nstream\n" . $offAppearance . "\nendstream\nendobj\n"
+        . "40 0 obj\n<< /S /URI /URI (https://example.com/approve) /Next << /S /GoTo /D [4 0 R /FitH 720] >> >>\nendobj\n"
+        . "41 0 obj\n<< /S /JavaScript /JS (focusWidget\\(\\)) >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts page annotation border color opacity and popup metadata' => static function (TestRunner $t) use ($annotationPdf): void {
         $pages = (new PdfAnnotationExtractor())->extractPageAnnotations($annotationPdf());
@@ -408,5 +435,87 @@ return [
         $t->true(!str_contains($visibleText, 'Duplicate stale popup hidden'));
         $t->true(!str_contains($visibleText, 'review-data.fdf'));
         $t->true(!str_contains($visibleText, 'https://example.com/submit'));
+    },
+    'reviews widget annotation appearance field and action metadata at the current page boundary' => static function (TestRunner $t) use ($annotationWidgetAppearanceActionPdf): void {
+        $pdf = $annotationWidgetAppearanceActionPdf();
+        $page = (new PdfAnnotationExtractor())->extractPageAnnotations($pdf)[0];
+
+        $t->same(2, count($page['annotations']), 'only current page widget annotations are reviewed at this boundary.');
+
+        $approved = $page['annotations'][0];
+        $t->same('Widget', $approved['subtype']);
+        $t->same(6, $approved['annotation_object']);
+        $t->same('page_annotation_widget', $approved['widget']['source']);
+        $t->same(6, $approved['widget']['widget_object']);
+        $t->same(20, $approved['widget']['field_object']);
+        $t->same([20], $approved['widget']['parent_field_objects']);
+        $t->same('review.consent', $approved['widget']['field_name']);
+        $t->same('Btn', $approved['widget']['field_type']);
+        $t->same('button', $approved['widget']['field_type_label']);
+        $t->same(49152, $approved['widget']['field_flags']);
+        $t->same(['no_toggle_to_off', 'radio'], $approved['widget']['field_flag_names']);
+        $t->same('Approved', $approved['widget']['current_value']);
+        $t->same('Off', $approved['widget']['default_value']);
+        $t->same(4, $approved['widget']['annotation_flags']);
+        $t->same(['print'], $approved['widget']['annotation_flag_names']);
+        $t->same('visible', $approved['widget']['annotation_visibility']);
+        $t->same(true, $approved['widget']['visible']);
+        $t->same(false, $approved['widget']['hidden']);
+        $t->same(true, $approved['widget']['printable']);
+        $t->same(false, $approved['widget']['no_view']);
+        $t->same('P', $approved['widget']['highlight_mode']);
+        $t->same('push', $approved['widget']['highlight_mode_label']);
+        $t->same('Approved', $approved['widget']['appearance_state']);
+        $t->same(['Approved', 'Off'], $approved['widget']['appearance_states']);
+        $t->same('state-dictionary', $approved['widget']['normal_appearance_type']);
+        $t->same(30, $approved['widget']['selected_appearance_object']);
+        $t->same(false, $approved['widget']['stale_appearance_state']);
+        $t->same(false, $approved['widget']['appearance_value_used_for_import']);
+        $t->same(false, $approved['widget']['executes_appearance_streams']);
+        $t->same(false, $approved['widget']['renders_appearance']);
+        $t->same(false, $approved['widget']['executes_action']);
+
+        $mk = $approved['widget']['appearance_characteristics'];
+        $t->same('widget_mk_appearance_characteristics', $mk['source']);
+        $t->same('Approve import', $mk['normal_caption']);
+        $t->same('Approve rollover', $mk['rollover_caption']);
+        $t->same('Approve down', $mk['alternate_caption']);
+        $t->same(90, $mk['rotation']);
+        $t->same(1, $mk['text_position']);
+        $t->same('caption_above_icon', $mk['text_position_label']);
+        $t->same('#0000ff', $mk['border_color']['hex']);
+        $t->same('#ffff00', $mk['background_color']['hex']);
+        $t->same(false, $mk['renders_appearance']);
+        $t->same(false, $mk['executes_action']);
+
+        $t->same(['URI', 'GoTo'], array_column($approved['actions'], 'action_type'));
+        $t->same(['review-uri', 'local-destination'], array_column($approved['actions'], 'safety'));
+        $t->same(1, $approved['actions'][1]['destination_page']);
+        $t->same('FitH', $approved['actions'][1]['view_mode']);
+        $t->same(['Fo', 'Bl'], array_column($approved['additional_actions'], 'event'));
+        $t->same(['blocked-javascript', 'hide-action-review'], array_column($approved['additional_actions'], 'safety'));
+        $t->same(2, $approved['widget']['action_count']);
+        $t->same(2, $approved['widget']['additional_action_count']);
+        $t->same(false, $approved['executes_actions_on_import']);
+
+        $hidden = $page['annotations'][1];
+        $t->same('Widget', $hidden['subtype']);
+        $t->same('hidden.token', $hidden['widget']['field_name']);
+        $t->same('Hidden Value', $hidden['widget']['current_value']);
+        $t->same(36, $hidden['widget']['annotation_flags']);
+        $t->same(['print', 'no_view'], $hidden['widget']['annotation_flag_names']);
+        $t->same('no_view', $hidden['widget']['annotation_visibility']);
+        $t->same(false, $hidden['widget']['visible']);
+        $t->same(true, $hidden['widget']['hidden']);
+        $t->same(1, $hidden['widget']['action_count']);
+
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $t->contains('Widget page base text', $visibleText);
+        $t->contains('Widget selected AP visible', $visibleText);
+        $t->true(!str_contains($visibleText, 'Stale widget Off AP hidden'));
+        $t->true(!str_contains($visibleText, 'Hidden Value'));
+        $t->true(!str_contains($visibleText, 'focusWidget'));
+        $t->true(!str_contains($visibleText, 'detachedWidget'));
+        $t->true(!str_contains($visibleText, 'https://example.com/hidden-widget'));
     },
 ];

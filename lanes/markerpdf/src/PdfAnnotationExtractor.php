@@ -14,6 +14,69 @@ final class PdfAnnotationExtractor
         'U' => 'underline',
     ];
 
+    private const ANNOTATION_FLAGS = [
+        1 => 'invisible',
+        2 => 'hidden',
+        3 => 'print',
+        4 => 'no_zoom',
+        5 => 'no_rotate',
+        6 => 'no_view',
+        7 => 'read_only',
+        8 => 'locked',
+        9 => 'toggle_no_view',
+        10 => 'locked_contents',
+    ];
+
+    private const COMMON_FIELD_FLAGS = [
+        1 => 'read_only',
+        2 => 'required',
+        3 => 'no_export',
+    ];
+
+    private const FIELD_TYPE_FLAGS = [
+        'Tx' => [
+            13 => 'multiline',
+            14 => 'password',
+            21 => 'file_select',
+            23 => 'do_not_spell_check',
+            24 => 'do_not_scroll',
+            25 => 'comb',
+            26 => 'rich_text',
+        ],
+        'Btn' => [
+            15 => 'no_toggle_to_off',
+            16 => 'radio',
+            17 => 'push_button',
+            26 => 'radios_in_unison',
+        ],
+        'Ch' => [
+            18 => 'combo',
+            19 => 'edit',
+            20 => 'sort',
+            22 => 'multi_select',
+            23 => 'do_not_spell_check',
+            27 => 'commit_on_sel_change',
+        ],
+    ];
+
+    private const WIDGET_HIGHLIGHT_MODE_LABELS = [
+        'N' => 'none',
+        'I' => 'invert',
+        'O' => 'outline',
+        'P' => 'push',
+        'T' => 'toggle',
+    ];
+
+    private const WIDGET_TEXT_POSITION_LABELS = [
+        0 => 'caption_only',
+        1 => 'caption_above_icon',
+        2 => 'caption_below_icon',
+        3 => 'caption_right_of_icon',
+        4 => 'caption_left_of_icon',
+        5 => 'caption_overlaid_icon',
+        6 => 'icon_only',
+    ];
+
     /**
      * Native boundary for PDF page /Annots presentation metadata.
      *
@@ -101,6 +164,16 @@ final class PdfAnnotationExtractor
             $row['appearance'] = $appearance;
         }
 
+        if ($subtype === 'Widget') {
+            $row['widget'] = $this->widgetReviewFromAnnotation(
+                $body,
+                $objects,
+                $record['object'],
+                $appearance,
+                $actionReview
+            );
+        }
+
         $sound = $this->soundFromAnnotation($body, $objects);
         if ($sound !== null) {
             $row['sound'] = $sound;
@@ -112,6 +185,383 @@ final class PdfAnnotationExtractor
         }
 
         return $row;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, mixed>|null $appearance
+     * @param array{actions: list<array<string, mixed>>, additional_actions: list<array<string, mixed>>, executes_actions_on_import: false} $actionReview
+     * @return array<string, mixed>
+     */
+    private function widgetReviewFromAnnotation(
+        string $body,
+        array $objects,
+        ?int $widgetObject,
+        ?array $appearance,
+        array $actionReview
+    ): array {
+        $parentObjects = $this->parentFieldObjects($body, $objects);
+        $parentBodies = [];
+        foreach ($parentObjects as $parentObject) {
+            $parentBody = $this->dictionaryObjectBody($objects[$parentObject] ?? '');
+            if ($parentBody !== null) {
+                $parentBodies[$parentObject] = $parentBody;
+            }
+        }
+
+        $effectiveBodies = array_merge([$body], array_values($parentBodies));
+        $fieldType = $this->pdfValueToStringFromFirst($effectiveBodies, 'FT', $objects);
+        $fieldFlags = $this->intValueFromFirst($effectiveBodies, 'Ff', $objects) ?? 0;
+        $annotationFlags = $this->intValueAfterName($body, 'F', $objects) ?? 0;
+        $appearanceState = $this->pdfNameValueAfterName($body, 'AS');
+        $appearanceSummary = $this->widgetAppearanceSummary($appearance, $appearanceState);
+        $highlightMode = $this->pdfNameValueAfterName($body, 'H') ?? 'I';
+
+        $review = [
+            'source' => 'page_annotation_widget',
+            'widget_object' => $widgetObject,
+            'field_object' => $parentObjects[0] ?? ($this->widgetDictionaryHasFieldKeys($body) ? $widgetObject : null),
+            'parent_field_objects' => $parentObjects,
+            'field_name' => $this->widgetFieldName($body, $parentBodies, $objects),
+            'mapping_name' => $this->pdfValueToStringFromFirst($effectiveBodies, 'TM', $objects),
+            'field_type' => $fieldType,
+            'field_type_label' => $this->fieldTypeLabel($fieldType),
+            'field_flags' => $fieldFlags,
+            'field_flag_names' => $this->fieldFlagNames($fieldFlags, $fieldType),
+            'current_value' => $this->pdfValueToStringFromFirst($effectiveBodies, 'V', $objects),
+            'default_value' => $this->pdfValueToStringFromFirst($effectiveBodies, 'DV', $objects),
+            'annotation_flags' => $annotationFlags,
+            'annotation_flag_names' => $this->annotationFlagNames($annotationFlags),
+            'annotation_visibility' => $this->annotationVisibility($annotationFlags),
+            'visible' => !$this->annotationFlagsHideWidget($annotationFlags),
+            'hidden' => $this->annotationFlagsHideWidget($annotationFlags),
+            'printable' => $this->hasFlagBit($annotationFlags, 3),
+            'no_view' => $this->hasFlagBit($annotationFlags, 6),
+            'highlight_mode' => $highlightMode,
+            'highlight_mode_label' => self::WIDGET_HIGHLIGHT_MODE_LABELS[$highlightMode] ?? 'unknown',
+            'appearance_state' => $appearanceState,
+            'appearance_states' => $appearanceSummary['appearance_states'],
+            'normal_appearance_type' => $appearanceSummary['normal_appearance_type'],
+            'selected_appearance_object' => $appearanceSummary['selected_appearance_object'],
+            'stale_appearance_state' => $appearanceSummary['stale_appearance_state'],
+            'appearance_value_used_for_import' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearance' => false,
+            'executes_action' => false,
+            'action_count' => count($actionReview['actions']),
+            'additional_action_count' => count($actionReview['additional_actions']),
+            'actions_are_review_only' => true,
+            'current_page_annotation' => true,
+            'detached_field_only' => false,
+        ];
+
+        $appearanceCharacteristics = $this->widgetAppearanceCharacteristics($body, $objects);
+        if ($appearanceCharacteristics !== null) {
+            $review['appearance_characteristics'] = $appearanceCharacteristics;
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function parentFieldObjects(string $body, array $objects): array
+    {
+        $parents = [];
+        $seen = [];
+        $parentObject = $this->objectReferenceValueAfterName($body, 'Parent');
+        while ($parentObject !== null && isset($objects[$parentObject]) && !isset($seen[$parentObject])) {
+            $seen[$parentObject] = true;
+            $parents[] = $parentObject;
+            $parentBody = $this->dictionaryObjectBody($objects[$parentObject] ?? '');
+            if ($parentBody === null) {
+                break;
+            }
+
+            $parentObject = $this->objectReferenceValueAfterName($parentBody, 'Parent');
+        }
+
+        return $parents;
+    }
+
+    /**
+     * @param array<int, string> $parentBodies
+     */
+    private function widgetFieldName(string $body, array $parentBodies, array $objects): ?string
+    {
+        $parts = [];
+        foreach (array_reverse($parentBodies, true) as $parentBody) {
+            $name = $this->pdfStringValueAfterName($parentBody, 'T', $objects);
+            if ($name !== null && $name !== '') {
+                $parts[] = $name;
+            }
+        }
+
+        if ($parts === []) {
+            $name = $this->pdfStringValueAfterName($body, 'T', $objects);
+            if ($name !== null && $name !== '') {
+                $parts[] = $name;
+            }
+        }
+
+        return $parts === [] ? null : implode('.', $parts);
+    }
+
+    private function widgetDictionaryHasFieldKeys(string $body): bool
+    {
+        foreach (['FT', 'T', 'TM', 'V', 'DV', 'Ff', 'Kids'] as $name) {
+            if ($this->valueAfterName($body, $name) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array{appearance_states: list<string>, normal_appearance_type: string|null, selected_appearance_object: int|null, stale_appearance_state: bool|null}
+     */
+    private function widgetAppearanceSummary(?array $appearance, ?string $appearanceState): array
+    {
+        $summary = [
+            'appearance_states' => [],
+            'normal_appearance_type' => null,
+            'selected_appearance_object' => null,
+            'stale_appearance_state' => null,
+        ];
+
+        $normal = is_array($appearance['normal'] ?? null) ? $appearance['normal'] : null;
+        if ($normal === null) {
+            return $summary;
+        }
+
+        if (($normal['kind'] ?? null) === 'state-dictionary') {
+            $selected = is_array($normal['selected'] ?? null) ? $normal['selected'] : null;
+            return [
+                'appearance_states' => array_values(array_filter(
+                    $normal['states'] ?? [],
+                    static fn (mixed $state): bool => is_string($state)
+                )),
+                'normal_appearance_type' => 'state-dictionary',
+                'selected_appearance_object' => $selected['object'] ?? null,
+                'stale_appearance_state' => $appearanceState === null ? null : $selected === null,
+            ];
+        }
+
+        if (($normal['kind'] ?? null) === 'stream') {
+            return [
+                'appearance_states' => [],
+                'normal_appearance_type' => 'direct_stream',
+                'selected_appearance_object' => $normal['object'] ?? null,
+                'stale_appearance_state' => null,
+            ];
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function widgetAppearanceCharacteristics(string $body, array $objects): ?array
+    {
+        $value = $this->dictionaryRawValue($body, 'MK') ?? $this->valueAfterName($body, 'MK');
+        if ($value === null) {
+            return null;
+        }
+
+        $mk = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($mk === null) {
+            return null;
+        }
+
+        $textPosition = $this->intValueAfterName($mk['body'], 'TP', $objects);
+        $iconFit = $this->widgetIconFitFromAppearanceCharacteristics($mk['body'], $objects);
+
+        $review = [
+            'source' => 'widget_mk_appearance_characteristics',
+            'dictionary_object' => $mk['object'],
+            'rotation' => $this->intValueAfterName($mk['body'], 'R', $objects),
+            'border_color' => $this->colorValueAfterName($mk['body'], 'BC', $objects),
+            'background_color' => $this->colorValueAfterName($mk['body'], 'BG', $objects),
+            'normal_caption' => $this->pdfStringValueAfterName($mk['body'], 'CA', $objects),
+            'rollover_caption' => $this->pdfStringValueAfterName($mk['body'], 'RC', $objects),
+            'alternate_caption' => $this->pdfStringValueAfterName($mk['body'], 'AC', $objects),
+            'text_position' => $textPosition,
+            'text_position_label' => $textPosition === null ? null : (self::WIDGET_TEXT_POSITION_LABELS[$textPosition] ?? 'unknown'),
+            'icon_object' => $this->objectReferenceFromValue($this->dictionaryRawValue($mk['body'], 'I')),
+            'rollover_icon_object' => $this->objectReferenceFromValue($this->dictionaryRawValue($mk['body'], 'RI')),
+            'alternate_icon_object' => $this->objectReferenceFromValue($this->dictionaryRawValue($mk['body'], 'IX')),
+            'icon_fit' => $iconFit,
+            'renders_appearance' => false,
+            'executes_action' => false,
+        ];
+
+        return array_filter($review, static fn (mixed $value): bool => $value !== null);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function widgetIconFitFromAppearanceCharacteristics(string $mkBody, array $objects): ?array
+    {
+        $value = $this->dictionaryRawValue($mkBody, 'IF') ?? $this->valueAfterName($mkBody, 'IF');
+        if ($value === null) {
+            return null;
+        }
+
+        $iconFit = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($iconFit === null) {
+            return null;
+        }
+
+        return array_filter([
+            'scale_when' => $this->pdfNameValueAfterName($iconFit['body'], 'SW'),
+            'scale_type' => $this->pdfNameValueAfterName($iconFit['body'], 'S'),
+            'position' => $this->numberArrayValueAfterName($iconFit['body'], 'A', $objects),
+            'fit_bounds' => $this->boolValueAfterName($iconFit['body'], 'FB'),
+            'renders_icon' => false,
+        ], static fn (mixed $value): bool => $value !== null);
+    }
+
+    /**
+     * @param list<string> $bodies
+     * @param array<int, string> $objects
+     */
+    private function pdfValueToStringFromFirst(array $bodies, string $name, array $objects): ?string
+    {
+        foreach ($bodies as $body) {
+            $value = $this->valueAfterName($body, $name);
+            if ($value === null) {
+                continue;
+            }
+
+            return $this->pdfValueToString($value, $objects);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $bodies
+     * @param array<int, string> $objects
+     */
+    private function intValueFromFirst(array $bodies, string $name, array $objects): ?int
+    {
+        foreach ($bodies as $body) {
+            $value = $this->valueAfterName($body, $name);
+            if ($value === null) {
+                continue;
+            }
+
+            return $this->intValueFromPdfValue($value, $objects);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function intValueFromPdfValue(string $value, array $objects): ?int
+    {
+        $value = trim($value);
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1) {
+            $objectBody = trim($objects[(int) $match[1]] ?? '');
+            return $objectBody === '' ? null : $this->intValueFromPdfValue($objectBody, $objects);
+        }
+
+        return preg_match('/^[+-]?\d+/', $value, $match) === 1 ? (int) $match[0] : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function fieldFlagNames(int $flags, ?string $fieldType): array
+    {
+        $names = [];
+        foreach (self::COMMON_FIELD_FLAGS as $bit => $name) {
+            if ($this->hasFlagBit($flags, $bit)) {
+                $names[] = $name;
+            }
+        }
+
+        foreach (self::FIELD_TYPE_FLAGS[$fieldType ?? ''] ?? [] as $bit => $name) {
+            if ($this->hasFlagBit($flags, $bit)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    private function fieldTypeLabel(?string $fieldType): ?string
+    {
+        return match ($fieldType) {
+            'Btn' => 'button',
+            'Tx' => 'text',
+            'Ch' => 'choice',
+            'Sig' => 'signature',
+            null => null,
+            default => strtolower($fieldType),
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function annotationFlagNames(int $flags): array
+    {
+        $names = [];
+        foreach (self::ANNOTATION_FLAGS as $bit => $name) {
+            if ($this->hasFlagBit($flags, $bit)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    private function annotationFlagsHideWidget(int $flags): bool
+    {
+        return $this->hasFlagBit($flags, 1)
+            || $this->hasFlagBit($flags, 2)
+            || $this->hasFlagBit($flags, 6);
+    }
+
+    private function annotationVisibility(int $flags): string
+    {
+        if ($this->hasFlagBit($flags, 2)) {
+            return 'hidden';
+        }
+
+        if ($this->hasFlagBit($flags, 1)) {
+            return 'invisible';
+        }
+
+        if ($this->hasFlagBit($flags, 6)) {
+            return 'no_view';
+        }
+
+        return 'visible';
+    }
+
+    private function hasFlagBit(int $flags, int $bit): bool
+    {
+        return ($flags & (1 << ($bit - 1))) !== 0;
+    }
+
+    private function objectReferenceFromValue(?string $value): ?int
+    {
+        if ($value === null || preg_match('/^(\d+)\s+\d+\s+R\b/', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        return (int) $match[1];
     }
 
     /**
