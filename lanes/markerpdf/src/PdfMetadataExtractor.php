@@ -154,6 +154,7 @@ final class PdfMetadataExtractor
      *     structure_tree?: array<string, mixed>,
      *     document_destinations?: array<string, mixed>,
      *     document_security_store?: array<string, mixed>,
+     *     pdfa_associated_name_tree?: array<string, mixed>,
      *     pdfa?: array{has_output_intent: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>}
      * }
      */
@@ -3783,9 +3784,196 @@ final class PdfMetadataExtractor
         $pdfa = $this->pdfaOutputIntentSummary($outputIntents);
         if ($pdfa !== null) {
             $result['pdfa'] = $pdfa;
+            $pdfaAssociatedNameTree = $this->pdfaAssociatedNameTreeMetadata($result['embedded_files'] ?? [], $pdfa);
+            if ($pdfaAssociatedNameTree !== []) {
+                $result['pdfa_associated_name_tree'] = $pdfaAssociatedNameTree;
+            }
         }
 
         return $result;
+    }
+
+    /**
+     * PDF/A-associated files are often discoverable through Catalog /Names
+     * /EmbeddedFiles rows plus FileSpec /AFRelationship. Summarize those
+     * sanitized rows only when a root PDF/A OutputIntent exists.
+     *
+     * @param mixed $embeddedFiles
+     * @param array{has_output_intent: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>} $pdfa
+     * @return array<string, mixed>
+     */
+    private function pdfaAssociatedNameTreeMetadata(mixed $embeddedFiles, array $pdfa): array
+    {
+        if (!is_array($embeddedFiles) || $embeddedFiles === [] || ($pdfa['has_output_intent'] ?? false) !== true) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($embeddedFiles as $file) {
+            if (!is_array($file)) {
+                continue;
+            }
+
+            $entry = $this->pdfaAssociatedNameTreeEntry($file, count($entries));
+            if ($entry !== []) {
+                $entries[] = $entry;
+            }
+        }
+
+        if ($entries === []) {
+            return [];
+        }
+
+        $names = [];
+        $filenames = [];
+        $relationships = [];
+        $relationshipRoles = [];
+        $attachmentPdfaIdentifiers = [];
+        foreach ($entries as $entry) {
+            $name = $entry['name_tree_name'] ?? null;
+            if (is_string($name) && $name !== '') {
+                $names[] = $name;
+            }
+            $filename = $entry['filename'] ?? null;
+            if (is_string($filename) && $filename !== '') {
+                $filenames[] = $filename;
+            }
+            $relationship = $entry['relationship'] ?? null;
+            if (is_string($relationship) && $relationship !== '') {
+                $relationships[] = $relationship;
+            }
+            $relationshipRole = $entry['relationship_role'] ?? null;
+            if (is_string($relationshipRole) && $relationshipRole !== '') {
+                $relationshipRoles[] = $relationshipRole;
+            }
+
+            $attachmentPdfa = $entry['attachment_pdfa_output_intents']['output_condition_identifiers'] ?? null;
+            if (is_array($attachmentPdfa)) {
+                foreach ($attachmentPdfa as $identifier) {
+                    if (is_string($identifier) && $identifier !== '') {
+                        $attachmentPdfaIdentifiers[] = $identifier;
+                    }
+                }
+            }
+        }
+
+        $metadata = [
+            'source' => 'pdfa_associated_name_tree',
+            'review_only' => true,
+            'payload_included' => false,
+            'root_has_output_intent' => true,
+            'root_output_condition_identifiers' => $pdfa['output_condition_identifiers'],
+            'root_profile_sha256' => $pdfa['profile_sha256'],
+            'count' => count($entries),
+            'names' => $this->uniqueStrings($names),
+            'filenames' => $this->uniqueStrings($filenames),
+            'relationships' => $this->uniqueStrings($relationships),
+            'relationship_roles' => $this->uniqueStrings($relationshipRoles),
+            'entries' => $entries,
+        ];
+
+        $attachmentPdfaIdentifiers = $this->uniqueStrings($attachmentPdfaIdentifiers);
+        if ($attachmentPdfaIdentifiers !== []) {
+            $metadata['has_attachment_pdfa_output_intent'] = true;
+            $metadata['attachment_output_condition_identifiers'] = $attachmentPdfaIdentifiers;
+        } else {
+            $metadata['has_attachment_pdfa_output_intent'] = false;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $file
+     * @return array<string, mixed>
+     */
+    private function pdfaAssociatedNameTreeEntry(array $file, int $index): array
+    {
+        if (($file['source'] ?? null) !== 'catalog_names_embedded_files') {
+            return [];
+        }
+
+        $relationship = $file['relationship'] ?? null;
+        if (!is_string($relationship) || $relationship === '') {
+            return [];
+        }
+
+        $provenance = $file['provenance_review'] ?? [];
+        $provenance = is_array($provenance) ? $provenance : [];
+        $entry = [
+            'source' => 'catalog_names_embedded_files',
+            'review_only' => true,
+            'payload_included' => false,
+            'index' => $index,
+            'relationship' => $relationship,
+            'relationship_role' => is_string($provenance['relationship_role'] ?? null)
+                ? $provenance['relationship_role']
+                : (self::ASSOCIATED_FILE_RELATIONSHIP_ROLES[$relationship] ?? 'unrecognized'),
+            'relationship_status' => is_string($provenance['relationship_status'] ?? null)
+                ? $provenance['relationship_status']
+                : (array_key_exists($relationship, self::ASSOCIATED_FILE_RELATIONSHIP_ROLES)
+                    ? 'standard_pdf_associated_file_relationship'
+                    : 'unrecognized_pdf_associated_file_relationship'),
+        ];
+
+        foreach ([
+            'name_tree_name',
+            'filename',
+            'name',
+            'description',
+            'mime_type',
+            'ef_key',
+        ] as $key) {
+            $value = $file[$key] ?? null;
+            if (is_string($value) && $value !== '') {
+                $entry[$key] = $value;
+            }
+        }
+
+        foreach ([
+            'name_tree_index',
+            'file_spec_object',
+            'embedded_file_object',
+            'size',
+            'declared_size',
+        ] as $key) {
+            $value = $file[$key] ?? null;
+            if (is_int($value)) {
+                $entry[$key] = $value;
+            }
+        }
+
+        $payload = $provenance['payload'] ?? $this->associatedFilePayloadProvenance($file);
+        if (is_array($payload) && $payload !== []) {
+            $entry['payload'] = $payload;
+        }
+
+        foreach ([
+            'xmp_metadata' => 'xmp_metadata',
+            'piece_info_xmp_metadata' => 'piece_info_xmp_metadata',
+            'pdfa_output_intents' => 'attachment_pdfa_output_intents',
+            'related_files' => 'related_files',
+        ] as $sourceKey => $targetKey) {
+            $value = $provenance[$sourceKey] ?? null;
+            if (is_array($value) && $value !== []) {
+                $entry[$targetKey] = $value;
+            }
+        }
+
+        $sources = $provenance['sources'] ?? null;
+        if (is_array($sources)) {
+            $sourceValues = [];
+            foreach ($sources as $source) {
+                if (is_string($source) && $source !== '') {
+                    $sourceValues[] = $source;
+                }
+            }
+            if ($sourceValues !== []) {
+                $entry['provenance_sources'] = $this->uniqueStrings($sourceValues);
+            }
+        }
+
+        return $entry;
     }
 
     /**
