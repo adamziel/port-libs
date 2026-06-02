@@ -780,7 +780,7 @@ final class PdfTextExtractor
      * standard-role resolution, without executing Python, models, or external
      * PDF tools.
      *
-     * @return list<array{page_index: int, page_number: int, page_object_number: int, mcid: int, raw_role: string|null, role: string|null, role_mapped: bool, content_tags: list<string>, text: string}>
+     * @return list<array<string, mixed>>
      */
     public function extractTaggedContent(string $pdfBytes): array
     {
@@ -798,6 +798,7 @@ final class PdfTextExtractor
         if ($structureEntriesByPage === []) {
             return [];
         }
+        $structureMetadataByPageAndMcid = $this->taggedStructureMetadataByPageAndMcid($pdfBytes);
 
         $fontObjectMaps = $this->fontObjectMaps($objects);
         $optionalContentStates = $this->optionalContentVisibilityStates($objects);
@@ -864,7 +865,7 @@ final class PdfTextExtractor
 
                 $rawRole = $entry['rawRole'];
                 $role = $entry['role'];
-                $rows[] = [
+                $row = [
                     'page_index' => $pageIndex,
                     'page_number' => $pageIndex + 1,
                     'page_object_number' => $pageObjectNumber,
@@ -875,6 +876,87 @@ final class PdfTextExtractor
                     'content_tags' => array_values($contentTags),
                     'text' => $text,
                 ];
+
+                $metadata = $structureMetadataByPageAndMcid[$pageObjectNumber][$mcid] ?? null;
+                if (is_array($metadata)) {
+                    foreach ($metadata as $key => $value) {
+                        if (!array_key_exists($key, $row)) {
+                            $row[$key] = $value;
+                        }
+                    }
+                }
+
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<int, array<int, array<string, mixed>>>
+     */
+    private function taggedStructureMetadataByPageAndMcid(string $pdfBytes): array
+    {
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdfBytes);
+        $structureTree = $metadata['structure_tree'] ?? null;
+        if (!is_array($structureTree)) {
+            return [];
+        }
+
+        $elements = $structureTree['elements'] ?? null;
+        if (!is_array($elements)) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($elements as $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $markedContent = $element['marked_content'] ?? null;
+            if (!is_array($markedContent)) {
+                continue;
+            }
+
+            $decorations = [];
+            foreach ([
+                'object' => 'struct_object',
+                'title' => 'title',
+                'language' => 'language',
+                'language_inherited' => 'language_inherited',
+                'alternate_text' => 'alternate_text',
+                'actual_text' => 'actual_text',
+                'expansion_text' => 'expansion_text',
+                'id' => 'id',
+                'classes' => 'classes',
+                'revision' => 'revision',
+                'namespace' => 'namespace',
+                'associated_file_count' => 'associated_file_count',
+                'associated_files' => 'associated_files',
+            ] as $sourceKey => $targetKey) {
+                if (array_key_exists($sourceKey, $element)) {
+                    $decorations[$targetKey] = $element[$sourceKey];
+                }
+            }
+
+            if ($decorations === []) {
+                continue;
+            }
+
+            foreach ($markedContent as $markedContentRow) {
+                if (!is_array($markedContentRow)) {
+                    continue;
+                }
+
+                $pageObject = $markedContentRow['page_object'] ?? $element['page_object'] ?? null;
+                $mcid = $markedContentRow['mcid'] ?? null;
+                if (!is_int($pageObject) || !is_int($mcid)) {
+                    continue;
+                }
+
+                $rows[$pageObject][$mcid] = $decorations;
             }
         }
 
@@ -3980,7 +4062,12 @@ final class PdfTextExtractor
             return $streams;
         }
 
-        $xrefEntries = $this->xrefEntries($pdfBytes, $this->latestDirectObjects($definitions), $definitions);
+        $preliminaryObjects = $this->latestDirectObjects($definitions);
+        if ($this->startxrefXrefStreamFilterDecodeFailed($pdfBytes, $preliminaryObjects, $definitions)) {
+            return $streams;
+        }
+
+        $xrefEntries = $this->xrefEntries($pdfBytes, $preliminaryObjects, $definitions);
         $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes);
         $linearizedHintObjectNumbers = array_fill_keys(
             $this->linearizedHintTableObjectNumbers($pdfBytes, $definitions, $linearizedHintRanges, $objects),
@@ -9280,6 +9367,10 @@ final class PdfTextExtractor
         }
 
         $preliminaryObjects = $this->latestDirectObjects($definitions);
+        if ($this->startxrefXrefStreamFilterDecodeFailed($pdfBytes, $preliminaryObjects, $definitions)) {
+            return [];
+        }
+
         $xrefEntries = $this->xrefEntries($pdfBytes, $preliminaryObjects, $definitions);
         $objects = $this->liveDirectObjects($definitions, $xrefEntries);
         $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
@@ -9297,15 +9388,11 @@ final class PdfTextExtractor
 
         $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
         $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
-        foreach ($linearizedHintObjectStreamMemberNumbers as $objectNumber) {
-            unset($objects[$objectNumber]);
-        }
+        $objects = $this->withoutLinearizedHintObjectStreamMembers($objects, $definitions, $linearizedHintObjectStreamMemberNumbers);
         $objects = $this->withRepairedDirectStreamObjects($pdfBytes, $objects, $definitions, $xrefEntries);
         $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
         $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
-        foreach ($linearizedHintObjectStreamMemberNumbers as $objectNumber) {
-            unset($objects[$objectNumber]);
-        }
+        $objects = $this->withoutLinearizedHintObjectStreamMembers($objects, $definitions, $linearizedHintObjectStreamMemberNumbers);
         ksort($objects, SORT_NUMERIC);
         $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
 
@@ -10095,6 +10182,34 @@ final class PdfTextExtractor
     }
 
     /**
+     * Linearized hint-table bytes are not page content, but their exclusion is
+     * scoped to the compressed generation-zero member body that intersects the
+     * hint range. Preserve a repaired direct generation for the same object
+     * number when the current hybrid xref graph explicitly references it.
+     *
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param list<int> $objectNumbers
+     * @return array<int, string>
+     */
+    private function withoutLinearizedHintObjectStreamMembers(array $objects, array $definitions, array $objectNumbers): array
+    {
+        foreach ($objectNumbers as $objectNumber) {
+            if (!isset($objects[$objectNumber])) {
+                continue;
+            }
+
+            if ($this->directObjectDefinitionForBody($definitions[$objectNumber] ?? [], $objects[$objectNumber]) !== null) {
+                continue;
+            }
+
+            unset($objects[$objectNumber]);
+        }
+
+        return $objects;
+    }
+
+    /**
      * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
      * @param list<array{start: int, end: int}> $ranges
      * @param array<int, string> $objects
@@ -10560,6 +10675,10 @@ final class PdfTextExtractor
             return $entries;
         }
 
+        if ($this->startxrefXrefStreamFilterDecodeFailed($pdfBytes, $objects, $definitions)) {
+            return [];
+        }
+
         $entries = $this->xrefTableEntries($pdfBytes, $definitions);
         foreach ($this->xrefStreamEntries($objects, $definitions) as $objectNumber => $entry) {
             $entries[$objectNumber] = $entry;
@@ -10568,6 +10687,39 @@ final class PdfTextExtractor
         ksort($entries, SORT_NUMERIC);
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function startxrefXrefStreamFilterDecodeFailed(string $pdfBytes, array $objects, array $definitions): bool
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
+        if ($offset === null) {
+            return false;
+        }
+
+        $definition = $this->xrefStreamDefinitionAtOffset($definitions, $offset);
+        if ($definition === null) {
+            return false;
+        }
+
+        $entry = $this->streamDictionaryAndPayload($definition['body'], $objects);
+        if ($entry === null) {
+            return true;
+        }
+
+        $filters = $this->streamFilters($entry['dict'], $objects);
+        if ($filters === null) {
+            return true;
+        }
+
+        if ($filters === []) {
+            return false;
+        }
+
+        return $this->decodeStream($entry['dict'], $entry['stream'], $objects) === null;
     }
 
     /**

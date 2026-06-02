@@ -130,6 +130,7 @@ final class PdfAcroFormExtractor
         $fields = [];
         $fieldRefs = $this->fieldReferencesFromAcroForm($acroForm);
         $fieldNamesByObject = $this->fieldNamesByObject($fieldRefs, $objects);
+        $fieldNamesByObject = $this->fieldNamesWithPageWidgetParents($fieldNamesByObject, $objects, $pageWidgets);
         $calculationOrder = $this->calculationOrderFromAcroForm($acroForm, $fieldNamesByObject);
         $calculationOrderReview = $this->calculationOrderReviewFromAcroForm($acroForm, $objects, $fieldNamesByObject);
         $signatureFlags = $this->acroFormSignatureFlags($acroForm);
@@ -2810,6 +2811,7 @@ final class PdfAcroFormExtractor
         if ($this->isWidget($body)) {
             array_unshift($widgetRefs, $objectNumber);
         }
+        $widgetRefs = $this->widgetReferencesForField($objectNumber, $widgetRefs, $objects, $pageWidgets);
 
         $fieldType = $this->fieldType($effective);
         if ($fieldType === null && $partialName === null && $mappingName === null) {
@@ -4912,6 +4914,56 @@ final class PdfAcroFormExtractor
         }
 
         return $names;
+    }
+
+    /**
+     * @param array<int, string> $names
+     * @param array<int, string> $objects
+     * @param array<int, array{page_index: int, page_object: int, annotation_index: int}> $pageWidgets
+     * @return array<int, string>
+     */
+    private function fieldNamesWithPageWidgetParents(array $names, array $objects, array $pageWidgets): array
+    {
+        foreach (array_keys($pageWidgets) as $widgetObject) {
+            if (isset($names[$widgetObject]) || !isset($objects[$widgetObject])) {
+                continue;
+            }
+
+            $body = $this->dictionaryObjectBody($objects[$widgetObject]) ?? trim($objects[$widgetObject]);
+            $parentObject = $this->objectReferenceValueAfterName($body, 'Parent');
+            if ($parentObject === null || !isset($names[$parentObject])) {
+                continue;
+            }
+
+            $names[$widgetObject] = $names[$parentObject];
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<int> $widgetRefs
+     * @param array<int, string> $objects
+     * @param array<int, array{page_index: int, page_object: int, annotation_index: int}> $pageWidgets
+     * @return list<int>
+     */
+    private function widgetReferencesForField(int $fieldObject, array $widgetRefs, array $objects, array $pageWidgets): array
+    {
+        $refs = $widgetRefs;
+        foreach (array_keys($pageWidgets) as $widgetObject) {
+            if (in_array($widgetObject, $refs, true) || !isset($objects[$widgetObject])) {
+                continue;
+            }
+
+            $body = $this->dictionaryObjectBody($objects[$widgetObject]) ?? trim($objects[$widgetObject]);
+            if (!$this->isWidget($body) || $this->objectReferenceValueAfterName($body, 'Parent') !== $fieldObject) {
+                continue;
+            }
+
+            $refs[] = $widgetObject;
+        }
+
+        return $refs;
     }
 
     /**

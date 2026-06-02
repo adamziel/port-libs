@@ -608,6 +608,14 @@ final class PdfSecurityPreflight
             ]);
         }
 
+        foreach ($outline->getNavigationReviewMetadata($pdfBytes, false)['outline_action_review_actions'] ?? [] as $action) {
+            if (!is_array($action)) {
+                continue;
+            }
+
+            $this->addDocumentActionReviewRow($actions, $action, 'outline_action', $this->outlineActionContext($action));
+        }
+
         foreach ($outline->getPageTransitionActionMetadata($pdfBytes) as $page) {
             $pageContext = [
                 'pnum' => $page['pnum'] ?? null,
@@ -667,6 +675,7 @@ final class PdfSecurityPreflight
             $signaturePermissionTransformReview
         );
         $certPermissionOpenActionReview = $this->certPermissionOpenActionReview($actions);
+        $outlineActionSecurityReview = $this->outlineActionSecurityReview($actions);
         $postSignatureActionObjects = $this->postSignatureActionObjects($actions);
         $postSignatureActionCount = $this->postSignatureActionCount($actions);
         $unsafeActionCount = count(array_filter($actions, fn (array $action): bool => $this->isUnsafeDocumentAction($action)));
@@ -676,6 +685,7 @@ final class PdfSecurityPreflight
             'present' => $actions !== [],
             'action_count' => count($actions),
             'open_action_count' => $this->documentActionCountBySource($actions, 'catalog_open_action'),
+            'outline_action_count' => (int) $outlineActionSecurityReview['outline_action_count'],
             'annotation_action_count' => $this->documentActionCountBySources($actions, ['page_annotation_action', 'page_annotation_additional_action']),
             'page_additional_action_count' => $this->documentActionCountBySource($actions, 'page_additional_action'),
             'acroform_action_count' => $this->documentActionCountBySources($actions, ['acroform_field_action', 'acroform_widget_action']),
@@ -731,6 +741,7 @@ final class PdfSecurityPreflight
             'signature_permission_transform_count' => (int) $signaturePermissionTransformReview['transform_count'],
             'cert_permission_open_action_count' => (int) $certPermissionOpenActionReview['open_action_count'],
             'cert_permission_open_action_review' => $certPermissionOpenActionReview,
+            'outline_action_security_review' => $outlineActionSecurityReview,
             'field_mdp_transform_count' => (int) $signaturePermissionTransformReview['field_mdp_transform_count'],
             'field_mdp_action_labels' => $signaturePermissionTransformReview['field_mdp_action_labels'],
             'field_mdp_field_names' => $signaturePermissionTransformReview['field_mdp_field_names'],
@@ -1290,6 +1301,9 @@ final class PdfSecurityPreflight
             $actions[$index]['open_action_permission_status'] = $this->openActionPermissionStatus($actions[$index], $signaturePermissionTransformReview);
             $actions[$index]['open_action_allowed_by_cert_permissions'] = false;
             $actions[$index]['open_action_requires_security_review'] = ($actions[$index]['source'] ?? null) === 'catalog_open_action';
+            $actions[$index]['outline_action_permission_status'] = $this->outlineActionPermissionStatus($actions[$index], $signaturePermissionTransformReview);
+            $actions[$index]['outline_action_allowed_by_cert_permissions'] = false;
+            $actions[$index]['outline_action_requires_security_review'] = ($actions[$index]['source'] ?? null) === 'outline_action';
             $actions[$index]['cert_permissions_grant_action_execution'] = false;
             $actions[$index]['signature_permission_review_only'] = true;
             $actions[$index]['dss_validation_review_only'] = ((int) $dssCertificateReview['certificate_count']) > 0;
@@ -1298,6 +1312,84 @@ final class PdfSecurityPreflight
         }
 
         return $actions;
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @return array<string, mixed>
+     */
+    private function outlineActionContext(array $action): array
+    {
+        return [
+            'outline_title' => is_string($action['outline_title'] ?? null) ? $action['outline_title'] : null,
+            'outline_level' => is_int($action['outline_level'] ?? null) ? $action['outline_level'] : null,
+            'outline_object' => is_int($action['outline_object'] ?? null) ? $action['outline_object'] : null,
+            'outline_parent_object' => is_int($action['outline_parent_object'] ?? null) ? $action['outline_parent_object'] : null,
+            'outline_destination_name' => is_string($action['destination_action_name'] ?? null)
+                ? $action['destination_action_name']
+                : (is_string($action['destination'] ?? null) ? $action['destination'] : null),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @return array<string, mixed>
+     */
+    private function outlineActionSecurityReview(array $actions): array
+    {
+        $outlineActions = array_values(array_filter(
+            $actions,
+            static fn (array $action): bool => ($action['source'] ?? null) === 'outline_action'
+        ));
+
+        return [
+            'source' => 'outline_action_security_review',
+            'present' => $outlineActions !== [],
+            'outline_action_count' => count($outlineActions),
+            'unsafe_outline_action_count' => count(array_filter(
+                $outlineActions,
+                fn (array $action): bool => $this->isUnsafeDocumentAction($action)
+            )),
+            'outline_titles' => $this->uniqueStringColumn($outlineActions, 'outline_title'),
+            'outline_objects' => $this->uniqueIntegerColumn($outlineActions, 'outline_object'),
+            'outline_action_objects' => $this->uniqueIntegerColumn($outlineActions, 'action_object'),
+            'outline_action_types' => $this->uniqueStringColumn($outlineActions, 'action_type'),
+            'outline_action_safety_labels' => $this->uniqueStringColumn($outlineActions, 'safety'),
+            'destination_action_names' => $this->uniqueStringColumn($outlineActions, 'destination_action_name'),
+            'destination_action_target_pages' => $this->uniqueIntegerColumn($outlineActions, 'destination_action_target_page'),
+            'destination_action_target_page_labels' => $this->uniqueStringColumn($outlineActions, 'destination_action_target_page_label'),
+            'destination_action_target_transition_styles' => $this->transitionStyleColumn($outlineActions, 'destination_action_target_page_transition'),
+            'destination_action_target_article_thread_titles' => $this->uniqueNestedStringColumn($outlineActions, 'destination_action_target_article_thread_titles'),
+            'signature_permission_transform_methods' => $this->uniqueNestedStringColumn($outlineActions, 'signature_permission_transform_methods'),
+            'outline_action_permission_statuses' => $this->uniqueStringColumn($outlineActions, 'outline_action_permission_status'),
+            'cert_permissions_grant_outline_action_execution' => false,
+            'rights_enforced_for_outline_action' => false,
+            'review_only' => true,
+            'executes_pdf_actions' => false,
+            'executes_rights_enforcement' => false,
+            'executes_signature_validation' => false,
+            'executes_trust_chain_validation' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private function transitionStyleColumn(array $rows, string $key): array
+    {
+        $styles = [];
+        foreach ($rows as $row) {
+            $transition = $row[$key] ?? null;
+            $style = is_array($transition) && is_string($transition['style'] ?? null)
+                ? $transition['style']
+                : null;
+            if ($style !== null && !in_array($style, $styles, true)) {
+                $styles[] = $style;
+            }
+        }
+
+        return $styles;
     }
 
     /**
@@ -1355,6 +1447,23 @@ final class PdfSecurityPreflight
         }
 
         return 'catalog_open_action_review_only_not_granted_by_cert_permissions';
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @param array<string, mixed> $signaturePermissionTransformReview
+     */
+    private function outlineActionPermissionStatus(array $action, array $signaturePermissionTransformReview): ?string
+    {
+        if (($action['source'] ?? null) !== 'outline_action') {
+            return null;
+        }
+
+        if ((int) ($signaturePermissionTransformReview['transform_count'] ?? 0) === 0) {
+            return 'outline_action_review_only_no_cert_permission_context';
+        }
+
+        return 'outline_action_review_only_not_granted_by_cert_permissions';
     }
 
     /**
@@ -1475,6 +1584,11 @@ final class PdfSecurityPreflight
             'annotation_object' => $context['annotation_object'] ?? null,
             'annotation_subtype' => $context['annotation_subtype'] ?? null,
             'catalog_object' => is_int($context['catalog_object'] ?? null) ? $context['catalog_object'] : null,
+            'outline_title' => is_string($context['outline_title'] ?? null) ? $context['outline_title'] : null,
+            'outline_level' => is_int($context['outline_level'] ?? null) ? $context['outline_level'] : null,
+            'outline_object' => is_int($context['outline_object'] ?? null) ? $context['outline_object'] : null,
+            'outline_parent_object' => is_int($context['outline_parent_object'] ?? null) ? $context['outline_parent_object'] : null,
+            'outline_destination_name' => is_string($context['outline_destination_name'] ?? null) ? $context['outline_destination_name'] : null,
             'event' => $action['event'] ?? null,
             'event_label' => $action['event_label'] ?? null,
             'trigger' => is_string($action['trigger'] ?? null) ? $action['trigger'] : null,
@@ -1494,8 +1608,31 @@ final class PdfSecurityPreflight
             'target_scheme' => is_string($action['target_scheme'] ?? null) ? $action['target_scheme'] : null,
             'operation' => is_string($action['operation'] ?? null) ? $action['operation'] : null,
             'destination' => is_string($action['destination'] ?? null) ? $action['destination'] : null,
+            'destination_action_name' => is_string($action['destination_action_name'] ?? null) ? $action['destination_action_name'] : null,
+            'destination_action_target_page' => is_int($action['destination_action_target_page'] ?? null) ? $action['destination_action_target_page'] : null,
+            'destination_action_target_page_label' => is_string($action['destination_action_target_page_label'] ?? null) ? $action['destination_action_target_page_label'] : null,
+            'destination_action_target_display_duration' => is_int($action['destination_action_target_display_duration'] ?? null) || is_float($action['destination_action_target_display_duration'] ?? null)
+                ? (float) $action['destination_action_target_display_duration']
+                : null,
+            'destination_action_target_page_transition' => is_array($action['destination_action_target_page_transition'] ?? null)
+                ? $action['destination_action_target_page_transition']
+                : null,
+            'destination_action_target_page_actions' => is_array($action['destination_action_target_page_actions'] ?? null)
+                ? $action['destination_action_target_page_actions']
+                : [],
+            'destination_action_target_article_beads' => is_array($action['destination_action_target_article_beads'] ?? null)
+                ? $action['destination_action_target_article_beads']
+                : [],
+            'destination_action_target_article_thread_titles' => $this->stringList($action['destination_action_target_article_thread_titles'] ?? []),
             'destination_page' => is_int($action['destination_page'] ?? null) ? $action['destination_page'] : null,
             'page' => is_int($action['page'] ?? null) ? $action['page'] : null,
+            'target_display_duration' => is_int($action['target_display_duration'] ?? null) || is_float($action['target_display_duration'] ?? null)
+                ? (float) $action['target_display_duration']
+                : null,
+            'target_page_transition' => is_array($action['target_page_transition'] ?? null) ? $action['target_page_transition'] : null,
+            'target_page_actions' => is_array($action['target_page_actions'] ?? null) ? $action['target_page_actions'] : [],
+            'target_article_beads' => is_array($action['target_article_beads'] ?? null) ? $action['target_article_beads'] : [],
+            'target_article_thread_titles' => $this->stringList($action['target_article_thread_titles'] ?? []),
             'new_window' => is_bool($action['new_window'] ?? null) ? $action['new_window'] : null,
             'is_safe_uri' => $this->documentActionSafeUri($action),
             'chained' => is_bool($action['chained'] ?? null) ? $action['chained'] : false,
@@ -1524,7 +1661,7 @@ final class PdfSecurityPreflight
      */
     private function documentActionContainerObject(array $row): ?int
     {
-        foreach (['annotation_object', 'widget_object', 'field_object', 'page_object', 'catalog_object'] as $key) {
+        foreach (['annotation_object', 'widget_object', 'field_object', 'page_object', 'outline_object', 'catalog_object'] as $key) {
             if (is_int($row[$key] ?? null)) {
                 return $row[$key];
             }
@@ -1538,7 +1675,7 @@ final class PdfSecurityPreflight
      */
     private function documentActionContainerSource(array $row): ?string
     {
-        foreach (['annotation_object', 'widget_object', 'field_object', 'page_object', 'catalog_object'] as $key) {
+        foreach (['annotation_object', 'widget_object', 'field_object', 'page_object', 'outline_object', 'catalog_object'] as $key) {
             if (is_int($row[$key] ?? null)) {
                 return $key;
             }

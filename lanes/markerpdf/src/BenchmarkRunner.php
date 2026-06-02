@@ -101,6 +101,142 @@ final class BenchmarkRunner
     }
 
     /**
+     * Review-only bridge for marker_server.py upload error payloads that need
+     * to survive a WordPress benchmark/output artifact roundtrip.
+     *
+     * @param array<string, mixed> $serverResponse
+     * @param array<string, mixed> $context
+     * @return array{path: string, filename: string, format: string, success_report_written: false, review_only: true, schema: string, status: string, error: string, size: int, sha256: string}
+     */
+    public function writeServerBenchmarkErrorArtifactJson(
+        string $errorArtifactFile,
+        array $serverResponse,
+        array $context = []
+    ): array {
+        $errorArtifactFile = trim($errorArtifactFile);
+        if ($errorArtifactFile === '') {
+            throw new InvalidArgumentException('Server benchmark error artifact JSON file must not be empty.');
+        }
+
+        $serverResponse = $this->serverBenchmarkErrorResponse($serverResponse);
+        $artifact = [
+            'path' => $errorArtifactFile,
+            'filename' => basename($errorArtifactFile),
+            'format' => 'json',
+            'success_report_written' => false,
+            'review_only' => true,
+        ];
+        $payload = [
+            'schema' => 'markerpdf.server_benchmark_error.v1',
+            'source' => 'sddai/markerPDF marker_server.py + benchmarks/overall.py + marker/output.py',
+            'status' => 'error',
+            'success' => false,
+            'error' => $serverResponse['error'],
+            'message_line' => 'Marker server benchmark output failed: ' . $serverResponse['error'],
+            'server_response' => $serverResponse,
+            'context' => $this->serverBenchmarkErrorContext($context),
+            'artifact' => $artifact,
+            'default_server_returns_error_payload' => true,
+            'default_benchmark_fails_fast' => true,
+            'success_report_written' => false,
+            'writes_markdown_after_failure' => false,
+            'executes_fastapi' => false,
+            'executes_uvicorn' => false,
+            'executes_live_http' => false,
+            'executes_external_tools' => false,
+            'executes_python_or_models' => false,
+            'review_only' => true,
+        ];
+
+        try {
+            $json = json_encode(
+                $payload,
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR
+            );
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException(
+                'Unable to encode markerPDF server benchmark error artifact as JSON.',
+                previous: $exception
+            );
+        }
+
+        if (@file_put_contents($errorArtifactFile, $json) === false) {
+            throw new RuntimeException('Unable to write markerPDF server benchmark error artifact: ' . $errorArtifactFile);
+        }
+
+        return $artifact + [
+            'schema' => 'markerpdf.server_benchmark_error.v1',
+            'status' => 'error',
+            'error' => $serverResponse['error'],
+            'size' => $this->artifactSize($errorArtifactFile),
+            'sha256' => $this->artifactSha256($errorArtifactFile),
+        ];
+    }
+
+    /**
+     * @return array{path: string, filename: string, schema: string, status: string, error: string, payload: array<string, mixed>, size: int, sha256: string, roundtrip_preserves_server_error: bool, review_only: true, executes_fastapi: false, executes_uvicorn: false, executes_live_http: false, executes_external_tools: false, executes_python_or_models: false}
+     */
+    public function readServerBenchmarkErrorArtifactJson(string $errorArtifactFile): array
+    {
+        $errorArtifactFile = trim($errorArtifactFile);
+        if ($errorArtifactFile === '') {
+            throw new InvalidArgumentException('Server benchmark error artifact JSON file must not be empty.');
+        }
+
+        $contents = @file_get_contents($errorArtifactFile);
+        if (!is_string($contents)) {
+            throw new InvalidArgumentException('Server benchmark error artifact JSON file is not readable: ' . $errorArtifactFile);
+        }
+
+        try {
+            $payload = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException(
+                'Server benchmark error artifact JSON file must contain valid JSON.',
+                previous: $exception
+            );
+        }
+        if (!is_array($payload)) {
+            throw new InvalidArgumentException('Server benchmark error artifact JSON must decode to an object.');
+        }
+
+        $schema = $payload['schema'] ?? null;
+        if ($schema !== 'markerpdf.server_benchmark_error.v1') {
+            throw new InvalidArgumentException('Server benchmark error artifact JSON has an unexpected schema.');
+        }
+        if (($payload['success'] ?? null) !== false || ($payload['status'] ?? null) !== 'error') {
+            throw new InvalidArgumentException('Server benchmark error artifact JSON must be an error payload.');
+        }
+        if (($payload['review_only'] ?? null) !== true) {
+            throw new InvalidArgumentException('Server benchmark error artifact JSON must be review-only.');
+        }
+
+        $error = $payload['error'] ?? null;
+        $serverResponse = $payload['server_response'] ?? null;
+        if (!is_string($error) || !is_array($serverResponse) || ($serverResponse['error'] ?? null) !== $error) {
+            throw new InvalidArgumentException('Server benchmark error artifact JSON did not preserve the server error.');
+        }
+
+        return [
+            'path' => $errorArtifactFile,
+            'filename' => basename($errorArtifactFile),
+            'schema' => $schema,
+            'status' => 'error',
+            'error' => $error,
+            'payload' => $payload,
+            'size' => $this->artifactSize($errorArtifactFile),
+            'sha256' => $this->artifactSha256($errorArtifactFile),
+            'roundtrip_preserves_server_error' => true,
+            'review_only' => true,
+            'executes_fastapi' => false,
+            'executes_uvicorn' => false,
+            'executes_live_http' => false,
+            'executes_external_tools' => false,
+            'executes_python_or_models' => false,
+        ];
+    }
+
+    /**
      * Native supplied-converter boundary for benchmarks/overall.py::main.
      *
      * @param array<string, callable(string, string, string, array<string, mixed>): mixed> $methodConverters
@@ -497,6 +633,99 @@ final class BenchmarkRunner
         }
 
         return 'Benchmark runner failed during ' . $phase . ': ' . $throwable->getMessage();
+    }
+
+    /**
+     * @param array<string, mixed> $serverResponse
+     * @return array<string, mixed>
+     */
+    private function serverBenchmarkErrorResponse(array $serverResponse): array
+    {
+        if (($serverResponse['success'] ?? null) !== false) {
+            throw new InvalidArgumentException('Server benchmark error artifact requires a failed marker server response.');
+        }
+
+        $error = $serverResponse['error'] ?? null;
+        if (!is_string($error) || trim($error) === '') {
+            throw new InvalidArgumentException('Server benchmark error artifact requires a non-empty server error string.');
+        }
+
+        $serverResponse['success'] = false;
+        $serverResponse['error'] = $error;
+
+        return $serverResponse;
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private function serverBenchmarkErrorContext(array $context): array
+    {
+        $normalized = [
+            'phase' => $this->optionalContextString($context['phase'] ?? 'server_upload', 'phase') ?? 'server_upload',
+            'method' => $this->optionalContextString($context['method'] ?? null, 'method'),
+            'document' => $this->optionalContextString($context['document'] ?? null, 'document'),
+            'benchmark_index' => $this->optionalContextInt($context['benchmark_index'] ?? null, 'benchmark_index'),
+            'markdown_output_folder' => $this->optionalContextString($context['markdown_output_folder'] ?? null, 'markdown_output_folder'),
+            'report_output' => $this->optionalContextString($context['report_output'] ?? null, 'report_output'),
+            'upload_removed' => array_key_exists('upload_removed', $context) ? (bool) $context['upload_removed'] : null,
+            'request_count' => $this->optionalContextInt($context['request_count'] ?? null, 'request_count'),
+        ];
+
+        foreach ($context as $key => $value) {
+            if (is_string($key) && !array_key_exists($key, $normalized)) {
+                $normalized[$key] = $value;
+            }
+        }
+
+        return $normalized;
+    }
+
+    private function optionalContextString(mixed $value, string $name): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (!is_scalar($value)) {
+            throw new InvalidArgumentException("Server benchmark error context {$name} must be scalar when provided.");
+        }
+
+        return (string) $value;
+    }
+
+    private function optionalContextInt(mixed $value, string $name): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (is_int($value)) {
+            return $value;
+        }
+        if (is_string($value) && preg_match('/^-?\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        throw new InvalidArgumentException("Server benchmark error context {$name} must be an integer when provided.");
+    }
+
+    private function artifactSize(string $path): int
+    {
+        clearstatcache(true, $path);
+
+        $size = filesize($path);
+
+        return $size === false ? 0 : $size;
+    }
+
+    private function artifactSha256(string $path): string
+    {
+        $hash = hash_file('sha256', $path);
+        if (!is_string($hash)) {
+            throw new RuntimeException('Unable to fingerprint markerPDF artifact: ' . $path);
+        }
+
+        return $hash;
     }
 
     /**

@@ -1342,6 +1342,15 @@ final class PdfMetadataExtractor
             $pageIndexes,
             $elements
         );
+        $this->collectParentTreeStructureReviewElements(
+            $catalog,
+            $rootBody,
+            $objects,
+            $rootLanguage,
+            $roleMap,
+            $pageIndexes,
+            $elements
+        );
 
         if ($elements === [] && $roleMap === [] && $namespaces === [] && $rootLanguage === null) {
             return [];
@@ -1471,6 +1480,140 @@ final class PdfMetadataExtractor
                     $depth + 1
                 );
             }
+        }
+    }
+
+    /**
+     * Page /StructParents ParentTree arrays can be the only place where
+     * page-local MCID StructElems are reachable. Include them in review
+     * metadata so tagged-content rows can carry StructElem /AF provenance.
+     *
+     * @param array<int, string> $objects
+     * @param array<string, string> $roleMap
+     * @param array<int, int> $pageIndexes
+     * @param list<array<string, mixed>> $elements
+     */
+    private function collectParentTreeStructureReviewElements(
+        string $catalog,
+        string $rootBody,
+        array $objects,
+        ?string $rootLanguage,
+        array $roleMap,
+        array $pageIndexes,
+        array &$elements
+    ): void {
+        $parentTree = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($rootBody, 'ParentTree'), $objects);
+        if ($parentTree === null) {
+            return;
+        }
+
+        $arrays = [];
+        $this->collectStructureParentTreeArrays($parentTree['body'], $objects, $arrays);
+        if ($arrays === []) {
+            return;
+        }
+
+        $seenElementObjects = [];
+        foreach ($elements as $element) {
+            $object = $element['object'] ?? null;
+            if (is_int($object)) {
+                $seenElementObjects[$object] = true;
+            }
+        }
+
+        foreach ($this->orderedDestinationPageObjectNumbers($catalog, $objects) as $pageObject) {
+            $pageBody = $this->dictionaryObjectBody($objects[$pageObject] ?? '');
+            if ($pageBody === null) {
+                continue;
+            }
+
+            $structParents = $this->dictionaryIntegerValue($pageBody, 'StructParents', $objects);
+            if ($structParents === null || !isset($arrays[$structParents])) {
+                continue;
+            }
+
+            foreach ($this->arrayItemsFromValue($arrays[$structParents], $objects) as $parentValue) {
+                $struct = $this->resolveDictionaryFromValue($parentValue, $objects);
+                if ($struct === null) {
+                    continue;
+                }
+
+                $object = $struct['object'];
+                if ($object !== null && isset($seenElementObjects[$object])) {
+                    continue;
+                }
+
+                $this->collectStructureDictionaryReview(
+                    $struct['body'],
+                    $object,
+                    $objects,
+                    $pageObject,
+                    $rootLanguage,
+                    $roleMap,
+                    $pageIndexes,
+                    $elements,
+                    $object === null ? [] : [$object => true],
+                    0
+                );
+
+                if ($object !== null) {
+                    $seenElementObjects[$object] = true;
+                }
+            }
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $arrays
+     * @param array<int, true> $seenObjects
+     */
+    private function collectStructureParentTreeArrays(
+        string $dictionary,
+        array $objects,
+        array &$arrays,
+        array $seenObjects = [],
+        int $depth = 0
+    ): void {
+        if ($depth > 20) {
+            return;
+        }
+
+        $nums = $this->dictionaryTopLevelRawValue($dictionary, 'Nums');
+        if ($nums !== null) {
+            $items = $this->arrayItemsFromValue($nums, $objects);
+            for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
+                $key = trim($items[$index]);
+                if (preg_match('/^[+-]?\d+$/', $key) !== 1) {
+                    continue;
+                }
+
+                $array = $this->arrayBody(trim($this->resolvePdfValue($items[$index + 1], $objects) ?? $items[$index + 1]));
+                if ($array !== null) {
+                    $arrays[(int) $key] = '[' . $array . ']';
+                }
+            }
+        }
+
+        $kids = $this->dictionaryTopLevelRawValue($dictionary, 'Kids');
+        if ($kids === null) {
+            return;
+        }
+
+        foreach ($this->arrayItemsFromValue($kids, $objects) as $kidValue) {
+            $kidObject = $this->objectNumberFromReference($kidValue);
+            if ($kidObject === null || isset($seenObjects[$kidObject])) {
+                continue;
+            }
+
+            $kid = $this->resolveDictionaryFromValue($kidValue, $objects);
+            if ($kid === null) {
+                continue;
+            }
+
+            $nextSeen = $seenObjects;
+            $nextSeen[$kidObject] = true;
+            $this->collectStructureParentTreeArrays($kid['body'], $objects, $arrays, $nextSeen, $depth + 1);
         }
     }
 
