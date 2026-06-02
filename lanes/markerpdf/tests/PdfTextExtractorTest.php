@@ -87,6 +87,38 @@ $runLengthEncode = static function (string $bytes): string {
     return $encoded . chr(128);
 };
 
+$lzwPackCodes = static function (array $codes): string {
+    $bits = '';
+    foreach ($codes as $code) {
+        if (!is_int($code) || $code < 0 || $code > 511) {
+            throw new RuntimeException('Focused LZW fixture uses 9-bit code segments only.');
+        }
+
+        for ($shift = 8; $shift >= 0; $shift--) {
+            $bits .= (($code >> $shift) & 1) === 1 ? '1' : '0';
+        }
+    }
+
+    $encoded = '';
+    for ($offset = 0, $length = strlen($bits); $offset < $length; $offset += 8) {
+        $byte = substr($bits, $offset, 8);
+        if (strlen($byte) < 8) {
+            $byte = str_pad($byte, 8, '0');
+        }
+        $encoded .= chr(bindec($byte));
+    }
+
+    return $encoded;
+};
+
+$lzwLiteralEncode = static function (string $bytes) use ($lzwPackCodes): string {
+    return $lzwPackCodes([
+        256,
+        ...array_map('ord', str_split($bytes)),
+        257,
+    ]);
+};
+
 $pngPredictorEncode = static function (string $bytes, int $columns): string {
     $encoded = '';
     for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $columns) {
@@ -251,6 +283,34 @@ return [
         $t->same('RL Flate Import', $extractor->extractPlainText($stackedPdf));
         $t->same('Queue: AAAAAA', $extractor->extractPlainText($repeatedPdf));
         $t->same('', $extractor->extractPlainText("%PDF-1.4\n1 0 obj\n<< /Filter /RunLengthDecode >>\nstream\n\x04bad\nendstream\nendobj\n%%EOF"));
+    },
+    'extracts LZW stream filters before WordPress paragraph rendering' => static function (TestRunner $t) use ($lzwPackCodes, $lzwLiteralEncode): void {
+        $prefix = 'BT /F1 12 Tf 72 720 Td (';
+        $suffix = ') Tj T* (Stack Ready) Tj ET';
+        $encoded = $lzwPackCodes([
+            256,
+            ...array_map('ord', str_split($prefix)),
+            256,
+            65,
+            66,
+            258,
+            260,
+            256,
+            ...array_map('ord', str_split($suffix)),
+            257,
+        ]);
+        $pdf = "%PDF-1.4\n1 0 obj\n<< /Filter /LZWDecode /Length " . strlen($encoded) . " >>\nstream\n{$encoded}\nendstream\nendobj\n%%EOF";
+
+        $compressed = gzcompress('BT /F1 12 Tf 72 720 Td (LZW Flate Import) Tj ET');
+        $t->true(is_string($compressed), 'LZW-to-Flate fixture should compress.');
+        $stacked = $lzwLiteralEncode($compressed);
+        $stackedPdf = "%PDF-1.4\n1 0 obj\n<< /Filter [ /LZW /FlateDecode ] /Length " . strlen($stacked) . " >>\nstream\n{$stacked}\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $t->same("ABABABA\nStack Ready", $extractor->extractPlainText($pdf));
+        $t->same(['ABABABA', 'Stack Ready'], $extractor->extractTextRuns($pdf));
+        $t->same('LZW Flate Import', $extractor->extractPlainText($stackedPdf));
+        $t->same('', $extractor->extractPlainText("%PDF-1.4\n1 0 obj\n<< /Filter /LZWDecode >>\nstream\n\x80\nendstream\nendobj\n%%EOF"));
     },
     'resolves indirect stream filters and benign DecodeParms for WordPress extraction' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Indirect Filter Import) Tj T* (DecodeParms Predictor One) Tj ET';

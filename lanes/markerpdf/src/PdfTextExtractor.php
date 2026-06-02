@@ -432,6 +432,7 @@ final class PdfTextExtractor
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
                 'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
+                'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $filterDecodeParms),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms),
                 default => $stream,
             };
@@ -541,7 +542,7 @@ final class PdfTextExtractor
         if (
             preg_match('/\/Predictor\s+(\d+)/', $decodeParms, $match) === 1
             && (int) $match[1] !== 1
-            && !in_array($filter, ['FlateDecode', 'Fl'], true)
+            && !in_array($filter, ['FlateDecode', 'Fl', 'LZWDecode', 'LZW'], true)
         ) {
             return false;
         }
@@ -656,10 +657,82 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->applyFlatePredictor($inflated, $decodeParms);
+        return $this->applyDecodeParmsPredictor($inflated, $decodeParms);
     }
 
-    private function applyFlatePredictor(string $bytes, ?string $decodeParms): ?string
+    private function decodeLzwStream(string $stream, ?string $decodeParms = null): ?string
+    {
+        $earlyChange = ($this->decodeParmsInt($decodeParms, 'EarlyChange') ?? 1) === 0 ? 0 : 1;
+        $bitOffset = 0;
+        $dictionary = [];
+        $nextCode = 258;
+        $codeSize = 9;
+
+        $resetDictionary = static function () use (&$dictionary, &$nextCode, &$codeSize): void {
+            $dictionary = [];
+            for ($code = 0; $code < 256; $code++) {
+                $dictionary[$code] = chr($code);
+            }
+            $nextCode = 258;
+            $codeSize = 9;
+        };
+        $resetDictionary();
+
+        $out = '';
+        $previous = null;
+        while (($code = $this->readLzwCode($stream, $bitOffset, $codeSize)) !== null) {
+            if ($code === 256) {
+                $resetDictionary();
+                $previous = null;
+                continue;
+            }
+
+            if ($code === 257) {
+                return $this->applyDecodeParmsPredictor($out, $decodeParms);
+            }
+
+            if (isset($dictionary[$code])) {
+                $entry = $dictionary[$code];
+            } elseif ($code === $nextCode && $previous !== null) {
+                $entry = $previous . $previous[0];
+            } else {
+                return null;
+            }
+
+            $out .= $entry;
+            if ($previous !== null && $nextCode < 4096) {
+                $dictionary[$nextCode] = $previous . $entry[0];
+                $nextCode++;
+                if ($codeSize < 12 && $nextCode + $earlyChange >= (1 << $codeSize)) {
+                    $codeSize++;
+                }
+            }
+            $previous = $entry;
+        }
+
+        return null;
+    }
+
+    private function readLzwCode(string $bytes, int &$bitOffset, int $codeSize): ?int
+    {
+        $totalBits = strlen($bytes) * 8;
+        if ($bitOffset + $codeSize > $totalBits) {
+            return null;
+        }
+
+        $code = 0;
+        for ($index = 0; $index < $codeSize; $index++) {
+            $absoluteBit = $bitOffset + $index;
+            $byte = ord($bytes[intdiv($absoluteBit, 8)]);
+            $shift = 7 - ($absoluteBit % 8);
+            $code = ($code << 1) | (($byte >> $shift) & 1);
+        }
+        $bitOffset += $codeSize;
+
+        return $code;
+    }
+
+    private function applyDecodeParmsPredictor(string $bytes, ?string $decodeParms): ?string
     {
         $predictor = $this->decodeParmsInt($decodeParms, 'Predictor') ?? 1;
         if ($predictor === 1) {
