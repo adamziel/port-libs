@@ -276,13 +276,15 @@ final class PdfAcroFormExtractor
             return null;
         }
 
-        $xml = trim($payload['xml']);
+        $normalized = $this->normalizeXfaXmlPayload($payload['xml']);
+        $xml = trim($normalized['xml']);
         if ($xml === '') {
             return null;
         }
 
         $root = $this->xmlRootName($xml);
         $name = $packetName !== null && $packetName !== '' ? $packetName : ($root ?? 'xfa');
+        $xdpPacketNames = $this->xdpPacketNames($xml);
 
         return [
             'index' => $index,
@@ -291,12 +293,16 @@ final class PdfAcroFormExtractor
             'source' => $source,
             'filters' => $payload['filters'],
             'xml_root' => $root,
+            'xml_encoding' => $normalized['encoding'],
+            'decoded_to_utf8' => $normalized['decoded_to_utf8'],
             'length_bytes' => strlen($xml),
             'xml_sha256' => hash('sha256', $xml),
+            'is_xdp_package' => $this->xmlLocalName($root) === 'xdp',
+            'xdp_packet_names' => $xdpPacketNames,
             'field_names' => $this->xfaFieldNames($xml),
             'data_node_names' => $this->xfaDataNodeNames($xml),
-            'has_template' => $name === 'template' || $this->xmlLocalName($root) === 'template' || stripos($xml, '<template') !== false,
-            'has_datasets' => $name === 'datasets' || $this->xmlLocalName($root) === 'datasets' || stripos($xml, 'datasets') !== false,
+            'has_template' => $this->xfaPayloadHasRole($name, $root, $xdpPacketNames, $xml, 'template'),
+            'has_datasets' => $this->xfaPayloadHasRole($name, $root, $xdpPacketNames, $xml, 'datasets'),
             'text_preview' => $this->xmlTextPreview($xml),
         ];
     }
@@ -379,6 +385,109 @@ final class PdfAcroFormExtractor
 
         $parts = explode(':', $name);
         return end($parts) ?: $name;
+    }
+
+    /**
+     * @return array{xml: string, encoding: string, decoded_to_utf8: bool}
+     */
+    private function normalizeXfaXmlPayload(string $xml): array
+    {
+        if (str_starts_with($xml, "\xEF\xBB\xBF")) {
+            return [
+                'xml' => substr($xml, 3),
+                'encoding' => 'UTF-8-BOM',
+                'decoded_to_utf8' => false,
+            ];
+        }
+
+        if (str_starts_with($xml, "\xFE\xFF")) {
+            $decoded = function_exists('iconv') ? @iconv('UTF-16BE', 'UTF-8//IGNORE', substr($xml, 2)) : false;
+            if (is_string($decoded)) {
+                return [
+                    'xml' => $decoded,
+                    'encoding' => 'UTF-16BE',
+                    'decoded_to_utf8' => true,
+                ];
+            }
+        }
+
+        if (str_starts_with($xml, "\xFF\xFE")) {
+            $decoded = function_exists('iconv') ? @iconv('UTF-16LE', 'UTF-8//IGNORE', substr($xml, 2)) : false;
+            if (is_string($decoded)) {
+                return [
+                    'xml' => $decoded,
+                    'encoding' => 'UTF-16LE',
+                    'decoded_to_utf8' => true,
+                ];
+            }
+        }
+
+        return [
+            'xml' => $xml,
+            'encoding' => 'UTF-8',
+            'decoded_to_utf8' => false,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xdpPacketNames(string $xml): array
+    {
+        if ($this->xmlLocalName($this->xmlRootName($xml)) !== 'xdp') {
+            return [];
+        }
+
+        if (preg_match('/<\s*([A-Za-z_][A-Za-z0-9_.:-]*)\b[^>]*>/s', $xml, $rootMatch, PREG_OFFSET_CAPTURE) !== 1) {
+            return [];
+        }
+
+        $body = substr($xml, $rootMatch[0][1] + strlen($rootMatch[0][0]));
+        $names = [];
+        $seen = [];
+        $depth = 0;
+        $offset = 0;
+        while (preg_match('/<\s*(\/?)([A-Za-z_][A-Za-z0-9_.:-]*)\b[^>]*(\/?)>/s', $body, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $offset = $match[0][1] + strlen($match[0][0]);
+            $closing = $match[1][0] === '/';
+            $tagName = $match[2][0];
+            $localName = $this->xmlLocalName($tagName);
+            if ($closing) {
+                if ($depth === 0 && $localName === 'xdp') {
+                    break;
+                }
+
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth === 0 && $localName !== null && $localName !== 'xdp' && !isset($seen[$localName])) {
+                $seen[$localName] = true;
+                $names[] = $localName;
+            }
+
+            if (!str_ends_with(rtrim($match[0][0]), '/>')) {
+                $depth++;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<string> $xdpPacketNames
+     */
+    private function xfaPayloadHasRole(string $name, ?string $root, array $xdpPacketNames, string $xml, string $role): bool
+    {
+        return $this->xmlLocalName($name) === $role
+            || $this->xmlLocalName($root) === $role
+            || in_array($role, $xdpPacketNames, true)
+            || $this->xmlContainsElement($xml, $role);
+    }
+
+    private function xmlContainsElement(string $xml, string $localName): bool
+    {
+        return preg_match('/<\s*(?:[A-Za-z_][A-Za-z0-9_.-]*:)?' . preg_quote($localName, '/') . '\b/si', $xml) === 1;
     }
 
     /**

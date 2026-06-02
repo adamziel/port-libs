@@ -294,6 +294,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-xfa-form-packet-import.php` maps catalog `/AcroForm /XFA` packet arrays into a review-only WordPress form path. It reports packet names, field hints, and data-node names without merging dynamic XFA XML into static AcroForm fields or executing external tooling.
 
+`examples/wordpress-pdf-xfa-xdp-stream-import.php` maps a single-stream UTF-16 XDP `/AcroForm /XFA` package into the same review-only WordPress form path. It reports the decoded XML encoding, `xdp:xdp` root, top-level XDP packet names, field names, and data-node names without rendering dynamic XFA values, executing XFA JavaScript, or loading external PDF/model tooling.
+
 `examples/wordpress-pdf-embedded-files-import.php` maps catalog `/Names /EmbeddedFiles` attachment metadata into a WordPress import path. It emits a core file block and review metadata for the embedded file while proving embedded-file payload streams do not leak into visible paragraph extraction.
 
 `examples/wordpress-pdf-richmedia-annotation-review.php` maps `/Screen` and `/RichMedia` annotations into WordPress review metadata. It records rendition/media files and actions as non-executing review rows while keeping media appearance streams out of imported paragraph text.

@@ -106,6 +106,43 @@ XML;
     return [$pdf, hash('sha256', $templateXml), hash('sha256', $datasetsXml), hash('sha256', $configXml)];
 };
 
+$xfaXdpStreamPdf = static function (): array {
+    $xdpXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-16"?>
+<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/">
+  <xfa:template xmlns:xfa="http://www.xfa.org/schema/xfa-template/3.3/">
+    <xfa:subform name="article">
+      <xfa:field name="article.title"><xfa:caption><xfa:value><xfa:text>Title</xfa:text></xfa:value></xfa:caption></xfa:field>
+    </xfa:subform>
+  </xfa:template>
+  <xfa:datasets>
+    <xfa:data>
+      <article><title>Fresh dynamic value</title></article>
+    </xfa:data>
+  </xfa:datasets>
+  <config><present>pdf</present></config>
+</xdp:xdp>
+XML;
+    $encoded = iconv('UTF-8', 'UTF-16BE', $xdpXml);
+    assert(is_string($encoded));
+    $utf16 = "\xFE\xFF" . $encoded;
+    $compressed = gzcompress($utf16);
+    assert(is_string($compressed));
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R] /XFA 30 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (fallback.title) /V (fallback title) >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($compressed) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressed
+        . "\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, $xdpXml, hash('sha256', trim($xdpXml))];
+};
+
 $submitResetActionPdf = static function (): string {
     return "%PDF-1.7\n"
         . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
@@ -415,6 +452,35 @@ return [
         $t->same([], $config['field_names']);
         $t->same([], $config['data_node_names']);
         $t->same('pdf', $config['text_preview']);
+    },
+    'extracts UTF-16 XDP XFA stream packet metadata without dynamic field merge' => static function (TestRunner $t) use ($xfaXdpStreamPdf, $fieldsByName): void {
+        [$pdf, $xdpXml, $xdpHash] = $xfaXdpStreamPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $packets = $form['xfa_packets'];
+
+        $t->true($form['xfa_overrides_page_content']);
+        $t->same(1, count($fields));
+        $t->same('fallback title', $fields['fallback.title']['value']);
+        $t->same(1, count($packets));
+
+        $packet = $packets[0];
+        $t->same('xdp:xdp', $packet['name']);
+        $t->same(30, $packet['object']);
+        $t->same('acroform_xfa_value', $packet['source']);
+        $t->same(['FlateDecode'], $packet['filters']);
+        $t->same('xdp:xdp', $packet['xml_root']);
+        $t->same('UTF-16BE', $packet['xml_encoding']);
+        $t->true($packet['decoded_to_utf8']);
+        $t->same($xdpHash, $packet['xml_sha256']);
+        $t->same(['template', 'datasets', 'config'], $packet['xdp_packet_names']);
+        $t->same(['article.title'], $packet['field_names']);
+        $t->same(['article', 'title'], $packet['data_node_names']);
+        $t->true($packet['is_xdp_package']);
+        $t->true($packet['has_template']);
+        $t->true($packet['has_datasets']);
+        $t->true(str_contains($packet['text_preview'], 'Fresh dynamic value'));
+        $t->true(str_contains($xdpXml, '<xdp:xdp'));
     },
     'extracts SubmitForm and ResetForm action review metadata without executing actions' => static function (TestRunner $t) use ($submitResetActionPdf, $fieldsByName): void {
         $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($submitResetActionPdf()));
