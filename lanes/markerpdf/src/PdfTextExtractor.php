@@ -515,60 +515,71 @@ final class PdfTextExtractor
         $xrefEntries = $this->xrefEntries($pdfBytes, $objects, $definitions);
         $startxrefOffset = $this->latestStartxrefOffset($pdfBytes, $definitions);
 
-        foreach ($definitions as $objectNumber => $objectDefinitions) {
-            foreach ($objectDefinitions as $definition) {
-                if (preg_match('/\/Type\s*\/XRef\b/s', $definition['body']) !== 1) {
-                    continue;
+        $previousOwners = $this->currentObjectReferenceOwners;
+        $objects = $this->liveDirectObjects($definitions, $xrefEntries);
+        $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
+        $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
+        $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
+        $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
+
+        try {
+            foreach ($definitions as $objectNumber => $objectDefinitions) {
+                foreach ($objectDefinitions as $definition) {
+                    if (preg_match('/\/Type\s*\/XRef\b/s', $definition['body']) !== 1) {
+                        continue;
+                    }
+
+                    $review['xref_stream_count']++;
+                    $dict = $this->dictionaryObjectBody($definition['body']);
+                    if ($dict === null) {
+                        continue;
+                    }
+
+                    $filterOperands = $this->xrefStreamOperandReviews($dict, 'Filter', $objects, $xrefEntries, $definitions);
+                    $lengthOperands = $this->xrefStreamOperandReviews($dict, 'Length', $objects, $xrefEntries, $definitions);
+                    $operands = array_merge($filterOperands, $lengthOperands);
+
+                    $filterIndirectCount = $this->xrefStreamIndirectOperandCount($filterOperands);
+                    $lengthIndirectCount = $this->xrefStreamIndirectOperandCount($lengthOperands);
+                    $selectedOperandCount = $this->xrefStreamSelectedOperandCount($operands);
+                    $unresolvedOperandCount = $this->xrefStreamUnresolvedOperandCount($operands);
+
+                    $review['indirect_filter_count'] += $filterIndirectCount;
+                    $review['indirect_length_count'] += $lengthIndirectCount;
+                    $review['xref_selected_operand_count'] += $selectedOperandCount;
+                    $review['unresolved_operand_count'] += $unresolvedOperandCount;
+
+                    $filters = $this->streamFilters($dict, $objects);
+                    $decodedEntries = $this->xrefStreamEntriesFromDefinition($definition, $objects, $definitions);
+                    $review['entries'][] = [
+                        'object_number' => $objectNumber,
+                        'generation' => $definition['generation'],
+                        'offset' => $definition['offset'],
+                        'startxref_selected' => $startxrefOffset === $definition['offset'],
+                        'filters' => $filters ?? [],
+                        'filter_resolution_failed' => $filters === null,
+                        'declared_length' => $this->streamLength($dict, $objects),
+                        'filter_operands' => $filterOperands,
+                        'length_operand' => $lengthOperands[0] ?? [
+                            'name' => 'Length',
+                            'kind' => 'absent',
+                            'resolved' => false,
+                            'xref_selected' => false,
+                            'owner_policy' => 'missing_operand',
+                        ],
+                        'indirect_filter_count' => $filterIndirectCount,
+                        'indirect_length_count' => $lengthIndirectCount,
+                        'xref_selected_operand_count' => $selectedOperandCount,
+                        'unresolved_operand_count' => $unresolvedOperandCount,
+                        'decoded_entry_count' => count($decodedEntries),
+                        'decoded_with_current_operands' => $decodedEntries !== [] && $unresolvedOperandCount === 0,
+                        'owner_policy' => $this->xrefStreamOperandOwnerPolicy($selectedOperandCount, $unresolvedOperandCount, $operands),
+                        'review_only' => true,
+                    ];
                 }
-
-                $review['xref_stream_count']++;
-                $dict = $this->dictionaryObjectBody($definition['body']);
-                if ($dict === null) {
-                    continue;
-                }
-
-                $filterOperands = $this->xrefStreamOperandReviews($dict, 'Filter', $objects, $xrefEntries, $definitions);
-                $lengthOperands = $this->xrefStreamOperandReviews($dict, 'Length', $objects, $xrefEntries, $definitions);
-                $operands = array_merge($filterOperands, $lengthOperands);
-
-                $filterIndirectCount = $this->xrefStreamIndirectOperandCount($filterOperands);
-                $lengthIndirectCount = $this->xrefStreamIndirectOperandCount($lengthOperands);
-                $selectedOperandCount = $this->xrefStreamSelectedOperandCount($operands);
-                $unresolvedOperandCount = $this->xrefStreamUnresolvedOperandCount($operands);
-
-                $review['indirect_filter_count'] += $filterIndirectCount;
-                $review['indirect_length_count'] += $lengthIndirectCount;
-                $review['xref_selected_operand_count'] += $selectedOperandCount;
-                $review['unresolved_operand_count'] += $unresolvedOperandCount;
-
-                $filters = $this->streamFilters($dict, $objects);
-                $decodedEntries = $this->xrefStreamEntriesFromDefinition($definition, $objects, $definitions);
-                $review['entries'][] = [
-                    'object_number' => $objectNumber,
-                    'generation' => $definition['generation'],
-                    'offset' => $definition['offset'],
-                    'startxref_selected' => $startxrefOffset === $definition['offset'],
-                    'filters' => $filters ?? [],
-                    'filter_resolution_failed' => $filters === null,
-                    'declared_length' => $this->streamLength($dict, $objects),
-                    'filter_operands' => $filterOperands,
-                    'length_operand' => $lengthOperands[0] ?? [
-                        'name' => 'Length',
-                        'kind' => 'absent',
-                        'resolved' => false,
-                        'xref_selected' => false,
-                        'owner_policy' => 'missing_operand',
-                    ],
-                    'indirect_filter_count' => $filterIndirectCount,
-                    'indirect_length_count' => $lengthIndirectCount,
-                    'xref_selected_operand_count' => $selectedOperandCount,
-                    'unresolved_operand_count' => $unresolvedOperandCount,
-                    'decoded_entry_count' => count($decodedEntries),
-                    'decoded_with_current_operands' => $decodedEntries !== [] && $unresolvedOperandCount === 0,
-                    'owner_policy' => $this->xrefStreamOperandOwnerPolicy($selectedOperandCount, $unresolvedOperandCount, $operands),
-                    'review_only' => true,
-                ];
             }
+        } finally {
+            $this->currentObjectReferenceOwners = $previousOwners;
         }
 
         return $review;
@@ -10950,7 +10961,12 @@ final class PdfTextExtractor
             return false;
         }
 
-        $streamObjects = $this->objectsWithDirectStreamDictionaryOperandOwners($objects, $definition['body'], $definitions);
+        $streamObjects = $this->objectsWithDirectStreamDictionaryOperandOwners(
+            $objects,
+            $definition['body'],
+            $definitions,
+            $definition['offset']
+        );
         $entry = $this->streamDictionaryAndPayload($definition['body'], $streamObjects);
         if ($entry === null) {
             return true;
@@ -12309,9 +12325,11 @@ final class PdfTextExtractor
         $selected = $xrefEntry === null
             ? null
             : $this->liveDirectObjectDefinition($definitions[$objectNumber] ?? [], $xrefEntry);
-        $xrefSelected = $definition !== null
+        $directXrefSelected = $definition !== null
             && $selected !== null
             && $selected['offset'] === $definition['offset'];
+        $compressedXrefSelected = ($xrefEntry['type'] ?? null) === 2 && isset($objects[$objectNumber]);
+        $xrefSelected = $directXrefSelected || $compressedXrefSelected;
         $ownerPolicy = $this->xrefStreamIndirectOperandOwnerPolicy(
             $objectNumber,
             $objects,
@@ -12734,7 +12752,7 @@ final class PdfTextExtractor
 
         $streamObjects = $definitions === null
             ? $objects
-            : $this->objectsWithDirectStreamDictionaryOperandOwners($objects, $body, $definitions);
+            : $this->objectsWithDirectStreamDictionaryOperandOwners($objects, $body, $definitions, $definition['offset']);
         $decoded = $this->decodeStreamObject($body, $streamObjects);
         if ($decoded === null) {
             return $entries;
@@ -12808,7 +12826,8 @@ final class PdfTextExtractor
     private function objectsWithDirectStreamDictionaryOperandOwners(
         array $objects,
         string $objectBody,
-        array $definitions
+        array $definitions,
+        ?int $beforeOffset = null
     ): array {
         $dict = $this->dictionaryObjectBody($objectBody);
         if ($dict === null) {
@@ -12849,11 +12868,23 @@ final class PdfTextExtractor
             $seen[$key] = true;
 
             $definition = $this->directObjectDefinitionForGeneration($definitions[$objectNumber] ?? [], $generation);
-            if ($definition === null) {
+            $compressed = $this->compressedStreamDictionaryOperandHelperBeforeOffset(
+                $definitions,
+                $resolved,
+                $objectNumber,
+                $generation,
+                $beforeOffset
+            );
+            if ($definition === null && $compressed === null) {
                 continue;
             }
 
-            $body = trim($definition['body']);
+            $usesCompressedOwner = $compressed !== null
+                && (
+                    $definition === null
+                    || $compressed['carrierOffset'] > $definition['offset']
+                );
+            $body = trim($usesCompressedOwner ? $compressed['body'] : $definition['body']);
             if (!$this->directObjectStreamFilterHelperBodyIsSafe($body)) {
                 continue;
             }
@@ -12865,6 +12896,77 @@ final class PdfTextExtractor
         }
 
         return $resolved;
+    }
+
+    /**
+     * Before an xref stream has decoded, its own stream dictionary operands can
+     * still be current generation-zero members of a direct object stream. This
+     * keeps newer compressed helper operands from losing to stale scanned
+     * direct same-number operands while staying bounded to safe helper values.
+     *
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, string> $objects
+     * @return array{body: string, carrierOffset: int}|null
+     */
+    private function compressedStreamDictionaryOperandHelperBeforeOffset(
+        array $definitions,
+        array $objects,
+        int $objectNumber,
+        int $generation,
+        ?int $beforeOffset
+    ): ?array {
+        if ($objectNumber <= 0 || $generation !== 0) {
+            return null;
+        }
+
+        $selected = null;
+        foreach ($definitions as $carrierDefinitions) {
+            foreach ($carrierDefinitions as $definition) {
+                if ($beforeOffset !== null && $definition['offset'] >= $beforeOffset) {
+                    continue;
+                }
+
+                if (preg_match('/\/Type\s*\/ObjStm\b/', $definition['body']) !== 1) {
+                    continue;
+                }
+
+                $memberTable = $this->decodedObjectStreamMemberTable($definition['body'], $objects);
+                if ($memberTable === null) {
+                    continue;
+                }
+
+                foreach ($memberTable['members'] as $index => $member) {
+                    if ($member['objectNumber'] !== $objectNumber) {
+                        continue;
+                    }
+
+                    $nextOffset = isset($memberTable['members'][$index + 1])
+                        ? $memberTable['members'][$index + 1]['offset']
+                        : strlen($memberTable['decoded']) - $memberTable['first'];
+                    if ($nextOffset <= $member['offset']) {
+                        continue;
+                    }
+
+                    $body = trim(substr(
+                        $memberTable['decoded'],
+                        $memberTable['first'] + $member['offset'],
+                        $nextOffset - $member['offset']
+                    ));
+                    if (!$this->directObjectStreamFilterHelperBodyIsSafe($body)) {
+                        continue;
+                    }
+
+                    if ($selected === null || $definition['offset'] > $selected['carrierOffset']) {
+                        $selected = [
+                            'body' => $body,
+                            'carrierOffset' => $definition['offset'],
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $selected;
     }
 
     /**

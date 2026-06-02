@@ -156,6 +156,7 @@ final class PdfAcroFormExtractor
         $fields = $this->annotateCalculationAndSignatureState($fields, $calculationOrder, $calculationOrderReview, $signatureFlags);
         if ($xfaPackets !== []) {
             $fields = $this->annotateXfaFieldBoundaries($fields, $xfaPackets);
+            $fields = $this->annotateWidgetXfaActionAppearanceValueReviews($fields);
         }
         $fields = $this->annotateRichTextXfaActionStateReviews($fields);
         $fields = $this->annotateSignatureWidgetReviews($fields);
@@ -995,6 +996,43 @@ final class PdfAcroFormExtractor
                 $fields[$index]['signature_state']['xfa_dynamic_value_present'] = $boundary['dynamic_value_present'];
                 $fields[$index]['signature_state']['xfa_value_used_for_signature'] = false;
             }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fields
+     * @return list<array<string, mixed>>
+     */
+    private function annotateWidgetXfaActionAppearanceValueReviews(array $fields): array
+    {
+        foreach ($fields as $index => $field) {
+            $xfaBoundary = is_array($field['xfa_boundary'] ?? null) ? $field['xfa_boundary'] : null;
+            if ($xfaBoundary === null || ($xfaBoundary['referenced_by_xfa'] ?? false) !== true) {
+                continue;
+            }
+
+            $widgets = $this->arrayRows($field['widgets'] ?? []);
+            $fieldActions = $this->arrayRows($field['actions'] ?? []);
+            $widgetActions = [];
+            foreach ($widgets as $widget) {
+                foreach ($this->arrayRows($widget['actions'] ?? []) as $action) {
+                    $widgetActions[] = $action;
+                }
+            }
+
+            if ($widgets === [] && $fieldActions === [] && $widgetActions === []) {
+                continue;
+            }
+
+            $fields[$index]['widget_xfa_action_appearance_value_review'] = $this->widgetXfaActionAppearanceValueReview(
+                $field,
+                $xfaBoundary,
+                $widgets,
+                $fieldActions,
+                $widgetActions
+            );
         }
 
         return $fields;
@@ -2489,6 +2527,165 @@ final class PdfAcroFormExtractor
             'executes_form_actions' => false,
             'executes_javascript' => false,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
+     * @param list<array<string, mixed>> $fieldActions
+     * @param list<array<string, mixed>> $widgetActions
+     * @return array<string, mixed>
+     */
+    private function widgetXfaActionAppearanceValueReview(
+        array $field,
+        array $boundary,
+        array $widgets,
+        array $fieldActions,
+        array $widgetActions
+    ): array {
+        $pageWidgets = array_values(array_filter(
+            $widgets,
+            static fn (array $widget): bool => ($widget['referenced_from_page_annots'] ?? false) === true
+        ));
+        $primaryWidget = $pageWidgets[0] ?? ($widgets[0] ?? null);
+        $normalAppearance = is_array($primaryWidget['normal_appearance'] ?? null) ? $primaryWidget['normal_appearance'] : null;
+        $selectedAppearance = is_array($normalAppearance['selected_appearance'] ?? null) ? $normalAppearance['selected_appearance'] : null;
+        $valueState = is_array($field['value_state'] ?? null) ? $field['value_state'] : [];
+        $appearance = $this->fieldWidgetAppearanceSummary($field);
+        $actions = array_merge($fieldActions, $widgetActions);
+        $chainReviews = $this->actionReviewRowsForField($field, $widgets);
+
+        return [
+            'source' => 'acroform_widget_xfa_action_appearance_value_currentbase_review_boundary',
+            'field_name' => $field['name'] ?? null,
+            'field_type' => $field['field_type'] ?? null,
+            'field_type_label' => $field['field_type_label'] ?? null,
+            'field_object' => $field['object'] ?? null,
+            'has_current_value' => (bool) ($valueState['has_current_value'] ?? false),
+            'has_default_value' => (bool) ($valueState['has_default_value'] ?? false),
+            'current' => $valueState['effective_current_state'] ?? ($valueState['current'] ?? ($field['value'] ?? null)),
+            'default' => $valueState['default'] ?? ($field['default_value'] ?? null),
+            'display_value' => $valueState['display_value'] ?? $this->displayValue($field['value'] ?? null),
+            'current_source' => $valueState['state_source'] ?? ($valueState['current_source'] ?? null),
+            'current_source_object' => $valueState['current_source_object'] ?? null,
+            'default_source' => $valueState['default_source'] ?? null,
+            'default_source_object' => $valueState['default_source_object'] ?? null,
+            'changed_from_default' => $valueState['changed_from_default'] ?? null,
+            'acroform_current_value_authoritative' => true,
+            'acroform_default_value_authoritative_for_reset' => true,
+            'widget_appearance_state_authoritative' => ($field['field_type'] ?? null) === 'Btn',
+            'referenced_by_xfa' => (bool) ($boundary['referenced_by_xfa'] ?? false),
+            'has_xfa_template_reference' => (bool) ($boundary['has_xfa_template_reference'] ?? false),
+            'has_xfa_dataset_reference' => (bool) ($boundary['has_xfa_dataset_reference'] ?? false),
+            'dynamic_value_present' => (bool) ($boundary['dynamic_value_present'] ?? false),
+            'xfa_packet_indexes' => $boundary['packet_indexes'] ?? [],
+            'xfa_packet_names' => $boundary['packet_names'] ?? [],
+            'xfa_packet_objects' => $boundary['packet_objects'] ?? [],
+            'xfa_matched_field_names' => $boundary['matched_field_names'] ?? [],
+            'xfa_matched_data_paths' => $boundary['matched_data_paths'] ?? [],
+            'xfa_matched_data_value_count' => (int) ($boundary['matched_data_value_count'] ?? 0),
+            'xfa_matched_data_value_previews' => $boundary['matched_data_value_previews'] ?? [],
+            'xfa_matched_data_value_sha256' => $boundary['matched_data_value_sha256'] ?? [],
+            'xfa_value_used_for_current_value' => false,
+            'xfa_value_used_for_default_value' => false,
+            'xfa_value_used_for_widget_state' => false,
+            'xfa_value_used_for_submit' => false,
+            'xfa_value_used_for_import' => false,
+            'xfa_payload_text_exposed' => false,
+            'widget_count' => $appearance['widget_count'],
+            'page_referenced_widget_count' => $appearance['page_referenced_widget_count'],
+            'widget_objects' => $appearance['widget_objects'],
+            'page_widget_objects' => $this->integerValuesFromRows($pageWidgets, 'object'),
+            'visible_widget_count' => count(array_filter($widgets, static fn (array $widget): bool => ($widget['visible'] ?? false) === true)),
+            'hidden_widget_count' => count(array_filter($widgets, static fn (array $widget): bool => ($widget['hidden'] ?? false) === true)),
+            'printable_widget_count' => count(array_filter($widgets, static fn (array $widget): bool => ($widget['printable'] ?? false) === true)),
+            'primary_widget_object' => is_array($primaryWidget) ? ($primaryWidget['object'] ?? null) : null,
+            'primary_widget_page_index' => is_array($primaryWidget) ? ($primaryWidget['page_index'] ?? null) : null,
+            'primary_widget_page_object' => is_array($primaryWidget) ? ($primaryWidget['page_object'] ?? null) : null,
+            'primary_widget_page_annotation_index' => is_array($primaryWidget) ? ($primaryWidget['page_annotation_index'] ?? null) : null,
+            'primary_widget_referenced_from_page_annots' => is_array($primaryWidget) && ($primaryWidget['referenced_from_page_annots'] ?? false) === true,
+            'primary_widget_rect' => is_array($primaryWidget) ? ($primaryWidget['rect'] ?? null) : null,
+            'primary_widget_visibility' => is_array($primaryWidget) ? ($primaryWidget['annotation_visibility'] ?? null) : null,
+            'primary_widget_flag_names' => is_array($primaryWidget) ? ($primaryWidget['annotation_flag_names'] ?? []) : [],
+            'primary_widget_appearance_state' => is_array($primaryWidget) ? ($primaryWidget['appearance_state'] ?? null) : null,
+            'primary_widget_normal_appearance_type' => is_array($normalAppearance) ? ($normalAppearance['normal_appearance_type'] ?? null) : null,
+            'widget_appearance_states' => $appearance['appearance_states'],
+            'checked_widget_count' => (int) ($valueState['checked_widget_count'] ?? $appearance['checked_widget_count']),
+            'widget_state_consistent' => $valueState['widget_state_consistent'] ?? null,
+            'selected_appearance_object' => is_array($selectedAppearance) ? ($selectedAppearance['object'] ?? null) : null,
+            'selected_appearance_objects' => $appearance['selected_appearance_objects'],
+            'selected_appearance_decoded_sha256' => is_array($selectedAppearance) ? ($selectedAppearance['decoded_sha256'] ?? null) : null,
+            'selected_appearance_decoded_sha256_values' => $appearance['selected_appearance_decoded_sha256'],
+            'state_matches_appearance' => is_array($normalAppearance) ? ($normalAppearance['state_matches_appearance'] ?? null) : null,
+            'stale_appearance_state_count' => $appearance['stale_appearance_state_count'],
+            'appearance_value_used_for_import' => false,
+            'appearance_payload_text_exposed' => false,
+            'action_count' => count($actions),
+            'unique_action_count' => $this->uniqueActionReviewCount($actions),
+            'field_action_count' => count($fieldActions),
+            'widget_action_count' => count($widgetActions),
+            'chained_action_count' => $this->actionCountWithFlag($actions, 'chained'),
+            'action_types' => $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['action_type'] ?? null,
+                $actions
+            )),
+            'action_triggers' => $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['trigger'] ?? null,
+                $actions
+            )),
+            'action_trigger_labels' => $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['trigger_label'] ?? null,
+                $actions
+            )),
+            'action_safety_labels' => $this->actionSafetyLabels($actions),
+            'action_objects' => $this->integerValuesFromRows($actions, 'action_object'),
+            'action_targets' => $this->actionTargets($actions),
+            'action_field_names' => $this->actionFieldNamesFromRows($actions),
+            'submit_action_field_names' => $this->actionFieldNames($actions, ['SubmitForm']),
+            'reset_action_field_names' => $this->actionFieldNames($actions, ['ResetForm']),
+            'hide_action_field_names' => $this->actionFieldNames($actions, ['Hide']),
+            'javascript_action_count' => $this->actionCountWithType($actions, 'JavaScript'),
+            'submit_form_action_count' => $this->actionCountWithType($actions, 'SubmitForm'),
+            'reset_form_action_count' => $this->actionCountWithType($actions, 'ResetForm'),
+            'import_data_action_count' => $this->actionCountWithType($actions, 'ImportData'),
+            'hide_action_count' => $this->actionCountWithType($actions, 'Hide'),
+            'unsafe_uri_action_count' => $this->unsafeUriActionCount($actions),
+            'action_chain_cycle_edges_blocked' => $this->sumActionReviewRows($chainReviews, 'cycle_edges_blocked'),
+            'action_chain_max_depth_edges_blocked' => $this->sumActionReviewRows($chainReviews, 'max_depth_edges_blocked'),
+            'review_only' => true,
+            'form_actions_review_only' => true,
+            'submits_form_data' => false,
+            'resets_form_values' => false,
+            'imports_form_data' => false,
+            'changes_widget_visibility' => false,
+            'executes_action' => false,
+            'executes_javascript' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+            'executes_xfa_javascript' => false,
+            'imports_xfa_payload' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
+     * @return list<array<string, mixed>>
+     */
+    private function actionReviewRowsForField(array $field, array $widgets): array
+    {
+        $reviews = [];
+        if (is_array($field['action_review'] ?? null)) {
+            $reviews[] = $field['action_review'];
+        }
+
+        foreach ($widgets as $widget) {
+            if (is_array($widget['action_review'] ?? null)) {
+                $reviews[] = $widget['action_review'];
+            }
+        }
+
+        return $reviews;
     }
 
     /**

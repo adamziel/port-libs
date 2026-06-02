@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfAcroFormExtractor;
+use PortLibs\MarkerPDF\PdfTextExtractor;
 
 $acroFormPdf = static function (): string {
     return "%PDF-1.4\n"
@@ -279,6 +280,54 @@ XML;
         . "%%EOF";
 
     return [$pdf, hash('sha256', trim($xdpXml)), $appearance, $focusScript];
+};
+
+$widgetXfaActionAppearanceValueCurrentBasePdf = static function (): array {
+    $xdpXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/">
+  <xfa:template xmlns:xfa="http://www.xfa.org/schema/xfa-template/3.3/">
+    <xfa:subform name="article">
+      <xfa:field name="article.summary"><xfa:caption><xfa:value><xfa:text>Summary</xfa:text></xfa:value></xfa:caption></xfa:field>
+    </xfa:subform>
+  </xfa:template>
+  <xfa:datasets>
+    <xfa:data>
+      <article><summary>XFA dynamic summary must stay review metadata</summary></article>
+    </xfa:data>
+  </xfa:datasets>
+</xdp:xdp>
+XML;
+
+    $pageText = 'BT /F1 12 Tf 72 720 Td (Visible widget XFA action appearance value body) Tj ET';
+    $appearance = 'BT /FApp 10 Tf 0 0 Td (Selected widget appearance review text) Tj ET';
+    $script = "app.alert('focus action stays review only');";
+    $compressedXfa = gzcompress($xdpXml);
+    $compressedAppearance = gzcompress($appearance);
+    $compressedScript = gzcompress($script);
+    if (!is_string($compressedXfa) || !is_string($compressedAppearance) || !is_string($compressedScript)) {
+        throw new RuntimeException('Unable to compress widget XFA action appearance fixture.');
+    }
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R] /NeedAppearances true /XFA 30 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (article.summary) /V (Static AcroForm summary) /DV (Draft AcroForm summary) /Kids [8 0 R] /AA << /V 20 0 R >> >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 360 664] /P 3 0 R /F 4 /AS /Ready /AP << /N << /Ready 40 0 R /Off 41 0 R >> >> /A 21 0 R /AA << /Fo 22 0 R >> >>\nendobj\n"
+        . "20 0 obj\n<< /S /URI /URI (javascript:fieldValidate\\(\\)) /Next << /S /Hide /T [8 0 R] /H true >> >>\nendobj\n"
+        . "21 0 obj\n<< /S /SubmitForm /F << /Type /Filespec /F (summary-submit.fdf) >> /Fields [6 0 R] /Flags 4 >>\nendobj\n"
+        . "22 0 obj\n<< /S /JavaScript /JS 24 0 R >>\nendobj\n"
+        . "24 0 obj\n<< /Length " . strlen($compressedScript) . " /Filter /FlateDecode >>\nstream\n{$compressedScript}\nendstream\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($compressedXfa) . " /Filter /FlateDecode >>\nstream\n{$compressedXfa}\nendstream\nendobj\n"
+        . "40 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 260 24] /Resources << /Font << /FApp 50 0 R >> >> /Length " . strlen($compressedAppearance) . " /Filter /FlateDecode >>\nstream\n{$compressedAppearance}\nendstream\nendobj\n"
+        . "41 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "50 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, trim($xdpXml), $appearance, $script];
 };
 
 $submitResetActionPdf = static function (): string {
@@ -1066,6 +1115,89 @@ return [
         $t->true($title['signature_lock_state']['effective_locked']);
         $t->same(['approval.signature'], $title['signature_lock_state']['locked_by_signatures']);
         $t->same(false, $title['xfa_boundary']['value_used_for_import']);
+    },
+    'rebases widget XFA action appearance and current value review on current base' => static function (TestRunner $t) use ($widgetXfaActionAppearanceValueCurrentBasePdf, $fieldsByName): void {
+        [$pdf, $xdpXml, $appearance, $script] = $widgetXfaActionAppearanceValueCurrentBasePdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $field = $fields['article.summary'];
+        $widget = $field['widgets'][0];
+        $review = $field['widget_xfa_action_appearance_value_review'];
+
+        $t->true($form['xfa_overrides_page_content']);
+        $t->same(hash('sha256', $xdpXml), $form['xfa_packets'][0]['xml_sha256']);
+        $t->same('Static AcroForm summary', $field['value']);
+        $t->same('Static AcroForm summary', $field['value_state']['current']);
+        $t->same('Draft AcroForm summary', $field['value_state']['default']);
+        $t->same('Ready', $widget['appearance_state']);
+        $t->same(40, $widget['normal_appearance']['selected_appearance']['object']);
+
+        $t->same('acroform_widget_xfa_action_appearance_value_currentbase_review_boundary', $review['source']);
+        $t->same('article.summary', $review['field_name']);
+        $t->same(6, $review['field_object']);
+        $t->same('Tx', $review['field_type']);
+        $t->same('Static AcroForm summary', $review['current']);
+        $t->same('Draft AcroForm summary', $review['default']);
+        $t->same('Static AcroForm summary', $review['display_value']);
+        $t->same('field', $review['current_source']);
+        $t->same(6, $review['current_source_object']);
+        $t->true($review['acroform_current_value_authoritative']);
+        $t->true($review['acroform_default_value_authoritative_for_reset']);
+        $t->true($review['referenced_by_xfa']);
+        $t->true($review['has_xfa_template_reference']);
+        $t->true($review['has_xfa_dataset_reference']);
+        $t->true($review['dynamic_value_present']);
+        $t->same(['xdp:xdp'], $review['xfa_packet_names']);
+        $t->same([30], $review['xfa_packet_objects']);
+        $t->same(['article.summary'], $review['xfa_matched_field_names']);
+        $t->same(['article.summary'], $review['xfa_matched_data_paths']);
+        $t->same(['XFA dynamic summary must stay review metadata'], $review['xfa_matched_data_value_previews']);
+        $t->same(false, $review['xfa_value_used_for_current_value']);
+        $t->same(false, $review['xfa_value_used_for_default_value']);
+        $t->same(false, $review['xfa_value_used_for_import']);
+        $t->same(false, $review['xfa_payload_text_exposed']);
+
+        $t->same(1, $review['widget_count']);
+        $t->same(1, $review['page_referenced_widget_count']);
+        $t->same([8], $review['widget_objects']);
+        $t->same(8, $review['primary_widget_object']);
+        $t->same('Ready', $review['primary_widget_appearance_state']);
+        $t->same('state_dictionary', $review['primary_widget_normal_appearance_type']);
+        $t->same(['Ready', 'Off'], $review['widget_appearance_states']);
+        $t->same(40, $review['selected_appearance_object']);
+        $t->same([40], $review['selected_appearance_objects']);
+        $t->same(hash('sha256', $appearance), $review['selected_appearance_decoded_sha256']);
+        $t->same(true, $review['state_matches_appearance']);
+        $t->same(0, $review['stale_appearance_state_count']);
+        $t->same(false, $review['appearance_value_used_for_import']);
+        $t->same(false, $review['appearance_payload_text_exposed']);
+
+        $t->same(4, $review['action_count']);
+        $t->same(2, $review['field_action_count']);
+        $t->same(2, $review['widget_action_count']);
+        $t->same(['URI', 'Hide', 'SubmitForm', 'JavaScript'], $review['action_types']);
+        $t->same(['V', 'activation', 'Fo'], $review['action_triggers']);
+        $t->same(['validate', 'activation', 'focus'], $review['action_trigger_labels']);
+        $t->same(['blocked-unsafe-uri', 'hide-action-review', 'submit-form-action-review', 'blocked-javascript'], $review['action_safety_labels']);
+        $t->same([20, 21, 22], $review['action_objects']);
+        $t->same(['javascript:fieldValidate()', 'summary-submit.fdf'], $review['action_targets']);
+        $t->same(['article.summary'], $review['action_field_names']);
+        $t->same(1, $review['javascript_action_count']);
+        $t->same(1, $review['submit_form_action_count']);
+        $t->same(1, $review['unsafe_uri_action_count']);
+        $t->same(false, $review['submits_form_data']);
+        $t->same(false, $review['executes_action']);
+        $t->same(false, $review['executes_javascript']);
+        $t->same(false, $review['executes_appearance_streams']);
+        $t->same(false, $review['renders_appearances']);
+        $t->same(false, $review['executes_xfa_javascript']);
+
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $t->true(str_contains($visibleText, 'Visible widget XFA action appearance value body'));
+        $t->true(str_contains($visibleText, 'Selected widget appearance review text'));
+        $t->true(!str_contains($visibleText, 'XFA dynamic summary must stay review metadata'));
+        $t->true(!str_contains($visibleText, 'focus action stays review only'));
+        $t->true(!str_contains($visibleText, 'summary-submit.fdf'));
     },
     'extracts SubmitForm and ResetForm action review metadata without executing actions' => static function (TestRunner $t) use ($submitResetActionPdf, $fieldsByName): void {
         $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($submitResetActionPdf()));

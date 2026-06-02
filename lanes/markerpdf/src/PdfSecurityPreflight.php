@@ -679,6 +679,7 @@ final class PdfSecurityPreflight
             $dssCertificateReview,
             $signaturePermissionTransformReview
         );
+        $actionFileSpecSecurityReview = $this->actionFileSpecSecurityReview($actions);
         $certPermissionOpenActionReview = $this->certPermissionOpenActionReview($actions);
         $outlineActionSecurityReview = $this->outlineActionSecurityReview($actions);
         $postSignatureActionObjects = $this->postSignatureActionObjects($actions);
@@ -761,6 +762,14 @@ final class PdfSecurityPreflight
             'usage_right_categories' => $signaturePermissionTransformReview['usage_right_categories'],
             'usage_right_count' => (int) $signaturePermissionTransformReview['usage_right_count'],
             'signature_permission_transform_review' => $signaturePermissionTransformReview,
+            'action_file_spec_count' => (int) $actionFileSpecSecurityReview['file_spec_count'],
+            'action_file_spec_objects' => $actionFileSpecSecurityReview['file_spec_objects'],
+            'action_file_spec_filenames' => $actionFileSpecSecurityReview['filenames'],
+            'action_file_spec_relationships' => $actionFileSpecSecurityReview['relationships'],
+            'action_embedded_file_count' => (int) $actionFileSpecSecurityReview['embedded_file_count'],
+            'action_embedded_file_objects' => $actionFileSpecSecurityReview['embedded_file_objects'],
+            'action_embedded_file_hashes' => $actionFileSpecSecurityReview['embedded_file_hashes'],
+            'action_file_spec_security_review' => $actionFileSpecSecurityReview,
             'dss_certificate_action_permission_review' => [
                 'source' => 'dss_certificate_action_permission_review',
                 'present' => $actions !== []
@@ -776,6 +785,9 @@ final class PdfSecurityPreflight
                 'dss_vri_signature_match_count' => (int) $dssCertificateReview['matched_signature_count'],
                 'signature_permission_transform_count' => (int) $signaturePermissionTransformReview['transform_count'],
                 'signature_permission_transform_methods' => $signaturePermissionTransformReview['methods'],
+                'action_file_spec_count' => (int) $actionFileSpecSecurityReview['file_spec_count'],
+                'action_embedded_file_count' => (int) $actionFileSpecSecurityReview['embedded_file_count'],
+                'action_embedded_file_objects' => $actionFileSpecSecurityReview['embedded_file_objects'],
                 'field_mdp_action_labels' => $signaturePermissionTransformReview['field_mdp_action_labels'],
                 'field_mdp_field_names' => $signaturePermissionTransformReview['field_mdp_field_names'],
                 'usage_right_categories' => $signaturePermissionTransformReview['usage_right_categories'],
@@ -1597,6 +1609,10 @@ final class PdfSecurityPreflight
     private function addDocumentActionReviewRow(array &$actions, array $action, string $source, array $context = []): void
     {
         $targetAssociatedFiles = $this->targetPageAssociatedFileReviews($action);
+        $actionWithSource = $action;
+        $actionWithSource['source'] = $source;
+        $fileSpecs = $this->documentActionFileSpecReviews($actionWithSource);
+        $primaryFileSpec = $fileSpecs[0] ?? null;
         $row = [
             'source' => $source,
             'pnum' => $context['pnum'] ?? null,
@@ -1627,6 +1643,27 @@ final class PdfSecurityPreflight
             'file' => $this->documentActionFile($action),
             'target' => is_string($action['target'] ?? null) ? $action['target'] : null,
             'target_scheme' => is_string($action['target_scheme'] ?? null) ? $action['target_scheme'] : null,
+            'action_file_spec_present' => $fileSpecs !== [],
+            'action_file_spec' => $primaryFileSpec,
+            'action_file_specs' => $fileSpecs,
+            'action_file_spec_count' => count($fileSpecs),
+            'action_file_spec_object' => is_array($primaryFileSpec) && is_int($primaryFileSpec['file_spec_object'] ?? null)
+                ? $primaryFileSpec['file_spec_object']
+                : null,
+            'action_file_spec_filename' => is_array($primaryFileSpec) && is_string($primaryFileSpec['filename'] ?? null)
+                ? $primaryFileSpec['filename']
+                : null,
+            'action_file_spec_relationship' => is_array($primaryFileSpec) && is_string($primaryFileSpec['relationship'] ?? null)
+                ? $primaryFileSpec['relationship']
+                : null,
+            'action_embedded_file_count' => array_sum(array_map(
+                static fn (array $fileSpec): int => (int) ($fileSpec['embedded_file_count'] ?? 0),
+                $fileSpecs
+            )),
+            'action_embedded_file_objects' => $this->uniqueIntegersFromRows($fileSpecs, 'embedded_file_objects'),
+            'action_embedded_file_hashes' => $this->uniqueStringsFromRows($fileSpecs, 'embedded_file_hashes'),
+            'action_file_spec_review_only' => $fileSpecs !== [],
+            'action_file_spec_payload_text_exposed' => false,
             'operation' => is_string($action['operation'] ?? null) ? $action['operation'] : null,
             'destination' => is_string($action['destination'] ?? null) ? $action['destination'] : null,
             'destination_action_name' => is_string($action['destination_action_name'] ?? null) ? $action['destination_action_name'] : null,
@@ -1683,6 +1720,245 @@ final class PdfSecurityPreflight
         $row['action_container_source'] = $this->documentActionContainerSource($row);
 
         $actions[] = $row;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @return array<string, mixed>
+     */
+    private function actionFileSpecSecurityReview(array $actions): array
+    {
+        $fileSpecs = [];
+        foreach ($actions as $action) {
+            foreach ($action['action_file_specs'] ?? [] as $fileSpec) {
+                if (is_array($fileSpec)) {
+                    $fileSpecs[] = $fileSpec;
+                }
+            }
+        }
+
+        return [
+            'source' => 'document_action_filespec_security_review',
+            'present' => $fileSpecs !== [],
+            'file_spec_count' => count($fileSpecs),
+            'file_spec_objects' => $this->uniqueIntegerColumn($fileSpecs, 'file_spec_object'),
+            'filenames' => $this->uniqueStringColumn($fileSpecs, 'filename'),
+            'relationships' => $this->uniqueStringColumn($fileSpecs, 'relationship'),
+            'scopes' => $this->uniqueStringColumn($fileSpecs, 'review_scope'),
+            'action_sources' => $this->uniqueStringColumn($fileSpecs, 'action_source'),
+            'action_types' => $this->uniqueStringColumn($fileSpecs, 'action_type'),
+            'embedded_file_count' => array_sum(array_map(
+                static fn (array $fileSpec): int => (int) ($fileSpec['embedded_file_count'] ?? 0),
+                $fileSpecs
+            )),
+            'embedded_file_objects' => $this->uniqueIntegersFromRows($fileSpecs, 'embedded_file_objects'),
+            'embedded_file_hashes' => $this->uniqueStringsFromRows($fileSpecs, 'embedded_file_hashes'),
+            'related_file_count' => array_sum(array_map(
+                static fn (array $fileSpec): int => (int) ($fileSpec['related_file_count'] ?? 0),
+                $fileSpecs
+            )),
+            'related_file_objects' => $this->uniqueIntegersFromRows($fileSpecs, 'related_file_objects'),
+            'related_file_hashes' => $this->uniqueStringsFromRows($fileSpecs, 'related_file_hashes'),
+            'file_specs' => $fileSpecs,
+            'review_only' => true,
+            'payload_text_exposed' => false,
+            'embedded_payload_text_exposed' => false,
+            'content_returned' => false,
+            'executes_pdf_actions' => false,
+            'executes_external_file_launch' => false,
+            'executes_signature_validation' => false,
+            'executes_trust_chain_validation' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @return list<array<string, mixed>>
+     */
+    private function documentActionFileSpecReviews(array $action): array
+    {
+        $reviews = [];
+        foreach ([
+            'target_file_spec' => $action['file_spec'] ?? null,
+            'platform_file_spec' => $action['platform_file_spec'] ?? null,
+            'attachment_file_spec' => $action['attachment'] ?? null,
+        ] as $scope => $fileSpec) {
+            if (!is_array($fileSpec)) {
+                continue;
+            }
+
+            $review = $this->documentActionFileSpecReview($fileSpec, $scope, $action);
+            if ($review !== null) {
+                $reviews[] = $review;
+            }
+        }
+
+        return $this->dedupeDocumentActionFileSpecs($reviews);
+    }
+
+    /**
+     * @param array<string, mixed> $fileSpec
+     * @param array<string, mixed> $action
+     * @return array<string, mixed>|null
+     */
+    private function documentActionFileSpecReview(array $fileSpec, string $scope, array $action): ?array
+    {
+        $filename = $this->firstStringValue($fileSpec, ['filename', 'unicode_filename', 'file']);
+        $fileSpecObject = is_int($fileSpec['file_spec_object'] ?? null) ? $fileSpec['file_spec_object'] : null;
+        if ($filename === null && $fileSpecObject === null) {
+            return null;
+        }
+
+        $embeddedObjects = $this->integerList($fileSpec['embedded_file_objects'] ?? []);
+        $embeddedHashes = $this->fileSpecEmbeddedHashes($fileSpec);
+        $related = $this->fileSpecRelatedReview($fileSpec);
+
+        return array_filter([
+            'source' => 'document_action_filespec_review',
+            'review_scope' => $scope,
+            'action_source' => is_string($action['source'] ?? null) ? $action['source'] : null,
+            'action_type' => is_string($action['action_type'] ?? null) ? $action['action_type'] : null,
+            'action_object' => is_int($action['action_object'] ?? null) ? $action['action_object'] : null,
+            'field_name' => is_string($action['field_name'] ?? null) ? $action['field_name'] : null,
+            'file_spec_source' => is_string($fileSpec['source'] ?? null) ? $fileSpec['source'] : null,
+            'file_spec_object' => $fileSpecObject,
+            'type' => is_string($fileSpec['type'] ?? null) ? $fileSpec['type'] : null,
+            'file_system' => is_string($fileSpec['file_system'] ?? null) ? $fileSpec['file_system'] : null,
+            'filename' => $filename,
+            'unicode_filename' => is_string($fileSpec['unicode_filename'] ?? null) ? $fileSpec['unicode_filename'] : null,
+            'description' => is_string($fileSpec['description'] ?? null) ? $fileSpec['description'] : null,
+            'relationship' => is_string($fileSpec['relationship'] ?? null) ? $fileSpec['relationship'] : null,
+            'platform_filenames' => is_array($fileSpec['platform_filenames'] ?? null) ? $fileSpec['platform_filenames'] : [],
+            'embedded_file_count' => (int) ($fileSpec['embedded_file_count'] ?? count($embeddedObjects)),
+            'embedded_file_objects' => $embeddedObjects,
+            'embedded_file_hashes' => $embeddedHashes,
+            'embedded_file_mime_types' => $this->fileSpecEmbeddedMimeTypes($fileSpec),
+            'related_file_count' => (int) ($fileSpec['related_file_count'] ?? count($related['objects'])),
+            'related_file_objects' => $related['objects'],
+            'related_file_hashes' => $related['hashes'],
+            'content_returned' => false,
+            'payload_text_exposed' => false,
+            'embedded_payload_text_exposed' => false,
+            'review_only' => true,
+            'executes_action' => false,
+        ], static fn (mixed $value): bool => $value !== null && $value !== []);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $reviews
+     * @return list<array<string, mixed>>
+     */
+    private function dedupeDocumentActionFileSpecs(array $reviews): array
+    {
+        $seen = [];
+        $deduped = [];
+        foreach ($reviews as $review) {
+            $key = (string) ($review['review_scope'] ?? 'scope') . ':';
+            $key .= is_int($review['file_spec_object'] ?? null)
+                ? 'obj:' . $review['file_spec_object']
+                : 'name:' . (string) ($review['filename'] ?? '');
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $deduped[] = $review;
+        }
+
+        return $deduped;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param list<string> $keys
+     */
+    private function firstStringValue(array $row, array $keys): ?string
+    {
+        foreach ($keys as $key) {
+            if (is_string($row[$key] ?? null) && $row[$key] !== '') {
+                return $row[$key];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $fileSpec
+     * @return list<string>
+     */
+    private function fileSpecEmbeddedHashes(array $fileSpec): array
+    {
+        $hashes = [];
+        foreach ($fileSpec['embedded_files'] ?? [] as $embedded) {
+            if (!is_array($embedded)) {
+                continue;
+            }
+            foreach (['decoded_sha256', 'sha256'] as $key) {
+                if (is_string($embedded[$key] ?? null) && !in_array($embedded[$key], $hashes, true)) {
+                    $hashes[] = $embedded[$key];
+                }
+            }
+        }
+
+        foreach ($fileSpec['embedded_file_streams'] ?? [] as $embedded) {
+            if (!is_array($embedded)) {
+                continue;
+            }
+            foreach (['decoded_sha256', 'sha256'] as $key) {
+                if (is_string($embedded[$key] ?? null) && !in_array($embedded[$key], $hashes, true)) {
+                    $hashes[] = $embedded[$key];
+                }
+            }
+        }
+
+        return $hashes;
+    }
+
+    /**
+     * @param array<string, mixed> $fileSpec
+     * @return list<string>
+     */
+    private function fileSpecEmbeddedMimeTypes(array $fileSpec): array
+    {
+        $mimeTypes = $this->stringList($fileSpec['mime_types'] ?? []);
+        foreach ($fileSpec['embedded_files'] ?? [] as $embedded) {
+            if (!is_array($embedded)) {
+                continue;
+            }
+            if (is_string($embedded['subtype'] ?? null) && !in_array($embedded['subtype'], $mimeTypes, true)) {
+                $mimeTypes[] = $embedded['subtype'];
+            }
+        }
+
+        return $mimeTypes;
+    }
+
+    /**
+     * @param array<string, mixed> $fileSpec
+     * @return array{objects: list<int>, hashes: list<string>}
+     */
+    private function fileSpecRelatedReview(array $fileSpec): array
+    {
+        $objects = [];
+        $hashes = [];
+        foreach ($fileSpec['related_files'] ?? [] as $related) {
+            if (!is_array($related) || !is_array($related['embedded_file'] ?? null)) {
+                continue;
+            }
+
+            $embedded = $related['embedded_file'];
+            if (is_int($embedded['object'] ?? null) && !in_array($embedded['object'], $objects, true)) {
+                $objects[] = $embedded['object'];
+            }
+            foreach (['decoded_sha256', 'sha256'] as $key) {
+                if (is_string($embedded[$key] ?? null) && !in_array($embedded[$key], $hashes, true)) {
+                    $hashes[] = $embedded[$key];
+                }
+            }
+        }
+
+        return ['objects' => $objects, 'hashes' => $hashes];
     }
 
     /**
