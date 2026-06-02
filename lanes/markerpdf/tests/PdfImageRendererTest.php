@@ -993,6 +993,94 @@ return [
         $t->same(0.4, $renderer->softMaskTransferSampleOpacity(0.4, $identity['soft_mask_transfer_function']));
         $t->throws(InvalidArgumentException::class, static fn (): float => $renderer->softMaskTransferSampleOpacity(0.5, ['sample_supported' => false]));
     },
+    'applies soft-mask transfer functions to DeviceN tint alpha before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $groupPayload = "q /ImSpot Do Q\n";
+        $objects = [
+            60 => '<< /FunctionType 4 /Domain [0 1 0 1] /Range [0 1 0 1 0 1 0 1] /Length 24 >>',
+            91 => "<< /Type /XObject /Subtype /Form /BBox [0 0 36 18] /Group << /S /Transparency /CS /DeviceGray /I true /K false >> /Length " . strlen($groupPayload) . " >>\nstream\n{$groupPayload}endstream",
+            95 => '<< /FunctionType 2 /Domain [0 1] /Range [0 1] /C0 [1] /C1 [0] /N 1 >>',
+            96 => '<< /Type /Mask /S /Luminosity /G 91 0 R /BC [0.25] /TR 95 0 R >>',
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace [/DeviceN [/Spot#20Blue /Spot#20Varnish] /DeviceCMYK 60 0 R << /Subtype /NChannel >>] /BitsPerComponent 8 /Decode [0 1 1 0] /SMask 96 0 R >>',
+            $objects
+        );
+        $preview = $renderer->alternateColorantSamplePreview([128, 64], $plan, 0.25);
+
+        $t->same('DeviceN', $preview['source_color_space']);
+        $t->same(['Spot Blue', 'Spot Varnish'], array_keys($preview['colorant_tints']));
+        $t->true(abs($preview['colorant_tints']['Spot Blue'] - (128 / 255)) < 0.000001);
+        $t->true(abs($preview['colorant_tints']['Spot Varnish'] - (1.0 - (64 / 255))) < 0.000001);
+        $t->same('DeviceCMYK', $preview['alternate_color_space']);
+        $t->same(4, $preview['alternate_components']);
+        $t->same(false, $preview['alternate_uses_icc_profile']);
+        $t->same(60, $preview['tint_transform_object']);
+        $t->same(4, $preview['tint_transform_function_type']);
+        $t->same('review_only', $preview['tint_transform_preview_mode']);
+        $t->same([
+            'present' => true,
+            'subtype' => 'Luminosity',
+            'source_object' => 96,
+            'group_object' => 91,
+            'group_subtype' => 'Form',
+            'group_bbox' => [0.0, 0.0, 36.0, 18.0],
+            'group_color_space' => 'DeviceGray',
+            'group_components' => 1,
+            'group_is_isolated' => true,
+            'group_is_knockout' => false,
+            'uses_indexed_color_space' => false,
+            'indexed_color_space' => null,
+            'backdrop_color' => [0.25],
+            'backdrop_component_count' => 1,
+            'backdrop_matches_group_components' => true,
+            'transfer_function' => [
+                'present' => true,
+                'source' => 'object_ref',
+                'object' => 95,
+                'name' => null,
+                'function_type' => 2,
+                'domain' => [0.0, 1.0],
+                'range' => [0.0, 1.0],
+                'c0' => [1.0],
+                'c1' => [0.0],
+                'exponent' => 1.0,
+                'output_components' => 1,
+                'sample_supported' => true,
+                'preview_mode' => 'type2_exponential',
+            ],
+            'review_only' => true,
+        ], $plan['soft_mask_group']);
+        $t->same([
+            'present' => true,
+            'source' => 'object_ref',
+            'object' => 95,
+            'name' => null,
+            'function_type' => 2,
+            'domain' => [0.0, 1.0],
+            'range' => [0.0, 1.0],
+            'c0' => [1.0],
+            'c1' => [0.0],
+            'exponent' => 1.0,
+            'output_components' => 1,
+            'sample_supported' => true,
+            'preview_mode' => 'type2_exponential',
+        ], $preview['soft_mask_transfer_function']);
+        $t->same(true, $plan['soft_mask_transfer_function_applied_before_rgb']);
+        $t->same(true, $preview['soft_mask_transfer_applied']);
+        $t->same(0.25, $preview['soft_mask_alpha_before_transfer']);
+        $t->same(0.75, $preview['soft_mask_alpha']);
+        $t->same('soft_mask_composited_to_rgb_preview', $plan['alpha_output_mode']);
+        $t->same([
+            'devicen_tint_transform_review_before_rgb_conversion',
+            'image_decode_applied_before_rgb_conversion',
+            'image_decode_inverts_components_before_rgb',
+            'soft_mask_dictionary_review_before_rgb_conversion',
+            'soft_mask_luminosity_group_review_before_rgb_conversion',
+            'soft_mask_transfer_function_applied_before_rgb_conversion',
+        ], $plan['notes']);
+    },
     'plans Separation and DeviceN alternate color spaces with CCITT preview filters before RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $objects = [

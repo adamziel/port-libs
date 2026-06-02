@@ -340,6 +340,43 @@ final class PdfImageRenderer
     }
 
     /**
+     * @param array{soft_mask?: array<string, mixed>|null, soft_mask_transfer_function?: array<string, mixed>|null} $imagePlan
+     * @return array{alpha: float, alpha_before_transfer: float, transfer_applied: bool, transfer_function: array<string, mixed>|null}
+     */
+    private function softMaskAlphaPreview(int|float $sample, array $imagePlan, string $context): array
+    {
+        $softMask = $imagePlan['soft_mask'] ?? null;
+        if (!is_array($softMask)) {
+            throw new InvalidArgumentException($context . ' soft-mask preview requires a soft-mask plan.');
+        }
+
+        $transferFunction = $imagePlan['soft_mask_transfer_function'] ?? null;
+        $transferSupported = is_array($transferFunction) && ($transferFunction['sample_supported'] ?? false) === true;
+        $decode = $softMask['decode'] ?? null;
+        if (is_array($decode) && ($decode['valid_for_components'] ?? false) === true) {
+            $alphaBeforeTransfer = $this->softMaskSampleOpacity($sample, $softMask);
+        } elseif ($transferSupported) {
+            $alphaBeforeTransfer = max(0.0, min(1.0, (float) $sample));
+        } else {
+            throw new InvalidArgumentException($context . ' soft-mask preview requires a soft-mask Decode array or supported transfer function.');
+        }
+
+        $transferApplied = false;
+        $alpha = $alphaBeforeTransfer;
+        if ($transferSupported) {
+            $alpha = $this->softMaskTransferSampleOpacity($alphaBeforeTransfer, $transferFunction);
+            $transferApplied = true;
+        }
+
+        return [
+            'alpha' => $alpha,
+            'alpha_before_transfer' => $alphaBeforeTransfer,
+            'transfer_applied' => $transferApplied,
+            'transfer_function' => is_array($transferFunction) ? $transferFunction : null,
+        ];
+    }
+
+    /**
      * Native metadata boundary for PDF image ColorSpace and soft-mask handling.
      *
      * Upstream rasterizes through pypdfium/PIL and always returns an RGB image.
@@ -912,13 +949,15 @@ final class PdfImageRenderer
         $roundedIndex = (int) round($decodedIndex);
         $paletteIndex = max(0, min($highValue, $roundedIndex));
         $softMaskAlpha = null;
+        $softMaskAlphaBeforeTransfer = null;
+        $softMaskTransferApplied = false;
+        $softMaskTransferFunction = null;
         if ($softMaskSample !== null) {
-            $softMask = $imagePlan['soft_mask'] ?? null;
-            if (!is_array($softMask)) {
-                throw new InvalidArgumentException('Indexed soft-mask preview requires a soft-mask plan.');
-            }
-
-            $softMaskAlpha = $this->softMaskSampleOpacity($softMaskSample, $softMask);
+            $softMaskAlphaPreview = $this->softMaskAlphaPreview($softMaskSample, $imagePlan, 'Indexed');
+            $softMaskAlpha = $softMaskAlphaPreview['alpha'];
+            $softMaskAlphaBeforeTransfer = $softMaskAlphaPreview['alpha_before_transfer'];
+            $softMaskTransferApplied = $softMaskAlphaPreview['transfer_applied'];
+            $softMaskTransferFunction = $softMaskAlphaPreview['transfer_function'];
         }
 
         return [
@@ -928,6 +967,9 @@ final class PdfImageRenderer
             'clamped_to_hival' => $paletteIndex !== $roundedIndex,
             'base_components' => $this->indexedSampleToBaseComponents($paletteIndex, $indexedPlan),
             'soft_mask_alpha' => $softMaskAlpha,
+            'soft_mask_alpha_before_transfer' => $softMaskAlphaBeforeTransfer,
+            'soft_mask_transfer_applied' => $softMaskTransferApplied,
+            'soft_mask_transfer_function' => $softMaskTransferFunction,
             'output_color_mode' => (string) ($imagePlan['output_color_mode'] ?? 'RGB'),
         ];
     }
@@ -1295,13 +1337,15 @@ final class PdfImageRenderer
         }
 
         $softMaskAlpha = null;
+        $softMaskAlphaBeforeTransfer = null;
+        $softMaskTransferApplied = false;
+        $softMaskTransferFunction = null;
         if ($softMaskSample !== null) {
-            $softMask = $imagePlan['soft_mask'] ?? null;
-            if (!is_array($softMask)) {
-                throw new InvalidArgumentException('Alternate colorant soft-mask preview requires a soft-mask plan.');
-            }
-
-            $softMaskAlpha = $this->softMaskSampleOpacity($softMaskSample, $softMask);
+            $softMaskAlphaPreview = $this->softMaskAlphaPreview($softMaskSample, $imagePlan, 'Alternate colorant');
+            $softMaskAlpha = $softMaskAlphaPreview['alpha'];
+            $softMaskAlphaBeforeTransfer = $softMaskAlphaPreview['alpha_before_transfer'];
+            $softMaskTransferApplied = $softMaskAlphaPreview['transfer_applied'];
+            $softMaskTransferFunction = $softMaskAlphaPreview['transfer_function'];
         }
 
         $functionType = $alternate['tint_transform_function_type'] ?? null;
@@ -1318,6 +1362,9 @@ final class PdfImageRenderer
             'tint_transform_function_type' => $functionType,
             'tint_transform_preview_mode' => $functionType === null ? 'none' : 'review_only',
             'soft_mask_alpha' => $softMaskAlpha,
+            'soft_mask_alpha_before_transfer' => $softMaskAlphaBeforeTransfer,
+            'soft_mask_transfer_applied' => $softMaskTransferApplied,
+            'soft_mask_transfer_function' => $softMaskTransferFunction,
             'output_color_mode' => (string) ($imagePlan['output_color_mode'] ?? 'RGB'),
         ];
     }
@@ -1417,6 +1464,8 @@ final class PdfImageRenderer
                 'tint_values' => $preview['tint_values'],
                 'soft_mask_sample' => $softMaskSample,
                 'soft_mask_alpha' => $preview['soft_mask_alpha'],
+                'soft_mask_alpha_before_transfer' => $preview['soft_mask_alpha_before_transfer'],
+                'soft_mask_transfer_applied' => $preview['soft_mask_transfer_applied'],
             ];
         }
 
@@ -1454,6 +1503,8 @@ final class PdfImageRenderer
             'tint_transform_object' => is_array($alternate) ? ($alternate['tint_transform_object'] ?? null) : null,
             'tint_transform_function_type' => is_array($alternate) ? ($alternate['tint_transform_function_type'] ?? null) : null,
             'tint_transform_preview_mode' => is_array($alternate) && ($alternate['tint_transform_function_type'] ?? null) !== null ? 'review_only' : 'none',
+            'soft_mask_transfer_function' => $plan['soft_mask_transfer_function'],
+            'soft_mask_transfer_function_applied_before_rgb' => $plan['soft_mask_transfer_function_applied_before_rgb'],
             'pixels' => $pixels,
             'stream_notes' => $streamNotes,
             'notes' => array_values(array_unique(array_merge($plan['notes'] ?? [], $streamNotes))),
@@ -1523,13 +1574,15 @@ final class PdfImageRenderer
         }
 
         $softMaskAlpha = null;
+        $softMaskAlphaBeforeTransfer = null;
+        $softMaskTransferApplied = false;
+        $softMaskTransferFunction = null;
         if ($softMaskSample !== null) {
-            $softMask = $imagePlan['soft_mask'] ?? null;
-            if (!is_array($softMask)) {
-                throw new InvalidArgumentException('Calibrated color soft-mask preview requires a soft-mask plan.');
-            }
-
-            $softMaskAlpha = $this->softMaskSampleOpacity($softMaskSample, $softMask);
+            $softMaskAlphaPreview = $this->softMaskAlphaPreview($softMaskSample, $imagePlan, 'Calibrated color');
+            $softMaskAlpha = $softMaskAlphaPreview['alpha'];
+            $softMaskAlphaBeforeTransfer = $softMaskAlphaPreview['alpha_before_transfer'];
+            $softMaskTransferApplied = $softMaskAlphaPreview['transfer_applied'];
+            $softMaskTransferFunction = $softMaskAlphaPreview['transfer_function'];
         }
 
         return [
@@ -1544,6 +1597,9 @@ final class PdfImageRenderer
             'decode_source' => $decode['source'] ?? null,
             'uses_default_decode' => ($decode['source'] ?? null) === 'default-calibrated',
             'soft_mask_alpha' => $softMaskAlpha,
+            'soft_mask_alpha_before_transfer' => $softMaskAlphaBeforeTransfer,
+            'soft_mask_transfer_applied' => $softMaskTransferApplied,
+            'soft_mask_transfer_function' => $softMaskTransferFunction,
             'output_color_mode' => (string) ($imagePlan['output_color_mode'] ?? 'RGB'),
         ];
     }

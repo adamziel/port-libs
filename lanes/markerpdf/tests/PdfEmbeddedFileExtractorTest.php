@@ -541,6 +541,112 @@ return [
         $t->same($export['portfolio'], $review['portfolio']);
         $t->same($export['catalog_piece_info'], $review['catalog_piece_info']);
     },
+    'extracts current xref-selected PDF portfolio PieceInfo metadata from EmbeddedFiles name trees' => static function (TestRunner $t): void {
+        $sourcePayload = '<wp-export><post id="1908"/></wp-export>';
+        $reviewNotes = 'Current portfolio review notes';
+        $privatePayload = 'BT /F1 12 Tf 72 720 Td (Current Portfolio PieceInfo Private Leak) Tj ET';
+        $staleSourcePayload = '<wp-export><post id="stale-portfolio"/></wp-export>';
+        $stalePrivatePayload = 'BT /F1 12 Tf 72 720 Td (Stale Portfolio PieceInfo Private Leak) Tj ET';
+        $sourceChecksum = strtoupper(hash('md5', $sourcePayload));
+        $privateStream = gzcompress($privatePayload);
+        $stalePrivateStream = gzcompress($stalePrivatePayload);
+        if (!is_string($privateStream) || !is_string($stalePrivateStream)) {
+            throw new RuntimeException('Unable to compress current-base Portfolio PieceInfo fixture streams.');
+        }
+
+        $content = 'BT /F1 12 Tf 72 720 Td (Current Portfolio PieceInfo Body) Tj ET';
+        $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale Portfolio PieceInfo Body) Tj ET';
+        $pdf = "%PDF-2.0\n";
+        $offsets = [];
+        $addObject = static function (int $objectNumber, string $body) use (&$pdf, &$offsets): void {
+            $offsets[$objectNumber] = strlen($pdf);
+            $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+        };
+
+        $addObject(1, '<< /Type /Catalog /Pages 2 0 R /PageMode /UseAttachments /Collection 5 0 R /PieceInfo << /WPPortfolio << /LastModified (D:20260602190800Z) /Private << /Workflow (current portfolio review) /Batch 40 /Kind /Portfolio >> >> >> /Names << /EmbeddedFiles 6 0 R >> >>');
+        $addObject(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+        $addObject(3, '<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>');
+        $addObject(4, "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream");
+        $addObject(5, '<< /Type /Collection /View /T /D (current-source.xml) /Schema << /Subject << /Subtype /S /N (Subject) /O 1 >> /Priority << /Subtype /N /N (Priority) /O 2 >> /Bytes << /Subtype /Size /N (Bytes) /O 3 >> >> /Sort << /S [/Priority /Subject] /A [true false] >> >>');
+        $addObject(6, '<< /Kids [7 0 R] >>');
+        $addObject(7, '<< /Limits [(current-review.txt) (current-source.xml)] /Names [(current-source.xml) 10 0 R (current-review.txt) 20 0 R] >>');
+        $addObject(10, '<< /Type /Filespec /F (legacy-current-source.xml) /UF (current-source.xml) /Desc (Current WordPress portfolio source) /AFRelationship /Source /CI 30 0 R /PieceInfo 31 0 R /EF << /F 11 0 R >> >>');
+        $addObject(11, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size ' . strlen($sourcePayload) . ' /CheckSum <' . $sourceChecksum . "> /ModDate (D:20260602190830Z) >> /Length " . strlen($sourcePayload) . " >>\nstream\n{$sourcePayload}\nendstream");
+        $addObject(20, '<< /Type /Filespec /F (current-review.txt) /Desc (Current portfolio review notes) /CI << /Subject (Current Review Notes) /Priority << /Type /CollectionSubitem /D 1 /P (P) >> >> /PieceInfo 32 0 R /EF << /F 21 0 R >> >>');
+        $addObject(21, '<< /Type /EmbeddedFile /Subtype /text#2Fplain /Length ' . strlen($reviewNotes) . " >>\nstream\n{$reviewNotes}\nendstream");
+        $addObject(30, '<< /Subject (Current WordPress Export) /Priority << /Type /CollectionSubitem /D 2 /P (P) >> /Bytes ' . strlen($sourcePayload) . ' >>');
+        $addObject(31, '<< /WPImporter << /LastModified (D:20260602190840Z) /Private << /ManifestId (current-portfolio-1908) /Preserve true /Priority 2 >> >> >>');
+        $addObject(32, '<< /WPReview << /LastModified (D:20260602190900Z) /Private 33 0 R >> >>');
+        $addObject(33, '<< /Type /Metadata /Subtype /application#2Fjson /Filter /FlateDecode /Length ' . strlen($privateStream) . " >>\nstream\n{$privateStream}\nendstream");
+
+        $xrefOffset = strlen($pdf);
+        $rows = '';
+        for ($objectNumber = 0; $objectNumber < 35; $objectNumber++) {
+            if ($objectNumber === 0 || (!isset($offsets[$objectNumber]) && $objectNumber !== 34)) {
+                $rows .= pack('CNn', 0, 0, $objectNumber === 0 ? 65535 : 0);
+                continue;
+            }
+
+            $rows .= pack('CNn', 1, $objectNumber === 34 ? $xrefOffset : $offsets[$objectNumber], 0);
+        }
+        $compressedXref = gzcompress($rows);
+        if (!is_string($compressedXref)) {
+            throw new RuntimeException('Unable to compress current-base Portfolio PieceInfo xref stream.');
+        }
+
+        $pdf .= "34 0 obj\n"
+            . '<< /Type /XRef /Size 35 /Root 1 0 R /W [1 4 2] /Filter /FlateDecode /Length ' . strlen($compressedXref) . " >>\n"
+            . "stream\n{$compressedXref}\nendstream\nendobj\n"
+            . "startxref\n{$xrefOffset}\n%%EOF\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageMode /UseAttachments /Collection 5 0 R /PieceInfo << /WPPortfolio << /LastModified (D:20260602199900Z) /Private << /Workflow (stale portfolio review) /Batch 99 /Kind /Portfolio >> >> >> /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Collection /View /D /D (stale-source.xml) /Schema << /Subject << /Subtype /S /N (Stale Subject) /O 1 >> /Bytes << /Subtype /Size /N (Stale Bytes) /O 2 >> >> >>\nendobj\n"
+            . "7 0 obj\n<< /Names [(stale-source.xml) 10 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (stale-source.xml) /Desc (Stale WordPress portfolio source) /AFRelationship /Source /CI << /Subject (Stale WordPress Export) >> /PieceInfo 31 0 R /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length " . strlen($staleSourcePayload) . " >>\nstream\n{$staleSourcePayload}\nendstream\nendobj\n"
+            . "31 0 obj\n<< /WPImporter << /LastModified (D:20260602199930Z) /Private << /ManifestId (stale-portfolio) >> >> >>\nendobj\n"
+            . "33 0 obj\n<< /Type /Metadata /Subtype /application#2Fjson /Filter /FlateDecode /Length " . strlen($stalePrivateStream) . " >>\nstream\n{$stalePrivateStream}\nendstream\nendobj\n";
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $text = trim((new PdfTextExtractor())->extractPlainText($pdf));
+        $encoded = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(2, count($files));
+
+        $source = $files[0];
+        $t->same('current-source.xml', $source['filename']);
+        $t->same('current-source.xml', $source['unicode_filename']);
+        $t->same(10, $source['file_spec_object']);
+        $t->same('Current WordPress portfolio source', $source['description']);
+        $t->same('Source', $source['relationship']);
+        $t->same('text/xml', $source['mime_type']);
+        $t->same($sourcePayload, $source['content']);
+        $t->same(true, $source['checksum_matches']);
+        $t->same('T', $source['portfolio']['view']);
+        $t->same('current-source.xml', $source['portfolio']['default_document']);
+        $t->same(['Priority', 'Subject'], $source['portfolio']['sort']['keys']);
+        $t->same('Current WordPress Export', $source['portfolio_item']['Subject']);
+        $t->same('P2', $source['portfolio_field_values']['Priority']['display_value']);
+        $t->same(strlen($sourcePayload), $source['portfolio_field_values']['Bytes']['value']);
+        $t->same('D:20260602190840Z', $source['piece_info']['WPImporter']['last_modified']);
+        $t->same('current-portfolio-1908', $source['piece_info']['WPImporter']['private']['ManifestId']);
+        $t->same('D:20260602190800Z', $source['catalog_piece_info']['WPPortfolio']['last_modified']);
+        $t->same('current portfolio review', $source['catalog_piece_info']['WPPortfolio']['private']['Workflow']);
+
+        $review = $files[1];
+        $t->same('current-review.txt', $review['filename']);
+        $t->same('Current Review Notes', $review['portfolio_item']['Subject']);
+        $t->same('P1', $review['portfolio_field_values']['Priority']['display_value']);
+        $t->same(33, $review['piece_info']['WPReview']['private_stream']['object']);
+        $t->same(hash('sha256', $privatePayload), $review['piece_info']['WPReview']['private_stream']['content_sha256']);
+
+        $t->same('Current Portfolio PieceInfo Body', $text);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'stale-source.xml'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $staleSourcePayload));
+        $t->true(!str_contains($text, 'Stale Portfolio PieceInfo Body'));
+        $t->true(!str_contains($text, 'Current Portfolio PieceInfo Private Leak'));
+        $t->true(!str_contains($text, 'Stale Portfolio PieceInfo Private Leak'));
+    },
     'keeps Filespec PieceInfo private streams review-only and out of fallback text extraction' => static function (TestRunner $t): void {
         $attachmentPayload = '<wp-export><post id="84"/></wp-export>';
         $privatePayload = 'BT /F1 12 Tf 72 720 Td (PieceInfo Private Leak) Tj ET';

@@ -5944,7 +5944,7 @@ final class PdfTextExtractor
      */
     private function fontCidEncodingMap(string $fontBody, array $objects, array $namedCMapBodies): ?array
     {
-        if (preg_match('/\/Subtype\s*\/Type0\b/s', $fontBody) !== 1) {
+        if (preg_match('/\/Subtype\s*\/Type0\b/s', $fontBody) !== 1 && !$this->isType3FontBody($fontBody)) {
             return null;
         }
 
@@ -6098,7 +6098,7 @@ final class PdfTextExtractor
                 }
             }
 
-            $bodyCidSet = $this->cidSetFromCidFontBody($body, $objects);
+            $bodyCidSet = $this->cidSetFromFontBody($body, $objects);
             if ($bodyCidSet !== null) {
                 $cidSet = $cidSet === null ? $bodyCidSet : ($cidSet + $bodyCidSet);
             }
@@ -6327,7 +6327,7 @@ final class PdfTextExtractor
             return false;
         }
 
-        if (preg_match('/\/Subtype\s*\/(?:Type1|MMType1|TrueType|Type3)\b/s', $fontBody) === 1) {
+        if (preg_match('/\/Subtype\s*\/(?:Type1|MMType1|TrueType)\b/s', $fontBody) === 1 || $this->isType3FontBody($fontBody)) {
             return true;
         }
 
@@ -6338,6 +6338,11 @@ final class PdfTextExtractor
     private function isCidFontBody(string $fontBody): bool
     {
         return preg_match('/\/Subtype\s*\/CIDFontType[02]\b/s', $fontBody) === 1;
+    }
+
+    private function isType3FontBody(string $fontBody): bool
+    {
+        return preg_match('/\/Subtype\s*\/Type3\b/s', $fontBody) === 1;
     }
 
     /**
@@ -6550,9 +6555,10 @@ final class PdfTextExtractor
      * @return array<int, true>|null
      * @param array<int, string> $objects
      */
-    private function cidSetFromCidFontBody(string $fontBody, array $objects): ?array
+    private function cidSetFromFontBody(string $fontBody, array $objects): ?array
     {
-        if (preg_match('/\/Subtype\s*\/CIDFontType[02]\b/s', $fontBody) !== 1) {
+        $isCMapEncodedType3 = $this->isType3FontBody($fontBody) && $this->fontHasDecodedCMapEncoding($fontBody, $objects);
+        if (!$this->isCidFontBody($fontBody) && !$isCMapEncodedType3) {
             return null;
         }
 
@@ -6572,6 +6578,19 @@ final class PdfTextExtractor
         }
 
         return $this->cidSetBits($decoded);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function fontHasDecodedCMapEncoding(string $fontBody, array $objects): bool
+    {
+        $encodingObjectNumber = $this->objectReferenceValueAfterName($fontBody, 'Encoding');
+        if ($encodingObjectNumber === null || !isset($objects[$encodingObjectNumber])) {
+            return false;
+        }
+
+        return $this->decodedCMapBody($objects[$encodingObjectNumber], $objects) !== null;
     }
 
     /**
@@ -8205,10 +8224,16 @@ final class PdfTextExtractor
         $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
 
         $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
+        $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
         foreach ($linearizedHintObjectStreamMemberNumbers as $objectNumber) {
             unset($objects[$objectNumber]);
         }
         $objects = $this->withRepairedDirectStreamObjects($pdfBytes, $objects, $definitions, $xrefEntries);
+        $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
+        $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
+        foreach ($linearizedHintObjectStreamMemberNumbers as $objectNumber) {
+            unset($objects[$objectNumber]);
+        }
         ksort($objects, SORT_NUMERIC);
         $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
 
@@ -9142,12 +9167,20 @@ final class PdfTextExtractor
                     ? $this->liveDirectObjectDefinition($definitions[$objectNumber] ?? [], $xrefEntry)
                     : null;
                 $canRepairCompressedMember = !isset($repaired[$objectNumber]) && ($xrefEntry['type'] ?? null) === 2;
+                $canRepairExpandedCompressedMember = isset($repaired[$objectNumber])
+                    && ($xrefEntry['type'] ?? null) === 2
+                    && $this->directObjectDefinitionForBody($definitions[$objectNumber] ?? [], $repaired[$objectNumber]) === null;
                 $canRepairMissingDirectGeneration = !isset($repaired[$objectNumber]) && ($xrefEntry['type'] ?? null) === 1;
                 $canRepairDirectGeneration = isset($repaired[$objectNumber])
                     && ($xrefEntry['type'] ?? null) === 1
                     && $selected !== null;
 
-                if (!$canRepairCompressedMember && !$canRepairMissingDirectGeneration && !$canRepairDirectGeneration) {
+                if (
+                    !$canRepairCompressedMember
+                    && !$canRepairExpandedCompressedMember
+                    && !$canRepairMissingDirectGeneration
+                    && !$canRepairDirectGeneration
+                ) {
                     continue;
                 }
 

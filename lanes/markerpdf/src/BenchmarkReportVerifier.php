@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PortLibs\MarkerPDF;
 
 use InvalidArgumentException;
+use JsonException;
 use RuntimeException;
 
 final class BenchmarkReportVerifier
@@ -16,6 +17,48 @@ final class BenchmarkReportVerifier
     ];
 
     private const TABLE_AVERAGE_THRESHOLD = 0.7;
+
+    /**
+     * Native boundary for scripts/verify_benchmark_scores.py CLI file dispatch.
+     *
+     * @return array<mixed>
+     */
+    public function verifyScoreFile(string $filePath, string $type = 'marker'): array
+    {
+        $filePath = trim($filePath);
+        if ($filePath === '') {
+            throw new InvalidArgumentException('Benchmark score file path must not be empty.');
+        }
+
+        $json = @file_get_contents($filePath);
+        if (!is_string($json)) {
+            throw new InvalidArgumentException('Benchmark score file is not readable: ' . $filePath);
+        }
+
+        try {
+            $data = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException('Benchmark score file is not valid JSON: ' . $filePath, previous: $exception);
+        }
+
+        if (!is_array($data)) {
+            throw new InvalidArgumentException('Benchmark score file must decode to an array or object.');
+        }
+
+        if ($type === 'marker') {
+            $this->verifyMarkerScores($data);
+
+            return $data;
+        }
+
+        if ($type === 'table') {
+            $this->verifyTableScores($data);
+
+            return $data;
+        }
+
+        throw new InvalidArgumentException('Benchmark score verifier type must be marker or table.');
+    }
 
     /**
      * Native boundary for scripts/verify_benchmark_scores.py::verify_scores.

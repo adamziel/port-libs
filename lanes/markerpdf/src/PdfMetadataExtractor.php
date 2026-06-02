@@ -3014,6 +3014,30 @@ final class PdfMetadataExtractor
         }
 
         $cryptFilterSelection = $this->publicKeyRecipientCryptFilterSelection($dictionary, $cryptFilters);
+        $topLevelRecipientsSelected = $this->publicKeyTopLevelRecipientsSelected($handler, $subfilter, $topLevelRecipients !== null);
+        $selectedRecipientCount = (int) ($cryptFilterSelection['selected_recipient_count'] ?? 0);
+        $selectedRecipientBytes = (int) ($cryptFilterSelection['selected_recipient_bytes'] ?? 0);
+        $selectedUnresolvedRecipientCount = (int) ($cryptFilterSelection['selected_unresolved_recipient_count'] ?? 0);
+        $selectedRecipientHashes = array_values(array_filter(
+            $cryptFilterSelection['selected_recipient_sha256'] ?? [],
+            static fn (mixed $hash): bool => is_string($hash)
+        ));
+        $selectedRecipientSources = [];
+        if ($topLevelRecipientsSelected && $topLevelRecipients !== null) {
+            $selectedRecipientSources[] = 'encryption_dictionary_recipients';
+            $selectedRecipientCount += (int) ($topLevelRecipients['recipient_count'] ?? 0);
+            $selectedRecipientBytes += (int) ($topLevelRecipients['recipient_bytes'] ?? 0);
+            $selectedUnresolvedRecipientCount += (int) ($topLevelRecipients['unresolved_recipient_count'] ?? 0);
+            foreach ($topLevelRecipients['recipient_sha256'] ?? [] as $hash) {
+                if (is_string($hash) && !in_array($hash, $selectedRecipientHashes, true)) {
+                    $selectedRecipientHashes[] = $hash;
+                }
+            }
+        }
+        if (($cryptFilterSelection['selected_recipient_count'] ?? 0) > 0) {
+            $selectedRecipientSources[] = 'crypt_filter_recipients';
+        }
+        $selectedRecipientSources = $this->uniqueStrings($selectedRecipientSources);
 
         return [
             'source' => 'public_key_security_handler',
@@ -3024,17 +3048,27 @@ final class PdfMetadataExtractor
             'recipient_bytes' => $recipientBytes,
             'unresolved_recipient_count' => $unresolvedCount,
             'recipient_sha256' => $recipientHashes,
+            'top_level_recipient_count' => (int) ($topLevelRecipients['recipient_count'] ?? 0),
+            'top_level_recipient_bytes' => (int) ($topLevelRecipients['recipient_bytes'] ?? 0),
+            'top_level_unresolved_recipient_count' => (int) ($topLevelRecipients['unresolved_recipient_count'] ?? 0),
+            'top_level_recipient_sha256' => array_values(array_filter(
+                $topLevelRecipients['recipient_sha256'] ?? [],
+                static fn (mixed $hash): bool => is_string($hash)
+            )),
+            'top_level_recipients_selected' => $topLevelRecipientsSelected,
             'crypt_filter_recipient_filter_names' => $this->uniqueStrings($cryptFilterRecipientNames),
             'selected_crypt_filter_recipient_filter_names' => $cryptFilterSelection['selected_recipient_filter_names'],
             'unselected_crypt_filter_recipient_filter_names' => $cryptFilterSelection['unselected_recipient_filter_names'],
-            'selected_recipient_count' => $cryptFilterSelection['selected_recipient_count'],
-            'selected_recipient_bytes' => $cryptFilterSelection['selected_recipient_bytes'],
-            'selected_unresolved_recipient_count' => $cryptFilterSelection['selected_unresolved_recipient_count'],
-            'selected_recipient_sha256' => $cryptFilterSelection['selected_recipient_sha256'],
+            'selected_recipient_count' => $selectedRecipientCount,
+            'selected_recipient_bytes' => $selectedRecipientBytes,
+            'selected_unresolved_recipient_count' => $selectedUnresolvedRecipientCount,
+            'selected_recipient_sha256' => $selectedRecipientHashes,
+            'selected_recipient_sources' => $selectedRecipientSources,
+            'selected_recipient_source_policy' => $this->publicKeySelectedRecipientSourcePolicy($selectedRecipientSources),
             'crypt_filter_selection' => $cryptFilterSelection,
             'recipient_lists' => $recipientLists,
             'permissions_available_in_recipient_envelopes' => $recipientCount > 0,
-            'selected_permissions_available_in_recipient_envelopes' => $cryptFilterSelection['selected_recipient_count'] > 0,
+            'selected_permissions_available_in_recipient_envelopes' => $selectedRecipientCount > 0,
             'permissions_decoded' => false,
             'permission_decode_status' => $recipientCount > 0
                 ? 'cms_pkcs7_permission_decode_unavailable'
@@ -3046,6 +3080,31 @@ final class PdfMetadataExtractor
             'executes_decryption' => false,
             'review_only' => true,
         ];
+    }
+
+    private function publicKeyTopLevelRecipientsSelected(?string $handler, ?string $subfilter, bool $hasTopLevelRecipients): bool
+    {
+        if (!$hasTopLevelRecipients || !is_string($handler) || $handler === 'Standard') {
+            return false;
+        }
+
+        return $subfilter !== 'adbe.pkcs7.s5';
+    }
+
+    /**
+     * @param list<string> $sources
+     */
+    private function publicKeySelectedRecipientSourcePolicy(array $sources): string
+    {
+        if ($sources === []) {
+            return 'no_selected_recipient_permission_envelopes';
+        }
+
+        if (count($sources) === 1) {
+            return $sources[0];
+        }
+
+        return 'mixed_selected_recipient_permission_envelopes';
     }
 
     private function publicKeyRecipientSourcePolicy(?string $subfilter, bool $hasTopLevelRecipients, bool $hasCryptFilterRecipients): string

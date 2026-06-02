@@ -252,6 +252,7 @@ final class PdfAcroFormExtractor
         foreach ($fields as $index => $field) {
             if (($field['field_type'] ?? null) === 'Sig') {
                 $fields[$index]['signature_action_state'] = $this->signatureFieldActionState($fields[$index]);
+                $fields[$index]['signature_seed_lock_action_review'] = $this->signatureSeedLockActionReview($fields[$index]);
             }
         }
 
@@ -568,6 +569,100 @@ final class PdfAcroFormExtractor
             'signature_lock_applies_after_signing' => $signed && $lock !== null && ($lock['action_valid'] ?? false) === true,
             'signature_lock_effective_locked' => (bool) ($lockState['effective_locked'] ?? false),
             'locked_by_signature_count' => (int) ($lockState['locked_by_signature_count'] ?? 0),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function signatureSeedLockActionReview(array $field): array
+    {
+        $signatureState = is_array($field['signature_state'] ?? null) ? $field['signature_state'] : [];
+        $seedValue = is_array($field['signature_seed_value'] ?? null) ? $field['signature_seed_value'] : null;
+        $lock = is_array($field['signature_lock'] ?? null) ? $field['signature_lock'] : null;
+        $widgets = $this->arrayRows($field['widgets'] ?? []);
+        $fieldActions = $this->arrayRows($field['actions'] ?? []);
+        $widgetActions = [];
+
+        foreach ($widgets as $widget) {
+            foreach ($this->arrayRows($widget['actions'] ?? []) as $action) {
+                $widgetActions[] = $action;
+            }
+        }
+
+        $actions = array_merge($fieldActions, $widgetActions);
+        $timestamp = is_array($seedValue['timestamp'] ?? null) ? $seedValue['timestamp'] : null;
+        $mdp = is_array($seedValue['mdp'] ?? null) ? $seedValue['mdp'] : null;
+        $actionFieldNames = $this->actionFieldNamesFromRows($actions);
+        $submitFieldNames = $this->actionFieldNames($actions, ['SubmitForm']);
+        $resetFieldNames = $this->actionFieldNames($actions, ['ResetForm']);
+        $hideFieldNames = $this->actionFieldNames($actions, ['Hide']);
+        $lockedActionFieldNames = $this->lockedActionFieldNames($actionFieldNames, $lock);
+        $lockedSubmitFieldNames = $this->lockedActionFieldNames($submitFieldNames, $lock);
+        $lockedResetFieldNames = $this->lockedActionFieldNames($resetFieldNames, $lock);
+        $lockedHideFieldNames = $this->lockedActionFieldNames($hideFieldNames, $lock);
+
+        return [
+            'source' => 'acroform_signature_seed_lock_action_boundary',
+            'field_name' => $field['name'] ?? null,
+            'field_object' => $field['object'] ?? null,
+            'signed' => (bool) ($signatureState['signed'] ?? false),
+            'signature_object' => $signatureState['signature_object'] ?? null,
+            'seed_value_present' => $seedValue !== null,
+            'seed_value_object' => $seedValue['object'] ?? null,
+            'seed_value_required_constraints' => is_array($seedValue['required_constraints'] ?? null) ? $seedValue['required_constraints'] : [],
+            'seed_required_constraint_count' => is_array($seedValue['required_constraints'] ?? null) ? count($seedValue['required_constraints']) : 0,
+            'seed_constraints_required' => is_array($seedValue['required_constraints'] ?? null) && $seedValue['required_constraints'] !== [],
+            'seed_value_filter' => $seedValue['filter'] ?? null,
+            'seed_value_subfilters' => is_array($seedValue['subfilters'] ?? null) ? $seedValue['subfilters'] : [],
+            'seed_value_digest_methods' => is_array($seedValue['digest_methods'] ?? null) ? $seedValue['digest_methods'] : [],
+            'seed_value_reason_count' => is_array($seedValue['reasons'] ?? null) ? count($seedValue['reasons']) : 0,
+            'seed_value_timestamp_required' => (bool) ($timestamp['required'] ?? false),
+            'seed_value_timestamp_url' => $timestamp['url'] ?? null,
+            'seed_mdp_permission_level' => $mdp['permission_level'] ?? null,
+            'seed_mdp_permission_label' => $mdp['permission_label'] ?? null,
+            'seed_mdp_allowed_changes' => is_array($mdp['allowed_changes'] ?? null) ? $mdp['allowed_changes'] : [],
+            'lock_present' => $lock !== null,
+            'lock_object' => $lock['object'] ?? null,
+            'lock_action' => $lock['action'] ?? null,
+            'lock_action_label' => $lock['action_label'] ?? null,
+            'lock_field_names' => is_array($lock['field_names'] ?? null) ? $lock['field_names'] : [],
+            'lock_field_count' => is_array($lock['field_names'] ?? null) ? count($lock['field_names']) : 0,
+            'lock_permission_label' => $lock['permission_label'] ?? null,
+            'lock_applies_after_signing' => (bool) ($signatureState['signed'] ?? false) && $lock !== null && ($lock['action_valid'] ?? false) === true,
+            'action_count' => count($actions),
+            'field_action_count' => count($fieldActions),
+            'widget_action_count' => count($widgetActions),
+            'action_types' => $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['action_type'] ?? null,
+                $actions
+            )),
+            'action_safety_labels' => $this->actionSafetyLabels($actions),
+            'submit_form_action_count' => $this->actionCountWithType($actions, 'SubmitForm'),
+            'reset_form_action_count' => $this->actionCountWithType($actions, 'ResetForm'),
+            'import_data_action_count' => $this->actionCountWithType($actions, 'ImportData'),
+            'hide_action_count' => $this->actionCountWithType($actions, 'Hide'),
+            'unsafe_action_count' => $this->unsafeSeedLockActionCount($actions),
+            'action_field_names' => $actionFieldNames,
+            'submit_action_field_names' => $submitFieldNames,
+            'reset_action_field_names' => $resetFieldNames,
+            'hide_action_field_names' => $hideFieldNames,
+            'actions_target_locked_fields' => $lockedActionFieldNames !== [],
+            'locked_action_field_names' => $lockedActionFieldNames,
+            'locked_submit_field_names' => $lockedSubmitFieldNames,
+            'locked_reset_field_names' => $lockedResetFieldNames,
+            'locked_hide_field_names' => $lockedHideFieldNames,
+            'review_only' => true,
+            'seed_constraints_enforced_on_import' => false,
+            'lock_used_for_form_action_execution' => false,
+            'form_actions_execute_on_import' => false,
+            'submits_form_data' => false,
+            'resets_form_values' => false,
+            'imports_form_data' => false,
+            'executes_action' => false,
+            'executes_javascript' => false,
+            'executes_signature_validation' => false,
+            'executes_signing' => false,
         ];
     }
 
@@ -1267,6 +1362,99 @@ final class PdfAcroFormExtractor
         }
 
         return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @return list<string>
+     */
+    private function actionFieldNamesFromRows(array $actions): array
+    {
+        $names = [];
+        foreach ($actions as $action) {
+            foreach ($action['field_names'] ?? [] as $name) {
+                if (is_string($name) && $name !== '' && !in_array($name, $names, true)) {
+                    $names[] = $name;
+                }
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<string> $fieldNames
+     * @param array<string, mixed>|null $lock
+     * @return list<string>
+     */
+    private function lockedActionFieldNames(array $fieldNames, ?array $lock): array
+    {
+        if ($fieldNames === [] || $lock === null || ($lock['action_valid'] ?? false) !== true) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $fieldNames,
+            fn (string $fieldName): bool => $this->signatureLockAppliesToField($lock, $fieldName)
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @return list<string>
+     */
+    private function actionSafetyLabels(array $actions): array
+    {
+        return $this->uniqueScalarValues(array_map(
+            fn (array $action): mixed => $this->actionSafetyLabel($action),
+            $actions
+        ));
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     */
+    private function actionSafetyLabel(array $action): ?string
+    {
+        if (is_string($action['safety'] ?? null) && $action['safety'] !== '') {
+            return $action['safety'];
+        }
+
+        return match ($action['action_type'] ?? null) {
+            'JavaScript' => 'blocked-javascript',
+            'Launch' => 'launch-action-review',
+            'SubmitForm' => 'submit-form-action-review',
+            'ResetForm' => 'reset-form-action-review',
+            'ImportData' => 'import-data-action-review',
+            'Hide' => 'hide-action-review',
+            'URI' => ($action['safe_uri'] ?? ($action['is_safe_uri'] ?? null)) === true ? 'review-uri' : 'blocked-unsafe-uri',
+            'Named' => 'named-action-review',
+            'GoTo' => 'local-destination-review',
+            'GoToR' => 'remote-document-review',
+            null, '' => null,
+            default => 'unsupported-action-review',
+        };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     */
+    private function unsafeSeedLockActionCount(array $actions): int
+    {
+        $unsafeLabels = [
+            'blocked-javascript',
+            'blocked-unsafe-uri',
+            'launch-action-review',
+            'submit-form-action-review',
+            'reset-form-action-review',
+            'import-data-action-review',
+            'hide-action-review',
+        ];
+
+        return count(array_filter(
+            $actions,
+            fn (array $action): bool => in_array($this->actionSafetyLabel($action), $unsafeLabels, true)
+        ));
     }
 
     /**

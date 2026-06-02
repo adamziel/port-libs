@@ -154,7 +154,7 @@ final class PdfLinkAnnotationExtractor
         $links = [];
 
         foreach ($annotationBodies as $annotation) {
-            $link = $this->linkFromAnnotationBody($annotation['body'], $actionReviewer, $annotation['object']);
+            $link = $this->linkFromAnnotationBody($annotation['body'], $objects, $actionReviewer, $annotation['object']);
             if ($link !== null) {
                 $links[] = $link;
             }
@@ -272,20 +272,26 @@ final class PdfLinkAnnotationExtractor
     }
 
     /**
+     * @param array<int, string> $objects
      * @return array<string, mixed>|null
      */
-    private function linkFromAnnotationBody(string $annotationBody, PdfActionReviewExtractor $actionReviewer, ?int $annotationObject): ?array
+    private function linkFromAnnotationBody(
+        string $annotationBody,
+        array $objects,
+        PdfActionReviewExtractor $actionReviewer,
+        ?int $annotationObject
+    ): ?array
     {
         $subtype = $this->annotationSubtype($annotationBody);
         if (!in_array($subtype, ['Link', 'Widget'], true)) {
             return null;
         }
 
-        if ($subtype === 'Widget' && $this->annotationHiddenFromLinkImport($annotationBody)) {
+        if ($this->annotationHiddenFromLinkImport($annotationBody, $objects)) {
             return null;
         }
 
-        $rect = $this->rectFromAnnotation($annotationBody);
+        $rect = $this->rectFromAnnotation($annotationBody, $objects);
         if ($rect === null) {
             return null;
         }
@@ -314,9 +320,12 @@ final class PdfLinkAnnotationExtractor
             : null;
     }
 
-    private function annotationHiddenFromLinkImport(string $annotationBody): bool
+    /**
+     * @param array<int, string> $objects
+     */
+    private function annotationHiddenFromLinkImport(string $annotationBody, array $objects): bool
     {
-        $flags = $this->integerAfterName($annotationBody, 'F') ?? 0;
+        $flags = $this->integerAfterName($annotationBody, 'F', $objects) ?? 0;
 
         return ($flags & 1) !== 0
             || ($flags & 2) !== 0
@@ -343,12 +352,18 @@ final class PdfLinkAnnotationExtractor
     }
 
     /**
+     * @param array<int, string> $objects
      * @return list<float>|null
      */
-    private function rectFromAnnotation(string $annotationBody): ?array
+    private function rectFromAnnotation(string $annotationBody, array $objects = []): ?array
     {
         $value = $this->valueAfterName($annotationBody, 'Rect');
-        if ($value === null || !str_starts_with(trim($value), '[')) {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = $this->resolveIndirectObjectValue($value, $objects);
+        if (!str_starts_with(trim($value), '[')) {
             return null;
         }
 
@@ -491,14 +506,40 @@ final class PdfLinkAnnotationExtractor
         return null;
     }
 
-    private function integerAfterName(string $body, string $name): ?int
+    /**
+     * @param array<int, string> $objects
+     */
+    private function integerAfterName(string $body, string $name, array $objects = []): ?int
     {
         $value = $this->valueAfterName($body, $name);
-        if ($value === null || preg_match('/^[+-]?\d+/', trim($value), $match) !== 1) {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = $this->resolveIndirectObjectValue($value, $objects);
+        if (preg_match('/^[+-]?\d+/', trim($value), $match) !== 1) {
             return null;
         }
 
         return (int) $match[0];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function resolveIndirectObjectValue(string $value, array $objects): string
+    {
+        $trimmed = trim($value);
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $trimmed, $match) !== 1) {
+            return $value;
+        }
+
+        $objectNumber = (int) $match[1];
+        if (!isset($objects[$objectNumber])) {
+            return $value;
+        }
+
+        return trim($objects[$objectNumber]);
     }
 
     private function isSafeUri(string $uri): bool
