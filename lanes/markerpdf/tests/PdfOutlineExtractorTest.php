@@ -59,6 +59,21 @@ $openActionPdf = static function (string $openAction, string $extraObjects = '')
         . "%%EOF";
 };
 
+$destinationViewPdf = static function (): string {
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R /Names << /Dests 8 0 R >> /PageMode /UseOutlines /PageLayout /TwoColumnLeft /OpenAction /review-start >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Count 4 >>\nendobj\n"
+        . "6 0 obj\n<< /Title (Full Page) /Parent 5 0 R /Dest [3 0 R /Fit] /Next 7 0 R >>\nendobj\n"
+        . "7 0 obj\n<< /Title (Review Zoom) /Parent 5 0 R /Dest /review-start /Next 9 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Names [(review-start) [4 0 R /XYZ 144 640 0]] >>\nendobj\n"
+        . "9 0 obj\n<< /Title (Width Fit) /Parent 5 0 R /A << /S /GoTo /D [4 0 R /FitH 700] >> /Next 10 0 R >>\nendobj\n"
+        . "10 0 obj\n<< /Title (Page Ref Only) /Parent 5 0 R /Dest 3 0 R >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'resolves PDF outline named destinations before WordPress TOC import' => static function (TestRunner $t) use ($namedDestinationPdf): void {
         $toc = (new PdfOutlineExtractor())->getPdfToc($namedDestinationPdf());
@@ -210,5 +225,50 @@ return [
         );
         $t->same([], $extractor->getPdfToc($pdf));
         $t->same([], $extractor->getRemoteGoToActions($pdf));
+    },
+    'extracts catalog OpenAction destination view metadata for WordPress import review' => static function (TestRunner $t) use ($destinationViewPdf): void {
+        $metadata = (new PdfOutlineExtractor())->getCatalogPageViewMetadata($destinationViewPdf());
+
+        $t->same(['page_mode', 'page_layout', 'open_action'], $metadata['source']);
+        $t->same('UseOutlines', $metadata['page_mode']);
+        $t->same('TwoColumnLeft', $metadata['page_layout']);
+        $t->same(
+            [
+                'page' => 1,
+                'destination' => 'review-start',
+                'view_mode' => 'XYZ',
+                'view_position' => [144.0, 640.0, null],
+                'view_parameters' => ['left' => 144.0, 'top' => 640.0, 'zoom' => null],
+            ],
+            $metadata['open_action']
+        );
+        $t->same(['source' => []], (new PdfOutlineExtractor())->getCatalogPageViewMetadata('%PDF-1.4 no catalog here'));
+    },
+    'preserves destination Fit and XYZ page view metadata without changing basic TOC rows' => static function (TestRunner $t) use ($destinationViewPdf): void {
+        $extractor = new PdfOutlineExtractor();
+        $toc = $extractor->getPdfTocWithDestinationViews($destinationViewPdf());
+
+        $t->same(
+            [
+                ['title' => 'Full Page', 'level' => 1, 'page' => 0, 'destination' => null],
+                ['title' => 'Review Zoom', 'level' => 1, 'page' => 1, 'destination' => 'review-start'],
+                ['title' => 'Width Fit', 'level' => 1, 'page' => 1, 'destination' => null],
+                ['title' => 'Page Ref Only', 'level' => 1, 'page' => 0, 'destination' => null],
+            ],
+            $extractor->getPdfToc($destinationViewPdf())
+        );
+        $t->same('Fit', $toc[0]['view_mode']);
+        $t->same([], $toc[0]['view_position']);
+        $t->same([], $toc[0]['view_parameters']);
+        $t->same('XYZ', $toc[1]['view_mode']);
+        $t->same([144.0, 640.0, null], $toc[1]['view_position']);
+        $t->same(['left' => 144.0, 'top' => 640.0, 'zoom' => null], $toc[1]['view_parameters']);
+        $t->same('FitH', $toc[2]['view_mode']);
+        $t->same([700.0], $toc[2]['view_position']);
+        $t->same(['top' => 700.0], $toc[2]['view_parameters']);
+        $t->same(null, $toc[3]['view_mode']);
+        $t->same([], $toc[3]['view_position']);
+        $t->same([], $toc[3]['view_parameters']);
+        $t->same([], $extractor->getPdfTocWithDestinationViews('%PDF-1.4 no catalog here'));
     },
 ];

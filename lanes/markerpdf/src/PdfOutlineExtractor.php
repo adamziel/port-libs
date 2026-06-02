@@ -99,6 +99,112 @@ final class PdfOutlineExtractor
     }
 
     /**
+     * pypdfium exposes bookmark destination view metadata as a view mode and
+     * page-position coordinates. Keep the existing getPdfToc() shape stable and
+     * expose those fields through this richer review path for WordPress TOC UIs.
+     *
+     * @return list<array{
+     *     title: string,
+     *     level: int,
+     *     page: int,
+     *     destination: string|null,
+     *     view_mode: string|null,
+     *     view_position: list<float|null>,
+     *     view_parameters: array<string, float|null>
+     * }>
+     */
+    public function getPdfTocWithDestinationViews(string $pdfBytes, int $maxDepth = 15): array
+    {
+        $objects = $this->parsedObjectValues($pdfBytes);
+        $catalog = $this->catalogDictionary($objects);
+        if ($catalog === null) {
+            return [];
+        }
+
+        $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
+        if ($pageObjectNumbers === []) {
+            return [];
+        }
+
+        $pageIndexes = [];
+        foreach ($pageObjectNumbers as $index => $objectNumber) {
+            $pageIndexes[$objectNumber] = $index;
+        }
+
+        $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
+        if ($outlineRoot === null) {
+            return [];
+        }
+
+        return $this->outlineItemsWithDestinationViews(
+            $outlineRoot['First'] ?? null,
+            $objects,
+            $pageIndexes,
+            $this->destinationMap($catalog, $objects),
+            max(1, $maxDepth)
+        );
+    }
+
+    /**
+     * @return array{
+     *     source: list<string>,
+     *     page_mode?: string,
+     *     page_layout?: string,
+     *     open_action?: array{
+     *         page: int,
+     *         destination: string|null,
+     *         view_mode: string|null,
+     *         view_position: list<float|null>,
+     *         view_parameters: array<string, float|null>
+     *     }
+     * }
+     */
+    public function getCatalogPageViewMetadata(string $pdfBytes): array
+    {
+        $objects = $this->parsedObjectValues($pdfBytes);
+        $catalog = $this->catalogDictionary($objects);
+        if ($catalog === null) {
+            return ['source' => []];
+        }
+
+        $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
+        $pageIndexes = [];
+        foreach ($pageObjectNumbers as $index => $objectNumber) {
+            $pageIndexes[$objectNumber] = $index;
+        }
+
+        $metadata = ['source' => []];
+        $pageMode = $this->nameValue($catalog['PageMode'] ?? null);
+        if ($pageMode !== null) {
+            $metadata['source'][] = 'page_mode';
+            $metadata['page_mode'] = $pageMode;
+        }
+
+        $pageLayout = $this->nameValue($catalog['PageLayout'] ?? null);
+        if ($pageLayout !== null) {
+            $metadata['source'][] = 'page_layout';
+            $metadata['page_layout'] = $pageLayout;
+        }
+
+        $destination = $this->catalogOpenActionDestination($catalog, $objects);
+        if ($destination !== null) {
+            $details = $this->destinationViewDetails(
+                $destination['value'],
+                $objects,
+                $pageIndexes,
+                $this->destinationMap($catalog, $objects),
+                $destination['name']
+            );
+            if ($details !== null) {
+                $metadata['source'][] = 'open_action';
+                $metadata['open_action'] = $details;
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
      * @return array<int, mixed>
      */
     private function parsedObjectValues(string $pdfBytes): array
@@ -314,6 +420,76 @@ final class PdfOutlineExtractor
 
             if ($level < $maxDepth) {
                 foreach ($this->outlineItems($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $maxDepth, $level + 1, $seen) as $child) {
+                    $items[] = $child;
+                }
+            }
+
+            $current = $this->referenceObjectNumber($dict['Next'] ?? null);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @param array<string, mixed> $destinations
+     * @param array<int, true> $seen
+     * @return list<array{
+     *     title: string,
+     *     level: int,
+     *     page: int,
+     *     destination: string|null,
+     *     view_mode: string|null,
+     *     view_position: list<float|null>,
+     *     view_parameters: array<string, float|null>
+     * }>
+     */
+    private function outlineItemsWithDestinationViews(
+        mixed $firstItem,
+        array $objects,
+        array $pageIndexes,
+        array $destinations,
+        int $maxDepth,
+        int $level = 1,
+        array $seen = []
+    ): array {
+        if ($level > $maxDepth) {
+            return [];
+        }
+
+        $items = [];
+        $current = $this->referenceObjectNumber($firstItem);
+        while ($current !== null && !isset($seen[$current])) {
+            $seen[$current] = true;
+            $dict = $this->resolveDictionary($this->refValue($current), $objects);
+            if ($dict === null) {
+                break;
+            }
+
+            $title = $this->stringOrNameValue($this->resolveValue($dict['Title'] ?? null, $objects));
+            $destination = $this->outlineDestination($dict, $objects);
+            $details = $this->destinationViewDetails(
+                $destination['value'],
+                $objects,
+                $pageIndexes,
+                $destinations,
+                $destination['name']
+            );
+            if ($title !== null && $details !== null) {
+                $items[] = [
+                    'title' => $title,
+                    'level' => $level,
+                    'page' => $details['page'],
+                    'destination' => $details['destination'],
+                    'view_mode' => $details['view_mode'],
+                    'view_position' => $details['view_position'],
+                    'view_parameters' => $details['view_parameters'],
+                ];
+            }
+
+            if ($level < $maxDepth) {
+                foreach ($this->outlineItemsWithDestinationViews($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }
             }
@@ -639,6 +815,209 @@ final class PdfOutlineExtractor
             'name' => $this->stringOrNameValue($action['D']),
             'value' => $action['D'],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $catalog
+     * @param array<int, mixed> $objects
+     * @return array{name: string|null, value: mixed}|null
+     */
+    private function catalogOpenActionDestination(array $catalog, array $objects): ?array
+    {
+        if (!array_key_exists('OpenAction', $catalog)) {
+            return null;
+        }
+
+        $openAction = $catalog['OpenAction'];
+        $resolved = $this->resolveValue($openAction, $objects);
+        $array = $this->arrayItems($resolved);
+        if ($array !== null) {
+            return [
+                'name' => $this->stringOrNameValue($openAction),
+                'value' => $openAction,
+            ];
+        }
+
+        $name = $this->stringOrNameValue($resolved);
+        if ($name !== null) {
+            return ['name' => $name, 'value' => $openAction];
+        }
+
+        $action = $this->dictionaryItems($resolved);
+        if ($action === null || $this->nameValue($action['S'] ?? null) !== 'GoTo' || !array_key_exists('D', $action)) {
+            return null;
+        }
+
+        return [
+            'name' => $this->stringOrNameValue($action['D']),
+            'value' => $action['D'],
+        ];
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @param array<string, mixed> $destinations
+     * @param array<string, true> $seenNames
+     * @return array{
+     *     page: int,
+     *     destination: string|null,
+     *     view_mode: string|null,
+     *     view_position: list<float|null>,
+     *     view_parameters: array<string, float|null>
+     * }|null
+     */
+    private function destinationViewDetails(
+        mixed $destination,
+        array $objects,
+        array $pageIndexes,
+        array $destinations,
+        ?string $destinationName = null,
+        array $seenNames = []
+    ): ?array {
+        $pageObjectNumber = $this->referenceObjectNumber($destination);
+        if ($pageObjectNumber !== null && isset($pageIndexes[$pageObjectNumber])) {
+            return [
+                'page' => $pageIndexes[$pageObjectNumber],
+                'destination' => $destinationName,
+                'view_mode' => null,
+                'view_position' => [],
+                'view_parameters' => [],
+            ];
+        }
+
+        $resolved = $this->resolveValue($destination, $objects);
+        $name = $this->stringOrNameValue($resolved);
+        if ($name !== null) {
+            if (isset($seenNames[$name]) || !array_key_exists($name, $destinations)) {
+                return null;
+            }
+            $seenNames[$name] = true;
+
+            return $this->destinationViewDetails($destinations[$name], $objects, $pageIndexes, $destinations, $name, $seenNames);
+        }
+
+        $dict = $this->dictionaryItems($resolved);
+        if ($dict !== null && array_key_exists('D', $dict)) {
+            return $this->destinationViewDetails($dict['D'], $objects, $pageIndexes, $destinations, $destinationName, $seenNames);
+        }
+
+        $array = $this->arrayItems($resolved);
+        if ($array !== null && $array !== []) {
+            return $this->explicitDestinationDetails($array, $objects, $pageIndexes, $destinationName);
+        }
+
+        $pageObjectNumber = $this->referenceObjectNumber($resolved);
+        if ($pageObjectNumber !== null && isset($pageIndexes[$pageObjectNumber])) {
+            return [
+                'page' => $pageIndexes[$pageObjectNumber],
+                'destination' => $destinationName,
+                'view_mode' => null,
+                'view_position' => [],
+                'view_parameters' => [],
+            ];
+        }
+
+        if (is_int($resolved) && $resolved >= 0) {
+            return [
+                'page' => $resolved,
+                'destination' => $destinationName,
+                'view_mode' => null,
+                'view_position' => [],
+                'view_parameters' => [],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<mixed> $array
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @return array{
+     *     page: int,
+     *     destination: string|null,
+     *     view_mode: string|null,
+     *     view_position: list<float|null>,
+     *     view_parameters: array<string, float|null>
+     * }|null
+     */
+    private function explicitDestinationDetails(array $array, array $objects, array $pageIndexes, ?string $destinationName): ?array
+    {
+        $page = $this->destinationPageFromValue($array[0] ?? null, $objects, $pageIndexes);
+        if ($page === null) {
+            return null;
+        }
+
+        $viewMode = $this->nameValue($array[1] ?? null);
+        $viewPosition = [];
+        for ($index = 2, $count = count($array); $index < $count; $index++) {
+            $viewPosition[] = $this->numericOrNullValue($array[$index]);
+        }
+
+        if ($viewMode === 'XYZ' && array_key_exists(2, $viewPosition) && $viewPosition[2] === 0.0) {
+            $viewPosition[2] = null;
+        }
+
+        return [
+            'page' => $page,
+            'destination' => $destinationName,
+            'view_mode' => $viewMode,
+            'view_position' => $viewPosition,
+            'view_parameters' => $this->viewParameters($viewMode, $viewPosition),
+        ];
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     */
+    private function destinationPageFromValue(mixed $value, array $objects, array $pageIndexes): ?int
+    {
+        $pageObjectNumber = $this->referenceObjectNumber($value);
+        if ($pageObjectNumber !== null) {
+            return $pageIndexes[$pageObjectNumber] ?? null;
+        }
+
+        $resolved = $this->resolveValue($value, $objects);
+        $pageObjectNumber = $this->referenceObjectNumber($resolved);
+        if ($pageObjectNumber !== null) {
+            return $pageIndexes[$pageObjectNumber] ?? null;
+        }
+
+        return is_int($resolved) && $resolved >= 0 ? $resolved : null;
+    }
+
+    private function numericOrNullValue(mixed $value): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return is_int($value) || is_float($value) ? (float) $value : null;
+    }
+
+    /**
+     * @param list<float|null> $viewPosition
+     * @return array<string, float|null>
+     */
+    private function viewParameters(?string $viewMode, array $viewPosition): array
+    {
+        $names = match ($viewMode) {
+            'XYZ' => ['left', 'top', 'zoom'],
+            'FitH', 'FitBH' => ['top'],
+            'FitV', 'FitBV' => ['left'],
+            'FitR' => ['left', 'bottom', 'right', 'top'],
+            default => [],
+        };
+
+        $parameters = [];
+        foreach ($names as $index => $name) {
+            $parameters[$name] = $viewPosition[$index] ?? null;
+        }
+
+        return $parameters;
     }
 
     /**
