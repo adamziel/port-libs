@@ -344,6 +344,7 @@ final class PdfTextExtractor
     private function pageContentStreamsWithFontMaps(array $objects, array $pageObjectNumbers, array $fontObjectMaps): array
     {
         $pages = [];
+        $structureMcidOrderByPage = $this->structureTreeMcidOrderByPage($objects);
         foreach ($pageObjectNumbers as $pageObjectNumber) {
             if (!isset($objects[$pageObjectNumber])) {
                 continue;
@@ -377,6 +378,13 @@ final class PdfTextExtractor
                 );
             }
 
+            $expanded['stream'] = $this->applyStructureTreeReadingOrder(
+                $expanded['stream'],
+                $objects[$pageObjectNumber],
+                $objects,
+                $structureMcidOrderByPage[$pageObjectNumber] ?? []
+            );
+
             foreach ($this->annotationAppearanceStreamsWithFontMaps(
                 $objects[$pageObjectNumber],
                 $objects,
@@ -400,6 +408,392 @@ final class PdfTextExtractor
         }
 
         return $pages;
+    }
+
+    /**
+     * @return array<int, list<int>>
+     * @param array<int, string> $objects
+     */
+    private function structureTreeMcidOrderByPage(array $objects): array
+    {
+        $rootDictionary = $this->structureTreeRootDictionaryBody($objects);
+        if ($rootDictionary === null) {
+            return [];
+        }
+
+        $k = $this->pdfValueAfterName($rootDictionary, 'K');
+        if ($k === null) {
+            return [];
+        }
+
+        $order = [];
+        $this->collectStructureMcidOrder($k, $objects, null, $order);
+
+        foreach ($order as $pageObjectNumber => $mcids) {
+            $deduped = [];
+            foreach ($mcids as $mcid) {
+                $deduped[$mcid] = $mcid;
+            }
+            $order[$pageObjectNumber] = array_values($deduped);
+        }
+
+        return $order;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function structureTreeRootDictionaryBody(array $objects): ?string
+    {
+        $catalog = $this->catalogObjectBody($objects);
+        if ($catalog === null) {
+            return null;
+        }
+
+        $value = $this->pdfValueAfterName($catalog, 'StructTreeRoot');
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+        }
+
+        if (str_starts_with($value, '<<')) {
+            return $this->readPdfDictionaryAt($value, 0);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<int>> $order
+     * @param array<int, true> $seenObjects
+     */
+    private function collectStructureMcidOrder(
+        string $value,
+        array $objects,
+        ?int $inheritedPageObjectNumber,
+        array &$order,
+        array $seenObjects = []
+    ): void {
+        $value = trim($value);
+        if ($value === '') {
+            return;
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return;
+            }
+
+            $seenObjects[$objectNumber] = true;
+            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            if ($dictionary !== null) {
+                $this->collectStructureDictionaryMcidOrder($dictionary, $objects, $inheritedPageObjectNumber, $order, $seenObjects);
+            }
+            return;
+        }
+
+        if (str_starts_with($value, '[')) {
+            $arrayBody = $this->pdfArrayAtStart($value);
+            if ($arrayBody === null) {
+                return;
+            }
+
+            foreach ($this->pdfArrayItems($arrayBody) as $item) {
+                $this->collectStructureMcidOrder($item, $objects, $inheritedPageObjectNumber, $order, $seenObjects);
+            }
+            return;
+        }
+
+        if (str_starts_with($value, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($value, 0);
+            if ($dictionary !== null) {
+                $this->collectStructureDictionaryMcidOrder($dictionary, $objects, $inheritedPageObjectNumber, $order, $seenObjects);
+            }
+            return;
+        }
+
+        if ($inheritedPageObjectNumber !== null && preg_match('/^[+-]?\d+$/', $value) === 1) {
+            $mcid = (int) $value;
+            if ($mcid >= 0) {
+                $order[$inheritedPageObjectNumber][] = $mcid;
+            }
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<int>> $order
+     * @param array<int, true> $seenObjects
+     */
+    private function collectStructureDictionaryMcidOrder(
+        string $dictionary,
+        array $objects,
+        ?int $inheritedPageObjectNumber,
+        array &$order,
+        array $seenObjects
+    ): void {
+        $pageObjectNumber = $this->objectReferenceValueAfterName($dictionary, 'Pg') ?? $inheritedPageObjectNumber;
+        $mcid = $this->pdfIntegerValueAfterName($dictionary, 'MCID');
+        if ($pageObjectNumber !== null && $mcid !== null && $mcid >= 0) {
+            $order[$pageObjectNumber][] = $mcid;
+        }
+
+        $k = $this->pdfValueAfterName($dictionary, 'K');
+        if ($k !== null) {
+            $this->collectStructureMcidOrder($k, $objects, $pageObjectNumber, $order, $seenObjects);
+        }
+    }
+
+    /**
+     * @param list<int> $mcidOrder
+     * @param array<int, string> $objects
+     */
+    private function applyStructureTreeReadingOrder(string $stream, string $pageBody, array $objects, array $mcidOrder): string
+    {
+        if ($mcidOrder === []) {
+            return $stream;
+        }
+
+        $segments = $this->markedContentSegmentsByMcid($stream, $pageBody, $objects);
+        if ($segments === []) {
+            return $stream;
+        }
+
+        $orderedSegments = [];
+        foreach ($mcidOrder as $mcid) {
+            if (!isset($segments[$mcid])) {
+                continue;
+            }
+
+            foreach ($segments[$mcid] as $segmentTokens) {
+                $segment = trim(implode(' ', $segmentTokens));
+                if ($segment !== '') {
+                    $orderedSegments[] = 'BT ' . $segment . ' ET';
+                }
+            }
+        }
+
+        return $orderedSegments === [] ? $stream : implode("\n", $orderedSegments);
+    }
+
+    /**
+     * @return array<int, list<list<string>>>
+     * @param array<int, string> $objects
+     */
+    private function markedContentSegmentsByMcid(string $stream, string $pageBody, array $objects): array
+    {
+        $properties = $this->markedContentPropertyDictionaries($pageBody, $objects);
+        $segments = [];
+        $activeSegments = [];
+        $operands = [];
+        $currentFontResource = null;
+        $currentFontSize = null;
+
+        foreach ($this->contentTokens($stream) as $token) {
+            if ($token === 'BDC') {
+                $mcid = $this->markedContentMcidOperand($operands, $properties);
+                $segmentIndex = null;
+                if ($mcid !== null) {
+                    $segments[$mcid] ??= [];
+                    $segments[$mcid][] = $this->markedContentSegmentPrefix($currentFontResource, $currentFontSize);
+                    $segmentIndex = count($segments[$mcid]) - 1;
+                }
+
+                $activeSegments[] = ['mcid' => $mcid, 'segmentIndex' => $segmentIndex];
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BMC') {
+                $activeSegments[] = ['mcid' => null, 'segmentIndex' => null];
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'EMC') {
+                array_pop($activeSegments);
+                $operands = [];
+                continue;
+            }
+
+            $activeSegment = $this->activeMarkedContentSegment($activeSegments);
+            if ($activeSegment !== null) {
+                $segments[$activeSegment['mcid']][$activeSegment['segmentIndex']][] = $token;
+            }
+
+            if ($token === 'Tf') {
+                $currentFontResource = $this->fontResourceOperand($operands) ?? $currentFontResource;
+                $fontSize = $this->fontSizeOperand($operands);
+                $currentFontSize = $fontSize === null ? $currentFontSize : $this->formatPdfNumber($fontSize);
+                $operands = [];
+                continue;
+            }
+
+            if ($this->isOperator($token)) {
+                $operands = [];
+                continue;
+            }
+
+            $operands[] = $token;
+        }
+
+        return $segments;
+    }
+
+    /**
+     * @param list<array{mcid: int|null, segmentIndex: int|null}> $activeSegments
+     * @return array{mcid: int, segmentIndex: int}|null
+     */
+    private function activeMarkedContentSegment(array $activeSegments): ?array
+    {
+        for ($index = count($activeSegments) - 1; $index >= 0; $index--) {
+            $segment = $activeSegments[$index];
+            if ($segment['mcid'] !== null && $segment['segmentIndex'] !== null) {
+                return [
+                    'mcid' => $segment['mcid'],
+                    'segmentIndex' => $segment['segmentIndex'],
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function markedContentSegmentPrefix(?string $fontResource, ?string $fontSize): array
+    {
+        if ($fontResource === null) {
+            return [];
+        }
+
+        return ['/' . $fontResource, $fontSize ?? '12', 'Tf'];
+    }
+
+    /**
+     * @param list<string> $operands
+     * @param array<string, string> $properties
+     */
+    private function markedContentMcidOperand(array $operands, array $properties): ?int
+    {
+        for ($index = count($operands) - 1; $index >= 0; $index--) {
+            $operand = trim($operands[$index]);
+            if ($operand === '') {
+                continue;
+            }
+
+            if (str_starts_with($operand, '<<')) {
+                $mcid = $this->markedContentMcidFromDictionaryToken($operand);
+                if ($mcid !== null) {
+                    return $mcid;
+                }
+                continue;
+            }
+
+            if (str_starts_with($operand, '/')) {
+                $name = $this->decodePdfName(substr($operand, 1));
+                if (isset($properties[$name])) {
+                    $mcid = $this->markedContentMcidFromDictionaryToken('<<' . $properties[$name] . '>>');
+                    if ($mcid !== null) {
+                        return $mcid;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function markedContentMcidFromDictionaryToken(string $token): ?int
+    {
+        $dictionary = str_starts_with($token, '<<') ? $this->readPdfDictionaryAt($token, 0) : $token;
+        if ($dictionary === null || preg_match('/\/MCID\s+(\d+)/s', $dictionary, $match) !== 1) {
+            return null;
+        }
+
+        return (int) $match[1];
+    }
+
+    /**
+     * @return array<string, string>
+     * @param array<int, string> $objects
+     */
+    private function markedContentPropertyDictionaries(string $pageBody, array $objects): array
+    {
+        $resourceDictionary = $this->resourceDictionaryBody($pageBody, $objects);
+        if ($resourceDictionary === null) {
+            return [];
+        }
+
+        $propertiesDictionary = $this->propertiesResourceDictionaryBody($resourceDictionary, $objects);
+        if ($propertiesDictionary === null) {
+            return [];
+        }
+
+        $properties = [];
+        if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/s', $propertiesDictionary, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $objectNumber = (int) $match[2];
+                $dictionary = isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+                if ($dictionary !== null) {
+                    $properties[$this->decodePdfName($match[1])] = $dictionary;
+                }
+            }
+        }
+
+        $offset = 0;
+        while (preg_match('/\/([^\s\[\]()<>{}\/%]+)\s*<</s', $propertiesDictionary, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $dictionaryOffset = strpos($propertiesDictionary, '<<', $match[0][1]);
+            if ($dictionaryOffset === false) {
+                break;
+            }
+
+            $dictionary = $this->readPdfDictionaryAt($propertiesDictionary, $dictionaryOffset);
+            $end = $this->pdfDictionaryEndOffset($propertiesDictionary, $dictionaryOffset);
+            if ($dictionary === null || $end === null) {
+                break;
+            }
+
+            $properties[$this->decodePdfName($match[1][0])] = $dictionary;
+            $offset = $end + 1;
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function propertiesResourceDictionaryBody(string $resourceDictionary, array $objects): ?string
+    {
+        if (!preg_match('/\/Properties\s*(?:(\d+)\s+\d+\s+R|<<)/s', $resourceDictionary, $match, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        if (($match[1][0] ?? '') !== '') {
+            $objectNumber = (int) $match[1][0];
+            return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+        }
+
+        $offset = strpos($resourceDictionary, '<<', $match[0][1]);
+        return $offset === false ? null : $this->readPdfDictionaryAt($resourceDictionary, $offset);
+    }
+
+    private function formatPdfNumber(float $value): string
+    {
+        if (abs($value - round($value)) < 0.000001) {
+            return (string) (int) round($value);
+        }
+
+        return rtrim(rtrim(sprintf('%.6F', $value), '0'), '.');
     }
 
     /**
@@ -2048,7 +2442,7 @@ final class PdfTextExtractor
             }
 
             if ($cmap !== null && ($cmap['map'] !== [] || $cmap['codeSpaceRanges'] !== [])) {
-                $cmap = $this->withFontWidthMetrics($cmap, $widthMetrics);
+                $cmap = $this->withFontWidthMetrics($cmap, $widthMetrics, $this->fontWritingMode($body, $cmap));
                 $fontObjectMaps[$objectNumber] = $cmap;
             }
         }
@@ -2168,7 +2562,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{widths: array<int, float>, defaultWidth: float|null, cidSet: array<int, true>|null}
+     * @return array{widths: array<int, float>, defaultWidth: float|null, cidSet: array<int, true>|null, verticalDisplacements: array<int, float>, defaultVerticalDisplacement: float|null}
      * @param array<int, string> $objects
      */
     private function fontWidthMetrics(string $fontBody, array $objects): array
@@ -2177,6 +2571,9 @@ final class PdfTextExtractor
         $defaultWidth = null;
         $cidSet = null;
         $hasWidthArray = false;
+        $verticalDisplacements = [];
+        $defaultVerticalDisplacement = null;
+        $hasVerticalWidthArray = false;
 
         foreach ([$fontBody, ...$this->descendantFontBodies($fontBody, $objects)] as $body) {
             $widthArray = $this->pdfArrayValueAfterName($body, 'W');
@@ -2192,6 +2589,22 @@ final class PdfTextExtractor
                 $defaultWidth = $bodyDefaultWidth;
             }
 
+            $verticalWidthArray = $this->pdfArrayValueAfterName($body, 'W2');
+            if ($verticalWidthArray !== null) {
+                $hasVerticalWidthArray = true;
+                foreach ($this->cidVerticalDisplacementsFromW2Array($verticalWidthArray) as $cid => $displacement) {
+                    $verticalDisplacements[$cid] = $displacement;
+                }
+            }
+
+            $verticalDefaultMetrics = $this->pdfArrayValueAfterName($body, 'DW2');
+            if ($verticalDefaultMetrics !== null) {
+                $metrics = $this->numbersFromPdfArray($verticalDefaultMetrics);
+                if (count($metrics) >= 2) {
+                    $defaultVerticalDisplacement = (float) $metrics[1];
+                }
+            }
+
             $bodyCidSet = $this->cidSetFromCidFontBody($body, $objects);
             if ($bodyCidSet !== null) {
                 $cidSet = $cidSet === null ? $bodyCidSet : ($cidSet + $bodyCidSet);
@@ -2201,11 +2614,16 @@ final class PdfTextExtractor
         if (($hasWidthArray || $cidSet !== null) && $defaultWidth === null) {
             $defaultWidth = 1000.0;
         }
+        if ($hasVerticalWidthArray && $defaultVerticalDisplacement === null) {
+            $defaultVerticalDisplacement = -1000.0;
+        }
 
         return [
             'widths' => $widths,
             'defaultWidth' => $defaultWidth,
             'cidSet' => $cidSet,
+            'verticalDisplacements' => $verticalDisplacements,
+            'defaultVerticalDisplacement' => $defaultVerticalDisplacement,
         ];
     }
 
@@ -2293,6 +2711,61 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return array<int, float>
+     */
+    private function cidVerticalDisplacementsFromW2Array(string $arrayBody): array
+    {
+        $tokens = $this->contentTokens($arrayBody);
+        $displacements = [];
+
+        for ($index = 0, $count = count($tokens); $index < $count;) {
+            $firstCid = $this->integerToken($tokens[$index] ?? '');
+            if ($firstCid === null) {
+                $index++;
+                continue;
+            }
+            $index++;
+
+            $next = $tokens[$index] ?? null;
+            if ($next === null) {
+                break;
+            }
+
+            if (str_starts_with(trim($next), '[')) {
+                $metrics = $this->numbersFromPdfArray(substr(trim($next), 1, -1));
+                for ($offset = 0, $metricCount = count($metrics); $offset + 2 < $metricCount; $offset += 3) {
+                    $cid = $firstCid + intdiv($offset, 3);
+                    if ($cid >= 0 && $cid <= 0xffff) {
+                        $displacements[$cid] = (float) $metrics[$offset];
+                    }
+                }
+                $index++;
+                continue;
+            }
+
+            $lastCid = $this->integerToken($next);
+            $verticalDisplacement = $this->numericOperand($tokens[$index + 1] ?? '');
+            $positionX = $this->numericOperand($tokens[$index + 2] ?? '');
+            $positionY = $this->numericOperand($tokens[$index + 3] ?? '');
+            if ($lastCid === null || $verticalDisplacement === null || $positionX === null || $positionY === null) {
+                $index++;
+                continue;
+            }
+
+            $index += 4;
+            if ($firstCid < 0 || $lastCid < $firstCid) {
+                continue;
+            }
+
+            for ($cid = $firstCid, $limit = min($lastCid, 0xffff); $cid <= $limit; $cid++) {
+                $displacements[$cid] = (float) $verticalDisplacement;
+            }
+        }
+
+        return $displacements;
+    }
+
+    /**
      * @return array<int, true>|null
      * @param array<int, string> $objects
      */
@@ -2374,22 +2847,49 @@ final class PdfTextExtractor
 
     /**
      * @param array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>} $map
-     * @param array{widths: array<int, float>, defaultWidth: float|null, cidSet: array<int, true>|null} $metrics
+     * @param array{widths: array<int, float>, defaultWidth: float|null, cidSet: array<int, true>|null, verticalDisplacements: array<int, float>, defaultVerticalDisplacement: float|null} $metrics
      * @return array<string, mixed>
      */
-    private function withFontWidthMetrics(array $map, array $metrics): array
+    private function withFontWidthMetrics(array $map, array $metrics, int $writingMode): array
     {
-        if ($metrics['widths'] === [] && $metrics['defaultWidth'] === null && $metrics['cidSet'] === null) {
+        if (
+            $writingMode === 0
+            && $metrics['widths'] === []
+            && $metrics['defaultWidth'] === null
+            && $metrics['cidSet'] === null
+            && $metrics['verticalDisplacements'] === []
+            && $metrics['defaultVerticalDisplacement'] === null
+        ) {
             return $map;
         }
 
+        $map['writingMode'] = $writingMode;
         $map['cidWidths'] = $metrics['widths'];
         $map['cidDefaultWidth'] = $metrics['defaultWidth'];
+        $map['cidVerticalDisplacements'] = $metrics['verticalDisplacements'];
+        $map['cidDefaultVerticalDisplacement'] = $writingMode === 1
+            ? ($metrics['defaultVerticalDisplacement'] ?? -1000.0)
+            : $metrics['defaultVerticalDisplacement'];
         if ($metrics['cidSet'] !== null) {
             $map['cidSet'] = $metrics['cidSet'];
         }
 
         return $map;
+    }
+
+    private function fontWritingMode(string $fontBody, array $cmap): int
+    {
+        if (preg_match('/\/Encoding\s+\/([^\s\[\]()<>{}\/%]+)/', $fontBody, $match)) {
+            $encodingName = $this->decodePdfName($match[1]);
+            if ($encodingName === 'Identity-V') {
+                return 1;
+            }
+            if ($encodingName === 'Identity-H') {
+                return 0;
+            }
+        }
+
+        return $this->mapWritingMode($cmap);
     }
 
     /**
@@ -2498,6 +2998,16 @@ final class PdfTextExtractor
         return (float) $match[1];
     }
 
+    private function pdfIntegerValueAfterName(string $body, string $name): ?int
+    {
+        $offset = $this->nameValueOffset($body, $name);
+        if ($offset === null || preg_match('/\G([+-]?\d+)/s', $body, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        return (int) $match[1];
+    }
+
     private function objectReferenceValueAfterName(string $body, string $name): ?int
     {
         $offset = $this->nameValueOffset($body, $name);
@@ -2573,6 +3083,64 @@ final class PdfTextExtractor
         }
 
         return $end === $offset ? null : substr($body, $offset, $end - $offset);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pdfArrayItems(string $arrayBody): array
+    {
+        $items = [];
+        $index = 0;
+        $length = strlen($arrayBody);
+
+        while ($index < $length) {
+            $this->skipContentWhitespaceAndComments($arrayBody, $index);
+            if ($index >= $length) {
+                break;
+            }
+
+            if (preg_match('/\G\d+\s+\d+\s+R\b/s', $arrayBody, $match, 0, $index) === 1) {
+                $items[] = $match[0];
+                $index += strlen($match[0]);
+                continue;
+            }
+
+            $char = $arrayBody[$index];
+            if (substr($arrayBody, $index, 2) === '<<') {
+                $items[] = $this->readDictionaryToken($arrayBody, $index);
+                continue;
+            }
+
+            if ($char === '[') {
+                $items[] = $this->readArrayToken($arrayBody, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $items[] = $this->readLiteralToken($arrayBody, $index);
+                continue;
+            }
+
+            if ($char === '<') {
+                $items[] = $this->readHexToken($arrayBody, $index);
+                continue;
+            }
+
+            $start = $index;
+            while ($index < $length && !$this->isDelimiter($arrayBody[$index])) {
+                $index++;
+            }
+
+            if ($index === $start) {
+                $index++;
+                continue;
+            }
+
+            $items[] = substr($arrayBody, $start, $index - $start);
+        }
+
+        return array_values(array_filter($items, static fn (string $item): bool => trim($item) !== ''));
     }
 
     private function nameValueOffset(string $body, string $name): ?int
@@ -2862,6 +3430,7 @@ final class PdfTextExtractor
                 'codeSpaceRanges' => [
                     ['start' => 0, 'end' => 0xffff, 'width' => 4],
                 ],
+                'writingMode' => $encodingName === 'Identity-V' ? 1 : 0,
             ];
         }
 
@@ -3434,6 +4003,18 @@ final class PdfTextExtractor
         return array_map('intval', $matches[0]);
     }
 
+    /**
+     * @return list<float>
+     */
+    private function numbersFromPdfArray(string $arrayBody): array
+    {
+        if (!preg_match_all('/[+-]?(?:\d+(?:\.\d*)?|\.\d+)/', $arrayBody, $matches)) {
+            return [];
+        }
+
+        return array_map('floatval', $matches[0]);
+    }
+
     private function xrefFieldValue(string $bytes, int &$offset, int $width): int
     {
         $value = 0;
@@ -3500,6 +4081,7 @@ final class PdfTextExtractor
     {
         $map = [];
         $codeSpaceRanges = [];
+        $writingMode = null;
 
         if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+usecmap\b/s', $cmap, $useCMapMatches)) {
             foreach ($useCMapMatches[1] as $rawName) {
@@ -3510,10 +4092,17 @@ final class PdfTextExtractor
 
                 $base = $this->parseToUnicodeCMap($namedCMapBodies[$name], $namedCMapBodies, [...$seenCMaps, $name]);
                 $map = $base['map'] + $map;
+                if (isset($base['writingMode'])) {
+                    $writingMode = (int) $base['writingMode'] === 1 ? 1 : 0;
+                }
                 foreach ($base['codeSpaceRanges'] as $range) {
                     $codeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
                 }
             }
+        }
+
+        if (preg_match('/\/WMode\s+([01])\s+def\b/s', $cmap, $wModeMatch) === 1) {
+            $writingMode = (int) $wModeMatch[1] === 1 ? 1 : 0;
         }
 
         if (preg_match_all('/beginbfchar(.*?)endbfchar/s', $cmap, $charBlocks)) {
@@ -3545,10 +4134,15 @@ final class PdfTextExtractor
             return $right['width'] <=> $left['width'] ?: $left['start'] <=> $right['start'];
         });
 
-        return [
+        $result = [
             'map' => $map,
             'codeSpaceRanges' => $codeSpaceRanges,
         ];
+        if ($writingMode !== null) {
+            $result['writingMode'] = $writingMode;
+        }
+
+        return $result;
     }
 
     /**
@@ -3738,6 +4332,7 @@ final class PdfTextExtractor
         $currentTextX = null;
         $currentTextY = null;
         $currentTextEndX = null;
+        $currentTextEndY = null;
         $characterSpacing = 0.0;
         $wordSpacing = 0.0;
         $horizontalScale = 100.0;
@@ -3751,6 +4346,7 @@ final class PdfTextExtractor
                     $this->pushLine($lines, $currentLine);
                     $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
                     $currentTextEndX = $currentTextX;
+                    $currentTextEndY = $currentTextY;
                     $pendingPositionWordGap = false;
                 }
 
@@ -3764,15 +4360,26 @@ final class PdfTextExtractor
                     $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
                     $decoded = $this->decodeTextOperand($operand, $toUnicodeMap);
                     $this->appendPositionedText($currentLine, $decoded, $pendingPositionWordGap);
-                    $currentTextEndX = $this->advanceTextEndXForOperand(
-                        $currentTextEndX ?? $currentTextX,
-                        $operand,
-                        $toUnicodeMap,
-                        $currentFontSize,
-                        $characterSpacing,
-                        $wordSpacing,
-                        $horizontalScale * $currentTextMatrixHorizontalScale
-                    );
+                    if ($this->mapWritingMode($toUnicodeMap) === 1) {
+                        $currentTextEndY = $this->advanceTextEndYForOperand(
+                            $currentTextEndY ?? $currentTextY,
+                            $operand,
+                            $toUnicodeMap,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing
+                        );
+                    } else {
+                        $currentTextEndX = $this->advanceTextEndXForOperand(
+                            $currentTextEndX ?? $currentTextX,
+                            $operand,
+                            $toUnicodeMap,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing,
+                            $horizontalScale * $currentTextMatrixHorizontalScale
+                        );
+                    }
                 }
                 $operands = [];
                 continue;
@@ -3852,12 +4459,21 @@ final class PdfTextExtractor
                 $currentTextX = $this->textMoveX($operands, $currentTextX);
                 $currentTextY = $this->textMoveY($operands, $currentTextY);
                 $currentTextEndX = $currentTextX;
+                $currentTextEndY = $currentTextY;
                 $operands = [];
                 continue;
             }
 
             if ($token === 'Tm') {
-                if ($this->textMatrixBreaksLine($operands, $currentTextY)) {
+                $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
+                if ($this->mapWritingMode($toUnicodeMap) === 1) {
+                    if ($this->verticalTextMatrixBreaksLine($operands, $currentTextX)) {
+                        $this->pushLine($lines, $currentLine);
+                        $pendingPositionWordGap = false;
+                    } elseif ($this->verticalTextMatrixCreatesWordGap($operands, $currentTextEndY)) {
+                        $pendingPositionWordGap = $currentLine !== '';
+                    }
+                } elseif ($this->textMatrixBreaksLine($operands, $currentTextY)) {
                     $this->pushLine($lines, $currentLine);
                     $pendingPositionWordGap = false;
                 } elseif ($this->textMatrixCreatesWordGap($operands, $currentTextEndX)) {
@@ -3866,6 +4482,7 @@ final class PdfTextExtractor
                 $currentTextX = $this->textMatrixX($operands);
                 $currentTextY = $this->textMatrixY($operands);
                 $currentTextEndX = $currentTextX;
+                $currentTextEndY = $currentTextY;
                 $currentTextMatrixHorizontalScale = $this->textMatrixHorizontalScale($operands) ?? 1.0;
                 $operands = [];
                 continue;
@@ -3875,6 +4492,7 @@ final class PdfTextExtractor
                 $this->pushLine($lines, $currentLine);
                 $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
                 $currentTextEndX = $currentTextX;
+                $currentTextEndY = $currentTextY;
                 $pendingPositionWordGap = false;
                 $operands = [];
                 continue;
@@ -3884,6 +4502,7 @@ final class PdfTextExtractor
                 $currentTextX = null;
                 $currentTextY = null;
                 $currentTextEndX = null;
+                $currentTextEndY = null;
                 $currentTextMatrixHorizontalScale = 1.0;
                 $pendingPositionWordGap = false;
                 $operands = [];
@@ -3895,6 +4514,7 @@ final class PdfTextExtractor
                 $currentTextX = null;
                 $currentTextY = null;
                 $currentTextEndX = null;
+                $currentTextEndY = null;
                 $currentTextMatrixHorizontalScale = 1.0;
                 $pendingPositionWordGap = false;
                 $operands = [];
@@ -3944,6 +4564,11 @@ final class PdfTextExtractor
 
             if ($char === '<' && ($index + 1 >= $length || $stream[$index + 1] !== '<')) {
                 $tokens[] = $this->readHexToken($stream, $index);
+                continue;
+            }
+
+            if ($char === '<' && $index + 1 < $length && $stream[$index + 1] === '<') {
+                $tokens[] = $this->readDictionaryToken($stream, $index);
                 continue;
             }
 
@@ -4124,6 +4749,17 @@ final class PdfTextExtractor
         return substr($stream, $start, $index - $start);
     }
 
+    private function readDictionaryToken(string $stream, int &$index): string
+    {
+        $body = $this->readPdfDictionaryTokenAt($stream, $index);
+        if ($body === null) {
+            $index += 2;
+            return '<<';
+        }
+
+        return '<<' . $body . '>>';
+    }
+
     private function readArrayToken(string $stream, int &$index): string
     {
         $start = $index;
@@ -4225,6 +4861,13 @@ final class PdfTextExtractor
         }
 
         return $fontToUnicodeMaps[''] ?? null;
+    }
+
+    private function mapWritingMode(?array $toUnicodeMap): int
+    {
+        $writingMode = $toUnicodeMap['writingMode'] ?? 0;
+
+        return (int) $writingMode === 1 ? 1 : 0;
     }
 
     /**
@@ -4416,6 +5059,32 @@ final class PdfTextExtractor
     /**
      * @param list<string> $operands
      */
+    private function verticalTextMatrixBreaksLine(array $operands, ?float $currentTextX): bool
+    {
+        $matrixX = $this->textMatrixX($operands);
+        if ($matrixX === null || $currentTextX === null) {
+            return true;
+        }
+
+        return abs($matrixX - $currentTextX) > 0.000001;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function verticalTextMatrixCreatesWordGap(array $operands, ?float $currentTextEndY): bool
+    {
+        $matrixY = $this->textMatrixY($operands);
+        if ($matrixY === null || $currentTextEndY === null) {
+            return false;
+        }
+
+        return abs($matrixY - $currentTextEndY) >= self::POSITIONED_TEXT_WORD_GAP;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
     private function textMatrixX(array $operands): ?float
     {
         if (count($operands) < 6) {
@@ -4556,6 +5225,73 @@ final class PdfTextExtractor
         return $endX;
     }
 
+    private function advanceTextEndY(
+        ?float $currentTextEndY,
+        string $decoded,
+        ?float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        ?array $glyphDisplacements = null
+    ): ?float {
+        if ($currentTextEndY === null || $decoded === '') {
+            return $currentTextEndY;
+        }
+
+        $fontSize ??= 12.0;
+        $characters = $glyphDisplacements !== null && $glyphDisplacements !== [] ? count($glyphDisplacements) : $this->length($decoded);
+        $baseAdvance = $glyphDisplacements !== null && $glyphDisplacements !== []
+            ? (array_sum($glyphDisplacements) / 1000.0) * $fontSize
+            : -$characters * $fontSize;
+        $spacingAdvance = (max(0, $characters - 1) * $characterSpacing) + (substr_count($decoded, ' ') * $wordSpacing);
+        $direction = $baseAdvance < 0 ? -1.0 : 1.0;
+
+        return $currentTextEndY + $baseAdvance + ($spacingAdvance * $direction);
+    }
+
+    private function advanceTextEndYForOperand(
+        ?float $currentTextEndY,
+        string $operand,
+        ?array $toUnicodeMap,
+        ?float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing
+    ): ?float {
+        if ($currentTextEndY === null) {
+            return null;
+        }
+
+        $operand = trim($operand);
+        if (!str_starts_with($operand, '[')) {
+            return $this->advanceTextEndY(
+                $currentTextEndY,
+                $this->decodeTextOperand($operand, $toUnicodeMap),
+                $fontSize,
+                $characterSpacing,
+                $wordSpacing,
+                $this->glyphVerticalDisplacementsForTextOperand($operand, $toUnicodeMap)
+            );
+        }
+
+        $endY = $currentTextEndY;
+        foreach ($this->textArrayElements($operand) as $element) {
+            if ($element['type'] === 'text') {
+                $endY = $this->advanceTextEndY(
+                    $endY,
+                    $this->decodeTextOperand($element['value'], $toUnicodeMap),
+                    $fontSize,
+                    $characterSpacing,
+                    $wordSpacing,
+                    $this->glyphVerticalDisplacementsForTextOperand((string) $element['value'], $toUnicodeMap)
+                );
+                continue;
+            }
+
+            $endY = $this->adjustTextEndY($endY, (float) $element['value'], $fontSize);
+        }
+
+        return $endY;
+    }
+
     /**
      * @return list<float>|null
      */
@@ -4592,6 +5328,34 @@ final class PdfTextExtractor
         }
 
         return $widths;
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function glyphVerticalDisplacementsForTextOperand(string $operand, ?array $toUnicodeMap): ?array
+    {
+        if ($toUnicodeMap === null || $this->mapWritingMode($toUnicodeMap) !== 1) {
+            return null;
+        }
+
+        $cidDisplacements = $toUnicodeMap['cidVerticalDisplacements'] ?? [];
+        $defaultDisplacement = $toUnicodeMap['cidDefaultVerticalDisplacement'] ?? -1000.0;
+
+        $hex = $this->textOperandSourceHex($operand);
+        if ($hex === '') {
+            return [];
+        }
+
+        $displacements = [];
+        foreach ($this->textOperandSourceKeys($hex, $toUnicodeMap) as $key) {
+            $cid = hexdec($key);
+            $displacements[] = is_array($cidDisplacements) && array_key_exists($cid, $cidDisplacements)
+                ? (float) $cidDisplacements[$cid]
+                : (float) $defaultDisplacement;
+        }
+
+        return $displacements;
     }
 
     private function textOperandSourceHex(string $operand): string
@@ -4653,6 +5417,17 @@ final class PdfTextExtractor
         $scale = $horizontalScale / 100.0;
 
         return $currentTextEndX - (($adjustment / 1000.0) * $fontSize * $scale);
+    }
+
+    private function adjustTextEndY(?float $currentTextEndY, float $adjustment, ?float $fontSize): ?float
+    {
+        if ($currentTextEndY === null) {
+            return null;
+        }
+
+        $fontSize ??= 12.0;
+
+        return $currentTextEndY - (($adjustment / 1000.0) * $fontSize);
     }
 
     /**

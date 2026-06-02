@@ -28,20 +28,30 @@ final class PdfImageRenderer
     }
 
     /**
-     * Derives the rendered page pixel dimensions that pypdfium reports after
-     * page.render(scale=dpi / 72).to_pil().size for a PDF-point page box.
+     * Derives rendered page pixel dimensions from PDF visible-box geometry.
+     * Rotation follows page dictionary geometry, and UserUnit compensates for
+     * the PDF 1.6 scale factor that PDFium cannot expose through pypdfium.
      *
      * @param list<float|int> $pageBbox
      * @return array{width: int, height: int}
      */
-    public function renderedImageSize(array $pageBbox, float $dpi): array
+    public function renderedImageSize(array $pageBbox, float $dpi, int $rotation = 0, float $userUnit = 1.0): array
     {
         $bbox = $this->bbox($pageBbox);
-        $scale = $this->renderScale($dpi);
+        if ($userUnit <= 0.0) {
+            throw new InvalidArgumentException('UserUnit must be greater than zero.');
+        }
+
+        $scale = $this->renderScale($dpi) * $userUnit;
+        $width = max(0.0, $bbox[2] - $bbox[0]);
+        $height = max(0.0, $bbox[3] - $bbox[1]);
+        if (in_array($this->normalizedRotation($rotation), [90, 270], true)) {
+            [$width, $height] = [$height, $width];
+        }
 
         return [
-            'width' => (int) round(max(0.0, $bbox[2] - $bbox[0]) * $scale),
-            'height' => (int) round(max(0.0, $bbox[3] - $bbox[1]) * $scale),
+            'width' => (int) round($width * $scale),
+            'height' => (int) round($height * $scale),
         ];
     }
 
@@ -342,6 +352,16 @@ final class PdfImageRenderer
     private function byteValue(int|float $value): int
     {
         return max(0, min(255, (int) round($value)));
+    }
+
+    private function normalizedRotation(int $rotation): int
+    {
+        $rotation %= 360;
+        if ($rotation < 0) {
+            $rotation += 360;
+        }
+
+        return in_array($rotation, [0, 90, 180, 270], true) ? $rotation : 0;
     }
 
     private function decodePdfName(string $name): string

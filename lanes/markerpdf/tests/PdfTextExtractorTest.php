@@ -834,6 +834,55 @@ return [
         $t->true(!str_contains($plainText, 'Wide Block'));
         $t->true(!str_contains($plainText, 'ThinText'));
     },
+    'uses CIDFont vertical W2 metrics for WordPress text advance boundaries' => static function (TestRunner $t): void {
+        $cmap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "/WMode 1 def\n"
+            . "1 begincodespacerange\n"
+            . "<0000> <FFFF>\n"
+            . "endcodespacerange\n"
+            . "18 beginbfchar\n"
+            . "<0001> <0056>\n"
+            . "<0002> <0065>\n"
+            . "<0003> <0072>\n"
+            . "<0004> <0074>\n"
+            . "<0005> <0049>\n"
+            . "<0006> <006D>\n"
+            . "<0007> <0070>\n"
+            . "<0008> <006F>\n"
+            . "<0009> <0072>\n"
+            . "<000A> <0074>\n"
+            . "<0014> <0044>\n"
+            . "<0015> <0061>\n"
+            . "<0016> <0074>\n"
+            . "<0017> <0061>\n"
+            . "<0018> <0046>\n"
+            . "<0019> <006C>\n"
+            . "<001A> <006F>\n"
+            . "<001B> <0077>\n"
+            . "endbfchar\n"
+            . "endcmap\n"
+            . "CMapName currentdict /CMap defineresource pop\n"
+            . "end\n"
+            . "end\n";
+        $content = 'BT /Fv 12 Tf 1 0 0 1 72 720 Tm <0001000200030004> Tj 1 0 0 1 72 672 Tm <00050006000700080009000A> Tj '
+            . '1 0 0 1 96 720 Tm <0014001500160017> Tj 1 0 0 1 96 708 Tm <00180019001A001B> Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fv 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CIDVerticalSubset /Encoding /Identity-V /DescendantFonts [4 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /CIDVerticalSubset /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW2 [880 -1000] /W2 [20 23 -250 500 880] >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['VertImport', 'DataFlow'], $extractor->extractTextLines($pdf));
+        $t->same(['Vert', 'Import', 'Data', 'Flow'], $extractor->extractTextRuns($pdf));
+        $t->same("VertImport\nDataFlow", $plainText);
+        $t->true(!str_contains($plainText, "Vert\nImport"));
+        $t->true(!str_contains($plainText, 'Data Flow'));
+    },
     'uses CIDSet subset glyphs for default CIDFont widths before WordPress text' => static function (TestRunner $t): void {
         $cmap = "/CIDInit /ProcSet findresource begin\n"
             . "12 dict begin\n"
@@ -1495,6 +1544,30 @@ return [
         $t->same("Kids First Branch\nKids Second Branch\n", $extractor->naiveGetText($pdf));
         $t->same(['1', '2'], $extractor->extractPageLabels($pdf));
         $t->same(2, $extractor->extractOutlineMetadata($pdf)['pages']);
+    },
+    'uses tagged PDF StructTreeRoot MCID order before content stream order' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf '
+            . '/P << /MCID 1 >> BDC 72 704 Td (Body paragraph second) Tj EMC '
+            . '/H1 << /MCID 0 >> BDC 72 720 Td (Tagged heading first) Tj EMC '
+            . '/Artifact << /MCID 9 >> BDC 72 688 Td (Artifact footer noise) Tj EMC ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 20 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /StructTreeRoot /K [21 0 R 22 0 R] >>\nendobj\n"
+            . "21 0 obj\n<< /Type /StructElem /S /H1 /Pg 3 0 R /K 0 >>\nendobj\n"
+            . "22 0 obj\n<< /Type /StructElem /S /P /K << /Type /MCR /Pg 3 0 R /MCID 1 >> >>\nendobj\n"
+            . "%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Tagged heading first', 'Body paragraph second'], $extractor->extractTextLines($pdf));
+        $t->same(['Tagged heading first', 'Body paragraph second'], $extractor->extractTextRuns($pdf));
+        $t->same("Tagged heading first\nBody paragraph second", $plainText);
+        $t->same("Tagged heading first\nBody paragraph second\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Artifact footer noise'));
     },
     'parses object streams through xref stream entries before WordPress text extraction' => static function (TestRunner $t) use ($objectStreamXrefPdf): void {
         $pdf = $objectStreamXrefPdf();

@@ -20,7 +20,7 @@ final class MarkerAppPreview
     /**
      * Native boundary for marker_app.py::open_pdf plus page_count metadata.
      *
-     * @return array{page_count: int, pages: list<array{page_number: int, page_index: int, object_id: int, bbox: list<float>, bbox_source: string}>}
+     * @return array{page_count: int, pages: list<array<string, mixed>>}
      */
     public function openPdfSummary(string $pdfBytes): array
     {
@@ -43,7 +43,7 @@ final class MarkerAppPreview
     /**
      * Plans marker_app.py::get_page_image without pypdfium/PIL rasterization.
      *
-     * @return array{page_number: int, page_index: int, page_count: int, object_id: int, bbox_source: string, dpi: float, scale: float, annotation_mode: string, color_mode: string, pypdfium_page_indices: list<int>, page_bbox: list<float>, rendered_image_size: array{width: int, height: int}}
+     * @return array<string, mixed>
      */
     public function getPageImagePlan(string $pdfBytes, int $pageNumber, float $dpi = 96.0): array
     {
@@ -60,18 +60,34 @@ final class MarkerAppPreview
             'page_count' => $summary['page_count'],
             'object_id' => $page['object_id'],
             'bbox_source' => $page['bbox_source'],
+            'media_box' => $page['media_box'],
+            'media_box_source' => $page['media_box_source'],
+            'crop_box' => $page['crop_box'],
+            'crop_box_source' => $page['crop_box_source'],
+            'bleed_box' => $page['bleed_box'],
+            'bleed_box_source' => $page['bleed_box_source'],
+            'trim_box' => $page['trim_box'],
+            'trim_box_source' => $page['trim_box_source'],
+            'art_box' => $page['art_box'],
+            'art_box_source' => $page['art_box_source'],
+            'rotation' => $page['rotation'],
+            'rotation_source' => $page['rotation_source'],
+            'user_unit' => $page['user_unit'],
+            'user_unit_source' => $page['user_unit_source'],
+            'display_page_size' => $this->displayPageSize($page['bbox'], $page['rotation']),
+            'physical_page_size' => $this->displayPageSize($page['bbox'], $page['rotation'], $page['user_unit']),
             'dpi' => $dpi,
             'scale' => $this->renderer->renderScale($dpi),
             'annotation_mode' => 'pypdfium-default',
             'color_mode' => 'RGB',
             'pypdfium_page_indices' => [$pageNumber - 1],
             'page_bbox' => $page['bbox'],
-            'rendered_image_size' => $this->renderer->renderedImageSize($page['bbox'], $dpi),
+            'rendered_image_size' => $this->renderer->renderedImageSize($page['bbox'], $dpi, $page['rotation'], $page['user_unit']),
         ];
     }
 
     /**
-     * @return list<array{page_number: int, page_index: int, object_id: int, bbox: list<float>, bbox_source: string}>
+     * @return list<array<string, mixed>>
      */
     private function pageInventory(string $pdfBytes): array
     {
@@ -103,8 +119,7 @@ final class MarkerAppPreview
 
                 $pages[] = [
                     'object_id' => $objectId,
-                    'bbox' => $this->pageBox($object['body'], $objects),
-                    'bbox_source' => $this->mediaBox($object['body']) === null ? 'default' : 'page',
+                    ...$this->pageGeometry($object['body'], $objects),
                 ];
             }
         }
@@ -120,13 +135,13 @@ final class MarkerAppPreview
     /**
      * @param array<int, array{generation: int, body: string}> $objects
      * @param list<int> $seen
-     * @return list<array{object_id: int, bbox: list<float>, bbox_source: string}>
+     * @param array<string, mixed> $inherited
+     * @return list<array<string, mixed>>
      */
     private function collectPages(
         int $objectId,
         array $objects,
-        ?array $inheritedBbox = null,
-        string $inheritedSource = 'default',
+        array $inherited = [],
         array $seen = []
     ): array {
         if (in_array($objectId, $seen, true) || !isset($objects[$objectId])) {
@@ -136,15 +151,12 @@ final class MarkerAppPreview
         $seen[] = $objectId;
         $body = $objects[$objectId]['body'];
         $type = $this->objectType($body);
-        $ownBbox = $this->mediaBox($body);
-        $bbox = $ownBbox ?? $inheritedBbox;
-        $bboxSource = $ownBbox === null ? $inheritedSource : ($type === 'Page' ? 'page' : 'pages');
+        $nextInherited = $this->inheritedPageGeometry($body, $objects, $type, $inherited);
 
         if ($type === 'Page') {
             return [[
                 'object_id' => $objectId,
-                'bbox' => $bbox ?? self::DEFAULT_PAGE_BBOX,
-                'bbox_source' => $bbox === null ? 'default' : $bboxSource,
+                ...$this->pageGeometry($body, $objects, $nextInherited),
             ]];
         }
 
@@ -154,7 +166,7 @@ final class MarkerAppPreview
 
         $pages = [];
         foreach ($this->kidReferences($body, $objects) as $kidId) {
-            foreach ($this->collectPages($kidId, $objects, $bbox, $bboxSource, $seen) as $page) {
+            foreach ($this->collectPages($kidId, $objects, $nextInherited, $seen) as $page) {
                 $pages[] = $page;
             }
         }
@@ -227,42 +239,246 @@ final class MarkerAppPreview
 
     /**
      * @param array<int, array{generation: int, body: string}> $objects
-     * @param list<int> $seen
-     * @return list<float>
+     * @param array<string, mixed> $inherited
+     * @return array<string, mixed>
      */
-    private function pageBox(string $body, array $objects, array $seen = []): array
+    private function inheritedPageGeometry(string $body, array $objects, ?string $type, array $inherited): array
     {
-        $bbox = $this->mediaBox($body);
-        if ($bbox !== null) {
-            return $bbox;
+        $source = $type === 'Page' ? 'page' : 'pages';
+        $mediaBox = $this->boxValue($body, 'MediaBox', $objects);
+        if ($mediaBox !== null) {
+            $inherited['media_box'] = $mediaBox;
+            $inherited['media_box_source'] = $source;
         }
 
-        $parentId = $this->reference($body, 'Parent');
-        if ($parentId === null || in_array($parentId, $seen, true) || !isset($objects[$parentId])) {
-            return self::DEFAULT_PAGE_BBOX;
+        $cropBox = $this->boxValue($body, 'CropBox', $objects);
+        if ($cropBox !== null) {
+            $inherited['crop_box'] = $cropBox;
+            $inherited['crop_box_source'] = $source;
         }
 
-        $seen[] = $parentId;
+        $rotation = $this->integerValue($body, 'Rotate', $objects);
+        if ($rotation !== null) {
+            $inherited['rotation'] = $this->normalizedRotation($rotation);
+            $inherited['rotation_source'] = $source;
+        }
 
-        return $this->pageBox($objects[$parentId]['body'], $objects, $seen);
+        return $inherited;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<string, mixed> $inherited
+     * @return array<string, mixed>
+     */
+    private function pageGeometry(string $pageBody, array $objects, array $inherited = []): array
+    {
+        if ($inherited === []) {
+            $inherited = $this->parentInheritedGeometry($pageBody, $objects);
+        }
+
+        $source = 'page';
+        $mediaBox = $this->boxValue($pageBody, 'MediaBox', $objects);
+        $mediaBoxSource = $source;
+        if ($mediaBox === null) {
+            $mediaBox = $inherited['media_box'] ?? self::DEFAULT_PAGE_BBOX;
+            $mediaBoxSource = $inherited['media_box_source'] ?? 'default';
+        }
+
+        $cropBox = $this->boxValue($pageBody, 'CropBox', $objects);
+        $cropBoxSource = $source;
+        if ($cropBox === null) {
+            $cropBox = $inherited['crop_box'] ?? $mediaBox;
+            $cropBoxSource = $inherited['crop_box_source'] ?? 'media_box';
+        }
+
+        $rotation = $this->integerValue($pageBody, 'Rotate', $objects);
+        $rotationSource = $source;
+        if ($rotation === null) {
+            $rotation = $inherited['rotation'] ?? 0;
+            $rotationSource = $inherited['rotation_source'] ?? 'default';
+        }
+        $rotation = $this->normalizedRotation($rotation);
+
+        $userUnit = $this->numberValue($pageBody, 'UserUnit', $objects);
+        $userUnitSource = 'page';
+        if ($userUnit === null || $userUnit <= 0.0) {
+            $userUnit = 1.0;
+            $userUnitSource = 'default';
+        }
+
+        $bbox = $this->intersectBoxes($mediaBox, $cropBox);
+        $bleedBox = $this->boxValue($pageBody, 'BleedBox', $objects);
+        $trimBox = $this->boxValue($pageBody, 'TrimBox', $objects);
+        $artBox = $this->boxValue($pageBody, 'ArtBox', $objects);
+
+        return [
+            'bbox' => $bbox,
+            'bbox_source' => $cropBoxSource === 'media_box' ? $mediaBoxSource : 'crop_box',
+            'media_box' => $mediaBox,
+            'media_box_source' => $mediaBoxSource,
+            'crop_box' => $cropBox,
+            'crop_box_source' => $cropBoxSource,
+            'bleed_box' => $bleedBox ?? $cropBox,
+            'bleed_box_source' => $bleedBox === null ? 'crop_box' : 'page',
+            'trim_box' => $trimBox ?? $cropBox,
+            'trim_box_source' => $trimBox === null ? 'crop_box' : 'page',
+            'art_box' => $artBox ?? $cropBox,
+            'art_box_source' => $artBox === null ? 'crop_box' : 'page',
+            'rotation' => $rotation,
+            'rotation_source' => $rotationSource,
+            'user_unit' => $userUnit,
+            'user_unit_source' => $userUnitSource,
+        ];
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @return array<string, mixed>
+     */
+    private function parentInheritedGeometry(string $pageBody, array $objects): array
+    {
+        $ancestors = [];
+        $seen = [];
+        $parentId = $this->reference($pageBody, 'Parent');
+        while ($parentId !== null && !isset($seen[$parentId]) && isset($objects[$parentId])) {
+            $seen[$parentId] = true;
+            $body = $objects[$parentId]['body'];
+            $ancestors[] = $body;
+            $parentId = $this->reference($body, 'Parent');
+        }
+
+        $inherited = [];
+        foreach (array_reverse($ancestors) as $body) {
+            $inherited = $this->inheritedPageGeometry($body, $objects, $this->objectType($body), $inherited);
+        }
+
+        return $inherited;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @return list<float>|null
+     */
+    private function boxValue(string $body, string $name, array $objects): ?array
+    {
+        if (preg_match('/\/' . preg_quote($name, '/') . '\s*\[([^\]]+)\]/s', $body, $match) === 1) {
+            return $this->boxFromNumbers($match[1]);
+        }
+
+        $objectId = $this->reference($body, $name);
+        if ($objectId === null || !isset($objects[$objectId])) {
+            return null;
+        }
+
+        $objectBody = trim($objects[$objectId]['body']);
+        if (preg_match('/^\[([^\]]+)\]$/s', $objectBody, $match) === 1) {
+            return $this->boxFromNumbers($match[1]);
+        }
+
+        return null;
     }
 
     /**
      * @return list<float>|null
      */
-    private function mediaBox(string $body): ?array
+    private function boxFromNumbers(string $body): ?array
     {
-        if (!preg_match('/\/MediaBox\s*\[([^\]]+)\]/s', $body, $match)) {
-            return null;
-        }
-        if (!preg_match_all('/[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?/', $match[1], $numbers)) {
+        if (!preg_match_all('/[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?/', $body, $numbers)) {
             return null;
         }
         if (count($numbers[0]) < 4) {
             return null;
         }
 
-        return array_map(static fn (string $value): float => (float) $value, array_slice($numbers[0], 0, 4));
+        $box = array_map(static fn (string $value): float => (float) $value, array_slice($numbers[0], 0, 4));
+
+        return [
+            min($box[0], $box[2]),
+            min($box[1], $box[3]),
+            max($box[0], $box[2]),
+            max($box[1], $box[3]),
+        ];
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     */
+    private function integerValue(string $body, string $name, array $objects): ?int
+    {
+        $value = $this->numberValue($body, $name, $objects);
+
+        return $value === null ? null : (int) round($value);
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     */
+    private function numberValue(string $body, string $name, array $objects): ?float
+    {
+        if (preg_match('/\/' . preg_quote($name, '/') . '\s+([-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?)(?!\s+\d+\s+R\b)/s', $body, $match) === 1) {
+            return (float) $match[1];
+        }
+
+        $objectId = $this->reference($body, $name);
+        if ($objectId === null || !isset($objects[$objectId])) {
+            return null;
+        }
+
+        $objectBody = trim($objects[$objectId]['body']);
+        if (preg_match('/^[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?$/', $objectBody) !== 1) {
+            return null;
+        }
+
+        return (float) $objectBody;
+    }
+
+    /**
+     * @param list<float> $mediaBox
+     * @param list<float> $cropBox
+     * @return list<float>
+     */
+    private function intersectBoxes(array $mediaBox, array $cropBox): array
+    {
+        $left = max($mediaBox[0], $cropBox[0]);
+        $bottom = max($mediaBox[1], $cropBox[1]);
+        $right = min($mediaBox[2], $cropBox[2]);
+        $top = min($mediaBox[3], $cropBox[3]);
+
+        return [
+            $left,
+            $bottom,
+            max($left, $right),
+            max($bottom, $top),
+        ];
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @return array{width: float, height: float}
+     */
+    private function displayPageSize(array $bbox, int $rotation, float $userUnit = 1.0): array
+    {
+        $width = max(0.0, $bbox[2] - $bbox[0]) * $userUnit;
+        $height = max(0.0, $bbox[3] - $bbox[1]) * $userUnit;
+        if (in_array($this->normalizedRotation($rotation), [90, 270], true)) {
+            [$width, $height] = [$height, $width];
+        }
+
+        return [
+            'width' => $width,
+            'height' => $height,
+        ];
+    }
+
+    private function normalizedRotation(int $rotation): int
+    {
+        $rotation %= 360;
+        if ($rotation < 0) {
+            $rotation += 360;
+        }
+
+        return in_array($rotation, [0, 90, 180, 270], true) ? $rotation : 0;
     }
 
     private function assertPdfBytes(string $pdfBytes): void
