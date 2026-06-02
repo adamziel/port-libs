@@ -4651,6 +4651,7 @@ final class PdfTextExtractor
         $defaultWidth = null;
         $cidSet = null;
         $hasWidthArray = false;
+        $hasCidFontBody = false;
         $verticalDisplacements = [];
         $defaultVerticalDisplacement = null;
         $hasVerticalWidthArray = false;
@@ -4660,6 +4661,10 @@ final class PdfTextExtractor
         }
 
         foreach ([$fontBody, ...$this->descendantFontBodies($fontBody, $objects)] as $body) {
+            if ($this->isCidFontBody($body)) {
+                $hasCidFontBody = true;
+            }
+
             foreach ($this->simpleFontWidthMetrics($body, $objects) as $code => $width) {
                 $widths[$code] = $width;
             }
@@ -4699,7 +4704,7 @@ final class PdfTextExtractor
             }
         }
 
-        if (($hasWidthArray || $cidSet !== null) && $defaultWidth === null) {
+        if (($hasCidFontBody || $hasWidthArray || $cidSet !== null) && $defaultWidth === null) {
             $defaultWidth = 1000.0;
         }
         if ($hasVerticalWidthArray && $defaultVerticalDisplacement === null) {
@@ -4905,7 +4910,7 @@ final class PdfTextExtractor
 
     private function isSimpleFontBody(string $fontBody): bool
     {
-        if (preg_match('/\/Subtype\s*\/(?:Type0|CIDFontType[02])\b/s', $fontBody) === 1) {
+        if (preg_match('/\/Subtype\s*\/Type0\b/s', $fontBody) === 1 || $this->isCidFontBody($fontBody)) {
             return false;
         }
 
@@ -4915,6 +4920,11 @@ final class PdfTextExtractor
 
         return $this->pdfNameValueAfterName($fontBody, 'BaseFont') !== null
             && $this->pdfArrayValueAfterName($fontBody, 'DescendantFonts') === null;
+    }
+
+    private function isCidFontBody(string $fontBody): bool
+    {
+        return preg_match('/\/Subtype\s*\/CIDFontType[02]\b/s', $fontBody) === 1;
     }
 
     /**

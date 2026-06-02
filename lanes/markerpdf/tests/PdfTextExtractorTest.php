@@ -1545,6 +1545,45 @@ return [
         $t->true(!str_contains($plainText, 'Wide Block'));
         $t->true(!str_contains($plainText, "\0"));
     },
+    'uses CIDFont descriptor default width before WordPress text advance boundaries' => static function (TestRunner $t): void {
+        $cmap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "1 begincodespacerange\n"
+            . "<0000> <FFFF>\n"
+            . "endcodespacerange\n"
+            . "9 beginbfchar\n"
+            . "<0001> <0057>\n"
+            . "<0002> <0069>\n"
+            . "<0003> <0064>\n"
+            . "<0004> <0065>\n"
+            . "<0005> <0042>\n"
+            . "<0006> <006C>\n"
+            . "<0007> <006F>\n"
+            . "<0008> <0063>\n"
+            . "<0009> <006B>\n"
+            . "endbfchar\n"
+            . "endcmap\n"
+            . "CMapName currentdict /CMap defineresource pop\n"
+            . "end\n"
+            . "end\n";
+        $content = 'BT /Fcid 12 Tf 1 0 0 1 72 720 Tm <0001000200030004> Tj 1 0 0 1 118 720 Tm <00050006000700080009> Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /DefaultCIDDescriptorSubset /Encoding /Identity-H /DescendantFonts [4 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /DefaultCIDDescriptorSubset /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 6 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /FontDescriptor /FontName /DefaultCIDDescriptorSubset /Flags 4 >>\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['WideBlock'], $extractor->extractTextLines($pdf));
+        $t->same(['Wide', 'Block'], $extractor->extractTextRuns($pdf));
+        $t->same('WideBlock', $plainText);
+        $t->true(!str_contains($plainText, 'Wide Block'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
     'extracts current annotation normal appearance streams before WordPress text extraction' => static function (TestRunner $t) use ($toUnicodeCMap): void {
         $pageCMap = $toUnicodeCMap(['41' => 'Page Body']);
         $appearanceCMap = $toUnicodeCMap(['41' => 'Current Appearance']);
