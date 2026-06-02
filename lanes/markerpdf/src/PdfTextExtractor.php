@@ -7951,7 +7951,7 @@ final class PdfTextExtractor
             return $entries;
         }
 
-        $entries = $this->xrefTableEntries($pdfBytes);
+        $entries = $this->xrefTableEntries($pdfBytes, $definitions);
         foreach ($this->xrefStreamEntries($objects, $definitions) as $objectNumber => $entry) {
             $entries[$objectNumber] = $entry;
         }
@@ -7962,17 +7962,24 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>>|null $definitions
      * @return array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>
      */
-    private function xrefTableEntries(string $pdfBytes): array
+    private function xrefTableEntries(string $pdfBytes, ?array $definitions = null): array
     {
         $entries = [];
-        if (!preg_match_all('/(?:^|[\r\n])xref\s*(.*?)trailer\s*<</s', $pdfBytes, $matches, PREG_SET_ORDER)) {
+        if (!preg_match_all('/(?:^|[\r\n])xref\s*(.*?)trailer\s*<</s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
             return $entries;
         }
 
         foreach ($matches as $match) {
-            foreach ($this->xrefTableRows($match[1]) as $objectNumber => $entry) {
+            $xrefRelativeOffset = strpos($match[0][0], 'xref');
+            $xrefOffset = $match[0][1] + ($xrefRelativeOffset === false ? 0 : $xrefRelativeOffset);
+            if ($definitions !== null && $this->offsetOwnedByDirectObjectBody($xrefOffset, $definitions)) {
+                continue;
+            }
+
+            foreach ($this->xrefTableRows($match[1][0]) as $objectNumber => $entry) {
                 $entries[$objectNumber] = $entry;
             }
         }
@@ -8023,7 +8030,7 @@ final class PdfTextExtractor
         }
         $seenOffsets[$offset] = true;
 
-        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset);
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
         if ($tableSection !== null) {
             $root = $this->objectReferenceValueAfterName($tableSection['trailer'], 'Root');
             if ($root !== null) {
@@ -8090,7 +8097,7 @@ final class PdfTextExtractor
         }
         $seenOffsets[$offset] = true;
 
-        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset);
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
         if ($tableSection !== null) {
             $entries = $tableSection['entries'];
             $trailer = $tableSection['trailer'];
@@ -8136,10 +8143,15 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>>|null $definitions
      * @return array{entries: array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>, trailer: string}|null
      */
-    private function xrefTableSectionAt(string $pdfBytes, int $offset): ?array
+    private function xrefTableSectionAt(string $pdfBytes, int $offset, ?array $definitions = null): ?array
     {
+        if ($definitions !== null && $this->offsetOwnedByDirectObjectBody($offset, $definitions)) {
+            return null;
+        }
+
         $offset = $this->skipPdfWhitespace($pdfBytes, $offset);
         if (substr($pdfBytes, $offset, 4) !== 'xref') {
             return null;
@@ -8165,6 +8177,22 @@ final class PdfTextExtractor
             'entries' => $this->xrefTableRows(substr($pdfBytes, $sectionBodyOffset, $trailerOffset - $sectionBodyOffset)),
             'trailer' => $trailer,
         ];
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     */
+    private function offsetOwnedByDirectObjectBody(int $offset, array $definitions): bool
+    {
+        foreach ($definitions as $entries) {
+            foreach ($entries as $definition) {
+                if ($offset >= $definition['bodyStart'] && $offset <= $definition['bodyEnd']) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
