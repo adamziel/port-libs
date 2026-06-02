@@ -8021,6 +8021,7 @@ final class PdfTextExtractor
     private function objectsFromObjectStreams(array $objects, array $xrefEntries): array
     {
         $expanded = [];
+        $hasSelectedXrefEntries = $xrefEntries !== [];
 
         foreach ($objects as $objectStreamNumber => $body) {
             if (preg_match('/\/Type\s*\/ObjStm\b/', $body) !== 1) {
@@ -8050,6 +8051,10 @@ final class PdfTextExtractor
 
             $pairs = array_slice($pairs, 0, $count);
             $hasCompressedXrefEntriesForStream = $this->hasCompressedXrefEntriesForObjectStream($xrefEntries, $objectStreamNumber);
+            if ($hasSelectedXrefEntries && !$hasCompressedXrefEntriesForStream) {
+                continue;
+            }
+
             foreach ($pairs as $index => $pair) {
                 $objectNumber = (int) $pair[1];
                 $offset = (int) $pair[2];
