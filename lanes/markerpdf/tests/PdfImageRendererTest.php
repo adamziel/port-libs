@@ -398,6 +398,115 @@ return [
         $t->contains('indexed_lookup_length_mismatch', implode(',', $mismatch['notes']));
         $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->indexedSampleToBaseComponents(3, $mismatch['indexed_color_space']));
     },
+    'plans Separation and DeviceN alternate color spaces with CCITT preview filters before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            30 => '[/ICCBased 31 0 R]',
+            31 => "<< /N 3 /Alternate /DeviceRGB /Range [0 1 0 1 0 1] /Length 11 >>\nstream\nICC-PROFILE\nendstream",
+            40 => '<< /FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 0.2 0] /N 1 >>',
+            50 => '<< /K -1 /Columns 1728 /Rows 8 /BlackIs1 true /EncodedByteAlign true /DamagedRowsBeforeError 2 >>',
+            60 => '<< /FunctionType 4 /Domain [0 1 0 1] /Range [0 1 0 1 0 1 0 1] /Length 18 >>',
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Filter [/CCITTFaxDecode /ASCIIHexDecode] /DecodeParms [50 0 R null] /Width 1728 /Height 8 /ColorSpace [/Separation /PANTONE#20485#20C 30 0 R 40 0 R] /BitsPerComponent 1 /Decode [1 0] >>',
+            $objects
+        );
+
+        $t->same('Separation', $plan['source_color_space']);
+        $t->same(1, $plan['components']);
+        $t->same(true, $plan['uses_alternate_color_space']);
+        $t->same([
+            'family' => 'Separation',
+            'colorant_names' => ['PANTONE 485 C'],
+            'alternate_color_space' => 'ICCBased',
+            'alternate_components' => 3,
+            'alternate_uses_icc_profile' => true,
+            'tint_transform_source' => 'object_ref',
+            'tint_transform_object' => 40,
+            'tint_transform_function_type' => 2,
+            'attributes_present' => false,
+        ], $plan['alternate_color_space']);
+        $t->same(true, $plan['uses_icc_profile']);
+        $t->same([
+            'components' => 3,
+            'alternate_color_space' => 'DeviceRGB',
+            'range' => [0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+            'length' => 11,
+        ], $plan['icc_profile']);
+        $t->same([
+            'ranges' => [
+                ['min' => 1.0, 'max' => 0.0],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [0],
+            'source' => 'explicit',
+        ], $plan['image_decode']);
+        $t->same(['CCITTFaxDecode', 'ASCIIHexDecode'], $plan['image_filters']);
+        $t->same([
+            'preview_only_filters' => ['CCITTFaxDecode'],
+            'jbig2_globals_present' => false,
+            'native_raster_decode' => false,
+        ], $plan['image_filter_boundary']);
+        $t->same([
+            [
+                'filter' => 'CCITTFaxDecode',
+                'preview_only' => true,
+                'decode_parms' => [
+                    'type' => 'CCITTFaxDecode',
+                    'k' => -1,
+                    'columns' => 1728,
+                    'rows' => 8,
+                    'black_is_1' => true,
+                    'encoded_byte_align' => true,
+                    'end_of_line' => null,
+                    'end_of_block' => null,
+                    'damaged_rows_before_error' => 2,
+                ],
+            ],
+            [
+                'filter' => 'ASCIIHexDecode',
+                'preview_only' => false,
+                'decode_parms' => null,
+            ],
+        ], $plan['image_filter_details']);
+        $t->same([
+            'separation_tint_transform_review_before_rgb_conversion',
+            'alternate_icc_profile_color_space',
+            'icc_profile_color_space',
+            'image_decode_applied_before_rgb_conversion',
+            'image_decode_inverts_components_before_rgb',
+            'ccitt_fax_image_filter_review_only',
+        ], $plan['notes']);
+        $t->same(1.0, $renderer->imageSampleDecodeValues([0], $plan['image_decode'], $plan['bits_per_component'])[0]);
+        $t->same(0.0, $renderer->imageSampleDecodeValues([1], $plan['image_decode'], $plan['bits_per_component'])[0]);
+
+        $deviceN = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Filter /JPXDecode /Width 2 /Height 1 /ColorSpace [/DeviceN [/Cyan /Spot#20Varnish] /DeviceCMYK 60 0 R << /Subtype /NChannel >>] /BitsPerComponent 8 /Decode [0 1 1 0] >>',
+            $objects
+        );
+
+        $t->same('DeviceN', $deviceN['source_color_space']);
+        $t->same(2, $deviceN['components']);
+        $t->same([
+            'family' => 'DeviceN',
+            'colorant_names' => ['Cyan', 'Spot Varnish'],
+            'alternate_color_space' => 'DeviceCMYK',
+            'alternate_components' => 4,
+            'alternate_uses_icc_profile' => false,
+            'tint_transform_source' => 'object_ref',
+            'tint_transform_object' => 60,
+            'tint_transform_function_type' => 4,
+            'attributes_present' => true,
+        ], $deviceN['alternate_color_space']);
+        $t->same(['JPXDecode'], $deviceN['image_filter_boundary']['preview_only_filters']);
+        $t->same(false, $deviceN['image_filter_boundary']['native_raster_decode']);
+        $t->same([0.0, 1.0], $renderer->imageSampleDecodeValues([0, 0], $deviceN['image_decode'], $deviceN['bits_per_component']));
+        $t->same(['devicen_tint_transform_review_before_rgb_conversion', 'image_decode_applied_before_rgb_conversion', 'image_decode_inverts_components_before_rgb', 'jpx_image_filter_review_only'], $deviceN['notes']);
+    },
     'plans DCTDecode CMYK Adobe transform before WordPress RGB image preview' => static function (TestRunner $t) use ($dctJpeg): void {
         $renderer = new PdfImageRenderer();
         $plan = $renderer->dctDecodeImageColorPlan(

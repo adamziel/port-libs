@@ -265,12 +265,15 @@ final class PdfImageRenderer
      * @param array<int, string> $objects
      * @return array{
      *     image_filters: list<string>,
+     *     image_filter_details: list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null>|null}>,
      *     image_filter_boundary: array{preview_only_filters: list<string>, jbig2_globals_present: bool, native_raster_decode: bool},
      *     source_color_space: string,
      *     components: int|null,
      *     bits_per_component: int,
      *     uses_icc_profile: bool,
      *     icc_profile: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null,
+     *     uses_alternate_color_space: bool,
+     *     alternate_color_space: array{family: string, colorant_names: list<string>, alternate_color_space: string|null, alternate_components: int|null, alternate_uses_icc_profile: bool, tint_transform_source: string|null, tint_transform_object: int|null, tint_transform_function_type: int|null, attributes_present: bool}|null,
      *     uses_indexed_color_space: bool,
      *     indexed_color_space: array{base_color_space: string|null, base_components: int|null, base_uses_icc_profile: bool, base_icc_profile: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null, high_value: int|null, lookup_source: string|null, lookup_length: int|null, expected_lookup_length: int|null, lookup_length_matches: bool, lookup_entry_count: int|null, lookup_preview_hex: string, lookup_bytes: list<int>}|null,
      *     soft_mask: array{present: bool, subtype: string|null, width: int|null, height: int|null, color_space: string|null, components: int|null, bits_per_component: int|null, decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null, opacity_for_zero: float|null, opacity_for_max: float|null, decode_inverted: bool, decode_component_mismatch: bool, matte: list<float>|null, interpolate: bool|null}|null,
@@ -291,10 +294,14 @@ final class PdfImageRenderer
     public function imageColorSpaceSoftMaskPlan(string $imageDictionary, array $objects = []): array
     {
         $colorSpace = $this->imageColorSpaceDetails($imageDictionary, $objects);
-        $imageFilters = $this->imageFilterNames($imageDictionary, $objects);
+        $imageFilterDetails = $this->imageFilterDetails($imageDictionary, $objects);
+        $imageFilters = array_map(
+            static fn (array $filter): string => $filter['filter'],
+            $imageFilterDetails
+        );
         $previewOnlyFilters = array_values(array_filter(
             $imageFilters,
-            static fn (string $filter): bool => in_array($filter, ['JPXDecode', 'JBIG2Decode'], true)
+            fn (string $filter): bool => $this->isPreviewOnlyImageFilter($filter)
         ));
         $imageMask = $this->imageMaskDetails($imageDictionary, $objects);
         $imageMaskPresent = $imageMask !== null && $imageMask['present'] === true;
@@ -320,6 +327,13 @@ final class PdfImageRenderer
                 $notes[] = 'indexed_lookup_length_mismatch';
             }
         }
+        if (($colorSpace['uses_alternate_color_space'] ?? false) === true && is_array($colorSpace['alternate_color_space'] ?? null)) {
+            $family = strtolower((string) $colorSpace['alternate_color_space']['family']);
+            $notes[] = $family . '_tint_transform_review_before_rgb_conversion';
+            if (($colorSpace['alternate_color_space']['alternate_uses_icc_profile'] ?? false) === true) {
+                $notes[] = 'alternate_icc_profile_color_space';
+            }
+        }
         if ($colorSpace['uses_icc_profile']) {
             $notes[] = 'icc_profile_color_space';
         }
@@ -331,8 +345,13 @@ final class PdfImageRenderer
         } elseif ($imageDecodeMismatch) {
             $notes[] = 'image_decode_component_mismatch';
         }
-        if (in_array('JBIG2Decode', $previewOnlyFilters, true)) {
-            $notes[] = 'jbig2_image_filter_review_only';
+        foreach ($previewOnlyFilters as $filter) {
+            $notes[] = match ($filter) {
+                'JBIG2Decode' => 'jbig2_image_filter_review_only',
+                'JPXDecode' => 'jpx_image_filter_review_only',
+                'CCITTFaxDecode', 'CCF' => 'ccitt_fax_image_filter_review_only',
+                default => 'image_filter_review_only',
+            };
         }
         if ($imageMaskPresent) {
             $notes[] = 'image_mask_stencil_applied_before_rgb_conversion';
@@ -359,6 +378,7 @@ final class PdfImageRenderer
 
         return [
             'image_filters' => $imageFilters,
+            'image_filter_details' => $imageFilterDetails,
             'image_filter_boundary' => [
                 'preview_only_filters' => $previewOnlyFilters,
                 'jbig2_globals_present' => $this->jbig2GlobalsPresent($imageDictionary, $objects),
@@ -369,6 +389,8 @@ final class PdfImageRenderer
             'bits_per_component' => $bitsPerComponent,
             'uses_icc_profile' => $colorSpace['uses_icc_profile'],
             'icc_profile' => $colorSpace['icc_profile'],
+            'uses_alternate_color_space' => $colorSpace['uses_alternate_color_space'],
+            'alternate_color_space' => $colorSpace['alternate_color_space'],
             'uses_indexed_color_space' => $colorSpace['uses_indexed_color_space'],
             'indexed_color_space' => $colorSpace['indexed_color_space'],
             'image_decode' => $imageDecode,
@@ -488,6 +510,94 @@ final class PdfImageRenderer
         $name = $this->pdfNameValue($resolved);
 
         return $name === null ? [] : [$name];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null>|null}>
+     */
+    private function imageFilterDetails(string $dictionary, array $objects): array
+    {
+        $filters = $this->imageFilterNames($dictionary, $objects);
+        $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
+        $details = [];
+
+        foreach ($filters as $index => $filter) {
+            $decodeParmsValue = $decodeParms[$index] ?? (count($filters) === 1 ? ($decodeParms[0] ?? null) : null);
+            $details[] = [
+                'filter' => $filter,
+                'preview_only' => $this->isPreviewOnlyImageFilter($filter),
+                'decode_parms' => $this->imageFilterDecodeParms($filter, $decodeParmsValue, $objects),
+            ];
+        }
+
+        return $details;
+    }
+
+    private function isPreviewOnlyImageFilter(string $filter): bool
+    {
+        return in_array($filter, ['JPXDecode', 'JBIG2Decode', 'CCITTFaxDecode', 'CCF'], true);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string|null>
+     */
+    private function imageDecodeParmsValues(string $dictionary, array $objects): array
+    {
+        $value = $this->extractPdfNameValue($dictionary, 'DecodeParms');
+        if ($value === null) {
+            return [];
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects));
+        if (str_starts_with($resolved, '[')) {
+            return array_map(
+                static fn (string $entry): ?string => trim($entry) === 'null' ? null : $entry,
+                $this->pdfArrayValues($resolved)
+            );
+        }
+
+        return [$value];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, int|bool|string|null>|null
+     */
+    private function imageFilterDecodeParms(string $filter, ?string $value, array $objects): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects));
+        if ($resolved === 'null' || !str_starts_with($resolved, '<<')) {
+            return null;
+        }
+
+        if ($filter === 'CCITTFaxDecode' || $filter === 'CCF') {
+            return [
+                'type' => 'CCITTFaxDecode',
+                'k' => $this->integerNameValue($resolved, 'K'),
+                'columns' => $this->integerNameValue($resolved, 'Columns'),
+                'rows' => $this->integerNameValue($resolved, 'Rows'),
+                'black_is_1' => $this->booleanNameValue($resolved, 'BlackIs1'),
+                'encoded_byte_align' => $this->booleanNameValue($resolved, 'EncodedByteAlign'),
+                'end_of_line' => $this->booleanNameValue($resolved, 'EndOfLine'),
+                'end_of_block' => $this->booleanNameValue($resolved, 'EndOfBlock'),
+                'damaged_rows_before_error' => $this->integerNameValue($resolved, 'DamagedRowsBeforeError'),
+            ];
+        }
+
+        if ($filter === 'JBIG2Decode') {
+            return [
+                'type' => 'JBIG2Decode',
+                'jbig2_globals_present' => $this->pdfValueContainsName($resolved, 'JBIG2Globals', $objects),
+            ];
+        }
+
+        return ['type' => $filter];
     }
 
     private function imageColorSpace(string $dictionary): ?string
@@ -627,7 +737,7 @@ final class PdfImageRenderer
     {
         return match ($colorSpace) {
             'DeviceGray', 'CalGray' => 1,
-            'DeviceRGB', 'CalRGB' => 3,
+            'DeviceRGB', 'CalRGB', 'Lab' => 3,
             'DeviceCMYK' => 4,
             default => null,
         };
@@ -648,6 +758,8 @@ final class PdfImageRenderer
                 'components' => 3,
                 'uses_icc_profile' => false,
                 'icc_profile' => null,
+                'uses_alternate_color_space' => false,
+                'alternate_color_space' => null,
                 'uses_indexed_color_space' => false,
                 'indexed_color_space' => null,
             ];
@@ -689,9 +801,15 @@ final class PdfImageRenderer
                         'range' => $this->numericArrayValue($rangeValue),
                         'length' => $this->integerNameValue($profile, 'Length'),
                     ],
+                    'uses_alternate_color_space' => false,
+                    'alternate_color_space' => null,
                     'uses_indexed_color_space' => false,
                     'indexed_color_space' => null,
                 ];
+            }
+
+            if ($family === 'Separation' || $family === 'DeviceN') {
+                return $this->alternateColorSpaceDetails($family, $values, $objects, $seenObjects);
             }
 
             if ($family === 'Indexed') {
@@ -703,6 +821,8 @@ final class PdfImageRenderer
                 'components' => $this->componentCountForColorSpace($family),
                 'uses_icc_profile' => false,
                 'icc_profile' => null,
+                'uses_alternate_color_space' => false,
+                'alternate_color_space' => null,
                 'uses_indexed_color_space' => false,
                 'indexed_color_space' => null,
             ];
@@ -716,9 +836,110 @@ final class PdfImageRenderer
             'components' => $this->componentCountForColorSpace($colorSpace),
             'uses_icc_profile' => false,
             'icc_profile' => null,
+            'uses_alternate_color_space' => false,
+            'alternate_color_space' => null,
             'uses_indexed_color_space' => false,
             'indexed_color_space' => null,
         ];
+    }
+
+    /**
+     * @param list<string> $values
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
+     * @return array{source_color_space: string, components: int, uses_icc_profile: bool, icc_profile: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null, uses_alternate_color_space: bool, alternate_color_space: array{family: string, colorant_names: list<string>, alternate_color_space: string|null, alternate_components: int|null, alternate_uses_icc_profile: bool, tint_transform_source: string|null, tint_transform_object: int|null, tint_transform_function_type: int|null, attributes_present: bool}, uses_indexed_color_space: bool, indexed_color_space: null}
+     */
+    private function alternateColorSpaceDetails(string $family, array $values, array $objects, array $seenObjects): array
+    {
+        $colorantNames = isset($values[1]) ? $this->colorantNamesFromValue($values[1], $objects, $seenObjects) : [];
+        $alternateIndex = 2;
+        $tintTransformIndex = 3;
+        $attributesIndex = $family === 'DeviceN' ? 4 : null;
+        $alternate = isset($values[$alternateIndex])
+            ? $this->colorSpaceDetailsFromValue($values[$alternateIndex], $objects, $seenObjects)
+            : [
+                'source_color_space' => null,
+                'components' => null,
+                'uses_icc_profile' => false,
+                'icc_profile' => null,
+                'uses_alternate_color_space' => false,
+                'alternate_color_space' => null,
+                'uses_indexed_color_space' => false,
+                'indexed_color_space' => null,
+            ];
+        $tintTransform = $values[$tintTransformIndex] ?? null;
+        $resolvedTintTransform = $tintTransform === null ? '' : trim($this->resolvePdfValue($tintTransform, $objects, $seenObjects));
+
+        return [
+            'source_color_space' => $family,
+            'components' => $family === 'Separation' ? 1 : count($colorantNames),
+            'uses_icc_profile' => (bool) $alternate['uses_icc_profile'],
+            'icc_profile' => $alternate['icc_profile'],
+            'uses_alternate_color_space' => true,
+            'alternate_color_space' => [
+                'family' => $family,
+                'colorant_names' => $colorantNames,
+                'alternate_color_space' => $alternate['source_color_space'],
+                'alternate_components' => $alternate['components'],
+                'alternate_uses_icc_profile' => (bool) $alternate['uses_icc_profile'],
+                'tint_transform_source' => $this->pdfValueSource($tintTransform),
+                'tint_transform_object' => $tintTransform === null ? null : $this->objectReferenceNumber($tintTransform),
+                'tint_transform_function_type' => $resolvedTintTransform === '' ? null : $this->integerNameValue($resolvedTintTransform, 'FunctionType'),
+                'attributes_present' => $attributesIndex !== null && isset($values[$attributesIndex]) && trim($values[$attributesIndex]) !== 'null',
+            ],
+            'uses_indexed_color_space' => false,
+            'indexed_color_space' => null,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
+     * @return list<string>
+     */
+    private function colorantNamesFromValue(string $value, array $objects, array $seenObjects): array
+    {
+        $resolved = trim($this->resolvePdfValue($value, $objects, $seenObjects));
+        if (str_starts_with($resolved, '[')) {
+            $names = [];
+            foreach ($this->pdfArrayValues($resolved) as $entry) {
+                $name = $this->pdfNameValue($this->resolvePdfValue($entry, $objects, $seenObjects));
+                if ($name !== null) {
+                    $names[] = $name;
+                }
+            }
+
+            return $names;
+        }
+
+        $name = $this->pdfNameValue($resolved);
+
+        return $name === null ? [] : [$name];
+    }
+
+    private function objectReferenceNumber(string $value): ?int
+    {
+        return preg_match('/^(\d+)\s+\d+\s+R$/', trim($value), $match) === 1 ? (int) $match[1] : null;
+    }
+
+    private function pdfValueSource(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($this->objectReferenceNumber($trimmed) !== null) {
+            return 'object_ref';
+        }
+        if (str_starts_with($trimmed, '<<')) {
+            return 'dictionary';
+        }
+        if (str_starts_with($trimmed, '[')) {
+            return 'array';
+        }
+
+        return 'direct';
     }
 
     /**
@@ -736,6 +957,8 @@ final class PdfImageRenderer
                 'components' => null,
                 'uses_icc_profile' => false,
                 'icc_profile' => null,
+                'uses_alternate_color_space' => false,
+                'alternate_color_space' => null,
                 'uses_indexed_color_space' => false,
                 'indexed_color_space' => null,
             ];
@@ -754,6 +977,8 @@ final class PdfImageRenderer
             'components' => 1,
             'uses_icc_profile' => $base['uses_icc_profile'],
             'icc_profile' => $base['icc_profile'],
+            'uses_alternate_color_space' => false,
+            'alternate_color_space' => null,
             'uses_indexed_color_space' => true,
             'indexed_color_space' => [
                 'base_color_space' => $base['source_color_space'],
