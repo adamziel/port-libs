@@ -404,6 +404,7 @@ final class PdfImageRenderer
      *     alternate_color_space: array{family: string, colorant_names: list<string>, alternate_color_space: string|null, alternate_components: int|null, alternate_uses_icc_profile: bool, tint_transform_source: string|null, tint_transform_object: int|null, tint_transform_function_type: int|null, attributes_present: bool}|null,
      *     uses_indexed_color_space: bool,
      *     indexed_color_space: array{base_color_space: string|null, base_components: int|null, base_uses_icc_profile: bool, base_icc_profile: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null, high_value: int|null, lookup_source: string|null, lookup_length: int|null, expected_lookup_length: int|null, lookup_length_matches: bool, lookup_entry_count: int|null, lookup_preview_hex: string, lookup_bytes: list<int>}|null,
+     *     jpx_soft_mask_in_data: array{present: bool, value: int|null, valid_value: bool, filter_is_jpx: bool, uses_embedded_soft_mask: bool, encoded_soft_mask_values: bool, preblended_with_matte: bool, external_soft_mask_present: bool, external_soft_mask_ignored: bool, ignored_without_jpx: bool, review_only: bool}|null,
      *     soft_mask: array{present: bool, subtype: string|null, width: int|null, height: int|null, color_space: string|null, components: int|null, bits_per_component: int|null, decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null, opacity_for_zero: float|null, opacity_for_max: float|null, decode_inverted: bool, decode_component_mismatch: bool, matte: list<float>|null, interpolate: bool|null}|null,
      *     soft_mask_filter_boundary: array{present: bool, source_object: int|null, filters: list<string>, preview_only_filters: list<string>, unsupported_filters: list<string>, raw_length: int|null, decoded_length: int|null, decoded_sha256: string|null, decoded_preview_hex: string|null, decoded_sample_bytes: list<int>, decoded_with_current_filters: bool, decode_failed: bool, uses_current_object_map: bool}|null,
      *     soft_mask_group: array<string, mixed>|null,
@@ -442,6 +443,9 @@ final class PdfImageRenderer
             $imageFilters,
             fn (string $filter): bool => $this->isPreviewOnlyImageFilter($filter)
         ));
+        $jpxSoftMaskInData = $this->jpxSoftMaskInDataDetails($imageDictionary, $imageFilters, $objects);
+        $jpxEmbeddedSoftMaskPresent = is_array($jpxSoftMaskInData)
+            && ($jpxSoftMaskInData['uses_embedded_soft_mask'] ?? false) === true;
         $imageMask = $this->imageMaskDetails($imageDictionary, $objects);
         $imageMaskPresent = $imageMask !== null && $imageMask['present'] === true;
         $bitsPerComponent = $imageMaskPresent ? ($this->imageBitsPerComponent($imageDictionary) ?? 1) : ($this->imageBitsPerComponent($imageDictionary) ?? 8);
@@ -476,14 +480,14 @@ final class PdfImageRenderer
             $imageMask = $this->imageMaskDetails($imageDictionary, $objects, $imageDecode);
         }
         $colorKeyMask = $imageMaskPresent ? null : $this->colorKeyMaskDetails($imageDictionary, $objects, $colorSpace['components']);
-        $softMask = $this->imageSoftMaskDetails($imageDictionary, $objects);
+        $softMask = $jpxEmbeddedSoftMaskPresent ? null : $this->imageSoftMaskDetails($imageDictionary, $objects);
         $softMaskPresent = $softMask !== null && $softMask['present'] === true;
-        $colorKeyMaskSuppressedBySoftMask = $colorKeyMask !== null && $softMaskPresent;
+        $colorKeyMaskSuppressedBySoftMask = $colorKeyMask !== null && ($softMaskPresent || $jpxEmbeddedSoftMaskPresent);
         $colorKeyMaskValid = $colorKeyMask !== null
             && $colorKeyMask['valid_for_components']
             && !$colorKeyMaskSuppressedBySoftMask;
         $colorKeyMaskMismatch = $colorKeyMask !== null && !$colorKeyMask['valid_for_components'];
-        $softMaskGroup = $this->imageSoftMaskGroupDetails($imageDictionary, $objects);
+        $softMaskGroup = $jpxEmbeddedSoftMaskPresent ? null : $this->imageSoftMaskGroupDetails($imageDictionary, $objects);
         $softMaskTransferFunction = is_array($softMaskGroup) ? ($softMaskGroup['transfer_function'] ?? null) : null;
         $softMaskFilterBoundary = $softMask !== null ? $this->imageSoftMaskFilterBoundary($imageDictionary, $objects) : null;
         $softMaskIsGrayscale = $softMaskPresent ? $this->softMaskIsGrayscale($softMask) : null;
@@ -526,6 +530,24 @@ final class PdfImageRenderer
         if (($colorSpace['color_space_resolved_from_resources'] ?? false) === true) {
             $notes[] = 'image_color_space_resolved_from_current_resources';
         }
+        if ($jpxSoftMaskInData !== null) {
+            if (($jpxSoftMaskInData['ignored_without_jpx'] ?? false) === true) {
+                $notes[] = 'smask_in_data_ignored_without_jpx';
+            } elseif (($jpxSoftMaskInData['uses_embedded_soft_mask'] ?? false) === true) {
+                $notes[] = 'jpx_embedded_soft_mask_review_before_rgb_conversion';
+                if (($jpxSoftMaskInData['preblended_with_matte'] ?? false) === true) {
+                    $notes[] = 'jpx_embedded_soft_mask_preblended_matte_review';
+                }
+                if (($jpxSoftMaskInData['external_soft_mask_ignored'] ?? false) === true) {
+                    $notes[] = 'jpx_smaskindata_ignores_external_smask';
+                }
+                if (($jpxSoftMaskInData['valid_value'] ?? true) === false) {
+                    $notes[] = 'jpx_smaskindata_value_out_of_range_review_only';
+                }
+            } else {
+                $notes[] = 'jpx_smaskindata_zero_ignores_embedded_soft_mask';
+            }
+        }
         if ($imageDecodeValid) {
             $notes[] = 'image_decode_applied_before_rgb_conversion';
             if ($imageDecode['inverted_components'] !== []) {
@@ -540,6 +562,9 @@ final class PdfImageRenderer
         } elseif ($colorKeyMaskSuppressedBySoftMask) {
             $notes[] = 'color_key_mask_suppressed_by_soft_mask';
             $notes[] = 'soft_mask_overrides_color_key_mask';
+            if ($jpxEmbeddedSoftMaskPresent) {
+                $notes[] = 'jpx_embedded_soft_mask_overrides_color_key_mask';
+            }
         } elseif ($colorKeyMaskMismatch) {
             $notes[] = 'color_key_mask_component_mismatch';
         }
@@ -627,6 +652,7 @@ final class PdfImageRenderer
             'alternate_color_space' => $colorSpace['alternate_color_space'],
             'uses_indexed_color_space' => $colorSpace['uses_indexed_color_space'],
             'indexed_color_space' => $colorSpace['indexed_color_space'],
+            'jpx_soft_mask_in_data' => $jpxSoftMaskInData,
             'image_decode' => $imageDecode,
             'image_decode_applied_before_rgb' => $imageDecodeValid,
             'image_decode_component_mismatch' => $imageDecodeMismatch,
@@ -662,7 +688,11 @@ final class PdfImageRenderer
                         : (
                             $colorKeyMaskValid
                                 ? 'color_key_mask_composited_to_rgb_preview'
-                                : ($softMaskPresent ? 'soft_mask_review_only_rgb_preview' : 'opaque_rgb_preview')
+                                : (
+                                    $jpxEmbeddedSoftMaskPresent
+                                        ? 'jpx_embedded_soft_mask_review_only_rgb_preview'
+                                        : ($softMaskPresent ? 'soft_mask_review_only_rgb_preview' : 'opaque_rgb_preview')
+                                )
                         )
                 ),
             'notes' => $notes,
@@ -689,6 +719,7 @@ final class PdfImageRenderer
         $previewOnlyFilters = $plan['image_filter_boundary']['preview_only_filters'];
         $softMask = is_array($plan['soft_mask'] ?? null) ? $plan['soft_mask'] : null;
         $softMaskBoundary = is_array($plan['soft_mask_filter_boundary'] ?? null) ? $plan['soft_mask_filter_boundary'] : null;
+        $jpxSoftMaskInData = is_array($plan['jpx_soft_mask_in_data'] ?? null) ? $plan['jpx_soft_mask_in_data'] : null;
 
         $plan['inline_image'] = [
             'present' => true,
@@ -706,6 +737,9 @@ final class PdfImageRenderer
             'soft_mask_uses_current_object_map' => $softMaskBoundary['uses_current_object_map'] ?? null,
             'soft_mask_decoded_with_current_filters' => $softMaskBoundary['decoded_with_current_filters'] ?? null,
             'soft_mask_decode_applied_before_rgb' => ($plan['soft_mask_decode_applied_before_rgb'] ?? false) === true,
+            'jpx_soft_mask_in_data_present' => $jpxSoftMaskInData !== null,
+            'jpx_embedded_soft_mask_present' => is_array($jpxSoftMaskInData) && ($jpxSoftMaskInData['uses_embedded_soft_mask'] ?? false) === true,
+            'jpx_embedded_soft_mask_review_only' => is_array($jpxSoftMaskInData) && ($jpxSoftMaskInData['review_only'] ?? false) === true,
         ];
         $plan['inline_image_abbreviations_expanded'] = $plan['inline_image']['uses_abbreviations'];
         $plan['inline_image_payload_excluded_from_text'] = true;
@@ -1754,6 +1788,39 @@ final class PdfImageRenderer
     private function isPreviewOnlyImageFilter(string $filter): bool
     {
         return in_array($filter, ['JPXDecode', 'JBIG2Decode', 'CCITTFaxDecode', 'CCF'], true);
+    }
+
+    /**
+     * @param list<string> $filters
+     * @param array<int, string> $objects
+     * @return array{present: bool, value: int|null, valid_value: bool, filter_is_jpx: bool, uses_embedded_soft_mask: bool, encoded_soft_mask_values: bool, preblended_with_matte: bool, external_soft_mask_present: bool, external_soft_mask_ignored: bool, ignored_without_jpx: bool, review_only: bool}|null
+     */
+    private function jpxSoftMaskInDataDetails(string $dictionary, array $filters, array $objects): ?array
+    {
+        $value = $this->extractPdfNameValue($dictionary, 'SMaskInData');
+        if ($value === null) {
+            return null;
+        }
+
+        $integer = $this->integerFromPdfValue($value, $objects);
+        $filterIsJpx = in_array('JPXDecode', $filters, true);
+        $usesEmbeddedSoftMask = $filterIsJpx && is_int($integer) && $integer !== 0;
+        $softMaskValue = $this->extractPdfNameValue($dictionary, 'SMask');
+        $externalSoftMaskPresent = $softMaskValue !== null && $this->pdfNameValue($softMaskValue) !== 'None';
+
+        return [
+            'present' => true,
+            'value' => $integer,
+            'valid_value' => is_int($integer) && in_array($integer, [0, 1, 2], true),
+            'filter_is_jpx' => $filterIsJpx,
+            'uses_embedded_soft_mask' => $usesEmbeddedSoftMask,
+            'encoded_soft_mask_values' => $usesEmbeddedSoftMask && $integer === 1,
+            'preblended_with_matte' => $usesEmbeddedSoftMask && $integer === 2,
+            'external_soft_mask_present' => $externalSoftMaskPresent,
+            'external_soft_mask_ignored' => $usesEmbeddedSoftMask && $externalSoftMaskPresent,
+            'ignored_without_jpx' => !$filterIsJpx,
+            'review_only' => $usesEmbeddedSoftMask,
+        ];
     }
 
     /**

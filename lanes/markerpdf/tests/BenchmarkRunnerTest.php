@@ -208,6 +208,20 @@ return [
             $removeTree($markdownFolder);
         }
     },
+    'records upstream stop_memory_profiling snapshot errors as review-only runtime metadata' => static function (TestRunner $t): void {
+        $report = (new BenchmarkRunner())->memorySnapshotFailureReport(
+            'marker_memory_0.pickle',
+            new RuntimeException('CUDA snapshot unavailable')
+        );
+
+        $t->same('marker_memory_0.pickle', $report['snapshot']);
+        $t->same('CUDA snapshot unavailable', $report['error']);
+        $t->contains('Failed to capture memory snapshot CUDA snapshot unavailable', $report['log_line']);
+        $t->same(true, $report['continues_after_failure']);
+        $t->same(true, $report['recording_disabled_after_error']);
+        $t->same(false, $report['executes_cuda_memory_history']);
+        $t->same(true, $report['review_only']);
+    },
     'rejects malformed benchmark runner supplied boundaries' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $pdfFolder = $makeTempDir();
         $referenceFolder = $makeTempDir();

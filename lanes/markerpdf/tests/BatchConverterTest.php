@@ -156,6 +156,34 @@ return [
             $removeTree($output);
         }
     },
+    'captures convert.py process_single_pdf errors without writing WordPress markdown' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePdf): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            $pdfPath = $input . DIRECTORY_SEPARATOR . 'broken.pdf';
+            $writePdf($pdfPath, 'Broken model import');
+
+            $result = (new BatchConverter())->processFile(
+                $pdfPath,
+                $output,
+                ['languages' => ['English']],
+                null,
+                static fn (): string => throw new RuntimeException('surya model boundary unavailable')
+            );
+
+            $t->same('error', $result['status']);
+            $t->same('broken.pdf', $result['filename']);
+            $t->same('surya model boundary unavailable', $result['error']);
+            $t->same(false, $result['writes_markdown']);
+            $t->same(true, $result['error_output']['review_only']);
+            $t->contains('Error converting ' . $pdfPath . ': surya model boundary unavailable', $result['error_output']['message_line']);
+            $t->contains('RuntimeException: surya model boundary unavailable', $result['error_output']['traceback']);
+            $t->same(false, is_file($output . DIRECTORY_SEPARATOR . 'broken' . DIRECTORY_SEPARATOR . 'broken.md'));
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'processes a WordPress batch with basename metadata and convert.py summary counts' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePdf): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

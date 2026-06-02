@@ -10843,17 +10843,35 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $targetCode = hexdec($target);
-            $targetWidth = strlen($target);
             $count = 0;
+            $targetHex = $target;
             while ($source <= $last && $count < 512) {
                 $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
-                $targetHex = str_pad(strtolower(dechex($targetCode + $count)), $targetWidth, '0', STR_PAD_LEFT);
                 $map[$sourceKey] = $this->decodeCMapUnicodeHex($targetHex);
                 $source++;
                 $count++;
+                $targetHex = $this->incrementFixedWidthHex($targetHex);
             }
         }
+    }
+
+    private function incrementFixedWidthHex(string $hex): string
+    {
+        $digits = str_split(strtolower($hex));
+        $carry = 1;
+        for ($index = count($digits) - 1; $index >= 0; $index--) {
+            $value = hexdec($digits[$index]) + $carry;
+            if ($value >= 16) {
+                $digits[$index] = '0';
+                continue;
+            }
+
+            $digits[$index] = dechex($value);
+            $carry = 0;
+            break;
+        }
+
+        return implode('', $digits);
     }
 
     /**

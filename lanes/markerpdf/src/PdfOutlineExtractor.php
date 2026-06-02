@@ -979,8 +979,22 @@ final class PdfOutlineExtractor
             if ($title !== null && array_key_exists('A', $dict)) {
                 $seenActions = [];
                 $actions = $this->reviewActionsFromValue($dict['A'], $objects, $pageIndexes, $destinations, $seenActions);
+                $seenTargetContext = [];
+                $actionChainTargetContext = $this->actionChainTargetContext(
+                    $dict['A'],
+                    $objects,
+                    $pageIndexes,
+                    $destinations,
+                    $pageLabels,
+                    $pagePresentationsByPage,
+                    $articleBeadsByPage,
+                    $pageReviewsByPage,
+                    $taggedContentByPage,
+                    $seenTargetContext
+                );
                 if ($this->shouldSurfaceOutlineActionRows($actions)) {
                     foreach ($actions as $action) {
+                        $action = $this->withActionChainTargetContext($action, $actionChainTargetContext);
                         $row = [
                             'outline_title' => $title,
                             'outline_level' => $level,
@@ -1006,7 +1020,19 @@ final class PdfOutlineExtractor
                 $destination = $this->outlineDestination($dict, $objects);
                 $destinationAction = $this->destinationActionReviewValue($destination['value'], $objects, $destinations, $destination['name']);
                 if ($destinationAction !== null) {
-                    $destinationActionContext = [];
+                    $seenTargetContext = [];
+                    $destinationActionContext = $this->actionChainTargetContext(
+                        $destinationAction['value'],
+                        $objects,
+                        $pageIndexes,
+                        $destinations,
+                        $pageLabels,
+                        $pagePresentationsByPage,
+                        $articleBeadsByPage,
+                        $pageReviewsByPage,
+                        $taggedContentByPage,
+                        $seenTargetContext
+                    );
                     if ($destinationAction['destination_name'] !== null) {
                         $details = $this->destinationViewDetails(
                             $destination['value'],
@@ -1035,10 +1061,8 @@ final class PdfOutlineExtractor
                         foreach ($actions as $action) {
                             if ($destinationAction['destination_name'] !== null) {
                                 $action['destination_action_name'] = $destinationAction['destination_name'];
-                                foreach ($destinationActionContext as $key => $value) {
-                                    $action[$key] = $value;
-                                }
                             }
+                            $action = $this->withActionChainTargetContext($action, $destinationActionContext);
 
                             if (
                                 ($action['action_type'] ?? null) === 'GoTo'
@@ -1117,6 +1141,39 @@ final class PdfOutlineExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private function withActionChainTargetContext(array $action, array $context): array
+    {
+        if ($context === [] || !$this->shouldApplyActionChainTargetContext($action)) {
+            return $action;
+        }
+
+        foreach ($context as $key => $value) {
+            if (!array_key_exists($key, $action)) {
+                $action[$key] = $value;
+            }
+        }
+
+        return $action;
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     */
+    private function shouldApplyActionChainTargetContext(array $action): bool
+    {
+        if (($action['chained'] ?? false) === true) {
+            return true;
+        }
+
+        return ($action['action_type'] ?? null) === 'GoTo'
+            && ($action['safety'] ?? null) === 'local-destination';
     }
 
     /**
@@ -1200,6 +1257,118 @@ final class PdfOutlineExtractor
                     $pageReviewsByPage,
                     $taggedContentByPage
                 )
+            );
+        }
+
+        return [];
+    }
+
+    /**
+     * Resolve the first local GoTo target in an action chain so bounded /Next
+     * rows can carry the same non-executing destination review context.
+     *
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @param array<string, mixed> $destinations
+     * @param list<string> $pageLabels
+     * @param array<int, array<string, mixed>> $pagePresentationsByPage
+     * @param array<int, list<array<string, mixed>>> $articleBeadsByPage
+     * @param array<int, array<string, mixed>> $pageReviewsByPage
+     * @param array<int, list<array<string, mixed>>> $taggedContentByPage
+     * @param array<string, true> $seen
+     * @return array<string, mixed>
+     */
+    private function actionChainTargetContext(
+        mixed $value,
+        array $objects,
+        array $pageIndexes,
+        array $destinations,
+        array $pageLabels,
+        array $pagePresentationsByPage,
+        array $articleBeadsByPage,
+        array $pageReviewsByPage,
+        array $taggedContentByPage,
+        array &$seen,
+        int $depth = 0
+    ): array {
+        if ($value === null || $depth > 20) {
+            return [];
+        }
+
+        $resolved = $this->resolveValue($value, $objects);
+        $array = $this->arrayItems($resolved);
+        if ($array !== null) {
+            foreach ($array as $item) {
+                $context = $this->actionChainTargetContext(
+                    $item,
+                    $objects,
+                    $pageIndexes,
+                    $destinations,
+                    $pageLabels,
+                    $pagePresentationsByPage,
+                    $articleBeadsByPage,
+                    $pageReviewsByPage,
+                    $taggedContentByPage,
+                    $seen,
+                    $depth + 1
+                );
+                if ($context !== []) {
+                    return $context;
+                }
+            }
+
+            return [];
+        }
+
+        $dict = $this->dictionaryItems($resolved);
+        if ($dict === null) {
+            return [];
+        }
+
+        $actionObject = $this->referenceObjectNumber($value);
+        $identity = $actionObject === null ? 'dict:' . md5(serialize($dict)) : 'obj:' . $actionObject;
+        if (isset($seen[$identity])) {
+            return [];
+        }
+        $seen[$identity] = true;
+
+        $type = $this->nameValue($dict['S'] ?? null);
+        if (($type === null || $type === 'GoTo') && array_key_exists('D', $dict)) {
+            $destinationName = $this->stringOrNameValue($this->resolveValue($dict['D'], $objects));
+            $details = $this->destinationViewDetails(
+                $dict['D'],
+                $objects,
+                $pageIndexes,
+                $destinations,
+                $destinationName
+            );
+            if ($details !== null) {
+                return $this->destinationActionTargetContext(
+                    $this->withNavigationTargetMetadata(
+                        $details,
+                        $pageLabels,
+                        $pagePresentationsByPage,
+                        $articleBeadsByPage,
+                        $pageReviewsByPage,
+                        $taggedContentByPage
+                    )
+                );
+            }
+        }
+
+        if (array_key_exists('Next', $dict)) {
+            return $this->actionChainTargetContext(
+                $dict['Next'],
+                $objects,
+                $pageIndexes,
+                $destinations,
+                $pageLabels,
+                $pagePresentationsByPage,
+                $articleBeadsByPage,
+                $pageReviewsByPage,
+                $taggedContentByPage,
+                $seen,
+                $depth + 1
             );
         }
 

@@ -233,6 +233,10 @@ final class BatchConverter
             return $this->result('error', $filepath, [
                 'filename' => $filename,
                 'error' => $throwable->getMessage(),
+                'error_output' => $this->conversionErrorOutput($filepath, $throwable),
+                'writes_markdown' => false,
+                'executes_python_or_models' => false,
+                'executes_external_pdf_tools' => false,
             ]);
         }
 
@@ -316,6 +320,25 @@ final class BatchConverter
         }
 
         return strlen($text);
+    }
+
+    /**
+     * @return array{message_line: string, traceback: string, traceback_available: bool, review_only: true}
+     */
+    private function conversionErrorOutput(string $filepath, Throwable $throwable): array
+    {
+        $trace = $throwable->getTraceAsString();
+        $traceback = get_class($throwable) . ': ' . $throwable->getMessage();
+        if ($trace !== '') {
+            $traceback .= "\n" . $trace;
+        }
+
+        return [
+            'message_line' => 'Error converting ' . $filepath . ': ' . $throwable->getMessage(),
+            'traceback' => $traceback,
+            'traceback_available' => $traceback !== '',
+            'review_only' => true,
+        ];
     }
 
     /**

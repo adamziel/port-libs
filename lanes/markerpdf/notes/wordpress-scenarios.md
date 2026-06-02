@@ -392,6 +392,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-xref-prev-object-stream-generation-currentbase.php` maps incremental `/Prev` object-stream carrier generation reuse into a WordPress paragraph import path. It skips stale previous type-2 rows when their carrier object number was itself only a compressed decoy, keeping the current direct page text while excluding stale previous and replacement-generation object-stream member text without Python, pdftext, pypdfium, Poppler, Ghostscript, models, or external PDF tools.
 
+`examples/wordpress-pdf-xref-object-stream-generation-prev-currentbase.php` maps incremental `/Prev` object-stream carrier generation replacement into a WordPress paragraph import path. It skips a stale previous type-2 page member when the previous xref chain selected carrier `6 0` but the current xref stream replaces that carrier with generation `6 1`, emitting only `Current carrier generation page` and `Previous member generation skipped` without Python, pdftext, pypdfium, Poppler, Ghostscript, models, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

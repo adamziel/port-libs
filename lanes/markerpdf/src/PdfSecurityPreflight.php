@@ -36,10 +36,14 @@ final class PdfSecurityPreflight
         $referenceTransformCount = $this->referenceTransformCount($signatures);
         $lockedFieldNames = $this->lockedFieldNames($form['fields'] ?? []);
         $permissionPreflight = $this->permissionPreflight($encrypted, $encryption);
+        $signatureByteRangeCount = $this->signatureByteRangeCount($signatures);
+        $validSignatureByteRangeCount = $this->validSignatureByteRangeCount($signatures);
+        $encryptedSignatureByteRangeReview = $this->encryptedSignatureByteRangeReview($encrypted, $permissionPreflight, $signatures);
         $reviewReasons = $this->reviewReasons(
             $encrypted,
             $signedSignatureCount,
             $invalidByteRangeCount,
+            $signatureByteRangeCount,
             $referenceTransformCount,
             $lockedFieldNames,
             $permissionPreflight,
@@ -68,10 +72,14 @@ final class PdfSecurityPreflight
             'signature_flags' => $form['signature_flags'] ?? [],
             'signature_field_count' => count($signatures),
             'signed_signature_count' => $signedSignatureCount,
+            'signature_byte_range_count' => $signatureByteRangeCount,
+            'valid_signature_byte_range_count' => $validSignatureByteRangeCount,
             'invalid_signature_byte_range_count' => $invalidByteRangeCount,
             'signature_reference_transform_count' => $referenceTransformCount,
             'signature_reference_transform_methods' => $this->referenceTransformMethods($signatures),
             'locked_field_names' => $lockedFieldNames,
+            'encrypted_signature_byte_range_review_count' => $encrypted ? (int) $encryptedSignatureByteRangeReview['byte_range_count'] : 0,
+            'encrypted_signature_byte_range_review' => $encryptedSignatureByteRangeReview,
             'document_security_store_count' => $hasDocumentSecurityStore ? 1 : 0,
             'document_security_store' => $documentSecurityStore,
             'document_security_store_signature_review' => $documentSecurityStoreSignatureReview,
@@ -359,6 +367,29 @@ final class PdfSecurityPreflight
 
     /**
      * @param list<array<string, mixed>> $signatures
+     */
+    private function signatureByteRangeCount(array $signatures): int
+    {
+        return count(array_filter(
+            $signatures,
+            static fn (array $signature): bool => ($signature['byte_range']['present'] ?? false) === true
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     */
+    private function validSignatureByteRangeCount(array $signatures): int
+    {
+        return count(array_filter(
+            $signatures,
+            static fn (array $signature): bool => ($signature['byte_range']['present'] ?? false) === true
+                && ($signature['byte_range']['valid'] ?? false) === true
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
      * @return list<array<string, mixed>>
      */
     private function signatureSecurityReviews(array $signatures): array
@@ -371,6 +402,99 @@ final class PdfSecurityPreflight
         }
 
         return $reviews;
+    }
+
+    /**
+     * @param array<string, mixed> $permissionPreflight
+     * @param list<array<string, mixed>> $signatures
+     * @return array<string, mixed>
+     */
+    private function encryptedSignatureByteRangeReview(bool $encrypted, array $permissionPreflight, array $signatures): array
+    {
+        $base = [
+            'source' => 'encrypted_signature_byte_range_review',
+            'present' => false,
+            'encrypted' => $encrypted,
+            'signature_count' => count($signatures),
+            'signed_signature_count' => count(array_filter(
+                $signatures,
+                static fn (array $signature): bool => ($signature['signed'] ?? false) === true
+            )),
+            'byte_range_count' => 0,
+            'valid_byte_range_count' => 0,
+            'invalid_byte_range_count' => 0,
+            'byte_range_statuses' => [],
+            'field_names' => [],
+            'policy' => $permissionPreflight['policy'] ?? null,
+            'content_extraction_boundary' => $permissionPreflight['content_extraction_boundary'] ?? null,
+            'requires_password_for_content_extraction' => (bool) ($permissionPreflight['requires_password_for_content_extraction'] ?? false),
+            'content_extraction_allowed' => !$encrypted,
+            'text_extraction_policy' => $encrypted ? 'blocked_without_decryption' : 'native_text_allowed',
+            'review_only' => true,
+            'byte_range_does_not_grant_import' => $encrypted,
+            'raw_signature_contents_exposed' => false,
+            'raw_key_material_exposed' => false,
+            'executes_decryption' => false,
+            'executes_signature_validation' => false,
+            'executes_signing' => false,
+            'executes_external_pdf_tools' => false,
+            'rows' => [],
+        ];
+
+        if (!$encrypted) {
+            return $base;
+        }
+
+        $rows = [];
+        foreach ($signatures as $signature) {
+            $byteRange = is_array($signature['byte_range'] ?? null) ? $signature['byte_range'] : [];
+            if (($byteRange['present'] ?? false) !== true) {
+                continue;
+            }
+
+            $securityReview = is_array($signature['signature_security_review'] ?? null)
+                ? $signature['signature_security_review']
+                : [];
+            $rows[] = [
+                'field_name' => is_string($signature['field_name'] ?? null) ? $signature['field_name'] : null,
+                'field_object' => is_int($signature['field_object'] ?? null) ? $signature['field_object'] : null,
+                'signature_object' => is_int($signature['signature_object'] ?? null) ? $signature['signature_object'] : null,
+                'signed' => ($signature['signed'] ?? false) === true,
+                'filter' => is_string($signature['filter'] ?? null) ? $signature['filter'] : null,
+                'subfilter' => is_string($signature['subfilter'] ?? null) ? $signature['subfilter'] : null,
+                'byte_range_present' => true,
+                'byte_range_valid' => ($byteRange['valid'] ?? false) === true,
+                'byte_range_status' => is_string($byteRange['status'] ?? null) ? $byteRange['status'] : null,
+                'byte_range_segment_count' => (int) ($byteRange['segment_count'] ?? 0),
+                'byte_range_gap_count' => (int) ($byteRange['gap_count'] ?? 0),
+                'byte_range_covers_signature_contents' => ($byteRange['has_signature_contents_gap'] ?? false) === true,
+                'signature_review_decision' => is_string($securityReview['review_decision'] ?? null) ? $securityReview['review_decision'] : null,
+                'content_extraction_boundary' => $permissionPreflight['content_extraction_boundary'] ?? null,
+                'requires_password_for_content_extraction' => (bool) ($permissionPreflight['requires_password_for_content_extraction'] ?? true),
+                'native_text_extraction_allowed_now' => false,
+                'byte_range_structural_review_only' => true,
+                'byte_range_does_not_grant_import' => true,
+                'cryptographic_signature_validated' => false,
+                'executes_decryption' => false,
+                'executes_signature_validation' => false,
+                'executes_signing' => false,
+                'raw_signature_contents_exposed' => false,
+                'raw_key_material_exposed' => false,
+            ];
+        }
+
+        $base['present'] = $rows !== [];
+        $base['byte_range_count'] = count($rows);
+        $base['valid_byte_range_count'] = count(array_filter(
+            $rows,
+            static fn (array $row): bool => ($row['byte_range_valid'] ?? false) === true
+        ));
+        $base['invalid_byte_range_count'] = count($rows) - (int) $base['valid_byte_range_count'];
+        $base['byte_range_statuses'] = $this->uniqueStringColumn($rows, 'byte_range_status');
+        $base['field_names'] = $this->uniqueStringColumn($rows, 'field_name');
+        $base['rows'] = $rows;
+
+        return $base;
     }
 
     /**
@@ -1904,6 +2028,7 @@ final class PdfSecurityPreflight
         bool $encrypted,
         int $signedSignatureCount,
         int $invalidByteRangeCount,
+        int $signatureByteRangeCount,
         int $referenceTransformCount,
         array $lockedFieldNames,
         array $permissionPreflight,
@@ -1929,6 +2054,9 @@ final class PdfSecurityPreflight
                 $reasons[] = 'permission_word_reserved_bits_malformed';
             } elseif ($permissionPolicy === 'permissions_unsupported_handler_blocked_without_decryption') {
                 $reasons[] = 'encryption_handler_permissions_unsupported';
+            }
+            if ($signatureByteRangeCount > 0) {
+                $reasons[] = 'encrypted_signature_byte_range_present';
             }
         }
         if ($signedSignatureCount > 0 && !$encrypted) {

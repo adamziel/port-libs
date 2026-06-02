@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PortLibs\MarkerPDF;
 
 use InvalidArgumentException;
+use Throwable;
 
 final class BenchmarkRunner
 {
@@ -148,6 +149,34 @@ final class BenchmarkRunner
             'output_tables' => $outputTables,
             'written_markdown' => $writtenMarkdown,
             'runtime' => $runtimeReport,
+        ];
+    }
+
+    /**
+     * Native non-executing boundary for benchmarks/overall.py::stop_memory_profiling.
+     *
+     * Upstream logs snapshot dump failures and still disables CUDA memory
+     * history. The PHP port records that review metadata without touching CUDA.
+     *
+     * @return array{snapshot: string, error: string, log_line: string, continues_after_failure: true, recording_disabled_after_error: true, executes_cuda_memory_history: false, review_only: true}
+     */
+    public function memorySnapshotFailureReport(string $snapshotFile, Throwable|string $error): array
+    {
+        $snapshotFile = trim($snapshotFile);
+        if ($snapshotFile === '') {
+            throw new InvalidArgumentException('Benchmark memory snapshot file must be a non-empty string.');
+        }
+
+        $message = $error instanceof Throwable ? $error->getMessage() : (string) $error;
+
+        return [
+            'snapshot' => $snapshotFile,
+            'error' => $message,
+            'log_line' => 'Failed to capture memory snapshot ' . $message,
+            'continues_after_failure' => true,
+            'recording_disabled_after_error' => true,
+            'executes_cuda_memory_history' => false,
+            'review_only' => true,
         ];
     }
 
