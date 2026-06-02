@@ -284,6 +284,14 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-openaction-safety-review.php` maps catalog OpenAction metadata into a non-executing WordPress safety-review path. It classifies local `GoTo`, remote `GoToR`, `URI`, and `Launch` actions for review and keeps them out of same-document TOC rows before import.
 
+`examples/wordpress-pdf-asciihex-runlength-filter-import.php` maps a length-bounded native PDF stream-filter edge into a WordPress import path. It decodes an `/ASCIIHexDecode` to `/RunLengthDecode` filter chain after slicing the stream by direct or indirect `/Length`, then emits `ASCIIHex RunLength Import` and `Block Ready Content` without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
+`examples/wordpress-pdf-destination-view-import.php` maps catalog and outline destination page-view metadata into a WordPress navigation review path. It exposes `/PageMode`, `/PageLayout`, `/OpenAction`, and outline `/Fit`/`/FitH`/`/XYZ` view fields while preserving the existing basic TOC rows.
+
+`examples/wordpress-pdf-xfa-form-packet-import.php` maps catalog `/AcroForm /XFA` packet arrays into a review-only WordPress form path. It reports packet names, field hints, and data-node names without merging dynamic XFA XML into static AcroForm fields or executing external tooling.
+
+`examples/wordpress-pdf-embedded-files-import.php` maps catalog `/Names /EmbeddedFiles` attachment metadata into a WordPress import path. It emits a core file block and review metadata for the embedded file while proving embedded-file payload streams do not leak into visible paragraph extraction.
+
 ## Next Task
 
-Choose the next bounded markerPDF/PDF extraction gap on current base, favoring embedded-file/name-tree metadata, AcroForm value dictionaries, object-stream/xref edges, page/action metadata, parser, font, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
+Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
