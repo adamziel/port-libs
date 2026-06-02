@@ -1206,6 +1206,28 @@ return [
         $t->same($expected, $extractor->extractPlainText($pdf));
         $t->same([$expected], $extractor->extractTextRuns($pdf));
     },
+    'decodes Standard MacRoman and Symbol simple font encodings before WordPress paragraphs' => static function (TestRunner $t): void {
+        $content = 'BT /Fstd 12 Tf 1 0 0 1 72 720 Tm <5750277320AE20AF20E1> Tj ET '
+            . 'BT /Fmac 12 Tf 1 0 0 1 72 704 Tm <4D6163208E209F20D6> Tj ET '
+            . 'BT /Fsym 12 Tf 1 0 0 1 72 688 Tm <616267202B20B3> Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fstd 2 0 R /Fmac 3 0 R /Fsym 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /StandardEncoding >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /MacRomanSubset /Encoding << /BaseEncoding /MacRomanEncoding >> >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Symbol >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $expected = [
+            "WP\u{2019}s \u{FB01} \u{FB02} \u{00C6}",
+            "Mac \u{00E9} \u{00FC} \u{00F7}",
+            "\u{03B1}\u{03B2}\u{03B3} + \u{2265}",
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same(implode("\n", $expected), $extractor->extractPlainText($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+    },
     'uses Base14 simple font metrics before same-line Tm gap decisions' => static function (TestRunner $t): void {
         $helveticaContent = 'BT /Fhelv 12 Tf 1 0 0 1 72 720 Tm (Ill) Tj 1 0 0 1 93 720 Tm (Word) Tj ET '
             . 'BT /Fhelv 12 Tf 1 0 0 1 72 704 Tm (WWW) Tj 1 0 0 1 104 704 Tm (Import) Tj ET';

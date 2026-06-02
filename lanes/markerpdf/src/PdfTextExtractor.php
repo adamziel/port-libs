@@ -4562,15 +4562,30 @@ final class PdfTextExtractor
      */
     private function fontEncodingMap(string $fontBody): ?array
     {
+        $baseEncoding = null;
+        if (preg_match('/\/BaseEncoding\s+\/([^\s\[\]()<>{}\/%]+)/', $fontBody, $match) === 1) {
+            $baseEncoding = $this->namedEncodingMap($this->decodePdfName($match[1]));
+        }
+
         if (preg_match('/\/Differences\s*\[(.*?)\]/s', $fontBody, $match)) {
-            return $this->encodingDifferencesMap($match[1]);
+            $differences = $this->encodingDifferencesMap($match[1]);
+            if ($baseEncoding !== null) {
+                $baseEncoding['map'] = array_replace($baseEncoding['map'], $differences['map']);
+                return $baseEncoding;
+            }
+
+            return $differences;
+        }
+
+        if ($baseEncoding !== null) {
+            return $baseEncoding;
         }
 
         if (preg_match('/\/Encoding\s+\/([^\s\[\]()<>{}\/%]+)/', $fontBody, $match)) {
             return $this->namedEncodingMap($this->decodePdfName($match[1]));
         }
 
-        return null;
+        return $this->implicitBaseFontEncodingMap($fontBody);
     }
 
     /**
@@ -5872,44 +5887,390 @@ final class PdfTextExtractor
             ];
         }
 
-        if ($encodingName !== 'WinAnsiEncoding') {
-            return null;
+        return match ($encodingName) {
+            'WinAnsiEncoding' => $this->codepointEncodingMap([
+                0x80 => 0x20ac,
+                0x82 => 0x201a,
+                0x83 => 0x0192,
+                0x84 => 0x201e,
+                0x85 => 0x2026,
+                0x86 => 0x2020,
+                0x87 => 0x2021,
+                0x88 => 0x02c6,
+                0x89 => 0x2030,
+                0x8a => 0x0160,
+                0x8b => 0x2039,
+                0x8c => 0x0152,
+                0x8e => 0x017d,
+                0x91 => 0x2018,
+                0x92 => 0x2019,
+                0x93 => 0x201c,
+                0x94 => 0x201d,
+                0x95 => 0x2022,
+                0x96 => 0x2013,
+                0x97 => 0x2014,
+                0x98 => 0x02dc,
+                0x99 => 0x2122,
+                0x9a => 0x0161,
+                0x9b => 0x203a,
+                0x9c => 0x0153,
+                0x9e => 0x017e,
+                0x9f => 0x0178,
+            ]),
+            'StandardEncoding' => $this->codepointEncodingMap([
+                0x27 => 0x2019,
+                0x60 => 0x2018,
+                0xa1 => 0x00a1,
+                0xa2 => 0x00a2,
+                0xa3 => 0x00a3,
+                0xa4 => 0x2044,
+                0xa5 => 0x00a5,
+                0xa6 => 0x0192,
+                0xa7 => 0x00a7,
+                0xa8 => 0x00a4,
+                0xa9 => 0x0027,
+                0xaa => 0x201c,
+                0xab => 0x00ab,
+                0xac => 0x2039,
+                0xad => 0x203a,
+                0xae => 0xfb01,
+                0xaf => 0xfb02,
+                0xb1 => 0x2013,
+                0xb2 => 0x2020,
+                0xb3 => 0x2021,
+                0xb4 => 0x00b7,
+                0xb6 => 0x00b6,
+                0xb7 => 0x2022,
+                0xb8 => 0x201a,
+                0xb9 => 0x201e,
+                0xba => 0x201d,
+                0xbb => 0x00bb,
+                0xbc => 0x2026,
+                0xbd => 0x2030,
+                0xbf => 0x00bf,
+                0xc1 => 0x0060,
+                0xc2 => 0x00b4,
+                0xc3 => 0x02c6,
+                0xc4 => 0x02dc,
+                0xc5 => 0x00af,
+                0xc6 => 0x02d8,
+                0xc7 => 0x02d9,
+                0xc8 => 0x00a8,
+                0xca => 0x02da,
+                0xcb => 0x00b8,
+                0xcd => 0x02dd,
+                0xce => 0x02db,
+                0xcf => 0x02c7,
+                0xd0 => 0x2014,
+                0xe1 => 0x00c6,
+                0xe3 => 0x00aa,
+                0xe8 => 0x0141,
+                0xe9 => 0x00d8,
+                0xea => 0x0152,
+                0xeb => 0x00ba,
+                0xf1 => 0x00e6,
+                0xf5 => 0x0131,
+                0xf8 => 0x0142,
+                0xf9 => 0x00f8,
+                0xfa => 0x0153,
+                0xfb => 0x00df,
+            ]),
+            'MacRomanEncoding' => $this->codepointEncodingMap([
+                0x80 => 0x00c4,
+                0x81 => 0x00c5,
+                0x82 => 0x00c7,
+                0x83 => 0x00c9,
+                0x84 => 0x00d1,
+                0x85 => 0x00d6,
+                0x86 => 0x00dc,
+                0x87 => 0x00e1,
+                0x88 => 0x00e0,
+                0x89 => 0x00e2,
+                0x8a => 0x00e4,
+                0x8b => 0x00e3,
+                0x8c => 0x00e5,
+                0x8d => 0x00e7,
+                0x8e => 0x00e9,
+                0x8f => 0x00e8,
+                0x90 => 0x00ea,
+                0x91 => 0x00eb,
+                0x92 => 0x00ed,
+                0x93 => 0x00ec,
+                0x94 => 0x00ee,
+                0x95 => 0x00ef,
+                0x96 => 0x00f1,
+                0x97 => 0x00f3,
+                0x98 => 0x00f2,
+                0x99 => 0x00f4,
+                0x9a => 0x00f6,
+                0x9b => 0x00f5,
+                0x9c => 0x00fa,
+                0x9d => 0x00f9,
+                0x9e => 0x00fb,
+                0x9f => 0x00fc,
+                0xa0 => 0x2020,
+                0xa1 => 0x00b0,
+                0xa2 => 0x00a2,
+                0xa3 => 0x00a3,
+                0xa4 => 0x00a7,
+                0xa5 => 0x2022,
+                0xa6 => 0x00b6,
+                0xa7 => 0x00df,
+                0xa8 => 0x00ae,
+                0xa9 => 0x00a9,
+                0xaa => 0x2122,
+                0xab => 0x00b4,
+                0xac => 0x00a8,
+                0xae => 0x00c6,
+                0xaf => 0x00d8,
+                0xb1 => 0x00b1,
+                0xb4 => 0x00a5,
+                0xb5 => 0x00b5,
+                0xbb => 0x00aa,
+                0xbc => 0x00ba,
+                0xbe => 0x00e6,
+                0xbf => 0x00f8,
+                0xc0 => 0x00bf,
+                0xc1 => 0x00a1,
+                0xc2 => 0x00ac,
+                0xc4 => 0x0192,
+                0xc7 => 0x00ab,
+                0xc8 => 0x00bb,
+                0xc9 => 0x2026,
+                0xca => 0x0020,
+                0xcb => 0x00c0,
+                0xcc => 0x00c3,
+                0xcd => 0x00d5,
+                0xce => 0x0152,
+                0xcf => 0x0153,
+                0xd0 => 0x2013,
+                0xd1 => 0x2014,
+                0xd2 => 0x201c,
+                0xd3 => 0x201d,
+                0xd4 => 0x2018,
+                0xd5 => 0x2019,
+                0xd6 => 0x00f7,
+                0xd8 => 0x00ff,
+                0xd9 => 0x0178,
+                0xda => 0x2044,
+                0xdb => 0x00a4,
+                0xdc => 0x2039,
+                0xdd => 0x203a,
+                0xde => 0xfb01,
+                0xdf => 0xfb02,
+                0xe0 => 0x2021,
+                0xe1 => 0x00b7,
+                0xe2 => 0x201a,
+                0xe3 => 0x201e,
+                0xe4 => 0x2030,
+                0xe5 => 0x00c2,
+                0xe6 => 0x00ca,
+                0xe7 => 0x00c1,
+                0xe8 => 0x00cb,
+                0xe9 => 0x00c8,
+                0xea => 0x00cd,
+                0xeb => 0x00ce,
+                0xec => 0x00cf,
+                0xed => 0x00cc,
+                0xee => 0x00d3,
+                0xef => 0x00d4,
+                0xf1 => 0x00d2,
+                0xf2 => 0x00da,
+                0xf3 => 0x00db,
+                0xf4 => 0x00d9,
+                0xf5 => 0x0131,
+                0xf6 => 0x02c6,
+                0xf7 => 0x02dc,
+                0xf8 => 0x00af,
+                0xf9 => 0x02d8,
+                0xfa => 0x02d9,
+                0xfb => 0x02da,
+                0xfc => 0x00b8,
+                0xfd => 0x02dd,
+                0xfe => 0x02db,
+                0xff => 0x02c7,
+            ]),
+            'SymbolEncoding' => $this->codepointEncodingMap([
+                0x22 => 0x2200,
+                0x24 => 0x2203,
+                0x27 => 0x220b,
+                0x2a => 0x2217,
+                0x2d => 0x2212,
+                0x40 => 0x2245,
+                0x41 => 0x0391,
+                0x42 => 0x0392,
+                0x43 => 0x03a7,
+                0x44 => 0x0394,
+                0x45 => 0x0395,
+                0x46 => 0x03a6,
+                0x47 => 0x0393,
+                0x48 => 0x0397,
+                0x49 => 0x0399,
+                0x4a => 0x03d1,
+                0x4b => 0x039a,
+                0x4c => 0x039b,
+                0x4d => 0x039c,
+                0x4e => 0x039d,
+                0x4f => 0x039f,
+                0x50 => 0x03a0,
+                0x51 => 0x0398,
+                0x52 => 0x03a1,
+                0x53 => 0x03a3,
+                0x54 => 0x03a4,
+                0x55 => 0x03a5,
+                0x56 => 0x03c2,
+                0x57 => 0x03a9,
+                0x58 => 0x039e,
+                0x59 => 0x03a8,
+                0x5a => 0x0396,
+                0x5c => 0x2234,
+                0x5e => 0x22a5,
+                0x61 => 0x03b1,
+                0x62 => 0x03b2,
+                0x63 => 0x03c7,
+                0x64 => 0x03b4,
+                0x65 => 0x03b5,
+                0x66 => 0x03c6,
+                0x67 => 0x03b3,
+                0x68 => 0x03b7,
+                0x69 => 0x03b9,
+                0x6a => 0x03d5,
+                0x6b => 0x03ba,
+                0x6c => 0x03bb,
+                0x6d => 0x03bc,
+                0x6e => 0x03bd,
+                0x6f => 0x03bf,
+                0x70 => 0x03c0,
+                0x71 => 0x03b8,
+                0x72 => 0x03c1,
+                0x73 => 0x03c3,
+                0x74 => 0x03c4,
+                0x75 => 0x03c5,
+                0x76 => 0x03d6,
+                0x77 => 0x03c9,
+                0x78 => 0x03be,
+                0x79 => 0x03c8,
+                0x7a => 0x03b6,
+                0x7e => 0x223c,
+                0xa0 => 0x20ac,
+                0xa1 => 0x03d2,
+                0xa2 => 0x2032,
+                0xa3 => 0x2264,
+                0xa4 => 0x2044,
+                0xa5 => 0x221e,
+                0xa6 => 0x0192,
+                0xa7 => 0x2663,
+                0xa8 => 0x2666,
+                0xa9 => 0x2665,
+                0xaa => 0x2660,
+                0xab => 0x2194,
+                0xac => 0x2190,
+                0xad => 0x2191,
+                0xae => 0x2192,
+                0xaf => 0x2193,
+                0xb0 => 0x00b0,
+                0xb1 => 0x00b1,
+                0xb2 => 0x2033,
+                0xb3 => 0x2265,
+                0xb4 => 0x00d7,
+                0xb5 => 0x221d,
+                0xb6 => 0x2202,
+                0xb7 => 0x2022,
+                0xb8 => 0x00f7,
+                0xb9 => 0x2260,
+                0xba => 0x2261,
+                0xbb => 0x2248,
+                0xbc => 0x2026,
+                0xbf => 0x21b5,
+                0xc0 => 0x2135,
+                0xc1 => 0x2111,
+                0xc2 => 0x211c,
+                0xc3 => 0x2118,
+                0xc4 => 0x2297,
+                0xc5 => 0x2295,
+                0xc6 => 0x2205,
+                0xc7 => 0x2229,
+                0xc8 => 0x222a,
+                0xc9 => 0x2283,
+                0xca => 0x2287,
+                0xcb => 0x2284,
+                0xcc => 0x2282,
+                0xcd => 0x2286,
+                0xce => 0x2208,
+                0xcf => 0x2209,
+                0xd0 => 0x2220,
+                0xd1 => 0x2207,
+                0xd2 => 0x00ae,
+                0xd3 => 0x00a9,
+                0xd4 => 0x2122,
+                0xd5 => 0x220f,
+                0xd6 => 0x221a,
+                0xd7 => 0x22c5,
+                0xd8 => 0x00ac,
+                0xd9 => 0x2227,
+                0xda => 0x2228,
+                0xdb => 0x21d4,
+                0xdc => 0x21d0,
+                0xdd => 0x21d1,
+                0xde => 0x21d2,
+                0xdf => 0x21d3,
+                0xe0 => 0x25ca,
+                0xe1 => 0x2329,
+                0xe2 => 0x00ae,
+                0xe3 => 0x00a9,
+                0xe4 => 0x2122,
+                0xe5 => 0x2211,
+                0xf1 => 0x232a,
+                0xf2 => 0x222b,
+            ]),
+            default => null,
+        };
+    }
+
+    /**
+     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}
+     * @param array<int, int> $codepoints
+     */
+    private function codepointEncodingMap(array $codepoints): array
+    {
+        $map = [];
+        foreach ($codepoints as $code => $codepoint) {
+            if (!is_int($code) || !is_int($codepoint) || $code < 0 || $code > 255 || $codepoint < 0 || $codepoint > 0x10ffff) {
+                continue;
+            }
+            $decoded = $this->unicodeCodepoint($codepoint);
+            if ($decoded !== '') {
+                $map[str_pad(strtolower(dechex($code)), 2, '0', STR_PAD_LEFT)] = $decoded;
+            }
         }
 
         return [
-            'map' => [
-                '80' => $this->unicodeCodepoint(0x20ac),
-                '82' => $this->unicodeCodepoint(0x201a),
-                '83' => $this->unicodeCodepoint(0x0192),
-                '84' => $this->unicodeCodepoint(0x201e),
-                '85' => $this->unicodeCodepoint(0x2026),
-                '86' => $this->unicodeCodepoint(0x2020),
-                '87' => $this->unicodeCodepoint(0x2021),
-                '88' => $this->unicodeCodepoint(0x02c6),
-                '89' => $this->unicodeCodepoint(0x2030),
-                '8a' => $this->unicodeCodepoint(0x0160),
-                '8b' => $this->unicodeCodepoint(0x2039),
-                '8c' => $this->unicodeCodepoint(0x0152),
-                '8e' => $this->unicodeCodepoint(0x017d),
-                '91' => $this->unicodeCodepoint(0x2018),
-                '92' => $this->unicodeCodepoint(0x2019),
-                '93' => $this->unicodeCodepoint(0x201c),
-                '94' => $this->unicodeCodepoint(0x201d),
-                '95' => $this->unicodeCodepoint(0x2022),
-                '96' => $this->unicodeCodepoint(0x2013),
-                '97' => $this->unicodeCodepoint(0x2014),
-                '98' => $this->unicodeCodepoint(0x02dc),
-                '99' => $this->unicodeCodepoint(0x2122),
-                '9a' => $this->unicodeCodepoint(0x0161),
-                '9b' => $this->unicodeCodepoint(0x203a),
-                '9c' => $this->unicodeCodepoint(0x0153),
-                '9e' => $this->unicodeCodepoint(0x017e),
-                '9f' => $this->unicodeCodepoint(0x0178),
-            ],
+            'map' => $map,
             'codeSpaceRanges' => [
                 ['start' => 0, 'end' => 255, 'width' => 2],
             ],
         ];
+    }
+
+    /**
+     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}|null
+     */
+    private function implicitBaseFontEncodingMap(string $fontBody): ?array
+    {
+        $baseFont = $this->pdfNameValueAfterName($fontBody, 'BaseFont');
+        if ($baseFont === null || $baseFont === '') {
+            return null;
+        }
+
+        if (preg_match('/^[A-Z]{6}\+(.+)$/', $baseFont, $match) === 1) {
+            $baseFont = $match[1];
+        }
+
+        if ($baseFont === 'Symbol' || $baseFont === 'StandardSymbolsPS') {
+            return $this->namedEncodingMap('SymbolEncoding');
+        }
+
+        return null;
     }
 
     private function unicodeCodepoint(int $codepoint): string
