@@ -126,14 +126,20 @@ $pagePresentationPdf = static function (): string {
     $pageTwoContent = 'BT /F1 12 Tf 72 720 Td (Second slide stays clean) Tj ET';
 
     return "%PDF-1.7\n"
-        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /Dests 20 0 R >> >>\nendobj\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /Dests 20 0 R >> /PageLabels 21 0 R /PageLayout /TwoPageRight /PageMode /UseOutlines /ViewerPreferences 8 0 R >>\nendobj\n"
         . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
         . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Dur 8 /Trans 5 0 R /AA << /O 6 0 R /C << /S /GoToR /F (deck-appendix.pdf) /D /Slide#202 /NewWindow true >> >> /Contents 30 0 R >>\nendobj\n"
         . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Trans << /S /Split /D .75 /Dm /H /M /O /Di 90 /SS .5 /B true >> /AA << /O << /S /Launch /Win << /F (helper.exe) /O (print) >> >> /C << /S /URI /URI (javascript:alert\\(1\\)) /Next [7 0 R 7 0 R] >> >> /Contents 31 0 R >>\nendobj\n"
         . "5 0 obj\n<< /S /Dissolve /D 1.5 >>\nendobj\n"
         . "6 0 obj\n<< /S /URI /URI (https://example.com/slide-notes) >>\nendobj\n"
         . "7 0 obj\n<< /S /GoTo /D /Start >>\nendobj\n"
+        . "8 0 obj\n<< /DisplayDocTitle true /Direction 25 0 R /PrintScaling /None /PrintClip /Bogus /NumCopies 26 0 R /Enforce [ /PrintScaling /Bogus /NumCopies ] >>\nendobj\n"
         . "20 0 obj\n<< /Names [(Start) [3 0 R /Fit]] >>\nendobj\n"
+        . "21 0 obj\n<< /Kids [22 0 R 23 0 R] >>\nendobj\n"
+        . "22 0 obj\n<< /Limits [0 0] /Nums [0 << /S /r /P (intro-) /St 2 >> 2 << /S /D /P (stale-) /St 99 >>] >>\nendobj\n"
+        . "23 0 obj\n<< /Limits [1 1] /Nums [1 << /S /D /P (Slide ) /St 7 >>] >>\nendobj\n"
+        . "25 0 obj\n/R2L\nendobj\n"
+        . "26 0 obj\n2\nendobj\n"
         . "30 0 obj\n<< /Length " . strlen($pageOneContent) . " >>\nstream\n{$pageOneContent}\nendstream\nendobj\n"
         . "31 0 obj\n<< /Length " . strlen($pageTwoContent) . " >>\nstream\n{$pageTwoContent}\nendstream\nendobj\n"
         . "%%EOF";
@@ -421,7 +427,20 @@ return [
 
         $t->same(2, count($pages));
         $t->same(0, $pages[0]['pnum']);
+        $t->same(1, $pages[0]['page_number']);
         $t->same(3, $pages[0]['page_object']);
+        $t->same('intro-ii', $pages[0]['page_label']);
+        $t->same([
+            'page_layout' => 'TwoPageRight',
+            'page_mode' => 'UseOutlines',
+            'viewer_preferences' => [
+                'display_doc_title' => true,
+                'direction' => 'R2L',
+                'print_scaling' => 'None',
+                'enforce' => ['PrintScaling', 'NumCopies'],
+                'num_copies' => 2,
+            ],
+        ], $pages[0]['catalog_view']);
         $t->same(8.0, $pages[0]['display_duration']);
         $t->same(
             [
@@ -453,7 +472,12 @@ return [
         $t->same(true, $pages[0]['actions'][1]['new_window']);
 
         $t->same(1, $pages[1]['pnum']);
+        $t->same(2, $pages[1]['page_number']);
         $t->same(4, $pages[1]['page_object']);
+        $t->same('Slide 7', $pages[1]['page_label']);
+        $t->same($pages[0]['catalog_view'], $pages[1]['catalog_view']);
+        $t->true(!str_starts_with($pages[1]['page_label'], 'stale-'));
+        $t->true(!array_key_exists('print_clip', $pages[1]['catalog_view']['viewer_preferences']));
         $t->same(null, $pages[1]['display_duration']);
         $t->same(
             [
@@ -481,6 +505,34 @@ return [
         $t->same('Start', $pages[1]['actions'][2]['destination']);
         $t->same(true, $pages[1]['actions'][2]['chained']);
         $t->same(7, $pages[1]['actions'][2]['action_object']);
+    },
+    'aligns PageLabels and viewer preferences with page transition review boundaries' => static function (TestRunner $t) use ($pagePresentationPdf): void {
+        $pages = (new PdfOutlineExtractor())->getPageTransitionActionMetadata($pagePresentationPdf());
+        $actions = [];
+        foreach ($pages as $page) {
+            foreach ($page['actions'] as $action) {
+                $actions[] = $action;
+            }
+        }
+
+        $t->same(['intro-ii', 'Slide 7'], array_column($pages, 'page_label'));
+        $t->same([1, 2], array_column($pages, 'page_number'));
+        $t->same(['Dissolve', 'Split'], array_map(
+            static fn (array $page): ?string => $page['transition']['style'] ?? null,
+            $pages
+        ));
+        $t->same('TwoPageRight', $pages[0]['catalog_view']['page_layout']);
+        $t->same('UseOutlines', $pages[0]['catalog_view']['page_mode']);
+        $t->same('R2L', $pages[0]['catalog_view']['viewer_preferences']['direction']);
+        $t->same('None', $pages[0]['catalog_view']['viewer_preferences']['print_scaling']);
+        $t->same(['PrintScaling', 'NumCopies'], $pages[0]['catalog_view']['viewer_preferences']['enforce']);
+        $t->same(2, $pages[0]['catalog_view']['viewer_preferences']['num_copies']);
+        $t->true(!array_key_exists('print_clip', $pages[0]['catalog_view']['viewer_preferences']));
+        $t->true(!in_array('stale-99', array_column($pages, 'page_label'), true));
+        $t->same([], array_values(array_filter(
+            $actions,
+            static fn (array $action): bool => ($action['executes_on_import'] ?? true) !== false
+        )));
     },
     'keeps page transitions and actions as metadata outside visible text extraction' => static function (TestRunner $t) use ($pagePresentationPdf): void {
         $text = (new PdfTextExtractor())->extractPlainText($pagePresentationPdf());

@@ -230,7 +230,10 @@ final class PdfOutlineExtractor
      *
      * @return list<array{
      *     pnum: int,
+     *     page_number: int,
      *     page_object: int,
+     *     page_label: string,
+     *     catalog_view?: array<string, mixed>,
      *     display_duration: float|null,
      *     transition: array{
      *         style: string|null,
@@ -258,6 +261,8 @@ final class PdfOutlineExtractor
             $pageIndexes[$objectNumber] = $index;
         }
         $destinations = $this->destinationMap($catalog, $objects);
+        $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
+        $catalogView = $this->catalogReviewContext($pdfBytes);
 
         $pages = [];
         foreach ($pageObjectNumbers as $pnum => $pageObjectNumber) {
@@ -273,16 +278,43 @@ final class PdfOutlineExtractor
                 continue;
             }
 
-            $pages[] = [
+            $row = [
                 'pnum' => $pnum,
+                'page_number' => $pnum + 1,
                 'page_object' => $pageObjectNumber,
+                'page_label' => $pageLabels[$pnum] ?? (string) ($pnum + 1),
                 'display_duration' => $displayDuration,
                 'transition' => $transition,
                 'actions' => $actions,
             ];
+            if ($catalogView !== []) {
+                $row['catalog_view'] = $catalogView;
+            }
+
+            $pages[] = $row;
         }
 
         return $pages;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function catalogReviewContext(string $pdfBytes): array
+    {
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdfBytes);
+        $context = [];
+        foreach (['page_layout', 'page_mode'] as $field) {
+            if (is_string($metadata[$field] ?? null) && $metadata[$field] !== '') {
+                $context[$field] = $metadata[$field];
+            }
+        }
+
+        if (isset($metadata['viewer_preferences']) && is_array($metadata['viewer_preferences']) && $metadata['viewer_preferences'] !== []) {
+            $context['viewer_preferences'] = $metadata['viewer_preferences'];
+        }
+
+        return $context;
     }
 
     /**
