@@ -211,6 +211,26 @@ $currentValueStatePdf = static function (): string {
         . "%%EOF";
 };
 
+$widgetDefaultStatePdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 12 0 R 16 0 R 18 0 R 22 0 R 24 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R 14 0 R 20 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Btn /T (terms.agreed) /DV /Yes /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 90 658] /P 3 0 R /F 4 /AS /Yes /AP << /N << /Yes 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Btn /T (terms.optional) /DV /Off /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 90 618] /P 3 0 R /F 4 /AS /Off /AP << /N << /Yes 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "14 0 obj\n<< /FT /Btn /T (delivery.window) /Ff 49152 /DV /Courier /Kids [16 0 R 18 0 R] >>\nendobj\n"
+        . "16 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [72 560 90 578] /P 3 0 R /F 4 /AS /Off /AP << /N << /Pickup 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "18 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [108 560 126 578] /P 3 0 R /F 4 /AS /Courier /AP << /N << /Courier 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "20 0 obj\n<< /FT /Btn /T (delivery.changed) /Ff 49152 /DV /Pickup /Kids [22 0 R 24 0 R] >>\nendobj\n"
+        . "22 0 obj\n<< /Subtype /Widget /Parent 20 0 R /Rect [72 520 90 538] /P 3 0 R /F 4 /AS /Online /AP << /N << /Online 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "24 0 obj\n<< /Subtype /Widget /Parent 20 0 R /Rect [108 520 126 538] /P 3 0 R /F 4 /AS /Off /AP << /N << /Pickup 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "30 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts inherited field flags and field default appearance strings' => static function (TestRunner $t) use ($acroFormPdf, $fieldsByName): void {
         $form = (new PdfAcroFormExtractor())->extractForm($acroFormPdf());
@@ -574,6 +594,55 @@ return [
         $t->true($consent['widgets'][0]['checked']);
         $t->same('Yes', $consent['widgets'][0]['export_value']);
         $t->same(null, $consent['widgets'][0]['state_matches_field_value']);
+    },
+    'uses widget appearance state as button current value before default comparison' => static function (TestRunner $t) use ($widgetDefaultStatePdf, $fieldsByName): void {
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($widgetDefaultStatePdf()));
+
+        $agreedState = $fields['terms.agreed']['value_state'];
+        $t->same(null, $agreedState['current_state']);
+        $t->same('Yes', $agreedState['default_state']);
+        $t->same('Yes', $agreedState['effective_current_state']);
+        $t->same('Yes', $agreedState['display_value']);
+        $t->same('widget_appearance_state', $agreedState['state_source']);
+        $t->same(false, $agreedState['changed_from_default']);
+        $t->same(1, $agreedState['checked_widget_count']);
+        $t->same(['Yes'], $agreedState['on_values']);
+        $t->true($fields['terms.agreed']['widgets'][0]['checked']);
+        $t->same(null, $fields['terms.agreed']['widgets'][0]['state_matches_field_value']);
+
+        $optionalState = $fields['terms.optional']['value_state'];
+        $t->same(null, $optionalState['effective_current_state']);
+        $t->same('Off', $optionalState['default_state']);
+        $t->same(null, $optionalState['display_value']);
+        $t->same('missing_or_off', $optionalState['state_source']);
+        $t->same(false, $optionalState['changed_from_default']);
+        $t->same(0, $optionalState['checked_widget_count']);
+        $t->same(['Yes'], $optionalState['on_values']);
+        $t->same(false, $fields['terms.optional']['widgets'][0]['checked']);
+
+        $windowState = $fields['delivery.window']['value_state'];
+        $t->same('radio', $windowState['button_kind']);
+        $t->same(null, $windowState['current_state']);
+        $t->same('Courier', $windowState['default_state']);
+        $t->same('Courier', $windowState['effective_current_state']);
+        $t->same('Courier', $windowState['display_value']);
+        $t->same('widget_appearance_state', $windowState['state_source']);
+        $t->same(false, $windowState['changed_from_default']);
+        $t->same(1, $windowState['checked_widget_count']);
+        $t->same(['Pickup', 'Courier'], $windowState['on_values']);
+        $t->same(false, $fields['delivery.window']['widgets'][0]['checked']);
+        $t->true($fields['delivery.window']['widgets'][1]['checked']);
+
+        $changedState = $fields['delivery.changed']['value_state'];
+        $t->same('Pickup', $changedState['default_state']);
+        $t->same('Online', $changedState['effective_current_state']);
+        $t->same('Online', $changedState['display_value']);
+        $t->same('widget_appearance_state', $changedState['state_source']);
+        $t->true($changedState['changed_from_default']);
+        $t->same(1, $changedState['checked_widget_count']);
+        $t->same(['Online', 'Pickup'], $changedState['on_values']);
+        $t->true($fields['delivery.changed']['widgets'][0]['checked']);
+        $t->same(false, $fields['delivery.changed']['widgets'][1]['checked']);
     },
     'extracts calculation format keystroke and validation action review metadata without executing scripts' => static function (TestRunner $t) use ($calculationFormatActionPdf, $fieldsByName): void {
         [$pdf, $keystrokeScript, $formatScript, $validateScript, $calculateScript] = $calculationFormatActionPdf();

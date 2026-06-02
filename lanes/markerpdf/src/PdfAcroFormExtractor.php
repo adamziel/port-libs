@@ -1301,6 +1301,10 @@ final class PdfAcroFormExtractor
                 'checked_widget_count' => count($checkedWidgets),
                 'widget_state_consistent' => $this->widgetsConsistentWithFieldValue($widgets),
             ];
+            $state['display_value'] = $password ? '[redacted]' : $this->displayValue($effectiveCurrent);
+            $state['changed_from_default'] = $password || !$hasDefault
+                ? null
+                : !$this->buttonValuesMatch($effectiveCurrent, $defaultValue);
         }
 
         if ($password) {
@@ -1570,6 +1574,22 @@ final class PdfAcroFormExtractor
         }
 
         return $left === $right;
+    }
+
+    private function buttonValuesMatch(mixed $left, mixed $right): bool
+    {
+        return $this->normalizedButtonValueList($left) === $this->normalizedButtonValueList($right);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizedButtonValueList(mixed $value): array
+    {
+        return array_values(array_filter(
+            $this->valueList($value),
+            static fn (string $state): bool => $state !== 'Off'
+        ));
     }
 
     /**

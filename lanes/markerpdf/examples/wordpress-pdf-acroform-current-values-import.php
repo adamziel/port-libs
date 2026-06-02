@@ -18,7 +18,7 @@ $pdf = "%PDF-1.7\n"
     . "14 0 obj\n<< /FT /Btn /T (delivery.method) /Ff 49152 /V /Online /DV /Pickup /Kids [16 0 R 18 0 R] >>\nendobj\n"
     . "16 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [72 560 90 578] /P 3 0 R /F 4 /AS /Online /AP << /N << /Online 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
     . "18 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [108 560 126 578] /P 3 0 R /F 4 /AS /Off /AP << /N << /Pickup 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
-    . "20 0 obj\n<< /FT /Btn /T (review.consent) /Kids [22 0 R] >>\nendobj\n"
+    . "20 0 obj\n<< /FT /Btn /T (review.consent) /DV /Yes /Kids [22 0 R] >>\nendobj\n"
     . "22 0 obj\n<< /Subtype /Widget /Parent 20 0 R /Rect [72 520 90 538] /P 3 0 R /F 4 /AS /Yes /AP << /N << /Yes 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
     . "30 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
     . "%%EOF";
@@ -54,6 +54,10 @@ echo '<!-- markerpdf:pdf-acroform-current-value-state ' . htmlspecialchars(json_
     'changed_field_count' => count(array_filter($stateRows, static fn (array $row): bool => ($row['changed'] ?? null) === true)),
     'appearance_state_fallbacks' => array_values(array_filter(array_map(
         static fn (array $row): ?string => ($row['state_source'] ?? null) === 'widget_appearance_state' ? (string) $row['name'] : null,
+        $stateRows
+    ))),
+    'widget_default_matches' => array_values(array_filter(array_map(
+        static fn (array $row): ?string => ($row['state_source'] ?? null) === 'widget_appearance_state' && ($row['changed'] ?? null) === false ? (string) $row['name'] : null,
         $stateRows
     ))),
     'executes_form_actions' => false,
