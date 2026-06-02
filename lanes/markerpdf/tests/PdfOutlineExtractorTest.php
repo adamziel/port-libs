@@ -121,6 +121,21 @@ $indirectNameTreeDestinationPdf = static function (): string {
         . "%%EOF";
 };
 
+$namedDestinationFitReviewPdf = static function (): string {
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R /Names << /Dests 8 0 R >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Count 4 >>\nendobj\n"
+        . "6 0 obj\n<< /Title (Bounding Box Fit) /Parent 5 0 R /Dest /box-fit /Next 7 0 R >>\nendobj\n"
+        . "7 0 obj\n<< /Title (Top Bounding Fit) /Parent 5 0 R /Dest /top-fit /Next 9 0 R >>\nendobj\n"
+        . "9 0 obj\n<< /Title (Left Bounding Fit) /Parent 5 0 R /Dest /left-fit /Next 10 0 R >>\nendobj\n"
+        . "10 0 obj\n<< /Title (Zoom Review) /Parent 5 0 R /Dest /zoom-review >>\nendobj\n"
+        . "8 0 obj\n<< /Names [(box-fit) [3 0 R /FitB 111 222] (top-fit) [4 0 R /FitBH null 999] (left-fit) [4 0 R /FitBV 144 888 999] (zoom-review) [3 0 R /XYZ 72 640 0 777]] >>\nendobj\n"
+        . "%%EOF";
+};
+
 $pagePresentationPdf = static function (): string {
     $pageOneContent = 'BT /F1 12 Tf 72 720 Td (Slide body stays visible) Tj ET';
     $pageTwoContent = 'BT /F1 12 Tf 72 720 Td (Second slide stays clean) Tj ET';
@@ -500,6 +515,37 @@ return [
         $t->same('Page Four', $metadata['open_action']['destination']);
         $t->same(0, $metadata['open_action']['page']);
         $t->same('FitR', $metadata['open_action']['view_mode']);
+    },
+    'normalizes named destination Fit family operands for outline review metadata' => static function (TestRunner $t) use ($namedDestinationFitReviewPdf): void {
+        $extractor = new PdfOutlineExtractor();
+        $pdf = $namedDestinationFitReviewPdf();
+
+        $t->same(
+            [
+                ['title' => 'Bounding Box Fit', 'level' => 1, 'page' => 0, 'destination' => 'box-fit'],
+                ['title' => 'Top Bounding Fit', 'level' => 1, 'page' => 1, 'destination' => 'top-fit'],
+                ['title' => 'Left Bounding Fit', 'level' => 1, 'page' => 1, 'destination' => 'left-fit'],
+                ['title' => 'Zoom Review', 'level' => 1, 'page' => 0, 'destination' => 'zoom-review'],
+            ],
+            $extractor->getPdfToc($pdf)
+        );
+
+        $toc = $extractor->getPdfTocWithDestinationViews($pdf);
+        $t->same(['FitB', 'FitBH', 'FitBV', 'XYZ'], array_column($toc, 'view_mode'));
+        $t->same([], $toc[0]['view_position']);
+        $t->same([], $toc[0]['view_parameters']);
+        $t->same([null], $toc[1]['view_position']);
+        $t->same(['top' => null], $toc[1]['view_parameters']);
+        $t->same([144.0], $toc[2]['view_position']);
+        $t->same(['left' => 144.0], $toc[2]['view_parameters']);
+        $t->same([72.0, 640.0, null], $toc[3]['view_position']);
+        $t->same(['left' => 72.0, 'top' => 640.0, 'zoom' => null], $toc[3]['view_parameters']);
+
+        $navigation = $extractor->getNavigationReviewMetadata($pdf);
+        $t->same(['outline'], $navigation['source']);
+        $t->same(['box-fit', 'top-fit', 'left-fit', 'zoom-review'], array_column($navigation['outline'], 'destination'));
+        $t->same([[], [null], [144.0], [72.0, 640.0, null]], array_column($navigation['outline'], 'view_position'));
+        $t->same([[], ['top' => null], ['left' => 144.0], ['left' => 72.0, 'top' => 640.0, 'zoom' => null]], array_column($navigation['outline'], 'view_parameters'));
     },
     'extracts page transition duration and additional action review metadata' => static function (TestRunner $t) use ($pagePresentationPdf): void {
         $pages = (new PdfOutlineExtractor())->getPageTransitionActionMetadata($pagePresentationPdf());

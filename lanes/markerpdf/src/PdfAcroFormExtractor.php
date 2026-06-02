@@ -120,6 +120,7 @@ final class PdfAcroFormExtractor
         if ($xfaPackets !== []) {
             $fields = $this->annotateXfaFieldBoundaries($fields, $xfaPackets);
         }
+        $fields = $this->annotateSignatureWidgetReviews($fields);
 
         return [
             'need_appearances' => $this->boolValueAfterName($acroForm, 'NeedAppearances') === true,
@@ -840,6 +841,188 @@ final class PdfAcroFormExtractor
         }
 
         return $fields;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fields
+     * @return list<array<string, mixed>>
+     */
+    private function annotateSignatureWidgetReviews(array $fields): array
+    {
+        foreach ($fields as $index => $field) {
+            if (($field['field_type'] ?? null) !== 'Sig') {
+                continue;
+            }
+
+            $fields[$index]['signature_widget_review'] = $this->signatureWidgetReview($fields[$index]);
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function signatureWidgetReview(array $field): array
+    {
+        $widgets = array_values(array_filter(
+            $field['widgets'] ?? [],
+            static fn (mixed $widget): bool => is_array($widget)
+        ));
+        $pageWidgets = array_values(array_filter(
+            $widgets,
+            static fn (array $widget): bool => ($widget['referenced_from_page_annots'] ?? false) === true
+        ));
+        $primaryWidget = $pageWidgets[0] ?? ($widgets[0] ?? null);
+        $normalAppearance = is_array($primaryWidget['normal_appearance'] ?? null) ? $primaryWidget['normal_appearance'] : null;
+        $selectedAppearance = is_array($normalAppearance['selected_appearance'] ?? null) ? $normalAppearance['selected_appearance'] : null;
+        $signature = is_array($field['signature'] ?? null) ? $field['signature'] : [];
+        $signatureState = is_array($field['signature_state'] ?? null) ? $field['signature_state'] : [];
+        $xfaBoundary = is_array($field['xfa_boundary'] ?? null) ? $field['xfa_boundary'] : [];
+        $seedValue = is_array($field['signature_seed_value'] ?? null) ? $field['signature_seed_value'] : null;
+        $lock = is_array($field['signature_lock'] ?? null) ? $field['signature_lock'] : null;
+        $lockState = is_array($field['signature_lock_state'] ?? null) ? $field['signature_lock_state'] : [];
+
+        $fieldActions = array_values(array_filter($field['actions'] ?? [], static fn (mixed $action): bool => is_array($action)));
+        $widgetActionRows = [];
+        foreach ($widgets as $widget) {
+            foreach ($widget['actions'] ?? [] as $action) {
+                if (is_array($action)) {
+                    $widgetActionRows[] = $action;
+                }
+            }
+        }
+
+        $appearanceStates = [];
+        $selectedAppearanceObjects = [];
+        foreach ($widgets as $widget) {
+            foreach ($widget['appearance_states'] ?? [] as $state) {
+                if (is_string($state) && $state !== '' && !in_array($state, $appearanceStates, true)) {
+                    $appearanceStates[] = $state;
+                }
+            }
+
+            $appearance = is_array($widget['normal_appearance'] ?? null) ? $widget['normal_appearance'] : null;
+            $selected = is_array($appearance['selected_appearance'] ?? null) ? $appearance['selected_appearance'] : null;
+            $selectedObject = $selected['object'] ?? null;
+            if (is_int($selectedObject) && !in_array($selectedObject, $selectedAppearanceObjects, true)) {
+                $selectedAppearanceObjects[] = $selectedObject;
+            }
+        }
+
+        return [
+            'source' => 'acroform_xfa_signature_widget_review_boundary',
+            'field_name' => $field['name'] ?? null,
+            'field_object' => $field['object'] ?? null,
+            'widget_count' => count($widgets),
+            'page_referenced_widget_count' => count($pageWidgets),
+            'widget_objects' => $this->integerValuesFromRows($widgets, 'object'),
+            'page_widget_objects' => $this->integerValuesFromRows($pageWidgets, 'object'),
+            'primary_widget_object' => is_array($primaryWidget) ? ($primaryWidget['object'] ?? null) : null,
+            'primary_widget_page_index' => is_array($primaryWidget) ? ($primaryWidget['page_index'] ?? null) : null,
+            'primary_widget_page_object' => is_array($primaryWidget) ? ($primaryWidget['page_object'] ?? null) : null,
+            'primary_widget_page_annotation_index' => is_array($primaryWidget) ? ($primaryWidget['page_annotation_index'] ?? null) : null,
+            'primary_widget_referenced_from_page_annots' => is_array($primaryWidget) && ($primaryWidget['referenced_from_page_annots'] ?? false) === true,
+            'primary_widget_rect' => is_array($primaryWidget) ? ($primaryWidget['rect'] ?? null) : null,
+            'primary_widget_visibility' => is_array($primaryWidget) ? ($primaryWidget['annotation_visibility'] ?? null) : null,
+            'primary_widget_flag_names' => is_array($primaryWidget) ? ($primaryWidget['annotation_flag_names'] ?? []) : [],
+            'primary_widget_printable' => is_array($primaryWidget) && ($primaryWidget['printable'] ?? false) === true,
+            'primary_widget_hidden' => is_array($primaryWidget) && ($primaryWidget['hidden'] ?? false) === true,
+            'primary_widget_no_view' => is_array($primaryWidget) && ($primaryWidget['no_view'] ?? false) === true,
+            'visible_widget_count' => count(array_filter($widgets, static fn (array $widget): bool => ($widget['visible'] ?? false) === true)),
+            'hidden_widget_count' => count(array_filter($widgets, static fn (array $widget): bool => ($widget['hidden'] ?? false) === true)),
+            'printable_widget_count' => count(array_filter($widgets, static fn (array $widget): bool => ($widget['printable'] ?? false) === true)),
+            'appearance_state' => is_array($primaryWidget) ? ($primaryWidget['appearance_state'] ?? null) : null,
+            'appearance_states' => $appearanceStates,
+            'state_matches_appearance' => is_array($normalAppearance) ? ($normalAppearance['state_matches_appearance'] ?? null) : null,
+            'stale_appearance_state' => is_array($normalAppearance) ? (bool) ($normalAppearance['stale_appearance_state'] ?? false) : false,
+            'selected_appearance_state' => is_array($normalAppearance) ? ($normalAppearance['selected_state'] ?? null) : null,
+            'selected_appearance_object' => is_array($selectedAppearance) ? ($selectedAppearance['object'] ?? null) : null,
+            'selected_appearance_objects' => $selectedAppearanceObjects,
+            'selected_appearance_decoded_sha256' => is_array($selectedAppearance) ? ($selectedAppearance['decoded_sha256'] ?? null) : null,
+            'appearance_value_used_for_import' => false,
+            'appearance_payload_text_exposed' => false,
+            'has_signature_dictionary' => (bool) ($signatureState['has_signature_dictionary'] ?? false),
+            'signed' => (bool) ($signatureState['signed'] ?? false),
+            'signature_object' => $signatureState['signature_object'] ?? ($signature['object'] ?? null),
+            'signature_name' => $signature['name'] ?? null,
+            'signature_reason' => $signature['reason'] ?? null,
+            'signed_at' => $signatureState['signed_at'] ?? ($signature['signed_at'] ?? null),
+            'byte_range' => $signatureState['byte_range'] ?? ($signature['byte_range'] ?? null),
+            'byte_range_segment_count' => $signatureState['byte_range_segment_count'] ?? 0,
+            'contents_present' => (bool) ($signatureState['contents_present'] ?? false),
+            'contents_length_bytes' => $signatureState['contents_length_bytes'] ?? ($signature['contents_length_bytes'] ?? null),
+            'certifying_signature' => (bool) ($signatureState['certifying_signature'] ?? false),
+            'signature_dictionary_is_field_value' => $signature !== [],
+            'xfa_referenced' => (bool) ($xfaBoundary['referenced_by_xfa'] ?? false),
+            'xfa_dynamic_value_present' => (bool) ($xfaBoundary['dynamic_value_present'] ?? false),
+            'xfa_packet_names' => $xfaBoundary['packet_names'] ?? [],
+            'xfa_packet_objects' => $xfaBoundary['packet_objects'] ?? [],
+            'xfa_matched_field_names' => $xfaBoundary['matched_field_names'] ?? [],
+            'xfa_matched_data_paths' => $xfaBoundary['matched_data_paths'] ?? [],
+            'xfa_value_used_for_signature' => false,
+            'xfa_value_used_for_import' => false,
+            'xfa_payload_text_exposed' => false,
+            'seed_value_object' => is_array($seedValue) ? ($seedValue['object'] ?? null) : null,
+            'seed_value_required_constraints' => is_array($seedValue) ? ($seedValue['required_constraints'] ?? []) : [],
+            'seed_value_filter' => is_array($seedValue) ? ($seedValue['filter'] ?? null) : null,
+            'seed_value_subfilters' => is_array($seedValue) ? ($seedValue['subfilters'] ?? []) : [],
+            'seed_value_digest_methods' => is_array($seedValue) ? ($seedValue['digest_methods'] ?? []) : [],
+            'lock_object' => is_array($lock) ? ($lock['object'] ?? null) : null,
+            'lock_action' => is_array($lock) ? ($lock['action'] ?? null) : null,
+            'lock_action_label' => is_array($lock) ? ($lock['action_label'] ?? null) : null,
+            'lock_field_names' => is_array($lock) ? ($lock['field_names'] ?? []) : [],
+            'lock_permission_label' => is_array($lock) ? ($lock['permission_label'] ?? null) : null,
+            'field_locked_by_signed_signature' => (bool) ($lockState['effective_locked'] ?? false),
+            'locked_by_signatures' => $lockState['locked_by_signatures'] ?? [],
+            'field_action_count' => count($fieldActions),
+            'widget_action_count' => count($widgetActionRows),
+            'action_count' => $this->uniqueActionReviewCount(array_merge($fieldActions, $widgetActionRows)),
+            'review_only' => true,
+            'value_used_for_import' => false,
+            'executes_action' => false,
+            'executes_javascript' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+            'executes_signature_validation' => false,
+            'executes_signing' => false,
+            'executes_xfa_javascript' => false,
+            'imports_xfa_payload' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     */
+    private function uniqueActionReviewCount(array $actions): int
+    {
+        $seen = [];
+        foreach ($actions as $action) {
+            $object = $action['action_object'] ?? null;
+            $key = is_int($object)
+                ? 'object:' . $object . ':' . (string) ($action['trigger'] ?? '') . ':' . (string) ($action['action_type'] ?? '')
+                : 'inline:' . (string) ($action['source_object'] ?? '') . ':' . (string) ($action['trigger'] ?? '') . ':' . (string) ($action['action_type'] ?? '');
+            $seen[$key] = true;
+        }
+
+        return count($seen);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<int>
+     */
+    private function integerValuesFromRows(array $rows, string $key): array
+    {
+        $values = [];
+        foreach ($rows as $row) {
+            $value = $row[$key] ?? null;
+            if (is_int($value) && !in_array($value, $values, true)) {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
     }
 
     /**

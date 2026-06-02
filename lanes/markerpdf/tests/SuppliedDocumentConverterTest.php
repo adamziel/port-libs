@@ -400,6 +400,11 @@ return [
             );
 
             $geometry = $result['metadata']['table_merged_cell_geometry'][0] ?? [];
+            $gridReview = $result['metadata']['table_spanning_grid_review'][0] ?? [];
+            $gridByPosition = [];
+            foreach (($gridReview['grid_cells'] ?? []) as $gridCell) {
+                $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+            }
 
             $t->contains('# Ocr Table Geometry Review', $result['text']);
             $t->contains('Reviewer note after table.', $result['text']);
@@ -434,6 +439,18 @@ return [
             $t->same('Inventory OCR summary', $result['metadata']['table_assigned_cells'][0][0]['text']);
             $t->same([0, 1, 2], $result['metadata']['table_assigned_cells'][0][0]['col_ids']);
             $t->same([1, 2], $result['metadata']['table_assigned_cells'][0][1]['row_ids']);
+            $t->same([0, 1, 2], $gridReview['rows']);
+            $t->same([0, 1, 2], $gridReview['cols']);
+            $t->same('th', $gridReview['render_cells'][0]['tag']);
+            $t->same('colgroup', $gridReview['render_cells'][0]['scope']);
+            $t->same('column_header', $gridReview['render_cells'][0]['header_role']);
+            $t->same('th', $gridReview['render_cells'][1]['tag']);
+            $t->same('rowgroup', $gridReview['render_cells'][1]['scope']);
+            $t->same('row_header', $gridReview['render_cells'][1]['header_role']);
+            $t->same('covered', $gridByPosition['0:1']['state']);
+            $t->same(['row_id' => 0, 'col_id' => 0, 'render_cell_index' => 0], $gridByPosition['0:2']['covered_by']);
+            $t->same('covered', $gridByPosition['2:0']['state']);
+            $t->same('td', $gridByPosition['1:1']['tag']);
         } finally {
             unlink($path);
         }

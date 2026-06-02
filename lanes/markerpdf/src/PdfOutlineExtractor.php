@@ -1540,6 +1540,7 @@ final class PdfOutlineExtractor
         for ($index = 2, $count = count($array); $index < $count; $index++) {
             $viewPosition[] = $this->numericOrNullValue($this->resolveValue($array[$index], $objects));
         }
+        $viewPosition = $this->normalizedViewPosition($viewMode, $viewPosition);
 
         if ($viewMode === 'XYZ' && array_key_exists(2, $viewPosition) && $viewPosition[2] === 0.0) {
             $viewPosition[2] = null;
@@ -1572,6 +1573,23 @@ final class PdfOutlineExtractor
         }
 
         return is_int($resolved) && $resolved >= 0 ? $resolved : null;
+    }
+
+    /**
+     * @param list<float|null> $viewPosition
+     * @return list<float|null>
+     */
+    private function normalizedViewPosition(?string $viewMode, array $viewPosition): array
+    {
+        $expectedCount = match ($viewMode) {
+            'Fit', 'FitB' => 0,
+            'FitH', 'FitBH', 'FitV', 'FitBV' => 1,
+            'FitR' => 4,
+            'XYZ' => 3,
+            default => null,
+        };
+
+        return $expectedCount === null ? $viewPosition : array_slice($viewPosition, 0, $expectedCount);
     }
 
     private function numericOrNullValue(mixed $value): ?float

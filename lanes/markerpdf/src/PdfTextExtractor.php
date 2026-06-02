@@ -5405,7 +5405,7 @@ final class PdfTextExtractor
                 }
             }
 
-            $bodyDefaultWidth = $this->pdfNumberValueAfterName($body, 'DW');
+            $bodyDefaultWidth = $this->pdfNumberValueAfterNameResolvingObjects($body, 'DW', $objects);
             if ($bodyDefaultWidth !== null) {
                 $defaultWidth = $bodyDefaultWidth;
             }
@@ -7676,18 +7676,70 @@ final class PdfTextExtractor
             return null;
         }
 
-        $lengthOffset = $this->skipPdfWhitespace($dict, $lengthOffset);
-        if (preg_match('/\G([+-]?\d+)/s', $dict, $match, 0, $lengthOffset) !== 1) {
-            return null;
-        }
-
-        $length = (int) $match[1];
-        if ($length < 0) {
+        $length = $this->directObjectStreamLengthAt($pdfBytes, $dict, $lengthOffset, $objectBodyStart);
+        if ($length === null || $length < 0) {
             return null;
         }
 
         $declaredEnd = $streamStart + $length;
         return $declaredEnd <= strlen($pdfBytes) ? $declaredEnd : null;
+    }
+
+    private function directObjectStreamLengthAt(string $pdfBytes, string $dict, int $offset, int $beforeOffset): ?int
+    {
+        $offset = $this->skipPdfWhitespace($dict, $offset);
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $dict, $match, 0, $offset) === 1) {
+            return $this->directObjectSimpleIntegerBeforeOffset(
+                $pdfBytes,
+                (int) $match[1],
+                (int) $match[2],
+                $beforeOffset
+            );
+        }
+
+        if (preg_match('/\G([+-]?\d+)/s', $dict, $match, 0, $offset) === 1) {
+            $length = (int) $match[1];
+            return $length < 0 ? null : $length;
+        }
+
+        return null;
+    }
+
+    private function directObjectSimpleIntegerBeforeOffset(
+        string $pdfBytes,
+        int $objectNumber,
+        int $generation,
+        int $beforeOffset
+    ): ?int {
+        if ($objectNumber <= 0 || $generation < 0) {
+            return null;
+        }
+
+        $pattern = '/(?:^|[\r\n])' . preg_quote((string) $objectNumber, '/') . '\s+'
+            . preg_quote((string) $generation, '/') . '\s+obj\b/s';
+        $offset = 0;
+        $selected = null;
+        while (preg_match($pattern, $pdfBytes, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $objectOffset = $match[0][1];
+            if ($objectOffset >= $beforeOffset) {
+                break;
+            }
+
+            $bodyStart = $objectOffset + strlen($match[0][0]);
+            $bodyEnd = strpos($pdfBytes, 'endobj', $bodyStart);
+            if ($bodyEnd === false || $bodyEnd > $beforeOffset) {
+                break;
+            }
+
+            $body = trim(substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart));
+            if (preg_match('/^[+-]?\d+$/', $body) === 1) {
+                $selected = (int) $body;
+            }
+
+            $offset = $bodyEnd + strlen('endobj');
+        }
+
+        return $selected !== null && $selected >= 0 ? $selected : null;
     }
 
     private function pdfKeywordAt(string $value, int $offset, string $keyword): bool

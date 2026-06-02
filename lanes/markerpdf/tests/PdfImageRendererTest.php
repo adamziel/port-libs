@@ -129,6 +129,13 @@ return [
             'interpolate' => true,
         ], $plan['soft_mask']);
         $t->same(true, $plan['soft_mask_applied_before_rgb']);
+        $t->same(true, $plan['soft_mask_is_grayscale']);
+        $t->same(true, $plan['soft_mask_color_space_supported']);
+        $t->same([
+            'component_count' => 3,
+            'expected_components' => 3,
+            'matches_image_components' => true,
+        ], $plan['soft_mask_matte']);
         $t->same(true, $plan['matte_unblending_required']);
         $t->same('RGB', $plan['output_color_mode']);
         $t->same('soft_mask_composited_to_rgb_preview', $plan['alpha_output_mode']);
@@ -172,9 +179,68 @@ return [
             'interpolate' => null,
         ], $plan['soft_mask']);
         $t->same(false, $plan['soft_mask_applied_before_rgb']);
+        $t->same(null, $plan['soft_mask_is_grayscale']);
+        $t->same(null, $plan['soft_mask_color_space_supported']);
+        $t->same(null, $plan['soft_mask_matte']);
         $t->same(false, $plan['matte_unblending_required']);
         $t->same('opaque_rgb_preview', $plan['alpha_output_mode']);
         $t->same(['icc_profile_color_space', 'soft_mask_none'], $plan['notes']);
+    },
+    'flags non grayscale soft masks and ICC matte component mismatches before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            10 => "<< /N 3 /Alternate /DeviceRGB /Range [0 1 0 1 0 1] /Length 12 >>\nstream\nICC-PROFILE\nendstream",
+            21 => "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Decode [0 1 0 1 0 1] /Matte [0.2 0.3] /Length 3 >>\nstream\nRGB\nendstream",
+            30 => "<< /N 1 /Alternate /DeviceGray /Range [0 1] /Length 8 >>\nstream\nGRAY-ICC\nendstream",
+            31 => "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [/ICCBased 30 0 R] /BitsPerComponent 8 /Decode [1 0] /Length 1 >>\nstream\nM\nendstream",
+        ];
+
+        $invalid = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace [/ICCBased 10 0 R] /BitsPerComponent 8 /SMask 21 0 R >>',
+            $objects
+        );
+
+        $t->same('ICCBased', $invalid['source_color_space']);
+        $t->same(3, $invalid['components']);
+        $t->same('DeviceRGB', $invalid['soft_mask']['color_space']);
+        $t->same(3, $invalid['soft_mask']['components']);
+        $t->same(false, $invalid['soft_mask_is_grayscale']);
+        $t->same(false, $invalid['soft_mask_color_space_supported']);
+        $t->same(false, $invalid['soft_mask_applied_before_rgb']);
+        $t->same(false, $invalid['soft_mask_decode_applied_before_rgb']);
+        $t->same(false, $invalid['soft_mask_decode_component_mismatch']);
+        $t->same([
+            'component_count' => 2,
+            'expected_components' => 3,
+            'matches_image_components' => false,
+        ], $invalid['soft_mask_matte']);
+        $t->same(false, $invalid['matte_unblending_required']);
+        $t->same('soft_mask_review_only_rgb_preview', $invalid['alpha_output_mode']);
+        $t->same([
+            'icc_profile_color_space',
+            'soft_mask_color_space_not_grayscale',
+            'soft_mask_matte_component_mismatch',
+        ], $invalid['notes']);
+        $t->throws(InvalidArgumentException::class, static fn (): float => $renderer->softMaskSampleOpacity(128, $invalid['soft_mask']));
+
+        $validIccMask = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace [/ICCBased 10 0 R] /BitsPerComponent 8 /SMask 31 0 R >>',
+            $objects
+        );
+
+        $t->same('ICCBased', $validIccMask['soft_mask']['color_space']);
+        $t->same(1, $validIccMask['soft_mask']['components']);
+        $t->same(true, $validIccMask['soft_mask_is_grayscale']);
+        $t->same(true, $validIccMask['soft_mask_applied_before_rgb']);
+        $t->same(true, $validIccMask['soft_mask_decode_applied_before_rgb']);
+        $t->same(1.0, $renderer->softMaskSampleOpacity(0, $validIccMask['soft_mask']));
+        $t->same(0.0, $renderer->softMaskSampleOpacity(255, $validIccMask['soft_mask']));
+        $t->same([
+            'icc_profile_color_space',
+            'soft_mask_applied_before_rgb_conversion',
+            'soft_mask_decode_applied_before_rgb_conversion',
+            'soft_mask_decode_inverts_alpha',
+        ], $validIccMask['notes']);
     },
     'plans image Decode arrays before RGB preview sample mapping' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();

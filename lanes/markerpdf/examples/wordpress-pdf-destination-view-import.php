@@ -11,11 +11,12 @@ $pdf = "%PDF-1.4\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
     . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n"
     . "4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n"
-    . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Count 3 >>\nendobj\n"
+    . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Count 4 >>\nendobj\n"
     . "6 0 obj\n<< /Title (Full Document) /Parent 5 0 R /Dest [3 0 R /Fit] /Next 7 0 R >>\nendobj\n"
     . "7 0 obj\n<< /Title (Review Start) /Parent 5 0 R /Dest /review-start /Next 9 0 R >>\nendobj\n"
-    . "8 0 obj\n<< /Names [(review-start) [4 0 R /XYZ 144 640 0]] >>\nendobj\n"
-    . "9 0 obj\n<< /Title (Width Fit) /Parent 5 0 R /A << /S /GoTo /D [4 0 R 12 0 R 13 0 R] >> >>\nendobj\n"
+    . "8 0 obj\n<< /Names [(review-start) [4 0 R /XYZ 144 640 0] (box-fit) [4 0 R /FitB 111 222]] >>\nendobj\n"
+    . "9 0 obj\n<< /Title (Width Fit) /Parent 5 0 R /A << /S /GoTo /D [4 0 R 12 0 R 13 0 R] >> /Next 10 0 R >>\nendobj\n"
+    . "10 0 obj\n<< /Title (Bounding Box Fit) /Parent 5 0 R /Dest /box-fit >>\nendobj\n"
     . "12 0 obj\n/FitH\nendobj\n"
     . "13 0 obj\n700\nendobj\n"
     . "%%EOF";
@@ -24,11 +25,18 @@ $extractor = new PdfOutlineExtractor();
 $catalogView = $extractor->getCatalogPageViewMetadata($pdf);
 $toc = $extractor->getPdfTocWithDestinationViews($pdf);
 $widthFit = null;
+$boxFit = null;
 foreach ($toc as $item) {
     if ($item['title'] === 'Width Fit') {
         $widthFit = $item;
-        break;
     }
+    if ($item['title'] === 'Bounding Box Fit') {
+        $boxFit = $item;
+    }
+}
+
+if ($boxFit === null || $boxFit['view_mode'] !== 'FitB' || $boxFit['view_position'] !== [] || $boxFit['view_parameters'] !== []) {
+    throw new RuntimeException('Expected named /FitB destination review to ignore surplus coordinate operands.');
 }
 
 echo '<!-- markerpdf-pdf-destination-view ' . htmlspecialchars(json_encode([
@@ -40,6 +48,7 @@ echo '<!-- markerpdf-pdf-destination-view ' . htmlspecialchars(json_encode([
     'page_layout' => $catalogView['page_layout'] ?? null,
     'open_action' => $catalogView['open_action'] ?? null,
     'indirect_view_operands_resolved' => $widthFit !== null && $widthFit['view_mode'] === 'FitH' && $widthFit['view_position'] === [700.0],
+    'named_fit_operands_normalized' => $boxFit !== null && $boxFit['view_mode'] === 'FitB' && $boxFit['view_position'] === [],
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 echo "<!-- wp:list -->\n<ul>\n";

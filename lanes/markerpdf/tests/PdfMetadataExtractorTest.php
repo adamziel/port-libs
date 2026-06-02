@@ -854,6 +854,12 @@ return [
             'assemble_document',
         ], $encryption['standard_permissions']['denied']);
         $t->same('high_resolution', $encryption['standard_permissions']['print_quality']);
+        $t->same(4, $encryption['standard_permissions']['effective_revision']);
+        $t->same(false, $encryption['standard_permissions']['reserved_bits_valid']);
+        $t->same('malformed_reserved_bits_review', $encryption['standard_permissions']['permission_word_status']);
+        $t->same('FFFFF0C0', $encryption['standard_permissions']['reserved_bits']['expected_set_mask_hex']);
+        $t->same('00000003', $encryption['standard_permissions']['reserved_bits']['expected_clear_mask_hex']);
+        $t->same(['reserved_bits_7_8_clear', 'reserved_bits_13_32_clear'], $encryption['standard_permissions']['reserved_bits']['violations']);
         $t->same(strlen($permsBytes), $encryption['perms']['bytes']);
         $t->same(hash('sha256', $permsBytes), $encryption['perms']['sha256']);
         $t->true($encryption['requires_password_for_content_extraction']);

@@ -224,6 +224,63 @@ XML;
     return [$pdf, hash('sha256', trim($xdpXml))];
 };
 
+$xfaSignatureWidgetReviewPdf = static function (): array {
+    $xdpXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/">
+  <xfa:template xmlns:xfa="http://www.xfa.org/schema/xfa-template/3.3/">
+    <xfa:subform name="approval">
+      <xfa:field name="approval.signature"><xfa:caption><xfa:value><xfa:text>Signature</xfa:text></xfa:value></xfa:caption></xfa:field>
+      <xfa:field name="article.title"><xfa:caption><xfa:value><xfa:text>Title</xfa:text></xfa:value></xfa:caption></xfa:field>
+    </xfa:subform>
+  </xfa:template>
+  <xfa:datasets>
+    <xfa:data>
+      <approval><signature>XFA signature text remains review metadata</signature></approval>
+      <article><title>XFA title does not replace static AcroForm title</title></article>
+    </xfa:data>
+  </xfa:datasets>
+  <xfa:signature xmlns:xfa="http://www.xfa.org/schema/xfa-signature/3.3/">
+    <xfa:signData target="approval.signature">detached XFA packet signature bytes</xfa:signData>
+  </xfa:signature>
+</xdp:xdp>
+XML;
+    $compressedXfa = gzcompress($xdpXml);
+    $appearance = 'BT /Fsig 10 Tf 0 0 Td (visual signature appearance review only) Tj ET';
+    $compressedAppearance = gzcompress($appearance);
+    $focusScript = "app.alert('signature focus review only');";
+    $compressedFocusScript = gzcompress($focusScript);
+    if (!is_string($compressedXfa) || !is_string($compressedAppearance) || !is_string($compressedFocusScript)) {
+        throw new RuntimeException('Unable to compress XFA signature widget review fixture.');
+    }
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [6 0 R 9 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 9 0 R] /SigFlags 3 /XFA 30 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Subtype /Widget /FT /Sig /T (approval.signature) /TU (Final approval signature) /V 40 0 R /SV 31 0 R /Lock 32 0 R /Rect [360 80 120 120] /P 3 0 R /F 36 /AS /Signed /AP << /N << /Signed 50 0 R /Off 51 0 R >> >> /AA << /Fo 60 0 R >> >>\nendobj\n"
+        . "9 0 obj\n<< /Subtype /Widget /FT /Tx /T (article.title) /V (Static AcroForm title) /Rect [120 140 420 164] /P 3 0 R /F 4 >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($compressedXfa) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressedXfa
+        . "\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Type /SV /Ff 75 /Filter /Adobe.PPKLite /SubFilter [/adbe.pkcs7.detached] /DigestMethod [/SHA256] /Reasons [(Approved for import)] /MDP << /P 2 >> >>\nendobj\n"
+        . "32 0 obj\n<< /Type /SigFieldLock /Action /Include /Fields [(article.title)] /P 2 >>\nendobj\n"
+        . "40 0 obj\n<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (Editor Reviewer) /Reason (Approved after XFA review) /M (D:20260602160514Z) /ByteRange [0 128 512 64] /Contents <0102030405> >>\nendobj\n"
+        . "50 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 240 40] /Resources << /Font << /Fsig 52 0 R >> >> /Length " . strlen($compressedAppearance) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressedAppearance
+        . "\nendstream\nendobj\n"
+        . "51 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "52 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "60 0 obj\n<< /S /JavaScript /JS 61 0 R >>\nendobj\n"
+        . "61 0 obj\n<< /Length " . strlen($compressedFocusScript) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressedFocusScript
+        . "\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, hash('sha256', trim($xdpXml)), $appearance, $focusScript];
+};
+
 $submitResetActionPdf = static function (): string {
     return "%PDF-1.7\n"
         . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
@@ -902,6 +959,112 @@ return [
         $t->same('Static AcroForm title', $title['value']);
         $t->same('Static AcroForm title', $title['value_state']['current']);
         $t->true($title['xfa_boundary']['dynamic_value_present']);
+        $t->same(false, $title['xfa_boundary']['value_used_for_import']);
+    },
+    'summarizes XFA signature widget review state without executing signing appearance or actions' => static function (TestRunner $t) use ($xfaSignatureWidgetReviewPdf, $fieldsByName): void {
+        [$pdf, $xdpHash, $appearance, $focusScript] = $xfaSignatureWidgetReviewPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $packet = $form['xfa_packets'][0];
+        $signature = $fields['approval.signature'];
+        $review = $signature['signature_widget_review'];
+        $title = $fields['article.title'];
+
+        $t->true($form['xfa_overrides_page_content']);
+        $t->same($xdpHash, $packet['xml_sha256']);
+        $t->same(['template', 'datasets', 'signature'], $packet['xdp_packet_names']);
+        $t->same(['approval.signature', 'article.title'], $packet['field_names']);
+        $t->same(['approval.signature', 'article.title'], $packet['data_paths']);
+        $t->same(['approval.signature'], $packet['signature_field_names']);
+        $t->same(false, $packet['signature_payload_exposed']);
+
+        $t->same('acroform_xfa_signature_widget_review_boundary', $review['source']);
+        $t->same('approval.signature', $review['field_name']);
+        $t->same(6, $review['field_object']);
+        $t->same(1, $review['widget_count']);
+        $t->same(1, $review['page_referenced_widget_count']);
+        $t->same([6], $review['widget_objects']);
+        $t->same([6], $review['page_widget_objects']);
+        $t->same(6, $review['primary_widget_object']);
+        $t->same(0, $review['primary_widget_page_index']);
+        $t->same(3, $review['primary_widget_page_object']);
+        $t->same(0, $review['primary_widget_page_annotation_index']);
+        $t->true($review['primary_widget_referenced_from_page_annots']);
+        $t->same([120.0, 80.0, 360.0, 120.0], $review['primary_widget_rect']);
+        $t->same('no_view', $review['primary_widget_visibility']);
+        $t->same(['print', 'no_view'], $review['primary_widget_flag_names']);
+        $t->true($review['primary_widget_printable']);
+        $t->true($review['primary_widget_hidden']);
+        $t->true($review['primary_widget_no_view']);
+        $t->same(0, $review['visible_widget_count']);
+        $t->same(1, $review['hidden_widget_count']);
+        $t->same(1, $review['printable_widget_count']);
+        $t->same('Signed', $review['appearance_state']);
+        $t->same(['Signed', 'Off'], $review['appearance_states']);
+        $t->same(true, $review['state_matches_appearance']);
+        $t->same(false, $review['stale_appearance_state']);
+        $t->same('Signed', $review['selected_appearance_state']);
+        $t->same(50, $review['selected_appearance_object']);
+        $t->same([50], $review['selected_appearance_objects']);
+        $t->same(hash('sha256', $appearance), $review['selected_appearance_decoded_sha256']);
+        $t->same(false, $review['appearance_value_used_for_import']);
+        $t->same(false, $review['appearance_payload_text_exposed']);
+
+        $t->true($review['has_signature_dictionary']);
+        $t->true($review['signed']);
+        $t->same(40, $review['signature_object']);
+        $t->same('Editor Reviewer', $review['signature_name']);
+        $t->same('Approved after XFA review', $review['signature_reason']);
+        $t->same('D:20260602160514Z', $review['signed_at']);
+        $t->same([0, 128, 512, 64], $review['byte_range']);
+        $t->same(2, $review['byte_range_segment_count']);
+        $t->true($review['contents_present']);
+        $t->same(5, $review['contents_length_bytes']);
+        $t->same(false, $review['certifying_signature']);
+        $t->true($review['signature_dictionary_is_field_value']);
+
+        $t->true($review['xfa_referenced']);
+        $t->true($review['xfa_dynamic_value_present']);
+        $t->same(['xdp:xdp'], $review['xfa_packet_names']);
+        $t->same([30], $review['xfa_packet_objects']);
+        $t->same(['approval.signature'], $review['xfa_matched_field_names']);
+        $t->same(['approval.signature'], $review['xfa_matched_data_paths']);
+        $t->same(false, $review['xfa_value_used_for_signature']);
+        $t->same(false, $review['xfa_value_used_for_import']);
+        $t->same(false, $review['xfa_payload_text_exposed']);
+
+        $t->same(31, $review['seed_value_object']);
+        $t->same(['filter', 'subfilter', 'reason', 'digest_method'], $review['seed_value_required_constraints']);
+        $t->same('Adobe.PPKLite', $review['seed_value_filter']);
+        $t->same(['adbe.pkcs7.detached'], $review['seed_value_subfilters']);
+        $t->same(['SHA256'], $review['seed_value_digest_methods']);
+        $t->same(32, $review['lock_object']);
+        $t->same('Include', $review['lock_action']);
+        $t->same('lock_included_fields', $review['lock_action_label']);
+        $t->same(['article.title'], $review['lock_field_names']);
+        $t->same('form_fill_templates_signatures', $review['lock_permission_label']);
+        $t->same(false, $review['field_locked_by_signed_signature']);
+        $t->same([], $review['locked_by_signatures']);
+
+        $t->same(1, $review['field_action_count']);
+        $t->same(1, $review['widget_action_count']);
+        $t->same(1, $review['action_count']);
+        $t->same($focusScript, $signature['widgets'][0]['actions'][0]['script_preview']);
+        $t->same(hash('sha256', $focusScript), $signature['widgets'][0]['actions'][0]['script_sha256']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['value_used_for_import']);
+        $t->same(false, $review['executes_action']);
+        $t->same(false, $review['executes_javascript']);
+        $t->same(false, $review['executes_appearance_streams']);
+        $t->same(false, $review['renders_appearances']);
+        $t->same(false, $review['executes_signature_validation']);
+        $t->same(false, $review['executes_signing']);
+        $t->same(false, $review['executes_xfa_javascript']);
+        $t->same(false, $review['imports_xfa_payload']);
+
+        $t->same('Static AcroForm title', $title['value']);
+        $t->true($title['signature_lock_state']['effective_locked']);
+        $t->same(['approval.signature'], $title['signature_lock_state']['locked_by_signatures']);
         $t->same(false, $title['xfa_boundary']['value_used_for_import']);
     },
     'extracts SubmitForm and ResetForm action review metadata without executing actions' => static function (TestRunner $t) use ($submitResetActionPdf, $fieldsByName): void {

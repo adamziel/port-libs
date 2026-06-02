@@ -1185,7 +1185,7 @@ final class PdfMetadataExtractor
     }
 
     /**
-     * @return array{signed: int, unsigned: int, hex: string, allowed: list<string>, denied: list<string>, print_quality: string}
+     * @return array<string, mixed>
      */
     private function standardPermissionMetadata(int $signed, ?int $revision): array
     {
@@ -1209,14 +1209,56 @@ final class PdfMetadataExtractor
 
         $canPrint = in_array('print', $allowed, true);
         $highQuality = in_array('high_quality_print', $allowed, true);
+        $reserved = $this->standardPermissionReservedBitsMetadata($unsigned, $effectiveRevision);
 
-        return [
+        return array_merge([
             'signed' => $signed,
             'unsigned' => $unsigned,
             'hex' => strtoupper(sprintf('%08X', $unsigned)),
+            'effective_revision' => $effectiveRevision,
             'allowed' => $allowed,
             'denied' => $denied,
             'print_quality' => !$canPrint ? 'disallowed' : ($effectiveRevision >= 3 && !$highQuality ? 'low_resolution' : 'high_resolution'),
+        ], $reserved);
+    }
+
+    /**
+     * @return array{reserved_bits_valid: bool, permission_word_status: string, reserved_bits: array<string, mixed>}
+     */
+    private function standardPermissionReservedBitsMetadata(int $unsigned, int $effectiveRevision): array
+    {
+        $expectedSetMask = $effectiveRevision < 3 ? 0xFFFFFFC0 : 0xFFFFF0C0;
+        $expectedClearMask = 0x00000003;
+        $setBitsOk = ($unsigned & $expectedSetMask) === $expectedSetMask;
+        $clearBitsOk = ($unsigned & $expectedClearMask) === 0;
+        $violations = [];
+
+        if (!$clearBitsOk) {
+            $violations[] = 'reserved_bits_1_2_set';
+        }
+        if (($unsigned & 0x000000C0) !== 0x000000C0) {
+            $violations[] = 'reserved_bits_7_8_clear';
+        }
+        if ($effectiveRevision < 3) {
+            if (($unsigned & 0xFFFFFF00) !== 0xFFFFFF00) {
+                $violations[] = 'reserved_bits_9_32_clear';
+            }
+        } elseif (($unsigned & 0xFFFFF000) !== 0xFFFFF000) {
+            $violations[] = 'reserved_bits_13_32_clear';
+        }
+
+        $valid = $setBitsOk && $clearBitsOk;
+
+        return [
+            'reserved_bits_valid' => $valid,
+            'permission_word_status' => $valid ? 'well_formed_standard_permissions' : 'malformed_reserved_bits_review',
+            'reserved_bits' => [
+                'expected_set_mask_hex' => strtoupper(sprintf('%08X', $expectedSetMask)),
+                'expected_clear_mask_hex' => strtoupper(sprintf('%08X', $expectedClearMask)),
+                'set_bits_ok' => $setBitsOk,
+                'clear_bits_ok' => $clearBitsOk,
+                'violations' => $violations,
+            ],
         ];
     }
 

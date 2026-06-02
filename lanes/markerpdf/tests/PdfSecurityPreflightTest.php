@@ -74,6 +74,30 @@ $encryptedPdfWithoutStandardPermissions = static function (): string {
         . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
 };
 
+$encryptedPdfWithMalformedStandardPermissions = static function (): string {
+    $content = 'BT /F1 12 Tf 72 720 Td (Malformed permission encrypted leak) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Filter /Standard /V 4 /R 4 /Length 128 /O <DEADBEEF> /U <CAFEFEED> /P 16 /EncryptMetadata true >>\nendobj\n"
+        . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
+};
+
+$encryptedPdfWithUnsupportedHandlerPermissions = static function (): string {
+    $content = 'BT /F1 12 Tf 72 720 Td (Unsupported handler encrypted leak) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Filter /PublicKey /SubFilter /adbe.pkcs7.s5 /V 4 /Length 128 /P -44 /Recipients [<0011223344556677>] >>\nendobj\n"
+        . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
+};
+
 $signedPdfWithReferenceTransforms = static function (): string {
     $content = 'BT /F1 12 Tf 72 720 Td (Signed transform review content) Tj ET';
     $signatureContentsHex = str_repeat('A', 96);
@@ -330,6 +354,89 @@ return [
         $t->same(false, $report['executes_decryption']);
         $t->same(false, $report['executes_external_pdf_tools']);
         $t->true(is_string($encoded) && !str_contains($encoded, 'Unknown-permission encrypted leak'));
+    },
+    'flags malformed Standard permission reserved bits as review-only handler metadata' => static function (TestRunner $t) use ($encryptedPdfWithMalformedStandardPermissions): void {
+        $pdf = $encryptedPdfWithMalformedStandardPermissions();
+        $report = (new PdfSecurityPreflight())->analyze($pdf);
+        $permission = $report['permission_preflight'];
+        $handler = $report['permission_handler_review'];
+        $encoded = json_encode($report, JSON_UNESCAPED_SLASHES);
+
+        $t->same('', (new PdfTextExtractor())->extractPlainText($pdf));
+        $t->same('block_encrypted_content_review_security_metadata', $report['import_decision']);
+        $t->same(['encrypted_document', 'encrypted_text_extraction_blocked', 'permission_word_reserved_bits_malformed'], $report['review_reasons']);
+        $t->same('00000010', $report['encryption']['permission_hex']);
+        $t->same('malformed_reserved_bits_review', $report['encryption']['permission_word_status']);
+        $t->same(false, $report['encryption']['permission_bits_reliable']);
+        $t->same(['reserved_bits_7_8_clear', 'reserved_bits_13_32_clear'], $report['encryption']['reserved_bit_violations']);
+
+        $t->same('standard_security_handler_malformed_permissions', $permission['source']);
+        $t->same(true, $permission['permissions_declared']);
+        $t->same('00000010', $permission['permission_hex']);
+        $t->same(true, $permission['copy_or_extract_allowed']);
+        $t->same(false, $permission['permission_bits_reliable']);
+        $t->same(false, $permission['permission_word_well_formed']);
+        $t->same('permissions_malformed_blocked_without_decryption', $permission['policy']);
+        $t->same('blocked_encrypted_permissions_malformed', $permission['content_extraction_boundary']);
+
+        $t->same('permission_handler_review', $handler['source']);
+        $t->same('Standard', $handler['handler']);
+        $t->same(true, $handler['standard_handler']);
+        $t->same(true, $handler['handler_supported_for_native_permission_review']);
+        $t->same(false, $handler['permission_word_well_formed']);
+        $t->same('malformed_reserved_bits_review', $handler['status']);
+        $t->same('FFFFF0C0', $handler['reserved_bits']['expected_set_mask_hex']);
+        $t->same('00000003', $handler['reserved_bits']['expected_clear_mask_hex']);
+        $t->same(false, $handler['reserved_bits']['set_bits_ok']);
+        $t->same(true, $handler['reserved_bits']['clear_bits_ok']);
+        $t->same(['reserved_bits_7_8_clear', 'reserved_bits_13_32_clear'], $handler['reserved_bits']['violations']);
+        $t->same(false, $handler['executes_decryption']);
+        $t->same(false, $handler['executes_permission_enforcement']);
+        $t->same(false, $report['executes_decryption']);
+        $t->same(false, $report['executes_external_pdf_tools']);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Malformed permission encrypted leak') && !str_contains($encoded, 'DEADBEEF'));
+    },
+    'treats non-Standard handler permission words as unsupported review metadata' => static function (TestRunner $t) use ($encryptedPdfWithUnsupportedHandlerPermissions): void {
+        $pdf = $encryptedPdfWithUnsupportedHandlerPermissions();
+        $report = (new PdfSecurityPreflight())->analyze($pdf);
+        $permission = $report['permission_preflight'];
+        $handler = $report['permission_handler_review'];
+        $encoded = json_encode($report, JSON_UNESCAPED_SLASHES);
+
+        $t->same('', (new PdfTextExtractor())->extractPlainText($pdf));
+        $t->same('block_encrypted_content_review_security_metadata', $report['import_decision']);
+        $t->same(['encrypted_document', 'encrypted_text_extraction_blocked', 'encryption_handler_permissions_unsupported'], $report['review_reasons']);
+        $t->same('PublicKey', $report['encryption']['filter']);
+        $t->same('adbe.pkcs7.s5', $report['encryption']['subfilter']);
+        $t->same('FFFFFFD4', $report['encryption']['permission_hex']);
+        $t->same([], $report['encryption']['allowed']);
+        $t->same([], $report['encryption']['denied']);
+        $t->same(null, $report['encryption']['copy_or_extract_allowed']);
+        $t->same(null, $report['encryption']['accessibility_extract_allowed']);
+        $t->same(false, $report['encryption']['permission_bits_reliable']);
+
+        $t->same('unsupported_security_handler_permissions', $permission['source']);
+        $t->same(true, $permission['permissions_declared']);
+        $t->same('FFFFFFD4', $permission['permission_hex']);
+        $t->same([], $permission['allowed']);
+        $t->same([], $permission['denied']);
+        $t->same(null, $permission['copy_or_extract_allowed']);
+        $t->same(null, $permission['accessibility_extract_allowed']);
+        $t->same(false, $permission['permission_bits_reliable']);
+        $t->same(null, $permission['permission_word_well_formed']);
+        $t->same('permissions_unsupported_handler_blocked_without_decryption', $permission['policy']);
+        $t->same('blocked_encrypted_permissions_unsupported_handler', $permission['content_extraction_boundary']);
+
+        $t->same('PublicKey', $handler['handler']);
+        $t->same(false, $handler['standard_handler']);
+        $t->same(false, $handler['handler_supported_for_native_permission_review']);
+        $t->same(null, $handler['permission_word_well_formed']);
+        $t->same('unsupported_security_handler_permissions_review', $handler['status']);
+        $t->same(false, $handler['executes_decryption']);
+        $t->same(false, $handler['executes_permission_enforcement']);
+        $t->same(false, $report['executes_decryption']);
+        $t->same(false, $report['executes_external_pdf_tools']);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Unsupported handler encrypted leak') && !str_contains($encoded, '0011223344556677'));
     },
     'summarizes FieldMDP and usage-rights signature reference transforms without enforcing signatures' => static function (TestRunner $t) use ($signedPdfWithReferenceTransforms): void {
         $pdf = $signedPdfWithReferenceTransforms();

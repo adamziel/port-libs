@@ -217,6 +217,7 @@ final class SuppliedDocumentConverter
             $metadata['table_plan'] = $this->tablePlanMetadata($tablePlan);
             $metadata['table_assigned_cells'] = $recognition['assigned_cells'];
             $metadata['table_merged_cell_geometry'] = $this->mergedCellGeometryForTables($recognition['assigned_cells'], $recognizedTables);
+            $metadata['table_spanning_grid_review'] = $this->spanningGridReviewForTables($recognition['assigned_cells'], $recognizedTables);
             $metadata['supplied_boundaries'][] = 'table-recognition';
         }
 
@@ -318,6 +319,34 @@ final class SuppliedDocumentConverter
         }
 
         return $geometry;
+    }
+
+    /**
+     * @param list<list<array<string, mixed>>> $assignedTables
+     * @param list<array<string, mixed>> $recognizedTables
+     * @return list<array<string, mixed>>
+     */
+    private function spanningGridReviewForTables(array $assignedTables, array $recognizedTables): array
+    {
+        $reviews = [];
+        foreach ($assignedTables as $tableIndex => $assignedCells) {
+            $table = $recognizedTables[$tableIndex] ?? [];
+            if (!is_array($table)) {
+                $reviews[] = [
+                    'rows' => [],
+                    'cols' => [],
+                    'render_cells' => [],
+                    'grid_cells' => [],
+                ];
+                continue;
+            }
+
+            $rows = isset($table['rows']) && is_array($table['rows']) ? $table['rows'] : [];
+            $cols = isset($table['cols']) && is_array($table['cols']) ? $table['cols'] : [];
+            $reviews[] = $this->tableRecognizer->spanningGridReview($assignedCells, $rows, $cols);
+        }
+
+        return $reviews;
     }
 
     /**

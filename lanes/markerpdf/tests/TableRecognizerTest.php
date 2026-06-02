@@ -436,6 +436,38 @@ return [
         $t->same([0.0, 35.0, 95.0, 110.0], $geometry[1]['grid_bbox']);
         $t->same([5.0, 36.0, 92.0, 109.0], $geometry[1]['cell_bbox']);
     },
+    'marks spanning first-row and first-column anchors for WordPress table header review' => static function (TestRunner $t) use ($mergedSpanResult): void {
+        $recognizer = new TableRecognizer();
+        $result = $mergedSpanResult();
+        $assigned = $recognizer->assignRowsColumns($result, ['width' => 300, 'height' => 120]);
+        $review = $recognizer->spanningGridReview($assigned, $result['rows'], $result['cols']);
+        $renderCells = $review['render_cells'];
+        $gridByPosition = [];
+        foreach ($review['grid_cells'] as $gridCell) {
+            $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+        }
+
+        $t->same([0, 1, 2], $review['rows']);
+        $t->same([0, 1, 2], $review['cols']);
+        $t->same('Inventory summary', $renderCells[0]['text']);
+        $t->same('th', $renderCells[0]['tag']);
+        $t->same('colgroup', $renderCells[0]['scope']);
+        $t->same('column_header', $renderCells[0]['header_role']);
+        $t->same(true, $renderCells[0]['header']);
+        $t->same([1, 3], [$renderCells[0]['rowspan'], $renderCells[0]['colspan']]);
+        $t->same('Media group', $renderCells[1]['text']);
+        $t->same('th', $renderCells[1]['tag']);
+        $t->same('rowgroup', $renderCells[1]['scope']);
+        $t->same('row_header', $renderCells[1]['header_role']);
+        $t->same([2, 1], [$renderCells[1]['rowspan'], $renderCells[1]['colspan']]);
+        $t->same('anchor', $gridByPosition['0:0']['state']);
+        $t->same('covered', $gridByPosition['0:1']['state']);
+        $t->same(['row_id' => 0, 'col_id' => 0, 'render_cell_index' => 0], $gridByPosition['0:2']['covered_by']);
+        $t->same('covered', $gridByPosition['2:0']['state']);
+        $t->same('td', $gridByPosition['1:1']['tag']);
+        $t->same(null, $gridByPosition['1:1']['scope']);
+        $t->same('Image count', $gridByPosition['1:1']['text']);
+    },
     'applies supplied OCR text before row column assignment and markdown formatting' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $recognized = $recognizer->recognizeTables(

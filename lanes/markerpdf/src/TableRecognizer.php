@@ -282,6 +282,154 @@ final class TableRecognizer
     }
 
     /**
+     * Review metadata for rendering tabled's first-row headers and spans.
+     *
+     * The upstream Markdown/HTML formatters call tabulate with
+     * headers="firstrow", but they still consume only each cell's first
+     * row/column id. This review grid keeps the assigned spans explicit so a
+     * WordPress importer can render anchor cells as th/td and skip cells
+     * covered by rowspan/colspan.
+     *
+     * @param list<array<string, mixed>> $cells Assigned cells from assignRowsColumns().
+     * @param list<array<string, mixed>> $rows Optional model row bands in table-image coordinates.
+     * @param list<array<string, mixed>> $cols Optional model column bands in table-image coordinates.
+     * @return array{rows: list<int>, cols: list<int>, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>}
+     */
+    public function spanningGridReview(array $cells, array $rows = [], array $cols = []): array
+    {
+        $cells = $this->sortCells($this->normalizeAssignedCells($cells));
+        if ($cells === []) {
+            return [
+                'rows' => [],
+                'cols' => [],
+                'render_cells' => [],
+                'grid_cells' => [],
+            ];
+        }
+
+        $rows = $this->normalizeRowsOrCols($rows, 'row_id');
+        $cols = $this->normalizeRowsOrCols($cols, 'col_id');
+        $rowBboxes = $this->bboxesById($rows, 'row_id');
+        $colBboxes = $this->bboxesById($cols, 'col_id');
+        $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
+
+        $rowIds = [];
+        $colIds = [];
+        foreach ($cells as $cell) {
+            foreach ($this->nonNullSortedIds($cell['row_ids']) as $rowId) {
+                $rowIds[$rowId] = $rowId;
+            }
+            foreach ($this->nonNullSortedIds($cell['col_ids']) as $colId) {
+                $colIds[$colId] = $colId;
+            }
+        }
+        sort($rowIds, SORT_NUMERIC);
+        sort($colIds, SORT_NUMERIC);
+
+        if ($rowIds === [] || $colIds === []) {
+            return [
+                'rows' => [],
+                'cols' => [],
+                'render_cells' => [],
+                'grid_cells' => [],
+            ];
+        }
+
+        $topRowId = $rowIds[0];
+        $leftColId = $colIds[0];
+        $renderCells = [];
+        $anchors = [];
+        $covered = [];
+
+        foreach ($cells as $cell) {
+            $cellRowIds = $this->nonNullSortedIds($cell['row_ids']);
+            $cellColIds = $this->nonNullSortedIds($cell['col_ids']);
+            if ($cellRowIds === [] || $cellColIds === []) {
+                continue;
+            }
+
+            $scope = $this->headerScopeForGridCell($cellRowIds, $cellColIds, $topRowId, $leftColId);
+            $anchor = [
+                'row_id' => $cellRowIds[0],
+                'col_id' => $cellColIds[0],
+            ];
+            $renderIndex = count($renderCells);
+            $entry = [
+                'text' => (string) $cell['text'],
+                'row_ids' => $cellRowIds,
+                'col_ids' => $cellColIds,
+                'rowspan' => count($cellRowIds),
+                'colspan' => count($cellColIds),
+                'anchor' => $anchor,
+                'grid_cells' => $this->gridCellsForSpan($cellRowIds, $cellColIds),
+                'cell_bbox' => $cell['bbox'],
+                'tag' => $scope === null ? 'td' : 'th',
+                'scope' => $scope,
+                'header' => $scope !== null,
+                'header_role' => $this->headerRoleForScope($scope),
+            ];
+
+            $gridBbox = $this->gridBboxForSpan($cellRowIds, $cellColIds, $rowBboxes, $colBboxes, $rotated);
+            if ($gridBbox !== null) {
+                $entry['grid_bbox'] = $gridBbox;
+            }
+
+            $anchorKey = $anchor['row_id'] . ':' . $anchor['col_id'];
+            $anchors[$anchorKey] = $renderIndex;
+            foreach ($entry['grid_cells'] as $gridCell) {
+                $key = $gridCell['row_id'] . ':' . $gridCell['col_id'];
+                if ($key !== $anchorKey) {
+                    $covered[$key] = [
+                        'row_id' => $anchor['row_id'],
+                        'col_id' => $anchor['col_id'],
+                        'render_cell_index' => $renderIndex,
+                    ];
+                }
+            }
+
+            $renderCells[] = $entry;
+        }
+
+        $gridCells = [];
+        foreach ($rowIds as $rowId) {
+            foreach ($colIds as $colId) {
+                $key = $rowId . ':' . $colId;
+                $cell = [
+                    'row_id' => $rowId,
+                    'col_id' => $colId,
+                ];
+                if (isset($anchors[$key])) {
+                    $renderCell = $renderCells[$anchors[$key]];
+                    $cell += [
+                        'state' => 'anchor',
+                        'render_cell_index' => $anchors[$key],
+                        'text' => $renderCell['text'],
+                        'tag' => $renderCell['tag'],
+                        'scope' => $renderCell['scope'],
+                        'rowspan' => $renderCell['rowspan'],
+                        'colspan' => $renderCell['colspan'],
+                    ];
+                } elseif (isset($covered[$key])) {
+                    $cell += [
+                        'state' => 'covered',
+                        'covered_by' => $covered[$key],
+                    ];
+                } else {
+                    $cell['state'] = 'empty';
+                }
+                $gridCells[] = $cell;
+            }
+        }
+
+        return [
+            'rows' => $rowIds,
+            'cols' => $colIds,
+            'render_cells' => $renderCells,
+            'grid_cells' => $gridCells,
+        ];
+    }
+
+    /**
      * @param list<array<string, mixed>> $recognizedTables
      * @param list<array{width?: int|float, height?: int|float}|list<int|float>> $imageSizes
      * @return array{assigned_cells: list<list<array<string, mixed>>>, markdown_tables: list<string>}
@@ -1236,6 +1384,35 @@ final class TableRecognizer
         sort($out, SORT_NUMERIC);
 
         return $out;
+    }
+
+    /**
+     * @param list<int> $rowIds
+     * @param list<int> $colIds
+     */
+    private function headerScopeForGridCell(array $rowIds, array $colIds, int $topRowId, int $leftColId): ?string
+    {
+        if ($rowIds[0] === $topRowId) {
+            return count($colIds) > 1 ? 'colgroup' : 'col';
+        }
+
+        if ($colIds[0] === $leftColId && count($rowIds) > 1) {
+            return 'rowgroup';
+        }
+
+        return null;
+    }
+
+    private function headerRoleForScope(?string $scope): ?string
+    {
+        if ($scope === 'col' || $scope === 'colgroup') {
+            return 'column_header';
+        }
+        if ($scope === 'row' || $scope === 'rowgroup') {
+            return 'row_header';
+        }
+
+        return null;
     }
 
     /**

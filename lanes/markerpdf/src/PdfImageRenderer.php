@@ -295,6 +295,9 @@ final class PdfImageRenderer
      *     indexed_color_space: array{base_color_space: string|null, base_components: int|null, base_uses_icc_profile: bool, base_icc_profile: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null, high_value: int|null, lookup_source: string|null, lookup_length: int|null, expected_lookup_length: int|null, lookup_length_matches: bool, lookup_entry_count: int|null, lookup_preview_hex: string, lookup_bytes: list<int>}|null,
      *     soft_mask: array{present: bool, subtype: string|null, width: int|null, height: int|null, color_space: string|null, components: int|null, bits_per_component: int|null, decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null, opacity_for_zero: float|null, opacity_for_max: float|null, decode_inverted: bool, decode_component_mismatch: bool, matte: list<float>|null, interpolate: bool|null}|null,
      *     soft_mask_filter_boundary: array{present: bool, source_object: int|null, filters: list<string>, preview_only_filters: list<string>, unsupported_filters: list<string>, raw_length: int|null, decoded_length: int|null, decoded_sha256: string|null, decoded_preview_hex: string|null, decoded_sample_bytes: list<int>, decoded_with_current_filters: bool, decode_failed: bool, uses_current_object_map: bool}|null,
+     *     soft_mask_is_grayscale: bool|null,
+     *     soft_mask_color_space_supported: bool|null,
+     *     soft_mask_matte: array{component_count: int, expected_components: int|null, matches_image_components: bool}|null,
      *     image_decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null,
      *     image_decode_applied_before_rgb: bool,
      *     image_decode_component_mismatch: bool,
@@ -345,7 +348,10 @@ final class PdfImageRenderer
         $softMask = $this->imageSoftMaskDetails($imageDictionary, $objects);
         $softMaskPresent = $softMask !== null && $softMask['present'] === true;
         $softMaskFilterBoundary = $softMask !== null ? $this->imageSoftMaskFilterBoundary($imageDictionary, $objects) : null;
-        $matteUnblendingRequired = $softMaskPresent && $softMask['matte'] !== null;
+        $softMaskIsGrayscale = $softMaskPresent ? $this->softMaskIsGrayscale($softMask) : null;
+        $softMaskComposable = $softMaskPresent && $softMaskIsGrayscale === true;
+        $softMaskMatte = $this->softMaskMatteDetails($softMask, $colorSpace['components']);
+        $matteUnblendingRequired = $softMaskComposable && ($softMaskMatte['matches_image_components'] ?? false);
         $imageDecodeValid = $imageDecode !== null && $imageDecode['valid_for_components'];
         $imageDecodeMismatch = $imageDecode !== null && !$imageDecode['valid_for_components'];
         $notes = [];
@@ -392,14 +398,21 @@ final class PdfImageRenderer
             }
         }
         if ($softMaskPresent) {
-            $notes[] = 'soft_mask_applied_before_rgb_conversion';
-            if (($softMask['decode'] ?? null) !== null && ($softMask['decode']['valid_for_components'] ?? false) === true) {
+            if ($softMaskComposable) {
+                $notes[] = 'soft_mask_applied_before_rgb_conversion';
+            } else {
+                $notes[] = 'soft_mask_color_space_not_grayscale';
+            }
+            if ($softMaskComposable && ($softMask['decode'] ?? null) !== null && ($softMask['decode']['valid_for_components'] ?? false) === true) {
                 $notes[] = 'soft_mask_decode_applied_before_rgb_conversion';
                 if (($softMask['decode_inverted'] ?? false) === true) {
                     $notes[] = 'soft_mask_decode_inverts_alpha';
                 }
             } elseif (($softMask['decode_component_mismatch'] ?? false) === true) {
                 $notes[] = 'soft_mask_decode_component_mismatch';
+            }
+            if ($softMaskMatte !== null && !$softMaskMatte['matches_image_components']) {
+                $notes[] = 'soft_mask_matte_component_mismatch';
             }
             if ($softMaskFilterBoundary !== null && $softMaskFilterBoundary['filters'] !== []) {
                 if ($softMaskFilterBoundary['decoded_with_current_filters']) {
@@ -441,17 +454,21 @@ final class PdfImageRenderer
             'image_mask_applied_before_rgb' => $imageMaskPresent,
             'soft_mask' => $softMask,
             'soft_mask_filter_boundary' => $softMaskFilterBoundary,
-            'soft_mask_applied_before_rgb' => $softMaskPresent,
+            'soft_mask_is_grayscale' => $softMaskIsGrayscale,
+            'soft_mask_color_space_supported' => $softMaskIsGrayscale,
+            'soft_mask_matte' => $softMaskMatte,
+            'soft_mask_applied_before_rgb' => $softMaskComposable,
             'soft_mask_decode_applied_before_rgb' => $softMaskPresent
+                && $softMaskComposable
                 && ($softMask['decode'] ?? null) !== null
                 && ($softMask['decode']['valid_for_components'] ?? false) === true,
             'soft_mask_decode_component_mismatch' => $softMaskPresent
                 && (($softMask['decode_component_mismatch'] ?? false) === true),
             'matte_unblending_required' => $matteUnblendingRequired,
             'output_color_mode' => 'RGB',
-            'alpha_output_mode' => $softMaskPresent
+            'alpha_output_mode' => $softMaskComposable
                 ? 'soft_mask_composited_to_rgb_preview'
-                : ($imageMaskPresent ? 'image_mask_composited_to_rgb_preview' : 'opaque_rgb_preview'),
+                : ($imageMaskPresent ? 'image_mask_composited_to_rgb_preview' : ($softMaskPresent ? 'soft_mask_review_only_rgb_preview' : 'opaque_rgb_preview')),
             'notes' => $notes,
         ];
     }
@@ -1271,9 +1288,11 @@ final class PdfImageRenderer
         $bitsPerComponent = $this->imageBitsPerComponent($maskDictionary);
         $decode = $this->imageDecodeDetails($maskDictionary, $objects, $colorSpace['components'], true);
         $matte = $this->numericArrayValue($this->extractPdfNameValue($maskDictionary, 'Matte'));
+        $alphaCompatible = ($colorSpace['components'] ?? null) === 1
+            && in_array($colorSpace['source_color_space'], ['DeviceGray', 'CalGray', 'ICCBased'], true);
         $opacityForZero = null;
         $opacityForMax = null;
-        if ($decode !== null && $decode['valid_for_components']) {
+        if ($alphaCompatible && $decode !== null && $decode['valid_for_components']) {
             $maskBits = max(1, $bitsPerComponent ?? 8);
             $opacityForZero = $this->imageSampleDecodeValues([0], $decode, $maskBits)[0];
             $opacityForMax = $this->imageSampleDecodeValues([(2 ** min($maskBits, 30)) - 1], $decode, $maskBits)[0];
@@ -1294,6 +1313,37 @@ final class PdfImageRenderer
             'decode_component_mismatch' => $decode !== null && !$decode['valid_for_components'],
             'matte' => $matte === [] ? null : $matte,
             'interpolate' => $this->booleanNameValue($maskDictionary, 'Interpolate'),
+        ];
+    }
+
+    /**
+     * @param array{present?: bool, color_space?: string|null, components?: int|null} $softMask
+     */
+    private function softMaskIsGrayscale(array $softMask): bool
+    {
+        if (($softMask['present'] ?? false) !== true || ($softMask['components'] ?? null) !== 1) {
+            return false;
+        }
+
+        return in_array($softMask['color_space'] ?? null, ['DeviceGray', 'CalGray', 'ICCBased'], true);
+    }
+
+    /**
+     * @param array{present?: bool, matte?: list<float>|null}|null $softMask
+     * @return array{component_count: int, expected_components: int|null, matches_image_components: bool}|null
+     */
+    private function softMaskMatteDetails(?array $softMask, ?int $expectedComponents): ?array
+    {
+        if ($softMask === null || ($softMask['present'] ?? false) !== true || !is_array($softMask['matte'] ?? null)) {
+            return null;
+        }
+
+        $componentCount = count($softMask['matte']);
+
+        return [
+            'component_count' => $componentCount,
+            'expected_components' => $expectedComponents,
+            'matches_image_components' => is_int($expectedComponents) && $componentCount === $expectedComponents,
         ];
     }
 
