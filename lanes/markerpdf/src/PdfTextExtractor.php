@@ -614,6 +614,8 @@ final class PdfTextExtractor
      *     indirect_length_count: int,
      *     xref_selected_operand_count: int,
      *     unresolved_operand_count: int,
+     *     invalid_filter_operand_count: int,
+     *     dictionary_filter_operand_count: int,
      *     decoded_cmap_count: int,
      *     entries: list<array<string, mixed>>,
      *     executes_python_or_models: false,
@@ -633,6 +635,8 @@ final class PdfTextExtractor
             'indirect_length_count' => 0,
             'xref_selected_operand_count' => 0,
             'unresolved_operand_count' => 0,
+            'invalid_filter_operand_count' => 0,
+            'dictionary_filter_operand_count' => 0,
             'decoded_cmap_count' => 0,
             'entries' => [],
             'executes_python_or_models' => false,
@@ -694,8 +698,11 @@ final class PdfTextExtractor
             $lengthIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Length']);
             $selectedOperandCount = $this->xrefStreamSelectedOperandCount($operands);
             $unresolvedOperandCount = $this->xrefStreamUnresolvedOperandCount($operands);
+            $invalidFilterOperandCount = $this->invalidStreamFilterOperandCount($operandGroups['Filter']);
+            $dictionaryFilterOperandCount = $this->dictionaryStreamFilterOperandCount($operandGroups['Filter']);
             $decoded = $this->decodedCMapBody($body, $objects);
             $filters = $this->streamFilters($dict, $objects);
+            $decodeParms = $this->streamDecodeParms($dict, $objects);
             $owner = $this->currentObjectReferenceOwners[$objectNumber] ?? null;
             $generation = $owner['generation']
                 ?? ($xrefEntries[$objectNumber]['generation'] ?? null);
@@ -713,6 +720,8 @@ final class PdfTextExtractor
             $review['indirect_length_count'] += $lengthIndirectCount;
             $review['xref_selected_operand_count'] += $selectedOperandCount;
             $review['unresolved_operand_count'] += $unresolvedOperandCount;
+            $review['invalid_filter_operand_count'] += $invalidFilterOperandCount;
+            $review['dictionary_filter_operand_count'] += $dictionaryFilterOperandCount;
             if ($decoded !== null) {
                 $review['decoded_cmap_count']++;
             }
@@ -727,6 +736,14 @@ final class PdfTextExtractor
                 'declared_length' => $this->streamLength($dict, $objects),
                 'filters' => $filters ?? [],
                 'filter_resolution_failed' => $filters === null,
+                'decodeparms_resolution_failed' => $decodeParms === null,
+                'invalid_filter_operand_count' => $invalidFilterOperandCount,
+                'dictionary_filter_operand_count' => $dictionaryFilterOperandCount,
+                'filter_operand_policy' => $this->streamFilterOperandPolicy(
+                    $filters,
+                    $invalidFilterOperandCount,
+                    $dictionaryFilterOperandCount
+                ),
                 'decoded_cmap_length' => $decoded === null ? null : strlen($decoded),
                 'decoded_cmap_sha256' => $decoded === null ? null : hash('sha256', $decoded),
                 'operand_groups' => $operandGroups,

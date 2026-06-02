@@ -404,6 +404,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-parser-name-array-comment-escape-currentbase.php` maps escaped xref-stream `/W`, `/Index`, and `/Size` name keys plus comment-heavy numeric arrays into a WordPress paragraph import path. It keeps the current startxref-selected page text and excludes stale later direct catalog/page objects without Python, pdftext, pypdfium, Poppler, Ghostscript, models, or external PDF tools.
 
+`examples/wordpress-pdf-malformed-cmap-filter-boundary-currentbase.php` maps malformed ToUnicode CMap `/Filter` array operands into a WordPress-safe text import path. It rejects a dictionary filter operand before decoding the CMap stream, records `reject_dictionary_filter_operands` review metadata, falls back to `/Encoding /Identity-H`, and emits only `Safe Import` while excluding decoded fake CMap text and filter dictionary strings without Python, pdftext, pypdfium, Poppler, Ghostscript, models, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
