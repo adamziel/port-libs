@@ -1499,13 +1499,17 @@ return [
         $t->same('Metadata', $file['piece_info']['WPImport']['private']['PrivateStream']['Type']);
 
         $provenance = $file['provenance_review'];
-        $t->same(['filespec_afrelationship', 'embedded_file_payload_hash', 'embedded_file_params_checksum', 'filespec_metadata_stream', 'filespec_pieceinfo_metadata_stream', 'filespec_output_intents'], $provenance['sources']);
+        $t->same(['filespec_afrelationship', 'embedded_file_payload_hash', 'embedded_file_params_checksum', 'filespec_metadata_stream', 'filespec_pieceinfo_metadata_stream', 'filespec_pieceinfo_output_intents', 'filespec_output_intents'], $provenance['sources']);
         $t->same('original_source', $provenance['relationship_role']);
         $t->same(false, $provenance['payload_included']);
         $t->same('piece-source.xml', $provenance['payload']['filename']);
         $t->same(true, $provenance['payload']['size_matches_declared']);
         $t->same(5, $provenance['xmp_metadata']['object_number']);
         $t->same(hash('sha256', gzuncompress($fileXmp) ?: ''), $provenance['xmp_metadata']['sha256']);
+        $t->same(['Current PieceInfo Associated sRGB'], $provenance['piece_info_pdfa_output_intents']['output_condition_identifiers']);
+        $t->same([hash('sha256', $associatedProfile)], $provenance['piece_info_pdfa_output_intents']['profile_sha256']);
+        $t->same('WPImport', $provenance['piece_info_pdfa_output_intents']['entries'][0]['application']);
+        $t->same('D:20260602181449Z', $provenance['piece_info_pdfa_output_intents']['entries'][0]['last_modified']);
         $t->same(['Current PieceInfo Associated sRGB'], $provenance['pdfa_output_intents']['output_condition_identifiers']);
         $t->same([hash('sha256', $associatedProfile)], $provenance['pdfa_output_intents']['profile_sha256']);
         $t->true(!array_key_exists('content', $file));

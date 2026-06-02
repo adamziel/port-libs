@@ -11122,6 +11122,72 @@ final class PdfTextExtractor
         }
         $seenOffsets[$offset] = true;
 
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
+        if ($tableSection !== null) {
+            $entries = [];
+            $trailer = $tableSection['trailer'];
+            $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $trailer);
+            $previousEntries = $previousOffset !== null && $previousOffset >= 0
+                ? $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets)
+                : [];
+            $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
+            if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
+                foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions) as $objectNumber => $entry) {
+                    if ($objectNumber === 0 || ($entry['type'] ?? null) !== 0) {
+                        continue;
+                    }
+
+                    $tableEntry = $tableSection['entries'][$objectNumber] ?? null;
+                    $objectDefinitions = $definitions[$objectNumber] ?? [];
+                    $selected = $this->liveDirectObjectDefinition($objectDefinitions, $entry);
+                    $previousEntry = $previousEntries[$objectNumber] ?? null;
+                    $directDefinitionCount = count($objectDefinitions);
+                    if ($directDefinitionCount === 0 && $previousEntry === null && $tableEntry === null) {
+                        continue;
+                    }
+
+                    $entries[] = [
+                        'object_number' => $objectNumber,
+                        'current_xref_offset' => $offset,
+                        'hybrid_xref_stream_offset' => $hybridStreamOffset,
+                        'free_generation' => $entry['generation'] ?? null,
+                        'next_free_object' => $entry['offset'] ?? null,
+                        'offset_field_is_explicit' => ($entry['offsetIsExplicit'] ?? true) === true,
+                        'direct_definition_count' => $directDefinitionCount,
+                        'direct_object_suppressed' => $directDefinitionCount > 0 && $selected === null,
+                        'table_entry_suppressed' => $tableEntry !== null,
+                        'table_entry_type' => $tableEntry['type'] ?? null,
+                        'table_generation' => $tableEntry['generation'] ?? null,
+                        'table_offset' => $tableEntry['offset'] ?? null,
+                        'previous_entry_suppressed' => $previousEntry !== null,
+                        'previous_entry_type' => $previousEntry['type'] ?? null,
+                        'previous_generation' => $previousEntry['generation'] ?? null,
+                        'previous_offset' => $previousEntry['offset'] ?? null,
+                        'previous_object_stream' => $previousEntry['objectStream'] ?? null,
+                        'previous_member_index' => $previousEntry['index'] ?? null,
+                        'suppressed_by_free_entry' => true,
+                        'owner_policy' => $this->xrefHybridStreamFreeOwnerPolicy($tableEntry, $directDefinitionCount, $previousEntry),
+                        'review_only' => true,
+                    ];
+                }
+            }
+
+            if ($previousOffset !== null && $previousOffset >= 0) {
+                $entries = array_merge(
+                    $entries,
+                    $this->xrefStreamFreeOwnerEntriesFromOffsetChain(
+                        $pdfBytes,
+                        $previousOffset,
+                        $objects,
+                        $definitions,
+                        $seenOffsets
+                    )
+                );
+            }
+
+            return $entries;
+        }
+
         $section = $this->xrefSectionEntriesAndPreviousOffset($pdfBytes, $offset, $objects, $definitions, $seenOffsets);
         if ($section === null) {
             return [];
@@ -11182,6 +11248,40 @@ final class PdfTextExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * Hybrid-reference files can include a current xref stream alongside a
+     * compatibility xref table. A current type-0 stream row must still own that
+     * object number; otherwise stale table/direct objects leak into import text.
+     *
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $streamEntry
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $tableEntry
+     */
+    private function hybridXrefStreamEntryOwnsTableEntry(array $streamEntry, array $tableEntry): bool
+    {
+        return ($streamEntry['type'] ?? null) === 0 && ($tableEntry['type'] ?? null) !== 0;
+    }
+
+    /**
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}|null $tableEntry
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}|null $previousEntry
+     */
+    private function xrefHybridStreamFreeOwnerPolicy(?array $tableEntry, int $directDefinitionCount, ?array $previousEntry): string
+    {
+        if (($tableEntry['type'] ?? null) === 1) {
+            return 'hybrid_xref_stream_free_entry_suppressed_table_direct_object';
+        }
+
+        if (($tableEntry['type'] ?? null) === 2) {
+            return 'hybrid_xref_stream_free_entry_suppressed_table_compressed_object';
+        }
+
+        if (($tableEntry['type'] ?? null) === 0) {
+            return 'hybrid_xref_stream_free_entry_preserved_table_free_object';
+        }
+
+        return $this->xrefStreamFreeOwnerPolicy($directDefinitionCount, $previousEntry);
     }
 
     /**
@@ -11450,6 +11550,10 @@ final class PdfTextExtractor
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions) as $objectNumber => $entry) {
                     if (isset($entries[$objectNumber])) {
+                        if ($this->hybridXrefStreamEntryOwnsTableEntry($entry, $entries[$objectNumber])) {
+                            $entries[$objectNumber] = $entry;
+                        }
+
                         continue;
                     }
 
@@ -11681,7 +11785,10 @@ final class PdfTextExtractor
             $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions) as $objectNumber => $entry) {
-                    if (!isset($entries[$objectNumber])) {
+                    if (
+                        !isset($entries[$objectNumber])
+                        || $this->hybridXrefStreamEntryOwnsTableEntry($entry, $entries[$objectNumber])
+                    ) {
                         $entries[$objectNumber] = $entry;
                     }
                 }
@@ -12788,11 +12895,13 @@ final class PdfTextExtractor
     {
         $entries = [];
         $body = $definition['body'];
-        if (preg_match('/\/W\s*\[(.*?)\]/s', $body, $widthMatch) !== 1) {
+        $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        $widthArray = $this->pdfArrayValueAfterName($dictionary, 'W');
+        if ($widthArray === null) {
             return $entries;
         }
 
-        $widths = $this->integersFromPdfArray($widthMatch[1]);
+        $widths = $this->integersFromPdfArray($widthArray);
         if (count($widths) < 3) {
             return $entries;
         }
@@ -12812,7 +12921,7 @@ final class PdfTextExtractor
 
         $decodedEntryCount = strlen($decoded) % $entryWidth === 0 ? intdiv(strlen($decoded), $entryWidth) : null;
         $offset = 0;
-        foreach ($this->xrefIndexRanges($body, $decodedEntryCount) as $range) {
+        foreach ($this->xrefIndexRanges($dictionary, $decodedEntryCount) as $range) {
             [$startObject, $count] = $range;
             for ($index = 0; $index < $count; $index++) {
                 if ($offset + $entryWidth > strlen($decoded)) {
@@ -13073,8 +13182,9 @@ final class PdfTextExtractor
      */
     private function xrefIndexRanges(string $xrefBody, ?int $decodedEntryCount = null): array
     {
-        if (preg_match('/\/Index\s*\[(.*?)\]/s', $xrefBody, $match) === 1) {
-            $values = $this->integersFromPdfArray($match[1]);
+        $indexArray = $this->pdfArrayValueAfterName($xrefBody, 'Index');
+        if ($indexArray !== null) {
+            $values = $this->integersFromPdfArray($indexArray);
             $ranges = [];
             for ($index = 0, $count = count($values); $index + 1 < $count; $index += 2) {
                 $ranges[] = [max(0, $values[$index]), max(0, $values[$index + 1])];
@@ -13083,8 +13193,9 @@ final class PdfTextExtractor
             return $ranges;
         }
 
-        if (preg_match('/\/Size\s+(\d+)/', $xrefBody, $match) === 1) {
-            $size = max(0, (int) $match[1]);
+        $sizeValue = $this->pdfIntegerValueAfterName($xrefBody, 'Size');
+        if ($sizeValue !== null) {
+            $size = max(0, $sizeValue);
             if ($decodedEntryCount !== null && $decodedEntryCount > $size) {
                 $size = $decodedEntryCount;
             }
@@ -13100,11 +13211,17 @@ final class PdfTextExtractor
      */
     private function integersFromPdfArray(string $arrayBody): array
     {
-        if (!preg_match_all('/-?\d+/', $arrayBody, $matches)) {
-            return [];
+        $integers = [];
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            $item = trim($item);
+            if (preg_match('/^[+-]?\d+$/', $item) !== 1) {
+                continue;
+            }
+
+            $integers[] = (int) $item;
         }
 
-        return array_map('intval', $matches[0]);
+        return $integers;
     }
 
     /**

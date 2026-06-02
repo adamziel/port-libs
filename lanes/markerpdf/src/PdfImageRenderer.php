@@ -2929,9 +2929,15 @@ final class PdfImageRenderer
      * and ICC conversion as review metadata for a future raster backend.
      *
      * @param array<int, string> $objects
+     * @param list<int|float|list<int|float>>|null $suppliedSoftMaskSamples Already-rasterized alpha/luminosity samples for soft-mask transparency groups.
      * @return array<string, mixed>
      */
-    public function alternateColorantStreamPreviewRows(string $imageObject, array $objects = [], int $maxPixels = 16): array
+    public function alternateColorantStreamPreviewRows(
+        string $imageObject,
+        array $objects = [],
+        int $maxPixels = 16,
+        ?array $suppliedSoftMaskSamples = null
+    ): array
     {
         if ($maxPixels < 1) {
             throw new InvalidArgumentException('Alternate colorant stream preview requires at least one preview pixel.');
@@ -2974,6 +2980,10 @@ final class PdfImageRenderer
             && is_array($softMaskGroup)
             && !is_int($softMask['width'] ?? null)
             && !is_int($softMask['height'] ?? null);
+        $usesSuppliedSoftMaskSamples = false;
+        if ($suppliedSoftMaskSamples !== null && !$softMaskIsTransparencyGroup) {
+            throw new InvalidArgumentException('Supplied alternate colorant soft-mask samples are only supported for transparency-group masks.');
+        }
         if (is_array($softMask) && ($softMask['present'] ?? false) === true) {
             if (($plan['soft_mask_applied_before_rgb'] ?? false) !== true) {
                 throw new InvalidArgumentException('Alternate colorant stream preview requires a grayscale soft-mask image.');
@@ -2985,7 +2995,12 @@ final class PdfImageRenderer
                 throw new InvalidArgumentException('Alternate colorant soft-mask height must match the image height.');
             }
 
-            if ($softMaskIsTransparencyGroup && !$imageStreamReviewOnly) {
+            if ($softMaskIsTransparencyGroup && $suppliedSoftMaskSamples !== null) {
+                $softMaskSamples = $this->normalizeSuppliedSoftMaskSamples($suppliedSoftMaskSamples, $expectedPixelCount);
+                $usesSuppliedSoftMaskSamples = true;
+            }
+
+            if ($softMaskIsTransparencyGroup && !$imageStreamReviewOnly && !$usesSuppliedSoftMaskSamples) {
                 throw new InvalidArgumentException('Alternate colorant stream preview requires sampled soft-mask alpha for transparency groups.');
             }
 
@@ -3007,6 +3022,9 @@ final class PdfImageRenderer
                     throw new InvalidArgumentException('Alternate colorant soft-mask stream does not contain complete alpha sample data.');
                 }
             }
+            if ($softMaskIsTransparencyGroup && $imageStreamDecoded && is_array($softMaskSamples) && !$softMaskSamples['complete']) {
+                throw new InvalidArgumentException('Alternate colorant supplied soft-mask samples must cover every decoded image pixel.');
+            }
         }
 
         $streamNotes = [
@@ -3023,6 +3041,8 @@ final class PdfImageRenderer
                 : 'soft_mask_stream_filters_decoded_before_rgb_conversion';
         } elseif ($softMaskIsTransparencyGroup && $imageStreamReviewOnly) {
             $streamNotes[] = 'soft_mask_transfer_function_reviewed_without_raster_samples';
+        } elseif ($usesSuppliedSoftMaskSamples) {
+            $streamNotes[] = 'soft_mask_transparency_group_supplied_samples_before_rgb_conversion';
         }
 
         $alternate = $plan['alternate_color_space'];
@@ -3048,6 +3068,7 @@ final class PdfImageRenderer
                 'soft_mask_group' => $softMaskGroup,
                 'soft_mask_filter_boundary' => $plan['soft_mask_filter_boundary'],
                 'soft_mask_decode_review' => $softMaskDecodeReview,
+                'uses_supplied_soft_mask_samples' => $usesSuppliedSoftMaskSamples,
                 'alternate_color_space' => is_array($alternate) ? ($alternate['alternate_color_space'] ?? null) : null,
                 'alternate_components' => is_array($alternate) ? ($alternate['alternate_components'] ?? null) : null,
                 'alternate_uses_icc_profile' => is_array($alternate) && ($alternate['alternate_uses_icc_profile'] ?? false) === true,
@@ -3118,6 +3139,7 @@ final class PdfImageRenderer
             'soft_mask_group' => $softMaskGroup,
             'soft_mask_filter_boundary' => $plan['soft_mask_filter_boundary'],
             'soft_mask_decode_review' => $softMaskDecodeReview,
+            'uses_supplied_soft_mask_samples' => $usesSuppliedSoftMaskSamples,
             'alternate_color_space' => is_array($alternate) ? ($alternate['alternate_color_space'] ?? null) : null,
             'alternate_components' => is_array($alternate) ? ($alternate['alternate_components'] ?? null) : null,
             'alternate_uses_icc_profile' => is_array($alternate) && ($alternate['alternate_uses_icc_profile'] ?? false) === true,
@@ -3133,6 +3155,46 @@ final class PdfImageRenderer
             'notes' => array_values(array_unique(array_merge($plan['notes'] ?? [], $streamNotes))),
             'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
             'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'opaque_rgb_preview'),
+        ];
+    }
+
+    /**
+     * Normalizes caller-supplied soft-mask transparency-group samples into the
+     * same one-component pixel shape used for decoded soft-mask image streams.
+     *
+     * @param list<int|float|list<int|float>> $samples
+     * @return array{pixels: list<list<float>>, available_pixel_count: int, complete: bool}
+     */
+    private function normalizeSuppliedSoftMaskSamples(array $samples, int $expectedPixelCount): array
+    {
+        if ($expectedPixelCount < 0) {
+            throw new InvalidArgumentException('Expected soft-mask pixel count must be non-negative.');
+        }
+
+        $pixels = [];
+        foreach (array_values($samples) as $row) {
+            if (is_array($row)) {
+                $values = array_values($row);
+                if (count($values) !== 1) {
+                    throw new InvalidArgumentException('Supplied soft-mask sample rows must contain exactly one alpha value.');
+                }
+
+                $value = $values[0];
+            } else {
+                $value = $row;
+            }
+
+            if (!is_int($value) && !is_float($value)) {
+                throw new InvalidArgumentException('Supplied soft-mask samples must be numeric alpha values.');
+            }
+
+            $pixels[] = [max(0.0, min(1.0, (float) $value))];
+        }
+
+        return [
+            'pixels' => array_slice($pixels, 0, $expectedPixelCount),
+            'available_pixel_count' => count($pixels),
+            'complete' => count($pixels) >= $expectedPixelCount,
         ];
     }
 

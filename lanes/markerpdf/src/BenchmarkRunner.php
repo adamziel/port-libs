@@ -539,6 +539,159 @@ final class BenchmarkRunner
     }
 
     /**
+     * Review-only runtime artifact for marker_server.py startup config plus
+     * upload-route boundaries. This records the state WordPress benchmark gates
+     * need before trusting server output artifacts without storing API keys,
+     * uploaded PDF bytes, or image payloads.
+     *
+     * @param array<string, mixed> $configBoundary
+     * @param array<string, mixed> $uploadRoutePlan
+     * @param array<string, mixed> $context
+     * @return array{path: string, filename: string, format: string, schema: string, status: string, api_key_configured: bool, local: bool, upload_directory_created: bool, upload_removed: bool|null, size: int, sha256: string, review_only: true}
+     */
+    public function writeServerConfigArtifactJson(
+        string $artifactFile,
+        array $configBoundary,
+        array $uploadRoutePlan,
+        array $context = []
+    ): array {
+        $artifactFile = trim($artifactFile);
+        if ($artifactFile === '') {
+            throw new InvalidArgumentException('Server config artifact JSON file must not be empty.');
+        }
+
+        $serverConfig = $this->serverConfigArtifactConfig($configBoundary);
+        $uploadRoute = $this->serverConfigArtifactUploadRoute($uploadRoutePlan);
+        $context = $this->serverConfigArtifactContext($context);
+        $status = $serverConfig['local'] ? 'local' : 'remote';
+        $artifact = [
+            'path' => $artifactFile,
+            'filename' => basename($artifactFile),
+            'format' => 'json',
+            'review_only' => true,
+        ];
+        $payload = [
+            'schema' => 'markerpdf.server_config_artifact.v1',
+            'source' => 'sddai/markerPDF marker_server.py + benchmarks/overall.py runtime config artifact',
+            'status' => $status,
+            'success' => true,
+            'message_line' => $this->serverConfigArtifactMessageLine($context),
+            'server_config' => $serverConfig,
+            'upload_route' => $uploadRoute,
+            'context' => $context,
+            'artifact' => $artifact,
+            'default_upload_directory_created_before_requests' => in_array(
+                $serverConfig['upload_directory_status'],
+                ['created', 'exists'],
+                true
+            ),
+            'default_upload_temp_file_removed_after_conversion' => (bool) ($uploadRoute['cleanup']['removes_upload_after_success'] ?? false),
+            'excludes_api_key_value' => true,
+            'excludes_uploaded_pdf_bytes' => true,
+            'executes_fastapi' => false,
+            'executes_uvicorn' => false,
+            'executes_live_http' => false,
+            'executes_external_tools' => false,
+            'executes_python_or_models' => false,
+            'review_only' => true,
+        ];
+
+        try {
+            $json = json_encode(
+                $payload,
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR
+            );
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException(
+                'Unable to encode markerPDF server config artifact as JSON.',
+                previous: $exception
+            );
+        }
+
+        $this->ensureArtifactDirectory($artifactFile, 'server config artifact');
+        if (@file_put_contents($artifactFile, $json) === false) {
+            throw new RuntimeException('Unable to write markerPDF server config artifact: ' . $artifactFile);
+        }
+
+        return $artifact + [
+            'schema' => 'markerpdf.server_config_artifact.v1',
+            'status' => $status,
+            'api_key_configured' => $serverConfig['api_key_configured'],
+            'local' => $serverConfig['local'],
+            'upload_directory_created' => $serverConfig['upload_directory_created'],
+            'upload_removed' => $context['upload_removed'],
+            'size' => $this->artifactSize($artifactFile),
+            'sha256' => $this->artifactSha256($artifactFile),
+        ];
+    }
+
+    /**
+     * @return array{path: string, filename: string, schema: string, status: string, payload: array<string, mixed>, size: int, sha256: string, roundtrip_preserves_config_boundary: bool, review_only: true, executes_fastapi: false, executes_uvicorn: false, executes_live_http: false, executes_external_tools: false, executes_python_or_models: false}
+     */
+    public function readServerConfigArtifactJson(string $artifactFile): array
+    {
+        $artifactFile = trim($artifactFile);
+        if ($artifactFile === '') {
+            throw new InvalidArgumentException('Server config artifact JSON file must not be empty.');
+        }
+
+        $contents = @file_get_contents($artifactFile);
+        if (!is_string($contents)) {
+            throw new InvalidArgumentException('Server config artifact JSON file is not readable: ' . $artifactFile);
+        }
+
+        try {
+            $payload = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException(
+                'Server config artifact JSON file must contain valid JSON.',
+                previous: $exception
+            );
+        }
+        if (!is_array($payload)) {
+            throw new InvalidArgumentException('Server config artifact JSON must decode to an object.');
+        }
+        if (($payload['schema'] ?? null) !== 'markerpdf.server_config_artifact.v1') {
+            throw new InvalidArgumentException('Server config artifact JSON has an unexpected schema.');
+        }
+        if (($payload['success'] ?? null) !== true || !in_array($payload['status'] ?? null, ['local', 'remote'], true)) {
+            throw new InvalidArgumentException('Server config artifact JSON must be a local or remote success payload.');
+        }
+        if (($payload['review_only'] ?? null) !== true) {
+            throw new InvalidArgumentException('Server config artifact JSON must be review-only.');
+        }
+
+        $serverConfig = $payload['server_config'] ?? null;
+        $uploadRoute = $payload['upload_route'] ?? null;
+        if (!is_array($serverConfig) || !is_array($uploadRoute)) {
+            throw new InvalidArgumentException('Server config artifact JSON is missing config or upload-route metadata.');
+        }
+        if (($serverConfig['api_key_value_stored'] ?? null) !== false) {
+            throw new InvalidArgumentException('Server config artifact JSON must not store API key values.');
+        }
+        if (($uploadRoute['endpoint'] ?? null) !== '/marker/upload') {
+            throw new InvalidArgumentException('Server config artifact JSON must preserve the upload endpoint boundary.');
+        }
+
+        return [
+            'path' => $artifactFile,
+            'filename' => basename($artifactFile),
+            'schema' => 'markerpdf.server_config_artifact.v1',
+            'status' => (string) $payload['status'],
+            'payload' => $payload,
+            'size' => $this->artifactSize($artifactFile),
+            'sha256' => $this->artifactSha256($artifactFile),
+            'roundtrip_preserves_config_boundary' => true,
+            'review_only' => true,
+            'executes_fastapi' => false,
+            'executes_uvicorn' => false,
+            'executes_live_http' => false,
+            'executes_external_tools' => false,
+            'executes_python_or_models' => false,
+        ];
+    }
+
+    /**
      * Native upload benchmark boundary across marker_server.py upload handling,
      * benchmarks/overall.py fail-fast output behavior, and marker.output artifact
      * persistence. A successful upload conversion becomes a benchmark output
@@ -1382,6 +1535,170 @@ final class BenchmarkRunner
             : 'uploaded PDF';
 
         return "Marker server benchmark upload completed for {$method}/{$document}";
+    }
+
+    /**
+     * @param array<string, mixed> $configBoundary
+     * @return array<string, mixed>
+     */
+    private function serverConfigArtifactConfig(array $configBoundary): array
+    {
+        if (($configBoundary['success'] ?? null) !== true || !is_array($configBoundary['config'] ?? null)) {
+            throw new InvalidArgumentException('Server config artifact requires a successful marker server config boundary.');
+        }
+
+        $config = $configBoundary['config'];
+        foreach (['host', 'port', 'local', 'api_key_configured', 'datalab_url', 'upload_directory', 'upload_directory_absolute', 'upload_directory_status', 'upload_directory_created'] as $key) {
+            if (!array_key_exists($key, $config)) {
+                throw new InvalidArgumentException('Server config artifact is missing marker server config key: ' . $key);
+            }
+        }
+
+        $appState = is_array($config['app_state'] ?? null) ? $config['app_state'] : [];
+        $uvicorn = is_array($config['uvicorn'] ?? null) ? $config['uvicorn'] : [];
+
+        return [
+            'host' => (string) $config['host'],
+            'port' => (int) $config['port'],
+            'local' => (bool) $config['local'],
+            'api_key_configured' => (bool) $config['api_key_configured'],
+            'api_key_value_stored' => false,
+            'datalab_url' => (string) $config['datalab_url'],
+            'upload_directory' => (string) $config['upload_directory'],
+            'upload_directory_absolute' => (string) $config['upload_directory_absolute'],
+            'upload_directory_status' => (string) $config['upload_directory_status'],
+            'upload_directory_created' => (bool) $config['upload_directory_created'],
+            'app_state' => [
+                'API_KEY_CONFIGURED' => (bool) ($appState['API_KEY_CONFIGURED'] ?? $config['api_key_configured']),
+                'LOCAL' => (bool) ($appState['LOCAL'] ?? $config['local']),
+                'DATALAB_URL' => (string) ($appState['DATALAB_URL'] ?? $config['datalab_url']),
+            ],
+            'uvicorn' => [
+                'app' => (string) ($uvicorn['app'] ?? 'marker_server:app'),
+                'host' => (string) ($uvicorn['host'] ?? $config['host']),
+                'port' => (int) ($uvicorn['port'] ?? $config['port']),
+            ],
+            'loads_models_on_lifespan' => (bool) ($config['loads_models_on_lifespan'] ?? false),
+            'loads_models_during_plan' => false,
+            'executes_uvicorn' => false,
+            'executes_fastapi' => false,
+            'executes_live_http' => false,
+            'executes_python_or_models' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $uploadRoutePlan
+     * @return array<string, mixed>
+     */
+    private function serverConfigArtifactUploadRoute(array $uploadRoutePlan): array
+    {
+        if (($uploadRoutePlan['endpoint'] ?? null) !== '/marker/upload') {
+            throw new InvalidArgumentException('Server config artifact requires marker server upload route metadata.');
+        }
+
+        $selectedRoute = $uploadRoutePlan['selected_route'] ?? null;
+        if (!in_array($selectedRoute, ['local', 'remote'], true)) {
+            throw new InvalidArgumentException('Server config artifact upload route must be local or remote.');
+        }
+
+        $remoteRoute = is_array($uploadRoutePlan['remote_route'] ?? null) ? $uploadRoutePlan['remote_route'] : [];
+        $localRoute = is_array($uploadRoutePlan['local_route'] ?? null) ? $uploadRoutePlan['local_route'] : [];
+
+        return [
+            'endpoint' => '/marker/upload',
+            'method' => (string) ($uploadRoutePlan['method'] ?? 'POST'),
+            'file_field' => is_array($uploadRoutePlan['file_field'] ?? null) ? $uploadRoutePlan['file_field'] : [],
+            'form_params' => is_array($uploadRoutePlan['form_params'] ?? null) ? $uploadRoutePlan['form_params'] : [],
+            'upload_directory' => (string) ($uploadRoutePlan['upload_directory'] ?? ''),
+            'upload_directory_absolute' => (string) ($uploadRoutePlan['upload_directory_absolute'] ?? ''),
+            'selected_route' => $selectedRoute,
+            'local_route' => [
+                'calls' => (string) ($localRoute['calls'] ?? 'convert_pdf_local'),
+                'uses_uploaded_filepath' => (bool) ($localRoute['uses_uploaded_filepath'] ?? false),
+                'applies_direct_marker_option_guard' => (bool) ($localRoute['applies_direct_marker_option_guard'] ?? false),
+                'forwards_convert_single_pdf_options' => is_array($localRoute['forwards_convert_single_pdf_options'] ?? null)
+                    ? $localRoute['forwards_convert_single_pdf_options']
+                    : [],
+                'paginate_forwarded_to_convert_single_pdf' => (bool) ($localRoute['paginate_forwarded_to_convert_single_pdf'] ?? false),
+                'extract_images_forwarded_to_convert_single_pdf' => (bool) ($localRoute['extract_images_forwarded_to_convert_single_pdf'] ?? false),
+            ],
+            'remote_route' => [
+                'calls' => (string) ($remoteRoute['calls'] ?? 'convert_pdf_remote'),
+                'forwards_multipart_fields' => array_values(array_map('strval', $remoteRoute['forwards_multipart_fields'] ?? [])),
+                'multipart_field_values' => is_array($remoteRoute['multipart_field_values'] ?? null)
+                    ? $remoteRoute['multipart_field_values']
+                    : [],
+                'polls_request_check_url' => (bool) ($remoteRoute['polls_request_check_url'] ?? false),
+            ],
+            'forwards_multipart_fields' => array_values(array_map('strval', $remoteRoute['forwards_multipart_fields'] ?? [])),
+            'multipart_field_values' => is_array($remoteRoute['multipart_field_values'] ?? null)
+                ? $remoteRoute['multipart_field_values']
+                : [],
+            'error_boundary' => is_array($uploadRoutePlan['error_boundary'] ?? null) ? $uploadRoutePlan['error_boundary'] : [],
+            'cleanup' => is_array($uploadRoutePlan['cleanup'] ?? null) ? $uploadRoutePlan['cleanup'] : [],
+            'executes_fastapi' => false,
+            'executes_uvicorn' => false,
+            'executes_live_http' => false,
+            'executes_python_or_models' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private function serverConfigArtifactContext(array $context): array
+    {
+        $normalized = [
+            'phase' => $this->optionalContextString($context['phase'] ?? 'server_config', 'phase') ?? 'server_config',
+            'method' => $this->optionalContextString($context['method'] ?? null, 'method'),
+            'document' => $this->optionalContextString($context['document'] ?? null, 'document'),
+            'benchmark_index' => $this->optionalContextInt($context['benchmark_index'] ?? null, 'benchmark_index'),
+            'markdown_output_folder' => $this->optionalContextString($context['markdown_output_folder'] ?? null, 'markdown_output_folder'),
+            'report_output' => $this->optionalContextString($context['report_output'] ?? null, 'report_output'),
+            'uploaded_filename' => $this->optionalContextString($context['uploaded_filename'] ?? null, 'uploaded_filename'),
+            'server_route' => $this->optionalContextString($context['server_route'] ?? null, 'server_route'),
+            'upload_removed' => array_key_exists('upload_removed', $context) ? (bool) $context['upload_removed'] : null,
+            'request_count' => $this->optionalContextInt($context['request_count'] ?? null, 'request_count'),
+            'server_success' => array_key_exists('server_success', $context) ? (bool) $context['server_success'] : null,
+            'server_response_status' => $this->optionalContextString($context['server_response_status'] ?? null, 'server_response_status'),
+        ];
+
+        foreach ($context as $key => $value) {
+            if (!is_string($key) || array_key_exists($key, $normalized) || $this->isSensitiveContextKey($key)) {
+                continue;
+            }
+            $normalized[$key] = $value;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    private function serverConfigArtifactMessageLine(array $context): string
+    {
+        $method = isset($context['method']) && is_string($context['method']) && $context['method'] !== ''
+            ? $context['method']
+            : 'marker';
+        $document = isset($context['document']) && is_string($context['document']) && $context['document'] !== ''
+            ? $context['document']
+            : 'server runtime';
+
+        return "Marker server config artifact recorded for {$method}/{$document}";
+    }
+
+    private function isSensitiveContextKey(string $key): bool
+    {
+        $normalized = strtolower($key);
+
+        return str_contains($normalized, 'api_key')
+            || str_contains($normalized, 'apikey')
+            || str_contains($normalized, 'secret')
+            || str_contains($normalized, 'token')
+            || str_contains($normalized, 'password');
     }
 
     private function optionalContextString(mixed $value, string $name): ?string

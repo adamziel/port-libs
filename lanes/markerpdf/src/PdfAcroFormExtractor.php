@@ -1054,6 +1054,9 @@ final class PdfAcroFormExtractor
             if (is_array($review['action_bundle'] ?? null)) {
                 $fields[$index]['signature_widget_action_bundle'] = $review['action_bundle'];
             }
+            if (is_array($review['lock_resource_review'] ?? null)) {
+                $fields[$index]['signature_widget_lock_resource_review'] = $review['lock_resource_review'];
+            }
         }
 
         return $fields;
@@ -1604,6 +1607,11 @@ final class PdfAcroFormExtractor
 
         $actionReview = $this->signatureWidgetActionReview($field, $widgets, $fieldActions, $widgetActionRows);
         $actionBundle = $this->signatureWidgetActionBundleReview($field, $widgets, $fieldActions, $widgetActionRows, $actionReview);
+        $lockResourceReview = $this->signatureWidgetLockResourceReview($field, $widgets, $primaryWidget, [
+            ['mode' => 'normal', 'appearance' => $normalAppearance],
+            ['mode' => 'rollover', 'appearance' => $rolloverAppearance],
+            ['mode' => 'down', 'appearance' => $downAppearance],
+        ]);
 
         return [
             'source' => 'acroform_xfa_signature_widget_review_boundary',
@@ -1684,6 +1692,7 @@ final class PdfAcroFormExtractor
             'locked_by_signatures' => $lockState['locked_by_signatures'] ?? [],
             'action_review' => $actionReview,
             'action_bundle' => $actionBundle,
+            'lock_resource_review' => $lockResourceReview,
             'field_action_count' => $actionReview['field_action_count'],
             'widget_action_count' => $actionReview['widget_action_count'],
             'action_count' => $actionReview['action_count'],
@@ -1701,6 +1710,191 @@ final class PdfAcroFormExtractor
             'executes_xfa_javascript' => false,
             'imports_xfa_payload' => false,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
+     * @param list<array{mode: string, appearance: array<string, mixed>|null}> $appearanceReviews
+     * @return array<string, mixed>
+     */
+    private function signatureWidgetLockResourceReview(array $field, array $widgets, ?array $primaryWidget, array $appearanceReviews): array
+    {
+        $signatureState = is_array($field['signature_state'] ?? null) ? $field['signature_state'] : [];
+        $lock = is_array($field['signature_lock'] ?? null) ? $field['signature_lock'] : null;
+        $lockState = is_array($field['signature_lock_state'] ?? null) ? $field['signature_lock_state'] : [];
+        $appearanceRows = $this->signatureWidgetSelectedAppearanceResourceRows($appearanceReviews);
+        $widgetRows = $this->signatureWidgetResourceRows($widgets);
+
+        $fontNames = [];
+        $xobjectNames = [];
+        $xobjectActionTypes = [];
+        $xobjectActionObjects = [];
+        $xobjectActionCount = 0;
+        foreach ($appearanceRows as $row) {
+            foreach ($this->stringListValue($row['resource_font_names'] ?? []) as $name) {
+                $this->appendUniqueString($fontNames, $name);
+            }
+            foreach ($this->stringListValue($row['resource_xobject_names'] ?? []) as $name) {
+                $this->appendUniqueString($xobjectNames, $name);
+            }
+            foreach ($this->stringListValue($row['resource_xobject_action_types'] ?? []) as $type) {
+                $this->appendUniqueString($xobjectActionTypes, $type);
+            }
+            foreach ($this->integerListValue($row['resource_xobject_action_objects'] ?? []) as $objectNumber) {
+                if (!in_array($objectNumber, $xobjectActionObjects, true)) {
+                    $xobjectActionObjects[] = $objectNumber;
+                }
+            }
+            $xobjectActionCount += (int) ($row['resource_xobject_action_count'] ?? 0);
+        }
+
+        return [
+            'source' => 'acroform_signature_widget_lock_resource_currentbase_review_boundary',
+            'field_name' => $field['name'] ?? null,
+            'field_object' => $field['object'] ?? null,
+            'field_type' => $field['field_type'] ?? null,
+            'signed' => (bool) ($signatureState['signed'] ?? false),
+            'signature_object' => $signatureState['signature_object'] ?? null,
+            'signature_byte_range_segment_count' => (int) ($signatureState['byte_range_segment_count'] ?? 0),
+            'lock_present' => $lock !== null,
+            'lock_object' => $lock['object'] ?? null,
+            'lock_action' => $lock['action'] ?? null,
+            'lock_action_label' => $lock['action_label'] ?? null,
+            'lock_action_valid' => (bool) ($lock['action_valid'] ?? false),
+            'lock_field_names' => is_array($lock['field_names'] ?? null) ? $lock['field_names'] : [],
+            'lock_field_count' => is_array($lock['field_names'] ?? null) ? count($lock['field_names']) : 0,
+            'lock_permission_level' => $lock['permission_level'] ?? null,
+            'lock_permission_label' => $lock['permission_label'] ?? null,
+            'lock_allowed_changes' => is_array($lock['allowed_changes'] ?? null) ? $lock['allowed_changes'] : [],
+            'lock_applies_after_signing' => (bool) ($signatureState['signed'] ?? false) && $lock !== null && ($lock['action_valid'] ?? false) === true,
+            'field_locked_by_signed_signature' => (bool) ($lockState['effective_locked'] ?? false),
+            'locked_by_signatures' => $lockState['locked_by_signatures'] ?? [],
+            'widget_count' => count($widgets),
+            'page_referenced_widget_count' => count(array_filter(
+                $widgets,
+                static fn (array $widget): bool => ($widget['referenced_from_page_annots'] ?? false) === true
+            )),
+            'primary_widget_object' => is_array($primaryWidget) ? ($primaryWidget['object'] ?? null) : null,
+            'primary_widget_page_object' => is_array($primaryWidget) ? ($primaryWidget['page_object'] ?? null) : null,
+            'primary_widget_page_index' => is_array($primaryWidget) ? ($primaryWidget['page_index'] ?? null) : null,
+            'primary_widget_page_annotation_index' => is_array($primaryWidget) ? ($primaryWidget['page_annotation_index'] ?? null) : null,
+            'primary_widget_appearance_state' => is_array($primaryWidget) ? ($primaryWidget['appearance_state'] ?? null) : null,
+            'widget_resource_rows' => $widgetRows,
+            'selected_appearance_resource_rows' => $appearanceRows,
+            'selected_appearance_modes' => $this->stringListValue(array_map(
+                static fn (array $row): mixed => $row['appearance_mode'] ?? null,
+                $appearanceRows
+            )),
+            'selected_appearance_objects' => $this->integerValuesFromRows($appearanceRows, 'appearance_object'),
+            'appearance_resource_objects' => $this->integerValuesFromRows($appearanceRows, 'resource_object'),
+            'appearance_resource_font_names' => $fontNames,
+            'appearance_resource_xobject_names' => $xobjectNames,
+            'appearance_resource_xobject_action_count' => $xobjectActionCount,
+            'appearance_resource_xobject_action_types' => $xobjectActionTypes,
+            'appearance_resource_xobject_action_objects' => $xobjectActionObjects,
+            'signature_locks_enforced_on_import' => false,
+            'appearance_resources_used_for_import' => false,
+            'appearance_resource_payload_text_exposed' => false,
+            'field_value_used_for_import' => false,
+            'review_only' => true,
+            'executes_action' => false,
+            'executes_javascript' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+            'executes_signature_validation' => false,
+            'executes_signing' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param list<array{mode: string, appearance: array<string, mixed>|null}> $appearanceReviews
+     * @return list<array<string, mixed>>
+     */
+    private function signatureWidgetSelectedAppearanceResourceRows(array $appearanceReviews): array
+    {
+        $rows = [];
+        foreach ($appearanceReviews as $entry) {
+            $appearance = is_array($entry['appearance'] ?? null) ? $entry['appearance'] : null;
+            $selected = is_array($appearance['selected_appearance'] ?? null) ? $appearance['selected_appearance'] : null;
+            if ($appearance === null || $selected === null) {
+                continue;
+            }
+
+            $rows[] = [
+                'source' => 'acroform_signature_widget_selected_appearance_resource_currentbase',
+                'appearance_mode' => $entry['mode'],
+                'appearance_dictionary_object' => $appearance['appearance_dictionary_object'] ?? null,
+                'appearance_dictionary_object_for_mode' => $appearance['appearance_dictionary_object_for_mode'] ?? null,
+                'appearance_key' => $appearance['appearance_key'] ?? null,
+                'appearance_type' => $appearance['normal_appearance_type'] ?? ($appearance['appearance_type'] ?? null),
+                'appearance_state' => $appearance['appearance_state'] ?? null,
+                'selected_state' => $appearance['selected_state'] ?? null,
+                'appearance_object' => $selected['object'] ?? null,
+                'appearance_source' => $selected['source'] ?? null,
+                'bbox' => $selected['bbox'] ?? null,
+                'matrix' => $selected['matrix'] ?? null,
+                'filters' => $selected['filters'] ?? [],
+                'decoded_stream_available' => (bool) ($selected['decoded_stream_available'] ?? false),
+                'decoded_length_bytes' => $selected['decoded_length_bytes'] ?? null,
+                'decoded_sha256' => $selected['decoded_sha256'] ?? null,
+                'resource_object' => $selected['resource_object'] ?? null,
+                'resource_font_names' => $selected['resource_font_names'] ?? [],
+                'resource_xobject_names' => $selected['resource_xobject_names'] ?? [],
+                'resource_xobject_reviews' => $selected['resource_xobject_reviews'] ?? [],
+                'resource_xobject_action_count' => (int) ($selected['resource_xobject_action_count'] ?? 0),
+                'resource_xobject_action_types' => $selected['resource_xobject_action_types'] ?? [],
+                'resource_xobject_action_objects' => $selected['resource_xobject_action_objects'] ?? [],
+                'resource_xobject_payload_text_exposed' => false,
+                'appearance_value_used_for_import' => false,
+                'payload_text_exposed' => false,
+                'executes_action' => false,
+                'executes_javascript' => false,
+                'executes_appearance_streams' => false,
+                'renders_appearances' => false,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
+     * @return list<array<string, mixed>>
+     */
+    private function signatureWidgetResourceRows(array $widgets): array
+    {
+        $rows = [];
+        foreach ($widgets as $widget) {
+            $appearance = is_array($widget['normal_appearance'] ?? null) ? $widget['normal_appearance'] : null;
+            $selected = is_array($appearance['selected_appearance'] ?? null) ? $appearance['selected_appearance'] : null;
+            $rows[] = [
+                'source' => 'acroform_signature_widget_resource_currentbase',
+                'widget_object' => $widget['object'] ?? null,
+                'referenced_from_page_annots' => (bool) ($widget['referenced_from_page_annots'] ?? false),
+                'page_object' => $widget['page_object'] ?? null,
+                'page_index' => $widget['page_index'] ?? null,
+                'page_annotation_index' => $widget['page_annotation_index'] ?? null,
+                'appearance_state' => $widget['appearance_state'] ?? null,
+                'appearance_states' => $widget['appearance_states'] ?? [],
+                'selected_appearance_object' => is_array($selected) ? ($selected['object'] ?? null) : null,
+                'resource_object' => is_array($selected) ? ($selected['resource_object'] ?? null) : null,
+                'resource_font_names' => is_array($selected) ? ($selected['resource_font_names'] ?? []) : [],
+                'resource_xobject_names' => is_array($selected) ? ($selected['resource_xobject_names'] ?? []) : [],
+                'resource_xobject_action_count' => is_array($selected) ? (int) ($selected['resource_xobject_action_count'] ?? 0) : 0,
+                'resource_xobject_action_types' => is_array($selected) ? ($selected['resource_xobject_action_types'] ?? []) : [],
+                'resource_xobject_action_objects' => is_array($selected) ? ($selected['resource_xobject_action_objects'] ?? []) : [],
+                'appearance_value_used_for_import' => false,
+                'payload_text_exposed' => false,
+                'executes_action' => false,
+                'executes_javascript' => false,
+                'executes_appearance_streams' => false,
+                'renders_appearances' => false,
+            ];
+        }
+
+        return $rows;
     }
 
     /**

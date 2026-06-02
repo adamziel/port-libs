@@ -19,11 +19,20 @@ final class PdfSecurityPreflight
         $form = (new PdfAcroFormExtractor())->extractForm($pdfBytes);
         $documentSecurityStore = (new PdfDocumentSecurityStoreExtractor())->extract($pdfBytes);
         $encryption = is_array($metadata['encryption'] ?? null) ? $metadata['encryption'] : null;
+        $encrypted = $encryption !== null;
         $signatures = $this->signatureReviews($form['fields'] ?? [], $pdfBytes, $documentSecurityStore);
         $objectSpans = $this->pdfObjectByteSpans($pdfBytes);
         $signatureByteRangeRevisionReview = $this->signatureByteRangeRevisionReview($signatures);
         $documentSecurityStoreSignatureReview = $this->documentSecurityStoreSignatureReview($documentSecurityStore, $signatures, $objectSpans);
         $documentSecurityStoreSignatureReferenceTransformReview = $this->documentSecurityStoreSignatureReferenceTransformReview($documentSecurityStoreSignatureReview);
+        $permissionPreflight = $this->permissionPreflight($encrypted, $encryption);
+        $publicKeyDssPermissionBoundaryReview = $this->publicKeyDssPermissionBoundaryReview(
+            $permissionPreflight,
+            $documentSecurityStore,
+            $documentSecurityStoreSignatureReview,
+            $documentSecurityStoreSignatureReferenceTransformReview,
+            $signatures
+        );
         $documentActionReview = $this->documentActionSecurityReview(
             $pdfBytes,
             $signatures,
@@ -31,7 +40,6 @@ final class PdfSecurityPreflight
             $documentSecurityStore,
             $documentSecurityStoreSignatureReview
         );
-        $encrypted = $encryption !== null;
         $hasDocumentSecurityStore = ($documentSecurityStore['present'] ?? false) === true;
         $signedSignatureCount = count(array_filter(
             $signatures,
@@ -44,7 +52,6 @@ final class PdfSecurityPreflight
         ));
         $referenceTransformCount = $this->referenceTransformCount($signatures);
         $lockedFieldNames = $this->lockedFieldNames($form['fields'] ?? []);
-        $permissionPreflight = $this->permissionPreflight($encrypted, $encryption);
         $signatureByteRangeCount = $this->signatureByteRangeCount($signatures);
         $validSignatureByteRangeCount = $this->validSignatureByteRangeCount($signatures);
         $encryptedSignatureByteRangeReview = $this->encryptedSignatureByteRangeReview($encrypted, $permissionPreflight, $signatures);
@@ -108,6 +115,8 @@ final class PdfSecurityPreflight
             'document_security_store_signature_reference_transform_review' => $documentSecurityStoreSignatureReferenceTransformReview,
             'document_security_store_signature_reference_transform_count' => (int) $documentSecurityStoreSignatureReferenceTransformReview['signature_reference_transform_count'],
             'document_security_store_signature_reference_transform_methods' => $documentSecurityStoreSignatureReferenceTransformReview['signature_reference_transform_methods'],
+            'public_key_dss_permission_boundary_review' => $publicKeyDssPermissionBoundaryReview,
+            'public_key_dss_permission_boundary_review_count' => ($publicKeyDssPermissionBoundaryReview['present'] ?? false) === true ? 1 : 0,
             'document_security_store_vri_revision_review_count' => (int) $documentSecurityStoreSignatureReview['vri_revision_review_count'],
             'document_security_store_vri_after_signed_revision_count' => (int) $documentSecurityStoreSignatureReview['vri_after_signed_revision_count'],
             'document_security_store_vri_revision_statuses' => $documentSecurityStoreSignatureReview['vri_revision_statuses'],
@@ -586,6 +595,103 @@ final class PdfSecurityPreflight
         $base['rows'] = $rows;
 
         return $base;
+    }
+
+    /**
+     * @param array<string, mixed> $permissionPreflight
+     * @param array<string, mixed> $documentSecurityStore
+     * @param array<string, mixed> $documentSecurityStoreSignatureReview
+     * @param array<string, mixed> $documentSecurityStoreSignatureReferenceTransformReview
+     * @param list<array<string, mixed>> $signatures
+     * @return array<string, mixed>
+     */
+    private function publicKeyDssPermissionBoundaryReview(
+        array $permissionPreflight,
+        array $documentSecurityStore,
+        array $documentSecurityStoreSignatureReview,
+        array $documentSecurityStoreSignatureReferenceTransformReview,
+        array $signatures
+    ): array {
+        $recipientReview = is_array($permissionPreflight['public_key_recipient_review'] ?? null)
+            ? $permissionPreflight['public_key_recipient_review']
+            : [];
+        $selection = is_array($recipientReview['crypt_filter_selection'] ?? null)
+            ? $recipientReview['crypt_filter_selection']
+            : [];
+        $signaturePermissionTransformReview = $this->signaturePermissionTransformReview($signatures);
+        $selectedRecipientCount = (int) ($recipientReview['selected_recipient_count'] ?? 0);
+        $dssPresent = ($documentSecurityStore['present'] ?? false) === true;
+        $signatureTransformCount = (int) ($signaturePermissionTransformReview['transform_count'] ?? 0);
+        $dssReferenceTransformCount = (int) ($documentSecurityStoreSignatureReferenceTransformReview['signature_reference_transform_count'] ?? 0);
+        $present = $selectedRecipientCount > 0 && ($dssPresent || $signatureTransformCount > 0 || $dssReferenceTransformCount > 0);
+
+        return [
+            'source' => 'public_key_dss_permission_boundary_review',
+            'present' => $present,
+            'encrypted' => ($permissionPreflight['encrypted'] ?? false) === true,
+            'permission_policy' => is_string($permissionPreflight['policy'] ?? null) ? $permissionPreflight['policy'] : null,
+            'content_extraction_boundary' => is_string($permissionPreflight['content_extraction_boundary'] ?? null)
+                ? $permissionPreflight['content_extraction_boundary']
+                : null,
+            'boundary_decision' => $present
+                ? 'blocked_public_key_dss_permission_review_only'
+                : 'public_key_dss_permission_boundary_not_applicable',
+            'native_text_extraction_allowed_now' => $present
+                ? false
+                : (($permissionPreflight['native_text_extraction_allowed_now'] ?? false) === true),
+            'requires_private_key_for_permission_review' => ($recipientReview['requires_private_key_for_permission_review'] ?? false) === true,
+            'recipient_permissions_decoded' => ($recipientReview['permissions_decoded'] ?? false) === true,
+            'recipient_permission_decode_status' => is_string($recipientReview['permission_decode_status'] ?? null)
+                ? $recipientReview['permission_decode_status']
+                : null,
+            'recipient_source_policy' => is_string($recipientReview['recipient_source_policy'] ?? null)
+                ? $recipientReview['recipient_source_policy']
+                : null,
+            'selected_recipient_source_policy' => is_string($recipientReview['selected_recipient_source_policy'] ?? null)
+                ? $recipientReview['selected_recipient_source_policy']
+                : null,
+            'recipient_count' => (int) ($recipientReview['recipient_count'] ?? 0),
+            'selected_recipient_count' => $selectedRecipientCount,
+            'unselected_recipient_count' => max(0, (int) ($recipientReview['recipient_count'] ?? 0) - $selectedRecipientCount),
+            'top_level_recipient_count' => (int) ($recipientReview['top_level_recipient_count'] ?? 0),
+            'top_level_recipients_selected' => ($recipientReview['top_level_recipients_selected'] ?? false) === true,
+            'crypt_filter_recipient_filter_names' => $this->stringList($recipientReview['crypt_filter_recipient_filter_names'] ?? []),
+            'selected_crypt_filter_recipient_filter_names' => $this->stringList($recipientReview['selected_crypt_filter_recipient_filter_names'] ?? []),
+            'unselected_crypt_filter_recipient_filter_names' => $this->stringList($recipientReview['unselected_crypt_filter_recipient_filter_names'] ?? []),
+            'declared_content_filters' => is_array($selection['declared_content_filters'] ?? null)
+                ? $selection['declared_content_filters']
+                : [],
+            'selected_recipient_sha256' => $this->stringList($recipientReview['selected_recipient_sha256'] ?? []),
+            'selected_recipient_bytes' => (int) ($recipientReview['selected_recipient_bytes'] ?? 0),
+            'document_security_store_present' => $dssPresent,
+            'document_security_store_validation_stream_count' => (int) ($documentSecurityStore['total_validation_stream_count'] ?? 0),
+            'document_security_store_vri_count' => (int) ($documentSecurityStore['vri_count'] ?? 0),
+            'document_security_store_signature_match_count' => (int) ($documentSecurityStoreSignatureReview['signature_vri_match_count'] ?? 0),
+            'document_security_store_unmatched_vri_count' => (int) ($documentSecurityStoreSignatureReview['unmatched_vri_count'] ?? 0),
+            'document_security_store_signature_reference_transform_count' => $dssReferenceTransformCount,
+            'document_security_store_signature_reference_transform_methods' => $this->stringList(
+                $documentSecurityStoreSignatureReferenceTransformReview['signature_reference_transform_methods'] ?? []
+            ),
+            'signature_permission_transform_count' => $signatureTransformCount,
+            'signature_permission_transform_methods' => $this->stringList($signaturePermissionTransformReview['methods'] ?? []),
+            'field_mdp_field_names' => $this->stringList($signaturePermissionTransformReview['field_mdp_field_names'] ?? []),
+            'usage_right_categories' => $this->stringList($signaturePermissionTransformReview['usage_right_categories'] ?? []),
+            'public_key_permissions_do_not_authorize_import_without_private_key' => $selectedRecipientCount > 0,
+            'dss_validation_material_does_not_authorize_decryption' => $dssPresent,
+            'signature_permissions_do_not_grant_text_import' => $signatureTransformCount > 0 || $dssReferenceTransformCount > 0,
+            'review_only' => true,
+            'recipient_bytes_exposed' => false,
+            'raw_signature_contents_exposed' => false,
+            'raw_validation_bytes_exposed' => false,
+            'executes_cms_parse' => false,
+            'executes_decryption' => false,
+            'executes_permission_enforcement' => false,
+            'executes_rights_enforcement' => false,
+            'executes_signature_validation' => false,
+            'executes_revocation_check' => false,
+            'executes_trust_chain_validation' => false,
+            'executes_external_pdf_tools' => false,
+        ];
     }
 
     /**

@@ -4674,8 +4674,13 @@ final class PdfMetadataExtractor
             }
 
             $attachmentPdfa = $entry['attachment_pdfa_output_intents']['output_condition_identifiers'] ?? null;
-            if (is_array($attachmentPdfa)) {
-                foreach ($attachmentPdfa as $identifier) {
+            $pieceInfoPdfa = $entry['piece_info_pdfa_output_intents']['output_condition_identifiers'] ?? null;
+            foreach ([$attachmentPdfa, $pieceInfoPdfa] as $identifiers) {
+                if (!is_array($identifiers)) {
+                    continue;
+                }
+
+                foreach ($identifiers as $identifier) {
                     if (is_string($identifier) && $identifier !== '') {
                         $attachmentPdfaIdentifiers[] = $identifier;
                     }
@@ -4781,6 +4786,8 @@ final class PdfMetadataExtractor
         foreach ([
             'xmp_metadata' => 'xmp_metadata',
             'piece_info_xmp_metadata' => 'piece_info_xmp_metadata',
+            'piece_info_private_streams' => 'piece_info_private_streams',
+            'piece_info_pdfa_output_intents' => 'piece_info_pdfa_output_intents',
             'pdfa_output_intents' => 'attachment_pdfa_output_intents',
             'related_files' => 'related_files',
         ] as $sourceKey => $targetKey) {
@@ -6933,6 +6940,15 @@ final class PdfMetadataExtractor
             $sources[] = 'filespec_pieceinfo_private_streams';
         }
 
+        $pieceInfoOutputIntents = $this->associatedFilePieceInfoOutputIntentProvenance(
+            $this->dictionaryTopLevelRawValue($fileSpecBody, 'PieceInfo'),
+            $objects
+        );
+        if ($pieceInfoOutputIntents !== []) {
+            $metadata['piece_info_pdfa_output_intents'] = $pieceInfoOutputIntents;
+            $sources[] = 'filespec_pieceinfo_output_intents';
+        }
+
         $outputIntents = $this->associatedFileOutputIntentProvenance(
             $this->dictionaryTopLevelRawValue($fileSpecBody, 'OutputIntents'),
             $objects
@@ -7226,6 +7242,97 @@ final class PdfMetadataExtractor
                 $rows
             )),
             'streams' => $rows,
+        ];
+    }
+
+    /**
+     * FileSpec /PieceInfo private dictionaries may carry attachment-local
+     * OutputIntents. Summarize those beside the associated file instead of
+     * promoting them to document-root PDF/A metadata.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function associatedFilePieceInfoOutputIntentProvenance(?string $pieceInfoValue, array $objects): array
+    {
+        $pieceInfo = $this->resolveDictionaryFromValue($pieceInfoValue, $objects);
+        if ($pieceInfo === null) {
+            return [];
+        }
+
+        $rows = [];
+        $outputIntentCount = 0;
+        $hasPdfaOutputIntent = false;
+        $identifiers = [];
+        $profileHashes = [];
+        foreach ($this->dictionaryTopLevelEntries($pieceInfo['body']) as $application => $pieceValue) {
+            $piece = $this->resolveDictionaryFromValue($pieceValue, $objects);
+            if ($piece === null) {
+                continue;
+            }
+
+            $private = $this->resolveDictionaryFromValue(
+                $this->dictionaryTopLevelRawValue($piece['body'], 'Private'),
+                $objects
+            );
+            if ($private === null) {
+                continue;
+            }
+
+            $outputIntents = $this->associatedFileOutputIntentProvenance(
+                $this->dictionaryTopLevelRawValue($private['body'], 'OutputIntents'),
+                $objects
+            );
+            if ($outputIntents === []) {
+                continue;
+            }
+
+            $row = [
+                'application' => $application,
+                'output_intents' => $outputIntents,
+            ];
+
+            $lastModified = $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($piece['body'], 'LastModified'), $objects);
+            if ($lastModified !== null) {
+                $row['last_modified'] = $lastModified;
+            }
+
+            $rows[] = $row;
+            $outputIntentCount += is_int($outputIntents['count'] ?? null) ? $outputIntents['count'] : 0;
+            if (($outputIntents['has_pdfa_output_intent'] ?? false) === true) {
+                $hasPdfaOutputIntent = true;
+            }
+
+            foreach ($outputIntents['output_condition_identifiers'] ?? [] as $identifier) {
+                if (is_string($identifier) && $identifier !== '') {
+                    $identifiers[] = $identifier;
+                }
+            }
+            foreach ($outputIntents['profile_sha256'] ?? [] as $hash) {
+                if (is_string($hash) && $hash !== '') {
+                    $profileHashes[] = $hash;
+                }
+            }
+        }
+
+        if ($rows === []) {
+            return [];
+        }
+
+        return [
+            'source' => 'filespec_pieceinfo_output_intents',
+            'review_only' => true,
+            'payload_included' => false,
+            'count' => count($rows),
+            'output_intent_count' => $outputIntentCount,
+            'has_pdfa_output_intent' => $hasPdfaOutputIntent,
+            'output_condition_identifiers' => $this->uniqueStrings($identifiers),
+            'profile_sha256' => $this->uniqueStrings($profileHashes),
+            'applications' => $this->uniqueStrings(array_map(
+                static fn (array $row): string => (string) $row['application'],
+                $rows
+            )),
+            'entries' => $rows,
         ];
     }
 
