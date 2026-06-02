@@ -156,6 +156,38 @@ return [
         $t->same(['width' => 680.0, 'height' => 320.0], $secondPlan['physical_page_size']);
         $t->same(['width' => 680, 'height' => 320], $secondPlan['rendered_image_size']);
     },
+    'resolves indirect numeric page box operands before rotated UserUnit preview sizing' => static function (TestRunner $t): void {
+        $pdf = "%PDF-1.6\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 400 600] /Rotate 8 0 R /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /CropBox [4 0 R 5 0 R 6 0 R 7 0 R] /TrimBox [10 0 R 11 0 R 12 0 R 13 0 R] /UserUnit 9 0 R >>\nendobj\n"
+            . "4 0 obj\n25\nendobj\n"
+            . "5 0 obj\n35\nendobj\n"
+            . "6 0 obj\n325\nendobj\n"
+            . "7 0 obj\n435\nendobj\n"
+            . "8 0 obj\n-90\nendobj\n"
+            . "9 0 obj\n1.5\nendobj\n"
+            . "10 0 obj\n30\nendobj\n"
+            . "11 0 obj\n45\nendobj\n"
+            . "12 0 obj\n315\nendobj\n"
+            . "13 0 obj\n425\nendobj\n"
+            . "%%EOF\n";
+
+        $preview = new MarkerAppPreview();
+        $summary = $preview->openPdfSummary($pdf);
+        $page = $summary['pages'][0];
+        $plan = $preview->getPageImagePlan($pdf, 1, 72.0);
+
+        $t->same([25.0, 35.0, 325.0, 435.0], $page['crop_box']);
+        $t->same([25.0, 35.0, 325.0, 435.0], $page['bbox']);
+        $t->same([30.0, 45.0, 315.0, 425.0], $page['trim_box']);
+        $t->same(270, $page['rotation']);
+        $t->same('pages', $page['rotation_source']);
+        $t->same(1.5, $page['user_unit']);
+        $t->same(['width' => 400.0, 'height' => 300.0], $plan['display_page_size']);
+        $t->same(['width' => 600.0, 'height' => 450.0], $plan['physical_page_size']);
+        $t->same(['width' => 600, 'height' => 450], $plan['rendered_image_size']);
+    },
     'plans marker app get_page_image pypdfium page index scale annotations and rgb output' => static function (TestRunner $t) use ($pdfWithPagesTree): void {
         $plan = (new MarkerAppPreview())->getPageImagePlan($pdfWithPagesTree(), 2, 144.0);
 

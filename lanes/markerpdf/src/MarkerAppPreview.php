@@ -391,7 +391,7 @@ final class MarkerAppPreview
     private function boxValue(string $body, string $name, array $objects): ?array
     {
         if (preg_match('/\/' . preg_quote($name, '/') . '\s*\[([^\]]+)\]/s', $body, $match) === 1) {
-            return $this->boxFromNumbers($match[1]);
+            return $this->boxFromNumbers($match[1], $objects);
         }
 
         $objectId = $this->reference($body, $name);
@@ -401,25 +401,43 @@ final class MarkerAppPreview
 
         $objectBody = trim($objects[$objectId]['body']);
         if (preg_match('/^\[([^\]]+)\]$/s', $objectBody, $match) === 1) {
-            return $this->boxFromNumbers($match[1]);
+            return $this->boxFromNumbers($match[1], $objects);
         }
 
         return null;
     }
 
     /**
+     * @param array<int, array{generation: int, body: string}> $objects
      * @return list<float>|null
      */
-    private function boxFromNumbers(string $body): ?array
+    private function boxFromNumbers(string $body, array $objects): ?array
     {
-        if (!preg_match_all('/[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?/', $body, $numbers)) {
-            return null;
-        }
-        if (count($numbers[0]) < 4) {
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+R\b|[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?/', $body, $matches, PREG_SET_ORDER)) {
             return null;
         }
 
-        $box = array_map(static fn (string $value): float => (float) $value, array_slice($numbers[0], 0, 4));
+        $box = [];
+        foreach ($matches as $match) {
+            if (($match[1] ?? '') !== '') {
+                $value = $this->numericObjectValue((int) $match[1], $objects);
+                if ($value === null) {
+                    return null;
+                }
+
+                $box[] = $value;
+            } else {
+                $box[] = (float) $match[0];
+            }
+
+            if (count($box) === 4) {
+                break;
+            }
+        }
+
+        if (count($box) < 4) {
+            return null;
+        }
 
         return [
             min($box[0], $box[2]),
@@ -427,6 +445,29 @@ final class MarkerAppPreview
             max($box[0], $box[2]),
             max($box[1], $box[3]),
         ];
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<int, true> $seen
+     */
+    private function numericObjectValue(int $objectId, array $objects, array $seen = []): ?float
+    {
+        if (isset($seen[$objectId]) || !isset($objects[$objectId])) {
+            return null;
+        }
+
+        $seen[$objectId] = true;
+        $body = trim($objects[$objectId]['body']);
+        if (preg_match('/^[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?$/', $body) === 1) {
+            return (float) $body;
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R$/', $body, $match) === 1) {
+            return $this->numericObjectValue((int) $match[1], $objects, $seen);
+        }
+
+        return null;
     }
 
     /**
