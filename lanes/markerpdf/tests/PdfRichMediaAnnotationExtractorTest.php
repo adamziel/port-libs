@@ -32,6 +32,29 @@ $richMediaAnnotationPdf = static function (): string {
         . "%%EOF";
 };
 
+$soundMovieAnnotationPdf = static function (): string {
+    $pageContent = 'BT /F1 12 Tf 72 720 Td (Article Body) Tj ET';
+    $movieAppearance = 'BT /F1 12 Tf 0 0 Td (Movie Poster Noise) Tj ET';
+    $soundAppearance = 'BT /F1 12 Tf 0 0 Td (Sound Icon Noise) Tj ET';
+    $soundBytes = "RIFF fake bytes with (Leaked Sound Text) Tj ET";
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 15 0 R >> >> /Annots [5 0 R 6 0 R] /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Annot /Subtype /Movie /Rect [72 540 320 700] /T (Training clip) /Contents (Movie must be reviewed) /Movie 9 0 R /A 10 0 R /AP << /N 11 0 R >> >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Annot /Subtype /Sound /Rect [72 500 180 535] /T (Narration note) /Contents (Audio note) /Name /Speaker /Sound 12 0 R /AP << /N 13 0 R >> >>\nendobj\n"
+        . "9 0 obj\n<< /F 14 0 R /T (Intro movie title) /Aspect [640 360] /Rotate 90 /Poster true >>\nendobj\n"
+        . "10 0 obj\n<< /Start 1.5 /Duration 12 /Rate 1.25 /Volume .75 /ShowControls true /Mode /Once /Synchronous false /FWScale [1 1] /FWPosition [0.5 0.5] >>\nendobj\n"
+        . "11 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 15 0 R >> >> /Length " . strlen($movieAppearance) . " >>\nstream\n{$movieAppearance}\nendstream\nendobj\n"
+        . "12 0 obj\n<< /R 44100 /C 2 /B 16 /E /Signed /CO /FlateDecode /Length " . strlen($soundBytes) . " >>\nstream\n{$soundBytes}\nendstream\nendobj\n"
+        . "13 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 15 0 R >> >> /Length " . strlen($soundAppearance) . " >>\nstream\n{$soundAppearance}\nendstream\nendobj\n"
+        . "14 0 obj\n<< /Type /Filespec /F (training.mov) >>\nendobj\n"
+        . "15 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts screen and rich media annotations as review-only metadata' => static function (TestRunner $t) use ($richMediaAnnotationPdf): void {
         $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($richMediaAnnotationPdf());
@@ -93,5 +116,63 @@ return [
         $t->same(1, count($linked[0]['links']));
         $t->same('https://example.com/docs', $linked[0]['links'][0]['uri']);
         $t->same('https://example.com/docs', $linked[0]['blocks'][0]['lines'][0]['spans'][0]['link_uri']);
+    },
+    'extracts sound and movie annotations as review-only media dictionaries' => static function (TestRunner $t) use ($soundMovieAnnotationPdf): void {
+        $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($soundMovieAnnotationPdf());
+
+        $t->same(1, count($pages));
+        $t->same(0, $pages[0]['pnum']);
+        $t->same(3, $pages[0]['page_object']);
+        $t->same(['Movie', 'Sound'], array_column($pages[0]['annotations'], 'subtype'));
+
+        $movie = $pages[0]['annotations'][0];
+        $t->same(5, $movie['annotation_object']);
+        $t->same([72.0, 540.0, 320.0, 700.0], $movie['rect']);
+        $t->same('Training clip', $movie['title']);
+        $t->same('Movie must be reviewed', $movie['contents']);
+        $t->same([], $movie['action_types']);
+        $t->same(['training.mov'], $movie['file_names']);
+        $t->same(9, $movie['movie']['dictionary_object']);
+        $t->same('Intro movie title', $movie['movie']['title']);
+        $t->same(['training.mov'], $movie['movie']['file_names']);
+        $t->same([640.0, 360.0], $movie['movie']['aspect']);
+        $t->same(90, $movie['movie']['rotation']);
+        $t->same(true, $movie['movie']['poster']);
+        $t->same(10, $movie['movie']['activation']['dictionary_object']);
+        $t->same(1.5, $movie['movie']['activation']['start']);
+        $t->same(12.0, $movie['movie']['activation']['duration']);
+        $t->same(1.25, $movie['movie']['activation']['rate']);
+        $t->same(0.75, $movie['movie']['activation']['volume']);
+        $t->same(true, $movie['movie']['activation']['show_controls']);
+        $t->same('Once', $movie['movie']['activation']['mode']);
+        $t->same(false, $movie['movie']['activation']['synchronous']);
+        $t->same([1.0, 1.0], $movie['movie']['activation']['window_scale']);
+        $t->same([0.5, 0.5], $movie['movie']['activation']['window_position']);
+        $t->same(null, $movie['sound']);
+        $t->same(false, $movie['executes_media']);
+
+        $sound = $pages[0]['annotations'][1];
+        $t->same(6, $sound['annotation_object']);
+        $t->same([72.0, 500.0, 180.0, 535.0], $sound['rect']);
+        $t->same('Narration note', $sound['title']);
+        $t->same('Audio note', $sound['contents']);
+        $t->same([], $sound['file_names']);
+        $t->same(null, $sound['movie']);
+        $t->same(12, $sound['sound']['stream_object']);
+        $t->same('Speaker', $sound['sound']['icon_name']);
+        $t->same(44100.0, $sound['sound']['sample_rate']);
+        $t->same(2, $sound['sound']['channels']);
+        $t->same(16, $sound['sound']['bits_per_sample']);
+        $t->same('Signed', $sound['sound']['encoding']);
+        $t->same('FlateDecode', $sound['sound']['compression']);
+        $t->same(strlen("RIFF fake bytes with (Leaked Sound Text) Tj ET"), $sound['sound']['payload_length']);
+        $t->same(false, $sound['executes_media']);
+        $t->same(false, $sound['executes_javascript']);
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($soundMovieAnnotationPdf());
+        $t->same(['Article Body'], (new PdfTextExtractor())->extractTextLines($soundMovieAnnotationPdf()));
+        $t->true(!str_contains($plainText, 'Movie Poster Noise'));
+        $t->true(!str_contains($plainText, 'Sound Icon Noise'));
+        $t->true(!str_contains($plainText, 'Leaked Sound Text'));
     },
 ];

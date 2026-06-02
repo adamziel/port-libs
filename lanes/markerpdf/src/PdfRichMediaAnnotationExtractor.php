@@ -175,11 +175,126 @@ final class PdfRichMediaAnnotationExtractor
             'action_uris' => $actionUris,
             'asset_names' => $assetNames,
             'file_names' => $fileNames,
+            'movie' => $this->movieDetailsFromAnnotation($annotationBody, $objects),
+            'sound' => $this->soundDetailsFromAnnotation($annotationBody, $objects),
             'has_appearance' => $this->valueAfterName($annotationBody, 'AP') !== null,
             'has_rich_media_content' => $this->valueAfterName($annotationBody, 'RichMediaContent') !== null,
             'requires_review' => true,
             'executes_media' => false,
             'executes_javascript' => false,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function movieDetailsFromAnnotation(string $annotationBody, array $objects): ?array
+    {
+        $movieValue = $this->valueAfterNameSkippingPreviousKeys($annotationBody, 'Movie', ['Subtype']);
+        if ($movieValue === null) {
+            return null;
+        }
+
+        $movie = $this->resolvedDictionaryFromValue($movieValue, $objects);
+        if ($movie === null) {
+            return null;
+        }
+
+        $movieBodies = $this->dedupeStrings(array_merge(
+            [$movie['body']],
+            $this->referencedDictionaryBodies($movie['body'], $objects, 2)
+        ));
+
+        return [
+            'dictionary_object' => $movie['object'],
+            'title' => $this->stringAfterName($movie['body'], 'T'),
+            'file_names' => $this->fileNamesFromBodies($movieBodies),
+            'aspect' => $this->numberArrayValueAfterName($movie['body'], 'Aspect', $objects),
+            'rotation' => $this->intValueAfterName($movie['body'], 'Rotate', $objects),
+            'poster' => $this->moviePosterValue($movie['body'], $objects),
+            'activation' => $this->movieActivationFromAnnotation($annotationBody, $objects),
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function movieActivationFromAnnotation(string $annotationBody, array $objects): ?array
+    {
+        $activationValue = $this->valueAfterName($annotationBody, 'A');
+        if ($activationValue === null) {
+            return null;
+        }
+
+        $activation = $this->resolvedDictionaryFromValue($activationValue, $objects);
+        if ($activation === null) {
+            return null;
+        }
+
+        return [
+            'dictionary_object' => $activation['object'],
+            'start' => $this->numberValueAfterName($activation['body'], 'Start', $objects),
+            'duration' => $this->numberValueAfterName($activation['body'], 'Duration', $objects),
+            'rate' => $this->numberValueAfterName($activation['body'], 'Rate', $objects),
+            'volume' => $this->numberValueAfterName($activation['body'], 'Volume', $objects),
+            'show_controls' => $this->boolValueAfterName($activation['body'], 'ShowControls', $objects),
+            'mode' => $this->nameValueAfterName($activation['body'], 'Mode'),
+            'synchronous' => $this->boolValueAfterName($activation['body'], 'Synchronous', $objects),
+            'window_scale' => $this->numberArrayValueAfterName($activation['body'], 'FWScale', $objects),
+            'window_position' => $this->numberArrayValueAfterName($activation['body'], 'FWPosition', $objects),
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return bool|string|null
+     */
+    private function moviePosterValue(string $movieBody, array $objects): bool|string|null
+    {
+        $poster = $this->valueAfterName($movieBody, 'Poster');
+        if ($poster === null) {
+            return null;
+        }
+
+        $bool = $this->boolFromPdfValue($poster, $objects);
+        if ($bool !== null) {
+            return $bool;
+        }
+
+        if ($this->resolvedDictionaryFromValue($poster, $objects) !== null) {
+            return 'stream';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function soundDetailsFromAnnotation(string $annotationBody, array $objects): ?array
+    {
+        $soundValue = $this->valueAfterNameSkippingPreviousKeys($annotationBody, 'Sound', ['Subtype']);
+        if ($soundValue === null) {
+            return null;
+        }
+
+        $sound = $this->resolvedDictionaryFromValue($soundValue, $objects);
+        if ($sound === null) {
+            return null;
+        }
+
+        return [
+            'stream_object' => $sound['object'],
+            'icon_name' => $this->nameValueAfterName($annotationBody, 'Name'),
+            'sample_rate' => $this->numberValueAfterName($sound['body'], 'R', $objects),
+            'channels' => $this->intValueAfterName($sound['body'], 'C', $objects) ?? 1,
+            'bits_per_sample' => $this->intValueAfterName($sound['body'], 'B', $objects) ?? 8,
+            'encoding' => $this->nameValueAfterName($sound['body'], 'E') ?? 'Raw',
+            'compression' => $this->nameValueAfterName($sound['body'], 'CO'),
+            'payload_length' => $this->intValueAfterName($sound['body'], 'Length', $objects),
         ];
     }
 
@@ -341,6 +456,139 @@ final class PdfRichMediaAnnotationExtractor
         ];
     }
 
+    /**
+     * @param array<int, string> $objects
+     * @return list<float>|null
+     */
+    private function numberArrayValueAfterName(string $body, string $name, array $objects): ?array
+    {
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $arrayBody = $this->arrayBodyFromPdfValue($value, $objects);
+        return $arrayBody === null ? null : $this->numbersFromPdfArray($arrayBody);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function intValueAfterName(string $body, string $name, array $objects): ?int
+    {
+        $value = $this->numberValueAfterName($body, $name, $objects);
+        return $value === null ? null : (int) $value;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function numberValueAfterName(string $body, string $name, array $objects): ?float
+    {
+        $value = $this->valueAfterName($body, $name);
+        return $value === null ? null : $this->numberFromPdfValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function numberFromPdfValue(string $value, array $objects): ?float
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            return isset($objects[$objectNumber]) ? $this->numberFromPdfValue($objects[$objectNumber], $objects) : null;
+        }
+
+        return preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)/', $value, $match) === 1 ? (float) $match[0] : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function boolValueAfterName(string $body, string $name, array $objects): ?bool
+    {
+        $value = $this->valueAfterName($body, $name);
+        return $value === null ? null : $this->boolFromPdfValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function boolFromPdfValue(string $value, array $objects): ?bool
+    {
+        $value = trim($value);
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            return isset($objects[$objectNumber]) ? $this->boolFromPdfValue($objects[$objectNumber], $objects) : null;
+        }
+
+        return match ($value) {
+            'true' => true,
+            'false' => false,
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{body: string, object: int|null}|null
+     */
+    private function resolvedDictionaryFromValue(string $value, array $objects): ?array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (str_starts_with($value, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($value, 0);
+            return $dictionary === null ? null : ['body' => $dictionary, 'object' => null];
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) !== 1) {
+            return null;
+        }
+
+        $objectNumber = (int) $match[1];
+        if (!isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+        return $dictionary === null ? null : ['body' => $dictionary, 'object' => $objectNumber];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function arrayBodyFromPdfValue(string $value, array $objects): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (str_starts_with($value, '[')) {
+            return $this->arrayBodyFromValue($value);
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) !== 1) {
+            return null;
+        }
+
+        $objectNumber = (int) $match[1];
+        if (!isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        return $this->arrayBodyFromValue(trim($objects[$objectNumber]));
+    }
+
     private function valueAfterName(string $body, string $name): ?string
     {
         if (preg_match('/\/' . preg_quote($name, '/') . '\b/s', $body, $match, PREG_OFFSET_CAPTURE) !== 1) {
@@ -348,6 +596,38 @@ final class PdfRichMediaAnnotationExtractor
         }
 
         $offset = $match[0][1] + strlen($match[0][0]);
+        return $this->valueStartingAtOffset($body, $offset);
+    }
+
+    /**
+     * @param list<string> $previousKeys
+     */
+    private function valueAfterNameSkippingPreviousKeys(string $body, string $name, array $previousKeys): ?string
+    {
+        $offset = 0;
+        while (preg_match('/\/' . preg_quote($name, '/') . '\b/s', $body, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $start = $match[0][1];
+            $before = rtrim(substr($body, 0, $start));
+            $skip = false;
+            foreach ($previousKeys as $previousKey) {
+                if (preg_match('/\/' . preg_quote($previousKey, '/') . '\s*$/s', $before) === 1) {
+                    $skip = true;
+                    break;
+                }
+            }
+
+            if (!$skip) {
+                return $this->valueStartingAtOffset($body, $start + strlen($match[0][0]));
+            }
+
+            $offset = $start + strlen($match[0][0]);
+        }
+
+        return null;
+    }
+
+    private function valueStartingAtOffset(string $body, int $offset): ?string
+    {
         while ($offset < strlen($body) && ctype_space($body[$offset])) {
             $offset++;
         }
