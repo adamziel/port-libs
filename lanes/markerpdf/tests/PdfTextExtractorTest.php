@@ -973,6 +973,36 @@ return [
         $t->same('Indirect Filter Array', $extractor->extractPlainText($stackedPdf));
         $t->same('', $extractor->extractPlainText($unsupportedPdf));
     },
+    'resolves indirect names inside stream filter arrays before WordPress extraction' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 72 720 Td (Name Array Indirect Filter) Tj T* (Current Base Import) Tj ET';
+        $compressed = gzcompress($content);
+        if (!is_string($compressed)) {
+            throw new RuntimeException('Unable to compress indirect name-array filter fixture.');
+        }
+
+        $encoded = strtoupper(bin2hex($compressed)) . '>';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Filter [ 2 0 R null 3 0 R ] /Length " . strlen($encoded) . " >>\nstream\n{$encoded}\nendstream\nendobj\n"
+            . "2 0 obj\n/ASCIIHexDecode\nendobj\n"
+            . "3 0 obj\n/FlateDecode\nendobj\n"
+            . "%%EOF";
+
+        $cycleNoise = 'BT /F1 12 Tf 72 704 Td (Cyclic Filter Leak) Tj ET';
+        $cyclePdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Filter [ 2 0 R ] /Length " . strlen($cycleNoise) . " >>\nstream\n{$cycleNoise}\nendstream\nendobj\n"
+            . "2 0 obj\n[ 2 0 R ]\nendobj\n"
+            . "%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $text = $extractor->extractPlainText($pdf);
+
+        $t->same("Name Array Indirect Filter\nCurrent Base Import", $text);
+        $t->same(['Name Array Indirect Filter', 'Current Base Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Name Array Indirect Filter', 'Current Base Import'], $extractor->extractTextRuns($pdf));
+        $t->same("Name Array Indirect Filter\nCurrent Base Import\n", $extractor->naiveGetText($pdf));
+        $t->same('', $extractor->extractPlainText($cyclePdf));
+        $t->true(!str_contains($extractor->naiveGetText($cyclePdf), 'Cyclic Filter Leak'));
+    },
     'fails closed on unsupported or corrupt stream filters before WordPress text parsing' => static function (TestRunner $t): void {
         $visibleBefore = 'BT /F1 12 Tf 72 720 Td (Filter Boundary Visible) Tj ET';
         $visibleAfter = 'BT /F1 12 Tf 72 688 Td (Filter Boundary Tail) Tj ET';
