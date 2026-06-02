@@ -315,6 +315,29 @@ return [
         $t->same($expected, $extractor->extractPlainText($pdf));
         $t->same([$expected], $extractor->extractTextRuns($pdf));
     },
+    'uses Identity-H and Identity-V font CMap widths before WordPress fallback text extraction' => static function (TestRunner $t): void {
+        $content = 'BT /Fcid 12 Tf 72 720 Td <0057005000200049006D0070006F00720074> Tj T* [<0042006C006F0063006B0073> -120 <0021>] TJ ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 3 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /IdentitySubset /Encoding /Identity-H >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+
+        $literal = hex2bin('004C00690074006500720061006C00200049006D0070006F00720074');
+        $t->true(is_string($literal), 'Identity-V literal fixture should decode from hex.');
+        $verticalContent = 'BT /Fv 12 Tf 72 720 Td (' . $literal . ') Tj ET';
+        $verticalPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fv 2 0 R >> >> /Contents 3 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /IdentityVerticalSubset /Encoding /Identity-V >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($verticalContent) . " >>\nstream\n{$verticalContent}\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+
+        $t->same("WP Import\nBlocks!", $extractor->extractPlainText($pdf));
+        $t->same(['WP Import', 'Blocks!'], $extractor->extractTextRuns($pdf));
+        $t->same('Literal Import', $extractor->extractPlainText($verticalPdf));
+        $t->true(!str_contains($extractor->extractPlainText($pdf), "\0"));
+        $t->true(!str_contains($extractor->extractPlainText($verticalPdf), "\0"));
+    },
     'uses ToUnicode bfrange arrays for WordPress text extraction' => static function (TestRunner $t): void {
         $content = 'BT /Fcid 12 Tf 72 720 Td <202122> Tj ET';
         $cmap = "/CIDInit /ProcSet findresource begin\n"

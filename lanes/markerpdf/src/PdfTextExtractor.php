@@ -759,6 +759,15 @@ final class PdfTextExtractor
      */
     private function namedEncodingMap(string $encodingName): ?array
     {
+        if ($encodingName === 'Identity-H' || $encodingName === 'Identity-V') {
+            return [
+                'map' => [],
+                'codeSpaceRanges' => [
+                    ['start' => 0, 'end' => 0xffff, 'width' => 4],
+                ],
+            ];
+        }
+
         if ($encodingName !== 'WinAnsiEncoding') {
             return null;
         }
@@ -2038,7 +2047,7 @@ final class PdfTextExtractor
         $mappings = $toUnicodeMap['map'] ?? [];
         $keyLengths = array_values(array_unique(array_map('strlen', array_keys($mappings))));
         rsort($keyLengths, SORT_NUMERIC);
-        if ($keyLengths === []) {
+        if ($keyLengths === [] && ($toUnicodeMap['codeSpaceRanges'] ?? []) === []) {
             return $this->decodeHexString($normalized);
         }
 

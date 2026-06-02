@@ -4,6 +4,13 @@ Inventory source: shallow clone of `https://github.com/sddai/markerPDF` at `da6a
 
 The manifest denominator now keeps `benchmarkDenominator.total` numeric at `78`; the long inventory explanation is recorded separately as `inventorySummary`. The clone check on 2026-05-24 19:13 UTC confirmed `git ls-tree -r --name-only HEAD | wc -l` returns `78`, with `0` committed Python unit test files found and the full upstream benchmark runner still blocked on Poetry plus heavy PDF/model dependencies.
 
+## Reduced Handoff 2026-06-02 00:07 UTC
+
+- Scope adds only `PdfTextExtractor.php`, `PdfTextExtractorTest.php`, `wordpress-pdf-identity-cmap-import.php`, and lane-owned manifest/status/notes refreshes on top of the accepted PDF page and structure handoffs.
+- Type0 Identity-H/V font CMap slice: `PdfTextExtractor` now uses `/Encoding /Identity-H` and `/Encoding /Identity-V` code-space widths when no `/ToUnicode` CMap is present, so two-byte CID hex strings, literal strings, and `TJ` array strings tokenize before fallback Unicode decoding instead of rendering raw NUL bytes in WordPress paragraphs.
+- Focused evidence after supervisor rebase: `php -l lanes/markerpdf/src/PdfTextExtractor.php`, `php -l lanes/markerpdf/tests/PdfTextExtractorTest.php`, `php -l lanes/markerpdf/examples/wordpress-pdf-identity-cmap-import.php`, `php lanes/markerpdf/examples/wordpress-pdf-identity-cmap-import.php`, `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php` passed with 1 test file, 74 assertions, and 0 failures, `php tools/run-tests.php lanes/markerpdf/tests` passed with 47 test files, 1026 assertions, and 0 failures, and `git diff --check -- lanes/markerpdf` passed.
+- Acceptance blocker remains full upstream runner parity and the inactive `pdf-text-dictionary-core`, `layout-ocr-result-core`, and `table-geometry-core` gates. Dependency closure: no new support component is needed; this reuses the existing bounded native `PdfTextExtractor` content-stream parser and CMap code-space fallback path.
+
 ## Reduced Handoff 2026-05-25 23:43 UTC
 
 - Scope adds only `PdfTextExtractor.php`, `PdfTextExtractorTest.php`, `wordpress-pdf-winansi-import.php`, and lane-owned manifest/status/notes refreshes on top of the accepted PDF font/CMap handoffs.
