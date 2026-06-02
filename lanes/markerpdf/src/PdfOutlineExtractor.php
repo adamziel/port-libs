@@ -298,6 +298,98 @@ final class PdfOutlineExtractor
     }
 
     /**
+     * Composite navigation review for WordPress import UIs that need the
+     * pypdfium-style outline destination, catalog OpenAction, page-label, and
+     * transition metadata in one non-executing payload.
+     *
+     * @return array{
+     *     source: list<string>,
+     *     outline: list<array<string, mixed>>,
+     *     open_action_review_actions: list<array<string, mixed>>,
+     *     page_presentations: list<array<string, mixed>>,
+     *     open_action_destination?: array<string, mixed>
+     * }
+     */
+    public function getNavigationReviewMetadata(string $pdfBytes): array
+    {
+        $objects = $this->parsedObjectValues($pdfBytes);
+        $catalog = $this->catalogDictionary($objects);
+        $metadata = [
+            'source' => [],
+            'outline' => [],
+            'open_action_review_actions' => [],
+            'page_presentations' => [],
+        ];
+        if ($catalog === null) {
+            return $metadata;
+        }
+
+        $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
+        if ($pageObjectNumbers === []) {
+            return $metadata;
+        }
+
+        $pageIndexes = [];
+        foreach ($pageObjectNumbers as $index => $objectNumber) {
+            $pageIndexes[$objectNumber] = $index;
+        }
+
+        $destinations = $this->destinationMap($catalog, $objects);
+        $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
+
+        $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
+        if ($outlineRoot !== null) {
+            foreach ($this->outlineItemsWithDestinationViews($outlineRoot['First'] ?? null, $objects, $pageIndexes, $destinations, 15) as $item) {
+                $item['page_label'] = $this->pageLabelForIndex($item['page'], $pageLabels);
+                $metadata['outline'][] = $item;
+            }
+            if ($metadata['outline'] !== []) {
+                $metadata['source'][] = 'outline';
+            }
+        }
+
+        if (array_key_exists('OpenAction', $catalog)) {
+            $openActionReviews = $this->getOpenActionReviewActions($pdfBytes);
+            if ($openActionReviews !== []) {
+                $metadata['source'][] = 'open_action';
+                $metadata['open_action_review_actions'] = $openActionReviews;
+            }
+        }
+
+        $pagePresentations = $this->getPageTransitionActionMetadata($pdfBytes);
+        if ($pagePresentations !== []) {
+            $metadata['source'][] = 'page_presentations';
+            $metadata['page_presentations'] = $pagePresentations;
+        }
+
+        $openActionDestination = $this->catalogOpenActionDestination($catalog, $objects);
+        if ($openActionDestination !== null) {
+            $details = $this->destinationViewDetails(
+                $openActionDestination['value'],
+                $objects,
+                $pageIndexes,
+                $destinations,
+                $openActionDestination['name']
+            );
+            if ($details !== null) {
+                $details['page_label'] = $this->pageLabelForIndex($details['page'], $pageLabels);
+                foreach ($pagePresentations as $pagePresentation) {
+                    if (($pagePresentation['pnum'] ?? null) !== $details['page']) {
+                        continue;
+                    }
+
+                    $details['target_display_duration'] = $pagePresentation['display_duration'];
+                    $details['target_page_transition'] = $pagePresentation['transition'];
+                    break;
+                }
+                $metadata['open_action_destination'] = $details;
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function catalogReviewContext(string $pdfBytes): array
@@ -315,6 +407,14 @@ final class PdfOutlineExtractor
         }
 
         return $context;
+    }
+
+    /**
+     * @param list<string> $pageLabels
+     */
+    private function pageLabelForIndex(int $pageIndex, array $pageLabels): string
+    {
+        return $pageLabels[$pageIndex] ?? (string) ($pageIndex + 1);
     }
 
     /**

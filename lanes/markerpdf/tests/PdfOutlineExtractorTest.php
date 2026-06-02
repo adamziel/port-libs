@@ -145,6 +145,32 @@ $pagePresentationPdf = static function (): string {
         . "%%EOF";
 };
 
+$navigationReviewPdf = static function (): string {
+    $pageOneContent = 'BT /F1 12 Tf 72 720 Td (Preface text stays visible) Tj ET';
+    $pageTwoContent = 'BT /F1 12 Tf 72 720 Td (Chapter target text stays visible) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R /OpenAction 40 0 R /Names << /Dests 8 0 R >> /PageLabels 20 0 R /PageMode /UseOutlines /ViewerPreferences << /DisplayDocTitle true >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 30 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Dur 5 /Trans 15 0 R /AA << /O 42 0 R >> /Contents 31 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Count 1 >>\nendobj\n"
+        . "6 0 obj\n<< /Title (Chapter Target) /Parent 5 0 R /Dest /ChapterStart >>\nendobj\n"
+        . "8 0 obj\n<< /Names [(ChapterStart) 14 0 R] >>\nendobj\n"
+        . "14 0 obj\n<< /D 13 0 R >>\nendobj\n"
+        . "13 0 obj\n[4 0 R 16 0 R 17 0 R]\nendobj\n"
+        . "15 0 obj\n<< /S /Blinds /D .5 /Dm /V >>\nendobj\n"
+        . "16 0 obj\n/FitH\nendobj\n"
+        . "17 0 obj\n640\nendobj\n"
+        . "20 0 obj\n<< /Nums [0 << /S /r /P (front-) /St 2 >> 1 << /S /D /P (Body ) /St 1 >>] >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($pageOneContent) . " >>\nstream\n{$pageOneContent}\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Length " . strlen($pageTwoContent) . " >>\nstream\n{$pageTwoContent}\nendstream\nendobj\n"
+        . "40 0 obj\n<< /S /GoTo /D 41 0 R /Next 42 0 R >>\nendobj\n"
+        . "41 0 obj\n(ChapterStart)\nendobj\n"
+        . "42 0 obj\n<< /S /URI /URI (https://example.com/chapter-notes) >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'resolves PDF outline named destinations before WordPress TOC import' => static function (TestRunner $t) use ($namedDestinationPdf): void {
         $toc = (new PdfOutlineExtractor())->getPdfToc($namedDestinationPdf());
@@ -543,5 +569,56 @@ return [
         $t->true(!str_contains($text, 'deck-appendix.pdf'));
         $t->true(!str_contains($text, 'javascript:alert'));
         $t->same([], $empty);
+    },
+    'combines outline destinations OpenAction page labels and transitions for navigation review' => static function (TestRunner $t) use ($navigationReviewPdf): void {
+        $extractor = new PdfOutlineExtractor();
+        $metadata = $extractor->getNavigationReviewMetadata($navigationReviewPdf());
+
+        $t->same(['outline', 'open_action', 'page_presentations'], $metadata['source']);
+        $t->same(1, count($metadata['outline']));
+        $t->same('Chapter Target', $metadata['outline'][0]['title']);
+        $t->same(1, $metadata['outline'][0]['page']);
+        $t->same('Body 1', $metadata['outline'][0]['page_label']);
+        $t->same('ChapterStart', $metadata['outline'][0]['destination']);
+        $t->same('FitH', $metadata['outline'][0]['view_mode']);
+        $t->same([640.0], $metadata['outline'][0]['view_position']);
+        $t->same(['top' => 640.0], $metadata['outline'][0]['view_parameters']);
+
+        $t->true(isset($metadata['open_action_destination']));
+        $t->same(1, $metadata['open_action_destination']['page']);
+        $t->same('Body 1', $metadata['open_action_destination']['page_label']);
+        $t->same('ChapterStart', $metadata['open_action_destination']['destination']);
+        $t->same('FitH', $metadata['open_action_destination']['view_mode']);
+        $t->same(['top' => 640.0], $metadata['open_action_destination']['view_parameters']);
+        $t->same(5.0, $metadata['open_action_destination']['target_display_duration']);
+        $t->same('Blinds', $metadata['open_action_destination']['target_page_transition']['style']);
+        $t->same(0.5, $metadata['open_action_destination']['target_page_transition']['duration']);
+        $t->same('V', $metadata['open_action_destination']['target_page_transition']['dimension']);
+
+        $t->same(['GoTo', 'URI'], array_column($metadata['open_action_review_actions'], 'action_type'));
+        $t->same(['local-destination', 'review-uri'], array_column($metadata['open_action_review_actions'], 'safety'));
+        $t->same([false, false], array_column($metadata['open_action_review_actions'], 'executes_on_import'));
+        $t->same([40, 42], array_column($metadata['open_action_review_actions'], 'action_object'));
+        $t->same(true, $metadata['open_action_review_actions'][1]['chained']);
+
+        $t->same(1, count($metadata['page_presentations']));
+        $t->same('Body 1', $metadata['page_presentations'][0]['page_label']);
+        $t->same('Blinds', $metadata['page_presentations'][0]['transition']['style']);
+        $t->same('URI', $metadata['page_presentations'][0]['actions'][0]['action_type']);
+        $t->same(false, $metadata['page_presentations'][0]['actions'][0]['executes_on_import']);
+
+        $text = (new PdfTextExtractor())->extractPlainText($navigationReviewPdf());
+        $t->contains('Preface text stays visible', $text);
+        $t->contains('Chapter target text stays visible', $text);
+        $t->true(!str_contains($text, 'https://example.com/chapter-notes'));
+    },
+    'returns stable empty navigation review metadata without a PDF catalog' => static function (TestRunner $t): void {
+        $metadata = (new PdfOutlineExtractor())->getNavigationReviewMetadata('%PDF-1.4 no catalog here');
+
+        $t->same([], $metadata['source']);
+        $t->same([], $metadata['outline']);
+        $t->same([], $metadata['open_action_review_actions']);
+        $t->same([], $metadata['page_presentations']);
+        $t->true(!array_key_exists('open_action_destination', $metadata));
     },
 ];
