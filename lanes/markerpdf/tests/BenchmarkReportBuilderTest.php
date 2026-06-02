@@ -34,6 +34,64 @@ return [
         $t->same(1.0, $report['marker']['time_per_page']);
         $t->same(4.0, $report['marker']['time_per_doc']);
     },
+    'exports upstream overall.py json report and tabulate source rows' => static function (TestRunner $t) use ($longText): void {
+        $builder = new BenchmarkReportBuilder();
+        $report = $builder->build([
+            [
+                'method' => 'marker',
+                'document' => 'multicolcnn.pdf',
+                'hypothesis' => $longText,
+                'reference' => $longText,
+                'time' => 2.0,
+                'pages' => 2,
+            ],
+            [
+                'method' => 'marker',
+                'document' => 'switch_trans.pdf',
+                'hypothesis' => $longText,
+                'reference' => $longText,
+                'time' => 6.0,
+                'pages' => 6,
+            ],
+            [
+                'method' => 'naive',
+                'document' => 'multicolcnn.pdf',
+                'hypothesis' => $longText,
+                'reference' => $longText,
+                'time' => 4.0,
+                'pages' => 2,
+            ],
+            [
+                'method' => 'naive',
+                'document' => 'switch_trans.pdf',
+                'hypothesis' => $longText,
+                'reference' => $longText,
+                'time' => 4.0,
+                'pages' => 6,
+            ],
+        ]);
+        $outputFile = sys_get_temp_dir() . '/markerpdf-overall-report-' . bin2hex(random_bytes(4)) . '.json';
+
+        try {
+            $tables = $builder->outputTables($report);
+            $builder->writeJsonReport($outputFile, $report);
+            $decoded = json_decode((string) file_get_contents($outputFile), true, flags: JSON_THROW_ON_ERROR);
+
+            $t->same(['Method', 'Average Score', 'Time per page', 'Time per document'], $tables['summary_headers']);
+            $t->same(['Method', 'multicolcnn.pdf', 'switch_trans.pdf'], $tables['score_headers']);
+            $t->same(['marker', 1.0, 1.0, 4.0], $tables['summary_rows'][0]);
+            $t->same(['naive', 1.0, 1.0], $tables['score_rows'][1]);
+            $t->same(
+                $report['marker']['files']['multicolcnn.pdf']['score'],
+                (float) $decoded['marker']['files']['multicolcnn.pdf']['score']
+            );
+            $t->contains('"files": {', (string) file_get_contents($outputFile));
+        } finally {
+            if (is_file($outputFile)) {
+                unlink($outputFile);
+            }
+        }
+    },
     'uses unique benchmark document pages for all methods like upstream total_pages' => static function (TestRunner $t) use ($longText): void {
         $report = (new BenchmarkReportBuilder())->build([
             [

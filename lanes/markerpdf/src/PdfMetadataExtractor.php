@@ -145,8 +145,10 @@ final class PdfMetadataExtractor
      *     viewer_preferences?: array<string, mixed>,
      *     collection?: array<string, mixed>,
      *     associated_files?: list<array<string, mixed>>,
+     *     embedded_files?: list<array<string, mixed>>,
      *     structure_tree?: array<string, mixed>,
      *     document_destinations?: array<string, mixed>,
+     *     document_security_store?: array<string, mixed>,
      *     pdfa?: array{has_output_intent: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>}
      * }
      */
@@ -575,9 +577,19 @@ final class PdfMetadataExtractor
             }
         }
 
+        $embeddedFiles = $this->catalogEmbeddedFileNameTreeMetadata($catalog, $objects);
+        if ($embeddedFiles !== []) {
+            $metadata['embedded_files'] = $embeddedFiles;
+        }
+
         $documentDestinations = $this->documentDestinationMetadata($catalog, $objects);
         if ($documentDestinations !== []) {
             $metadata['document_destinations'] = $documentDestinations;
+        }
+
+        $documentSecurityStore = (new PdfDocumentSecurityStoreExtractor())->extract($pdfBytes);
+        if (($documentSecurityStore['present'] ?? false) === true) {
+            $metadata['document_security_store'] = $documentSecurityStore;
         }
 
         return $metadata;
@@ -3212,7 +3224,7 @@ final class PdfMetadataExtractor
             $result['keywords'] = array_values($keywords);
         }
 
-        foreach (['language', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'associated_files', 'structure_tree', 'document_destinations'] as $field) {
+        foreach (['language', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'associated_files', 'embedded_files', 'structure_tree', 'document_destinations', 'document_security_store'] as $field) {
             if (array_key_exists($field, $catalog)) {
                 $result[$field] = $catalog[$field];
             }
@@ -4505,6 +4517,15 @@ final class PdfMetadataExtractor
      */
     private function associatedFileReviewFromValue(string $value, int $index, array $objects, string $source): ?array
     {
+        return $this->fileSpecReviewFromValue($value, $index, $objects, $source, true);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function fileSpecReviewFromValue(string $value, int $index, array $objects, string $source, bool $associatedFile): ?array
+    {
         $fileSpec = $this->resolveDictionaryFromValue($value, $objects);
         if ($fileSpec === null) {
             return null;
@@ -4522,12 +4543,17 @@ final class PdfMetadataExtractor
             ?? 'embedded-file';
         $file = [
             'source' => $source,
-            'associated_file' => true,
-            'associated_file_index' => $index,
             'name' => $filename,
             'filename' => $filename,
             'file_spec_object' => $fileSpec['object'],
         ];
+        if ($associatedFile) {
+            $file['associated_file'] = true;
+            $file['associated_file_index'] = $index;
+        } else {
+            $file['name_tree_file'] = true;
+            $file['name_tree_index'] = $index;
+        }
 
         if ($unicodeFilename !== null && $unicodeFilename !== '') {
             $file['unicode_filename'] = $unicodeFilename;
@@ -4536,6 +4562,7 @@ final class PdfMetadataExtractor
         foreach ([
             'description' => $this->dictionaryStringValue($body, 'Desc'),
             'relationship' => $this->dictionaryNameValue($body, 'AFRelationship', $objects),
+            'language' => $this->dictionaryStringValue($body, 'Lang'),
         ] as $key => $metadataValue) {
             if (is_string($metadataValue) && $metadataValue !== '') {
                 $file[$key] = $metadataValue;
@@ -4581,6 +4608,114 @@ final class PdfMetadataExtractor
         }
 
         return $file;
+    }
+
+    /**
+     * Catalog /Names /EmbeddedFiles is a name tree of FileSpec entries. Expose
+     * review-only attachment metadata here so document metadata can be reviewed
+     * without reading embedded payload bytes into visible WordPress output.
+     *
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function catalogEmbeddedFileNameTreeMetadata(string $catalog, array $objects): array
+    {
+        $names = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Names'), $objects);
+        if ($names === null) {
+            return [];
+        }
+
+        $embeddedFilesRoot = $this->resolveDictionaryFromValue(
+            $this->dictionaryTopLevelRawValue($names['body'], 'EmbeddedFiles'),
+            $objects
+        );
+        if ($embeddedFilesRoot === null) {
+            return [];
+        }
+
+        $files = [];
+        $seenObjects = [];
+        $this->collectEmbeddedFileNameTreeReviewRows($embeddedFilesRoot, $objects, $files, $seenObjects);
+
+        return $this->dedupeFileSpecReviewRows($files);
+    }
+
+    /**
+     * @param array{body: string, object: int|null} $node
+     * @param array<int, string> $objects
+     * @param list<array<string, mixed>> $files
+     * @param array<int, true> $seenObjects
+     */
+    private function collectEmbeddedFileNameTreeReviewRows(array $node, array $objects, array &$files, array &$seenObjects, int $depth = 0): void
+    {
+        if ($depth > 20) {
+            return;
+        }
+
+        $objectNumber = $node['object'];
+        if ($objectNumber !== null) {
+            if (isset($seenObjects[$objectNumber])) {
+                return;
+            }
+            $seenObjects[$objectNumber] = true;
+        }
+
+        $names = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Names') ?? '', $objects);
+        for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
+            $name = $this->destinationNameFromRaw($names[$index], $objects);
+            if ($name === null || $name === '') {
+                continue;
+            }
+
+            $file = $this->fileSpecReviewFromValue(
+                $names[$index + 1],
+                count($files),
+                $objects,
+                'catalog_names_embedded_files',
+                false
+            );
+            if ($file === null) {
+                continue;
+            }
+
+            $file['name_tree_name'] = $name;
+            $files[] = $file;
+        }
+
+        $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Kids') ?? '', $objects);
+        foreach ($kids as $kid) {
+            $child = $this->resolveDictionaryFromValue($kid, $objects);
+            if ($child !== null) {
+                $this->collectEmbeddedFileNameTreeReviewRows($child, $objects, $files, $seenObjects, $depth + 1);
+            }
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $files
+     * @return list<array<string, mixed>>
+     */
+    private function dedupeFileSpecReviewRows(array $files): array
+    {
+        $deduped = [];
+        $seen = [];
+        foreach ($files as $file) {
+            $key = implode('|', [
+                (string) ($file['source'] ?? ''),
+                (string) ($file['name_tree_name'] ?? ''),
+                (string) ($file['file_spec_object'] ?? ''),
+                (string) ($file['embedded_file_object'] ?? ''),
+                (string) ($file['filename'] ?? ''),
+            ]);
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $deduped[] = $file;
+        }
+
+        return $deduped;
     }
 
     /**

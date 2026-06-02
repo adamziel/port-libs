@@ -20,60 +20,7 @@ final class PdfPagePropertyExtractor
             return [];
         }
 
-        $pageObjectNumbers = $this->orderedPageObjectNumbers($catalog, $objects);
-        if ($pageObjectNumbers === []) {
-            return [];
-        }
-
-        $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
-        $pagePresentationsByObject = $this->pagePresentationMetadataByPageObject($pdfBytes);
-        $structTreeRoot = $this->resolveDictionaryFromValue($this->dictionaryRawValue($catalog, 'StructTreeRoot'), $objects);
-        $roleMap = $structTreeRoot === null ? [] : $this->structureRoleMap($structTreeRoot['body'], $objects);
-        $parentTreeArrays = $structTreeRoot === null ? [] : $this->structureParentTreeArrays($structTreeRoot['body'], $objects);
-
-        $pages = [];
-        foreach ($pageObjectNumbers as $pnum => $pageObjectNumber) {
-            $pageBody = $this->dictionaryObjectBody($objects[$pageObjectNumber] ?? '');
-            if ($pageBody === null) {
-                continue;
-            }
-
-            $structParents = $this->dictionaryIntegerValue($pageBody, 'StructParents');
-            $parentTree = $structParents === null
-                ? null
-                : $this->parentTreeMetadata($structParents, $parentTreeArrays[$structParents] ?? null, $objects, $roleMap);
-            $resources = $this->effectivePageResourcesMetadata($pageObjectNumber, $objects);
-            $pagePresentation = $pagePresentationsByObject[$pageObjectNumber] ?? null;
-
-            if ($structParents === null && $resources === null && $pagePresentation === null) {
-                continue;
-            }
-
-            $page = [
-                'source' => 'page_boundary_review',
-                'pnum' => $pnum,
-                'page_number' => $pnum + 1,
-                'page_object' => $pageObjectNumber,
-                'page_label' => $pageLabels[$pnum] ?? (string) ($pnum + 1),
-            ];
-
-            if ($structParents !== null) {
-                $page['struct_parents'] = $structParents;
-                $page['parent_tree'] = $parentTree;
-            }
-
-            if ($resources !== null) {
-                $page['resources'] = $resources;
-            }
-
-            if ($pagePresentation !== null) {
-                $page['page_presentation'] = $pagePresentation;
-            }
-
-            $pages[] = $page;
-        }
-
-        return $pages;
+        return array_values($this->pageBoundaryMetadataByPageObject($pdfBytes, $catalog, $objects));
     }
 
     /**
@@ -100,7 +47,7 @@ final class PdfPagePropertyExtractor
         $userPropertiesByPage = $markInfoUserProperties
             ? $this->structureUserPropertiesByPageObject($catalog, $objects)
             : [];
-        $pagePresentationsByObject = $this->pagePresentationMetadataByPageObject($pdfBytes);
+        $pageBoundaryByObject = $this->pageBoundaryMetadataByPageObject($pdfBytes, $catalog, $objects);
         $articleBeadsByObject = $this->articleThreadBeadsByPageObject($pdfBytes);
         $structureMarkedContentByObject = $this->structureMarkedContentByPageObject($pdfBytes);
 
@@ -113,18 +60,41 @@ final class PdfPagePropertyExtractor
 
             $pieceInfo = $this->pieceInfoMetadata($this->dictionaryRawValue($pageBody, 'PieceInfo'), $objects);
             $associatedFiles = $this->pageAssociatedFilesMetadata($this->dictionaryRawValue($pageBody, 'AF'), $objects);
+            $pageBoundary = $pageBoundaryByObject[$pageObjectNumber] ?? null;
+            $structParents = is_int($pageBoundary['struct_parents'] ?? null)
+                ? $pageBoundary['struct_parents']
+                : null;
+            $parentTree = is_array($pageBoundary['parent_tree'] ?? null)
+                ? $pageBoundary['parent_tree']
+                : null;
             $userProperties = $userPropertiesByPage[$pageObjectNumber] ?? [];
             $articleBeads = $articleBeadsByObject[$pageObjectNumber] ?? [];
             $structureMarkedContent = $structureMarkedContentByObject[$pageObjectNumber] ?? [];
-            if ($pieceInfo === [] && $associatedFiles === [] && $userProperties === [] && $articleBeads === [] && $structureMarkedContent === []) {
+            if (
+                $pieceInfo === []
+                && $associatedFiles === []
+                && $userProperties === []
+                && $articleBeads === []
+                && $structureMarkedContent === []
+                && $structParents === null
+                && $parentTree === null
+            ) {
                 continue;
             }
-            $pagePresentation = $pagePresentationsByObject[$pageObjectNumber] ?? null;
+            $pagePresentation = $pageBoundary['page_presentation'] ?? null;
 
             $page = [
                 'pnum' => $pnum,
                 'page_object' => $pageObjectNumber,
             ];
+
+            if ($pageBoundary !== null) {
+                foreach (['source', 'page_number', 'page_label'] as $key) {
+                    if (array_key_exists($key, $pageBoundary)) {
+                        $page[$key] = $pageBoundary[$key];
+                    }
+                }
+            }
 
             if ($markInfo !== []) {
                 $page['mark_info'] = $markInfo;
@@ -132,6 +102,15 @@ final class PdfPagePropertyExtractor
 
             if ($pieceInfo !== []) {
                 $page['piece_info'] = $pieceInfo;
+            }
+
+            if ($structParents !== null) {
+                $page['struct_parents'] = $structParents;
+                $page['parent_tree'] = $parentTree;
+            }
+
+            if (is_array($pageBoundary['resources'] ?? null)) {
+                $page['resources'] = $pageBoundary['resources'];
             }
 
             if ($associatedFiles !== []) {
@@ -404,6 +383,68 @@ final class PdfPagePropertyExtractor
         }
 
         return $presentations;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<int, array<string, mixed>>
+     */
+    private function pageBoundaryMetadataByPageObject(string $pdfBytes, string $catalog, array $objects): array
+    {
+        $pageObjectNumbers = $this->orderedPageObjectNumbers($catalog, $objects);
+        if ($pageObjectNumbers === []) {
+            return [];
+        }
+
+        $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
+        $pagePresentationsByObject = $this->pagePresentationMetadataByPageObject($pdfBytes);
+        $structTreeRoot = $this->resolveDictionaryFromValue($this->dictionaryRawValue($catalog, 'StructTreeRoot'), $objects);
+        $roleMap = $structTreeRoot === null ? [] : $this->structureRoleMap($structTreeRoot['body'], $objects);
+        $parentTreeArrays = $structTreeRoot === null ? [] : $this->structureParentTreeArrays($structTreeRoot['body'], $objects);
+
+        $pages = [];
+        foreach ($pageObjectNumbers as $pnum => $pageObjectNumber) {
+            $pageBody = $this->dictionaryObjectBody($objects[$pageObjectNumber] ?? '');
+            if ($pageBody === null) {
+                continue;
+            }
+
+            $structParents = $this->dictionaryIntegerValue($pageBody, 'StructParents');
+            $parentTree = $structParents === null
+                ? null
+                : $this->parentTreeMetadata($structParents, $parentTreeArrays[$structParents] ?? null, $objects, $roleMap);
+            $resources = $this->effectivePageResourcesMetadata($pageObjectNumber, $objects);
+            $pagePresentation = $pagePresentationsByObject[$pageObjectNumber] ?? null;
+
+            if ($structParents === null && $resources === null && $pagePresentation === null) {
+                continue;
+            }
+
+            $page = [
+                'source' => 'page_boundary_review',
+                'pnum' => $pnum,
+                'page_number' => $pnum + 1,
+                'page_object' => $pageObjectNumber,
+                'page_label' => $pageLabels[$pnum] ?? (string) ($pnum + 1),
+            ];
+
+            if ($structParents !== null) {
+                $page['struct_parents'] = $structParents;
+                $page['parent_tree'] = $parentTree;
+            }
+
+            if ($resources !== null) {
+                $page['resources'] = $resources;
+            }
+
+            if ($pagePresentation !== null) {
+                $page['page_presentation'] = $pagePresentation;
+            }
+
+            $pages[$pageObjectNumber] = $page;
+        }
+
+        return $pages;
     }
 
     /**

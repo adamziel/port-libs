@@ -25,6 +25,8 @@ final class BenchmarkRunner
      *     benchmark_files: list<string>,
      *     runs: list<array<string, mixed>>,
      *     report: array<string, mixed>,
+     *     report_output: string|null,
+     *     output_tables: array<string, mixed>,
      *     written_markdown: list<string>
      * }
      */
@@ -34,7 +36,8 @@ final class BenchmarkRunner
         array $methodConverters,
         ?callable $pageCounter = null,
         ?string $markdownOutputFolder = null,
-        array $chunkLengths = []
+        array $chunkLengths = [],
+        ?string $reportOutputFile = null
     ): array {
         if (!isset($methodConverters['marker'])) {
             throw new InvalidArgumentException('Benchmark runner requires a marker method converter.');
@@ -102,10 +105,18 @@ final class BenchmarkRunner
             }
         }
 
+        $report = $this->reportBuilder->build($runs);
+        $outputTables = $this->reportBuilder->outputTables($report);
+        if ($reportOutputFile !== null) {
+            $this->reportBuilder->writeJsonReport($reportOutputFile, $report);
+        }
+
         return [
             'benchmark_files' => $benchmarkFiles,
             'runs' => $runs,
-            'report' => $this->reportBuilder->build($runs),
+            'report' => $report,
+            'report_output' => $reportOutputFile,
+            'output_tables' => $outputTables,
             'written_markdown' => $writtenMarkdown,
         ];
     }

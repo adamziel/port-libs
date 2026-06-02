@@ -458,6 +458,10 @@ final class PdfImageRenderer
             if (($colorSpace['indexed_color_space']['base_uses_icc_profile'] ?? false) === true) {
                 $notes[] = 'indexed_base_icc_profile_color_space';
             }
+            if (($colorSpace['indexed_color_space']['base_uses_alternate_color_space'] ?? false) === true) {
+                $baseFamily = strtolower((string) ($colorSpace['indexed_color_space']['base_alternate_color_space']['family'] ?? 'alternate'));
+                $notes[] = 'indexed_base_' . $baseFamily . '_tint_transform_review_before_rgb_conversion';
+            }
             if (($colorSpace['indexed_color_space']['lookup_length_matches'] ?? true) === false) {
                 $notes[] = 'indexed_lookup_length_mismatch';
             }
@@ -774,6 +778,68 @@ final class PdfImageRenderer
             'base_components' => $this->indexedSampleToBaseComponents($paletteIndex, $indexedPlan),
             'soft_mask_alpha' => $softMaskAlpha,
             'output_color_mode' => (string) ($imagePlan['output_color_mode'] ?? 'RGB'),
+        ];
+    }
+
+    /**
+     * Maps an Indexed palette entry whose base color space is Separation or
+     * DeviceN into named tint values, with optional soft-mask alpha.
+     *
+     * @param array<string, mixed> $imagePlan
+     * @return array{source_color_space: string, base_color_space: string|null, raw_sample: float, decoded_index: float, palette_index: int, clamped_to_hival: bool, colorant_tints: array<string, float>, tint_values: list<float>, alternate_color_space: string|null, alternate_components: int|null, alternate_uses_icc_profile: bool, icc_profile: array<string, mixed>|null, tint_transform_object: int|null, tint_transform_function_type: int|null, tint_transform_preview_mode: string, soft_mask_alpha: float|null, output_color_mode: string}
+     */
+    public function indexedAlternateColorantSamplePreview(int|float $sample, array $imagePlan, int|float|null $softMaskSample = null): array
+    {
+        $indexedPlan = $imagePlan['indexed_color_space'] ?? null;
+        if (!is_array($indexedPlan)) {
+            throw new InvalidArgumentException('Indexed alternate colorant preview requires an Indexed image plan.');
+        }
+
+        $alternate = $indexedPlan['base_alternate_color_space'] ?? null;
+        if (($indexedPlan['base_uses_alternate_color_space'] ?? false) !== true || !is_array($alternate)) {
+            throw new InvalidArgumentException('Indexed alternate colorant preview requires a Separation or DeviceN base color space.');
+        }
+
+        $indexedPreview = $this->indexedSamplePreview($sample, $imagePlan, $softMaskSample);
+        $tints = array_values($indexedPreview['base_components']);
+        $colorantNames = array_values(array_filter(
+            $alternate['colorant_names'] ?? [],
+            static fn (mixed $name): bool => is_string($name) && $name !== ''
+        ));
+        $expectedComponents = count($colorantNames);
+        if ($expectedComponents === 0 && isset($indexedPlan['base_components']) && is_int($indexedPlan['base_components'])) {
+            $expectedComponents = $indexedPlan['base_components'];
+        }
+        if ($expectedComponents < 1 || count($tints) !== $expectedComponents) {
+            throw new InvalidArgumentException('Indexed palette entry must match the base colorant count.');
+        }
+
+        $namedTints = [];
+        for ($index = 0; $index < $expectedComponents; $index++) {
+            $name = $colorantNames[$index] ?? 'colorant_' . ($index + 1);
+            $namedTints[$name] = $tints[$index];
+        }
+
+        $functionType = $alternate['tint_transform_function_type'] ?? null;
+
+        return [
+            'source_color_space' => (string) ($imagePlan['source_color_space'] ?? 'Indexed'),
+            'base_color_space' => $indexedPlan['base_color_space'] ?? null,
+            'raw_sample' => $indexedPreview['raw_sample'],
+            'decoded_index' => $indexedPreview['decoded_index'],
+            'palette_index' => $indexedPreview['palette_index'],
+            'clamped_to_hival' => $indexedPreview['clamped_to_hival'],
+            'colorant_tints' => $namedTints,
+            'tint_values' => $tints,
+            'alternate_color_space' => $alternate['alternate_color_space'] ?? null,
+            'alternate_components' => $alternate['alternate_components'] ?? null,
+            'alternate_uses_icc_profile' => ($alternate['alternate_uses_icc_profile'] ?? false) === true,
+            'icc_profile' => $indexedPlan['base_icc_profile'] ?? null,
+            'tint_transform_object' => $alternate['tint_transform_object'] ?? null,
+            'tint_transform_function_type' => $functionType,
+            'tint_transform_preview_mode' => $functionType === null ? 'none' : 'review_only',
+            'soft_mask_alpha' => $indexedPreview['soft_mask_alpha'],
+            'output_color_mode' => $indexedPreview['output_color_mode'],
         ];
     }
 
@@ -1907,6 +1973,8 @@ final class PdfImageRenderer
                 'base_components' => $baseComponents,
                 'base_uses_icc_profile' => $base['uses_icc_profile'],
                 'base_icc_profile' => $base['icc_profile'],
+                'base_uses_alternate_color_space' => ($base['uses_alternate_color_space'] ?? false) === true,
+                'base_alternate_color_space' => $base['alternate_color_space'] ?? null,
                 'high_value' => $highValue,
                 'lookup_source' => $lookup['source'] ?? null,
                 'lookup_length' => $lookupLength,

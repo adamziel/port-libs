@@ -86,6 +86,70 @@ $pdfWithCatalogReview = static function (string $catalogExtras, string $bodyText
         . "trailer\n<< /Root 1 0 R >>\n%%EOF";
 };
 
+$pdfWithMetadataDssOutputIntentNameTree = static function (callable $xmpPacket): array {
+    $documentXmp = $xmpPacket([
+        'title' => 'Metadata DSS NameTree Document Title',
+        'description' => 'Document metadata remains distinct from DSS and name-tree payloads',
+        'create_date' => '2026-06-02T18:03:02Z',
+    ]);
+    $fileXmp = $xmpPacket([
+        'title' => 'NameTree Attachment XMP Title',
+        'description' => 'Attachment metadata is review-only',
+    ]);
+    $documentXmpStream = gzcompress($documentXmp);
+    $fileXmpStream = gzcompress($fileXmp);
+    $rootProfile = 'Root document ICC profile bytes for PDF/A review';
+    $attachmentProfile = 'Attachment-local ICC profile bytes should not be promoted';
+    $rootProfileStream = gzcompress($rootProfile);
+    $attachmentProfileStream = gzcompress($attachmentProfile);
+    if (
+        !is_string($documentXmpStream)
+        || !is_string($fileXmpStream)
+        || !is_string($rootProfileStream)
+        || !is_string($attachmentProfileStream)
+    ) {
+        throw new RuntimeException('Unable to compress metadata DSS name-tree fixture streams.');
+    }
+
+    $sourcePayload = '<wp-export><post id="180302"/></wp-export>';
+    $sourceChecksum = strtoupper(hash('md5', $sourcePayload));
+    $certPayload = 'NAMETREE_DSS_CERTIFICATE_BYTES_SHOULD_NOT_LEAK';
+    $ocspPayload = 'NAMETREE_DSS_OCSP_BYTES_SHOULD_NOT_LEAK';
+    $crlPayload = 'NAMETREE_DSS_CRL_BYTES_SHOULD_NOT_LEAK';
+    $timestampPayload = 'NAMETREE_DSS_TIMESTAMP_BYTES_SHOULD_NOT_LEAK';
+    $pageContent = 'BT /F1 12 Tf 72 720 Td (Metadata DSS OutputIntent NameTree Body) Tj ET';
+
+    $pdf = "%PDF-2.0\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Metadata 14 0 R /OutputIntents [9 0 R] /DSS 60 0 R /Names << /EmbeddedFiles 6 0 R /Dests 16 0 R >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 30 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($fileXmpStream) . " >>\nstream\n{$fileXmpStream}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Kids [17 0 R 6 0 R] >>\nendobj\n"
+        . "7 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($rootProfileStream) . " >>\nstream\n{$rootProfileStream}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($attachmentProfileStream) . " >>\nstream\n{$attachmentProfileStream}\nendstream\nendobj\n"
+        . "9 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Document sRGB) /Info (Root document PDF/A profile) /DestOutputProfile 7 0 R >>\nendobj\n"
+        . "10 0 obj\n<< /Type /Filespec /F (source.xml) /UF (source-unicode.xml) /Desc (Original WordPress export) /AFRelationship /Source /Lang (de-DE) /Metadata 5 0 R /OutputIntents [13 0 R] /EF << /F 11 0 R >> >>\nendobj\n"
+        . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " /CheckSum <{$sourceChecksum}> /ModDate (D:20260602180302Z) >> /Length " . strlen($sourcePayload) . " >>\nstream\n{$sourcePayload}\nendstream\nendobj\n"
+        . "13 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Attachment sRGB) /Info (Attachment-local PDF/A) /DestOutputProfile 8 0 R >>\nendobj\n"
+        . "14 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($documentXmpStream) . " >>\nstream\n{$documentXmpStream}\nendstream\nendobj\n"
+        . "16 0 obj\n<< /Kids [19 0 R 20 0 R 16 0 R] >>\nendobj\n"
+        . "17 0 obj\n<< /Limits [(a) (z)] /Names [(source.xml) 10 0 R (missing.xml) 99 0 R] >>\nendobj\n"
+        . "19 0 obj\n<< /Limits [(A) (M)] /Names [(Review Start) [3 0 R /FitH 720]] >>\nendobj\n"
+        . "20 0 obj\n<< /Limits [(N) (Z)] /Names [(Review Summary) 21 0 R (Stale Review) [99 0 R /Fit]] >>\nendobj\n"
+        . "21 0 obj\n<< /D [4 0 R /XYZ 144 null 0] >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "60 0 obj\n<< /Type /DSS /Certs [70 0 R] /OCSPs [71 0 R] /CRLs [72 0 R] /VRI << /ABCDEF123456 61 0 R >> >>\nendobj\n"
+        . "61 0 obj\n<< /Type /VRI /Cert [70 0 R] /OCSP [71 0 R] /CRL [72 0 R] /TU (D:20260602180302Z) /TS 73 0 R >>\nendobj\n"
+        . "70 0 obj\n<< /Length " . strlen($certPayload) . " /Subtype /application#2Fpkix-cert >>\nstream\n{$certPayload}\nendstream\nendobj\n"
+        . "71 0 obj\n<< /Length " . strlen($ocspPayload) . " /Subtype /application#2Focsp-response >>\nstream\n{$ocspPayload}\nendstream\nendobj\n"
+        . "72 0 obj\n<< /Length " . strlen($crlPayload) . " /Subtype /application#2Fpkix-crl >>\nstream\n{$crlPayload}\nendstream\nendobj\n"
+        . "73 0 obj\n<< /Length " . strlen($timestampPayload) . " /Subtype /application#2Ftst-info >>\nstream\n{$timestampPayload}\nendstream\nendobj\n"
+        . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+    return [$pdf, $rootProfile, $attachmentProfile, $sourcePayload, [$certPayload, $ocspPayload, $crlPayload, $timestampPayload]];
+};
+
 $pdfWithXrefStreamTrailerMetadata = static function (): array {
     $xmp = '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
         . '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
@@ -419,6 +483,111 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'Stale Review'));
         $t->true(!str_contains($plainText, 'Chapter One'));
         $t->true(!str_contains($plainText, 'Destination Boundary XMP Title'));
+    },
+    'combines catalog DSS OutputIntent and name-tree metadata as review-only rows' => static function (TestRunner $t) use ($pdfWithMetadataDssOutputIntentNameTree, $xmpPacket): void {
+        [$pdf, $rootProfile, $attachmentProfile, $sourcePayload, $dssPayloads] = $pdfWithMetadataDssOutputIntentNameTree($xmpPacket);
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $embeddedFiles = $metadata['embedded_files'] ?? [];
+        $destinations = $metadata['document_destinations'] ?? [];
+        $dss = $metadata['document_security_store'] ?? [];
+
+        $t->same(['xmp', 'catalog', 'output_intents'], $metadata['source']);
+        $t->same('Metadata DSS NameTree Document Title', $metadata['title']);
+        $t->same('Document metadata remains distinct from DSS and name-tree payloads', $metadata['description']);
+        $t->same('2026-06-02T18:03:02Z', $metadata['created_at']);
+        $t->same('Metadata DSS OutputIntent NameTree Body', $plainText);
+
+        $t->same(1, count($metadata['output_intents']));
+        $t->same('Document sRGB', $metadata['output_intents'][0]['output_condition_identifier']);
+        $t->same('Root document PDF/A profile', $metadata['output_intents'][0]['info']);
+        $t->same(strlen($rootProfile), $metadata['output_intents'][0]['dest_output_profile']['bytes']);
+        $t->same(hash('sha256', $rootProfile), $metadata['output_intents'][0]['dest_output_profile']['sha256']);
+        $t->same([
+            'has_output_intent' => true,
+            'output_condition_identifiers' => ['Document sRGB'],
+            'profile_sha256' => [hash('sha256', $rootProfile)],
+        ], $metadata['pdfa']);
+
+        $t->same(1, count($embeddedFiles));
+        $file = $embeddedFiles[0];
+        $t->same('catalog_names_embedded_files', $file['source']);
+        $t->same(true, $file['name_tree_file']);
+        $t->same(0, $file['name_tree_index']);
+        $t->same('source.xml', $file['name_tree_name']);
+        $t->true(!array_key_exists('associated_file', $file));
+        $t->same('source-unicode.xml', $file['filename']);
+        $t->same('source-unicode.xml', $file['unicode_filename']);
+        $t->same('Original WordPress export', $file['description']);
+        $t->same('Source', $file['relationship']);
+        $t->same('de-DE', $file['language']);
+        $t->same('text/xml', $file['mime_type']);
+        $t->same(10, $file['file_spec_object']);
+        $t->same(11, $file['embedded_file_object']);
+        $t->same(strlen($sourcePayload), $file['declared_size']);
+        $t->same(strlen($sourcePayload), $file['size']);
+        $t->same(hash('sha256', $sourcePayload), $file['content_sha256']);
+        $t->same(hash('md5', $sourcePayload), $file['computed_checksum']);
+        $t->same(true, $file['checksum_matches']);
+        $t->same('D:20260602180302Z', $file['modified_at']);
+        $t->same('Metadata', $file['metadata_review']['Type']);
+        $t->same('XML', $file['metadata_review']['Subtype']);
+        $t->same('Attachment sRGB', $file['output_intents_review'][0]['OutputConditionIdentifier']);
+        $t->true(!array_key_exists('content', $file));
+
+        $provenance = $file['provenance_review'];
+        $t->same('associated_file_provenance', $provenance['source']);
+        $t->same(['filespec_afrelationship', 'embedded_file_payload_hash', 'embedded_file_params_checksum', 'filespec_metadata_stream', 'filespec_output_intents'], $provenance['sources']);
+        $t->same('original_source', $provenance['relationship_role']);
+        $t->same(false, $provenance['payload_included']);
+        $t->same('source-unicode.xml', $provenance['payload']['filename']);
+        $t->same(true, $provenance['payload']['size_matches_declared']);
+        $t->same(1, $provenance['pdfa_output_intents']['count']);
+        $t->same(['Attachment sRGB'], $provenance['pdfa_output_intents']['output_condition_identifiers']);
+        $t->same([hash('sha256', $attachmentProfile)], $provenance['pdfa_output_intents']['profile_sha256']);
+
+        $t->same(['names_dests'], $destinations['source']);
+        $t->same(2, $destinations['count']);
+        $t->same(2, $destinations['page_count']);
+        $t->same(['Review Start', 'Review Summary'], $destinations['names']);
+        $t->same(1, $destinations['unresolved_count']);
+        $t->same('FitH', $destinations['destinations'][0]['view_mode']);
+        $t->same(['top' => 720.0], $destinations['destinations'][0]['view_parameters']);
+        $t->same(1, $destinations['destinations'][1]['page']);
+        $t->same('XYZ', $destinations['destinations'][1]['view_mode']);
+        $t->same(['left' => 144.0, 'top' => null, 'zoom' => null], $destinations['destinations'][1]['view_parameters']);
+
+        $t->same('catalog_dss_dictionary', $dss['source']);
+        $t->same(true, $dss['present']);
+        $t->same(60, $dss['object_number']);
+        $t->same('DSS', $dss['type']);
+        $t->same(1, $dss['cert_count']);
+        $t->same(1, $dss['ocsp_count']);
+        $t->same(1, $dss['crl_count']);
+        $t->same(1, $dss['vri_count']);
+        $t->same(['ABCDEF123456'], $dss['vri_keys']);
+        $t->same(4, $dss['total_validation_stream_count']);
+        $t->same(70, $dss['global_certificates'][0]['object_number']);
+        $t->same(hash('sha256', $dssPayloads[0]), $dss['global_certificates'][0]['sha256']);
+        $t->same('D:20260602180302Z', $dss['vri'][0]['timestamp_update']);
+        $t->same(hash('sha256', $dssPayloads[3]), $dss['vri'][0]['timestamp_token']['sha256']);
+        $t->same(false, $dss['raw_validation_bytes_exposed']);
+        $t->same(false, $dss['executes_signature_validation']);
+        $t->same(false, $dss['executes_revocation_check']);
+        $t->same(false, $dss['executes_trust_chain_validation']);
+
+        $t->true(is_string($encoded) && !str_contains($encoded, 'NameTree Attachment XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $sourcePayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $attachmentProfile));
+        foreach ($dssPayloads as $payload) {
+            $t->true(is_string($encoded) && !str_contains($encoded, $payload));
+            $t->true(!str_contains($plainText, $payload));
+        }
+        $t->true(!str_contains($plainText, '<wp-export>'));
+        $t->true(!str_contains($plainText, 'Document sRGB'));
+        $t->true(!str_contains($plainText, 'Review Start'));
     },
     'extracts trailer ID array as document fingerprint metadata' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Fingerprint Body) Tj ET';

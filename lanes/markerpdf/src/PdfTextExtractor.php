@@ -10187,7 +10187,78 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->decodeStream($entry['dict'], $entry['stream'], $objects);
+        $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects);
+        if ($decoded === null) {
+            return null;
+        }
+
+        return $this->cMapStreamDictionaryPrelude($entry['dict'], $objects) . $decoded;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function cMapStreamDictionaryPrelude(string $dict, array $objects): string
+    {
+        $lines = [];
+        $useCMapName = $this->cMapUseCMapNameFromDictionary($dict, $objects);
+        if ($useCMapName !== null && $useCMapName !== '') {
+            $lines[] = '/' . $this->encodePdfName($useCMapName) . ' usecmap';
+        }
+
+        $cMapName = $this->pdfNameValueAfterNameResolvingObjects($dict, 'CMapName', $objects);
+        if ($cMapName !== null && $cMapName !== '') {
+            $lines[] = '/CMapName /' . $this->encodePdfName($cMapName) . ' def';
+        }
+
+        $writingMode = $this->pdfIntegerValueAfterNameResolvingObjects($dict, 'WMode', $objects);
+        if ($writingMode !== null) {
+            $lines[] = '/WMode ' . ($writingMode === 1 ? '1' : '0') . ' def';
+        } elseif ($useCMapName !== null) {
+            $inheritedMode = $this->cMapNameWritingMode($useCMapName);
+            if ($inheritedMode !== null) {
+                $lines[] = '/WMode ' . $inheritedMode . ' def';
+            }
+        }
+
+        return $lines === [] ? '' : implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function cMapUseCMapNameFromDictionary(string $dict, array $objects): ?string
+    {
+        $name = $this->pdfNameValueAfterNameResolvingObjects($dict, 'UseCMap', $objects);
+        if ($name !== null && $name !== '') {
+            return $name;
+        }
+
+        $objectNumber = $this->objectReferenceValueAfterName($dict, 'UseCMap');
+        if ($objectNumber === null || !isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        return $this->cMapNameFromObjectBody($objects[$objectNumber], $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function cMapNameFromObjectBody(string $objectBody, array $objects): ?string
+    {
+        $entry = $this->streamDictionaryAndPayload($objectBody, $objects);
+        if ($entry !== null) {
+            $name = $this->pdfNameValueAfterNameResolvingObjects($entry['dict'], 'CMapName', $objects);
+            if ($name !== null && $name !== '') {
+                return $name;
+            }
+
+            $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects);
+            return $decoded === null ? null : $this->cMapName($decoded);
+        }
+
+        return $this->cMapName($objectBody);
     }
 
     /**
@@ -10220,8 +10291,9 @@ final class PdfTextExtractor
             }
         }
 
-        if (preg_match('/\/WMode\s+([01])\s+def\b/s', $cmap, $wModeMatch) === 1) {
-            $writingMode = (int) $wModeMatch[1] === 1 ? 1 : 0;
+        if (preg_match_all('/\/WMode\s+([01])\s+def\b/s', $cmap, $wModeMatches) > 0) {
+            $lastMode = end($wModeMatches[1]);
+            $writingMode = (int) $lastMode === 1 ? 1 : 0;
         }
 
         foreach ($this->cMapOperatorBlocks($cmap, 'beginbfchar', 'endbfchar') as $charBlock) {
@@ -10294,8 +10366,9 @@ final class PdfTextExtractor
             }
         }
 
-        if (preg_match('/\/WMode\s+([01])\s+def\b/s', $cmap, $wModeMatch) === 1) {
-            $writingMode = (int) $wModeMatch[1] === 1 ? 1 : 0;
+        if (preg_match_all('/\/WMode\s+([01])\s+def\b/s', $cmap, $wModeMatches) > 0) {
+            $lastMode = end($wModeMatches[1]);
+            $writingMode = (int) $lastMode === 1 ? 1 : 0;
         }
 
         foreach ($this->cMapOperatorBlocks($cmap, 'begincidchar', 'endcidchar') as $charBlock) {
@@ -11883,6 +11956,23 @@ final class PdfTextExtractor
         return preg_replace_callback('/#([\da-fA-F]{2})/', static function (array $match): string {
             return chr(hexdec($match[1]));
         }, $name) ?? $name;
+    }
+
+    private function encodePdfName(string $name): string
+    {
+        $encoded = '';
+        for ($index = 0, $length = strlen($name); $index < $length; $index++) {
+            $char = $name[$index];
+            $ordinal = ord($char);
+            if ($ordinal <= 0x20 || $ordinal >= 0x7f || str_contains('#[]()<>{}/%', $char)) {
+                $encoded .= sprintf('#%02X', $ordinal);
+                continue;
+            }
+
+            $encoded .= $char;
+        }
+
+        return $encoded;
     }
 
     /**

@@ -468,6 +468,8 @@ return [
                 'range' => [0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
                 'length' => 11,
             ],
+            'base_uses_alternate_color_space' => false,
+            'base_alternate_color_space' => null,
             'high_value' => 2,
             'lookup_source' => 'hex_string',
             'lookup_length' => 9,
@@ -576,6 +578,72 @@ return [
         $t->same(null, $clampedHigh['soft_mask_alpha']);
         $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->indexedSamplePreview(1, ['source_color_space' => 'DeviceRGB']));
     },
+    'maps Indexed Separation palette tints and soft-mask alpha before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            51 => '<< /FunctionType 2 /Domain [0 1] /Range [0 1 0 1 0 1 0 1] /C0 [0 0 0 0] /C1 [1 0.25 0 0] /N 1 >>',
+            52 => "<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Decode [1 0] /Length 3 >>\nstream\nMSK\nendstream",
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 3 /Height 1 /ColorSpace [/Indexed [/Separation /Spot#20Orange /DeviceCMYK 51 0 R] 2 <0040C0>] /BitsPerComponent 2 /Decode [0 2] /SMask 52 0 R >>',
+            $objects
+        );
+        $preview = $renderer->indexedAlternateColorantSamplePreview(3, $plan, 64);
+
+        $t->same('Indexed', $plan['source_color_space']);
+        $t->same(true, $plan['uses_indexed_color_space']);
+        $t->same('Separation', $plan['indexed_color_space']['base_color_space']);
+        $t->same(1, $plan['indexed_color_space']['base_components']);
+        $t->same(true, $plan['indexed_color_space']['base_uses_alternate_color_space']);
+        $t->same([
+            'family' => 'Separation',
+            'colorant_names' => ['Spot Orange'],
+            'alternate_color_space' => 'DeviceCMYK',
+            'alternate_components' => 4,
+            'alternate_uses_icc_profile' => false,
+            'tint_transform_source' => 'object_ref',
+            'tint_transform_object' => 51,
+            'tint_transform_function_type' => 2,
+            'attributes_present' => false,
+        ], $plan['indexed_color_space']['base_alternate_color_space']);
+        $t->same([
+            'indexed_color_space_palette_before_rgb_conversion',
+            'indexed_base_separation_tint_transform_review_before_rgb_conversion',
+            'image_decode_applied_before_rgb_conversion',
+            'soft_mask_applied_before_rgb_conversion',
+            'soft_mask_decode_applied_before_rgb_conversion',
+            'soft_mask_decode_inverts_alpha',
+        ], $plan['notes']);
+
+        $t->same('Indexed', $preview['source_color_space']);
+        $t->same('Separation', $preview['base_color_space']);
+        $t->same(2.0, $preview['decoded_index']);
+        $t->same(2, $preview['palette_index']);
+        $t->same(['Spot Orange'], array_keys($preview['colorant_tints']));
+        $t->true(abs($preview['colorant_tints']['Spot Orange'] - (192 / 255)) < 0.000001);
+        $t->same([192 / 255], $preview['tint_values']);
+        $t->same('DeviceCMYK', $preview['alternate_color_space']);
+        $t->same(4, $preview['alternate_components']);
+        $t->same(false, $preview['alternate_uses_icc_profile']);
+        $t->same(51, $preview['tint_transform_object']);
+        $t->same(2, $preview['tint_transform_function_type']);
+        $t->same('review_only', $preview['tint_transform_preview_mode']);
+        $t->true(abs((float) $preview['soft_mask_alpha'] - (1.0 - (64 / 255))) < 0.000001);
+        $t->same('RGB', $preview['output_color_mode']);
+
+        $deviceN = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace [/Indexed [/DeviceN [/Cyan /Spot#20Orange] /DeviceCMYK 51 0 R << /Subtype /NChannel >>] 1 <008040C0>] /BitsPerComponent 1 >>',
+            $objects
+        );
+        $deviceNPreview = $renderer->indexedAlternateColorantSamplePreview(1, $deviceN);
+
+        $t->same(['Cyan' => 64 / 255, 'Spot Orange' => 192 / 255], $deviceNPreview['colorant_tints']);
+        $plainIndexed = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace [/Indexed /DeviceRGB 1 <000000FFFFFF>] /BitsPerComponent 1 >>'
+        );
+        $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->indexedAlternateColorantSamplePreview(1, $plainIndexed));
+    },
     'plans inline Indexed JBIG2 image and ImageMask stencil review before WordPress text import' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $indexedPayload = "\x97JB2\r\n\x1a\nBT /F1 12 Tf 72 690 Td (Inline JBIG2 Noise) Tj ET";
@@ -603,6 +671,8 @@ return [
             'base_components' => 3,
             'base_uses_icc_profile' => false,
             'base_icc_profile' => null,
+            'base_uses_alternate_color_space' => false,
+            'base_alternate_color_space' => null,
             'high_value' => 2,
             'lookup_source' => 'hex_string',
             'lookup_length' => 9,
@@ -853,6 +923,8 @@ return [
                 'base_components' => 3,
                 'base_uses_icc_profile' => false,
                 'base_icc_profile' => null,
+                'base_uses_alternate_color_space' => false,
+                'base_alternate_color_space' => null,
                 'high_value' => 2,
                 'lookup_source' => 'hex_string',
                 'lookup_length' => 9,

@@ -115,6 +115,41 @@ return [
             $removeTree($referenceFolder);
         }
     },
+    'writes overall.py style report output file and exposes score table rows' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $prepareCiFolders): void {
+        $pdfFolder = $makeTempDir();
+        $referenceFolder = $makeTempDir();
+        $markdownFolder = $makeTempDir();
+        try {
+            $pairsByDocument = $prepareCiFolders($pdfFolder, $referenceFolder);
+            $reportOutput = $markdownFolder . DIRECTORY_SEPARATOR . 'overall.json';
+
+            $result = (new BenchmarkRunner())->run(
+                $pdfFolder,
+                $referenceFolder,
+                [
+                    'marker' => static fn (string $pdfPath, string $document): string => $pairsByDocument[$document]['markerExcerpt'],
+                    'nougat' => static fn (string $pdfPath, string $document, string $reference): string => $reference,
+                ],
+                static fn (string $pdfPath): int => str_contains($pdfPath, 'switch_trans') ? 4 : 3,
+                $markdownFolder,
+                array_map(static fn (array $pair): int => $pair['chunkLength'], $pairsByDocument),
+                $reportOutput
+            );
+            $decoded = json_decode((string) file_get_contents($reportOutput), true, flags: JSON_THROW_ON_ERROR);
+
+            $t->same($reportOutput, $result['report_output']);
+            $t->true(is_file($reportOutput));
+            $t->same(['Method', 'multicolcnn.pdf', 'switch_trans.pdf'], $result['output_tables']['score_headers']);
+            $t->same(['marker', 'nougat'], array_column($result['output_tables']['summary_rows'], 0));
+            $t->same($result['report']['marker']['avg_score'], $decoded['marker']['avg_score']);
+            $t->same(4, count($result['written_markdown']));
+            $t->contains('"nougat"', (string) file_get_contents($reportOutput));
+        } finally {
+            $removeTree($pdfFolder);
+            $removeTree($referenceFolder);
+            $removeTree($markdownFolder);
+        }
+    },
     'rejects malformed benchmark runner supplied boundaries' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $pdfFolder = $makeTempDir();
         $referenceFolder = $makeTempDir();

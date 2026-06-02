@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace PortLibs\MarkerPDF;
 
 use InvalidArgumentException;
+use JsonException;
+use RuntimeException;
 
 final class BenchmarkReportBuilder
 {
@@ -88,6 +90,95 @@ final class BenchmarkReportBuilder
     }
 
     /**
+     * Native boundary for benchmarks/overall.py's final json.dump() and tabulate source rows.
+     *
+     * @param array<string, array{files: array<string, array{time: float, score: float, pages: int}>, avg_score: float, time_per_page: float, time_per_doc: float}> $report
+     * @return array{
+     *     summary_headers: list<string>,
+     *     summary_rows: list<list<string|float>>,
+     *     score_headers: list<string>,
+     *     score_rows: list<list<string|float>>
+     * }
+     */
+    public function outputTables(array $report): array
+    {
+        if ($report === []) {
+            throw new InvalidArgumentException('Benchmark report output requires at least one method.');
+        }
+
+        $summaryRows = [];
+        $scoreRows = [];
+        $scoreHeaders = null;
+
+        foreach ($report as $method => $methodReport) {
+            if (!is_string($method) || $method === '') {
+                throw new InvalidArgumentException('Benchmark report output methods must be non-empty strings.');
+            }
+            if (!is_array($methodReport)) {
+                throw new InvalidArgumentException("Benchmark report output for {$method} must be an array.");
+            }
+
+            $files = $methodReport['files'] ?? null;
+            if (!is_array($files) || $files === []) {
+                throw new InvalidArgumentException("Benchmark report output for {$method} requires files.");
+            }
+
+            $documentNames = array_values(array_keys($files));
+            if ($scoreHeaders === null) {
+                $scoreHeaders = $documentNames;
+            }
+
+            $summaryRows[] = [
+                $method,
+                $this->numericReportValue($methodReport, 'avg_score', $method),
+                $this->numericReportValue($methodReport, 'time_per_page', $method),
+                $this->numericReportValue($methodReport, 'time_per_doc', $method),
+            ];
+
+            $scoreRow = [$method];
+            foreach ($scoreHeaders as $document) {
+                $file = $files[$document] ?? null;
+                if (!is_array($file)) {
+                    throw new InvalidArgumentException("Benchmark report output for {$method} is missing {$document}.");
+                }
+
+                $scoreRow[] = $this->numericReportValue($file, 'score', "{$method}/{$document}");
+            }
+            $scoreRows[] = $scoreRow;
+        }
+
+        return [
+            'summary_headers' => ['Method', 'Average Score', 'Time per page', 'Time per document'],
+            'summary_rows' => $summaryRows,
+            'score_headers' => array_merge(['Method'], $scoreHeaders ?? []),
+            'score_rows' => $scoreRows,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    public function writeJsonReport(string $outputFile, array $report): void
+    {
+        $outputFile = trim($outputFile);
+        if ($outputFile === '') {
+            throw new InvalidArgumentException('Benchmark report output file must not be empty.');
+        }
+
+        $this->outputTables($report);
+
+        try {
+            $json = json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException('Unable to encode markerPDF benchmark report as JSON.', previous: $exception);
+        }
+
+        if (file_put_contents($outputFile, $json) === false) {
+            throw new RuntimeException('Unable to write markerPDF benchmark report: ' . $outputFile);
+        }
+    }
+
+    /**
      * @param array<string, mixed> $run
      */
     private function requiredString(array $run, string $key, int $index): string
@@ -127,5 +218,18 @@ final class BenchmarkReportBuilder
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     */
+    private function numericReportValue(array $values, string $key, string $context): float
+    {
+        $value = $values[$key] ?? null;
+        if (!is_float($value) && !is_int($value)) {
+            throw new InvalidArgumentException("Benchmark report output {$context} is missing numeric {$key}.");
+        }
+
+        return (float) $value;
     }
 }
