@@ -139,14 +139,109 @@ final class PdfMetadataExtractor
     public function extractDocumentMetadata(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
-        $catalog = $this->extractCatalogReviewMetadata($pdfBytes, $objects);
-        $xmp = $this->extractXmpMetadata($pdfBytes, $objects);
-        $info = $this->extractInfoMetadata($pdfBytes, $objects);
-        $outputIntents = $this->extractOutputIntentMetadata($pdfBytes, $objects);
-        $trailerIds = $this->extractTrailerIdMetadata($pdfBytes);
         $encryption = $this->extractEncryptionMetadata($pdfBytes, $objects);
+        $metadataSourcePolicy = $this->encryptedMetadataSourcePolicy($pdfBytes, $objects, $encryption);
+        if ($metadataSourcePolicy !== []) {
+            $encryption['metadata_source_policy'] = $metadataSourcePolicy;
+        }
+
+        $catalog = $this->extractCatalogReviewMetadata($pdfBytes, $objects);
+        $xmp = $this->shouldReadXmpMetadata($metadataSourcePolicy)
+            ? $this->extractXmpMetadata($pdfBytes, $objects)
+            : [];
+        $info = $this->shouldReadInfoMetadata($metadataSourcePolicy)
+            ? $this->extractInfoMetadata($pdfBytes, $objects)
+            : [];
+        $outputIntents = $this->shouldReadOutputIntentMetadata($metadataSourcePolicy)
+            ? $this->extractOutputIntentMetadata($pdfBytes, $objects)
+            : [];
+        $trailerIds = $this->extractTrailerIdMetadata($pdfBytes);
 
         return $this->mergedMetadata($xmp, $info, $outputIntents, $catalog, $trailerIds, $encryption);
+    }
+
+    /**
+     * PDF encryption applies to strings and streams unless the security
+     * handler explicitly leaves the metadata stream unencrypted. Keep these
+     * review sources fail-closed when no native decryption has happened.
+     *
+     * @param array<int, string> $objects
+     * @param array<string, mixed> $encryption
+     * @return array<string, mixed>
+     */
+    private function encryptedMetadataSourcePolicy(string $pdfBytes, array $objects, array $encryption): array
+    {
+        if ($encryption === []) {
+            return [];
+        }
+
+        $catalog = $this->catalogObjectBody($pdfBytes, $objects);
+        $trailer = $this->trailerDictionaryBody($pdfBytes);
+        $encryptMetadata = ($encryption['encrypt_metadata'] ?? true) !== false;
+        $hasXmp = $catalog !== null && $this->dictionaryRawValue($catalog, 'Metadata') !== null;
+        $hasInfo = $trailer !== null && $this->dictionaryRawValue($trailer, 'Info') !== null;
+        $hasOutputIntents = $catalog !== null && $this->dictionaryRawValue($catalog, 'OutputIntents') !== null;
+
+        $suppressed = [];
+        $preserved = [];
+        $xmpPolicy = 'absent';
+        if ($hasXmp && $encryptMetadata) {
+            $suppressed[] = 'xmp';
+            $xmpPolicy = 'suppressed_encrypted_metadata_stream';
+        } elseif ($hasXmp) {
+            $preserved[] = 'xmp';
+            $xmpPolicy = 'preserved_unencrypted_by_encrypt_metadata_false';
+        }
+
+        $infoPolicy = 'absent';
+        if ($hasInfo) {
+            $suppressed[] = 'info';
+            $infoPolicy = 'suppressed_encrypted_document_strings';
+        }
+
+        $outputIntentPolicy = 'absent';
+        if ($hasOutputIntents) {
+            $suppressed[] = 'output_intents';
+            $outputIntentPolicy = 'suppressed_encrypted_stream_or_strings';
+        }
+
+        return [
+            'encrypted_document' => true,
+            'decryption_performed' => false,
+            'encrypt_metadata' => !$encryptMetadata ? false : true,
+            'encrypt_metadata_explicit' => (bool) ($encryption['encrypt_metadata_explicit'] ?? false),
+            'xmp_stream_policy' => $xmpPolicy,
+            'info_dictionary_policy' => $infoPolicy,
+            'output_intents_policy' => $outputIntentPolicy,
+            'suppressed_sources' => $suppressed,
+            'preserved_sources' => $preserved,
+            'raw_encrypted_metadata_parsed' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $metadataSourcePolicy
+     */
+    private function shouldReadXmpMetadata(array $metadataSourcePolicy): bool
+    {
+        return $metadataSourcePolicy === []
+            || ($metadataSourcePolicy['xmp_stream_policy'] ?? null) === 'preserved_unencrypted_by_encrypt_metadata_false';
+    }
+
+    /**
+     * @param array<string, mixed> $metadataSourcePolicy
+     */
+    private function shouldReadInfoMetadata(array $metadataSourcePolicy): bool
+    {
+        return $metadataSourcePolicy === [];
+    }
+
+    /**
+     * @param array<string, mixed> $metadataSourcePolicy
+     */
+    private function shouldReadOutputIntentMetadata(array $metadataSourcePolicy): bool
+    {
+        return $metadataSourcePolicy === [];
     }
 
     /**
@@ -800,6 +895,10 @@ final class PdfMetadataExtractor
             'output_intents' => $outputIntents,
         ];
 
+        if ($encryption !== []) {
+            $result['source'][] = 'encryption';
+            $result['encryption'] = $encryption;
+        }
         if ($xmp !== []) {
             $result['source'][] = 'xmp';
         }
@@ -821,10 +920,6 @@ final class PdfMetadataExtractor
                 $result['document_fingerprint'] = $fingerprint;
                 $result['document_fingerprint_source'] = 'trailer_id_permanent';
             }
-        }
-        if ($encryption !== []) {
-            $result['source'][] = 'encryption';
-            $result['encryption'] = $encryption;
         }
 
         foreach (['title', 'description', 'creator_tool', 'producer', 'created_at', 'modified_at', 'metadata_date'] as $field) {

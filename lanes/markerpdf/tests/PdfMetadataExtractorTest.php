@@ -555,4 +555,65 @@ return [
         $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
         $t->true(is_string($encoded) && !str_contains($encoded, 'DEADBEEF') && !str_contains($encoded, 'CAFEFEED'));
     },
+    'prioritizes encryption before XMP Info and OutputIntent metadata boundaries' => static function (TestRunner $t) use ($xmpPacket): void {
+        $xmp = $xmpPacket([
+            'title' => 'Encrypted XMP Review Title',
+            'description' => 'Cleartext-looking encrypted metadata must not win',
+        ]);
+        $compressedXmp = gzcompress($xmp);
+        $compressedProfile = gzcompress('Encrypted ICC profile bytes should not be trusted');
+        if (!is_string($compressedXmp) || !is_string($compressedProfile)) {
+            throw new RuntimeException('Unable to compress encrypted metadata priority fixture.');
+        }
+
+        $pdfFactory = static function (string $encryptMetadataValue) use ($compressedXmp, $compressedProfile): string {
+            $encryptedContent = 'BT /F1 12 Tf 72 720 Td (Encrypted metadata priority leak) Tj ET';
+
+            return "%PDF-1.7\n"
+                . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Metadata 5 0 R /OutputIntents [9 0 R] >>\nendobj\n"
+                . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+                . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+                . "4 0 obj\n<< /Length " . strlen($encryptedContent) . " >>\nstream\n{$encryptedContent}\nendstream\nendobj\n"
+                . "5 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($compressedXmp) . " >>\nstream\n{$compressedXmp}\nendstream\nendobj\n"
+                . "6 0 obj\n<< /Title (Encrypted Info Title) /Author (Encrypted Info Author) /Producer (Encrypted Info Producer) >>\nendobj\n"
+                . "7 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($compressedProfile) . " >>\nstream\n{$compressedProfile}\nendstream\nendobj\n"
+                . "9 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Encrypted sRGB) /Info (Encrypted PDF/A) /DestOutputProfile 7 0 R >>\nendobj\n"
+                . "10 0 obj\n<< /Filter /Standard /V 4 /R 4 /Length 128 /O <DEADBEEF> /U <CAFEFEED> /P -64 /EncryptMetadata {$encryptMetadataValue} >>\nendobj\n"
+                . "trailer\n<< /Root 1 0 R /Info 6 0 R /Encrypt 10 0 R >>\n%%EOF";
+        };
+
+        $encryptedMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdfFactory('true'));
+        $encryptedEncoded = json_encode($encryptedMetadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['encryption'], $encryptedMetadata['source']);
+        $t->same([], $encryptedMetadata['xmp']);
+        $t->same([], $encryptedMetadata['info']);
+        $t->same([], $encryptedMetadata['output_intents']);
+        $t->true(!isset($encryptedMetadata['title']));
+        $t->true(!isset($encryptedMetadata['pdfa']));
+        $t->same(['xmp', 'info', 'output_intents'], $encryptedMetadata['encryption']['metadata_source_policy']['suppressed_sources']);
+        $t->same([], $encryptedMetadata['encryption']['metadata_source_policy']['preserved_sources']);
+        $t->same('suppressed_encrypted_metadata_stream', $encryptedMetadata['encryption']['metadata_source_policy']['xmp_stream_policy']);
+        $t->same('suppressed_encrypted_document_strings', $encryptedMetadata['encryption']['metadata_source_policy']['info_dictionary_policy']);
+        $t->same('suppressed_encrypted_stream_or_strings', $encryptedMetadata['encryption']['metadata_source_policy']['output_intents_policy']);
+        $t->same('', (new PdfTextExtractor())->extractPlainText($pdfFactory('true')));
+        $t->true(is_string($encryptedEncoded) && !str_contains($encryptedEncoded, 'Encrypted XMP Review Title'));
+        $t->true(is_string($encryptedEncoded) && !str_contains($encryptedEncoded, 'Encrypted Info Title'));
+        $t->true(is_string($encryptedEncoded) && !str_contains($encryptedEncoded, 'Encrypted sRGB'));
+
+        $unencryptedMetadataStream = (new PdfMetadataExtractor())->extractDocumentMetadata($pdfFactory('false'));
+        $unencryptedEncoded = json_encode($unencryptedMetadataStream, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['encryption', 'xmp'], $unencryptedMetadataStream['source']);
+        $t->same('Encrypted XMP Review Title', $unencryptedMetadataStream['title']);
+        $t->same('Cleartext-looking encrypted metadata must not win', $unencryptedMetadataStream['description']);
+        $t->same(['info', 'output_intents'], $unencryptedMetadataStream['encryption']['metadata_source_policy']['suppressed_sources']);
+        $t->same(['xmp'], $unencryptedMetadataStream['encryption']['metadata_source_policy']['preserved_sources']);
+        $t->same('preserved_unencrypted_by_encrypt_metadata_false', $unencryptedMetadataStream['encryption']['metadata_source_policy']['xmp_stream_policy']);
+        $t->same([], $unencryptedMetadataStream['info']);
+        $t->same([], $unencryptedMetadataStream['output_intents']);
+        $t->true(!isset($unencryptedMetadataStream['pdfa']));
+        $t->true(is_string($unencryptedEncoded) && !str_contains($unencryptedEncoded, 'Encrypted Info Title'));
+        $t->true(is_string($unencryptedEncoded) && !str_contains($unencryptedEncoded, 'Encrypted sRGB'));
+    },
 ];
