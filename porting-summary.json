@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 10:23:47 UTC",
-    "sourceCommit": "07df8d80848c250ab2e41110857e879ad2e56066",
-    "sourceCommitShort": "07df8d80848c",
+    "generated": "2026-06-02 10:26:55 UTC",
+    "sourceCommit": "f885670bf27d44b5ddce87503f08c38ea0155431",
+    "sourceCommitShort": "f885670bf27d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "07df8d80848c250ab2e41110857e879ad2e56066",
-    "dashboardCommitShort": "07df8d80848c",
+    "dashboardCommit": "f885670bf27d44b5ddce87503f08c38ea0155431",
+    "dashboardCommitShort": "f885670bf27d",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "318",
-            "coverage": "318 / 78 (407.7%)",
-            "mapPercent": "407.7%",
+            "mapped": "319",
+            "coverage": "319 / 78 (409.0%)",
+            "mapPercent": "409.0%",
             "unmapped": "0",
-            "php": "467 pass / 0 fail",
+            "php": "468 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Page graphics-state cm text transform boundaries are accepted on markerPDF with full...",
+            "currentWork": "Marker app preview CropBox/MediaBox boundary handling is accepted on markerPDF with f...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "07df8d8"
+            "commit": "f885670"
         },
         {
             "lane": "readability",
