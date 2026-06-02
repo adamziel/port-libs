@@ -18,6 +18,9 @@ refill_lane_on_exit() {
   if [[ "${LANE:-}" == "lightningcss" && "${LIGHTNINGCSS_AUTO_REFILL:-1}" != "0" && -x "$ROOT/scripts/refill-lightningcss-workers.sh" ]]; then
     LIGHTNINGCSS_AUTO_REFILL=0 bash "$ROOT/scripts/refill-lightningcss-workers.sh" --once || true
   fi
+  if [[ "${LANE:-}" == "markerpdf" && "${MARKERPDF_AUTO_REFILL:-1}" != "0" && -x "$ROOT/scripts/refill-markerpdf-workers.sh" ]]; then
+    MARKERPDF_AUTO_REFILL=0 bash "$ROOT/scripts/refill-markerpdf-workers.sh" --once || true
+  fi
   exit "$status"
 }
 trap refill_lane_on_exit EXIT
