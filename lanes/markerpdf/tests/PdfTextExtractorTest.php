@@ -518,6 +518,29 @@ return [
         $lines = (new PdfTextExtractor())->extractTextLines($fixture);
         $t->same(['WP Migration', 'Clean blocks from PDF imports', 'Media library captions'], $lines);
     },
+    'uses page Contents streams instead of unrelated PDF streams for WordPress text' => static function (TestRunner $t): void {
+        $pageOneA = 'BT /F1 12 Tf 72 720 Td (Page One Intro) Tj T* ET';
+        $pageOneB = 'BT /F1 12 Tf 72 704 Td (Clean Blocks) Tj ET';
+        $pageTwo = 'BT /F1 12 Tf 72 720 Td (Second Page) Tj ET';
+        $phantom = 'BT /F1 12 Tf 72 720 Td (Phantom Form Text) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 8 0 R] /Count 2 >>\nendobj\n"
+            . "8 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 7 0 R >> >> /Contents 9 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 7 0 R >> >> /Contents [4 0 R 5 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageOneA) . " >>\nstream\n{$pageOneA}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($pageOneB) . " >>\nstream\n{$pageOneB}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Form /Length " . strlen($phantom) . " >>\nstream\n{$phantom}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($pageTwo) . " >>\nstream\n{$pageTwo}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same(['Page One Intro', 'Clean Blocks', 'Second Page'], $extractor->extractTextLines($pdf));
+        $t->same(['Page One Intro', 'Clean Blocks', 'Second Page'], $extractor->extractTextRuns($pdf));
+        $t->same("Page One Intro\nClean Blocks\nSecond Page", $extractor->extractPlainText($pdf));
+        $t->same("Page One Intro\nClean Blocks\nSecond Page\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($extractor->extractPlainText($pdf), 'Phantom Form Text'));
+    },
     'replays upstream naive_get_text page suffix and get_length_of_text trim boundary' => static function (TestRunner $t) use ($pdfWithStreams): void {
         $pdf = $pdfWithStreams([
             'BT (First page) Tj T* (Second line) Tj ET',

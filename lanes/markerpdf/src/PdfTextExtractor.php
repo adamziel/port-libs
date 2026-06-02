@@ -36,8 +36,8 @@ final class PdfTextExtractor
      * Native boundary for marker.pdf.extract_text::naive_get_text.
      *
      * Upstream asks pypdfium for bounded text per page and appends a newline
-     * after each page. Here each extractable content stream is treated as the
-     * supplied native page boundary used by the lightweight PDF fixtures.
+     * after each page. Here page /Contents streams are the native page
+     * boundary, with a stream-only fallback for lightweight fixtures.
      */
     public function naiveGetText(string $pdfBytes): string
     {
@@ -99,8 +99,55 @@ final class PdfTextExtractor
      */
     private function streams(string $pdfBytes): array
     {
-        $streams = [];
         $objects = $this->pdfObjects($pdfBytes);
+        $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
+        if ($pageObjectNumbers !== []) {
+            return $this->pageContentStreams($objects, $pageObjectNumbers);
+        }
+
+        return $this->allDecodedStreams($pdfBytes, $objects);
+    }
+
+    /**
+     * @return list<string>
+     * @param array<int, string> $objects
+     * @param list<int> $pageObjectNumbers
+     */
+    private function pageContentStreams(array $objects, array $pageObjectNumbers): array
+    {
+        $pages = [];
+        foreach ($pageObjectNumbers as $pageObjectNumber) {
+            if (!isset($objects[$pageObjectNumber])) {
+                continue;
+            }
+
+            $streams = [];
+            foreach ($this->pageContentObjectNumbers($objects[$pageObjectNumber]) as $contentObjectNumber) {
+                if (!isset($objects[$contentObjectNumber])) {
+                    continue;
+                }
+
+                $decoded = $this->decodeStreamObject($objects[$contentObjectNumber], $objects);
+                if ($decoded !== null) {
+                    $streams[] = $decoded;
+                }
+            }
+
+            if ($streams !== []) {
+                $pages[] = implode("\n", $streams);
+            }
+        }
+
+        return $pages;
+    }
+
+    /**
+     * @return list<string>
+     * @param array<int, string> $objects
+     */
+    private function allDecodedStreams(string $pdfBytes, array $objects): array
+    {
+        $streams = [];
         if (!preg_match_all('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
             return $streams;
         }
@@ -116,6 +163,114 @@ final class PdfTextExtractor
         }
 
         return $streams;
+    }
+
+    /**
+     * @return list<int>
+     * @param array<int, string> $objects
+     */
+    private function orderedPageObjectNumbers(array $objects): array
+    {
+        foreach ($objects as $objectNumber => $body) {
+            if (!$this->isCatalogObject($body) || !preg_match('/\/Pages\s+(\d+)\s+\d+\s+R\b/s', $body, $match)) {
+                continue;
+            }
+
+            $pages = $this->pageObjectNumbersFromTree((int) $match[1], $objects);
+            if ($pages !== []) {
+                return $pages;
+            }
+        }
+
+        $pages = [];
+        foreach ($objects as $objectNumber => $body) {
+            if ($this->isPageObject($body)) {
+                $pages[] = $objectNumber;
+            }
+        }
+
+        return $pages;
+    }
+
+    /**
+     * @return list<int>
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     */
+    private function pageObjectNumbersFromTree(int $objectNumber, array $objects, array $seen = []): array
+    {
+        if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+            return [];
+        }
+
+        $seen[$objectNumber] = true;
+        $body = $objects[$objectNumber];
+        if ($this->isPageObject($body)) {
+            return [$objectNumber];
+        }
+
+        if (!preg_match('/\/Kids\s*\[(.*?)\]/s', $body, $match)) {
+            return [];
+        }
+
+        $pages = [];
+        foreach ($this->objectReferences($match[1]) as $childObjectNumber) {
+            foreach ($this->pageObjectNumbersFromTree($childObjectNumber, $objects, $seen) as $pageObjectNumber) {
+                $pages[] = $pageObjectNumber;
+            }
+        }
+
+        return $pages;
+    }
+
+    private function isCatalogObject(string $body): bool
+    {
+        return preg_match('/\/Type\s*\/Catalog\b/', $body) === 1;
+    }
+
+    private function isPageObject(string $body): bool
+    {
+        return preg_match('/\/Type\s*\/Page\b/', $body) === 1;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function pageContentObjectNumbers(string $pageBody): array
+    {
+        if (preg_match('/\/Contents\s*\[(.*?)\]/s', $pageBody, $match)) {
+            return $this->objectReferences($match[1]);
+        }
+
+        if (preg_match('/\/Contents\s+(\d+)\s+\d+\s+R\b/s', $pageBody, $match)) {
+            return [(int) $match[1]];
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function objectReferences(string $value): array
+    {
+        if (!preg_match_all('/(\d+)\s+\d+\s+R\b/', $value, $matches)) {
+            return [];
+        }
+
+        return array_map('intval', $matches[1]);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeStreamObject(string $objectBody, array $objects): ?string
+    {
+        if (!preg_match('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $objectBody, $match)) {
+            return null;
+        }
+
+        return $this->decodeStream($match[1], $match[2], $objects);
     }
 
     /**
