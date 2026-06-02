@@ -341,6 +341,8 @@ final class TableRecognizer
             }
 
             $scope = $this->headerScopeForGridCell($cellRowIds, $cellColIds, $topRowId, $leftColId);
+            $headerAxes = $this->headerAxesForGridCell($cellRowIds, $cellColIds, $topRowId, $leftColId);
+            $headerAxis = $this->headerAxisForAxes($headerAxes);
             $anchor = [
                 'row_id' => $cellRowIds[0],
                 'col_id' => $cellColIds[0],
@@ -359,6 +361,8 @@ final class TableRecognizer
                 'scope' => $scope,
                 'header' => $scope !== null,
                 'header_role' => $this->headerRoleForScope($scope),
+                'header_axis' => $headerAxis,
+                'header_axes' => $headerAxes,
                 'rotated' => $rotated,
                 'orientation' => $axisMetadata['orientation'],
                 'row_axis' => $axisMetadata['row_axis'],
@@ -410,6 +414,10 @@ final class TableRecognizer
                         'text' => $renderCell['text'],
                         'tag' => $renderCell['tag'],
                         'scope' => $renderCell['scope'],
+                        'header' => $renderCell['header'],
+                        'header_role' => $renderCell['header_role'],
+                        'header_axis' => $renderCell['header_axis'],
+                        'header_axes' => $renderCell['header_axes'],
                         'rowspan' => $renderCell['rowspan'],
                         'colspan' => $renderCell['colspan'],
                     ];
@@ -1677,6 +1685,36 @@ final class TableRecognizer
         }
 
         return null;
+    }
+
+    /**
+     * @param list<int> $rowIds
+     * @param list<int> $colIds
+     * @return list<string>
+     */
+    private function headerAxesForGridCell(array $rowIds, array $colIds, int $topRowId, int $leftColId): array
+    {
+        $axes = [];
+        if ($rowIds[0] === $topRowId) {
+            $axes[] = 'column';
+        }
+        if ($colIds[0] === $leftColId && count($rowIds) > 1) {
+            $axes[] = 'row';
+        }
+
+        return $axes;
+    }
+
+    /**
+     * @param list<string> $axes
+     */
+    private function headerAxisForAxes(array $axes): ?string
+    {
+        if (count($axes) > 1) {
+            return 'both';
+        }
+
+        return $axes[0] ?? null;
     }
 
     /**

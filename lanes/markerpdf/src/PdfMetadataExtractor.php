@@ -2882,6 +2882,8 @@ final class PdfMetadataExtractor
             }
         }
 
+        $cryptFilterSelection = $this->publicKeyRecipientCryptFilterSelection($dictionary, $cryptFilters);
+
         return [
             'source' => 'public_key_security_handler',
             'handler' => $handler,
@@ -2892,8 +2894,16 @@ final class PdfMetadataExtractor
             'unresolved_recipient_count' => $unresolvedCount,
             'recipient_sha256' => $recipientHashes,
             'crypt_filter_recipient_filter_names' => $this->uniqueStrings($cryptFilterRecipientNames),
+            'selected_crypt_filter_recipient_filter_names' => $cryptFilterSelection['selected_recipient_filter_names'],
+            'unselected_crypt_filter_recipient_filter_names' => $cryptFilterSelection['unselected_recipient_filter_names'],
+            'selected_recipient_count' => $cryptFilterSelection['selected_recipient_count'],
+            'selected_recipient_bytes' => $cryptFilterSelection['selected_recipient_bytes'],
+            'selected_unresolved_recipient_count' => $cryptFilterSelection['selected_unresolved_recipient_count'],
+            'selected_recipient_sha256' => $cryptFilterSelection['selected_recipient_sha256'],
+            'crypt_filter_selection' => $cryptFilterSelection,
             'recipient_lists' => $recipientLists,
             'permissions_available_in_recipient_envelopes' => $recipientCount > 0,
+            'selected_permissions_available_in_recipient_envelopes' => $cryptFilterSelection['selected_recipient_count'] > 0,
             'permissions_decoded' => false,
             'permission_decode_status' => $recipientCount > 0
                 ? 'cms_pkcs7_permission_decode_unavailable'
@@ -2932,6 +2942,103 @@ final class PdfMetadataExtractor
         }
 
         return $hasTopLevelRecipients ? 'encryption_dictionary_recipients' : 'recipient_arrays_missing';
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $cryptFilters
+     * @return array<string, mixed>
+     */
+    private function publicKeyRecipientCryptFilterSelection(string $dictionary, array $cryptFilters): array
+    {
+        $declared = [];
+        $selectedRows = [];
+        $selectedNames = [];
+        $selectedRecipientNames = [];
+        $selectedRecipientHashes = [];
+        $selectedRecipientCount = 0;
+        $selectedRecipientBytes = 0;
+        $selectedUnresolvedRecipientCount = 0;
+        $countedRecipientFilters = [];
+
+        foreach ([
+            'stream_filter' => 'StmF',
+            'string_filter' => 'StrF',
+            'embedded_file_filter' => 'EFF',
+        ] as $role => $pdfName) {
+            $name = $this->dictionaryStringValue($dictionary, $pdfName);
+            if ($name === null) {
+                continue;
+            }
+
+            $declared[$role] = $name;
+            $filter = $cryptFilters[$name] ?? null;
+            $recipients = is_array($filter['recipients'] ?? null) ? $filter['recipients'] : null;
+            $hasRecipients = $recipients !== null;
+            if (!in_array($name, $selectedNames, true)) {
+                $selectedNames[] = $name;
+            }
+            if ($hasRecipients && !in_array($name, $selectedRecipientNames, true)) {
+                $selectedRecipientNames[] = $name;
+            }
+
+            $selectedRows[] = [
+                'role' => $role,
+                'pdf_name' => $pdfName,
+                'name' => $name,
+                'crypt_filter_present' => is_array($filter),
+                'method' => is_array($filter) ? ($filter['method'] ?? null) : null,
+                'auth_event' => is_array($filter) ? ($filter['auth_event'] ?? null) : null,
+                'has_recipients' => $hasRecipients,
+                'recipient_count' => $hasRecipients ? (int) ($recipients['recipient_count'] ?? 0) : 0,
+                'recipient_bytes' => $hasRecipients ? (int) ($recipients['recipient_bytes'] ?? 0) : 0,
+                'unresolved_recipient_count' => $hasRecipients ? (int) ($recipients['unresolved_recipient_count'] ?? 0) : 0,
+                'permission_decode_status' => $hasRecipients ? ($recipients['permission_decode_status'] ?? null) : null,
+                'recipient_bytes_exposed' => false,
+            ];
+
+            if (!$hasRecipients || isset($countedRecipientFilters[$name])) {
+                continue;
+            }
+
+            $countedRecipientFilters[$name] = true;
+            $selectedRecipientCount += (int) ($recipients['recipient_count'] ?? 0);
+            $selectedRecipientBytes += (int) ($recipients['recipient_bytes'] ?? 0);
+            $selectedUnresolvedRecipientCount += (int) ($recipients['unresolved_recipient_count'] ?? 0);
+            foreach ($recipients['recipient_sha256'] ?? [] as $hash) {
+                if (is_string($hash) && !in_array($hash, $selectedRecipientHashes, true)) {
+                    $selectedRecipientHashes[] = $hash;
+                }
+            }
+        }
+
+        $cryptFilterRecipientNames = [];
+        foreach ($cryptFilters as $name => $filter) {
+            if (is_array($filter['recipients'] ?? null)) {
+                $cryptFilterRecipientNames[] = (string) $name;
+            }
+        }
+
+        $unselectedRecipientNames = [];
+        foreach ($cryptFilterRecipientNames as $name) {
+            if (!in_array($name, $selectedRecipientNames, true)) {
+                $unselectedRecipientNames[] = $name;
+            }
+        }
+
+        return [
+            'source' => 'public_key_crypt_filter_selection',
+            'declared_content_filters' => $declared,
+            'selected_crypt_filters' => $selectedRows,
+            'selected_filter_names' => $this->uniqueStrings($selectedNames),
+            'selected_recipient_filter_names' => $this->uniqueStrings($selectedRecipientNames),
+            'unselected_recipient_filter_names' => $this->uniqueStrings($unselectedRecipientNames),
+            'selected_recipient_count' => $selectedRecipientCount,
+            'selected_recipient_bytes' => $selectedRecipientBytes,
+            'selected_unresolved_recipient_count' => $selectedUnresolvedRecipientCount,
+            'selected_recipient_sha256' => $selectedRecipientHashes,
+            'recipient_bytes_exposed' => false,
+            'permissions_decoded' => false,
+        ];
     }
 
     /**

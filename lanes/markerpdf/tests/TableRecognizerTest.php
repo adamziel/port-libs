@@ -574,6 +574,64 @@ return [
         $t->same('covered', $gridByPosition['2:0']['state']);
         $t->same('Needs review', $gridByPosition['2:2']['text']);
     },
+    'marks OCR merged corner headers with both row and column axes for review' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $rows = [
+            ['row_id' => 0, 'bbox' => [0.0, 0.0, 300.0, 28.0]],
+            ['row_id' => 1, 'bbox' => [0.0, 32.0, 300.0, 60.0]],
+            ['row_id' => 2, 'bbox' => [0.0, 70.0, 300.0, 100.0]],
+            ['row_id' => 3, 'bbox' => [0.0, 110.0, 300.0, 140.0]],
+        ];
+        $cols = [
+            ['col_id' => 0, 'bbox' => [0.0, 0.0, 90.0, 140.0]],
+            ['col_id' => 1, 'bbox' => [100.0, 0.0, 190.0, 140.0]],
+            ['col_id' => 2, 'bbox' => [200.0, 0.0, 300.0, 140.0]],
+        ];
+        $assigned = [
+            ['bbox' => [5.0, 5.0, 185.0, 56.0], 'text' => 'Inventory', 'row_ids' => [0, 1], 'col_ids' => [0, 1]],
+            ['bbox' => [110.0, 8.0, 180.0, 20.0], 'text' => 'axis', 'row_ids' => [0], 'col_ids' => [1]],
+            ['bbox' => [205.0, 5.0, 295.0, 24.0], 'text' => 'Status', 'row_ids' => [0], 'col_ids' => [2]],
+            ['bbox' => [5.0, 74.0, 85.0, 136.0], 'text' => 'Media group', 'row_ids' => [2, 3], 'col_ids' => [0]],
+            ['bbox' => [110.0, 74.0, 180.0, 94.0], 'text' => 'Images', 'row_ids' => [2], 'col_ids' => [1]],
+            ['bbox' => [205.0, 74.0, 295.0, 94.0], 'text' => '12', 'row_ids' => [2], 'col_ids' => [2]],
+            ['bbox' => [110.0, 114.0, 180.0, 134.0], 'text' => 'State', 'row_ids' => [3], 'col_ids' => [1]],
+            ['bbox' => [205.0, 114.0, 295.0, 134.0], 'text' => 'Needs review', 'row_ids' => [3], 'col_ids' => [2]],
+        ];
+
+        $review = $recognizer->spanningGridReview($assigned, $rows, $cols);
+        $gridByPosition = [];
+        foreach ($review['grid_cells'] as $gridCell) {
+            $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+        }
+
+        $t->same([0, 1, 2, 3], $review['rows']);
+        $t->same([0, 1, 2], $review['cols']);
+        $t->same('Inventory axis', $review['render_cells'][0]['text']);
+        $t->same('th', $review['render_cells'][0]['tag']);
+        $t->same('colgroup', $review['render_cells'][0]['scope']);
+        $t->same('column_header', $review['render_cells'][0]['header_role']);
+        $t->same('both', $review['render_cells'][0]['header_axis']);
+        $t->same(['column', 'row'], $review['render_cells'][0]['header_axes']);
+        $t->same([2, 2], [$review['render_cells'][0]['rowspan'], $review['render_cells'][0]['colspan']]);
+        $t->same(2, $review['render_cells'][0]['source_cell_count']);
+        $t->same('axis', $review['render_cells'][0]['continuation_cells'][0]['text']);
+        $t->same([0.0, 0.0, 190.0, 60.0], $review['render_cells'][0]['grid_bbox']);
+        $t->same('Status', $review['render_cells'][1]['text']);
+        $t->same('column', $review['render_cells'][1]['header_axis']);
+        $t->same(['column'], $review['render_cells'][1]['header_axes']);
+        $t->same('Media group', $review['render_cells'][2]['text']);
+        $t->same('rowgroup', $review['render_cells'][2]['scope']);
+        $t->same('row', $review['render_cells'][2]['header_axis']);
+        $t->same(['row'], $review['render_cells'][2]['header_axes']);
+        $t->same('anchor', $gridByPosition['0:0']['state']);
+        $t->same('both', $gridByPosition['0:0']['header_axis']);
+        $t->same(['column', 'row'], $gridByPosition['0:0']['header_axes']);
+        $t->same('covered', $gridByPosition['0:1']['state']);
+        $t->same(['row_id' => 0, 'col_id' => 0, 'render_cell_index' => 0], $gridByPosition['1:1']['covered_by']);
+        $t->same('row', $gridByPosition['2:0']['header_axis']);
+        $t->same(null, $gridByPosition['2:1']['header_axis']);
+        $t->same('Needs review', $gridByPosition['3:2']['text']);
+    },
     'applies supplied OCR text before row column assignment and markdown formatting' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $recognized = $recognizer->recognizeTables(

@@ -8844,9 +8844,11 @@ final class PdfTextExtractor
     }
 
     /**
-     * Object streams can only carry generation-zero objects. If the current
-     * trailer-selected graph references a higher generation directly, recover
-     * that direct object before expanding any conflicting compressed member.
+     * Object streams can only carry generation-zero objects. Hybrid companion
+     * xref streams can also advertise a stale direct generation-zero row while
+     * the current graph references a newer generation. If the selected graph
+     * names a higher generation directly, recover that direct object before
+     * expanding or keeping any conflicting same-number object.
      *
      * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
@@ -8860,12 +8862,25 @@ final class PdfTextExtractor
         for ($pass = 0; $pass < 8; $pass++) {
             $added = false;
             foreach ($this->nonZeroGenerationObjectReferences($repaired) as $objectNumber => $generations) {
-                if (isset($repaired[$objectNumber]) || ($xrefEntries[$objectNumber]['type'] ?? null) !== 2) {
+                $xrefEntry = $xrefEntries[$objectNumber] ?? null;
+                $selected = isset($repaired[$objectNumber])
+                    ? $this->liveDirectObjectDefinition($definitions[$objectNumber] ?? [], $xrefEntry)
+                    : null;
+                $canRepairCompressedMember = !isset($repaired[$objectNumber]) && ($xrefEntry['type'] ?? null) === 2;
+                $canRepairDirectGeneration = isset($repaired[$objectNumber])
+                    && ($xrefEntry['type'] ?? null) === 1
+                    && $selected !== null;
+
+                if (!$canRepairCompressedMember && !$canRepairDirectGeneration) {
                     continue;
                 }
 
                 krsort($generations, SORT_NUMERIC);
                 foreach (array_keys($generations) as $generation) {
+                    if ($canRepairDirectGeneration && $selected['generation'] === (int) $generation) {
+                        continue;
+                    }
+
                     $definition = $this->directObjectDefinitionForGeneration($definitions[$objectNumber] ?? [], (int) $generation);
                     if ($definition === null) {
                         continue;

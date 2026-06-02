@@ -96,6 +96,47 @@ $encryptedPublicKeyRecipientPermissionsPdf = static function (): array {
     return [$pdf, $recipientOne, $recipientTwo, $recipientOneHex, $recipientTwoHex];
 };
 
+$encryptedPublicKeyDssPermissionReviewPdf = static function (): array {
+    $content = 'BT /F1 12 Tf 72 720 Td (Public-key DSS encrypted leak) Tj ET';
+    $documentRecipient = 'DOCUMENT_CONTENT_RECIPIENT_BYTES_SHOULD_NOT_LEAK';
+    $embeddedFileRecipient = 'EMBEDDED_FILE_RECIPIENT_BYTES_SHOULD_NOT_LEAK';
+    $unusedRecipient = 'UNUSED_CRYPT_FILTER_RECIPIENT_BYTES_SHOULD_NOT_LEAK';
+    $certPayload = 'PUBLICKEY_DSS_CERTIFICATE_BYTES_SHOULD_NOT_LEAK';
+    $ocspPayload = 'PUBLICKEY_DSS_OCSP_BYTES_SHOULD_NOT_LEAK';
+    $documentRecipientHex = strtoupper(bin2hex($documentRecipient));
+    $embeddedFileRecipientHex = strtoupper(bin2hex($embeddedFileRecipient));
+    $unusedRecipientHex = strtoupper(bin2hex($unusedRecipient));
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /DSS 60 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Filter /Adobe.PubSec /SubFilter /adbe.pkcs7.s5 /V 4 /Length 128"
+        . " /CF <<"
+        . " /DefaultCryptFilter << /CFM /AESV2 /AuthEvent /DocOpen /Length 16 /Recipients [<{$documentRecipientHex}>] >>"
+        . " /EmbeddedFiles << /CFM /AESV2 /AuthEvent /EFOpen /Length 16 /Recipients 8 0 R >>"
+        . " /UnusedRights << /CFM /V2 /AuthEvent /DocOpen /Length 16 /Recipients [<{$unusedRecipientHex}>] >>"
+        . " >> /StmF /DefaultCryptFilter /StrF /DefaultCryptFilter /EFF /EmbeddedFiles /EncryptMetadata true >>\nendobj\n"
+        . "8 0 obj\n[<{$embeddedFileRecipientHex}>]\nendobj\n"
+        . "60 0 obj\n<< /Type /DSS /Certs [70 0 R] /OCSPs [71 0 R] >>\nendobj\n"
+        . "70 0 obj\n<< /Length " . strlen($certPayload) . " /Subtype /application#2Fpkix-cert >>\nstream\n{$certPayload}\nendstream\nendobj\n"
+        . "71 0 obj\n<< /Length " . strlen($ocspPayload) . " /Subtype /application#2Focsp-response >>\nstream\n{$ocspPayload}\nendstream\nendobj\n"
+        . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
+
+    return [
+        $pdf,
+        $documentRecipient,
+        $embeddedFileRecipient,
+        $unusedRecipient,
+        $documentRecipientHex,
+        $embeddedFileRecipientHex,
+        $unusedRecipientHex,
+        hash('sha256', $certPayload),
+        hash('sha256', $ocspPayload),
+    ];
+};
+
 $encryptedPdfWithMalformedStandardPermissions = static function (): string {
     $content = 'BT /F1 12 Tf 72 720 Td (Malformed permission encrypted leak) Tj ET';
 
@@ -508,6 +549,9 @@ return [
         $t->same(['DefaultCryptFilter'], $recipientReview['crypt_filter_recipient_filter_names']);
         $t->same(2, $recipientReview['recipient_count']);
         $t->same([hash('sha256', $recipientOne), hash('sha256', $recipientTwo)], $recipientReview['recipient_sha256']);
+        $t->same(['DefaultCryptFilter'], $recipientReview['selected_crypt_filter_recipient_filter_names']);
+        $t->same(2, $recipientReview['selected_recipient_count']);
+        $t->same(['stream_filter' => 'DefaultCryptFilter', 'string_filter' => 'DefaultCryptFilter'], $recipientReview['crypt_filter_selection']['declared_content_filters']);
         $t->same('DefaultCryptFilter', $recipientList['crypt_filter']);
         $t->same(2, $recipientList['recipient_count']);
         $t->same(false, $recipientList['recipient_bytes_exposed']);
@@ -518,6 +562,107 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'Public-key recipient encrypted leak'));
         $t->true(is_string($encoded) && !str_contains($encoded, $recipientOne) && !str_contains($encoded, $recipientTwo));
         $t->true(is_string($encoded) && !str_contains($encoded, $recipientOneHex) && !str_contains($encoded, $recipientTwoHex));
+    },
+    'selects public-key crypt-filter recipient permissions while keeping DSS validation bytes review-only' => static function (TestRunner $t) use ($encryptedPublicKeyDssPermissionReviewPdf): void {
+        [
+            $pdf,
+            $documentRecipient,
+            $embeddedFileRecipient,
+            $unusedRecipient,
+            $documentRecipientHex,
+            $embeddedFileRecipientHex,
+            $unusedRecipientHex,
+            $certHash,
+            $ocspHash,
+        ] = $encryptedPublicKeyDssPermissionReviewPdf();
+        $report = (new PdfSecurityPreflight())->analyze($pdf);
+        $permission = $report['permission_preflight'];
+        $handler = $report['permission_handler_review'];
+        $recipientReview = $permission['public_key_recipient_review'];
+        $selection = $recipientReview['crypt_filter_selection'];
+        $dss = $report['document_security_store'];
+        $encoded = json_encode($report, JSON_UNESCAPED_SLASHES);
+
+        $t->same('', (new PdfTextExtractor())->extractPlainText($pdf));
+        $t->true($report['encrypted']);
+        $t->same(false, $report['content_extraction_allowed']);
+        $t->same('block_encrypted_content_review_security_metadata', $report['import_decision']);
+        $t->same(['encrypted_document', 'encrypted_text_extraction_blocked', 'public_key_recipient_permissions_undecoded', 'document_security_store_present'], $report['review_reasons']);
+        $t->same(['native_text_extraction', 'decryption', 'revocation_check', 'trust_chain_validation'], $report['blocked_operations']);
+
+        $t->same('Adobe.PubSec', $report['encryption']['filter']);
+        $t->same('adbe.pkcs7.s5', $report['encryption']['subfilter']);
+        $t->same('DefaultCryptFilter', $report['encryption']['stream_filter']);
+        $t->same('DefaultCryptFilter', $report['encryption']['string_filter']);
+        $t->same('EmbeddedFiles', $report['encryption']['embedded_file_filter']);
+        $t->same(3, $report['encryption']['public_key_recipient_count']);
+        $t->same(2, $report['encryption']['selected_public_key_recipient_count']);
+        $t->same(['DefaultCryptFilter', 'EmbeddedFiles'], $report['encryption']['public_key_crypt_filter_selection']['selected_recipient_filter_names']);
+
+        $t->same('public_key_recipient_permissions', $permission['source']);
+        $t->same(true, $permission['recipient_permissions_declared']);
+        $t->same(true, $permission['selected_recipient_permissions_declared']);
+        $t->same(2, $permission['selected_public_key_recipient_count']);
+        $t->same(null, $permission['permission_hex']);
+        $t->same([], $permission['allowed']);
+        $t->same([], $permission['denied']);
+        $t->same('public_key_recipient_permissions_blocked_without_private_key', $permission['policy']);
+        $t->same('blocked_encrypted_public_key_recipient_permissions', $permission['content_extraction_boundary']);
+
+        $t->same(3, $handler['public_key_recipient_count']);
+        $t->same(2, $handler['selected_public_key_recipient_count']);
+        $t->same(['DefaultCryptFilter', 'EmbeddedFiles'], $handler['public_key_selected_crypt_filter_recipient_filter_names']);
+        $t->same(['UnusedRights'], $handler['public_key_unselected_crypt_filter_recipient_filter_names']);
+        $t->same('public_key_recipient_permissions_undecoded_review', $handler['status']);
+        $t->same(false, $handler['executes_cms_parse']);
+        $t->same(false, $handler['executes_decryption']);
+
+        $t->same('public_key_security_handler', $recipientReview['source']);
+        $t->same('crypt_filter_recipients', $recipientReview['recipient_source_policy']);
+        $t->same(['DefaultCryptFilter', 'EmbeddedFiles', 'UnusedRights'], $recipientReview['crypt_filter_recipient_filter_names']);
+        $t->same(['DefaultCryptFilter', 'EmbeddedFiles'], $recipientReview['selected_crypt_filter_recipient_filter_names']);
+        $t->same(['UnusedRights'], $recipientReview['unselected_crypt_filter_recipient_filter_names']);
+        $t->same(3, $recipientReview['recipient_count']);
+        $t->same(2, $recipientReview['selected_recipient_count']);
+        $t->same([hash('sha256', $documentRecipient), hash('sha256', $embeddedFileRecipient)], $recipientReview['selected_recipient_sha256']);
+        $t->same(true, $recipientReview['permissions_available_in_recipient_envelopes']);
+        $t->same(true, $recipientReview['selected_permissions_available_in_recipient_envelopes']);
+
+        $t->same('public_key_crypt_filter_selection', $selection['source']);
+        $t->same(['stream_filter' => 'DefaultCryptFilter', 'string_filter' => 'DefaultCryptFilter', 'embedded_file_filter' => 'EmbeddedFiles'], $selection['declared_content_filters']);
+        $t->same(['DefaultCryptFilter', 'EmbeddedFiles'], $selection['selected_filter_names']);
+        $t->same(['DefaultCryptFilter', 'EmbeddedFiles'], $selection['selected_recipient_filter_names']);
+        $t->same(['UnusedRights'], $selection['unselected_recipient_filter_names']);
+        $t->same(2, $selection['selected_recipient_count']);
+        $t->same(0, $selection['selected_unresolved_recipient_count']);
+        $t->same('stream_filter', $selection['selected_crypt_filters'][0]['role']);
+        $t->same('DefaultCryptFilter', $selection['selected_crypt_filters'][0]['name']);
+        $t->same('DocOpen', $selection['selected_crypt_filters'][0]['auth_event']);
+        $t->same('embedded_file_filter', $selection['selected_crypt_filters'][2]['role']);
+        $t->same('EmbeddedFiles', $selection['selected_crypt_filters'][2]['name']);
+        $t->same('EFOpen', $selection['selected_crypt_filters'][2]['auth_event']);
+
+        $t->true($dss['present']);
+        $t->same(1, $report['document_security_store_count']);
+        $t->same(2, $dss['total_validation_stream_count']);
+        $t->same($certHash, $dss['global_certificates'][0]['sha256']);
+        $t->same($ocspHash, $dss['global_ocsps'][0]['sha256']);
+        $t->same(false, $dss['raw_validation_bytes_exposed']);
+        $t->same(false, $report['executes_decryption']);
+        $t->same(false, $report['executes_revocation_check']);
+        $t->same(false, $report['executes_trust_chain_validation']);
+        $t->same(false, $report['executes_external_pdf_tools']);
+
+        $t->true(is_string($encoded)
+            && !str_contains($encoded, 'Public-key DSS encrypted leak')
+            && !str_contains($encoded, $documentRecipient)
+            && !str_contains($encoded, $embeddedFileRecipient)
+            && !str_contains($encoded, $unusedRecipient)
+            && !str_contains($encoded, $documentRecipientHex)
+            && !str_contains($encoded, $embeddedFileRecipientHex)
+            && !str_contains($encoded, $unusedRecipientHex)
+            && !str_contains($encoded, 'PUBLICKEY_DSS_CERTIFICATE_BYTES_SHOULD_NOT_LEAK')
+            && !str_contains($encoded, 'PUBLICKEY_DSS_OCSP_BYTES_SHOULD_NOT_LEAK'));
     },
     'flags malformed Standard permission reserved bits as review-only handler metadata' => static function (TestRunner $t) use ($encryptedPdfWithMalformedStandardPermissions): void {
         $pdf = $encryptedPdfWithMalformedStandardPermissions();
