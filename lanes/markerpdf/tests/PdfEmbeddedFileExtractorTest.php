@@ -152,6 +152,67 @@ return [
         $t->same(15, $previewFile['embedded_file_object']);
         $t->same($previewText, $previewFile['content']);
     },
+    'extracts PDF portfolio collection item and PieceInfo metadata from EmbeddedFiles name trees' => static function (TestRunner $t): void {
+        $exportXml = '<wp-export><post id="42"/></wp-export>';
+        $notes = 'Portfolio review notes';
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageMode /UseAttachments /Collection 5 0 R /PieceInfo << /WPPortfolio << /LastModified (D:20260602043000Z) /Private << /Workflow (WordPress migration review) /Batch 7 /Kind /Portfolio >> >> >> /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "5 0 obj\n<< /Type /Collection /View /D /D (wp-export.xml) /Schema << /Subject << /Subtype /S /N (Subject) /O 1 /V true /E false >> /Modified << /Subtype /D /N (Modified) /O 2 >> /Size << /Subtype /Size /N (Size) /O 3 >> >> /Sort << /S [/Subject /Modified] /A [false true] >> >>\nendobj\n"
+            . "6 0 obj\n<< /Kids [7 0 R] >>\nendobj\n"
+            . "7 0 obj\n<< /Limits [(review-notes.txt) (wp-export.xml)] /Names [(wp-export.xml) 10 0 R (review-notes.txt) 20 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (wp-export.xml) /Desc (Original WordPress export) /AFRelationship /Source /CI 30 0 R /PieceInfo 31 0 R /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($exportXml) . " >> /Length " . strlen($exportXml) . " >>\nstream\n{$exportXml}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /Filespec /F (review-notes.txt) /Desc (Portfolio review notes) /CI << /Subject (Editorial Notes) /Size " . strlen($notes) . " >> /EF << /F 21 0 R >> >>\nendobj\n"
+            . "21 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fplain /Length " . strlen($notes) . " >>\nstream\n{$notes}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /Subject (WordPress Export) /Modified (D:20260602043100Z) /Size " . strlen($exportXml) . " /Review << /Type /CollectionSubitem /D (Approved) /P (Status: ) >> >>\nendobj\n"
+            . "31 0 obj\n<< /WPImporter << /LastModified (D:20260602043200Z) /Private << /ManifestId (wp-42) /Preserve true /Priority 2 >> >> >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+
+        $t->same(2, count($files));
+
+        $export = $files[0];
+        $t->same('wp-export.xml', $export['filename']);
+        $t->same('Original WordPress export', $export['description']);
+        $t->same('Source', $export['relationship']);
+        $t->same('text/xml', $export['mime_type']);
+        $t->same($exportXml, $export['content']);
+        $t->same('catalog_collection', $export['portfolio']['source']);
+        $t->same('Collection', $export['portfolio']['type']);
+        $t->same('D', $export['portfolio']['view']);
+        $t->same('wp-export.xml', $export['portfolio']['default_document']);
+        $t->same('Subject', $export['portfolio']['schema']['Subject']['label']);
+        $t->same('S', $export['portfolio']['schema']['Subject']['subtype']);
+        $t->same(1, $export['portfolio']['schema']['Subject']['order']);
+        $t->same(true, $export['portfolio']['schema']['Subject']['visible']);
+        $t->same(false, $export['portfolio']['schema']['Subject']['editable']);
+        $t->same(['Subject', 'Modified'], $export['portfolio']['sort']['keys']);
+        $t->same([false, true], $export['portfolio']['sort']['ascending']);
+        $t->same('WordPress Export', $export['portfolio_item']['Subject']);
+        $t->same('D:20260602043100Z', $export['portfolio_item']['Modified']);
+        $t->same(strlen($exportXml), $export['portfolio_item']['Size']);
+        $t->same('Approved', $export['portfolio_item']['Review']['value']);
+        $t->same('Status: ', $export['portfolio_item']['Review']['prefix']);
+        $t->same('D:20260602043200Z', $export['piece_info']['WPImporter']['last_modified']);
+        $t->same('wp-42', $export['piece_info']['WPImporter']['private']['ManifestId']);
+        $t->same(true, $export['piece_info']['WPImporter']['private']['Preserve']);
+        $t->same(2, $export['piece_info']['WPImporter']['private']['Priority']);
+        $t->same('D:20260602043000Z', $export['catalog_piece_info']['WPPortfolio']['last_modified']);
+        $t->same('WordPress migration review', $export['catalog_piece_info']['WPPortfolio']['private']['Workflow']);
+        $t->same(7, $export['catalog_piece_info']['WPPortfolio']['private']['Batch']);
+        $t->same('Portfolio', $export['catalog_piece_info']['WPPortfolio']['private']['Kind']);
+
+        $review = $files[1];
+        $t->same('review-notes.txt', $review['filename']);
+        $t->same('Portfolio review notes', $review['description']);
+        $t->same('text/plain', $review['mime_type']);
+        $t->same('Editorial Notes', $review['portfolio_item']['Subject']);
+        $t->same(strlen($notes), $review['portfolio_item']['Size']);
+        $t->same($export['portfolio'], $review['portfolio']);
+        $t->same($export['catalog_piece_info'], $review['catalog_piece_info']);
+    },
     'returns no attachment review rows when catalog EmbeddedFiles is absent' => static function (TestRunner $t): void {
         $t->same([], (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles('%PDF-1.4 no catalog'));
         $t->same([], (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles("%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n%%EOF"));

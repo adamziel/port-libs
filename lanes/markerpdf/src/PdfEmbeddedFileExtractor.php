@@ -19,16 +19,18 @@ final class PdfEmbeddedFileExtractor
             return [];
         }
 
+        $portfolioMetadata = $this->collectionMetadata($this->dictionaryRawValue($catalog, 'Collection'), $objects);
+        $catalogPieceInfo = $this->pieceInfoMetadata($this->dictionaryRawValue($catalog, 'PieceInfo'), $objects);
         $files = [];
         $names = $this->resolveDictionaryFromValue($this->dictionaryRawValue($catalog, 'Names'), $objects);
         if ($names !== null) {
             $embeddedFiles = $this->resolveDictionaryFromValue($this->dictionaryRawValue($names['body'], 'EmbeddedFiles'), $objects);
             if ($embeddedFiles !== null) {
-                $this->collectNameTreeFiles($embeddedFiles['body'], $objects, $files);
+                $this->collectNameTreeFiles($embeddedFiles['body'], $objects, $files, $portfolioMetadata, $catalogPieceInfo);
             }
         }
 
-        $this->collectAssociatedFiles($this->dictionaryRawValue($catalog, 'AF'), $objects, $files);
+        $this->collectAssociatedFiles($this->dictionaryRawValue($catalog, 'AF'), $objects, $files, $catalogPieceInfo);
 
         return $this->dedupeEmbeddedFiles($files);
     }
@@ -36,9 +38,18 @@ final class PdfEmbeddedFileExtractor
     /**
      * @param array<int, string> $objects
      * @param list<array<string, mixed>> $files
+     * @param array<string, mixed> $portfolioMetadata
+     * @param array<string, mixed> $catalogPieceInfo
      * @param array<int, true> $seen
      */
-    private function collectNameTreeFiles(string $nodeBody, array $objects, array &$files, array $seen = []): void
+    private function collectNameTreeFiles(
+        string $nodeBody,
+        array $objects,
+        array &$files,
+        array $portfolioMetadata = [],
+        array $catalogPieceInfo = [],
+        array $seen = []
+    ): void
     {
         $namesValue = $this->dictionaryRawValue($nodeBody, 'Names');
         if ($namesValue !== null) {
@@ -49,7 +60,14 @@ final class PdfEmbeddedFileExtractor
                     continue;
                 }
 
-                $file = $this->embeddedFileFromFileSpecValue($names[$index + 1], $name, $objects, 'catalog_names_embedded_files');
+                $file = $this->embeddedFileFromFileSpecValue(
+                    $names[$index + 1],
+                    $name,
+                    $objects,
+                    'catalog_names_embedded_files',
+                    $portfolioMetadata,
+                    $catalogPieceInfo
+                );
                 if ($file !== null) {
                     $files[] = $file;
                 }
@@ -72,7 +90,7 @@ final class PdfEmbeddedFileExtractor
 
             $kid = $this->resolveDictionaryFromValue($kidValue, $objects);
             if ($kid !== null) {
-                $this->collectNameTreeFiles($kid['body'], $objects, $files, $seen);
+                $this->collectNameTreeFiles($kid['body'], $objects, $files, $portfolioMetadata, $catalogPieceInfo, $seen);
             }
         }
     }
@@ -80,15 +98,16 @@ final class PdfEmbeddedFileExtractor
     /**
      * @param array<int, string> $objects
      * @param list<array<string, mixed>> $files
+     * @param array<string, mixed> $catalogPieceInfo
      */
-    private function collectAssociatedFiles(?string $arrayValue, array $objects, array &$files): void
+    private function collectAssociatedFiles(?string $arrayValue, array $objects, array &$files, array $catalogPieceInfo = []): void
     {
         if ($arrayValue === null) {
             return;
         }
 
         foreach ($this->arrayItemsFromValue($arrayValue, $objects) as $index => $fileSpecValue) {
-            $file = $this->embeddedFileFromFileSpecValue($fileSpecValue, null, $objects, 'catalog_associated_files');
+            $file = $this->embeddedFileFromFileSpecValue($fileSpecValue, null, $objects, 'catalog_associated_files', [], $catalogPieceInfo);
             if ($file === null) {
                 continue;
             }
@@ -102,8 +121,17 @@ final class PdfEmbeddedFileExtractor
     /**
      * @param array<int, string> $objects
      * @return array<string, mixed>|null
+     * @param array<string, mixed> $portfolioMetadata
+     * @param array<string, mixed> $catalogPieceInfo
      */
-    private function embeddedFileFromFileSpecValue(string $value, ?string $name, array $objects, string $source): ?array
+    private function embeddedFileFromFileSpecValue(
+        string $value,
+        ?string $name,
+        array $objects,
+        string $source,
+        array $portfolioMetadata = [],
+        array $catalogPieceInfo = []
+    ): ?array
     {
         $fileSpec = $this->resolveDictionaryFromValue($value, $objects);
         if ($fileSpec === null) {
@@ -166,6 +194,24 @@ final class PdfEmbeddedFileExtractor
 
             foreach ($this->embeddedFileParams($stream['dictionary'], $objects) as $key => $metadataValue) {
                 $file[$key] = $metadataValue;
+            }
+
+            if ($portfolioMetadata !== []) {
+                $file['portfolio'] = $portfolioMetadata;
+            }
+
+            $portfolioItem = $this->collectionItemMetadata($this->dictionaryRawValue($body, 'CI'), $objects);
+            if ($portfolioItem !== []) {
+                $file['portfolio_item'] = $portfolioItem;
+            }
+
+            $pieceInfo = $this->pieceInfoMetadata($this->dictionaryRawValue($body, 'PieceInfo'), $objects);
+            if ($pieceInfo !== []) {
+                $file['piece_info'] = $pieceInfo;
+            }
+
+            if ($catalogPieceInfo !== []) {
+                $file['catalog_piece_info'] = $catalogPieceInfo;
             }
 
             return $file;
@@ -241,6 +287,221 @@ final class PdfEmbeddedFileExtractor
         $modifiedAt = $this->dictionaryStringValue($params['body'], 'ModDate', $objects);
         if ($modifiedAt !== null && $modifiedAt !== '') {
             $metadata['modified_at'] = $modifiedAt;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function collectionMetadata(?string $collectionValue, array $objects): array
+    {
+        $collection = $this->resolveDictionaryFromValue($collectionValue, $objects);
+        if ($collection === null) {
+            return [];
+        }
+
+        $body = $collection['body'];
+        $entries = $this->dictionaryEntries($body);
+        $metadata = ['source' => 'catalog_collection'];
+        foreach ([
+            'type' => $this->dictionaryNameValue($body, 'Type', $objects),
+            'view' => $this->dictionaryNameValue($body, 'View', $objects),
+            'default_document' => $this->reviewValueFromRaw($entries['D'] ?? null, $objects),
+        ] as $key => $value) {
+            if ($value !== null && $value !== '') {
+                $metadata[$key] = $value;
+            }
+        }
+
+        $schema = $this->collectionSchemaMetadata($this->dictionaryRawValue($body, 'Schema'), $objects);
+        if ($schema !== []) {
+            $metadata['schema'] = $schema;
+        }
+
+        $sort = $this->collectionSortMetadata($this->dictionaryRawValue($body, 'Sort'), $objects);
+        if ($sort !== []) {
+            $metadata['sort'] = $sort;
+        }
+
+        if ($this->dictionaryRawValue($body, 'Folders') !== null) {
+            $metadata['has_folders'] = true;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, array<string, mixed>>
+     */
+    private function collectionSchemaMetadata(?string $schemaValue, array $objects): array
+    {
+        $schema = $this->resolveDictionaryFromValue($schemaValue, $objects);
+        if ($schema === null) {
+            return [];
+        }
+
+        $fields = [];
+        foreach ($this->dictionaryEntries($schema['body']) as $name => $fieldValue) {
+            $fieldDictionary = $this->resolveDictionaryFromValue($fieldValue, $objects);
+            if ($fieldDictionary === null) {
+                continue;
+            }
+
+            $fieldBody = $fieldDictionary['body'];
+            $field = [];
+            foreach ([
+                'subtype' => $this->dictionaryNameValue($fieldBody, 'Subtype', $objects),
+                'label' => $this->dictionaryStringValue($fieldBody, 'N', $objects),
+                'order' => $this->dictionaryIntegerValue($fieldBody, 'O'),
+                'visible' => $this->reviewValueFromRaw($this->dictionaryRawValue($fieldBody, 'V'), $objects),
+                'editable' => $this->reviewValueFromRaw($this->dictionaryRawValue($fieldBody, 'E'), $objects),
+            ] as $key => $value) {
+                if ($value !== null && $value !== '') {
+                    $field[$key] = $value;
+                }
+            }
+
+            if ($field !== []) {
+                $fields[$name] = $field;
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function collectionSortMetadata(?string $sortValue, array $objects): array
+    {
+        $sort = $this->resolveDictionaryFromValue($sortValue, $objects);
+        if ($sort === null) {
+            return [];
+        }
+
+        $metadata = [];
+        $keys = $this->reviewListFromRaw($this->dictionaryRawValue($sort['body'], 'S'), $objects);
+        if ($keys !== []) {
+            $metadata['keys'] = $keys;
+        }
+
+        $ascending = $this->reviewListFromRaw($this->dictionaryRawValue($sort['body'], 'A'), $objects);
+        if ($ascending !== []) {
+            $metadata['ascending'] = $ascending;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function collectionItemMetadata(?string $collectionItemValue, array $objects): array
+    {
+        $collectionItem = $this->resolveDictionaryFromValue($collectionItemValue, $objects);
+        if ($collectionItem === null) {
+            return [];
+        }
+
+        $metadata = [];
+        foreach ($this->dictionaryEntries($collectionItem['body']) as $name => $value) {
+            if ($name === 'Type') {
+                continue;
+            }
+
+            $subitem = $this->collectionSubitemMetadata($value, $objects);
+            if ($subitem !== null) {
+                $metadata[$name] = $subitem;
+                continue;
+            }
+
+            $reviewValue = $this->reviewValueFromRaw($value, $objects);
+            if ($reviewValue !== null && $reviewValue !== '') {
+                $metadata[$name] = $reviewValue;
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function collectionSubitemMetadata(string $value, array $objects): ?array
+    {
+        $subitem = $this->resolveDictionaryFromValue($value, $objects);
+        if ($subitem === null) {
+            return null;
+        }
+
+        $body = $subitem['body'];
+        if ($this->dictionaryRawValue($body, 'D') === null && $this->dictionaryRawValue($body, 'P') === null) {
+            return null;
+        }
+
+        $metadata = [];
+        $value = $this->reviewValueFromRaw($this->dictionaryRawValue($body, 'D'), $objects);
+        if ($value !== null && $value !== '') {
+            $metadata['value'] = $value;
+        }
+
+        $prefix = $this->reviewValueFromRaw($this->dictionaryRawValue($body, 'P'), $objects);
+        if ($prefix !== null && $prefix !== '') {
+            $metadata['prefix'] = $prefix;
+        }
+
+        return $metadata === [] ? null : $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, array<string, mixed>>
+     */
+    private function pieceInfoMetadata(?string $pieceInfoValue, array $objects): array
+    {
+        $pieceInfo = $this->resolveDictionaryFromValue($pieceInfoValue, $objects);
+        if ($pieceInfo === null) {
+            return [];
+        }
+
+        $metadata = [];
+        foreach ($this->dictionaryEntries($pieceInfo['body']) as $application => $pieceValue) {
+            $piece = $this->resolveDictionaryFromValue($pieceValue, $objects);
+            if ($piece === null) {
+                continue;
+            }
+
+            $entry = [];
+            $lastModified = $this->dictionaryStringValue($piece['body'], 'LastModified', $objects);
+            if ($lastModified !== null && $lastModified !== '') {
+                $entry['last_modified'] = $lastModified;
+            }
+
+            $private = $this->resolveDictionaryFromValue($this->dictionaryRawValue($piece['body'], 'Private'), $objects);
+            if ($private !== null) {
+                $privateMetadata = [];
+                foreach ($this->dictionaryEntries($private['body']) as $name => $value) {
+                    $reviewValue = $this->reviewValueFromRaw($value, $objects);
+                    if ($reviewValue !== null && $reviewValue !== '') {
+                        $privateMetadata[$name] = $reviewValue;
+                    }
+                }
+
+                if ($privateMetadata !== []) {
+                    $entry['private'] = $privateMetadata;
+                }
+            }
+
+            if ($entry !== []) {
+                $metadata[$application] = $entry;
+            }
         }
 
         return $metadata;
@@ -862,6 +1123,140 @@ final class PdfEmbeddedFileExtractor
     private function objectNumberFromReference(string $value): ?int
     {
         return preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($value), $match) === 1 ? (int) $match[1] : null;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function dictionaryEntries(string $dictionary): array
+    {
+        $entries = [];
+        for ($offset = 0, $length = strlen($dictionary); $offset < $length;) {
+            $offset = $this->skipWhitespace($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (($dictionary[$offset] ?? '') !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $remaining = substr($dictionary, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $name = $this->decodePdfName($match[1]);
+            $value = $this->readPdfValueAt($dictionary, $offset + strlen($match[0]));
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $entries[$name] = $value['raw'];
+            $offset = $value['end'];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<mixed>
+     */
+    private function reviewListFromRaw(?string $value, array $objects): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $resolved = trim($this->resolveRawValue($value, $objects) ?? $value);
+        if ($resolved === '') {
+            return [];
+        }
+
+        if (!str_starts_with($resolved, '[')) {
+            $scalar = $this->reviewValueFromRaw($resolved, $objects);
+            return $scalar === null ? [] : [$scalar];
+        }
+
+        $items = [];
+        foreach ($this->arrayItemsFromValue($resolved, $objects) as $item) {
+            $reviewValue = $this->reviewValueFromRaw($item, $objects);
+            if ($reviewValue !== null) {
+                $items[] = $reviewValue;
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function reviewValueFromRaw(?string $value, array $objects, int $depth = 0): mixed
+    {
+        if ($value === null || $depth > 4) {
+            return null;
+        }
+
+        $resolved = trim($this->resolveRawValue($value, $objects) ?? $value);
+        if ($resolved === '') {
+            return null;
+        }
+
+        if (str_starts_with($resolved, '[')) {
+            $items = [];
+            foreach ($this->arrayItemsFromValue($resolved, $objects) as $item) {
+                $reviewValue = $this->reviewValueFromRaw($item, $objects, $depth + 1);
+                if ($reviewValue !== null) {
+                    $items[] = $reviewValue;
+                }
+            }
+
+            return $items;
+        }
+
+        if (str_starts_with($resolved, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($resolved, 0);
+            if ($dictionary === null) {
+                return null;
+            }
+
+            $metadata = [];
+            foreach ($this->dictionaryEntries($dictionary['body']) as $name => $entryValue) {
+                $reviewValue = $this->reviewValueFromRaw($entryValue, $objects, $depth + 1);
+                if ($reviewValue !== null && $reviewValue !== '') {
+                    $metadata[$name] = $reviewValue;
+                }
+            }
+
+            return $metadata === [] ? null : $metadata;
+        }
+
+        if ($resolved === 'true') {
+            return true;
+        }
+
+        if ($resolved === 'false') {
+            return false;
+        }
+
+        if ($resolved === 'null') {
+            return null;
+        }
+
+        if (preg_match('/^-?\d+$/', $resolved) === 1) {
+            return (int) $resolved;
+        }
+
+        if (preg_match('/^-?(?:\d+\.\d*|\d*\.\d+)$/', $resolved) === 1) {
+            return (float) $resolved;
+        }
+
+        return $this->stringValueFromRaw($resolved, $objects);
     }
 
     private function decodePdfName(string $name): string
