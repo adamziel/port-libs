@@ -41,7 +41,7 @@ final class PdfAcroFormExtractor
     /**
      * Native boundary for PDF AcroForm field dictionaries.
      *
-     * @return array{need_appearances: bool, permissions: array<string, mixed>, xfa_overrides_page_content: bool, xfa_packets: list<array<string, mixed>>, fields: list<array<string, mixed>>}
+     * @return array{need_appearances: bool, permissions: array<string, mixed>, xfa_overrides_page_content: bool, xfa_packets: list<array<string, mixed>>, calculation_order: list<array{object: int, field_name: string|null}>, fields: list<array<string, mixed>>}
      */
     public function extractForm(string $pdfBytes): array
     {
@@ -55,6 +55,7 @@ final class PdfAcroFormExtractor
                 'permissions' => $permissions,
                 'xfa_overrides_page_content' => false,
                 'xfa_packets' => [],
+                'calculation_order' => [],
                 'fields' => [],
             ];
         }
@@ -67,6 +68,7 @@ final class PdfAcroFormExtractor
         $fields = [];
         $fieldRefs = $this->fieldReferencesFromAcroForm($acroForm);
         $fieldNamesByObject = $this->fieldNamesByObject($fieldRefs, $objects);
+        $calculationOrder = $this->calculationOrderFromAcroForm($acroForm, $fieldNamesByObject);
 
         foreach ($fieldRefs as $fieldRef) {
             foreach ($this->fieldsFromObject(
@@ -90,6 +92,7 @@ final class PdfAcroFormExtractor
             'permissions' => $permissions,
             'xfa_overrides_page_content' => $xfaPackets !== [],
             'xfa_packets' => $xfaPackets,
+            'calculation_order' => $calculationOrder,
             'fields' => $fields,
         ];
     }
@@ -612,6 +615,33 @@ final class PdfAcroFormExtractor
         }
 
         return $fields;
+    }
+
+    /**
+     * @param array<int, string> $fieldNamesByObject
+     * @return list<array{object: int, field_name: string|null}>
+     */
+    private function calculationOrderFromAcroForm(string $acroForm, array $fieldNamesByObject): array
+    {
+        $value = $this->valueAfterName($acroForm, 'CO');
+        if ($value === null || !str_starts_with(trim($value), '[')) {
+            return [];
+        }
+
+        $body = $this->arrayBodyFromValue($value);
+        if ($body === null) {
+            return [];
+        }
+
+        $order = [];
+        foreach (array_values(array_unique($this->objectReferences($body))) as $objectNumber) {
+            $order[] = [
+                'object' => $objectNumber,
+                'field_name' => $fieldNamesByObject[$objectNumber] ?? null,
+            ];
+        }
+
+        return $order;
     }
 
     /**
@@ -1238,6 +1268,17 @@ final class PdfAcroFormExtractor
         ?int $actionObject
     ): ?array {
         $actionType = $this->pdfNameValueAfterName($actionBody, 'S');
+        if ($actionType === 'JavaScript') {
+            return $this->javaScriptActionMetadataFromBody(
+                $actionBody,
+                $objects,
+                $trigger,
+                $source,
+                $sourceObject,
+                $actionObject
+            );
+        }
+
         if (!in_array($actionType, ['SubmitForm', 'ResetForm'], true)) {
             return null;
         }
@@ -1275,6 +1316,100 @@ final class PdfAcroFormExtractor
         }
 
         return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function javaScriptActionMetadataFromBody(
+        string $actionBody,
+        array $objects,
+        string $trigger,
+        string $source,
+        int $sourceObject,
+        ?int $actionObject
+    ): array {
+        $metadata = [
+            'action_type' => 'JavaScript',
+            'trigger' => $trigger,
+            'trigger_label' => $this->actionTriggerLabel($trigger),
+            'source' => $source,
+            'source_object' => $sourceObject,
+            'action_object' => $actionObject,
+            'executes_action' => false,
+            'executes_javascript' => false,
+        ];
+
+        $script = $this->javaScriptPayloadFromAction($actionBody, $objects, 160);
+        if ($script === null) {
+            $metadata['script_missing'] = true;
+            return $metadata;
+        }
+
+        return $metadata + $script;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function javaScriptPayloadFromAction(string $actionBody, array $objects, int $previewBytes): ?array
+    {
+        $value = $this->valueAfterName($actionBody, 'JS');
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+        $scriptObject = preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1 ? (int) $match[1] : null;
+        $filters = [];
+        if ($scriptObject !== null && isset($objects[$scriptObject])) {
+            $stream = $this->decodeStreamObject($objects[$scriptObject], $objects);
+            if ($stream !== null) {
+                $script = $this->decodePdfStringBytes($stream);
+                $filters = $this->streamObjectFilters($objects[$scriptObject], $objects);
+            } else {
+                $script = $this->pdfValueToString(trim($objects[$scriptObject]), $objects);
+            }
+        } else {
+            $script = $this->pdfValueToString($value, $objects);
+        }
+
+        if ($script === null) {
+            return null;
+        }
+
+        $preview = $this->scriptPreview($script, $previewBytes);
+        $payload = [
+            'script_preview' => $preview['preview'],
+            'script_sha256' => hash('sha256', $script),
+            'script_bytes' => strlen($script),
+            'script_truncated' => $preview['truncated'],
+        ];
+
+        if ($scriptObject !== null) {
+            $payload['script_object'] = $scriptObject;
+        }
+        if ($filters !== []) {
+            $payload['script_filters'] = $filters;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @return array{preview: string, truncated: bool}
+     */
+    private function scriptPreview(string $script, int $previewBytes): array
+    {
+        $normalized = trim(preg_replace('/[\x00-\x1f\x7f]+/', ' ', $script) ?? $script);
+        $limit = max(16, $previewBytes);
+        if (strlen($normalized) <= $limit) {
+            return ['preview' => $normalized, 'truncated' => false];
+        }
+
+        return ['preview' => substr($normalized, 0, $limit) . '...', 'truncated' => true];
     }
 
     /**

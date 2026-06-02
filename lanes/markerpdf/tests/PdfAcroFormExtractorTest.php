@@ -106,6 +106,35 @@ $submitResetActionPdf = static function (): string {
         . "%%EOF";
 };
 
+$calculationFormatActionPdf = static function (): array {
+    $calculateScript = "event.value = this.getField('invoice.amount').value * 1.0825;";
+    $compressedCalculateScript = gzcompress($calculateScript);
+    if (!is_string($compressedCalculateScript)) {
+        throw new RuntimeException('Unable to compress calculation script fixture.');
+    }
+
+    $keystrokeScript = 'AFNumber_Keystroke(2, 0, 0, 0, "", true);';
+    $formatScript = 'AFNumber_Format(2, 0, 0, 0, "", true);';
+    $validateScript = 'if (event.value < 0) event.rc = false;';
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 11 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R] /CO [10 0 R 6 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (invoice.amount) /V (25.00) /Kids [8 0 R] /AA << /K 20 0 R /F << /S /JavaScript /JS (AFNumber_Format\\(2, 0, 0, 0, \"\", true\\);) >> /V << /S /JavaScript /JS (if \\(event.value < 0\\) event.rc = false;) >> >> >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 620 240 644] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (invoice.total) /V (27.06) /Kids [11 0 R] /AA << /C << /S /JavaScript /JS 30 0 R >> >> >>\nendobj\n"
+        . "11 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 580 240 604] /P 3 0 R /F 4 >>\nendobj\n"
+        . "20 0 obj\n<< /S /JavaScript /JS (AFNumber_Keystroke\\(2, 0, 0, 0, \"\", true\\);) >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($compressedCalculateScript) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressedCalculateScript
+        . "\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, $keystrokeScript, $formatScript, $validateScript, $calculateScript];
+};
+
 return [
     'extracts inherited field flags and field default appearance strings' => static function (TestRunner $t) use ($acroFormPdf, $fieldsByName): void {
         $form = (new PdfAcroFormExtractor())->extractForm($acroFormPdf());
@@ -323,5 +352,47 @@ return [
         $t->same(['registration.email'], $reset['field_names']);
         $t->true($reset['reset_to_default']);
         $t->same(false, $reset['executes_action']);
+    },
+    'extracts calculation format keystroke and validation action review metadata without executing scripts' => static function (TestRunner $t) use ($calculationFormatActionPdf, $fieldsByName): void {
+        [$pdf, $keystrokeScript, $formatScript, $validateScript, $calculateScript] = $calculationFormatActionPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+
+        $t->same([
+            ['object' => 10, 'field_name' => 'invoice.total'],
+            ['object' => 6, 'field_name' => 'invoice.amount'],
+        ], $form['calculation_order']);
+
+        $amountActions = $fields['invoice.amount']['actions'];
+        $totalActions = $fields['invoice.total']['actions'];
+
+        $t->same(['K', 'F', 'V'], array_column($amountActions, 'trigger'));
+        $t->same(['keystroke', 'format', 'validate'], array_column($amountActions, 'trigger_label'));
+        $t->same(['JavaScript', 'JavaScript', 'JavaScript'], array_column($amountActions, 'action_type'));
+        $t->same([$keystrokeScript, $formatScript, $validateScript], array_column($amountActions, 'script_preview'));
+        $t->same([
+            hash('sha256', $keystrokeScript),
+            hash('sha256', $formatScript),
+            hash('sha256', $validateScript),
+        ], array_column($amountActions, 'script_sha256'));
+        $t->same([strlen($keystrokeScript), strlen($formatScript), strlen($validateScript)], array_column($amountActions, 'script_bytes'));
+        $t->same([false, false, false], array_column($amountActions, 'script_truncated'));
+        $t->same([false, false, false], array_column($amountActions, 'executes_javascript'));
+        $t->same([false, false, false], array_column($amountActions, 'executes_action'));
+
+        $calculate = $totalActions[0];
+        $t->same('JavaScript', $calculate['action_type']);
+        $t->same('C', $calculate['trigger']);
+        $t->same('calculate', $calculate['trigger_label']);
+        $t->same('field', $calculate['source']);
+        $t->same(10, $calculate['source_object']);
+        $t->same($calculateScript, $calculate['script_preview']);
+        $t->same(hash('sha256', $calculateScript), $calculate['script_sha256']);
+        $t->same(strlen($calculateScript), $calculate['script_bytes']);
+        $t->same(30, $calculate['script_object']);
+        $t->same(['FlateDecode'], $calculate['script_filters']);
+        $t->same(false, $calculate['executes_javascript']);
+        $t->same(false, $calculate['executes_action']);
+        $t->same('27.06', $fields['invoice.total']['value']);
     },
 ];
