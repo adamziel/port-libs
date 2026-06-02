@@ -186,6 +186,58 @@ final class PdfOutlineExtractor
     }
 
     /**
+     * Review-only outline dictionary structure for WordPress TOC imports. The
+     * upstream Marker TOC shape stays title/level/page based; this richer path
+     * keeps PDF outline expansion state, style/color flags, and resolved
+     * destination page context out of body text while preserving it for review.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function getOutlineStructureDestinationPageContext(string $pdfBytes, int $maxDepth = 15): array
+    {
+        $objects = $this->parsedObjectValues($pdfBytes);
+        $catalog = $this->catalogDictionary($objects);
+        if ($catalog === null) {
+            return [];
+        }
+
+        $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
+        if ($pageObjectNumbers === []) {
+            return [];
+        }
+
+        $pageIndexes = [];
+        foreach ($pageObjectNumbers as $index => $objectNumber) {
+            $pageIndexes[$objectNumber] = $index;
+        }
+
+        $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
+        if ($outlineRoot === null) {
+            return [];
+        }
+
+        $destinations = $this->destinationMap($catalog, $objects);
+        $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
+        $pagePresentations = $this->getPageTransitionActionMetadata($pdfBytes);
+        $articleThreads = $this->articleThreadNavigationMetadata($catalog, $objects, $pageIndexes, $pageLabels);
+        $pageReviews = (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdfBytes);
+
+        return $this->outlineStructureDestinationPageContextItems(
+            $outlineRoot['First'] ?? null,
+            $objects,
+            $pageIndexes,
+            array_flip($pageIndexes),
+            $destinations,
+            $pageLabels,
+            $this->pagePresentationsByPageIndex($pagePresentations),
+            $this->articleBeadsByPageIndex($articleThreads),
+            $this->pageReviewsByPageIndex($pageReviews),
+            $this->taggedContentByPageIndex($pdfBytes),
+            max(1, $maxDepth)
+        );
+    }
+
+    /**
      * @return array{
      *     source: list<string>,
      *     page_mode?: string,
@@ -372,15 +424,19 @@ final class PdfOutlineExtractor
 
         $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
         if ($outlineRoot !== null) {
-            foreach ($this->outlineItemsWithDestinationViews($outlineRoot['First'] ?? null, $objects, $pageIndexes, $destinations, 15) as $item) {
-                $item = $this->withNavigationTargetMetadata(
-                    $item,
-                    $pageLabels,
-                    $pagePresentationsByPage,
-                    $articleBeadsByPage,
-                    $pageReviewsByPage,
-                    $taggedContentByPage
-                );
+            foreach ($this->outlineStructureDestinationPageContextItems(
+                $outlineRoot['First'] ?? null,
+                $objects,
+                $pageIndexes,
+                array_flip($pageIndexes),
+                $destinations,
+                $pageLabels,
+                $pagePresentationsByPage,
+                $articleBeadsByPage,
+                $pageReviewsByPage,
+                $taggedContentByPage,
+                15
+            ) as $item) {
                 $metadata['outline'][] = $item;
             }
             if ($metadata['outline'] !== []) {
@@ -1766,6 +1822,205 @@ final class PdfOutlineExtractor
 
     /**
      * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @param array<int, int> $pageObjectsByIndex
+     * @param array<string, mixed> $destinations
+     * @param list<string> $pageLabels
+     * @param array<int, array<string, mixed>> $pagePresentationsByPage
+     * @param array<int, list<array<string, mixed>>> $articleBeadsByPage
+     * @param array<int, array<string, mixed>> $pageReviewsByPage
+     * @param array<int, list<array<string, mixed>>> $taggedContentByPage
+     * @param array<int, true> $seen
+     * @return list<array<string, mixed>>
+     */
+    private function outlineStructureDestinationPageContextItems(
+        mixed $firstItem,
+        array $objects,
+        array $pageIndexes,
+        array $pageObjectsByIndex,
+        array $destinations,
+        array $pageLabels,
+        array $pagePresentationsByPage,
+        array $articleBeadsByPage,
+        array $pageReviewsByPage,
+        array $taggedContentByPage,
+        int $maxDepth,
+        int $level = 1,
+        array $seen = []
+    ): array {
+        if ($level > $maxDepth) {
+            return [];
+        }
+
+        $items = [];
+        $current = $this->referenceObjectNumber($firstItem);
+        while ($current !== null && !isset($seen[$current])) {
+            $seen[$current] = true;
+            $dict = $this->resolveDictionary($this->refValue($current), $objects);
+            if ($dict === null) {
+                break;
+            }
+
+            $title = $this->stringOrNameValue($this->resolveValue($dict['Title'] ?? null, $objects));
+            $destination = $this->outlineDestination($dict, $objects);
+            $details = $this->destinationViewDetails(
+                $destination['value'],
+                $objects,
+                $pageIndexes,
+                $destinations,
+                $destination['name']
+            );
+            if ($title !== null && $details !== null) {
+                $row = [
+                    'title' => $title,
+                    'level' => $level,
+                    'page' => $details['page'],
+                    'page_number' => $details['page'] + 1,
+                    'page_object' => $pageObjectsByIndex[$details['page']] ?? null,
+                    'destination' => $details['destination'],
+                    'view_mode' => $details['view_mode'],
+                    'view_position' => $details['view_position'],
+                    'view_parameters' => $details['view_parameters'],
+                    'outline_object' => $current,
+                    'parent_object' => $this->referenceObjectNumber($dict['Parent'] ?? null),
+                    'previous_object' => $this->referenceObjectNumber($dict['Prev'] ?? null),
+                    'next_object' => $this->referenceObjectNumber($dict['Next'] ?? null),
+                    'first_child_object' => $this->referenceObjectNumber($dict['First'] ?? null),
+                    'last_child_object' => $this->referenceObjectNumber($dict['Last'] ?? null),
+                ];
+                $row += $this->outlineStructureState($dict, $objects);
+                $row += $this->outlineStyleMetadata($dict, $objects);
+                $row = $this->withNavigationTargetMetadata(
+                    $row,
+                    $pageLabels,
+                    $pagePresentationsByPage,
+                    $articleBeadsByPage,
+                    $pageReviewsByPage,
+                    $taggedContentByPage
+                );
+
+                $items[] = $row;
+            }
+
+            if ($level < $maxDepth) {
+                foreach ($this->outlineStructureDestinationPageContextItems(
+                    $dict['First'] ?? null,
+                    $objects,
+                    $pageIndexes,
+                    $pageObjectsByIndex,
+                    $destinations,
+                    $pageLabels,
+                    $pagePresentationsByPage,
+                    $articleBeadsByPage,
+                    $pageReviewsByPage,
+                    $taggedContentByPage,
+                    $maxDepth,
+                    $level + 1,
+                    $seen
+                ) as $child) {
+                    $items[] = $child;
+                }
+            }
+
+            $current = $this->referenceObjectNumber($dict['Next'] ?? null);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $outline
+     * @param array<int, mixed> $objects
+     * @return array<string, mixed>
+     */
+    private function outlineStructureState(array $outline, array $objects): array
+    {
+        $firstChild = $this->referenceObjectNumber($outline['First'] ?? null);
+        $lastChild = $this->referenceObjectNumber($outline['Last'] ?? null);
+        $hasChildren = $firstChild !== null || $lastChild !== null;
+        $count = $this->integerOrNullValue($this->resolveValue($outline['Count'] ?? null, $objects));
+
+        $state = [
+            'has_children' => $hasChildren,
+            'outline_count' => $count,
+            'descendant_count' => $count === null ? null : abs($count),
+            'is_open' => null,
+            'is_collapsed' => null,
+            'structure_state' => $hasChildren ? 'parent' : 'leaf',
+        ];
+
+        if ($count !== null) {
+            $state['is_open'] = $count >= 0;
+            $state['is_collapsed'] = $count < 0;
+            $state['structure_state'] = $count < 0 ? 'collapsed' : ($hasChildren ? 'expanded' : 'leaf');
+        }
+
+        return $state;
+    }
+
+    /**
+     * @param array<string, mixed> $outline
+     * @param array<int, mixed> $objects
+     * @return array<string, mixed>
+     */
+    private function outlineStyleMetadata(array $outline, array $objects): array
+    {
+        $metadata = [];
+        $styleFlags = $this->integerOrNullValue($this->resolveValue($outline['F'] ?? null, $objects));
+        if ($styleFlags !== null) {
+            $metadata['style_flags'] = $styleFlags;
+            $metadata['is_italic'] = ($styleFlags & 1) !== 0;
+            $metadata['is_bold'] = ($styleFlags & 2) !== 0;
+        }
+
+        $color = $this->outlineColorRgb($outline['C'] ?? null, $objects);
+        if ($color !== null) {
+            $metadata['text_color_rgb'] = $color;
+            $metadata['text_color_hex'] = $this->rgbUnitColorToHex($color);
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @return list<float>|null
+     */
+    private function outlineColorRgb(mixed $value, array $objects): ?array
+    {
+        $array = $this->resolveArray($value, $objects);
+        if ($array === null || count($array) < 3) {
+            return null;
+        }
+
+        $rgb = [];
+        for ($index = 0; $index < 3; $index++) {
+            $component = $this->numericOrNullValue($this->resolveValue($array[$index], $objects));
+            if ($component === null) {
+                return null;
+            }
+
+            $rgb[] = max(0.0, min(1.0, $component));
+        }
+
+        return $rgb;
+    }
+
+    /**
+     * @param list<float> $rgb
+     */
+    private function rgbUnitColorToHex(array $rgb): string
+    {
+        return sprintf(
+            '#%02x%02x%02x',
+            (int) round($rgb[0] * 255),
+            (int) round($rgb[1] * 255),
+            (int) round($rgb[2] * 255)
+        );
+    }
+
+    /**
+     * @param array<int, mixed> $objects
      * @param array<string, mixed> $destinations
      * @param array<int, true> $seen
      * @return list<array{title: string, level: int, file: string, destination: string|null, page: int|null, new_window: bool|null}>
@@ -2755,6 +3010,15 @@ final class PdfOutlineExtractor
         }
 
         return is_int($value) || is_float($value) ? (float) $value : null;
+    }
+
+    private function integerOrNullValue(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        return is_float($value) && floor($value) === $value ? (int) $value : null;
     }
 
     /**

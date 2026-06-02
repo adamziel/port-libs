@@ -4275,6 +4275,10 @@ final class PdfMetadataExtractor
                 $fieldTwo = $this->xrefFieldValue($decoded, $fieldOffset, $widths[1]);
                 $fieldThree = $this->xrefFieldValue($decoded, $fieldOffset, $widths[2]);
                 $objectNumber = $startObject + $index;
+                if (isset($entries[$objectNumber])) {
+                    $offset += $entryWidth;
+                    continue;
+                }
 
                 if ($type === 0) {
                     $entries[$objectNumber] = [

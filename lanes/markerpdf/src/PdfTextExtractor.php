@@ -5811,61 +5811,80 @@ final class PdfTextExtractor
         $fontObjectMaps = [];
 
         foreach ($objects as $objectNumber => $body) {
-            if (!str_contains($body, '/Type /Font') && !str_contains($body, '/Type/Font')) {
+            if (!$this->bodyMayContainFontDictionary($body)) {
                 continue;
             }
 
-            $encodingFallback = $this->fontEncodingMap($body, $objects);
-            $cidEncodingMap = $this->fontCidEncodingMap($body, $objects, $namedCMapBodies);
-            $widthMetrics = $this->fontWidthMetrics($body, $objects);
-            $descriptorInfo = $this->fontDescriptorInfo($body, $objects);
-            $cmap = null;
-            if (preg_match('/\/ToUnicode\s+(\d+)\s+\d+\s+R\b/', $body, $match)) {
-                $cmapObjectNumber = (int) $match[1];
-                if (isset($objects[$cmapObjectNumber])) {
-                    $cmap = $this->toUnicodeMapFromObject($objects[$cmapObjectNumber], $objects, $namedCMapBodies);
-                }
-            }
-
-            if (($cmap === null || ($cmap['map'] === [] && $cmap['codeSpaceRanges'] === [])) && $encodingFallback !== null) {
-                $cmap = $encodingFallback;
-            }
-
-            if ($cmap === null && $cidEncodingMap !== null && ($cidEncodingMap['cidMap'] !== [] || $cidEncodingMap['codeSpaceRanges'] !== [])) {
-                $cmap = [
-                    'map' => [],
-                    'codeSpaceRanges' => $cidEncodingMap['codeSpaceRanges'],
-                ];
-                if (isset($cidEncodingMap['writingMode'])) {
-                    $cmap['writingMode'] = (int) $cidEncodingMap['writingMode'] === 1 ? 1 : 0;
-                }
-            }
-
-            if ($cmap === null && $widthMetrics['widths'] !== [] && $this->isSimpleFontBody($body)) {
-                $cmap = [
-                    'map' => [],
-                    'codeSpaceRanges' => [
-                        ['start' => 0, 'end' => 255, 'width' => 2],
-                    ],
-                ];
-            }
-
-            if ($cmap === null && ($descriptorInfo['name'] !== null || $descriptorInfo['flags'] !== null)) {
-                $cmap = [
-                    'map' => [],
-                    'codeSpaceRanges' => [],
-                ];
-            }
-
-            if ($cmap !== null && ($cmap['map'] !== [] || $cmap['codeSpaceRanges'] !== [] || $descriptorInfo['name'] !== null || $descriptorInfo['flags'] !== null)) {
-                $cmap = $this->withFontCidEncodingMap($cmap, $cidEncodingMap);
-                $cmap = $this->withFontWidthMetrics($cmap, $widthMetrics, $this->fontWritingMode($body, $cmap, $cidEncodingMap, $objects));
-                $cmap = $this->withFontDescriptorInfo($cmap, $descriptorInfo);
-                $fontObjectMaps[$objectNumber] = $cmap;
+            $map = $this->fontMapFromFontBody($body, $objects, $namedCMapBodies);
+            if ($map !== null) {
+                $fontObjectMaps[$objectNumber] = $map;
             }
         }
 
         return $fontObjectMaps;
+    }
+
+    private function bodyMayContainFontDictionary(string $body): bool
+    {
+        return str_contains($body, '/Type /Font') || str_contains($body, '/Type/Font');
+    }
+
+    /**
+     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}|null
+     * @param array<int, string> $objects
+     * @param array<string, string> $namedCMapBodies
+     */
+    private function fontMapFromFontBody(string $body, array $objects, array $namedCMapBodies): ?array
+    {
+        $encodingFallback = $this->fontEncodingMap($body, $objects);
+        $cidEncodingMap = $this->fontCidEncodingMap($body, $objects, $namedCMapBodies);
+        $widthMetrics = $this->fontWidthMetrics($body, $objects);
+        $descriptorInfo = $this->fontDescriptorInfo($body, $objects);
+        $cmap = null;
+        if (preg_match('/\/ToUnicode\s+(\d+)\s+\d+\s+R\b/', $body, $match)) {
+            $cmapObjectNumber = (int) $match[1];
+            if (isset($objects[$cmapObjectNumber])) {
+                $cmap = $this->toUnicodeMapFromObject($objects[$cmapObjectNumber], $objects, $namedCMapBodies);
+            }
+        }
+
+        if (($cmap === null || ($cmap['map'] === [] && $cmap['codeSpaceRanges'] === [])) && $encodingFallback !== null) {
+            $cmap = $encodingFallback;
+        }
+
+        if ($cmap === null && $cidEncodingMap !== null && ($cidEncodingMap['cidMap'] !== [] || $cidEncodingMap['codeSpaceRanges'] !== [])) {
+            $cmap = [
+                'map' => [],
+                'codeSpaceRanges' => $cidEncodingMap['codeSpaceRanges'],
+            ];
+            if (isset($cidEncodingMap['writingMode'])) {
+                $cmap['writingMode'] = (int) $cidEncodingMap['writingMode'] === 1 ? 1 : 0;
+            }
+        }
+
+        if ($cmap === null && $widthMetrics['widths'] !== [] && $this->isSimpleFontBody($body)) {
+            $cmap = [
+                'map' => [],
+                'codeSpaceRanges' => [
+                    ['start' => 0, 'end' => 255, 'width' => 2],
+                ],
+            ];
+        }
+
+        if ($cmap === null && ($descriptorInfo['name'] !== null || $descriptorInfo['flags'] !== null)) {
+            $cmap = [
+                'map' => [],
+                'codeSpaceRanges' => [],
+            ];
+        }
+
+        if ($cmap === null || ($cmap['map'] === [] && $cmap['codeSpaceRanges'] === [] && $descriptorInfo['name'] === null && $descriptorInfo['flags'] === null)) {
+            return null;
+        }
+
+        $cmap = $this->withFontCidEncodingMap($cmap, $cidEncodingMap);
+        $cmap = $this->withFontWidthMetrics($cmap, $widthMetrics, $this->fontWritingMode($body, $cmap, $cidEncodingMap, $objects));
+        return $this->withFontDescriptorInfo($cmap, $descriptorInfo);
     }
 
     /**
@@ -5961,19 +5980,93 @@ final class PdfTextExtractor
             return [];
         }
 
-        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/', $fontDictionary, $resourceMatches, PREG_SET_ORDER)) {
-            return [];
+        $maps = [];
+        if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/', $fontDictionary, $resourceMatches, PREG_SET_ORDER)) {
+            foreach ($resourceMatches as $resourceMatch) {
+                $fontObjectNumber = (int) $resourceMatch[2];
+                if (isset($fontObjectMaps[$fontObjectNumber])) {
+                    $maps[$this->decodePdfName($resourceMatch[1])] = $fontObjectMaps[$fontObjectNumber];
+                }
+            }
         }
 
-        $maps = [];
-        foreach ($resourceMatches as $resourceMatch) {
-            $fontObjectNumber = (int) $resourceMatch[2];
-            if (isset($fontObjectMaps[$fontObjectNumber])) {
-                $maps[$this->decodePdfName($resourceMatch[1])] = $fontObjectMaps[$fontObjectNumber];
+        $namedCMapBodies = $this->namedCMapBodies($objects);
+        foreach ($this->directFontResourceDictionaries($fontDictionary) as $name => $fontBody) {
+            if (isset($maps[$name])) {
+                continue;
+            }
+
+            $map = $this->fontMapFromFontBody($fontBody, $objects, $namedCMapBodies);
+            if ($map !== null) {
+                $maps[$name] = $map;
             }
         }
 
         return $maps;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function directFontResourceDictionaries(string $fontDictionary): array
+    {
+        $fonts = [];
+        $offset = 0;
+        $length = strlen($fontDictionary);
+
+        while ($offset < $length) {
+            $this->skipContentWhitespaceAndComments($fontDictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($fontDictionary[$offset] !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $nameStart = $offset + 1;
+            $nameEnd = $nameStart;
+            while ($nameEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $fontDictionary[$nameEnd])) {
+                $nameEnd++;
+            }
+            if ($nameEnd === $nameStart) {
+                $offset++;
+                continue;
+            }
+
+            $name = $this->decodePdfName(substr($fontDictionary, $nameStart, $nameEnd - $nameStart));
+            $valueOffset = $nameEnd;
+            $this->skipContentWhitespaceAndComments($fontDictionary, $valueOffset);
+            if ($valueOffset >= $length) {
+                break;
+            }
+
+            if (preg_match('/\G\d+\s+\d+\s+R\b/s', $fontDictionary, $match, 0, $valueOffset) === 1) {
+                $offset = $valueOffset + strlen($match[0]);
+                continue;
+            }
+
+            if (substr($fontDictionary, $valueOffset, 2) !== '<<') {
+                $nextOffset = $this->skipPdfValueAt($fontDictionary, $valueOffset);
+                $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
+                continue;
+            }
+
+            $dictionaryOffset = $valueOffset;
+            $dictionary = $this->readPdfDictionaryTokenAt($fontDictionary, $dictionaryOffset);
+            if ($dictionary === null) {
+                $offset = $valueOffset + 2;
+                continue;
+            }
+
+            if ($this->bodyMayContainFontDictionary($dictionary)) {
+                $fonts[$name] = $dictionary;
+            }
+            $offset = $dictionaryOffset;
+        }
+
+        return $fonts;
     }
 
     /**
@@ -7598,6 +7691,11 @@ final class PdfTextExtractor
 
             if ($char === '<') {
                 $items[] = $this->readHexToken($arrayBody, $index);
+                continue;
+            }
+
+            if ($char === '/') {
+                $items[] = $this->readNameToken($arrayBody, $index);
                 continue;
             }
 
@@ -12480,6 +12578,11 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($char === '/') {
+                $tokens[] = $this->readNameToken($stream, $index);
+                continue;
+            }
+
             $start = $index;
             while ($index < $length && !$this->isDelimiter($stream[$index])) {
                 $index++;
@@ -12598,6 +12701,10 @@ final class PdfTextExtractor
 
         if ($char === '[') {
             return $this->readArrayToken($stream, $index);
+        }
+
+        if ($char === '/') {
+            return $this->readNameToken($stream, $index);
         }
 
         $start = $index;
@@ -12941,9 +13048,27 @@ final class PdfTextExtractor
         return substr($stream, $start, $index - $start);
     }
 
+    private function readNameToken(string $stream, int &$index): string
+    {
+        $start = $index;
+        $index++;
+        $length = strlen($stream);
+
+        while ($index < $length && !$this->isPdfNameDelimiter($stream[$index])) {
+            $index++;
+        }
+
+        return substr($stream, $start, $index - $start);
+    }
+
     private function isDelimiter(string $char): bool
     {
         return ctype_space($char) || str_contains('[]()<>{}%', $char);
+    }
+
+    private function isPdfNameDelimiter(string $char): bool
+    {
+        return ctype_space($char) || str_contains('[]()<>{}/%', $char);
     }
 
     /**

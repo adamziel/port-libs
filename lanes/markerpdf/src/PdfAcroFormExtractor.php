@@ -5394,6 +5394,7 @@ final class PdfAcroFormExtractor
         if ($actionType === 'SubmitForm') {
             $targetValue = $this->valueAfterName($actionBody, 'F');
             $target = $targetValue === null ? null : $this->fileSpecificationFromValue($targetValue, $objects);
+            $fileSpec = $targetValue === null ? null : $this->fileSpecificationReviewFromValue($targetValue, $objects);
             $metadata += [
                 'target' => $target,
                 'target_scheme' => $target === null ? null : $this->uriScheme($target),
@@ -5417,6 +5418,9 @@ final class PdfAcroFormExtractor
                 'uses_get_method_on_import' => false,
                 'default_excludes_no_export' => true,
             ];
+            if ($fileSpec !== null) {
+                $metadata['file_spec'] = $fileSpec;
+            }
         } else {
             $metadata['reset_to_default'] = true;
         }
@@ -5470,6 +5474,7 @@ final class PdfAcroFormExtractor
         if ($actionType === 'Launch') {
             $targetValue = $this->dictionaryEntryValueAfterName($actionBody, 'F');
             $target = $targetValue === null ? null : $this->fileSpecificationFromValue($targetValue, $objects);
+            $fileSpec = $targetValue === null ? null : $this->fileSpecificationReviewFromValue($targetValue, $objects);
             $platform = $this->launchPlatformMetadataFromAction($actionBody, $objects);
             if ($target === null && is_string($platform['target'] ?? null)) {
                 $target = $platform['target'];
@@ -5477,6 +5482,14 @@ final class PdfAcroFormExtractor
             $metadata['target'] = $target;
             $metadata['target_scheme'] = is_string($target) ? $this->uriScheme($target) : null;
             $metadata['new_window'] = $this->boolValueAfterName($actionBody, 'NewWindow');
+            if ($fileSpec !== null) {
+                $metadata['file_spec'] = $fileSpec;
+            } elseif (is_array($platform['file_spec'] ?? null)) {
+                $metadata['file_spec'] = $platform['file_spec'];
+            }
+            if (is_array($platform['file_spec'] ?? null)) {
+                $metadata['platform_file_spec'] = $platform['file_spec'];
+            }
             foreach (['target_platform', 'operation', 'parameters', 'default_directory', 'platform_dictionary_object'] as $key) {
                 if (($platform[$key] ?? null) !== null) {
                     $metadata[$key] = $platform[$key];
@@ -5489,9 +5502,13 @@ final class PdfAcroFormExtractor
         if ($actionType === 'ImportData') {
             $targetValue = $this->dictionaryEntryValueAfterName($actionBody, 'F');
             $target = $targetValue === null ? null : $this->fileSpecificationFromValue($targetValue, $objects);
+            $fileSpec = $targetValue === null ? null : $this->fileSpecificationReviewFromValue($targetValue, $objects);
             $metadata['target'] = $target;
             $metadata['target_scheme'] = is_string($target) ? $this->uriScheme($target) : null;
             $metadata['imports_form_data'] = false;
+            if ($fileSpec !== null) {
+                $metadata['file_spec'] = $fileSpec;
+            }
 
             return $metadata;
         }
@@ -5523,9 +5540,13 @@ final class PdfAcroFormExtractor
         if ($actionType === 'GoToE') {
             $targetValue = $this->dictionaryEntryValueAfterName($actionBody, 'F');
             $target = $targetValue === null ? null : $this->fileSpecificationFromValue($targetValue, $objects);
+            $fileSpec = $targetValue === null ? null : $this->fileSpecificationReviewFromValue($targetValue, $objects);
             $metadata['target'] = $target;
             $metadata['file'] = $target;
             $metadata['target_scheme'] = is_string($target) ? $this->uriScheme($target) : null;
+            if ($fileSpec !== null) {
+                $metadata['file_spec'] = $fileSpec;
+            }
             $metadata['destination'] = $this->actionDestinationValue($this->dictionaryEntryValueAfterName($actionBody, 'D'), $objects);
             $metadata['embedded_target'] = $this->embeddedTargetFromValue($this->dictionaryEntryValueAfterName($actionBody, 'T'), $objects);
             $metadata['new_window'] = $this->boolValueAfterName($actionBody, 'NewWindow');
@@ -5539,9 +5560,13 @@ final class PdfAcroFormExtractor
             if ($actionType === 'GoToR') {
                 $targetValue = $this->dictionaryEntryValueAfterName($actionBody, 'F');
                 $target = $targetValue === null ? null : $this->fileSpecificationFromValue($targetValue, $objects);
+                $fileSpec = $targetValue === null ? null : $this->fileSpecificationReviewFromValue($targetValue, $objects);
                 $metadata['target'] = $target;
                 $metadata['target_scheme'] = is_string($target) ? $this->uriScheme($target) : null;
                 $metadata['new_window'] = $this->boolValueAfterName($actionBody, 'NewWindow');
+                if ($fileSpec !== null) {
+                    $metadata['file_spec'] = $fileSpec;
+                }
             }
 
             return $metadata;
@@ -5575,7 +5600,7 @@ final class PdfAcroFormExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{target: string|null, target_platform: string|null, operation: string|null, parameters: string|null, default_directory: string|null, platform_dictionary_object: int|null}
+     * @return array<string, mixed>
      */
     private function launchPlatformMetadataFromAction(string $actionBody, array $objects): array
     {
@@ -5606,8 +5631,9 @@ final class PdfAcroFormExtractor
 
             $targetValue = $this->dictionaryEntryValueAfterName($platformDictionary['body'], 'F');
             $target = $targetValue === null ? null : $this->fileSpecificationFromValue($targetValue, $objects);
+            $fileSpec = $targetValue === null ? null : $this->fileSpecificationReviewFromValue($targetValue, $objects);
 
-            return [
+            $metadata = [
                 'target' => $target,
                 'target_platform' => $platformName,
                 'operation' => $this->pdfStringValueAfterName($platformDictionary['body'], 'O', $objects),
@@ -5615,6 +5641,11 @@ final class PdfAcroFormExtractor
                 'default_directory' => $this->pdfStringValueAfterName($platformDictionary['body'], 'D', $objects),
                 'platform_dictionary_object' => $platformDictionary['object'],
             ];
+            if ($fileSpec !== null) {
+                $metadata['file_spec'] = $fileSpec;
+            }
+
+            return $metadata;
         }
 
         return $empty;
@@ -6007,6 +6038,266 @@ final class PdfAcroFormExtractor
         }
 
         return $this->pdfValueToString($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function fileSpecificationReviewFromValue(string $value, array $objects): ?array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        $filename = $this->fileSpecificationFromValue($value, $objects);
+        $dictionary = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($dictionary === null) {
+            if ($filename === null || $filename === '') {
+                return null;
+            }
+
+            return [
+                'source' => 'acroform_action_filespec_review_boundary',
+                'file_spec_object' => $this->objectNumberFromReferenceValue($value),
+                'type' => null,
+                'file_system' => null,
+                'filename' => $filename,
+                'unicode_filename' => null,
+                'platform_filenames' => ['F' => $filename],
+                'description' => null,
+                'relationship' => null,
+                'embedded_file_count' => 0,
+                'embedded_files' => [],
+                'embedded_file_objects' => [],
+                'related_file_count' => 0,
+                'related_files' => [],
+                'content_returned' => false,
+                'embedded_payload_text_exposed' => false,
+                'executes_action' => false,
+            ];
+        }
+
+        $body = $dictionary['body'];
+        $platformFilenames = $this->fileSpecificationPlatformFilenames($body, $objects);
+        $embeddedFiles = $this->embeddedFilesFromFileSpecBody($body, $objects);
+        $relatedFiles = $this->relatedFilesFromFileSpecBody($body, $objects);
+
+        return [
+            'source' => 'acroform_action_filespec_review_boundary',
+            'file_spec_object' => $dictionary['object'],
+            'type' => $this->pdfNameValueAfterName($body, 'Type'),
+            'file_system' => $this->pdfNameValueAfterName($body, 'FS'),
+            'filename' => $filename,
+            'unicode_filename' => $this->pdfStringValueAfterName($body, 'UF', $objects),
+            'platform_filenames' => $platformFilenames,
+            'description' => $this->pdfStringValueAfterName($body, 'Desc', $objects),
+            'relationship' => $this->pdfNameValueAfterName($body, 'AFRelationship'),
+            'embedded_file_count' => count($embeddedFiles),
+            'embedded_files' => $embeddedFiles,
+            'embedded_file_objects' => $this->integerValuesFromRows($embeddedFiles, 'object'),
+            'related_file_count' => count($relatedFiles),
+            'related_files' => $relatedFiles,
+            'content_returned' => false,
+            'embedded_payload_text_exposed' => false,
+            'executes_action' => false,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, string>
+     */
+    private function fileSpecificationPlatformFilenames(string $body, array $objects): array
+    {
+        $filenames = [];
+        foreach (['F', 'UF', 'DOS', 'Mac', 'Unix'] as $name) {
+            $filename = $this->pdfStringValueAfterName($body, $name, $objects);
+            if ($filename !== null && $filename !== '') {
+                $filenames[$name] = $filename;
+            }
+        }
+
+        return $filenames;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function embeddedFilesFromFileSpecBody(string $body, array $objects): array
+    {
+        $efValue = $this->valueAfterName($body, 'EF');
+        if ($efValue === null) {
+            return [];
+        }
+
+        $ef = $this->resolvedDictionaryFromValue($efValue, $objects);
+        if ($ef === null) {
+            return [];
+        }
+
+        $files = [];
+        foreach (['UF', 'F', 'DOS', 'Mac', 'Unix'] as $key) {
+            $streamValue = $this->dictionaryEntryValueAfterName($ef['body'], $key);
+            $stream = $streamValue === null ? null : $this->embeddedFileStreamReviewFromValue($streamValue, $objects, $key);
+            if ($stream !== null) {
+                $files[] = $stream;
+            }
+        }
+
+        return $files;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function embeddedFileStreamReviewFromValue(string $value, array $objects, string $key): ?array
+    {
+        $objectNumber = $this->objectNumberFromReferenceValue($value);
+        $objectBody = $objectNumber === null ? trim($value) : ($objects[$objectNumber] ?? null);
+        if ($objectBody === null || $objectBody === '') {
+            return null;
+        }
+
+        $dictionaryBody = $this->dictionaryObjectBody($objectBody)
+            ?? (str_starts_with(trim($objectBody), '<<') ? $this->readPdfDictionaryAt($objectBody, 0) : null);
+        if ($dictionaryBody === null) {
+            return null;
+        }
+
+        $decoded = $this->decodeStreamObject($objectBody, $objects);
+
+        return [
+            'source' => 'filespec_embedded_file_stream_review',
+            'key' => $key,
+            'object' => $objectNumber,
+            'type' => $this->pdfNameValueAfterName($dictionaryBody, 'Type'),
+            'subtype' => $this->pdfNameValueAfterName($dictionaryBody, 'Subtype'),
+            'declared_length_bytes' => $this->numberValueAfterName($dictionaryBody, 'Length'),
+            'filters' => $this->streamObjectFilters($objectBody, $objects),
+            'decoded_stream_available' => $decoded !== null,
+            'decoded_length_bytes' => $decoded === null ? null : strlen($decoded),
+            'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+            'params' => $this->embeddedFileParamsFromStreamDictionary($dictionaryBody, $objects),
+            'content_returned' => false,
+            'payload_text_exposed' => false,
+            'executes_action' => false,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function embeddedFileParamsFromStreamDictionary(string $streamDictionaryBody, array $objects): array
+    {
+        $paramsValue = $this->valueAfterName($streamDictionaryBody, 'Params');
+        if ($paramsValue === null) {
+            return [];
+        }
+
+        $params = $this->resolvedDictionaryFromValue($paramsValue, $objects);
+        if ($params === null) {
+            return [];
+        }
+
+        return array_filter([
+            'size' => $this->numberValueAfterName($params['body'], 'Size'),
+            'check_sum' => $this->pdfStringValueAfterName($params['body'], 'CheckSum', $objects),
+            'creation_date' => $this->pdfStringValueAfterName($params['body'], 'CreationDate', $objects),
+            'mod_date' => $this->pdfStringValueAfterName($params['body'], 'ModDate', $objects),
+        ], static fn (mixed $metadataValue): bool => $metadataValue !== null);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function relatedFilesFromFileSpecBody(string $body, array $objects): array
+    {
+        $rfValue = $this->valueAfterName($body, 'RF');
+        if ($rfValue === null) {
+            return [];
+        }
+
+        $rf = $this->resolvedDictionaryFromValue($rfValue, $objects);
+        if ($rf === null) {
+            return [];
+        }
+
+        $related = [];
+        foreach ($this->dictionaryNameValueMap($rf['body']) as $key => $value) {
+            if (!str_starts_with(trim($value), '[')) {
+                continue;
+            }
+
+            $arrayBody = $this->arrayBodyFromValue($value);
+            if ($arrayBody === null) {
+                continue;
+            }
+
+            foreach ($this->relatedFilePairsFromArrayBody($key, $arrayBody, $objects) as $row) {
+                $related[] = $row;
+            }
+        }
+
+        return $related;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function relatedFilePairsFromArrayBody(string $key, string $arrayBody, array $objects): array
+    {
+        $pairs = [];
+        $offset = 0;
+        $length = strlen($arrayBody);
+        while ($offset < $length) {
+            $filenameValueEnd = null;
+            $filenameValue = $this->readPdfValueAt($arrayBody, $offset, $filenameValueEnd);
+            if ($filenameValue === null || $filenameValueEnd === null) {
+                $offset++;
+                continue;
+            }
+
+            $offset = $filenameValueEnd;
+            $streamValueEnd = null;
+            $streamValue = $this->readPdfValueAt($arrayBody, $offset, $streamValueEnd);
+            if ($streamValue === null || $streamValueEnd === null) {
+                $pairs[] = [
+                    'source' => 'filespec_related_file_review',
+                    'key' => $key,
+                    'filename' => $this->fileSpecificationFromValue($filenameValue, $objects) ?? $this->pdfValueToString($filenameValue, $objects),
+                    'embedded_file' => null,
+                    'content_returned' => false,
+                    'payload_text_exposed' => false,
+                    'executes_action' => false,
+                ];
+                break;
+            }
+
+            $pairs[] = [
+                'source' => 'filespec_related_file_review',
+                'key' => $key,
+                'filename' => $this->fileSpecificationFromValue($filenameValue, $objects) ?? $this->pdfValueToString($filenameValue, $objects),
+                'embedded_file' => $this->embeddedFileStreamReviewFromValue($streamValue, $objects, $key),
+                'content_returned' => false,
+                'payload_text_exposed' => false,
+                'executes_action' => false,
+            ];
+            $offset = $streamValueEnd;
+        }
+
+        return $pairs;
+    }
+
+    private function objectNumberFromReferenceValue(string $value): ?int
+    {
+        return preg_match('/^(\d+)\s+\d+\s+R\b/', trim($value), $match) === 1 ? (int) $match[1] : null;
     }
 
     private function uriScheme(string $target): ?string

@@ -1168,10 +1168,12 @@ final class PdfImageRenderer
                 'indexed_color_space' => $plan['indexed_color_space'],
                 'indexed_alternate_color_space' => $indexedAlternate,
                 'image_decode' => $plan['image_decode'],
+                'color_key_mask' => $plan['color_key_mask'],
                 'pixels' => [],
                 'stream_notes' => $streamNotes,
                 'notes' => array_values(array_unique(array_merge($plan['notes'] ?? [], $streamNotes))),
                 'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+                'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'opaque_rgb_preview'),
             ];
         }
 
@@ -1197,6 +1199,9 @@ final class PdfImageRenderer
             $rawSample = $imageSamples['pixels'][$index][0];
             $softMaskSample = is_array($softMaskSamples) ? $softMaskSamples['pixels'][$index][0] : null;
             $preview = $this->indexedSamplePreview($rawSample, $plan, $softMaskSample);
+            $colorKeyPreview = (($plan['color_key_mask_applied_before_rgb'] ?? false) === true)
+                ? $this->indexedColorKeyMaskSamplePreview($rawSample, $plan)
+                : null;
             $pixel = [
                 'pixel_index' => $index,
                 'x' => $index % $width,
@@ -1209,6 +1214,13 @@ final class PdfImageRenderer
                 'soft_mask_sample' => $softMaskSample,
                 'soft_mask_alpha' => $preview['soft_mask_alpha'],
             ];
+            if (is_array($colorKeyPreview)) {
+                $pixel['matches_color_key'] = $colorKeyPreview['matches_color_key'];
+                $pixel['color_key_alpha'] = $colorKeyPreview['alpha'];
+                $pixel['color_key_mask_ranges'] = $colorKeyPreview['mask_ranges'];
+                $pixel['decode_applied_after_color_key'] = $colorKeyPreview['decode_applied_after_color_key'];
+                $pixel['palette_transfer_applied_after_color_key'] = $colorKeyPreview['palette_transfer_applied_after_color_key'];
+            }
             if ($this->indexedPlanUsesAlternateColorSpace($plan)) {
                 $alternatePreview = $this->indexedAlternateColorantSamplePreview($rawSample, $plan, $softMaskSample);
                 $pixel['colorant_tints'] = $alternatePreview['colorant_tints'];
@@ -1238,10 +1250,12 @@ final class PdfImageRenderer
             'indexed_color_space' => $plan['indexed_color_space'],
             'indexed_alternate_color_space' => $indexedAlternate,
             'image_decode' => $plan['image_decode'],
+            'color_key_mask' => $plan['color_key_mask'],
             'pixels' => $pixels,
             'stream_notes' => $streamNotes,
             'notes' => array_values(array_unique(array_merge($plan['notes'] ?? [], $streamNotes))),
             'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+            'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'opaque_rgb_preview'),
         ];
     }
 
@@ -1354,6 +1368,44 @@ final class PdfImageRenderer
             'decoded_components' => $decoded,
             'decode_applied_after_color_key' => $decodeApplied,
             'output_color_mode' => (string) ($imagePlan['output_color_mode'] ?? 'RGB'),
+        ];
+    }
+
+    /**
+     * Applies an Indexed image ColorKey mask to the raw palette index before
+     * Decode, then expands the Decode-adjusted index into palette components.
+     *
+     * @param array{
+     *     bits_per_component?: int,
+     *     indexed_color_space?: array{base_components?: int|null, high_value?: int|null, lookup_length_matches?: bool, lookup_bytes?: list<int>},
+     *     color_key_mask?: array{present?: bool, ranges?: list<array{min: int, max: int}>, valid_for_components?: bool}|null,
+     *     color_key_mask_suppressed_by_soft_mask?: bool,
+     *     image_decode?: array{ranges: list<array{min: float, max: float}>, valid_for_components?: bool}|null,
+     *     output_color_mode?: string
+     * } $imagePlan
+     * @return array{raw_sample: list<float>, mask_ranges: list<array{min: int, max: int}>, matches_color_key: bool, alpha: float, decoded_index: float, palette_index: int, clamped_to_hival: bool, base_components: list<float>, decode_applied_after_color_key: bool, palette_transfer_applied_after_color_key: bool, output_color_mode: string}
+     */
+    public function indexedColorKeyMaskSamplePreview(int|float $sample, array $imagePlan): array
+    {
+        if (($imagePlan['source_color_space'] ?? null) !== 'Indexed' || ($imagePlan['uses_indexed_color_space'] ?? false) !== true) {
+            throw new InvalidArgumentException('Indexed ColorKey preview requires an Indexed image plan.');
+        }
+
+        $colorKey = $this->colorKeyMaskSamplePreview([$sample], $imagePlan);
+        $indexed = $this->indexedSamplePreview($sample, $imagePlan);
+
+        return [
+            'raw_sample' => $colorKey['raw_sample'],
+            'mask_ranges' => $colorKey['mask_ranges'],
+            'matches_color_key' => $colorKey['matches_color_key'],
+            'alpha' => $colorKey['alpha'],
+            'decoded_index' => $indexed['decoded_index'],
+            'palette_index' => $indexed['palette_index'],
+            'clamped_to_hival' => $indexed['clamped_to_hival'],
+            'base_components' => $indexed['base_components'],
+            'decode_applied_after_color_key' => $colorKey['decode_applied_after_color_key'],
+            'palette_transfer_applied_after_color_key' => true,
+            'output_color_mode' => $indexed['output_color_mode'],
         ];
     }
 
