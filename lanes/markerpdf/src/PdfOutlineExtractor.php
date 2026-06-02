@@ -336,11 +336,14 @@ final class PdfOutlineExtractor
 
         $destinations = $this->destinationMap($catalog, $objects);
         $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
+        $pagePresentations = $this->getPageTransitionActionMetadata($pdfBytes);
+        $pagePresentationsByPage = $this->pagePresentationsByPageIndex($pagePresentations);
 
         $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
         if ($outlineRoot !== null) {
             foreach ($this->outlineItemsWithDestinationViews($outlineRoot['First'] ?? null, $objects, $pageIndexes, $destinations, 15) as $item) {
                 $item['page_label'] = $this->pageLabelForIndex($item['page'], $pageLabels);
+                $item = $this->withTargetPagePresentation($item, $pagePresentationsByPage);
                 $metadata['outline'][] = $item;
             }
             if ($metadata['outline'] !== []) {
@@ -356,7 +359,6 @@ final class PdfOutlineExtractor
             }
         }
 
-        $pagePresentations = $this->getPageTransitionActionMetadata($pdfBytes);
         if ($pagePresentations !== []) {
             $metadata['source'][] = 'page_presentations';
             $metadata['page_presentations'] = $pagePresentations;
@@ -373,15 +375,7 @@ final class PdfOutlineExtractor
             );
             if ($details !== null) {
                 $details['page_label'] = $this->pageLabelForIndex($details['page'], $pageLabels);
-                foreach ($pagePresentations as $pagePresentation) {
-                    if (($pagePresentation['pnum'] ?? null) !== $details['page']) {
-                        continue;
-                    }
-
-                    $details['target_display_duration'] = $pagePresentation['display_duration'];
-                    $details['target_page_transition'] = $pagePresentation['transition'];
-                    break;
-                }
+                $details = $this->withTargetPagePresentation($details, $pagePresentationsByPage);
                 $metadata['open_action_destination'] = $details;
             }
         }
@@ -415,6 +409,45 @@ final class PdfOutlineExtractor
     private function pageLabelForIndex(int $pageIndex, array $pageLabels): string
     {
         return $pageLabels[$pageIndex] ?? (string) ($pageIndex + 1);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $pagePresentations
+     * @return array<int, array<string, mixed>>
+     */
+    private function pagePresentationsByPageIndex(array $pagePresentations): array
+    {
+        $indexed = [];
+        foreach ($pagePresentations as $pagePresentation) {
+            $pageIndex = $pagePresentation['pnum'] ?? null;
+            if (is_int($pageIndex)) {
+                $indexed[$pageIndex] = $pagePresentation;
+            }
+        }
+
+        return $indexed;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<int, array<string, mixed>> $pagePresentationsByPage
+     * @return array<string, mixed>
+     */
+    private function withTargetPagePresentation(array $item, array $pagePresentationsByPage): array
+    {
+        $pageIndex = $item['page'] ?? null;
+        if (!is_int($pageIndex) || !array_key_exists($pageIndex, $pagePresentationsByPage)) {
+            return $item;
+        }
+
+        $pagePresentation = $pagePresentationsByPage[$pageIndex];
+        $item['target_display_duration'] = $pagePresentation['display_duration'] ?? null;
+        $item['target_page_transition'] = $pagePresentation['transition'] ?? null;
+        $item['target_page_actions'] = is_array($pagePresentation['actions'] ?? null)
+            ? $pagePresentation['actions']
+            : [];
+
+        return $item;
     }
 
     /**

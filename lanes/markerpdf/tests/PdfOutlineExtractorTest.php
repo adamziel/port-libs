@@ -171,6 +171,34 @@ $navigationReviewPdf = static function (): string {
         . "%%EOF";
 };
 
+$outlineNameTreeTransitionActionPdf = static function (): string {
+    $pageOneContent = 'BT /F1 12 Tf 72 720 Td (Title slide stays visible) Tj ET';
+    $pageTwoContent = 'BT /F1 12 Tf 72 720 Td (Deck target stays visible) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R /Names << /Dests 8 0 R >> /PageLabels 20 0 R /PageMode /UseOutlines >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 30 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Dur 9 /Trans 15 0 R /AA << /O 42 0 R /C << /S /URI /URI (javascript:alert\\(1\\)) >> >> /Contents 31 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Count 2 >>\nendobj\n"
+        . "6 0 obj\n<< /Title (Deck Target) /Parent 5 0 R /Dest /DeckStart /Next 7 0 R >>\nendobj\n"
+        . "7 0 obj\n<< /Title (Action Target) /Parent 5 0 R /A << /S /GoTo /D 41 0 R >> >>\nendobj\n"
+        . "8 0 obj\n<< /Kids [9 0 R 10 0 R] >>\nendobj\n"
+        . "9 0 obj\n<< /Limits [(A) (M)] /Names [(DeckStart) 14 0 R] >>\nendobj\n"
+        . "10 0 obj\n<< /Limits [(N) (Z)] /Names [(Stale) [99 0 R /Fit]] >>\nendobj\n"
+        . "13 0 obj\n[4 0 R 16 0 R 17 0 R]\nendobj\n"
+        . "14 0 obj\n<< /D 13 0 R >>\nendobj\n"
+        . "15 0 obj\n<< /S /Fly /D .75 /M /I /Di 270 /SS .8 /B false >>\nendobj\n"
+        . "16 0 obj\n/FitH\nendobj\n"
+        . "17 0 obj\n610\nendobj\n"
+        . "20 0 obj\n<< /Nums [0 << /S /D /P (Slide ) /St 1 >> 1 << /S /D /P (Deck ) /St 5 >>] >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($pageOneContent) . " >>\nstream\n{$pageOneContent}\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Length " . strlen($pageTwoContent) . " >>\nstream\n{$pageTwoContent}\nendstream\nendobj\n"
+        . "41 0 obj\n(DeckStart)\nendobj\n"
+        . "42 0 obj\n<< /S /URI /URI (https://example.com/deck-notes) >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'resolves PDF outline named destinations before WordPress TOC import' => static function (TestRunner $t) use ($namedDestinationPdf): void {
         $toc = (new PdfOutlineExtractor())->getPdfToc($namedDestinationPdf());
@@ -611,6 +639,46 @@ return [
         $t->contains('Preface text stays visible', $text);
         $t->contains('Chapter target text stays visible', $text);
         $t->true(!str_contains($text, 'https://example.com/chapter-notes'));
+    },
+    'annotates outline name tree targets with page transition and action review metadata' => static function (TestRunner $t) use ($outlineNameTreeTransitionActionPdf): void {
+        $extractor = new PdfOutlineExtractor();
+        $pdf = $outlineNameTreeTransitionActionPdf();
+        $metadata = $extractor->getNavigationReviewMetadata($pdf);
+
+        $t->same(['outline', 'page_presentations'], $metadata['source']);
+        $t->same(2, count($metadata['outline']));
+        $t->same(['Deck Target', 'Action Target'], array_column($metadata['outline'], 'title'));
+        $t->same(['DeckStart', 'DeckStart'], array_column($metadata['outline'], 'destination'));
+
+        foreach ($metadata['outline'] as $outline) {
+            $t->same(1, $outline['page']);
+            $t->same('Deck 5', $outline['page_label']);
+            $t->same('FitH', $outline['view_mode']);
+            $t->same([610.0], $outline['view_position']);
+            $t->same(['top' => 610.0], $outline['view_parameters']);
+            $t->true(array_key_exists('target_display_duration', $outline));
+            $t->same(9.0, $outline['target_display_duration']);
+            $t->same('Fly', $outline['target_page_transition']['style']);
+            $t->same(0.75, $outline['target_page_transition']['duration']);
+            $t->same('I', $outline['target_page_transition']['motion']);
+            $t->same(270.0, $outline['target_page_transition']['direction']);
+            $t->same(0.8, $outline['target_page_transition']['scale']);
+            $t->same(false, $outline['target_page_transition']['opaque_background']);
+            $t->same(['page_open', 'page_close'], array_column($outline['target_page_actions'], 'event_label'));
+            $t->same(['review-uri', 'blocked-unsafe-uri'], array_column($outline['target_page_actions'], 'safety'));
+            $t->same([false, false], array_column($outline['target_page_actions'], 'executes_on_import'));
+        }
+
+        $t->same(1, count($metadata['page_presentations']));
+        $t->same('Deck 5', $metadata['page_presentations'][0]['page_label']);
+        $t->same('Fly', $metadata['page_presentations'][0]['transition']['style']);
+        $t->true(!array_key_exists('open_action_destination', $metadata));
+
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+        $t->contains('Title slide stays visible', $text);
+        $t->contains('Deck target stays visible', $text);
+        $t->true(!str_contains($text, 'https://example.com/deck-notes'));
+        $t->true(!str_contains($text, 'javascript:alert'));
     },
     'returns stable empty navigation review metadata without a PDF catalog' => static function (TestRunner $t): void {
         $metadata = (new PdfOutlineExtractor())->getNavigationReviewMetadata('%PDF-1.4 no catalog here');
