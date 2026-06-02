@@ -22442,8 +22442,8 @@ SQL;
         $t->same([1, 1, 2, 2, 3, 3, 4], $summary['ntile']);
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::ntile([1], 0));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::lag([1], 0));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::lead([1], 0));
+        $t->same(['siteurl', 'home', 'blogname', '_transient_feed'], SQLiteWindowFunction::lag($values, 0, 'missing'));
+        $t->same(['siteurl', 'home', 'blogname', '_transient_feed'], SQLiteWindowFunction::lead($values, 0, 'missing'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::nthValue([1], 0));
         $t->same([1, 1, 3], SQLiteWindowFunction::rank([[1, 'a'], [1, 'a'], [1, 'b']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::rank([[new stdClass()], [1]]));
