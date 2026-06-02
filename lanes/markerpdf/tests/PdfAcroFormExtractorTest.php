@@ -36,6 +36,18 @@ $fieldsByName = static function (array $fields): array {
     return $indexed;
 };
 
+$signatureDocMdpPdf = static function (string $transformParams): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R /Perms << /DocMDP 30 0 R >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R] /SigFlags 3 >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Sig /T (approval.signature) /Ff 1 /V 30 0 R /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 300 684] /P 3 0 R /F 4 >>\nendobj\n"
+        . "30 0 obj\n<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (Editor Reviewer) /Reason (Approved for import) /Location (Remote) /ContactInfo (editor@example.com) /M (D:20260602032148Z) /ByteRange [0 128 512 64] /Contents <0102030405> /Reference [<< /Type /SigRef /TransformMethod /DocMDP /Data 1 0 R /TransformParams {$transformParams} >>] >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts inherited field flags and field default appearance strings' => static function (TestRunner $t) use ($acroFormPdf, $fieldsByName): void {
         $form = (new PdfAcroFormExtractor())->extractForm($acroFormPdf());
@@ -111,5 +123,66 @@ return [
         $t->same('field', $inline['default_appearance']['source']);
         $t->same('Helv', $inline['default_appearance']['font_resource']);
         $t->same(['space' => 'DeviceRGB', 'components' => [0.0, 1.0, 0.0]], $inline['default_appearance']['text_color']);
+    },
+    'extracts signature field metadata and catalog DocMDP annotation permissions' => static function (TestRunner $t) use ($signatureDocMdpPdf, $fieldsByName): void {
+        $form = (new PdfAcroFormExtractor())->extractForm($signatureDocMdpPdf('<< /Type /TransformParams /P 3 /V /1.2 >>'));
+        $permissions = $form['permissions']['doc_mdp'];
+        $fields = $fieldsByName($form['fields']);
+        $field = $fields['approval.signature'];
+        $signature = $field['signature'];
+        $docMdp = $signature['doc_mdp'];
+
+        $t->same('Sig', $field['field_type']);
+        $t->same('signature', $field['field_type_label']);
+        $t->same(['read_only'], $field['flag_names']);
+        $t->true($field['certifying_signature']);
+        $t->same(null, $field['value']);
+        $t->same(0, $field['widgets'][0]['page_index']);
+        $t->same([72.0, 640.0, 300.0, 684.0], $field['widgets'][0]['rect']);
+
+        $t->same(30, $signature['object']);
+        $t->same('Adobe.PPKLite', $signature['filter']);
+        $t->same('adbe.pkcs7.detached', $signature['subfilter']);
+        $t->same('Editor Reviewer', $signature['name']);
+        $t->same('Approved for import', $signature['reason']);
+        $t->same('Remote', $signature['location']);
+        $t->same('editor@example.com', $signature['contact_info']);
+        $t->same('D:20260602032148Z', $signature['signed_at']);
+        $t->same([0, 128, 512, 64], $signature['byte_range']);
+        $t->true($signature['contents_present']);
+        $t->same(5, $signature['contents_length_bytes']);
+        $t->true($signature['certifying_signature']);
+
+        $t->same(1, count($signature['reference_transforms']));
+        $t->same('DocMDP', $docMdp['transform_method']);
+        $t->same(1, $docMdp['data_object']);
+        $t->same('TransformParams', $docMdp['transform_params_type']);
+        $t->same('1.2', $docMdp['transform_params_version']);
+        $t->same(3, $docMdp['permission_level']);
+        $t->true($docMdp['permission_valid']);
+        $t->same('form_fill_templates_signatures_annotations', $docMdp['permission_label']);
+        $t->same(['fill_forms', 'instantiate_page_templates', 'sign', 'create_modify_delete_annotations'], $docMdp['allowed_changes']);
+
+        $t->same(30, $permissions['signature_object']);
+        $t->same('Editor Reviewer', $permissions['signature_name']);
+        $t->same('D:20260602032148Z', $permissions['signed_at']);
+        $t->same(3, $permissions['permission_level']);
+        $t->same('form_fill_templates_signatures_annotations', $permissions['permission_label']);
+        $t->same(['fill_forms', 'instantiate_page_templates', 'sign', 'create_modify_delete_annotations'], $permissions['allowed_changes']);
+        $t->same('1.2', $permissions['transform_params_version']);
+        $t->same('catalog_perms_doc_mdp', $permissions['source']);
+    },
+    'defaults DocMDP permissions to form fill and signing when transform P is absent' => static function (TestRunner $t) use ($signatureDocMdpPdf, $fieldsByName): void {
+        $form = (new PdfAcroFormExtractor())->extractForm($signatureDocMdpPdf('<< /Type /TransformParams /V /1.2 >>'));
+        $field = $fieldsByName($form['fields'])['approval.signature'];
+        $docMdp = $field['signature']['doc_mdp'];
+
+        $t->same(2, $form['permissions']['doc_mdp']['permission_level']);
+        $t->same('form_fill_templates_signatures', $form['permissions']['doc_mdp']['permission_label']);
+        $t->same(['fill_forms', 'instantiate_page_templates', 'sign'], $form['permissions']['doc_mdp']['allowed_changes']);
+        $t->same(2, $docMdp['permission_level']);
+        $t->true($docMdp['permission_valid']);
+        $t->same('form_fill_templates_signatures', $docMdp['permission_label']);
+        $t->same(['fill_forms', 'instantiate_page_templates', 'sign'], $docMdp['allowed_changes']);
     },
 ];

@@ -73,6 +73,14 @@ final class PdfTextExtractor
      */
     public function extractOutlineMetadata(string $pdfBytes): array
     {
+        if ($this->hasEncryptedTrailer($pdfBytes)) {
+            return [
+                'pdf_toc' => [],
+                'document_info' => [],
+                'pages' => 0,
+            ];
+        }
+
         $objects = $this->pdfObjects($pdfBytes);
 
         return [
@@ -87,6 +95,10 @@ final class PdfTextExtractor
      */
     public function extractPageLabels(string $pdfBytes): array
     {
+        if ($this->hasEncryptedTrailer($pdfBytes)) {
+            return [];
+        }
+
         $objects = $this->pdfObjects($pdfBytes);
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
         $pageCount = count($pageObjectNumbers);
@@ -299,6 +311,10 @@ final class PdfTextExtractor
      */
     private function contentStreamsWithFontMaps(string $pdfBytes): array
     {
+        if ($this->hasEncryptedTrailer($pdfBytes)) {
+            return [];
+        }
+
         $objects = $this->pdfObjects($pdfBytes);
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
         if ($pageObjectNumbers !== []) {
@@ -2988,18 +3004,114 @@ final class PdfTextExtractor
      */
     private function pdfObjects(string $pdfBytes): array
     {
-        $objects = [];
-        if (!preg_match_all('/(\d+)\s+\d+\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
-            return $objects;
+        if ($this->hasEncryptedTrailer($pdfBytes)) {
+            return [];
+        }
+
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        if ($definitions === []) {
+            return [];
+        }
+
+        $preliminaryObjects = $this->latestDirectObjects($definitions);
+        $xrefEntries = $this->xrefEntries($pdfBytes, $preliminaryObjects);
+        $objects = $this->liveDirectObjects($definitions, $xrefEntries);
+
+        foreach ($this->objectsFromObjectStreams($objects, $xrefEntries) as $objectNumber => $body) {
+            $objects[$objectNumber] = $body;
+        }
+        ksort($objects, SORT_NUMERIC);
+
+        return $objects;
+    }
+
+    private function hasEncryptedTrailer(string $pdfBytes): bool
+    {
+        foreach ($this->trailerDictionaryBodies($pdfBytes) as $trailer) {
+            $value = $this->pdfValueAfterName($trailer, 'Encrypt');
+            if ($value !== null && trim($value) !== 'null') {
+                return true;
+            }
+        }
+
+        if (!preg_match_all('/\d+\s+\d+\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
+            return false;
         }
 
         foreach ($matches as $match) {
-            $objects[(int) $match[1]] = $match[2];
+            $body = $match[1];
+            if (preg_match('/\/Type\s*\/XRef\b/s', $body) !== 1) {
+                continue;
+            }
+
+            $value = $this->pdfValueAfterName($body, 'Encrypt');
+            if ($value !== null && trim($value) !== 'null') {
+                return true;
+            }
         }
 
-        foreach ($this->objectsFromObjectStreams($objects, $this->compressedXrefEntries($objects)) as $objectNumber => $body) {
-            if (!isset($objects[$objectNumber])) {
-                $objects[$objectNumber] = $body;
+        return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function trailerDictionaryBodies(string $pdfBytes): array
+    {
+        $trailers = [];
+        if (!preg_match_all('/(?:^|[\r\n])trailer\s*<</s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE)) {
+            return $trailers;
+        }
+
+        foreach ($matches[0] as $match) {
+            $offset = strpos($pdfBytes, '<<', $match[1]);
+            if ($offset === false) {
+                continue;
+            }
+
+            $dictionary = $this->readPdfDictionaryAt($pdfBytes, $offset);
+            if ($dictionary !== null) {
+                $trailers[] = $dictionary;
+            }
+        }
+
+        return $trailers;
+    }
+
+    /**
+     * @return array<int, list<array{generation: int, offset: int, body: string}>>
+     */
+    private function directObjectDefinitions(string $pdfBytes): array
+    {
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+            return [];
+        }
+
+        $definitions = [];
+        foreach ($matches as $match) {
+            $objectNumber = (int) $match[1][0];
+            $definitions[$objectNumber][] = [
+                'generation' => (int) $match[2][0],
+                'offset' => $match[0][1],
+                'body' => $match[3][0],
+            ];
+        }
+        ksort($definitions, SORT_NUMERIC);
+
+        return $definitions;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, string>
+     */
+    private function latestDirectObjects(array $definitions): array
+    {
+        $objects = [];
+        foreach ($definitions as $objectNumber => $entries) {
+            $selected = $this->latestDirectObjectDefinition($entries);
+            if ($selected !== null) {
+                $objects[$objectNumber] = $selected['body'];
             }
         }
 
@@ -3007,11 +3119,138 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function latestDirectObjectDefinition(array $definitions): ?array
+    {
+        if ($definitions === []) {
+            return null;
+        }
+
+        usort(
+            $definitions,
+            static fn (array $left, array $right): int => [$left['generation'], $left['offset']] <=> [$right['generation'], $right['offset']]
+        );
+
+        $selected = end($definitions);
+        return is_array($selected) ? $selected : null;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int}> $xrefEntries
+     * @return array<int, string>
+     */
+    private function liveDirectObjects(array $definitions, array $xrefEntries): array
+    {
+        $objects = [];
+        foreach ($definitions as $objectNumber => $entries) {
+            $selected = $this->liveDirectObjectDefinition($entries, $xrefEntries[$objectNumber] ?? null);
+            if ($selected !== null) {
+                $objects[$objectNumber] = $selected['body'];
+            }
+        }
+        ksort($objects, SORT_NUMERIC);
+
+        return $objects;
+    }
+
+    /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @param array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int}|null $xrefEntry
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function liveDirectObjectDefinition(array $definitions, ?array $xrefEntry): ?array
+    {
+        if ($xrefEntry === null) {
+            return $this->latestDirectObjectDefinition($definitions);
+        }
+
+        if (($xrefEntry['type'] ?? 1) !== 1) {
+            return null;
+        }
+
+        $generation = $xrefEntry['generation'] ?? null;
+        $offset = $xrefEntry['offset'] ?? null;
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($generation !== null && $definition['generation'] !== $generation) {
+                continue;
+            }
+            if ($offset !== null && $definition['offset'] === $offset) {
+                return $definition;
+            }
+            $candidates[] = $definition;
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int}>
+     */
+    private function xrefEntries(string $pdfBytes, array $objects): array
+    {
+        $entries = $this->xrefTableEntries($pdfBytes);
+        foreach ($this->xrefStreamEntries($objects) as $objectNumber => $entry) {
+            $entries[$objectNumber] = $entry;
+        }
+
+        ksort($entries, SORT_NUMERIC);
+
+        return $entries;
+    }
+
+    /**
+     * @return array<int, array{type: int, generation: int, offset: int}>
+     */
+    private function xrefTableEntries(string $pdfBytes): array
+    {
+        $entries = [];
+        if (!preg_match_all('/(?:^|[\r\n])xref\s*(.*?)trailer\s*<</s', $pdfBytes, $matches, PREG_SET_ORDER)) {
+            return $entries;
+        }
+
+        foreach ($matches as $match) {
+            $lines = preg_split('/\r\n|\r|\n/', trim($match[1]));
+            if ($lines === false) {
+                continue;
+            }
+
+            for ($lineIndex = 0, $lineCount = count($lines); $lineIndex < $lineCount; $lineIndex++) {
+                $line = trim($lines[$lineIndex]);
+                if (preg_match('/^(\d+)\s+(\d+)$/', $line, $header) !== 1) {
+                    continue;
+                }
+
+                $startObject = (int) $header[1];
+                $count = max(0, (int) $header[2]);
+                for ($entryIndex = 0; $entryIndex < $count && $lineIndex + 1 < $lineCount; $entryIndex++) {
+                    $row = trim($lines[++$lineIndex]);
+                    if (preg_match('/^(\d{10})\s+(\d{5})\s+([nf])\b/', $row, $rowMatch) !== 1) {
+                        continue;
+                    }
+
+                    $entries[$startObject + $entryIndex] = [
+                        'type' => $rowMatch[3] === 'n' ? 1 : 0,
+                        'generation' => (int) $rowMatch[2],
+                        'offset' => (int) $rowMatch[1],
+                    ];
+                }
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
      * @return array<int, string>
      * @param array<int, string> $objects
-     * @param array<int, array{objectStream: int, index: int}> $compressedXrefEntries
+     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int}> $xrefEntries
      */
-    private function objectsFromObjectStreams(array $objects, array $compressedXrefEntries): array
+    private function objectsFromObjectStreams(array $objects, array $xrefEntries): array
     {
         $expanded = [];
 
@@ -3044,14 +3283,15 @@ final class PdfTextExtractor
             }
 
             $pairs = array_slice($pairs, 0, $count);
-            $hasCompressedXrefEntriesForStream = $this->hasCompressedXrefEntriesForObjectStream($compressedXrefEntries, $objectStreamNumber);
+            $hasCompressedXrefEntriesForStream = $this->hasCompressedXrefEntriesForObjectStream($xrefEntries, $objectStreamNumber);
             foreach ($pairs as $index => $pair) {
                 $objectNumber = (int) $pair[1];
                 $offset = (int) $pair[2];
                 if ($hasCompressedXrefEntriesForStream) {
-                    $xrefEntry = $compressedXrefEntries[$objectNumber] ?? null;
+                    $xrefEntry = $xrefEntries[$objectNumber] ?? null;
                     if (
                         $xrefEntry === null
+                        || ($xrefEntry['type'] ?? null) !== 2
                         || $xrefEntry['objectStream'] !== $objectStreamNumber
                         || $xrefEntry['index'] !== $index
                     ) {
@@ -3075,12 +3315,12 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param array<int, array{objectStream: int, index: int}> $compressedXrefEntries
+     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int}> $xrefEntries
      */
-    private function hasCompressedXrefEntriesForObjectStream(array $compressedXrefEntries, int $objectStreamNumber): bool
+    private function hasCompressedXrefEntriesForObjectStream(array $xrefEntries, int $objectStreamNumber): bool
     {
-        foreach ($compressedXrefEntries as $entry) {
-            if ($entry['objectStream'] === $objectStreamNumber) {
+        foreach ($xrefEntries as $entry) {
+            if (($entry['type'] ?? null) === 2 && ($entry['objectStream'] ?? null) === $objectStreamNumber) {
                 return true;
             }
         }
@@ -3089,10 +3329,10 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array<int, array{objectStream: int, index: int}>
+     * @return array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int}>
      * @param array<int, string> $objects
      */
-    private function compressedXrefEntries(array $objects): array
+    private function xrefStreamEntries(array $objects): array
     {
         $entries = [];
         foreach ($objects as $body) {
@@ -3131,8 +3371,22 @@ final class PdfTextExtractor
                     $type = $widths[0] === 0 ? 1 : $this->xrefFieldValue($decoded, $fieldOffset, $widths[0]);
                     $fieldTwo = $this->xrefFieldValue($decoded, $fieldOffset, $widths[1]);
                     $fieldThree = $this->xrefFieldValue($decoded, $fieldOffset, $widths[2]);
-                    if ($type === 2 && $fieldTwo > 0) {
-                        $entries[$startObject + $index] = [
+                    $objectNumber = $startObject + $index;
+                    if ($type === 0) {
+                        $entries[$objectNumber] = [
+                            'type' => 0,
+                            'generation' => $fieldThree,
+                            'offset' => $fieldTwo,
+                        ];
+                    } elseif ($type === 1) {
+                        $entries[$objectNumber] = [
+                            'type' => 1,
+                            'offset' => $fieldTwo,
+                            'generation' => $fieldThree,
+                        ];
+                    } elseif ($type === 2 && $fieldTwo > 0) {
+                        $entries[$objectNumber] = [
+                            'type' => 2,
                             'objectStream' => $fieldTwo,
                             'index' => $fieldThree,
                         ];

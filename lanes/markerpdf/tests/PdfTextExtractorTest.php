@@ -296,6 +296,84 @@ $objectStreamXrefPdf = static function (): string {
         . "startxref\n0\n%%EOF";
 };
 
+$xrefHybridPrevFreeGenerationPdf = static function (): string {
+    $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale previous xref page) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Hybrid current page) Tj T* (Free generation guard) Tj ET';
+
+    $pdf = "%PDF-1.5\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): void {
+        $offsets[$objectNumber . ':' . $generation] = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+    };
+    $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [4 0 R] /Count 1 >>');
+    $addObject(4, 0, '<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>');
+    $addObject(5, 0, "<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream");
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 1\n" . $xrefRow(0, 65535, 'f')
+        . "1 2\n" . $xrefRow($offsets['1:0']) . $xrefRow($offsets['2:0'])
+        . "4 2\n" . $xrefRow($offsets['4:0']) . $xrefRow($offsets['5:0'])
+        . "trailer\n<< /Size 10 /Root 1 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $members = [
+        1 => '<< /Type /Catalog /Pages 2 0 R >>',
+        2 => '<< /Type /Pages /Kids [8 0 R 4 0 R] /Count 2 >>',
+        8 => '<< /Type /Page /Parent 2 0 R /Contents 9 0 R >>',
+    ];
+    $objectData = '';
+    $headerPairs = [];
+    $memberIndexes = [];
+    $memberIndex = 0;
+    foreach ($members as $objectNumber => $body) {
+        $headerPairs[] = $objectNumber . ' ' . strlen($objectData);
+        $memberIndexes[$objectNumber] = $memberIndex;
+        $objectData .= $body . "\n";
+        $memberIndex++;
+    }
+    $objectStreamPlain = implode(' ', $headerPairs) . "\n" . $objectData;
+    $compressedObjectStream = gzcompress($objectStreamPlain);
+
+    $addObject(6, 0, '<< /Type /ObjStm /N ' . count($members) . ' /First ' . (strlen(implode(' ', $headerPairs)) + 1) . ' /Filter /FlateDecode /Length ' . strlen($compressedObjectStream) . " >>\nstream\n{$compressedObjectStream}\nendstream");
+    $addObject(9, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+
+    $xrefRows = ''
+        . chr(2) . chr(6) . chr($memberIndexes[1])
+        . chr(2) . chr(6) . chr($memberIndexes[2])
+        . chr(0) . chr(0) . chr(1)
+        . chr(2) . chr(6) . chr($memberIndexes[8]);
+    $compressedXref = gzcompress($xrefRows);
+    $xrefStreamOffset = strlen($pdf);
+    $addObject(7, 0, '<< /Type /XRef /Size 10 /Root 1 0 R /Prev ' . $previousXrefOffset . ' /Index [1 2 4 1 8 1] /W [1 1 1] /Filter /FlateDecode /Length ' . strlen($compressedXref) . " >>\nstream\n{$compressedXref}\nendstream");
+
+    $latestXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "4 1\n" . $xrefRow(0, 1, 'f')
+        . "6 2\n" . $xrefRow($offsets['6:0']) . $xrefRow($offsets['7:0'])
+        . "9 1\n" . $xrefRow($offsets['9:0'])
+        . "trailer\n<< /Size 10 /Root 1 0 R /Prev {$previousXrefOffset} /XRefStm {$xrefStreamOffset} >>\n"
+        . "startxref\n{$latestXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
+$encryptedPreflightPdf = static function (): string {
+    $content = 'BT /F1 12 Tf 72 720 Td (Encrypted cleartext leak) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Filter /Standard /V 4 /R 4 /Length 128 /O <00> /U <00> /P -4 >>\nendobj\n"
+        . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
+};
+
 return [
     'extracts literal and array text operators from content streams' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = "BT /F1 12 Tf 72 720 Td (Hello \\(WP\\)) Tj [(Data) 120 ( Liberation)] TJ ET";
@@ -1428,6 +1506,30 @@ return [
         $t->same("Object stream page\nPlain Direct Font\n", $extractor->naiveGetText($pdf));
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'Phantom stale object stream text'));
         $t->true(!str_contains($extractor->extractPlainText($pdf), "\0"));
+    },
+    'honors hybrid xref Prev free entries and encrypted PDF preflight before WordPress text extraction' => static function (TestRunner $t) use ($xrefHybridPrevFreeGenerationPdf, $encryptedPreflightPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $xrefHybridPrevFreeGenerationPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $t->same(['Hybrid current page', 'Free generation guard'], $extractor->extractTextLines($pdf));
+        $t->same(['Hybrid current page', 'Free generation guard'], $extractor->extractTextRuns($pdf));
+        $t->same("Hybrid current page\nFree generation guard", $text);
+        $t->same("Hybrid current page\nFree generation guard\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($text, 'Stale previous xref page'));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+
+        $encrypted = $encryptedPreflightPdf();
+        $t->same('', $extractor->extractPlainText($encrypted));
+        $t->same([], $extractor->extractTextRuns($encrypted));
+        $t->same('', $extractor->naiveGetText($encrypted));
+        $t->same([], $extractor->extractPageLabels($encrypted));
+        $t->same([
+            'pdf_toc' => [],
+            'document_info' => [],
+            'pages' => 0,
+        ], $extractor->extractOutlineMetadata($encrypted));
     },
     'extracts native PDF outline and Info metadata before WordPress import' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n"

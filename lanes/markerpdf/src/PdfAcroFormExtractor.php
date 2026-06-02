@@ -41,16 +41,18 @@ final class PdfAcroFormExtractor
     /**
      * Native boundary for PDF AcroForm field dictionaries.
      *
-     * @return array{need_appearances: bool, fields: list<array<string, mixed>>}
+     * @return array{need_appearances: bool, permissions: array<string, mixed>, fields: list<array<string, mixed>>}
      */
     public function extractForm(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
         $catalog = $this->catalogObjectBody($objects);
+        $permissions = $catalog === null ? $this->emptyPermissions() : $this->documentPermissions($catalog, $objects);
         $acroForm = $catalog === null ? null : $this->acroFormDictionaryBody($catalog, $objects);
         if ($acroForm === null) {
             return [
                 'need_appearances' => false,
+                'permissions' => $permissions,
                 'fields' => [],
             ];
         }
@@ -76,8 +78,11 @@ final class PdfAcroFormExtractor
             }
         }
 
+        $fields = $this->markCertifyingSignatureFields($fields, $permissions);
+
         return [
             'need_appearances' => $this->boolValueAfterName($acroForm, 'NeedAppearances') === true,
+            'permissions' => $permissions,
             'fields' => $fields,
         ];
     }
@@ -191,8 +196,228 @@ final class PdfAcroFormExtractor
         if ($fieldType === 'Ch') {
             $field['options'] = $this->optionsFromEffective($effective, $objects);
         }
+        if ($fieldType === 'Sig') {
+            $field['signature'] = isset($effective['V'])
+                ? $this->signatureMetadataFromValue($effective['V']['value'], $objects)
+                : null;
+            $field['certifying_signature'] = false;
+        }
 
         return [$field];
+    }
+
+    /**
+     * @return array{doc_mdp: array<string, mixed>|null}
+     */
+    private function emptyPermissions(): array
+    {
+        return ['doc_mdp' => null];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{doc_mdp: array<string, mixed>|null}
+     */
+    private function documentPermissions(string $catalog, array $objects): array
+    {
+        $permsValue = $this->valueAfterName($catalog, 'Perms');
+        $perms = $permsValue === null ? null : $this->resolvedDictionaryFromValue($permsValue, $objects);
+        if ($perms === null) {
+            return $this->emptyPermissions();
+        }
+
+        $docMdpValue = $this->valueAfterName($perms['body'], 'DocMDP');
+        $signature = $docMdpValue === null ? null : $this->signatureMetadataFromValue($docMdpValue, $objects);
+        if ($signature === null) {
+            return $this->emptyPermissions();
+        }
+
+        $docMdpTransform = $this->docMdpTransformFromSignatureMetadata($signature);
+
+        return [
+            'doc_mdp' => [
+                'signature_object' => $signature['object'],
+                'signature_name' => $signature['name'],
+                'signed_at' => $signature['signed_at'],
+                'permission_level' => $docMdpTransform['permission_level'] ?? null,
+                'permission_label' => $docMdpTransform['permission_label'] ?? 'unknown',
+                'allowed_changes' => $docMdpTransform['allowed_changes'] ?? [],
+                'transform_params_version' => $docMdpTransform['transform_params_version'] ?? null,
+                'source' => 'catalog_perms_doc_mdp',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fields
+     * @param array<string, mixed> $permissions
+     * @return list<array<string, mixed>>
+     */
+    private function markCertifyingSignatureFields(array $fields, array $permissions): array
+    {
+        $docMdpObject = is_array($permissions['doc_mdp'] ?? null)
+            ? ($permissions['doc_mdp']['signature_object'] ?? null)
+            : null;
+        if (!is_int($docMdpObject)) {
+            return $fields;
+        }
+
+        foreach ($fields as $index => $field) {
+            $signature = $field['signature'] ?? null;
+            if (!is_array($signature) || ($signature['object'] ?? null) !== $docMdpObject) {
+                continue;
+            }
+
+            $fields[$index]['certifying_signature'] = true;
+            $fields[$index]['signature']['certifying_signature'] = true;
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array<string, mixed> $signature
+     * @return array<string, mixed>|null
+     */
+    private function docMdpTransformFromSignatureMetadata(array $signature): ?array
+    {
+        foreach ($signature['reference_transforms'] ?? [] as $transform) {
+            if (is_array($transform) && ($transform['transform_method'] ?? null) === 'DocMDP') {
+                return $transform;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function signatureMetadataFromValue(string $value, array $objects): ?array
+    {
+        $signature = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($signature === null) {
+            return null;
+        }
+
+        $body = $signature['body'];
+        $contentsValue = $this->valueAfterName($body, 'Contents');
+        $metadata = [
+            'object' => $signature['object'],
+            'filter' => $this->pdfNameValueAfterName($body, 'Filter'),
+            'subfilter' => $this->pdfNameValueAfterName($body, 'SubFilter'),
+            'name' => $this->pdfStringValueAfterName($body, 'Name', $objects),
+            'reason' => $this->pdfStringValueAfterName($body, 'Reason', $objects),
+            'location' => $this->pdfStringValueAfterName($body, 'Location', $objects),
+            'contact_info' => $this->pdfStringValueAfterName($body, 'ContactInfo', $objects),
+            'signed_at' => $this->pdfStringValueAfterName($body, 'M', $objects),
+            'byte_range' => $this->integerArrayValueAfterName($body, 'ByteRange'),
+            'contents_present' => $contentsValue !== null,
+            'contents_length_bytes' => $contentsValue === null ? null : $this->signatureContentsLength($contentsValue, $objects),
+            'reference_transforms' => $this->signatureReferenceTransforms($body, $objects),
+            'certifying_signature' => false,
+        ];
+
+        $docMdp = $this->docMdpTransformFromSignatureMetadata($metadata);
+        if ($docMdp !== null) {
+            $metadata['doc_mdp'] = $docMdp;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function signatureReferenceTransforms(string $signatureBody, array $objects): array
+    {
+        $reference = $this->valueAfterName($signatureBody, 'Reference');
+        if ($reference === null || !str_starts_with(trim($reference), '[')) {
+            return [];
+        }
+
+        $body = $this->arrayBodyFromValue($reference);
+        if ($body === null) {
+            return [];
+        }
+
+        $transforms = [];
+        foreach ($this->dictionaryValuesFromArrayBody($body, $objects) as $dictionary) {
+            $transformBody = $dictionary['body'];
+            $method = $this->pdfNameValueAfterName($transformBody, 'TransformMethod');
+            if ($method === null) {
+                continue;
+            }
+
+            $transform = [
+                'transform_method' => $method,
+                'data_object' => $this->objectReferenceValueAfterName($transformBody, 'Data'),
+                'digest_method' => $this->pdfNameValueAfterName($transformBody, 'DigestMethod'),
+            ];
+
+            $params = $this->docMdpTransformParams($transformBody, $objects, $method);
+            if ($params !== null) {
+                $transform += $params;
+            }
+
+            $transforms[] = $transform;
+        }
+
+        return $transforms;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function docMdpTransformParams(string $referenceBody, array $objects, string $method): ?array
+    {
+        $paramsValue = $this->valueAfterName($referenceBody, 'TransformParams');
+        $params = $paramsValue === null ? null : $this->resolvedDictionaryFromValue($paramsValue, $objects);
+        if ($method !== 'DocMDP' && $params === null) {
+            return null;
+        }
+
+        $paramsBody = $params['body'] ?? '';
+        $level = $paramsBody === '' ? null : $this->numberValueAfterName($paramsBody, 'P');
+        if ($method === 'DocMDP' && $level === null) {
+            $level = 2;
+        }
+
+        return [
+            'transform_params_object' => $params['object'] ?? null,
+            'transform_params_type' => $paramsBody === '' ? null : $this->pdfNameValueAfterName($paramsBody, 'Type'),
+            'transform_params_version' => $paramsBody === '' ? null : $this->pdfNameValueAfterName($paramsBody, 'V'),
+            'permission_level' => $level,
+            'permission_valid' => in_array($level, [1, 2, 3], true),
+            'permission_label' => $this->docMdpPermissionLabel($level),
+            'allowed_changes' => $this->docMdpAllowedChanges($level),
+        ];
+    }
+
+    private function docMdpPermissionLabel(?int $level): string
+    {
+        return match ($level) {
+            1 => 'no_changes',
+            2 => 'form_fill_templates_signatures',
+            3 => 'form_fill_templates_signatures_annotations',
+            default => 'unknown',
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function docMdpAllowedChanges(?int $level): array
+    {
+        return match ($level) {
+            1 => [],
+            2 => ['fill_forms', 'instantiate_page_templates', 'sign'],
+            3 => ['fill_forms', 'instantiate_page_templates', 'sign', 'create_modify_delete_annotations'],
+            default => [],
+        };
     }
 
     /**
@@ -866,6 +1091,24 @@ final class PdfAcroFormExtractor
         return $value === null ? null : $this->pdfValueToString($value, $objects);
     }
 
+    /**
+     * @return list<int>|null
+     */
+    private function integerArrayValueAfterName(string $body, string $name): ?array
+    {
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null || !str_starts_with(trim($value), '[')) {
+            return null;
+        }
+
+        $arrayBody = $this->arrayBodyFromValue($value);
+        if ($arrayBody === null || preg_match_all('/[+-]?\d+/', $arrayBody, $matches) === false) {
+            return [];
+        }
+
+        return array_map('intval', $matches[0]);
+    }
+
     private function pdfNameValueAfterName(string $body, string $name): ?string
     {
         $value = $this->valueAfterName($body, $name);
@@ -955,6 +1198,100 @@ final class PdfAcroFormExtractor
         }
 
         return substr($body, $offset, max(0, $end - $offset));
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{body: string, object: int|null}|null
+     */
+    private function resolvedDictionaryFromValue(string $value, array $objects): ?array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (str_starts_with($value, '<<')) {
+            $body = $this->readPdfDictionaryAt($value, 0);
+            return $body === null ? null : ['body' => $body, 'object' => null];
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) !== 1) {
+            return null;
+        }
+
+        $objectNumber = (int) $match[1];
+        $body = $this->dictionaryObjectBody($objects[$objectNumber] ?? '');
+        return $body === null ? null : ['body' => $body, 'object' => $objectNumber];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array{body: string, object: int|null}>
+     */
+    private function dictionaryValuesFromArrayBody(string $body, array $objects): array
+    {
+        $dictionaries = [];
+        $offset = 0;
+        $length = strlen($body);
+        while ($offset < $length) {
+            $this->skipWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (substr($body, $offset, 2) === '<<') {
+                $endOffset = null;
+                $dictionaryBody = $this->readPdfDictionaryAt($body, $offset, $endOffset);
+                if ($dictionaryBody === null || $endOffset === null) {
+                    $offset++;
+                    continue;
+                }
+
+                $dictionaries[] = ['body' => $dictionaryBody, 'object' => null];
+                $offset = $endOffset;
+                continue;
+            }
+
+            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
+                $objectNumber = (int) $match[1];
+                $dictionaryBody = $this->dictionaryObjectBody($objects[$objectNumber] ?? '');
+                if ($dictionaryBody !== null) {
+                    $dictionaries[] = ['body' => $dictionaryBody, 'object' => $objectNumber];
+                }
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return $dictionaries;
+    }
+
+    private function signatureContentsLength(string $value, array $objects): ?int
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if ($value[0] === '<' && substr($value, 0, 2) !== '<<') {
+            $end = $this->skipHexString($value, 0);
+            $hex = preg_replace('/\s+/', '', substr($value, 1, $end - 2)) ?? '';
+            return intdiv(strlen($hex) + 1, 2);
+        }
+
+        if ($value[0] === '(') {
+            $end = $this->skipLiteralString($value, 0);
+            return strlen($this->decodeLiteralString(substr($value, 1, $end - 2)));
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1 && isset($objects[(int) $match[1]])) {
+            return $this->signatureContentsLength(trim($objects[(int) $match[1]]), $objects);
+        }
+
+        return null;
     }
 
     private function skipWhitespace(string $body, int &$offset): void
