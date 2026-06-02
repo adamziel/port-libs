@@ -1573,6 +1573,46 @@ return [
         $t->same(['Data Import Tool'], $lines);
         $t->true(!str_contains($plainText, 'ImportTool'));
     },
+    'skips invisible and clipping-only text rendering modes before WordPress extraction' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $content = 'BT /F1 12 Tf 1 0 0 1 72 720 Tm (Visible Before) Tj '
+            . '3 Tr 1 0 0 1 72 704 Tm (Invisible OCR Noise) Tj '
+            . '7 Tr 1 0 0 1 72 688 Tm (Clip Only Noise) Tj '
+            . '/Span << /ActualText (Clip Alt Noise) >> BDC (Clip Glyph Noise) Tj EMC '
+            . '4 Tr 1 0 0 1 72 672 Tm (Filled Clip Visible) Tj '
+            . '5 Tr 1 0 0 1 72 656 Tm (Stroked Clip Visible) Tj '
+            . '6 Tr 1 0 0 1 72 640 Tm (Fill Stroke Clip Visible) Tj '
+            . 'q 3 Tr 1 0 0 1 72 624 Tm (Scoped Hidden Noise) Tj Q '
+            . '1 0 0 1 72 608 Tm (Scoped Restore Visible) Tj '
+            . '0 Tr 1 0 0 1 72 592 Tm (Visible After) Tj ET';
+        $extractor = new PdfTextExtractor();
+        $pdf = $pdfWithContent($content);
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Visible Before',
+            'Filled Clip Visible',
+            'Stroked Clip Visible',
+            'Fill Stroke Clip Visible',
+            'Scoped Restore Visible',
+            'Visible After',
+        ];
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $styledLines = array_map(
+            static fn (array $block): string => implode('', array_column($block['lines'][0]['spans'], 'text')),
+            $pages[0]['blocks'] ?? []
+        );
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same($expected, $styledLines);
+        $t->true(!str_contains($plainText, 'Invisible OCR Noise'));
+        $t->true(!str_contains($plainText, 'Clip Only Noise'));
+        $t->true(!str_contains($plainText, 'Clip Alt Noise'));
+        $t->true(!str_contains($plainText, 'Clip Glyph Noise'));
+        $t->true(!str_contains($plainText, 'Scoped Hidden Noise'));
+        $t->true(!str_contains(json_encode($pages, JSON_THROW_ON_ERROR), 'Clip Only Noise'));
+    },
     'applies TJ numeric positioning adjustments before WordPress Tm gap decisions' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = 'BT /F1 12 Tf 1 0 0 1 72 720 Tm [(Import ) -1000 (Profile)] TJ 1 0 0 1 178 720 Tm (s) Tj '
             . '1 0 0 1 72 704 Tm [(Site) 1000 (Map)] TJ 1 0 0 1 124 704 Tm (Index) Tj ET';

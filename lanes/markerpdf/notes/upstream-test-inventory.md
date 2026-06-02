@@ -4,6 +4,15 @@ Inventory source: shallow clone of `https://github.com/sddai/markerPDF` at `da6a
 
 The manifest denominator now keeps `benchmarkDenominator.total` numeric at `78`; the long inventory explanation is recorded separately as `inventorySummary`. The clone check on 2026-05-24 19:13 UTC confirmed `git ls-tree -r --name-only HEAD | wc -l` returns `78`, with `0` committed Python unit test files found and the full upstream benchmark runner still blocked on Poetry plus heavy PDF/model dependencies.
 
+## Reduced Handoff 2026-06-02 05:39 UTC
+
+- Scope adds only `PdfTextExtractor.php`, `PdfTextExtractorTest.php`, `wordpress-pdf-text-rendering-mode-import.php`, and lane-owned manifest/status/notes refreshes on top of the accepted JavaScript action-chain current base.
+- Text rendering mode clipping slice: `PdfTextExtractor` now tracks the PDF `Tr` operator through text extraction, styled-span extraction, naive text output, and `q`/`Q` graphics-state save/restore. Non-painting modes `3` and `7` are excluded from visible text and marked-content `/ActualText` or `/Alt` replacement, while visible clipping modes `4`, `5`, and `6` remain extractable before WordPress paragraph rendering.
+- Source truth: upstream `marker/pdf/extract_text.py::naive_get_text` delegates per-page text extraction to pypdfium/PDFium. PDF text rendering mode semantics make modes `3` and `7` non-painting text modes, while modes `4`, `5`, and `6` still paint glyphs and add their outlines to the clipping path. This native slice ports that visibility boundary without loading pypdfium, pdftext, Python models, or external PDF tools.
+- Focused evidence: `php -l lanes/markerpdf/src/PdfTextExtractor.php`, `php -l lanes/markerpdf/tests/PdfTextExtractorTest.php`, and `php -l lanes/markerpdf/examples/wordpress-pdf-text-rendering-mode-import.php` passed; `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php` passed with 1 file, 309 assertions, and 0 failures; `php lanes/markerpdf/examples/wordpress-pdf-text-rendering-mode-import.php` emitted six visible Gutenberg paragraphs while excluding invisible OCR text, clipping-only text, hidden `ActualText`, and scoped hidden text; `php tools/run-tests.php lanes/markerpdf/tests` passed with 56 files, 2066 assertions, and 0 failures; `git diff --check -- lanes/markerpdf` passed.
+- Counters: `phpPass` moves 393 -> 394 and mapped focused source/dependency semantics move 248 -> 249 / 78.
+- Dependency closure: no new support component is needed; this reuses the existing native PDF content tokenizer, marked-content property handling, styled-span path, CMap/font lookup, and graphics-state stack. Full upstream benchmarks remain dependency-gated on Poetry plus pdftext, pypdfium2, Surya, tabled-pdf, Texify, Torch, Nougat comparison tooling, and model downloads.
+
 ## Reduced Handoff 2026-06-02 03:30 UTC
 
 - Scope adds only `PdfTextExtractor.php`, `PdfTextExtractorTest.php`, `wordpress-pdf-optional-content-layer-import.php`, and lane-owned manifest/status/notes refreshes on top of the accepted LZW DecodeParms, DCT/CMYK, and AcroForm handoff.

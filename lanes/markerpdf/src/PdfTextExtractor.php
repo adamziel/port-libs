@@ -6090,13 +6090,19 @@ final class PdfTextExtractor
         $runs = [];
         $operands = [];
         $currentFontResource = null;
+        $textRenderingMode = 0;
+        $textStateStack = [];
         $markedContentStack = [];
         foreach ($this->contentTokens($stream) as $token) {
             if ($this->isTextShowingOperator($token)) {
                 $operand = $this->textShowingOperand($token, $operands);
                 if ($operand !== null) {
                     $replacementIndex = $this->activeMarkedContentReplacementIndex($markedContentStack);
-                    if ($replacementIndex !== null) {
+                    if (!$this->isVisibleTextRenderingMode($textRenderingMode)) {
+                        if ($replacementIndex !== null) {
+                            $markedContentStack[$replacementIndex]['emitted'] = true;
+                        }
+                    } elseif ($replacementIndex !== null) {
                         if (!$markedContentStack[$replacementIndex]['emitted']) {
                             $runs[] = $markedContentStack[$replacementIndex]['replacement'];
                             $markedContentStack[$replacementIndex]['emitted'] = true;
@@ -6109,8 +6115,33 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($token === 'q') {
+                $textStateStack[] = [
+                    'fontResource' => $currentFontResource,
+                    'textRenderingMode' => $textRenderingMode,
+                ];
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Q') {
+                $state = array_pop($textStateStack);
+                if (is_array($state)) {
+                    $currentFontResource = $state['fontResource'];
+                    $textRenderingMode = $state['textRenderingMode'];
+                }
+                $operands = [];
+                continue;
+            }
+
             if ($token === 'Tf') {
                 $currentFontResource = $this->fontResourceOperand($operands) ?? $currentFontResource;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tr') {
+                $textRenderingMode = $this->textRenderingModeOperand($operands) ?? $textRenderingMode;
                 $operands = [];
                 continue;
             }
@@ -6176,6 +6207,8 @@ final class PdfTextExtractor
         $currentFontSize = 12.0;
         $currentTextY = null;
         $spanId = 0;
+        $textRenderingMode = 0;
+        $textStateStack = [];
         $markedContentStack = [];
 
         foreach ($this->contentTokens($stream) as $token) {
@@ -6187,7 +6220,12 @@ final class PdfTextExtractor
                 $operand = $this->textShowingOperand($token, $operands);
                 if ($operand !== null) {
                     $replacementIndex = $this->activeMarkedContentReplacementIndex($markedContentStack);
-                    if ($replacementIndex !== null) {
+                    if (!$this->isVisibleTextRenderingMode($textRenderingMode)) {
+                        $decoded = '';
+                        if ($replacementIndex !== null) {
+                            $markedContentStack[$replacementIndex]['emitted'] = true;
+                        }
+                    } elseif ($replacementIndex !== null) {
                         $decoded = $markedContentStack[$replacementIndex]['emitted']
                             ? ''
                             : $markedContentStack[$replacementIndex]['replacement'];
@@ -6250,9 +6288,36 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($token === 'q') {
+                $textStateStack[] = [
+                    'fontResource' => $currentFontResource,
+                    'fontSize' => $currentFontSize,
+                    'textRenderingMode' => $textRenderingMode,
+                ];
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Q') {
+                $state = array_pop($textStateStack);
+                if (is_array($state)) {
+                    $currentFontResource = $state['fontResource'];
+                    $currentFontSize = $state['fontSize'];
+                    $textRenderingMode = $state['textRenderingMode'];
+                }
+                $operands = [];
+                continue;
+            }
+
             if ($token === 'Tf') {
                 $currentFontResource = $this->fontResourceOperand($operands) ?? $currentFontResource;
                 $currentFontSize = $this->fontSizeOperand($operands) ?? $currentFontSize;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tr') {
+                $textRenderingMode = $this->textRenderingModeOperand($operands) ?? $textRenderingMode;
                 $operands = [];
                 continue;
             }
@@ -6453,6 +6518,7 @@ final class PdfTextExtractor
         $horizontalScale = 100.0;
         $currentTextMatrixHorizontalScale = 1.0;
         $pendingPositionWordGap = false;
+        $textRenderingMode = 0;
         $textStateStack = [];
         $markedContentStack = [];
 
@@ -6475,7 +6541,12 @@ final class PdfTextExtractor
                 if ($operand !== null) {
                     $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
                     $replacementIndex = $this->activeMarkedContentReplacementIndex($markedContentStack);
-                    if ($replacementIndex !== null) {
+                    if (!$this->isVisibleTextRenderingMode($textRenderingMode)) {
+                        $decoded = '';
+                        if ($replacementIndex !== null) {
+                            $markedContentStack[$replacementIndex]['emitted'] = true;
+                        }
+                    } elseif ($replacementIndex !== null) {
                         $decoded = $markedContentStack[$replacementIndex]['emitted']
                             ? ''
                             : $markedContentStack[$replacementIndex]['replacement'];
@@ -6483,7 +6554,11 @@ final class PdfTextExtractor
                     } else {
                         $decoded = $this->decodeTextOperand($operand, $toUnicodeMap);
                     }
-                    $this->appendPositionedText($currentLine, $decoded, $pendingPositionWordGap);
+                    if ($this->isVisibleTextRenderingMode($textRenderingMode)) {
+                        $this->appendPositionedText($currentLine, $decoded, $pendingPositionWordGap);
+                    } else {
+                        $pendingPositionWordGap = false;
+                    }
                     if ($this->mapWritingMode($toUnicodeMap) === 1) {
                         $currentTextEndY = $this->advanceTextEndYForOperand(
                             $currentTextEndY ?? $currentTextY,
@@ -6549,6 +6624,7 @@ final class PdfTextExtractor
                     'characterSpacing' => $characterSpacing,
                     'wordSpacing' => $wordSpacing,
                     'horizontalScale' => $horizontalScale,
+                    'textRenderingMode' => $textRenderingMode,
                 ];
                 $operands = [];
                 continue;
@@ -6563,6 +6639,7 @@ final class PdfTextExtractor
                     $characterSpacing = $state['characterSpacing'];
                     $wordSpacing = $state['wordSpacing'];
                     $horizontalScale = $state['horizontalScale'];
+                    $textRenderingMode = $state['textRenderingMode'];
                 }
                 $operands = [];
                 continue;
@@ -6595,6 +6672,12 @@ final class PdfTextExtractor
 
             if ($token === 'Tz') {
                 $horizontalScale = $this->textHorizontalScaleOperand($operands) ?? $horizontalScale;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tr') {
+                $textRenderingMode = $this->textRenderingModeOperand($operands) ?? $textRenderingMode;
                 $operands = [];
                 continue;
             }
@@ -7099,6 +7182,28 @@ final class PdfTextExtractor
         }
 
         return $this->numericOperand($operands[count($operands) - 1]);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textRenderingModeOperand(array $operands): ?int
+    {
+        if ($operands === []) {
+            return null;
+        }
+
+        $mode = $this->numericOperand($operands[count($operands) - 1]);
+        if ($mode === null || floor($mode) !== $mode || $mode < 0.0 || $mode > 7.0) {
+            return null;
+        }
+
+        return (int) $mode;
+    }
+
+    private function isVisibleTextRenderingMode(int $mode): bool
+    {
+        return !in_array($mode, [3, 7], true);
     }
 
     /**
