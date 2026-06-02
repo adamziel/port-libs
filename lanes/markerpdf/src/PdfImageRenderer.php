@@ -234,6 +234,27 @@ final class PdfImageRenderer
     }
 
     /**
+     * Maps a soft-mask sample through the mask image /Decode array into the
+     * alpha value that the RGB preview compositor should apply.
+     *
+     * @param array{present?: bool, decode?: array{ranges?: list<array{min: float, max: float}>, valid_for_components?: bool}, bits_per_component?: int|null} $softMaskPlan
+     */
+    public function softMaskSampleOpacity(int|float $sample, array $softMaskPlan): float
+    {
+        if (($softMaskPlan['present'] ?? false) !== true || !isset($softMaskPlan['decode']) || !is_array($softMaskPlan['decode'])) {
+            throw new InvalidArgumentException('Soft mask plan must describe a present image mask.');
+        }
+
+        $decoded = $this->imageSampleDecodeValues(
+            [$sample],
+            $softMaskPlan['decode'],
+            max(1, (int) ($softMaskPlan['bits_per_component'] ?? 8))
+        );
+
+        return max(0.0, min(1.0, $decoded[0]));
+    }
+
+    /**
      * Native metadata boundary for PDF image ColorSpace and soft-mask handling.
      *
      * Upstream rasterizes through pypdfium/PIL and always returns an RGB image.
@@ -248,13 +269,15 @@ final class PdfImageRenderer
      *     bits_per_component: int,
      *     uses_icc_profile: bool,
      *     icc_profile: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null,
-     *     soft_mask: array{present: bool, subtype: string|null, width: int|null, height: int|null, color_space: string|null, components: int|null, bits_per_component: int|null, matte: list<float>|null, interpolate: bool|null}|null,
+     *     soft_mask: array{present: bool, subtype: string|null, width: int|null, height: int|null, color_space: string|null, components: int|null, bits_per_component: int|null, decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null, opacity_for_zero: float|null, opacity_for_max: float|null, decode_inverted: bool, decode_component_mismatch: bool, matte: list<float>|null, interpolate: bool|null}|null,
      *     image_decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null,
      *     image_decode_applied_before_rgb: bool,
      *     image_decode_component_mismatch: bool,
      *     image_mask: array{present: bool, width: int|null, height: int|null, bits_per_component: int, decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}, opacity_for_zero: float, opacity_for_one: float, inverted: bool}|null,
      *     image_mask_applied_before_rgb: bool,
      *     soft_mask_applied_before_rgb: bool,
+     *     soft_mask_decode_applied_before_rgb: bool,
+     *     soft_mask_decode_component_mismatch: bool,
      *     matte_unblending_required: bool,
      *     output_color_mode: string,
      *     alpha_output_mode: string,
@@ -298,6 +321,14 @@ final class PdfImageRenderer
         }
         if ($softMaskPresent) {
             $notes[] = 'soft_mask_applied_before_rgb_conversion';
+            if (($softMask['decode'] ?? null) !== null && ($softMask['decode']['valid_for_components'] ?? false) === true) {
+                $notes[] = 'soft_mask_decode_applied_before_rgb_conversion';
+                if (($softMask['decode_inverted'] ?? false) === true) {
+                    $notes[] = 'soft_mask_decode_inverts_alpha';
+                }
+            } elseif (($softMask['decode_component_mismatch'] ?? false) === true) {
+                $notes[] = 'soft_mask_decode_component_mismatch';
+            }
         } elseif ($softMask !== null) {
             $notes[] = 'soft_mask_none';
         }
@@ -318,6 +349,11 @@ final class PdfImageRenderer
             'image_mask_applied_before_rgb' => $imageMaskPresent,
             'soft_mask' => $softMask,
             'soft_mask_applied_before_rgb' => $softMaskPresent,
+            'soft_mask_decode_applied_before_rgb' => $softMaskPresent
+                && ($softMask['decode'] ?? null) !== null
+                && ($softMask['decode']['valid_for_components'] ?? false) === true,
+            'soft_mask_decode_component_mismatch' => $softMaskPresent
+                && (($softMask['decode_component_mismatch'] ?? false) === true),
             'matte_unblending_required' => $matteUnblendingRequired,
             'output_color_mode' => 'RGB',
             'alpha_output_mode' => $softMaskPresent
@@ -604,7 +640,7 @@ final class PdfImageRenderer
 
     /**
      * @param array<int, string> $objects
-     * @return array{present: bool, subtype: string|null, width: int|null, height: int|null, color_space: string|null, components: int|null, bits_per_component: int|null, matte: list<float>|null, interpolate: bool|null}|null
+     * @return array{present: bool, subtype: string|null, width: int|null, height: int|null, color_space: string|null, components: int|null, bits_per_component: int|null, decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null, opacity_for_zero: float|null, opacity_for_max: float|null, decode_inverted: bool, decode_component_mismatch: bool, matte: list<float>|null, interpolate: bool|null}|null
      */
     private function imageSoftMaskDetails(string $dictionary, array $objects): ?array
     {
@@ -622,6 +658,11 @@ final class PdfImageRenderer
                 'color_space' => null,
                 'components' => null,
                 'bits_per_component' => null,
+                'decode' => null,
+                'opacity_for_zero' => null,
+                'opacity_for_max' => null,
+                'decode_inverted' => false,
+                'decode_component_mismatch' => false,
                 'matte' => null,
                 'interpolate' => null,
             ];
@@ -629,7 +670,16 @@ final class PdfImageRenderer
 
         $maskDictionary = trim($this->resolvePdfValue($value, $objects));
         $colorSpace = $this->imageColorSpaceDetails($maskDictionary, $objects);
+        $bitsPerComponent = $this->imageBitsPerComponent($maskDictionary);
+        $decode = $this->imageDecodeDetails($maskDictionary, $objects, $colorSpace['components'], true);
         $matte = $this->numericArrayValue($this->extractPdfNameValue($maskDictionary, 'Matte'));
+        $opacityForZero = null;
+        $opacityForMax = null;
+        if ($decode !== null && $decode['valid_for_components']) {
+            $maskBits = max(1, $bitsPerComponent ?? 8);
+            $opacityForZero = $this->imageSampleDecodeValues([0], $decode, $maskBits)[0];
+            $opacityForMax = $this->imageSampleDecodeValues([(2 ** min($maskBits, 30)) - 1], $decode, $maskBits)[0];
+        }
 
         return [
             'present' => true,
@@ -638,7 +688,12 @@ final class PdfImageRenderer
             'height' => $this->integerNameValue($maskDictionary, 'Height'),
             'color_space' => $colorSpace['source_color_space'],
             'components' => $colorSpace['components'],
-            'bits_per_component' => $this->imageBitsPerComponent($maskDictionary),
+            'bits_per_component' => $bitsPerComponent,
+            'decode' => $decode,
+            'opacity_for_zero' => $opacityForZero === null ? null : max(0.0, min(1.0, $opacityForZero)),
+            'opacity_for_max' => $opacityForMax === null ? null : max(0.0, min(1.0, $opacityForMax)),
+            'decode_inverted' => $decode !== null && $decode['valid_for_components'] && $decode['inverted_components'] !== [],
+            'decode_component_mismatch' => $decode !== null && !$decode['valid_for_components'],
             'matte' => $matte === [] ? null : $matte,
             'interpolate' => $this->booleanNameValue($maskDictionary, 'Interpolate'),
         ];

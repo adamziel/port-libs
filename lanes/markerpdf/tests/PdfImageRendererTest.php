@@ -110,6 +110,21 @@ return [
             'color_space' => 'DeviceGray',
             'components' => 1,
             'bits_per_component' => 8,
+            'decode' => [
+                'ranges' => [
+                    ['min' => 0.0, 'max' => 1.0],
+                ],
+                'component_count' => 1,
+                'expected_components' => 1,
+                'valid_for_components' => true,
+                'identity' => true,
+                'inverted_components' => [],
+                'source' => 'default',
+            ],
+            'opacity_for_zero' => 0.0,
+            'opacity_for_max' => 1.0,
+            'decode_inverted' => false,
+            'decode_component_mismatch' => false,
             'matte' => [1.0, 0.5, 0.0],
             'interpolate' => true,
         ], $plan['soft_mask']);
@@ -120,6 +135,7 @@ return [
         $t->same([
             'icc_profile_color_space',
             'soft_mask_applied_before_rgb_conversion',
+            'soft_mask_decode_applied_before_rgb_conversion',
             'soft_mask_matte_unblend_before_rgb',
         ], $plan['notes']);
     },
@@ -147,6 +163,11 @@ return [
             'color_space' => null,
             'components' => null,
             'bits_per_component' => null,
+            'decode' => null,
+            'opacity_for_zero' => null,
+            'opacity_for_max' => null,
+            'decode_inverted' => false,
+            'decode_component_mismatch' => false,
             'matte' => null,
             'interpolate' => null,
         ], $plan['soft_mask']);
@@ -242,6 +263,57 @@ return [
         $t->same('default', $default['image_mask']['decode']['source']);
         $t->same(0.0, $renderer->imageMaskSampleOpacity(0, $default['image_mask']));
         $t->same(1.0, $renderer->imageMaskSampleOpacity(1, $default['image_mask']));
+    },
+    'plans soft-mask Decode opacity before RGB preview compositing' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            11 => "<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Decode 12 0 R /Matte [0.2 0.3 0.4] /Length 2 >>\nstream\nMASK\nendstream",
+            12 => '[1 0]',
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask 11 0 R >>',
+            $objects
+        );
+
+        $t->same([
+            'ranges' => [
+                ['min' => 1.0, 'max' => 0.0],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [0],
+            'source' => 'explicit',
+        ], $plan['soft_mask']['decode']);
+        $t->same(true, $plan['soft_mask_decode_applied_before_rgb']);
+        $t->same(false, $plan['soft_mask_decode_component_mismatch']);
+        $t->same(1.0, $plan['soft_mask']['opacity_for_zero']);
+        $t->same(0.0, $plan['soft_mask']['opacity_for_max']);
+        $t->same(true, $plan['soft_mask']['decode_inverted']);
+        $t->same(1.0, $renderer->softMaskSampleOpacity(0, $plan['soft_mask']));
+        $t->true(abs($renderer->softMaskSampleOpacity(128, $plan['soft_mask']) - (1.0 - (128 / 255))) < 0.000001);
+        $t->same(0.0, $renderer->softMaskSampleOpacity(255, $plan['soft_mask']));
+        $t->same([
+            'soft_mask_applied_before_rgb_conversion',
+            'soft_mask_decode_applied_before_rgb_conversion',
+            'soft_mask_decode_inverts_alpha',
+            'soft_mask_matte_unblend_before_rgb',
+        ], $plan['notes']);
+
+        $mismatch = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask 21 0 R >>',
+            [
+                21 => '<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Decode [0 1 0 1] >>',
+            ]
+        );
+
+        $t->same(false, $mismatch['soft_mask_decode_applied_before_rgb']);
+        $t->same(true, $mismatch['soft_mask_decode_component_mismatch']);
+        $t->same(false, $mismatch['soft_mask']['decode']['valid_for_components']);
+        $t->contains('soft_mask_decode_component_mismatch', implode(',', $mismatch['notes']));
+        $t->throws(InvalidArgumentException::class, static fn (): float => $renderer->softMaskSampleOpacity(128, $mismatch['soft_mask']));
     },
     'plans DCTDecode CMYK Adobe transform before WordPress RGB image preview' => static function (TestRunner $t) use ($dctJpeg): void {
         $renderer = new PdfImageRenderer();
