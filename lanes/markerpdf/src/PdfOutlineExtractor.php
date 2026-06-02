@@ -487,6 +487,9 @@ final class PdfOutlineExtractor
                             $row[$key] = $value;
                         }
                     }
+                    if ($openActionDestinationContext !== []) {
+                        $row = $this->withActionChainTargetContext($row, $openActionDestinationContext);
+                    }
 
                     $metadata['open_action_review_actions'][] = $row;
                 }

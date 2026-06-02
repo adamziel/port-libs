@@ -237,6 +237,163 @@ final class BenchmarkRunner
     }
 
     /**
+     * Native success-path bundle across marker_server.py::convert_pdf_local,
+     * marker.output::save_markdown, and benchmarks/overall.py markdown output.
+     *
+     * marker_server.py returns Markdown, base64 PNG images, metadata, and a
+     * success flag. The benchmark runner can write Markdown outputs, while
+     * marker.output keeps metadata and images in the document output folder.
+     * This boundary composes those upstream artifacts without persisting raw
+     * server base64 payloads in the review manifest.
+     *
+     * @param array<string, mixed> $serverResponse
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    public function writeServerBenchmarkOutputBundle(
+        string $outputFolder,
+        string $document,
+        array $serverResponse,
+        array $context = []
+    ): array {
+        $document = $this->serverBenchmarkOutputDocument($document);
+        $serverResponse = $this->serverBenchmarkSuccessResponse($serverResponse);
+
+        $outputArtifacts = (new OutputWriter())->saveMarkdownArtifactBoundary(
+            $outputFolder,
+            $document,
+            $serverResponse['markdown'],
+            $this->serverBenchmarkDecodedImages($serverResponse['images']),
+            $serverResponse['metadata'],
+            includeRuntimePreviewHtml: false
+        );
+
+        $bundlePath = $outputArtifacts['subfolder']
+            . DIRECTORY_SEPARATOR
+            . $this->markdownStem($document)
+            . '_benchmark_bundle.json';
+        $artifact = [
+            'path' => $bundlePath,
+            'filename' => basename($bundlePath),
+            'format' => 'json',
+            'success_report_written' => false,
+            'review_only' => true,
+        ];
+        $successReportWritten = array_key_exists('success_report_written', $context)
+            ? (bool) $context['success_report_written']
+            : (bool) ($context['final_report_written'] ?? false);
+
+        $payload = [
+            'schema' => 'markerpdf.server_benchmark_output_bundle.v1',
+            'source' => 'sddai/markerPDF marker_server.py + marker/output.py + benchmarks/overall.py',
+            'status' => 'complete',
+            'success' => true,
+            'document' => $document,
+            'server_response' => $this->serverBenchmarkOutputSummary($serverResponse),
+            'context' => $this->serverBenchmarkOutputContext($context),
+            'output_artifacts' => $this->serverBenchmarkOutputArtifactsForPayload($outputArtifacts),
+            'artifact' => $artifact,
+            'benchmark_output_bundle_written' => true,
+            'writes_markdown_after_success' => true,
+            'writes_metadata_after_success' => true,
+            'writes_images_after_success' => $serverResponse['images'] !== [],
+            'success_report_written' => $successReportWritten,
+            'executes_fastapi' => false,
+            'executes_uvicorn' => false,
+            'executes_live_http' => false,
+            'executes_external_tools' => false,
+            'executes_python_or_models' => false,
+            'review_only' => true,
+        ];
+
+        try {
+            $json = json_encode(
+                $payload,
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR
+            );
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException(
+                'Unable to encode markerPDF server benchmark output bundle as JSON.',
+                previous: $exception
+            );
+        }
+
+        if (@file_put_contents($bundlePath, $json) === false) {
+            throw new RuntimeException('Unable to write markerPDF server benchmark output bundle: ' . $bundlePath);
+        }
+
+        $payload['bundle_artifact'] = $artifact + [
+            'schema' => 'markerpdf.server_benchmark_output_bundle.v1',
+            'status' => 'complete',
+            'size' => $this->artifactSize($bundlePath),
+            'sha256' => $this->artifactSha256($bundlePath),
+        ];
+        $payload['output_artifacts'] = $outputArtifacts;
+
+        return $payload;
+    }
+
+    /**
+     * @return array{path: string, filename: string, schema: string, status: string, payload: array<string, mixed>, size: int, sha256: string, roundtrip_preserves_output_bundle: bool, review_only: true, executes_fastapi: false, executes_uvicorn: false, executes_live_http: false, executes_external_tools: false, executes_python_or_models: false}
+     */
+    public function readServerBenchmarkOutputBundleJson(string $bundleFile): array
+    {
+        $bundleFile = trim($bundleFile);
+        if ($bundleFile === '') {
+            throw new InvalidArgumentException('Server benchmark output bundle JSON file must not be empty.');
+        }
+
+        $contents = @file_get_contents($bundleFile);
+        if (!is_string($contents)) {
+            throw new InvalidArgumentException('Server benchmark output bundle JSON file is not readable: ' . $bundleFile);
+        }
+
+        try {
+            $payload = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException(
+                'Server benchmark output bundle JSON file must contain valid JSON.',
+                previous: $exception
+            );
+        }
+        if (!is_array($payload)) {
+            throw new InvalidArgumentException('Server benchmark output bundle JSON must decode to an object.');
+        }
+        if (($payload['schema'] ?? null) !== 'markerpdf.server_benchmark_output_bundle.v1') {
+            throw new InvalidArgumentException('Server benchmark output bundle JSON has an unexpected schema.');
+        }
+        if (($payload['success'] ?? null) !== true || ($payload['status'] ?? null) !== 'complete') {
+            throw new InvalidArgumentException('Server benchmark output bundle JSON must be a complete success payload.');
+        }
+        if (($payload['review_only'] ?? null) !== true) {
+            throw new InvalidArgumentException('Server benchmark output bundle JSON must be review-only.');
+        }
+        if (!is_string($payload['document'] ?? null)) {
+            throw new InvalidArgumentException('Server benchmark output bundle JSON is missing the document name.');
+        }
+        if (!is_array($payload['output_artifacts'] ?? null) || !is_array($payload['artifact'] ?? null)) {
+            throw new InvalidArgumentException('Server benchmark output bundle JSON is missing artifact metadata.');
+        }
+
+        return [
+            'path' => $bundleFile,
+            'filename' => basename($bundleFile),
+            'schema' => 'markerpdf.server_benchmark_output_bundle.v1',
+            'status' => 'complete',
+            'payload' => $payload,
+            'size' => $this->artifactSize($bundleFile),
+            'sha256' => $this->artifactSha256($bundleFile),
+            'roundtrip_preserves_output_bundle' => true,
+            'review_only' => true,
+            'executes_fastapi' => false,
+            'executes_uvicorn' => false,
+            'executes_live_http' => false,
+            'executes_external_tools' => false,
+            'executes_python_or_models' => false,
+        ];
+    }
+
+    /**
      * Native supplied-converter boundary for benchmarks/overall.py::main.
      *
      * @param array<string, callable(string, string, string, array<string, mixed>): mixed> $methodConverters
@@ -654,6 +811,173 @@ final class BenchmarkRunner
         $serverResponse['error'] = $error;
 
         return $serverResponse;
+    }
+
+    private function serverBenchmarkOutputDocument(string $document): string
+    {
+        $document = basename(str_replace('\\', '/', trim($document)));
+        if ($document === '' || $document === '.' || $document === '..') {
+            throw new InvalidArgumentException('Server benchmark output bundle document must not be empty.');
+        }
+
+        return $document;
+    }
+
+    /**
+     * @param array<string, mixed> $serverResponse
+     * @return array{success: true, markdown: string, images: array<string, mixed>, metadata: array<string, mixed>}
+     */
+    private function serverBenchmarkSuccessResponse(array $serverResponse): array
+    {
+        if (($serverResponse['success'] ?? null) !== true) {
+            throw new InvalidArgumentException('Server benchmark output bundle requires a successful marker server response.');
+        }
+
+        $markdown = $serverResponse['markdown']
+            ?? $serverResponse['full_text']
+            ?? $serverResponse['text']
+            ?? null;
+        if (!is_string($markdown)) {
+            throw new InvalidArgumentException('Server benchmark output bundle requires markdown text.');
+        }
+
+        $images = $serverResponse['images'] ?? [];
+        $metadata = $serverResponse['metadata'] ?? $serverResponse['out_metadata'] ?? [];
+        if (!is_array($images) || !is_array($metadata)) {
+            throw new InvalidArgumentException('Server benchmark output bundle images and metadata must be arrays.');
+        }
+
+        return [
+            'success' => true,
+            'markdown' => $markdown,
+            'images' => $images,
+            'metadata' => $metadata,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $images
+     * @return array<string, string>
+     */
+    private function serverBenchmarkDecodedImages(array $images): array
+    {
+        $decoded = [];
+        foreach ($images as $filename => $encoded) {
+            if (!is_string($filename) || trim($filename) === '') {
+                throw new InvalidArgumentException('Server benchmark output bundle image names must be non-empty strings.');
+            }
+            if (!is_string($encoded)) {
+                throw new InvalidArgumentException('Server benchmark output bundle images must be base64 PNG strings.');
+            }
+
+            $bytes = base64_decode($encoded, strict: true);
+            if (!is_string($bytes) || $bytes === '') {
+                throw new InvalidArgumentException('Server benchmark output bundle images must be valid non-empty base64 PNG strings.');
+            }
+
+            $decoded[$filename] = $bytes;
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @param array{markdown: string, images: array<string, mixed>, metadata: array<string, mixed>} $serverResponse
+     * @return array{success: true, markdown_size: int, image_count: int, metadata_keys: list<string>, preserves_base64_images_in_manifest: false}
+     */
+    private function serverBenchmarkOutputSummary(array $serverResponse): array
+    {
+        $metadataKeys = array_map('strval', array_keys($serverResponse['metadata']));
+        sort($metadataKeys, SORT_STRING);
+
+        return [
+            'success' => true,
+            'markdown_size' => strlen($serverResponse['markdown']),
+            'image_count' => count($serverResponse['images']),
+            'metadata_keys' => $metadataKeys,
+            'preserves_base64_images_in_manifest' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private function serverBenchmarkOutputContext(array $context): array
+    {
+        $normalized = [
+            'phase' => $this->optionalContextString($context['phase'] ?? 'server_convert', 'phase') ?? 'server_convert',
+            'method' => $this->optionalContextString($context['method'] ?? null, 'method'),
+            'document' => $this->optionalContextString($context['document'] ?? null, 'document'),
+            'benchmark_index' => $this->optionalContextInt($context['benchmark_index'] ?? null, 'benchmark_index'),
+            'markdown_output_folder' => $this->optionalContextString($context['markdown_output_folder'] ?? null, 'markdown_output_folder'),
+            'report_output' => $this->optionalContextString($context['report_output'] ?? null, 'report_output'),
+            'upload_removed' => array_key_exists('upload_removed', $context) ? (bool) $context['upload_removed'] : null,
+            'request_count' => $this->optionalContextInt($context['request_count'] ?? null, 'request_count'),
+            'success_report_written' => array_key_exists('success_report_written', $context)
+                ? (bool) $context['success_report_written']
+                : (array_key_exists('final_report_written', $context) ? (bool) $context['final_report_written'] : false),
+        ];
+
+        foreach ($context as $key => $value) {
+            if (is_string($key) && !array_key_exists($key, $normalized)) {
+                $normalized[$key] = $value;
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $outputArtifacts
+     * @return array<string, mixed>
+     */
+    private function serverBenchmarkOutputArtifactsForPayload(array $outputArtifacts): array
+    {
+        $imageArtifacts = [];
+        foreach ($outputArtifacts['image_artifacts'] ?? [] as $artifact) {
+            if (!is_array($artifact)) {
+                continue;
+            }
+            $imageArtifacts[] = [
+                'filename' => $artifact['filename'] ?? null,
+                'path' => $artifact['path'] ?? null,
+                'format' => $artifact['format'] ?? null,
+                'mime_type' => $artifact['mime_type'] ?? null,
+                'size' => $artifact['size'] ?? null,
+                'sha256' => $artifact['sha256'] ?? null,
+                'persisted_to_output_folder' => $artifact['persisted_to_output_folder'] ?? null,
+                'runtime_preview_embeddable' => $artifact['runtime_preview_embeddable'] ?? null,
+            ];
+        }
+
+        $runtimePreview = $outputArtifacts['runtime_preview'] ?? [];
+        if (is_array($runtimePreview)) {
+            unset($runtimePreview['html']);
+        }
+
+        return [
+            'source' => $outputArtifacts['source'] ?? null,
+            'upstream_boundary' => $outputArtifacts['upstream_boundary'] ?? null,
+            'filename' => $outputArtifacts['filename'] ?? null,
+            'output_folder' => $outputArtifacts['output_folder'] ?? null,
+            'subfolder' => $outputArtifacts['subfolder'] ?? null,
+            'markdown_artifact' => $outputArtifacts['markdown_artifact'] ?? null,
+            'metadata_artifact' => $outputArtifacts['metadata_artifact'] ?? null,
+            'image_artifacts' => $imageArtifacts,
+            'image_count' => count($imageArtifacts),
+            'runtime_preview' => $runtimePreview,
+        ];
+    }
+
+    private function markdownStem(string $filename): string
+    {
+        $lastDot = strrpos($filename, '.');
+        if ($lastDot === false) {
+            return $filename;
+        }
+
+        return substr($filename, 0, $lastDot);
     }
 
     /**

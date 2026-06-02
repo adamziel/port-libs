@@ -601,14 +601,19 @@ final class PdfSecurityPreflight
     ): array {
         $actions = [];
         $outline = new PdfOutlineExtractor();
+        $navigationReview = $outline->getNavigationReviewMetadata($pdfBytes);
         $catalogObject = $this->catalogObjectNumber($pdfBytes);
-        foreach ($outline->getOpenActionReviewActions($pdfBytes) as $action) {
+        foreach ($navigationReview['open_action_review_actions'] ?? [] as $action) {
+            if (!is_array($action)) {
+                continue;
+            }
+
             $this->addDocumentActionReviewRow($actions, $action, 'catalog_open_action', [
                 'catalog_object' => $catalogObject,
             ]);
         }
 
-        foreach ($outline->getNavigationReviewMetadata($pdfBytes, false)['outline_action_review_actions'] ?? [] as $action) {
+        foreach ($navigationReview['outline_action_review_actions'] ?? [] as $action) {
             if (!is_array($action)) {
                 continue;
             }
@@ -679,6 +684,7 @@ final class PdfSecurityPreflight
         $postSignatureActionObjects = $this->postSignatureActionObjects($actions);
         $postSignatureActionCount = $this->postSignatureActionCount($actions);
         $unsafeActionCount = count(array_filter($actions, fn (array $action): bool => $this->isUnsafeDocumentAction($action)));
+        $targetAssociatedFiles = $this->uniqueDestinationActionTargetAssociatedFiles($actions);
 
         return [
             'source' => 'pdf_document_action_security_review',
@@ -728,6 +734,10 @@ final class PdfSecurityPreflight
             'has_post_signature_actions' => $postSignatureActionCount > 0,
             'action_types' => $this->uniqueStringColumn($actions, 'action_type'),
             'safety_labels' => $this->uniqueStringColumn($actions, 'safety'),
+            'destination_action_target_page_associated_file_count' => count($targetAssociatedFiles),
+            'destination_action_target_page_associated_file_filenames' => $this->associatedFileStringColumn($targetAssociatedFiles, 'filename'),
+            'destination_action_target_page_associated_file_relationships' => $this->associatedFileStringColumn($targetAssociatedFiles, 'relationship'),
+            'destination_action_target_page_associated_file_checksum_statuses' => $this->associatedFileChecksumStatuses($targetAssociatedFiles),
             'certifying_signature_count' => count(array_filter(
                 $signatures,
                 static fn (array $signature): bool => ($signature['certifying_signature'] ?? false) === true
@@ -1341,6 +1351,7 @@ final class PdfSecurityPreflight
             $actions,
             static fn (array $action): bool => ($action['source'] ?? null) === 'outline_action'
         ));
+        $targetAssociatedFiles = $this->uniqueDestinationActionTargetAssociatedFiles($outlineActions);
 
         return [
             'source' => 'outline_action_security_review',
@@ -1360,6 +1371,10 @@ final class PdfSecurityPreflight
             'destination_action_target_page_labels' => $this->uniqueStringColumn($outlineActions, 'destination_action_target_page_label'),
             'destination_action_target_transition_styles' => $this->transitionStyleColumn($outlineActions, 'destination_action_target_page_transition'),
             'destination_action_target_article_thread_titles' => $this->uniqueNestedStringColumn($outlineActions, 'destination_action_target_article_thread_titles'),
+            'destination_action_target_page_associated_file_count' => count($targetAssociatedFiles),
+            'destination_action_target_page_associated_file_filenames' => $this->associatedFileStringColumn($targetAssociatedFiles, 'filename'),
+            'destination_action_target_page_associated_file_relationships' => $this->associatedFileStringColumn($targetAssociatedFiles, 'relationship'),
+            'destination_action_target_page_associated_file_checksum_statuses' => $this->associatedFileChecksumStatuses($targetAssociatedFiles),
             'signature_permission_transform_methods' => $this->uniqueNestedStringColumn($outlineActions, 'signature_permission_transform_methods'),
             'outline_action_permission_statuses' => $this->uniqueStringColumn($outlineActions, 'outline_action_permission_status'),
             'cert_permissions_grant_outline_action_execution' => false,
@@ -1402,6 +1417,7 @@ final class PdfSecurityPreflight
             $actions,
             static fn (array $action): bool => ($action['source'] ?? null) === 'catalog_open_action'
         ));
+        $targetAssociatedFiles = $this->uniqueDestinationActionTargetAssociatedFiles($openActions);
 
         return [
             'source' => 'cert_permission_open_action_review',
@@ -1415,6 +1431,10 @@ final class PdfSecurityPreflight
             'open_action_types' => $this->uniqueStringColumn($openActions, 'action_type'),
             'open_action_safety_labels' => $this->uniqueStringColumn($openActions, 'safety'),
             'open_action_permission_statuses' => $this->uniqueStringColumn($openActions, 'open_action_permission_status'),
+            'destination_action_target_page_associated_file_count' => count($targetAssociatedFiles),
+            'destination_action_target_page_associated_file_filenames' => $this->associatedFileStringColumn($targetAssociatedFiles, 'filename'),
+            'destination_action_target_page_associated_file_relationships' => $this->associatedFileStringColumn($targetAssociatedFiles, 'relationship'),
+            'destination_action_target_page_associated_file_checksum_statuses' => $this->associatedFileChecksumStatuses($targetAssociatedFiles),
             'doc_mdp_permission_labels' => $this->uniqueNestedStringColumn($openActions, 'doc_mdp_permission_labels'),
             'doc_mdp_allowed_changes' => $this->uniqueNestedStringColumn($openActions, 'doc_mdp_allowed_changes'),
             'field_mdp_action_labels' => $this->uniqueNestedStringColumn($openActions, 'field_mdp_action_labels'),
@@ -1576,6 +1596,7 @@ final class PdfSecurityPreflight
      */
     private function addDocumentActionReviewRow(array &$actions, array $action, string $source, array $context = []): void
     {
+        $targetAssociatedFiles = $this->targetPageAssociatedFileReviews($action);
         $row = [
             'source' => $source,
             'pnum' => $context['pnum'] ?? null,
@@ -1650,10 +1671,173 @@ final class PdfSecurityPreflight
             'executes_on_import' => false,
             'executes_action' => false,
         ];
+        if ($targetAssociatedFiles !== []) {
+            $row['destination_action_target_page_associated_file_count'] = count($targetAssociatedFiles);
+            $row['destination_action_target_page_associated_files'] = $targetAssociatedFiles;
+            $row['destination_action_target_page_associated_file_filenames'] = $this->associatedFileStringColumn($targetAssociatedFiles, 'filename');
+            $row['destination_action_target_page_associated_file_relationships'] = $this->associatedFileStringColumn($targetAssociatedFiles, 'relationship');
+            $row['destination_action_target_page_associated_file_checksum_statuses'] = $this->associatedFileChecksumStatuses($targetAssociatedFiles);
+            $row['destination_action_target_page_associated_file_review_only'] = true;
+        }
         $row['action_container_object'] = $this->documentActionContainerObject($row);
         $row['action_container_source'] = $this->documentActionContainerSource($row);
 
         $actions[] = $row;
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @return list<array<string, mixed>>
+     */
+    private function targetPageAssociatedFileReviews(array $action): array
+    {
+        foreach (['destination_action_target_page_review', 'target_page_review'] as $reviewKey) {
+            $review = $action[$reviewKey] ?? null;
+            if (!is_array($review) || !is_array($review['page_associated_files'] ?? null)) {
+                continue;
+            }
+
+            return $this->uniqueAssociatedFileReviews(array_map(
+                fn (mixed $file): array => is_array($file) ? $this->compactAssociatedFileReview($file) : [],
+                $review['page_associated_files']
+            ));
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<string, mixed> $file
+     * @return array<string, mixed>
+     */
+    private function compactAssociatedFileReview(array $file): array
+    {
+        $review = [];
+        foreach ([
+            'source',
+            'associated_file',
+            'associated_file_index',
+            'name',
+            'filename',
+            'unicode_filename',
+            'description',
+            'relationship',
+            'relationship_role',
+            'mime_type',
+            'size',
+            'checksum_algorithm',
+            'checksum',
+            'computed_checksum',
+            'checksum_matches',
+            'content_sha256',
+            'modified_at',
+            'file_spec_object',
+            'embedded_file_object',
+        ] as $key) {
+            if (array_key_exists($key, $file)) {
+                $review[$key] = $file[$key];
+            }
+        }
+
+        $review['payload_content_exposed'] = false;
+        $review['review_only'] = true;
+
+        return array_filter($review, static fn (mixed $value): bool => $value !== null && $value !== []);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @return list<array<string, mixed>>
+     */
+    private function uniqueDestinationActionTargetAssociatedFiles(array $actions): array
+    {
+        $files = [];
+        foreach ($actions as $action) {
+            foreach ($action['destination_action_target_page_associated_files'] ?? [] as $file) {
+                if (is_array($file)) {
+                    $files[] = $file;
+                }
+            }
+        }
+
+        return $this->uniqueAssociatedFileReviews($files);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $files
+     * @return list<array<string, mixed>>
+     */
+    private function uniqueAssociatedFileReviews(array $files): array
+    {
+        $unique = [];
+        $seen = [];
+        foreach ($files as $file) {
+            if ($file === []) {
+                continue;
+            }
+
+            $key = $this->associatedFileReviewKey($file);
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $unique[] = $file;
+        }
+
+        return $unique;
+    }
+
+    /**
+     * @param array<string, mixed> $file
+     */
+    private function associatedFileReviewKey(array $file): string
+    {
+        return implode('|', [
+            is_int($file['file_spec_object'] ?? null) ? (string) $file['file_spec_object'] : '',
+            is_string($file['filename'] ?? null) ? $file['filename'] : '',
+            is_string($file['content_sha256'] ?? null) ? $file['content_sha256'] : '',
+        ]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $files
+     * @return list<string>
+     */
+    private function associatedFileStringColumn(array $files, string $key): array
+    {
+        $values = [];
+        foreach ($files as $file) {
+            if (is_string($file[$key] ?? null) && !in_array($file[$key], $values, true)) {
+                $values[] = $file[$key];
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $files
+     * @return list<string>
+     */
+    private function associatedFileChecksumStatuses(array $files): array
+    {
+        $statuses = [];
+        foreach ($files as $file) {
+            if (array_key_exists('checksum_matches', $file)) {
+                $status = ($file['checksum_matches'] ?? false) === true ? 'checksum_matched' : 'checksum_mismatch';
+            } elseif (is_string($file['checksum'] ?? null) || is_string($file['computed_checksum'] ?? null)) {
+                $status = 'checksum_present_unverified';
+            } else {
+                $status = 'checksum_absent';
+            }
+
+            if (!in_array($status, $statuses, true)) {
+                $statuses[] = $status;
+            }
+        }
+
+        return $statuses;
     }
 
     /**

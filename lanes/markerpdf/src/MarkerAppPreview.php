@@ -95,6 +95,530 @@ final class MarkerAppPreview
     }
 
     /**
+     * Bundles marker_app.py-style page preview geometry with native review
+     * overlays. Layout pages are supplied by the caller; this method does not
+     * run Surya, pypdfium, PIL, PDF actions, or external PDF tooling.
+     *
+     * @param list<array<string, mixed>> $suppliedPages
+     * @return array<string, mixed>
+     */
+    public function getPageLayoutPreviewBundle(
+        string $pdfBytes,
+        int $pageNumber,
+        array $suppliedPages = [],
+        float $dpi = 96.0
+    ): array {
+        $imagePlan = $this->getPageImagePlan($pdfBytes, $pageNumber, $dpi);
+        $pageIndex = $imagePlan['page_index'];
+        $pageReview = $this->pageReviewByPageIndex($pdfBytes)[$pageIndex] ?? [];
+        $annotationPage = $this->annotationReviewByPageIndex($pdfBytes)[$pageIndex] ?? [];
+        $suppliedPage = $this->suppliedPreviewPage($suppliedPages, $pageIndex);
+
+        $annotations = $this->annotationPreviewRows(
+            is_array($annotationPage['annotations'] ?? null) ? $annotationPage['annotations'] : [],
+            $imagePlan
+        );
+        $textMarkupRows = $this->textMarkupPreviewRows(
+            is_array($pageReview['text_markup_annotations'] ?? null) ? $pageReview['text_markup_annotations'] : [],
+            $imagePlan
+        );
+        $annotationStructureRows = $this->annotationStructurePreviewRows(
+            is_array($pageReview['annotation_structure_parent_rows'] ?? null) ? $pageReview['annotation_structure_parent_rows'] : [],
+            $imagePlan
+        );
+        $structureRows = $this->structureMarkedContentPreviewRows(
+            is_array($pageReview['structure_marked_content'] ?? null) ? $pageReview['structure_marked_content'] : []
+        );
+        $layoutBlocks = $this->layoutPreviewBlocks($suppliedPage, $imagePlan);
+
+        return [
+            'source' => 'marker_app_page_annotations_structtree_layout_preview_bundle',
+            'page_number' => $pageNumber,
+            'page_index' => $pageIndex,
+            'page_count' => $imagePlan['page_count'],
+            'page_object' => $imagePlan['object_id'],
+            'image_plan' => $imagePlan,
+            'page_review' => $this->compactPageReview($pageReview),
+            'layout_blocks' => $layoutBlocks,
+            'annotations' => $annotations,
+            'text_markup_annotations' => $textMarkupRows,
+            'annotation_structure_parent_rows' => $annotationStructureRows,
+            'structure_marked_content' => $structureRows,
+            'layout_block_count' => count($layoutBlocks),
+            'annotation_count' => count($annotations),
+            'text_markup_annotation_count' => count($textMarkupRows),
+            'annotation_structure_parent_row_count' => count($annotationStructureRows),
+            'structure_marked_content_count' => count($structureRows),
+            'review_only' => true,
+            'visible_text_source' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+            'executes_pdf_actions' => false,
+            'overlay_coordinate_space' => 'rendered_image_pixels',
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function pageReviewByPageIndex(string $pdfBytes): array
+    {
+        $reviews = [];
+        foreach ((new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdfBytes) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $pnum = $row['pnum'] ?? null;
+            if (is_int($pnum)) {
+                $reviews[$pnum] = $row;
+            }
+        }
+
+        return $reviews;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function annotationReviewByPageIndex(string $pdfBytes): array
+    {
+        $reviews = [];
+        foreach ((new PdfAnnotationExtractor())->extractPageAnnotations($pdfBytes) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $pnum = $row['pnum'] ?? null;
+            if (is_int($pnum)) {
+                $reviews[$pnum] = $row;
+            }
+        }
+
+        return $reviews;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $pages
+     * @return array<string, mixed>|null
+     */
+    private function suppliedPreviewPage(array $pages, int $pageIndex): ?array
+    {
+        foreach ($pages as $index => $page) {
+            if (!is_array($page)) {
+                continue;
+            }
+
+            $pnum = $page['pnum'] ?? $page['page_index'] ?? $index;
+            if (is_int($pnum) && $pnum === $pageIndex) {
+                return $page;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $pageReview
+     * @return array<string, mixed>
+     */
+    private function compactPageReview(array $pageReview): array
+    {
+        if ($pageReview === []) {
+            return [];
+        }
+
+        $review = [
+            'source' => 'marker_app_page_review_preview_context',
+            'pnum' => $pageReview['pnum'] ?? null,
+            'page_number' => $pageReview['page_number'] ?? null,
+            'page_label' => $pageReview['page_label'] ?? null,
+            'page_object' => $pageReview['page_object'] ?? null,
+            'struct_parents' => $pageReview['struct_parents'] ?? null,
+            'parent_tree' => $pageReview['parent_tree'] ?? null,
+            'piece_info' => $pageReview['piece_info'] ?? null,
+            'page_associated_files' => $pageReview['page_associated_files'] ?? null,
+            'page_presentation' => $pageReview['page_presentation'] ?? null,
+            'resources' => $pageReview['resources'] ?? null,
+            'review_only' => true,
+            'visible_text_source' => false,
+        ];
+
+        return $this->compactRow($review);
+    }
+
+    /**
+     * @param array<string, mixed>|null $page
+     * @param array<string, mixed> $imagePlan
+     * @return list<array<string, mixed>>
+     */
+    private function layoutPreviewBlocks(?array $page, array $imagePlan): array
+    {
+        if ($page === null) {
+            return [];
+        }
+
+        $blocks = is_array($page['blocks'] ?? null) ? array_values($page['blocks']) : [];
+        $rows = [];
+        foreach ($blocks as $index => $block) {
+            if (!is_array($block)) {
+                continue;
+            }
+
+            $bbox = $this->bboxFromValue($block['bbox'] ?? null);
+            if ($bbox === null) {
+                continue;
+            }
+
+            $row = [
+                'source' => 'supplied_marker_layout_preview_block',
+                'block_index' => $index,
+                'block_type' => $this->blockTypeLabel($block),
+                'bbox' => $bbox,
+                'preview_bbox' => $this->previewBbox($bbox, $imagePlan),
+                'text_preview' => $this->blockTextPreview($block),
+                'review_annotation_count' => $this->blockReviewAnnotationCount($block),
+                'review_only' => false,
+                'visible_text_source' => true,
+            ];
+
+            foreach (['layout_label', 'order_position'] as $key) {
+                if (array_key_exists($key, $block)) {
+                    $row[$key] = $block[$key];
+                }
+            }
+
+            $rows[] = $this->compactRow($row);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $annotations
+     * @param array<string, mixed> $imagePlan
+     * @return list<array<string, mixed>>
+     */
+    private function annotationPreviewRows(array $annotations, array $imagePlan): array
+    {
+        $rows = [];
+        foreach (array_values($annotations) as $index => $annotation) {
+            if (!is_array($annotation)) {
+                continue;
+            }
+
+            $rect = $this->bboxFromValue($annotation['rect'] ?? null);
+            $row = [
+                'source' => 'page_annotation_preview_overlay',
+                'annotation_index' => $index,
+                'annotation_object' => $annotation['annotation_object'] ?? null,
+                'subtype' => $annotation['subtype'] ?? null,
+                'rect' => $rect,
+                'preview_bbox' => $rect === null ? null : $this->previewBbox($rect, $imagePlan),
+                'contents' => $annotation['contents'] ?? null,
+                'title' => $annotation['title'] ?? null,
+                'name' => $annotation['name'] ?? null,
+                'struct_parent' => $annotation['struct_parent'] ?? null,
+                'structure_parent' => $annotation['structure_parent'] ?? null,
+                'action_count' => count(is_array($annotation['actions'] ?? null) ? $annotation['actions'] : []),
+                'additional_action_count' => count(is_array($annotation['additional_actions'] ?? null) ? $annotation['additional_actions'] : []),
+                'executes_actions_on_import' => $annotation['executes_actions_on_import'] ?? false,
+                'review_only' => true,
+                'visible_text_source' => false,
+                'renders_annotation_on_import' => false,
+            ];
+
+            $rows[] = $this->compactRow($row);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $markups
+     * @param array<string, mixed> $imagePlan
+     * @return list<array<string, mixed>>
+     */
+    private function textMarkupPreviewRows(array $markups, array $imagePlan): array
+    {
+        $rows = [];
+        foreach ($markups as $index => $markup) {
+            if (!is_array($markup)) {
+                continue;
+            }
+
+            $quadPreviewBboxes = [];
+            $quadRects = is_array($markup['quad_rects'] ?? null) ? $markup['quad_rects'] : [];
+            foreach ($quadRects as $quadRect) {
+                $bbox = $this->bboxFromValue($quadRect);
+                if ($bbox !== null) {
+                    $quadPreviewBboxes[] = $this->previewBbox($bbox, $imagePlan);
+                }
+            }
+
+            $rect = $this->bboxFromValue($markup['rect'] ?? null);
+            $rows[] = $this->compactRow([
+                'source' => 'page_text_markup_preview_overlay',
+                'markup_index' => $index,
+                'annotation_object' => $markup['annotation_object'] ?? null,
+                'subtype' => $markup['subtype'] ?? null,
+                'rect' => $rect,
+                'preview_bbox' => $rect === null ? null : $this->previewBbox($rect, $imagePlan),
+                'quad_preview_bboxes' => $quadPreviewBboxes,
+                'contents' => $markup['contents'] ?? null,
+                'struct_parent' => $markup['struct_parent'] ?? null,
+                'structure_parent' => $this->compactRow([
+                    'struct_object' => $markup['struct_object'] ?? null,
+                    'raw_role' => $markup['raw_role'] ?? null,
+                    'role' => $markup['role'] ?? null,
+                    'role_mapped' => $markup['role_mapped'] ?? null,
+                    'title' => $markup['title'] ?? null,
+                    'alternate_text' => $markup['alternate_text'] ?? null,
+                    'actual_text' => $markup['actual_text'] ?? null,
+                    'associated_file_count' => $markup['associated_file_count'] ?? null,
+                    'associated_files' => $markup['associated_files'] ?? null,
+                ]),
+                'review_only' => true,
+                'visible_text_source' => false,
+                'renders_markup_on_import' => false,
+            ]);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @param array<string, mixed> $imagePlan
+     * @return list<array<string, mixed>>
+     */
+    private function annotationStructurePreviewRows(array $rows, array $imagePlan): array
+    {
+        $out = [];
+        foreach ($rows as $index => $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $rect = $this->bboxFromValue($row['rect'] ?? null);
+            $row['preview_source'] = 'page_annotation_struct_parent_preview_overlay';
+            $row['preview_index'] = $index;
+            if ($rect !== null) {
+                $row['preview_bbox'] = $this->previewBbox($rect, $imagePlan);
+            }
+            $row['review_only'] = true;
+            $row['visible_text_source'] = false;
+
+            $out[] = $this->compactRow($row);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<array<string, mixed>>
+     */
+    private function structureMarkedContentPreviewRows(array $rows): array
+    {
+        $out = [];
+        foreach ($rows as $index => $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $row['preview_source'] = 'page_structtree_marked_content_preview_context';
+            $row['preview_index'] = $index;
+            $row['review_only'] = true;
+            $row['visible_text_source'] = false;
+            $out[] = $this->compactRow($row);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<string, mixed> $block
+     */
+    private function blockTypeLabel(array $block): string
+    {
+        foreach (['block_type', 'type', 'label'] as $key) {
+            $value = $block[$key] ?? null;
+            if (is_string($value) && $value !== '') {
+                return $value;
+            }
+        }
+
+        return 'Text';
+    }
+
+    /**
+     * @param array<string, mixed> $block
+     */
+    private function blockTextPreview(array $block): string
+    {
+        $parts = [];
+        foreach (($block['lines'] ?? []) as $line) {
+            if (!is_array($line)) {
+                continue;
+            }
+
+            $lineText = '';
+            foreach (($line['spans'] ?? []) as $span) {
+                if (!is_array($span)) {
+                    continue;
+                }
+
+                $text = $span['text'] ?? null;
+                if (is_string($text)) {
+                    $lineText .= $text;
+                }
+            }
+
+            if ($lineText !== '') {
+                $parts[] = $lineText;
+            }
+        }
+
+        $text = trim(implode(' ', $parts));
+        if (strlen($text) > 160) {
+            return substr($text, 0, 157) . '...';
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param array<string, mixed> $block
+     */
+    private function blockReviewAnnotationCount(array $block): int
+    {
+        $count = 0;
+        foreach (($block['lines'] ?? []) as $line) {
+            if (!is_array($line)) {
+                continue;
+            }
+
+            foreach (($line['spans'] ?? []) as $span) {
+                if (!is_array($span)) {
+                    continue;
+                }
+
+                $annotations = $span['review_annotations'] ?? [];
+                if (is_array($annotations)) {
+                    $count += count($annotations);
+                }
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function bboxFromValue(mixed $value): ?array
+    {
+        if (!is_array($value) || count($value) !== 4) {
+            return null;
+        }
+
+        $bbox = [];
+        foreach (array_values($value) as $part) {
+            if (!is_int($part) && !is_float($part)) {
+                return null;
+            }
+            $bbox[] = (float) $part;
+        }
+
+        return [
+            min($bbox[0], $bbox[2]),
+            min($bbox[1], $bbox[3]),
+            max($bbox[0], $bbox[2]),
+            max($bbox[1], $bbox[3]),
+        ];
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @param array<string, mixed> $imagePlan
+     * @return list<float>
+     */
+    private function previewBbox(array $bbox, array $imagePlan): array
+    {
+        $pageBbox = $this->bboxFromValue($imagePlan['page_bbox'] ?? null) ?? self::DEFAULT_PAGE_BBOX;
+        $clipped = $this->intersectBoxes($pageBbox, $bbox);
+        $rotation = is_int($imagePlan['rotation'] ?? null) ? $imagePlan['rotation'] : 0;
+        $scale = (float) ($imagePlan['scale'] ?? 1.0) * (float) ($imagePlan['user_unit'] ?? 1.0);
+
+        $points = [
+            [$clipped[0], $clipped[1]],
+            [$clipped[2], $clipped[1]],
+            [$clipped[0], $clipped[3]],
+            [$clipped[2], $clipped[3]],
+        ];
+
+        $mapped = array_map(
+            fn (array $point): array => $this->previewPoint($point[0], $point[1], $pageBbox, $rotation, $scale),
+            $points
+        );
+        $xs = array_column($mapped, 0);
+        $ys = array_column($mapped, 1);
+
+        return [
+            $this->roundedPreviewCoordinate(min($xs)),
+            $this->roundedPreviewCoordinate(min($ys)),
+            $this->roundedPreviewCoordinate(max($xs)),
+            $this->roundedPreviewCoordinate(max($ys)),
+        ];
+    }
+
+    /**
+     * @param list<float> $pageBbox
+     * @return array{0: float, 1: float}
+     */
+    private function previewPoint(float $x, float $y, array $pageBbox, int $rotation, float $scale): array
+    {
+        $width = max(0.0, $pageBbox[2] - $pageBbox[0]);
+        $height = max(0.0, $pageBbox[3] - $pageBbox[1]);
+        $x -= $pageBbox[0];
+        $y -= $pageBbox[1];
+
+        switch ($this->normalizedRotation($rotation)) {
+            case 90:
+                $mapped = [$y, $x];
+                break;
+            case 180:
+                $mapped = [$width - $x, $y];
+                break;
+            case 270:
+                $mapped = [$height - $y, $width - $x];
+                break;
+            default:
+                $mapped = [$x, $height - $y];
+                break;
+        }
+
+        return [$mapped[0] * $scale, $mapped[1] * $scale];
+    }
+
+    private function roundedPreviewCoordinate(float $value): float
+    {
+        $rounded = round($value, 4);
+
+        return abs($rounded) < 0.000001 ? 0.0 : $rounded;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function compactRow(array $row): array
+    {
+        return array_filter($row, static fn (mixed $value): bool => $value !== null && $value !== []);
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     private function pageInventory(string $pdfBytes): array
