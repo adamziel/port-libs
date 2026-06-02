@@ -7494,7 +7494,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
-     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int}> $xrefEntries
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
      * @return array<int, string>
      */
     private function liveDirectObjects(array $definitions, array $xrefEntries): array
@@ -7513,7 +7513,7 @@ final class PdfTextExtractor
 
     /**
      * @param list<array{generation: int, offset: int, body: string}> $definitions
-     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int}|null $xrefEntry
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}|null $xrefEntry
      * @return array{generation: int, offset: int, body: string}|null
      */
     private function liveDirectObjectDefinition(array $definitions, ?array $xrefEntry): ?array
@@ -7554,7 +7554,7 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
-     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int}>
+     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
     private function xrefEntries(string $pdfBytes, array $objects, array $definitions): array
     {
@@ -7597,7 +7597,7 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
-     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int}>
+     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
     private function xrefEntriesFromStartxrefChain(string $pdfBytes, array $objects, array $definitions): array
     {
@@ -7695,7 +7695,7 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @param array<int, bool> $seenOffsets
-     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int}>
+     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
     private function xrefEntriesFromOffsetChain(string $pdfBytes, int $offset, array $objects, array $definitions, array $seenOffsets = []): array
     {
@@ -7821,7 +7821,7 @@ final class PdfTextExtractor
     /**
      * @return array<int, string>
      * @param array<int, string> $objects
-     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int}> $xrefEntries
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
      */
     private function objectsFromObjectStreams(array $objects, array $xrefEntries): array
     {
@@ -7863,7 +7863,7 @@ final class PdfTextExtractor
                     if (
                         ($xrefEntry['type'] ?? null) !== 2
                         || ($xrefEntry['objectStream'] ?? null) !== $objectStreamNumber
-                        || ($xrefEntry['index'] ?? null) !== $index
+                        || (($xrefEntry['index'] ?? null) !== $index && ($xrefEntry['indexIsExplicit'] ?? true))
                     ) {
                         continue;
                     }
@@ -7887,7 +7887,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int}> $xrefEntries
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
      */
     private function hasCompressedXrefEntriesForObjectStream(array $xrefEntries, int $objectStreamNumber): bool
     {
@@ -7901,7 +7901,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int}>
+     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      */
@@ -7920,7 +7920,7 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
-     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int}>
+     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
     private function xrefStreamEntriesAtOffset(int $offset, array $objects, array $definitions): array
     {
@@ -7965,7 +7965,7 @@ final class PdfTextExtractor
     /**
      * @param array{generation: int, offset: int, body: string} $definition
      * @param array<int, string> $objects
-     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int}>
+     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
     private function xrefStreamEntriesFromDefinition(array $definition, array $objects): array
     {
@@ -8022,6 +8022,7 @@ final class PdfTextExtractor
                         'type' => 2,
                         'objectStream' => $fieldTwo,
                         'index' => $fieldThree,
+                        'indexIsExplicit' => $widths[2] > 0,
                     ];
                 }
 
