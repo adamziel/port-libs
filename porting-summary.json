@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 11:46:54 UTC",
-    "sourceCommit": "89ff8516f6a405d23257ee2bcc397f702f99aeac",
-    "sourceCommitShort": "89ff8516f6a4",
+    "generated": "2026-06-02 11:50:19 UTC",
+    "sourceCommit": "3c3fe878121315829ae828e54d4e59633fd738dc",
+    "sourceCommitShort": "3c3fe8781213",
     "sourceBranch": "main",
-    "dashboardCommit": "89ff8516f6a405d23257ee2bcc397f702f99aeac",
-    "dashboardCommitShort": "89ff8516f6a4",
+    "dashboardCommit": "3c3fe878121315829ae828e54d4e59633fd738dc",
+    "dashboardCommitShort": "3c3fe8781213",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "337",
-            "coverage": "337 / 78 (432.1%)",
-            "mapPercent": "432.1%",
+            "mapped": "338",
+            "coverage": "338 / 78 (433.3%)",
+            "mapPercent": "433.3%",
             "unmapped": "0",
-            "php": "489 pass / 0 fail",
+            "php": "490 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Encryption permission preflight metadata is integrated and fully green; continue mark...",
+            "currentWork": "ToUnicode CMap declared row-count handling is integrated and fully green; continue ma...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "89ff851"
+            "commit": "3c3fe87"
         },
         {
             "lane": "readability",
