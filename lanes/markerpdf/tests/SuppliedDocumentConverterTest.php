@@ -647,6 +647,104 @@ return [
             unlink($path);
         }
     },
+    'preserves rowspanned table header rows through supplied grid conversion' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-table-header-grid-rowspan-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% rowspanned table header grid supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'Rowspanned table header grid review', 'bbox' => [72.0, 48.0, 450.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Stale rowspanned header table text should be replaced.', 'bbox' => [72.0, 176.0, 510.0, 196.0]],
+                ['text' => 'Reviewer note after rowspanned header table.', 'bbox' => [72.0, 306.0, 520.0, 324.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 48.0, 450.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 430.0, 260.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 306.0, 520.0, 324.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 320.0, 28.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 32.0, 320.0, 60.0]],
+                    ['row_id' => 2, 'bbox' => [0.0, 72.0, 320.0, 100.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 90.0, 110.0]],
+                    ['col_id' => 1, 'bbox' => [100.0, 0.0, 200.0, 110.0]],
+                    ['col_id' => 2, 'bbox' => [210.0, 0.0, 320.0, 110.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_detector_cells' => [[
+                        ['bbox' => [5.0, 5.0, 85.0, 45.0], 'text' => null],
+                        ['bbox' => [105.0, 5.0, 315.0, 24.0], 'text' => null],
+                        ['bbox' => [110.0, 36.0, 190.0, 56.0], 'text' => null],
+                        ['bbox' => [220.0, 36.0, 310.0, 56.0], 'text' => null],
+                        ['bbox' => [5.0, 76.0, 85.0, 96.0], 'text' => null],
+                        ['bbox' => [110.0, 76.0, 190.0, 96.0], 'text' => null],
+                        ['bbox' => [220.0, 76.0, 310.0, 96.0], 'text' => null],
+                    ]],
+                    'table_ocr_text_lines' => [[
+                        'lines' => [
+                            ['text' => 'Import group'],
+                            ['text' => 'Assets'],
+                            ['text' => 'Images'],
+                            ['text' => 'State'],
+                            ['text' => 'Media'],
+                            ['text' => '12'],
+                            ['text' => 'Ready'],
+                        ],
+                    ]],
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                    'ocr_all_pages' => true,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $gridReview = $result['metadata']['table_spanning_grid_review'][0] ?? [];
+            $gridByPosition = [];
+            foreach (($gridReview['grid_cells'] ?? []) as $gridCell) {
+                $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+            }
+
+            $t->contains('# Rowspanned Table Header Grid Review', $result['text']);
+            $t->contains('Reviewer note after rowspanned header table.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Stale rowspanned header table text should be replaced.'));
+            $t->same(['layout', 'table-cell-routing', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same([true], $result['metadata']['table_needs_ocr']);
+            $t->same([7], $result['metadata']['table_cell_counts']);
+            $t->same([0, 1], $result['metadata']['table_assigned_cells'][0][0]['row_ids']);
+            $t->same([1, 2], $result['metadata']['table_assigned_cells'][0][1]['col_ids']);
+            $t->same([0, 1], $gridReview['column_header_rows']);
+            $t->same(['h-r0-c0', 'h-r0-c1', 'h-r1-c1', 'h-r1-c2'], array_column($gridReview['header_cells'], 'header_id'));
+            $t->same(['Media', '12', 'Ready'], array_column($gridReview['data_cells'], 'text'));
+            $t->same('Import group', $gridReview['render_cells'][0]['text']);
+            $t->same('both', $gridReview['render_cells'][0]['header_axis']);
+            $t->same('Assets', $gridReview['render_cells'][1]['text']);
+            $t->same('colgroup', $gridReview['render_cells'][1]['scope']);
+            $t->same('Images', $gridReview['render_cells'][2]['text']);
+            $t->same('col', $gridReview['render_cells'][2]['scope']);
+            $t->same('State', $gridReview['render_cells'][3]['text']);
+            $t->same('col', $gridReview['render_cells'][3]['scope']);
+            $t->same('covered', $gridByPosition['1:0']['state']);
+            $t->same('h-r1-c1', $gridByPosition['1:1']['header_id']);
+            $t->same(['h-r0-c1', 'h-r1-c1'], $gridByPosition['2:1']['headers']);
+            $t->same('Assets / Images', $gridByPosition['2:1']['header_text']);
+            $t->same(['h-r0-c1', 'h-r1-c2'], $gridByPosition['2:2']['headers']);
+            $t->same(['Assets', 'State'], $gridByPosition['2:2']['header_texts']);
+        } finally {
+            unlink($path);
+        }
+    },
     'keeps multiline OCR table headers together in WordPress grid review' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-ocr-multiline-header-grid-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% OCR multiline header grid supplied pipeline\n%%EOF");

@@ -853,6 +853,73 @@ return [
             $review['data_cells'][0]
         );
     },
+    'promotes rowspanned header rows into column header references' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $rows = [
+            ['row_id' => 0, 'bbox' => [0.0, 0.0, 320.0, 28.0]],
+            ['row_id' => 1, 'bbox' => [0.0, 32.0, 320.0, 60.0]],
+            ['row_id' => 2, 'bbox' => [0.0, 72.0, 320.0, 100.0]],
+        ];
+        $cols = [
+            ['col_id' => 0, 'bbox' => [0.0, 0.0, 90.0, 110.0]],
+            ['col_id' => 1, 'bbox' => [100.0, 0.0, 200.0, 110.0]],
+            ['col_id' => 2, 'bbox' => [210.0, 0.0, 320.0, 110.0]],
+        ];
+        $assigned = [
+            ['bbox' => [5.0, 5.0, 85.0, 45.0], 'text' => 'Import group', 'row_ids' => [0, 1], 'col_ids' => [0]],
+            ['bbox' => [105.0, 5.0, 315.0, 24.0], 'text' => 'Assets', 'row_ids' => [0], 'col_ids' => [1, 2]],
+            ['bbox' => [110.0, 36.0, 190.0, 56.0], 'text' => 'Images', 'row_ids' => [1], 'col_ids' => [1]],
+            ['bbox' => [220.0, 36.0, 310.0, 56.0], 'text' => 'State', 'row_ids' => [1], 'col_ids' => [2]],
+            ['bbox' => [5.0, 76.0, 85.0, 96.0], 'text' => 'Media', 'row_ids' => [2], 'col_ids' => [0]],
+            ['bbox' => [110.0, 76.0, 190.0, 96.0], 'text' => '12', 'row_ids' => [2], 'col_ids' => [1]],
+            ['bbox' => [220.0, 76.0, 310.0, 96.0], 'text' => 'Ready', 'row_ids' => [2], 'col_ids' => [2]],
+        ];
+
+        $review = $recognizer->spanningGridReview($assigned, $rows, $cols);
+        $gridByPosition = [];
+        foreach ($review['grid_cells'] as $gridCell) {
+            $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+        }
+
+        $t->same([0, 1], $review['column_header_rows']);
+        $t->same(['h-r0-c0', 'h-r0-c1', 'h-r1-c1', 'h-r1-c2'], array_column($review['header_cells'], 'header_id'));
+        $t->same(['Media', '12', 'Ready'], array_column($review['data_cells'], 'text'));
+        $t->same('Import group', $review['render_cells'][0]['text']);
+        $t->same('both', $review['render_cells'][0]['header_axis']);
+        $t->same(['column', 'row'], $review['render_cells'][0]['header_axes']);
+        $t->same([2, 1], [$review['render_cells'][0]['rowspan'], $review['render_cells'][0]['colspan']]);
+        $t->same('Assets', $review['render_cells'][1]['text']);
+        $t->same('colgroup', $review['render_cells'][1]['scope']);
+        $t->same('Images', $review['render_cells'][2]['text']);
+        $t->same('th', $review['render_cells'][2]['tag']);
+        $t->same('col', $review['render_cells'][2]['scope']);
+        $t->same('column', $review['render_cells'][2]['header_axis']);
+        $t->same('State', $review['render_cells'][3]['text']);
+        $t->same('col', $review['render_cells'][3]['scope']);
+        $t->same('covered', $gridByPosition['1:0']['state']);
+        $t->same('anchor', $gridByPosition['1:1']['state']);
+        $t->same('h-r1-c1', $gridByPosition['1:1']['header_id']);
+        $t->same(['h-r0-c1', 'h-r1-c1'], $gridByPosition['2:1']['headers']);
+        $t->same(['Assets', 'Images'], $gridByPosition['2:1']['header_texts']);
+        $t->same('Assets / Images', $gridByPosition['2:1']['header_text']);
+        $t->same(['h-r0-c1', 'h-r1-c2'], $gridByPosition['2:2']['headers']);
+        $t->same(['Assets', 'State'], $gridByPosition['2:2']['header_texts']);
+        $t->same(
+            [
+                'render_cell_index' => 5,
+                'text' => '12',
+                'row_ids' => [2],
+                'col_ids' => [1],
+                'anchor' => ['row_id' => 2, 'col_id' => 1],
+                'headers' => ['h-r0-c1', 'h-r1-c1'],
+                'column_header_ids' => ['h-r0-c1', 'h-r1-c1'],
+                'row_header_ids' => [],
+                'header_texts' => ['Assets', 'Images'],
+                'header_text' => 'Assets / Images',
+            ],
+            $review['data_cells'][1]
+        );
+    },
     'preserves detector grid order when OCR bboxes straddle cell borders' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $recognized = $recognizer->recognizeTables(

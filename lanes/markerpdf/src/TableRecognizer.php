@@ -304,7 +304,7 @@ final class TableRecognizer
      * @param list<array<string, mixed>> $cells Assigned cells from assignRowsColumns().
      * @param list<array<string, mixed>> $rows Optional model row bands in table-image coordinates.
      * @param list<array<string, mixed>> $cols Optional model column bands in table-image coordinates.
-     * @return array{rows: list<int>, cols: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>}
+     * @return array{rows: list<int>, cols: list<int>, column_header_rows?: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>}
      */
     public function spanningGridReview(array $cells, array $rows = [], array $cols = []): array
     {
@@ -340,6 +340,7 @@ final class TableRecognizer
 
         $topRowId = $rowIds[0];
         $leftColId = $colIds[0];
+        $columnHeaderRowIds = $this->columnHeaderRowIdsForGrid($cellGroups, $rowIds, $topRowId);
         $renderCells = [];
         $anchors = [];
         $covered = [];
@@ -351,8 +352,8 @@ final class TableRecognizer
                 continue;
             }
 
-            $scope = $this->headerScopeForGridCell($cellRowIds, $cellColIds, $topRowId, $leftColId);
-            $headerAxes = $this->headerAxesForGridCell($cellRowIds, $cellColIds, $topRowId, $leftColId);
+            $scope = $this->headerScopeForGridCell($cellRowIds, $cellColIds, $columnHeaderRowIds, $leftColId);
+            $headerAxes = $this->headerAxesForGridCell($cellRowIds, $cellColIds, $columnHeaderRowIds, $leftColId);
             $headerAxis = $this->headerAxisForAxes($headerAxes);
             $anchor = [
                 'row_id' => $cellRowIds[0],
@@ -459,6 +460,7 @@ final class TableRecognizer
         return [
             'rows' => $rowIds,
             'cols' => $colIds,
+            'column_header_rows' => $columnHeaderRowIds,
             'rotated' => $rotated,
             'orientation' => $axisMetadata['orientation'],
             'row_axis' => $axisMetadata['row_axis'],
@@ -2212,12 +2214,40 @@ final class TableRecognizer
     }
 
     /**
+     * @param list<array{cells: list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}>, row_ids: list<int>, col_ids: list<int>, text: string, bbox: list<float>}> $cellGroups
+     * @param list<int> $rowIds
+     * @return list<int>
+     */
+    private function columnHeaderRowIdsForGrid(array $cellGroups, array $rowIds, int $topRowId): array
+    {
+        $maxHeaderRowId = $topRowId;
+        foreach ($cellGroups as $cellGroup) {
+            $groupRowIds = $cellGroup['row_ids'];
+            if ($groupRowIds === [] || $groupRowIds[0] !== $topRowId) {
+                continue;
+            }
+
+            $maxHeaderRowId = max($maxHeaderRowId, max($groupRowIds));
+        }
+
+        $headerRows = [];
+        foreach ($rowIds as $rowId) {
+            if ($rowId <= $maxHeaderRowId) {
+                $headerRows[] = $rowId;
+            }
+        }
+
+        return $headerRows === [] ? [$topRowId] : $headerRows;
+    }
+
+    /**
      * @param list<int> $rowIds
      * @param list<int> $colIds
+     * @param list<int> $columnHeaderRowIds
      */
-    private function headerScopeForGridCell(array $rowIds, array $colIds, int $topRowId, int $leftColId): ?string
+    private function headerScopeForGridCell(array $rowIds, array $colIds, array $columnHeaderRowIds, int $leftColId): ?string
     {
-        if ($rowIds[0] === $topRowId) {
+        if (in_array($rowIds[0], $columnHeaderRowIds, true)) {
             return count($colIds) > 1 ? 'colgroup' : 'col';
         }
 
@@ -2231,12 +2261,13 @@ final class TableRecognizer
     /**
      * @param list<int> $rowIds
      * @param list<int> $colIds
+     * @param list<int> $columnHeaderRowIds
      * @return list<string>
      */
-    private function headerAxesForGridCell(array $rowIds, array $colIds, int $topRowId, int $leftColId): array
+    private function headerAxesForGridCell(array $rowIds, array $colIds, array $columnHeaderRowIds, int $leftColId): array
     {
         $axes = [];
-        if ($rowIds[0] === $topRowId) {
+        if (in_array($rowIds[0], $columnHeaderRowIds, true)) {
             $axes[] = 'column';
         }
         if ($colIds[0] === $leftColId && count($rowIds) > 1) {
@@ -2259,7 +2290,7 @@ final class TableRecognizer
     }
 
     /**
-     * @return array{rows: list<int>, cols: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>}
+     * @return array{rows: list<int>, cols: list<int>, column_header_rows: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>}
      */
     private function emptySpanningGridReview(bool $rotated = false): array
     {
@@ -2268,6 +2299,7 @@ final class TableRecognizer
         return [
             'rows' => [],
             'cols' => [],
+            'column_header_rows' => [],
             'rotated' => $rotated,
             'orientation' => $axisMetadata['orientation'],
             'row_axis' => $axisMetadata['row_axis'],

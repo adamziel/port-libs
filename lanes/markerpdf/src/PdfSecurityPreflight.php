@@ -654,6 +654,7 @@ final class PdfSecurityPreflight
             $dssCertificateReview,
             $signaturePermissionTransformReview
         );
+        $certPermissionOpenActionReview = $this->certPermissionOpenActionReview($actions);
         $postSignatureActionObjects = $this->postSignatureActionObjects($actions);
         $postSignatureActionCount = $this->postSignatureActionCount($actions);
         $unsafeActionCount = count(array_filter($actions, fn (array $action): bool => $this->isUnsafeDocumentAction($action)));
@@ -716,6 +717,8 @@ final class PdfSecurityPreflight
             'dss_vri_signature_match_count' => (int) $dssCertificateReview['matched_signature_count'],
             'dss_certificate_review' => $dssCertificateReview,
             'signature_permission_transform_count' => (int) $signaturePermissionTransformReview['transform_count'],
+            'cert_permission_open_action_count' => (int) $certPermissionOpenActionReview['open_action_count'],
+            'cert_permission_open_action_review' => $certPermissionOpenActionReview,
             'field_mdp_transform_count' => (int) $signaturePermissionTransformReview['field_mdp_transform_count'],
             'field_mdp_action_labels' => $signaturePermissionTransformReview['field_mdp_action_labels'],
             'field_mdp_field_names' => $signaturePermissionTransformReview['field_mdp_field_names'],
@@ -883,6 +886,8 @@ final class PdfSecurityPreflight
     private function signaturePermissionTransformReview(array $signatures): array
     {
         $methods = [];
+        $docMdpPermissionLabels = [];
+        $docMdpAllowedChanges = [];
         $fieldMdpActionLabels = [];
         $fieldMdpFieldNames = [];
         $fieldMdpIncludedFields = [];
@@ -914,6 +919,15 @@ final class PdfSecurityPreflight
 
                 $transformCount++;
                 $this->appendUniqueString($methods, $method);
+                if ($method === 'DocMDP') {
+                    if (is_string($transform['permission_label'] ?? null)) {
+                        $this->appendUniqueString($docMdpPermissionLabels, $transform['permission_label']);
+                    }
+                    foreach ($this->stringList($transform['allowed_changes'] ?? []) as $change) {
+                        $this->appendUniqueString($docMdpAllowedChanges, $change);
+                    }
+                    continue;
+                }
                 if ($method === 'FieldMDP') {
                     $fieldMdpCount++;
                     if (is_string($transform['action_label'] ?? null)) {
@@ -955,6 +969,8 @@ final class PdfSecurityPreflight
             'present' => $transformCount > 0,
             'transform_count' => $transformCount,
             'methods' => $methods,
+            'doc_mdp_permission_labels' => $docMdpPermissionLabels,
+            'doc_mdp_allowed_changes' => $docMdpAllowedChanges,
             'field_mdp_transform_count' => $fieldMdpCount,
             'field_mdp_action_labels' => $fieldMdpActionLabels,
             'field_mdp_field_names' => $fieldMdpFieldNames,
@@ -996,12 +1012,18 @@ final class PdfSecurityPreflight
             $actions[$index]['dss_certificate_hashes'] = $dssCertificateReview['certificate_hashes'];
             $actions[$index]['dss_vri_signature_match_count'] = (int) $dssCertificateReview['matched_signature_count'];
             $actions[$index]['signature_permission_transform_methods'] = $signaturePermissionTransformReview['methods'];
+            $actions[$index]['doc_mdp_permission_labels'] = $signaturePermissionTransformReview['doc_mdp_permission_labels'];
+            $actions[$index]['doc_mdp_allowed_changes'] = $signaturePermissionTransformReview['doc_mdp_allowed_changes'];
             $actions[$index]['field_mdp_action_labels'] = $signaturePermissionTransformReview['field_mdp_action_labels'];
             $actions[$index]['field_mdp_field_names'] = $signaturePermissionTransformReview['field_mdp_field_names'];
             $actions[$index]['field_mdp_included_fields'] = $signaturePermissionTransformReview['field_mdp_included_fields'];
             $actions[$index]['field_mdp_excluded_fields'] = $signaturePermissionTransformReview['field_mdp_excluded_fields'];
             $actions[$index]['usage_right_categories'] = $signaturePermissionTransformReview['usage_right_categories'];
             $actions[$index]['usage_right_count'] = (int) $signaturePermissionTransformReview['usage_right_count'];
+            $actions[$index]['open_action_permission_status'] = $this->openActionPermissionStatus($actions[$index], $signaturePermissionTransformReview);
+            $actions[$index]['open_action_allowed_by_cert_permissions'] = false;
+            $actions[$index]['open_action_requires_security_review'] = ($actions[$index]['source'] ?? null) === 'catalog_open_action';
+            $actions[$index]['cert_permissions_grant_action_execution'] = false;
             $actions[$index]['signature_permission_review_only'] = true;
             $actions[$index]['dss_validation_review_only'] = ((int) $dssCertificateReview['certificate_count']) > 0;
             $actions[$index]['executes_rights_enforcement'] = false;
@@ -1009,6 +1031,63 @@ final class PdfSecurityPreflight
         }
 
         return $actions;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @return array<string, mixed>
+     */
+    private function certPermissionOpenActionReview(array $actions): array
+    {
+        $openActions = array_values(array_filter(
+            $actions,
+            static fn (array $action): bool => ($action['source'] ?? null) === 'catalog_open_action'
+        ));
+
+        return [
+            'source' => 'cert_permission_open_action_review',
+            'present' => $openActions !== [],
+            'open_action_count' => count($openActions),
+            'unsafe_open_action_count' => count(array_filter(
+                $openActions,
+                fn (array $action): bool => $this->isUnsafeDocumentAction($action)
+            )),
+            'open_action_objects' => $this->uniqueIntegerColumn($openActions, 'action_object'),
+            'open_action_types' => $this->uniqueStringColumn($openActions, 'action_type'),
+            'open_action_safety_labels' => $this->uniqueStringColumn($openActions, 'safety'),
+            'open_action_permission_statuses' => $this->uniqueStringColumn($openActions, 'open_action_permission_status'),
+            'doc_mdp_permission_labels' => $this->uniqueNestedStringColumn($openActions, 'doc_mdp_permission_labels'),
+            'doc_mdp_allowed_changes' => $this->uniqueNestedStringColumn($openActions, 'doc_mdp_allowed_changes'),
+            'field_mdp_action_labels' => $this->uniqueNestedStringColumn($openActions, 'field_mdp_action_labels'),
+            'field_mdp_field_names' => $this->uniqueNestedStringColumn($openActions, 'field_mdp_field_names'),
+            'usage_right_categories' => $this->uniqueNestedStringColumn($openActions, 'usage_right_categories'),
+            'signature_permission_transform_methods' => $this->uniqueNestedStringColumn($openActions, 'signature_permission_transform_methods'),
+            'cert_permissions_grant_open_action_execution' => false,
+            'cert_permissions_allow_catalog_open_action_mutation' => false,
+            'rights_enforced_for_open_action' => false,
+            'review_only' => true,
+            'executes_pdf_actions' => false,
+            'executes_rights_enforcement' => false,
+            'executes_signature_validation' => false,
+            'executes_trust_chain_validation' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @param array<string, mixed> $signaturePermissionTransformReview
+     */
+    private function openActionPermissionStatus(array $action, array $signaturePermissionTransformReview): ?string
+    {
+        if (($action['source'] ?? null) !== 'catalog_open_action') {
+            return null;
+        }
+
+        if ((int) ($signaturePermissionTransformReview['transform_count'] ?? 0) === 0) {
+            return 'catalog_open_action_review_only_no_cert_permission_context';
+        }
+
+        return 'catalog_open_action_review_only_not_granted_by_cert_permissions';
     }
 
     /**
@@ -1560,6 +1639,24 @@ final class PdfSecurityPreflight
         $values = [];
         foreach ($rows as $row) {
             if (!is_string($row[$key] ?? null) || in_array($row[$key], $values, true)) {
+                continue;
+            }
+
+            $values[] = $row[$key];
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<int>
+     */
+    private function uniqueIntegerColumn(array $rows, string $key): array
+    {
+        $values = [];
+        foreach ($rows as $row) {
+            if (!is_int($row[$key] ?? null) || in_array($row[$key], $values, true)) {
                 continue;
             }
 

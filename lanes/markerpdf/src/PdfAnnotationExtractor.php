@@ -160,6 +160,12 @@ final class PdfAnnotationExtractor
         $rect = $this->rectFromAnnotation($body);
         $actionReview = $actionReviewer->reviewAnnotationActions($body);
         $structParent = $this->intValueAfterName($body, 'StructParent', $objects);
+        $inheritedStructParent = $subtype === 'Widget' && $structParent === null
+            ? $this->widgetStructParentFromFieldChain($body, $objects, $record['object'], $structureParentReviewByKey)
+            : null;
+        if ($inheritedStructParent !== null) {
+            $structParent = $inheritedStructParent['key'];
+        }
 
         $row = [
             'subtype' => $subtype,
@@ -181,7 +187,7 @@ final class PdfAnnotationExtractor
 
         if ($structParent !== null) {
             $row['struct_parent'] = $structParent;
-            $row['structure_parent'] = $this->structureParentReviewForAnnotation(
+            $structureParent = $this->structureParentReviewForAnnotation(
                 $structureParentReviewByKey[$structParent] ?? [
                     'source' => 'annotation_struct_parent_parent_tree',
                     'key' => $structParent,
@@ -191,6 +197,15 @@ final class PdfAnnotationExtractor
                 ],
                 $record['object']
             );
+            if ($inheritedStructParent !== null) {
+                $row['struct_parent_source'] = $inheritedStructParent['source'];
+                $row['struct_parent_field_object'] = $inheritedStructParent['field_object'];
+                $row['struct_parent_field_chain'] = $inheritedStructParent['field_chain'];
+                $structureParent['struct_parent_source'] = $inheritedStructParent['source'];
+                $structureParent['field_object'] = $inheritedStructParent['field_object'];
+                $structureParent['field_chain'] = $inheritedStructParent['field_chain'];
+            }
+            $row['structure_parent'] = $structureParent;
         }
 
         $appearance = $this->appearanceFromAnnotation($body, $objects);
@@ -475,6 +490,57 @@ final class PdfAnnotationExtractor
         }
 
         return $review;
+    }
+
+    /**
+     * Some AcroForm PDFs keep the singular /StructParent on the terminal field
+     * dictionary while the page annotation row is the visible /Widget child.
+     * Promote that key only when the ParentTree StructElem OBJR points back to
+     * the current page widget, avoiding stale field-only structure entries.
+     *
+     * @param array<int, string> $objects
+     * @param array<int, array<string, mixed>> $structureParentReviewByKey
+     * @return array{key: int, source: string, field_object: int, field_chain: list<int>}|null
+     */
+    private function widgetStructParentFromFieldChain(
+        string $body,
+        array $objects,
+        ?int $widgetObject,
+        array $structureParentReviewByKey
+    ): ?array {
+        if ($widgetObject === null) {
+            return null;
+        }
+
+        $parentObjects = $this->parentFieldObjects($body, $objects);
+        foreach ($parentObjects as $parentObject) {
+            $parentBody = $this->dictionaryObjectBody($objects[$parentObject] ?? '');
+            if ($parentBody === null) {
+                continue;
+            }
+
+            $structParent = $this->intValueAfterName($parentBody, 'StructParent', $objects);
+            if ($structParent === null) {
+                continue;
+            }
+
+            $review = $structureParentReviewByKey[$structParent] ?? null;
+            $annotationObjects = is_array($review) && is_array($review['annotation_objects'] ?? null)
+                ? $review['annotation_objects']
+                : [];
+            if (!in_array($widgetObject, $annotationObjects, true)) {
+                continue;
+            }
+
+            return [
+                'key' => $structParent,
+                'source' => 'widget_parent_field_struct_parent',
+                'field_object' => $parentObject,
+                'field_chain' => $parentObjects,
+            ];
+        }
+
+        return null;
     }
 
     /**
