@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 23:59:12 UTC",
-    "sourceCommit": "07f02fcff7766b7f27f0460605548cd300ea18be",
-    "sourceCommitShort": "07f02fcff776",
+    "generated": "2026-06-02 00:00:57 UTC",
+    "sourceCommit": "a37af3395f55aa554bab02367a5efbcde252478a",
+    "sourceCommitShort": "a37af3395f55",
     "sourceBranch": "unknown",
-    "dashboardCommit": "07f02fcff7766b7f27f0460605548cd300ea18be",
-    "dashboardCommitShort": "07f02fcff776",
+    "dashboardCommit": "a37af3395f55aa554bab02367a5efbcde252478a",
+    "dashboardCommitShort": "a37af3395f55",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -68,13 +68,13 @@
             "coverage": "1,820 / 2,886 (63.1%)",
             "mapPercent": "63.1%",
             "unmapped": "1,066",
-            "php": "11,015 pass / 0 fail",
+            "php": "11,058 pass / 0 fail",
             "phase": "wrap-up PHP parity and runner-evidence consolidation; full Cargo work...",
             "audit": "2026-06-01 20:36 UTC supervisor integration: source commit e5958190df...",
-            "currentWork": "URL/refspec push match parity is accepted on current base, alongside receive-pack, Ca...",
-            "nextTarget": "Materialize the source-available upstream target files or run...",
+            "currentWork": "Cargo target materialization is accepted on current base: the native materializer can...",
+            "nextTarget": "Run the CargoTargetMaterializer against the sparse upstream c...",
             "remainingGate": "Cargo workspace blocked by sparse target files",
-            "commit": "07f02fc"
+            "commit": "a37af33"
         },
         {
             "lane": "readability",
