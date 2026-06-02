@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 12:15:33 UTC",
-    "sourceCommit": "449449605e88e6080012e1369987d1491fea4a16",
-    "sourceCommitShort": "449449605e88",
+    "generated": "2026-06-02 12:18:43 UTC",
+    "sourceCommit": "d4b88498ef5351731425694d1b0c5b861c2a4da9",
+    "sourceCommitShort": "d4b88498ef53",
     "sourceBranch": "main",
-    "dashboardCommit": "449449605e88e6080012e1369987d1491fea4a16",
-    "dashboardCommitShort": "449449605e88",
+    "dashboardCommit": "d4b88498ef5351731425694d1b0c5b861c2a4da9",
+    "dashboardCommitShort": "d4b88498ef53",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "343",
-            "coverage": "343 / 78 (439.7%)",
-            "mapPercent": "439.7%",
+            "mapped": "344",
+            "coverage": "344 / 78 (441.0%)",
+            "mapPercent": "441.0%",
             "unmapped": "0",
-            "php": "495 pass / 0 fail",
+            "php": "496 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Current hybrid xref generation repair is integrated and fully green; continue markerP...",
+            "currentWork": "Signature Reference transform review is integrated and fully green; continue markerPD...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "4494496"
+            "commit": "d4b8849"
         },
         {
             "lane": "readability",
