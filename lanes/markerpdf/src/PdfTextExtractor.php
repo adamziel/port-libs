@@ -2942,10 +2942,125 @@ final class PdfTextExtractor
                 $index++;
                 continue;
             }
-            $tokens[] = substr($stream, $start, $index - $start);
+            $token = substr($stream, $start, $index - $start);
+            if ($token === 'BI') {
+                $this->skipInlineImage($stream, $index);
+                continue;
+            }
+
+            $tokens[] = $token;
         }
 
         return array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+    }
+
+    private function skipInlineImage(string $stream, int &$index): void
+    {
+        $length = strlen($stream);
+        $foundImageData = false;
+
+        while ($index < $length) {
+            $this->skipContentWhitespaceAndComments($stream, $index);
+            if ($index >= $length) {
+                break;
+            }
+
+            $char = $stream[$index];
+            if ($char === '(') {
+                $this->readLiteralToken($stream, $index);
+                continue;
+            }
+            if ($char === '<' && ($index + 1 >= $length || $stream[$index + 1] !== '<')) {
+                $this->readHexToken($stream, $index);
+                continue;
+            }
+            if ($char === '[') {
+                $this->readArrayToken($stream, $index);
+                continue;
+            }
+
+            $start = $index;
+            while ($index < $length && !$this->isDelimiter($stream[$index])) {
+                $index++;
+            }
+
+            if (substr($stream, $start, $index - $start) === 'ID') {
+                $foundImageData = true;
+                break;
+            }
+
+            if ($index === $start) {
+                $index++;
+            }
+        }
+
+        if (!$foundImageData) {
+            $index = $length;
+            return;
+        }
+
+        $this->consumeInlineImageDataPrefixWhitespace($stream, $index);
+        while ($index < $length) {
+            $end = strpos($stream, 'EI', $index);
+            if ($end === false) {
+                $index = $length;
+                return;
+            }
+
+            if ($this->inlineImageEndMarkerAt($stream, $end)) {
+                $index = $end + 2;
+                return;
+            }
+
+            $index = $end + 2;
+        }
+    }
+
+    private function skipContentWhitespaceAndComments(string $stream, int &$index): void
+    {
+        $length = strlen($stream);
+        while ($index < $length) {
+            if (ctype_space($stream[$index])) {
+                $index++;
+                continue;
+            }
+
+            if ($stream[$index] !== '%') {
+                return;
+            }
+
+            while ($index < $length && !in_array($stream[$index], ["\n", "\r"], true)) {
+                $index++;
+            }
+        }
+    }
+
+    private function consumeInlineImageDataPrefixWhitespace(string $stream, int &$index): void
+    {
+        $length = strlen($stream);
+        if ($index >= $length || !ctype_space($stream[$index])) {
+            return;
+        }
+
+        if ($stream[$index] === "\r") {
+            $index++;
+            if ($index < $length && $stream[$index] === "\n") {
+                $index++;
+            }
+            return;
+        }
+
+        $index++;
+    }
+
+    private function inlineImageEndMarkerAt(string $stream, int $offset): bool
+    {
+        if ($offset <= 0 || !ctype_space($stream[$offset - 1])) {
+            return false;
+        }
+
+        $after = $offset + 2;
+        return $after >= strlen($stream) || $this->isDelimiter($stream[$after]);
     }
 
     private function readLiteralToken(string $stream, int &$index): string

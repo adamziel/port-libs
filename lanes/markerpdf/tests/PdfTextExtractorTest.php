@@ -952,6 +952,28 @@ return [
         $t->true(!str_contains($plainText, 'Raster Image Noise'));
         $t->true(!str_contains($plainText, 'Compressed Image Noise'));
     },
+    'skips inline image data in page Contents before WordPress text extraction' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 720 Td (Visible Before Image) Tj ET\n"
+            . "BI /W 3 /H 1 /CS /DeviceGray /BPC 8 ID \n"
+            . "rawEIbytes BT /F1 12 Tf 72 720 Td (Inline Image Noise) Tj ET\n"
+            . "EI\n"
+            . "BT /F1 12 Tf 72 704 Td (Visible After Image) Tj ET";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Visible Before Image', 'Visible After Image'], $extractor->extractTextLines($pdf));
+        $t->same(['Visible Before Image', 'Visible After Image'], $extractor->extractTextRuns($pdf));
+        $t->same("Visible Before Image\nVisible After Image", $plainText);
+        $t->same("Visible Before Image\nVisible After Image\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Inline Image Noise'));
+        $t->true(!str_contains($plainText, 'rawEIbytes'));
+    },
     'inherits page tree font resources per page before WordPress text extraction' => static function (TestRunner $t) use ($toUnicodeCMap): void {
         $pageOne = 'BT /F1 12 Tf 72 720 Td <4142> Tj ET';
         $pageTwo = 'BT /F1 12 Tf 72 720 Td <4142> Tj ET';
