@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 22:24:21 UTC",
-    "sourceCommit": "9118a24a7d1640520eb944d30c16fd067247cec1",
-    "sourceCommitShort": "9118a24a7d16",
+    "generated": "2026-06-02 22:27:13 UTC",
+    "sourceCommit": "85bbc43a6d55d7b33a6584d8d0e1e09f55b5ed76",
+    "sourceCommitShort": "85bbc43a6d55",
     "sourceBranch": "unknown",
-    "dashboardCommit": "9118a24a7d1640520eb944d30c16fd067247cec1",
-    "dashboardCommitShort": "9118a24a7d16",
+    "dashboardCommit": "85bbc43a6d55d7b33a6584d8d0e1e09f55b5ed76",
+    "dashboardCommitShort": "85bbc43a6d55",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "640",
-            "coverage": "640 / 78 (820.5%)",
-            "mapPercent": "820.5%",
+            "mapped": "644",
+            "coverage": "644 / 78 (825.6%)",
+            "mapPercent": "825.6%",
             "unmapped": "0",
-            "php": "910 pass / 0 fail",
+            "php": "915 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor AcroForm/page integration: accepted form71...",
-            "currentWork": "MarkerPDF now maps mixed signature field widgets with inherited resources and page St...",
+            "audit": "2026-06-02 UTC supervisor layout/runtime/metadata/parser integration:...",
+            "currentWork": "MarkerPDF now maps layout ordered OCR table page-review sections, marker server uploa...",
             "nextTarget": "Keep 10-11 visible markerPDF lanes active; next score newly r...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "9118a24"
+            "commit": "85bbc43"
         },
         {
             "lane": "readability",
