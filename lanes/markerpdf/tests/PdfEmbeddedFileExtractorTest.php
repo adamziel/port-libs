@@ -169,6 +169,26 @@ return [
         $t->same($payload, $files[0]['content']);
         $t->same('', $text);
     },
+    'keeps Filespec EF payload streams without EmbeddedFile type out of fallback text extraction' => static function (TestRunner $t): void {
+        $payload = 'BT /F1 12 Tf 72 720 Td (Filespec Payload Leak) Tj ET';
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "6 0 obj\n<< /Names [(payload.txt) 10 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (payload.txt) /Desc (Review-only payload) /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Subtype /text#2Fplain /Note (fake endobj before stream) /Length " . strlen($payload) . " >>\nstream\n{$payload}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+
+        $t->same(1, count($files));
+        $t->same('payload.txt', $files[0]['filename']);
+        $t->same('Review-only payload', $files[0]['description']);
+        $t->same('text/plain', $files[0]['mime_type']);
+        $t->same($payload, $files[0]['content']);
+        $t->same('', $text);
+    },
     'extracts catalog associated Filespec entries with AFRelationship review metadata' => static function (TestRunner $t): void {
         $sourceXml = '<wp-export><post id="7"/></wp-export>';
         $previewText = 'Rendered preview notes';

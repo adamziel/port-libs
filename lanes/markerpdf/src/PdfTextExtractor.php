@@ -2953,13 +2953,16 @@ final class PdfTextExtractor
         }
 
         $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes);
+        $embeddedFilePayloadObjectNumbers = $this->embeddedFilePayloadObjectNumbers($objects);
         foreach ($matches as $match) {
             $dict = $match[1][0];
             $dictOffset = $match[1][1] - 2;
             $streamStart = $match[0][1] + strlen($match[0][0]);
+            $streamObjectNumber = $this->directObjectNumberAtOffset($pdfBytes, $streamStart);
             if (
                 $this->offsetInPdfByteRanges($dictOffset, $linearizedHintRanges)
                 || $this->offsetInPdfByteRanges($streamStart, $linearizedHintRanges)
+                || ($streamObjectNumber !== null && isset($embeddedFilePayloadObjectNumbers[$streamObjectNumber]))
             ) {
                 continue;
             }
@@ -2981,6 +2984,120 @@ final class PdfTextExtractor
         }
 
         return $streams;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<int, true>
+     */
+    private function embeddedFilePayloadObjectNumbers(array $objects): array
+    {
+        $payloadObjectNumbers = [];
+        foreach ($objects as $body) {
+            foreach ($this->embeddedFileDictionariesFromBody($body, $objects) as $efDictionary) {
+                foreach (['F', 'UF', 'DOS', 'Unix', 'Mac'] as $key) {
+                    $objectNumber = $this->objectReferenceValueAfterName($efDictionary, $key);
+                    if ($objectNumber !== null) {
+                        $payloadObjectNumbers[$objectNumber] = true;
+                    }
+                }
+            }
+        }
+
+        return $payloadObjectNumbers;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function embeddedFileDictionariesFromBody(string $body, array $objects): array
+    {
+        $dictionaries = [];
+        $offset = 0;
+        while (preg_match('/\/EF\b/s', $body, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $valueOffset = $this->skipPdfWhitespace($body, $match[0][1] + strlen($match[0][0]));
+            $value = $this->pdfValueAtOffset($body, $valueOffset);
+            if ($value !== null) {
+                $dictionary = $this->pdfDictionaryFromValue($value, $objects);
+                if ($dictionary !== null) {
+                    $dictionaries[] = $dictionary;
+                }
+            }
+
+            $offset = max($valueOffset + 1, $match[0][1] + 3);
+        }
+
+        return $dictionaries;
+    }
+
+    private function pdfValueAtOffset(string $body, int $offset): ?string
+    {
+        if ($offset >= strlen($body)) {
+            return null;
+        }
+
+        if ($body[$offset] === '[') {
+            $array = $this->readPdfArrayAt($body, $offset);
+            return $array === null ? null : '[' . $array . ']';
+        }
+
+        if (substr($body, $offset, 2) === '<<') {
+            $end = $this->pdfDictionaryEndOffset($body, $offset);
+            return $end === null ? null : substr($body, $offset, $end - $offset + 1);
+        }
+
+        if ($body[$offset] === '(') {
+            $end = $this->skipPdfLiteralStringAt($body, $offset);
+            return $end === null ? null : substr($body, $offset, $end - $offset + 1);
+        }
+
+        if ($body[$offset] === '<') {
+            $end = strpos($body, '>', $offset + 1);
+            return $end === false ? null : substr($body, $offset, $end - $offset + 1);
+        }
+
+        if (preg_match('/\G\d+\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
+            return $match[0];
+        }
+
+        if ($body[$offset] === '/') {
+            $end = $offset + 1;
+            while ($end < strlen($body) && !str_contains(" \t\r\n\f[]()<>{}/%", $body[$end])) {
+                $end++;
+            }
+
+            return substr($body, $offset, $end - $offset);
+        }
+
+        $end = $offset;
+        while ($end < strlen($body) && !ctype_space($body[$end]) && !str_contains('[]()<>{}/%', $body[$end])) {
+            $end++;
+        }
+
+        return $end === $offset ? null : substr($body, $offset, $end - $offset);
+    }
+
+    private function directObjectNumberAtOffset(string $pdfBytes, int $offset): ?int
+    {
+        $prefix = substr($pdfBytes, 0, max(0, $offset));
+        if (!preg_match_all('/(\d+)\s+\d+\s+obj\b/s', $prefix, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        $last = end($matches);
+        if (!is_array($last)) {
+            return null;
+        }
+
+        $objectStart = $last[0][1];
+        $bodyStart = $objectStart + strlen($last[0][0]);
+        $objectEnd = $this->pdfObjectEndOffset($pdfBytes, $bodyStart);
+        if ($objectEnd === null || $objectEnd < $offset) {
+            return null;
+        }
+
+        return (int) $last[1][0];
     }
 
     /**

@@ -20,6 +20,7 @@ if (!is_string($filenameBytes)) {
 $filenameHex = strtoupper(bin2hex("\xFE\xFF" . $filenameBytes));
 $checksum = strtoupper(hash('md5', $manifest));
 $pageContent = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Review) Tj ET';
+$reviewPayload = 'BT /F1 12 Tf 72 690 Td (Filespec Payload Leak) Tj ET';
 
 $pdf = "%PDF-1.7\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
@@ -27,9 +28,11 @@ $pdf = "%PDF-1.7\n"
     . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Kids [7 0 R] >>\nendobj\n"
-    . "7 0 obj\n<< /Limits [(wp-import-manifest.json) (wp-import-manifest.json)] /Names [(wp-import-manifest.json) 10 0 R] >>\nendobj\n"
+    . "7 0 obj\n<< /Limits [(payload-review.txt) (wp-import-manifest.json)] /Names [(wp-import-manifest.json) 10 0 R (payload-review.txt) 20 0 R] >>\nendobj\n"
     . "10 0 obj\n<< /Type /Filespec /F (legacy-manifest.json) /UF <{$filenameHex}> /Desc (WordPress import manifest) /AFRelationship /Data /EF << /UF 12 0 R >> >>\nendobj\n"
     . "12 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjson /Filter /FlateDecode /Params << /Size " . strlen($manifest) . " /CheckSum <{$checksum}> /ModDate (D:20260602033800Z) >> /Length " . strlen($compressedManifest) . " >>\nstream\n{$compressedManifest}\nendstream\nendobj\n"
+    . "20 0 obj\n<< /Type /Filespec /F (payload-review.txt) /Desc (PDF-looking attachment payload) /AFRelationship /Supplement /EF << /F 21 0 R >> >>\nendobj\n"
+    . "21 0 obj\n<< /Subtype /text#2Fplain /Length " . strlen($reviewPayload) . " >>\nstream\n{$reviewPayload}\nendstream\nendobj\n"
     . "trailer\n<< /Root 1 0 R >>\n%%EOF";
 
 $attachments = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
@@ -54,6 +57,7 @@ echo '<!-- markerpdf-pdf-embedded-files-smoke ' . htmlspecialchars(json_encode([
     'checksum_matches' => $attachment['checksum_matches'] ?? null,
     'content_sha256' => $attachment['content_sha256'] ?? null,
     'excluded_attachment_payload_text' => !str_contains($plainText, 'WP Import'),
+    'excluded_filespec_ef_payload_text' => !str_contains($plainText, 'Filespec Payload Leak'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 echo "<!-- wp:paragraph -->\n";
