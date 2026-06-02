@@ -456,6 +456,45 @@ return [
         ], $metadata['viewer_preferences']);
         $t->same('Direct Viewer Preferences', (new PdfTextExtractor())->extractPlainText($pdf));
     },
+    'bounds viewer preference values and resolves indirect preference operands' => static function (TestRunner $t) use ($pdfWithCatalogReview): void {
+        $extraObjects = "7 0 obj\n"
+            . "<< /HideToolbar 8 0 R /HideWindowUI false /DisplayDocTitle true /Direction 9 0 R"
+            . " /NonFullScreenPageMode /UseAttachments /ViewArea /CropBox /ViewClip /BleedBox /PrintArea /MediaBox /PrintClip /Bogus"
+            . " /PrintScaling /Invalid /Duplex 10 0 R /PrintPageRange 11 0 R /NumCopies 12 0 R /Enforce 13 0 R >>\n"
+            . "endobj\n"
+            . "8 0 obj\ntrue\nendobj\n"
+            . "9 0 obj\n/R2L\nendobj\n"
+            . "10 0 obj\n/DuplexFlipShortEdge\nendobj\n"
+            . "11 0 obj\n[1 2 5 6]\nendobj\n"
+            . "12 0 obj\n4\nendobj\n"
+            . "13 0 obj\n[ /PrintScaling /Bogus /Duplex /Print#50ageRange ]\nendobj\n";
+        $pdf = $pdfWithCatalogReview(
+            ' /ViewerPreferences 7 0 R',
+            'Bounded Viewer Preferences',
+            $extraObjects
+        );
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $viewerPreferences = $metadata['viewer_preferences'];
+
+        $t->same([
+            'hide_toolbar' => true,
+            'hide_window_ui' => false,
+            'display_doc_title' => true,
+            'direction' => 'R2L',
+            'view_area' => 'CropBox',
+            'view_clip' => 'BleedBox',
+            'print_area' => 'MediaBox',
+            'duplex' => 'DuplexFlipShortEdge',
+            'print_page_range' => [1, 2, 5, 6],
+            'enforce' => ['PrintScaling', 'Duplex', 'PrintPageRange'],
+            'num_copies' => 4,
+        ], $viewerPreferences);
+        $t->true(!array_key_exists('non_full_screen_page_mode', $viewerPreferences));
+        $t->true(!array_key_exists('print_clip', $viewerPreferences));
+        $t->true(!array_key_exists('print_scaling', $viewerPreferences));
+        $t->same('Bounded Viewer Preferences', (new PdfTextExtractor())->extractPlainText($pdf));
+    },
     'extracts Standard encryption permission metadata without decrypting content' => static function (TestRunner $t): void {
         $encryptedContent = 'BT /F1 12 Tf 72 720 Td (Encrypted cleartext leak) Tj ET';
         $permsBytes = "perm-check-16-by";

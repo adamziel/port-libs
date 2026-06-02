@@ -3531,7 +3531,7 @@ final class PdfTextExtractor
             return $fallback;
         }
 
-        $sections = $this->pageLabelNumberTreeEntries($dictionary, $objects);
+        $sections = $this->pageLabelNumberTreeEntries($dictionary, $objects, $pageCount);
         if ($sections === []) {
             return $fallback;
         }
@@ -3595,11 +3595,12 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<int, true> $seen
      */
-    private function pageLabelNumberTreeEntries(string $dictionary, array $objects, array $seen = []): array
+    private function pageLabelNumberTreeEntries(string $dictionary, array $objects, int $pageCount, array $seen = []): array
     {
-        $entries = $this->pageLabelNumsEntries($dictionary, $objects);
+        $limits = $this->pageLabelLimits($dictionary, $objects);
+        $entries = $this->pageLabelNumsEntries($dictionary, $objects, $limits, $pageCount);
 
-        foreach ($this->pageLabelKidObjectNumbers($dictionary) as $kidObjectNumber) {
+        foreach ($this->pageLabelKidObjectNumbers($dictionary, $objects) as $kidObjectNumber) {
             if (isset($seen[$kidObjectNumber]) || !isset($objects[$kidObjectNumber])) {
                 continue;
             }
@@ -3611,7 +3612,7 @@ final class PdfTextExtractor
 
             $nextSeen = $seen;
             $nextSeen[$kidObjectNumber] = true;
-            foreach ($this->pageLabelNumberTreeEntries($kidDictionary, $objects, $nextSeen) as $pageIndex => $section) {
+            foreach ($this->pageLabelNumberTreeEntries($kidDictionary, $objects, $pageCount, $nextSeen) as $pageIndex => $section) {
                 $entries[$pageIndex] = $section;
             }
         }
@@ -3621,30 +3622,22 @@ final class PdfTextExtractor
 
     /**
      * @return list<int>
+     * @param array<int, string> $objects
      */
-    private function pageLabelKidObjectNumbers(string $dictionary): array
+    private function pageLabelKidObjectNumbers(string $dictionary, array $objects): array
     {
-        if (preg_match('/\/Kids\s*\[/s', $dictionary, $match, PREG_OFFSET_CAPTURE) !== 1) {
-            return [];
-        }
-
-        $offset = strpos($dictionary, '[', $match[0][1]);
-        $arrayBody = $offset === false ? null : $this->readPdfArrayAt($dictionary, $offset);
+        $arrayBody = $this->pdfArrayValueAfterNameResolved($dictionary, 'Kids', $objects);
         return $arrayBody === null ? [] : $this->objectReferences($arrayBody);
     }
 
     /**
      * @return array<int, array{prefix: string, style: string|null, start: int}>
      * @param array<int, string> $objects
+     * @param array{0: int, 1: int}|null $limits
      */
-    private function pageLabelNumsEntries(string $dictionary, array $objects): array
+    private function pageLabelNumsEntries(string $dictionary, array $objects, ?array $limits, int $pageCount): array
     {
-        if (preg_match('/\/Nums\s*\[/s', $dictionary, $match, PREG_OFFSET_CAPTURE) !== 1) {
-            return [];
-        }
-
-        $offset = strpos($dictionary, '[', $match[0][1]);
-        $arrayBody = $offset === false ? null : $this->readPdfArrayAt($dictionary, $offset);
+        $arrayBody = $this->pdfArrayValueAfterNameResolved($dictionary, 'Nums', $objects);
         if ($arrayBody === null) {
             return [];
         }
@@ -3659,7 +3652,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $pageIndex = max(0, (int) $pageMatch[0]);
+            $pageIndex = (int) $pageMatch[0];
             $index += strlen($pageMatch[0]);
             $index = $this->skipPdfWhitespace($arrayBody, $index);
 
@@ -3669,10 +3662,39 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $entries[$pageIndex] = $this->parsePageLabelDictionary($labelDictionary);
+            if (
+                $pageIndex < 0
+                || $pageIndex >= $pageCount
+                || ($limits !== null && ($pageIndex < $limits[0] || $pageIndex > $limits[1]))
+            ) {
+                continue;
+            }
+
+            $entries[$pageIndex] = $this->parsePageLabelDictionary($labelDictionary, $objects);
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{0: int, 1: int}|null
+     */
+    private function pageLabelLimits(string $dictionary, array $objects): ?array
+    {
+        $arrayBody = $this->pdfArrayValueAfterNameResolved($dictionary, 'Limits', $objects);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        preg_match_all('/[+-]?\d+/', $arrayBody, $matches);
+        if (count($matches[0]) < 2) {
+            return null;
+        }
+
+        $lower = (int) $matches[0][0];
+        $upper = (int) $matches[0][1];
+        return $lower <= $upper ? [$lower, $upper] : null;
     }
 
     /**
@@ -3696,50 +3718,30 @@ final class PdfTextExtractor
     /**
      * @return array{prefix: string, style: string|null, start: int}
      */
-    private function parsePageLabelDictionary(string $dictionary): array
+    private function parsePageLabelDictionary(string $dictionary, array $objects): array
     {
-        $style = null;
-        if (preg_match('/\/S\s*\/([^\s\[\]()<>{}\/%]+)/s', $dictionary, $match) === 1) {
-            $candidate = $this->decodePdfName($match[1]);
-            $style = in_array($candidate, ['D', 'R', 'r', 'A', 'a'], true) ? $candidate : null;
-        }
+        $candidate = $this->pdfNameValueAfterNameResolvingObjects($dictionary, 'S', $objects);
+        $style = in_array($candidate, ['D', 'R', 'r', 'A', 'a'], true) ? $candidate : null;
 
         $start = 1;
-        if (preg_match('/\/St\s+([+-]?\d+)/', $dictionary, $match) === 1) {
-            $start = max(1, (int) $match[1]);
+        $startValue = $this->pdfIntegerValueAfterNameResolvingObjects($dictionary, 'St', $objects);
+        if ($startValue !== null) {
+            $start = max(1, $startValue);
         }
 
         return [
-            'prefix' => $this->pageLabelPrefix($dictionary),
+            'prefix' => $this->pageLabelPrefix($dictionary, $objects),
             'style' => $style,
             'start' => $start,
         ];
     }
 
-    private function pageLabelPrefix(string $dictionary): string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pageLabelPrefix(string $dictionary, array $objects): string
     {
-        if (preg_match('/\/P\s*\(/s', $dictionary, $match, PREG_OFFSET_CAPTURE) === 1) {
-            $offset = strpos($dictionary, '(', $match[0][1]);
-            if ($offset === false) {
-                return '';
-            }
-
-            $token = $this->readLiteralToken($dictionary, $offset);
-            return $this->decodePdfStringBytes($this->decodeLiteralString(substr($token, 1, -1)));
-        }
-
-        if (preg_match('/\/P\s*</s', $dictionary, $match, PREG_OFFSET_CAPTURE) === 1) {
-            $offset = strpos($dictionary, '<', $match[0][1]);
-            if ($offset === false || substr($dictionary, $offset, 2) === '<<') {
-                return '';
-            }
-
-            $token = $this->readHexToken($dictionary, $offset);
-            $hex = preg_replace('/\s+/', '', trim($token, '<>'));
-            return $hex === null ? '' : $this->decodeHexString($hex);
-        }
-
-        return '';
+        return $this->pdfStringValueAfterName($dictionary, 'P', $objects) ?? '';
     }
 
     private function formatPageLabelNumber(int $number, string $style): string

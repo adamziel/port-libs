@@ -12,6 +12,35 @@ use Exception;
 
 final class PdfMetadataExtractor
 {
+    private const VIEWER_PREFERENCE_NAME_VALUES = [
+        'NonFullScreenPageMode' => ['key' => 'non_full_screen_page_mode', 'allowed' => ['UseNone', 'UseOutlines', 'UseThumbs', 'UseOC']],
+        'Direction' => ['key' => 'direction', 'allowed' => ['L2R', 'R2L']],
+        'ViewArea' => ['key' => 'view_area', 'allowed' => ['MediaBox', 'CropBox', 'BleedBox', 'TrimBox', 'ArtBox']],
+        'ViewClip' => ['key' => 'view_clip', 'allowed' => ['MediaBox', 'CropBox', 'BleedBox', 'TrimBox', 'ArtBox']],
+        'PrintArea' => ['key' => 'print_area', 'allowed' => ['MediaBox', 'CropBox', 'BleedBox', 'TrimBox', 'ArtBox']],
+        'PrintClip' => ['key' => 'print_clip', 'allowed' => ['MediaBox', 'CropBox', 'BleedBox', 'TrimBox', 'ArtBox']],
+        'PrintScaling' => ['key' => 'print_scaling', 'allowed' => ['AppDefault', 'None']],
+        'Duplex' => ['key' => 'duplex', 'allowed' => ['Simplex', 'DuplexFlipShortEdge', 'DuplexFlipLongEdge']],
+    ];
+    private const VIEWER_PREFERENCE_ENFORCEABLE_NAMES = [
+        'HideToolbar',
+        'HideMenubar',
+        'HideWindowUI',
+        'FitWindow',
+        'CenterWindow',
+        'DisplayDocTitle',
+        'NonFullScreenPageMode',
+        'Direction',
+        'ViewArea',
+        'ViewClip',
+        'PrintArea',
+        'PrintClip',
+        'PrintScaling',
+        'Duplex',
+        'PickTrayByPDFSize',
+        'PrintPageRange',
+        'NumCopies',
+    ];
     private const STANDARD_PERMISSION_FLAGS = [
         ['mask' => 4, 'name' => 'print', 'minimum_revision' => 2],
         ['mask' => 8, 'name' => 'modify_contents', 'minimum_revision' => 2],
@@ -1711,40 +1740,35 @@ final class PdfMetadataExtractor
             'DisplayDocTitle' => 'display_doc_title',
             'PickTrayByPDFSize' => 'pick_tray_by_pdf_size',
         ] as $pdfName => $key) {
-            $value = $this->dictionaryBooleanValue($dictionary, $pdfName);
+            $value = $this->dictionaryBooleanValue($dictionary, $pdfName, $objects);
             if ($value !== null) {
                 $preferences[$key] = $value;
             }
         }
 
-        foreach ([
-            'NonFullScreenPageMode' => 'non_full_screen_page_mode',
-            'Direction' => 'direction',
-            'ViewArea' => 'view_area',
-            'ViewClip' => 'view_clip',
-            'PrintArea' => 'print_area',
-            'PrintClip' => 'print_clip',
-            'PrintScaling' => 'print_scaling',
-            'Duplex' => 'duplex',
-        ] as $pdfName => $key) {
-            $value = $this->dictionaryStringValue($dictionary, $pdfName);
-            if ($value !== null) {
-                $preferences[$key] = $value;
+        foreach (self::VIEWER_PREFERENCE_NAME_VALUES as $pdfName => $definition) {
+            $value = $this->dictionaryNameValue($dictionary, $pdfName, $objects);
+            if ($value !== null && in_array($value, $definition['allowed'], true)) {
+                $preferences[$definition['key']] = $value;
             }
         }
 
-        $printPageRange = $this->dictionaryIntegerArrayValue($dictionary, 'PrintPageRange');
-        if ($printPageRange !== []) {
+        $printPageRange = $this->dictionaryPositiveIntegerPairArrayValue($dictionary, 'PrintPageRange', $objects);
+        if ($printPageRange !== null) {
             $preferences['print_page_range'] = $printPageRange;
         }
 
-        $enforced = $this->dictionaryNameArrayValue($dictionary, 'Enforce');
+        $enforced = $this->dictionaryNameArrayValue($dictionary, 'Enforce', $objects);
+        $enforced = array_values(array_filter(
+            $enforced,
+            static fn (string $name): bool => in_array($name, self::VIEWER_PREFERENCE_ENFORCEABLE_NAMES, true)
+        ));
         if ($enforced !== []) {
-            $preferences['enforce'] = $enforced;
+            $preferences['enforce'] = $this->uniqueStrings($enforced);
         }
 
-        $numCopies = $this->dictionaryIntegerValue($dictionary, 'NumCopies');
-        if ($numCopies !== null) {
+        $numCopies = $this->dictionaryIntegerValue($dictionary, 'NumCopies', $objects);
+        if ($numCopies !== null && $numCopies > 0) {
             $preferences['num_copies'] = $numCopies;
         }
 
@@ -1907,9 +1931,12 @@ final class PdfMetadataExtractor
         return substr($array, 1, -1);
     }
 
-    private function dictionaryIntegerValue(string $dictionary, string $key): ?int
+    /**
+     * @param array<int, string>|null $objects
+     */
+    private function dictionaryIntegerValue(string $dictionary, string $key, ?array $objects = null): ?int
     {
-        $value = $this->dictionaryRawValue($dictionary, $key);
+        $value = $this->resolvedDictionaryRawValue($dictionary, $key, $objects);
         if ($value === null || preg_match('/^-?\d+$/', trim($value)) !== 1) {
             return null;
         }
@@ -1917,9 +1944,12 @@ final class PdfMetadataExtractor
         return (int) trim($value);
     }
 
-    private function dictionaryBooleanValue(string $dictionary, string $key): ?bool
+    /**
+     * @param array<int, string>|null $objects
+     */
+    private function dictionaryBooleanValue(string $dictionary, string $key, ?array $objects = null): ?bool
     {
-        $value = $this->dictionaryRawValue($dictionary, $key);
+        $value = $this->resolvedDictionaryRawValue($dictionary, $key, $objects);
         if ($value === null) {
             return null;
         }
@@ -1934,9 +1964,9 @@ final class PdfMetadataExtractor
     /**
      * @return list<int>
      */
-    private function dictionaryIntegerArrayValue(string $dictionary, string $key): array
+    private function dictionaryIntegerArrayValue(string $dictionary, string $key, ?array $objects = null): array
     {
-        $value = $this->dictionaryRawValue($dictionary, $key);
+        $value = $this->resolvedDictionaryRawValue($dictionary, $key, $objects);
         if ($value === null) {
             return [];
         }
@@ -1951,11 +1981,32 @@ final class PdfMetadataExtractor
     }
 
     /**
-     * @return list<string>
+     * @param array<int, string> $objects
+     * @return list<int>|null
      */
-    private function dictionaryNameArrayValue(string $dictionary, string $key): array
+    private function dictionaryPositiveIntegerPairArrayValue(string $dictionary, string $key, array $objects): ?array
     {
-        $value = $this->dictionaryRawValue($dictionary, $key);
+        $values = $this->dictionaryIntegerArrayValue($dictionary, $key, $objects);
+        if ($values === [] || count($values) % 2 !== 0) {
+            return null;
+        }
+
+        foreach ($values as $value) {
+            if ($value < 1) {
+                return null;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return list<string>
+     * @param array<int, string>|null $objects
+     */
+    private function dictionaryNameArrayValue(string $dictionary, string $key, ?array $objects = null): array
+    {
+        $value = $this->resolvedDictionaryRawValue($dictionary, $key, $objects);
         if ($value === null) {
             return [];
         }
@@ -1972,6 +2023,41 @@ final class PdfMetadataExtractor
         }
 
         return $this->uniqueStrings($names);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dictionaryNameValue(string $dictionary, string $key, array $objects): ?string
+    {
+        $value = $this->resolvedDictionaryRawValue($dictionary, $key, $objects);
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '' || $value[0] !== '/') {
+            return null;
+        }
+
+        if (preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $value, $match) !== 1) {
+            return null;
+        }
+
+        return $this->decodePdfName($match[1]);
+    }
+
+    /**
+     * @param array<int, string>|null $objects
+     */
+    private function resolvedDictionaryRawValue(string $dictionary, string $key, ?array $objects): ?string
+    {
+        $value = $this->dictionaryRawValue($dictionary, $key);
+        if ($value === null || $objects === null) {
+            return $value;
+        }
+
+        return $this->resolvePdfValue($value, $objects);
     }
 
     private function decodeAsciiHexStream(string $stream): ?string
