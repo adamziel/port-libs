@@ -439,6 +439,54 @@ $objectStreamFreeEntryReusePdf = static function (): string {
     return $pdf;
 };
 
+$trailerRootGenerationRecoveryPdf = static function (): string {
+    $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale catalog page) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Recovered trailer root page) Tj T* (Generation one catalog) Tj ET';
+
+    $pdf = "%PDF-1.5\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): void {
+        $offsets[$objectNumber . ':' . $generation] = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+    };
+    $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>');
+    $addObject(4, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(5, 0, "<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream");
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 6\n"
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets['1:0'])
+        . $xrefRow($offsets['2:0'])
+        . $xrefRow($offsets['3:0'])
+        . $xrefRow($offsets['4:0'])
+        . $xrefRow($offsets['5:0'])
+        . "trailer\n<< /Size 14 /Root 1 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $addObject(10, 1, '<< /Type /Catalog /Pages 11 1 R >>');
+    $addObject(11, 1, '<< /Type /Pages /Kids [12 1 R] /Count 1 >>');
+    $addObject(12, 1, '<< /Type /Page /Parent 11 1 R /Resources << /Font << /F1 4 0 R >> >> /Contents 13 1 R >>');
+    $addObject(13, 1, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+
+    $latestXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "10 4\n"
+        . $xrefRow($offsets['10:1'], 1)
+        . $xrefRow($offsets['11:1'], 1)
+        . $xrefRow($offsets['12:1'], 1)
+        . $xrefRow($offsets['13:1'], 1)
+        . "trailer\n<< /Size 14 /Root 10 1 R /Prev {$previousXrefOffset} >>\n"
+        . "startxref\n{$latestXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 $xrefStreamIndexWidthCurrentBasePdf = static function (): string {
     $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale xref stream page) Tj ET';
     $currentContent = 'BT /F1 12 Tf 72 720 Td (Current xref stream page) Tj T* (Width default import) Tj ET';
@@ -2440,6 +2488,19 @@ return [
         $t->true(!str_contains($text, 'Stale freed object stream page'));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
         $t->same(['1'], $extractor->extractPageLabels($pdf));
+    },
+    'recovers the latest trailer Root catalog generation before stale catalog order' => static function (TestRunner $t) use ($trailerRootGenerationRecoveryPdf): void {
+        $pdf = $trailerRootGenerationRecoveryPdf();
+        $extractor = new PdfTextExtractor();
+        $text = $extractor->extractPlainText($pdf);
+
+        $t->same(['Recovered trailer root page', 'Generation one catalog'], $extractor->extractTextLines($pdf));
+        $t->same(['Recovered trailer root page', 'Generation one catalog'], $extractor->extractTextRuns($pdf));
+        $t->same("Recovered trailer root page\nGeneration one catalog", $text);
+        $t->same("Recovered trailer root page\nGeneration one catalog\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Stale catalog page'));
     },
     'honors startxref current section before stale appended object-stream rebuild entries' => static function (TestRunner $t) use ($startxrefObjectStreamRebuildPdf): void {
         $extractor = new PdfTextExtractor();

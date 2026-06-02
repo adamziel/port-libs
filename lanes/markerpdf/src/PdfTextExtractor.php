@@ -6032,7 +6032,28 @@ final class PdfTextExtractor
         }
         ksort($objects, SORT_NUMERIC);
 
+        $rootObjectNumber = $this->trailerRootObjectNumberFromStartxrefChain($pdfBytes, $definitions);
+        if ($rootObjectNumber !== null && isset($objects[$rootObjectNumber])) {
+            $objects = $this->promoteObjectToFront($objects, $rootObjectNumber);
+        }
+
         return $objects;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<int, string>
+     */
+    private function promoteObjectToFront(array $objects, int $objectNumber): array
+    {
+        $ordered = [$objectNumber => $objects[$objectNumber]];
+        unset($objects[$objectNumber]);
+
+        foreach ($objects as $candidateObjectNumber => $body) {
+            $ordered[$candidateObjectNumber] = $body;
+        }
+
+        return $ordered;
     }
 
     private function hasEncryptedTrailer(string $pdfBytes): bool
@@ -6331,6 +6352,74 @@ final class PdfTextExtractor
         }
 
         return $this->xrefEntriesFromOffsetChain($pdfBytes, $offset, $objects, $definitions);
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function trailerRootObjectNumberFromStartxrefChain(string $pdfBytes, array $definitions): ?int
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->trailerRootObjectNumberFromOffsetChain($pdfBytes, $offset, $definitions);
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     */
+    private function trailerRootObjectNumberFromOffsetChain(
+        string $pdfBytes,
+        int $offset,
+        array $definitions,
+        array $seenOffsets = []
+    ): ?int {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return null;
+        }
+        $seenOffsets[$offset] = true;
+
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset);
+        if ($tableSection !== null) {
+            $root = $this->objectReferenceValueAfterName($tableSection['trailer'], 'Root');
+            if ($root !== null) {
+                return $root;
+            }
+
+            $hybridStreamOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'XRefStm');
+            if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
+                $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions);
+                if ($streamSection !== null) {
+                    $root = $this->objectReferenceValueAfterName($streamSection['body'], 'Root');
+                    if ($root !== null) {
+                        return $root;
+                    }
+                }
+            }
+
+            $previousOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'Prev');
+            return $previousOffset === null
+                ? null
+                : $this->trailerRootObjectNumberFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
+        }
+
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        if ($streamSection === null) {
+            return null;
+        }
+
+        $root = $this->objectReferenceValueAfterName($streamSection['body'], 'Root');
+        if ($root !== null) {
+            return $root;
+        }
+
+        $previousOffset = $this->pdfIntegerValueAfterName($streamSection['body'], 'Prev');
+        return $previousOffset === null
+            ? null
+            : $this->trailerRootObjectNumberFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
     }
 
     private function latestStartxrefOffset(string $pdfBytes): ?int
