@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 22:14:55 UTC",
-    "sourceCommit": "7f70f871b6a4caad9cd7966625d15aeb448c322e",
-    "sourceCommitShort": "7f70f871b6a4",
+    "generated": "2026-06-02 22:18:02 UTC",
+    "sourceCommit": "631a1276d6d77e2ab6201c98a27ed75cff57a9b2",
+    "sourceCommitShort": "631a1276d6d7",
     "sourceBranch": "unknown",
-    "dashboardCommit": "7f70f871b8a6ba7ddc9616471139845276ceac4a",
-    "dashboardCommitShort": "7f70f871b8a6",
+    "dashboardCommit": "631a1276d6d77e2ab6201c98a27ed75cff57a9b2",
+    "dashboardCommitShort": "631a1276d6d7",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "634",
-            "coverage": "634 / 78 (812.8%)",
-            "mapPercent": "812.8%",
+            "mapped": "637",
+            "coverage": "637 / 78 (816.7%)",
+            "mapPercent": "816.7%",
             "unmapped": "0",
-            "php": "899 pass / 0 fail",
+            "php": "905 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor runtime/metadata/page integration: accepted...",
-            "currentWork": "MarkerPDF now maps marker server conversion output as benchmark artifacts, catalog/ou...",
-            "nextTarget": "Keep 10-11 visible markerPDF lanes active on independent bund...",
+            "audit": "2026-06-02 UTC supervisor table/font/xref integration: accepted table...",
+            "currentWork": "MarkerPDF now maps OCR span-grid table benchmark bundles, Type3/CMap CID source-space...",
+            "nextTarget": "Keep 10-11 visible markerPDF lanes active; next score newly r...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "7f70f87"
+            "commit": "631a127"
         },
         {
             "lane": "readability",
