@@ -6521,6 +6521,19 @@ final class PdfTextExtractor
             }
         }
 
+        if (str_contains($baseName, '_')) {
+            $text = '';
+            foreach (explode('_', $baseName) as $component) {
+                $decoded = $this->glyphNameToUnicode($component);
+                if ($decoded === '') {
+                    return '';
+                }
+                $text .= $decoded;
+            }
+
+            return $text;
+        }
+
         $names = [
             'space' => ' ',
             'hyphen' => '-',
@@ -6532,6 +6545,42 @@ final class PdfTextExtractor
             'parenleft' => '(',
             'parenright' => ')',
             'slash' => '/',
+            'quoteleft' => "\u{2018}",
+            'quoteright' => "\u{2019}",
+            'quotesinglleft' => "\u{2018}",
+            'quotesinglright' => "\u{2019}",
+            'quotedblleft' => "\u{201C}",
+            'quotedblright' => "\u{201D}",
+            'endash' => "\u{2013}",
+            'emdash' => "\u{2014}",
+            'ellipsis' => "\u{2026}",
+            'bullet' => "\u{2022}",
+            'Euro' => "\u{20AC}",
+            'euro' => "\u{20AC}",
+            'AE' => "\u{00C6}",
+            'ae' => "\u{00E6}",
+            'OE' => "\u{0152}",
+            'oe' => "\u{0153}",
+            'Lslash' => "\u{0141}",
+            'lslash' => "\u{0142}",
+            'Aacute' => "\u{00C1}",
+            'aacute' => "\u{00E1}",
+            'Eacute' => "\u{00C9}",
+            'eacute' => "\u{00E9}",
+            'Iacute' => "\u{00CD}",
+            'iacute' => "\u{00ED}",
+            'Oacute' => "\u{00D3}",
+            'oacute' => "\u{00F3}",
+            'Uacute' => "\u{00DA}",
+            'uacute' => "\u{00FA}",
+            'ff' => 'ff',
+            'fi' => 'fi',
+            'fl' => 'fl',
+            'ffi' => 'ffi',
+            'ffl' => 'ffl',
+            'longst' => 'st',
+            'slongt' => 'st',
+            'st' => 'st',
             'A' => 'A',
             'B' => 'B',
             'C' => 'C',

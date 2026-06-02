@@ -1236,6 +1236,18 @@ return [
         $t->same($expected, $extractor->extractPlainText($pdf));
         $t->same([$expected], $extractor->extractTextRuns($pdf));
     },
+    'decodes subset font ligature glyph names before WordPress paragraph rendering' => static function (TestRunner $t): void {
+        $content = 'BT /Fsubset 12 Tf 72 720 Td <202122232425262728292A2B2C2D2E2F30> Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fsubset 2 0 R >> >> /Contents 3 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+SubsetSerif /Encoding << /Type /Encoding /Differences [32 /O /f_f_i.alt /c /e /space /f_i /l /e /space /endash /space /C /a /f /eacute /space /Euro] >> >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $expected = "Office file \u{2013} Caf\u{00E9} \u{20AC}";
+        $t->same($expected, $extractor->extractPlainText($pdf));
+        $t->same([$expected], $extractor->extractTextRuns($pdf));
+    },
     'decodes Standard MacRoman and Symbol simple font encodings before WordPress paragraphs' => static function (TestRunner $t): void {
         $content = 'BT /Fstd 12 Tf 1 0 0 1 72 720 Tm <5750277320AE20AF20E1> Tj ET '
             . 'BT /Fmac 12 Tf 1 0 0 1 72 704 Tm <4D6163208E209F20D6> Tj ET '
