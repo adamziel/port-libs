@@ -349,13 +349,18 @@ final class PdfTextExtractor
                 continue;
             }
 
+            $pageFontToUnicodeMaps = $this->pageFontToUnicodeMaps($pageObjectNumber, $objects, $fontObjectMaps);
+            $expanded = $this->expandFormXObjectInvocations(
+                implode("\n", $streams),
+                $objects[$pageObjectNumber],
+                $objects,
+                $fontObjectMaps,
+                $pageFontToUnicodeMaps
+            );
+
             $pages[] = [
-                'stream' => $this->expandFormXObjectInvocations(
-                    implode("\n", $streams),
-                    $objects[$pageObjectNumber],
-                    $objects
-                ),
-                'fontToUnicodeMaps' => $this->pageFontToUnicodeMaps($pageObjectNumber, $objects, $fontObjectMaps),
+                'stream' => $expanded['stream'],
+                'fontToUnicodeMaps' => $expanded['fontToUnicodeMaps'],
             ];
         }
 
@@ -364,24 +369,36 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
+     * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
+     * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
      * @param array<int, true> $seenFormObjectNumbers
+     * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>}
      */
     private function expandFormXObjectInvocations(
         string $content,
         string $resourceOwnerBody,
         array $objects,
+        array $fontObjectMaps,
+        array $fontToUnicodeMaps,
         array $seenFormObjectNumbers = []
-    ): string {
+    ): array {
         if (!str_contains($content, 'Do')) {
-            return $content;
+            return [
+                'stream' => $content,
+                'fontToUnicodeMaps' => $fontToUnicodeMaps,
+            ];
         }
 
-        $xObjectMap = $this->xObjectResourceObjectNumbers($resourceOwnerBody);
+        $xObjectMap = $this->xObjectResourceObjectNumbers($resourceOwnerBody, $objects);
         if ($xObjectMap === []) {
-            return $content;
+            return [
+                'stream' => $content,
+                'fontToUnicodeMaps' => $fontToUnicodeMaps,
+            ];
         }
 
         $expanded = [];
+        $expandedFontToUnicodeMaps = $fontToUnicodeMaps;
         $operands = [];
         foreach ($this->contentTokens($content) as $token) {
             if ($token === 'Do') {
@@ -393,12 +410,24 @@ final class PdfTextExtractor
                         if ($form !== null) {
                             $nextSeen = $seenFormObjectNumbers;
                             $nextSeen[$objectNumber] = true;
-                            $expanded[] = $this->expandFormXObjectInvocations(
-                                $form['stream'],
+                            $formFontMaps = $this->fontResourceMapsForResourceOwnerBody($form['body'], $objects, $fontObjectMaps);
+                            $fontAliases = [];
+                            foreach ($formFontMaps as $name => $map) {
+                                $alias = $this->formFontResourceAlias($objectNumber, $name);
+                                $fontAliases[$name] = $alias;
+                                $expandedFontToUnicodeMaps[$alias] = $map;
+                            }
+
+                            $expandedForm = $this->expandFormXObjectInvocations(
+                                $this->rewriteFontResourceOperands($form['stream'], $fontAliases),
                                 $form['body'],
                                 $objects,
+                                $fontObjectMaps,
+                                $expandedFontToUnicodeMaps,
                                 $nextSeen
                             );
+                            $expanded[] = $expandedForm['stream'];
+                            $expandedFontToUnicodeMaps = $expandedForm['fontToUnicodeMaps'];
                         }
                     }
                     $operands = [];
@@ -419,28 +448,52 @@ final class PdfTextExtractor
             $operands[] = $token;
         }
 
-        return implode(' ', array_values(array_filter($expanded, static fn (string $segment): bool => trim($segment) !== '')));
+        return [
+            'stream' => implode(' ', array_values(array_filter($expanded, static fn (string $segment): bool => trim($segment) !== ''))),
+            'fontToUnicodeMaps' => $expandedFontToUnicodeMaps,
+        ];
     }
 
     /**
      * @return array<string, int>
+     * @param array<int, string> $objects
      */
-    private function xObjectResourceObjectNumbers(string $resourceOwnerBody): array
+    private function xObjectResourceObjectNumbers(string $resourceOwnerBody, array $objects): array
     {
-        if (!preg_match('/\/XObject\s*<<(.*?)>>/s', $resourceOwnerBody, $match)) {
+        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $xObjectDictionary = $this->xObjectResourceDictionaryBody($resourceDictionary, $objects);
+        if ($xObjectDictionary === null) {
             return [];
         }
 
-        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/', $match[1], $matches, PREG_SET_ORDER)) {
+        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/', $xObjectDictionary, $matches, PREG_SET_ORDER)) {
             return [];
         }
 
-        $objects = [];
+        $resourceObjects = [];
         foreach ($matches as $resource) {
-            $objects[$this->decodePdfName($resource[1])] = (int) $resource[2];
+            $resourceObjects[$this->decodePdfName($resource[1])] = (int) $resource[2];
         }
 
-        return $objects;
+        return $resourceObjects;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function xObjectResourceDictionaryBody(string $resourceDictionary, array $objects): ?string
+    {
+        if (!preg_match('/\/XObject\s*(?:(\d+)\s+\d+\s+R|<<)/s', $resourceDictionary, $match, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        if (($match[1][0] ?? '') !== '') {
+            $objectNumber = (int) $match[1][0];
+            return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+        }
+
+        $offset = strpos($resourceDictionary, '<<', $match[0][1]);
+        return $offset === false ? null : $this->readPdfDictionaryAt($resourceDictionary, $offset);
     }
 
     /**
@@ -462,6 +515,65 @@ final class PdfTextExtractor
             'body' => $objects[$objectNumber],
             'stream' => $decoded,
         ];
+    }
+
+    /**
+     * @return array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>
+     * @param array<int, string> $objects
+     * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
+     */
+    private function fontResourceMapsForResourceOwnerBody(string $resourceOwnerBody, array $objects, array $fontObjectMaps): array
+    {
+        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+
+        return $this->fontResourceMapsFromResourceDictionary($resourceDictionary, $objects, $fontObjectMaps);
+    }
+
+    /**
+     * @param array<string, string> $fontAliases
+     */
+    private function rewriteFontResourceOperands(string $content, array $fontAliases): string
+    {
+        if ($fontAliases === []) {
+            return $content;
+        }
+
+        $rewritten = [];
+        $operands = [];
+        foreach ($this->contentTokens($content) as $token) {
+            if ($this->isOperator($token)) {
+                if ($token === 'Tf' && count($operands) >= 2) {
+                    $fontOperandIndex = count($operands) - 2;
+                    $fontOperand = $operands[$fontOperandIndex];
+                    if (str_starts_with($fontOperand, '/')) {
+                        $fontName = $this->decodePdfName(substr($fontOperand, 1));
+                        if (isset($fontAliases[$fontName])) {
+                            $operands[$fontOperandIndex] = '/' . $fontAliases[$fontName];
+                        }
+                    }
+                }
+
+                foreach ($operands as $operand) {
+                    $rewritten[] = $operand;
+                }
+                $rewritten[] = $token;
+                $operands = [];
+                continue;
+            }
+
+            $operands[] = $token;
+        }
+
+        foreach ($operands as $operand) {
+            $rewritten[] = $operand;
+        }
+
+        return implode(' ', $rewritten);
+    }
+
+    private function formFontResourceAlias(int $formObjectNumber, string $resourceName): string
+    {
+        return 'Fm' . $formObjectNumber . '_' . bin2hex($resourceName);
     }
 
     /**

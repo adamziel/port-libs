@@ -934,6 +934,44 @@ return [
         $t->same("Page Before Form\nReusable Form Block\nImported Once\nPage After Form\n", $extractor->naiveGetText($pdf));
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'Dormant Form Text'));
     },
+    'keeps nested Form XObject resource fonts scoped before WordPress text extraction' => static function (TestRunner $t) use ($toUnicodeCMap): void {
+        $parentCMap = $toUnicodeCMap(['41' => 'Parent Form']);
+        $childCMap = $toUnicodeCMap(['42' => 'Child Form']);
+        $pageContent = 'BT /F1 12 Tf 72 720 Td (Page Before Nested Form) Tj ET q /ParentForm Do Q BT /F1 12 Tf 72 672 Td (Page After Nested Form) Tj ET';
+        $parentFormContent = 'BT /F1 12 Tf 12 24 Td <41> Tj ET q /ChildForm Do Q';
+        $childFormContent = 'BT /F1 12 Tf 12 12 Td <42> Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> /XObject << /ParentForm 5 0 R >> >> /Contents 7 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 8 0 R >> /XObject << /ChildForm 6 0 R >> >> /Length " . strlen($parentFormContent) . " >>\nstream\n{$parentFormContent}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 10 0 R >> >> /Length " . strlen($childFormContent) . " >>\nstream\n{$childFormContent}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /ParentFormSubset /Encoding /Identity-H /ToUnicode 9 0 R >>\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($parentCMap) . " >>\nstream\n{$parentCMap}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /ChildFormSubset /Encoding /Identity-H /ToUnicode 11 0 R >>\nendobj\n"
+            . "11 0 obj\n<< /Length " . strlen($childCMap) . " >>\nstream\n{$childCMap}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same([
+            'Page Before Nested Form',
+            'Parent Form',
+            'Child Form',
+            'Page After Nested Form',
+        ], $extractor->extractTextLines($pdf));
+        $t->same([
+            'Page Before Nested Form',
+            'Parent Form',
+            'Child Form',
+            'Page After Nested Form',
+        ], $extractor->extractTextRuns($pdf));
+        $t->same("Page Before Nested Form\nParent Form\nChild Form\nPage After Nested Form", $plainText);
+        $t->same("Page Before Nested Form\nParent Form\nChild Form\nPage After Nested Form\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, "\nA\n"));
+        $t->true(!str_contains($plainText, "\nB\n"));
+    },
     'skips Image XObject streams in fallback before WordPress text extraction' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Visible Text) Tj ET';
         $imageBytes = 'BT /F1 12 Tf 72 720 Td (Raster Image Noise) Tj ET';
