@@ -8262,10 +8262,12 @@ final class PdfTextExtractor
             $writingMode = (int) $wModeMatch[1] === 1 ? 1 : 0;
         }
 
-        if (preg_match_all('/beginbfchar(.*?)endbfchar/s', $cmap, $charBlocks)) {
-            foreach ($charBlocks[1] as $block) {
-                if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>/s', $block, $entries, PREG_SET_ORDER)) {
-                    continue;
+        foreach ($this->cMapOperatorBlocks($cmap, 'beginbfchar', 'endbfchar') as $charBlock) {
+            $block = $charBlock['body'];
+            $declaredCount = $charBlock['declaredCount'];
+            if (preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>/s', $block, $entries, PREG_SET_ORDER)) {
+                if ($declaredCount !== null) {
+                    $entries = array_slice($entries, 0, max(0, $declaredCount));
                 }
 
                 foreach ($entries as $entry) {
@@ -8277,10 +8279,8 @@ final class PdfTextExtractor
             }
         }
 
-        if (preg_match_all('/beginbfrange(.*?)endbfrange/s', $cmap, $rangeBlocks)) {
-            foreach ($rangeBlocks[1] as $block) {
-                $this->parseToUnicodeRanges($block, $map);
-            }
+        foreach ($this->cMapOperatorBlocks($cmap, 'beginbfrange', 'endbfrange') as $rangeBlock) {
+            $this->parseToUnicodeRanges($rangeBlock['body'], $map, $rangeBlock['declaredCount']);
         }
 
         foreach ($this->parseCMapCodeSpaceRanges($cmap) as $range) {
@@ -8412,27 +8412,54 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return list<array{body: string, declaredCount: int|null}>
+     */
+    private function cMapOperatorBlocks(string $cmap, string $beginOperator, string $endOperator): array
+    {
+        $pattern = '/(?:(\d+)\s+)?' . preg_quote($beginOperator, '/') . '(.*?)' . preg_quote($endOperator, '/') . '/s';
+        if (!preg_match_all($pattern, $cmap, $matches, PREG_SET_ORDER)) {
+            return [];
+        }
+
+        $blocks = [];
+        foreach ($matches as $match) {
+            $rawCount = $match[1] ?? '';
+            $blocks[] = [
+                'body' => $match[2],
+                'declaredCount' => $rawCount === '' ? null : max(0, (int) $rawCount),
+            ];
+        }
+
+        return $blocks;
+    }
+
+    /**
      * @param array<string, string> $map
      */
-    private function parseToUnicodeRanges(string $block, array &$map): void
+    private function parseToUnicodeRanges(string $block, array &$map, ?int $declaredCount = null): void
     {
-        if (preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*\[(.*?)\]/s', $block, $arrayRanges, PREG_SET_ORDER)) {
-            foreach ($arrayRanges as $range) {
-                $start = $this->normalizeHexKey($range[1]);
-                $end = $this->normalizeHexKey($range[2]);
-                if ($start === '' || $end === '') {
-                    continue;
-                }
+        if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*(?:\[(.*?)\]|<([\da-fA-F\s]+)>)/s', $block, $ranges, PREG_SET_ORDER)) {
+            return;
+        }
 
-                preg_match_all('/<([\da-fA-F\s]+)>/s', $range[3], $targets);
-                if (($targets[1] ?? []) === []) {
-                    continue;
-                }
+        if ($declaredCount !== null) {
+            $ranges = array_slice($ranges, 0, max(0, $declaredCount));
+        }
 
-                $source = hexdec($start);
-                $last = hexdec($end);
-                $sourceWidth = strlen($start);
-                foreach ($targets[1] as $target) {
+        foreach ($ranges as $range) {
+            $start = $this->normalizeHexKey($range[1]);
+            $end = $this->normalizeHexKey($range[2]);
+            if ($start === '' || $end === '') {
+                continue;
+            }
+
+            $source = hexdec($start);
+            $last = hexdec($end);
+            $sourceWidth = strlen($start);
+            $arrayTargets = $range[3] ?? '';
+            if ($arrayTargets !== '') {
+                preg_match_all('/<([\da-fA-F\s]+)>/s', $arrayTargets, $targets);
+                foreach ($targets[1] ?? [] as $target) {
                     if ($source > $last) {
                         break;
                     }
@@ -8441,31 +8468,23 @@ final class PdfTextExtractor
                     $map[$sourceKey] = $this->decodeCMapUnicodeHex($target);
                     $source++;
                 }
+                continue;
             }
-        }
 
-        if (preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>/s', $block, $ranges, PREG_SET_ORDER)) {
-            foreach ($ranges as $range) {
-                $start = $this->normalizeHexKey($range[1]);
-                $end = $this->normalizeHexKey($range[2]);
-                $target = $this->normalizeHexKey($range[3]);
-                if ($start === '' || $end === '' || $target === '') {
-                    continue;
-                }
+            $target = $this->normalizeHexKey($range[4] ?? '');
+            if ($target === '') {
+                continue;
+            }
 
-                $source = hexdec($start);
-                $last = hexdec($end);
-                $targetCode = hexdec($target);
-                $sourceWidth = strlen($start);
-                $targetWidth = strlen($target);
-                $count = 0;
-                while ($source <= $last && $count < 512) {
-                    $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
-                    $targetHex = str_pad(strtolower(dechex($targetCode + $count)), $targetWidth, '0', STR_PAD_LEFT);
-                    $map[$sourceKey] = $this->decodeCMapUnicodeHex($targetHex);
-                    $source++;
-                    $count++;
-                }
+            $targetCode = hexdec($target);
+            $targetWidth = strlen($target);
+            $count = 0;
+            while ($source <= $last && $count < 512) {
+                $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
+                $targetHex = str_pad(strtolower(dechex($targetCode + $count)), $targetWidth, '0', STR_PAD_LEFT);
+                $map[$sourceKey] = $this->decodeCMapUnicodeHex($targetHex);
+                $source++;
+                $count++;
             }
         }
     }
