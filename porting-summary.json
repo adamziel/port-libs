@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 14:17:24 UTC",
-    "sourceCommit": "c08d4dfb1af339648d7742407d6e23af0a704b46",
-    "sourceCommitShort": "c08d4dfb1af3",
+    "generated": "2026-06-02 14:24:03 UTC",
+    "sourceCommit": "d7731f4d843b9ee16e7d6417115927782107050e",
+    "sourceCommitShort": "d7731f4d843b",
     "sourceBranch": "main",
-    "dashboardCommit": "c08d4dfb1af339648d7742407d6e23af0a704b46",
-    "dashboardCommitShort": "c08d4dfb1af3",
+    "dashboardCommit": "d7731f4d843b9ee16e7d6417115927782107050e",
+    "dashboardCommitShort": "d7731f4d843b",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "365",
-            "coverage": "365 / 78 (467.9%)",
-            "mapPercent": "467.9%",
+            "mapped": "366",
+            "coverage": "366 / 78 (469.2%)",
+            "mapPercent": "469.2%",
             "unmapped": "0",
-            "php": "517 pass / 0 fail",
+            "php": "518 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit c08d4dfb; full m...",
-            "currentWork": "Indirect CIDFont /DW2 and /W2 vertical metrics resolve before WordPress paragraph gro...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit d7731f4d; full m...",
+            "currentWork": "Xref-stream /Prev sparse /Index zero-width /W duplicate-row boundary is integrated an...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "c08d4df"
+            "commit": "d7731f4"
         },
         {
             "lane": "readability",
