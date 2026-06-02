@@ -306,6 +306,7 @@ final class PdfOutlineExtractor
      *     source: list<string>,
      *     outline: list<array<string, mixed>>,
      *     open_action_review_actions: list<array<string, mixed>>,
+     *     outline_action_review_actions: list<array<string, mixed>>,
      *     page_presentations: list<array<string, mixed>>,
      *     open_action_destination?: array<string, mixed>
      * }
@@ -318,6 +319,7 @@ final class PdfOutlineExtractor
             'source' => [],
             'outline' => [],
             'open_action_review_actions' => [],
+            'outline_action_review_actions' => [],
             'page_presentations' => [],
         ];
         if ($catalog === null) {
@@ -348,6 +350,20 @@ final class PdfOutlineExtractor
             }
             if ($metadata['outline'] !== []) {
                 $metadata['source'][] = 'outline';
+            }
+
+            $outlineActionReviews = $this->outlineActionReviewRows(
+                $outlineRoot['First'] ?? null,
+                $objects,
+                $pageIndexes,
+                $destinations,
+                $pageLabels,
+                $pagePresentationsByPage,
+                15
+            );
+            if ($outlineActionReviews !== []) {
+                $metadata['source'][] = 'outline_actions';
+                $metadata['outline_action_review_actions'] = $outlineActionReviews;
             }
         }
 
@@ -448,6 +464,105 @@ final class PdfOutlineExtractor
             : [];
 
         return $item;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @param array<string, mixed> $destinations
+     * @param list<string> $pageLabels
+     * @param array<int, array<string, mixed>> $pagePresentationsByPage
+     * @param array<int, true> $seen
+     * @return list<array<string, mixed>>
+     */
+    private function outlineActionReviewRows(
+        mixed $firstItem,
+        array $objects,
+        array $pageIndexes,
+        array $destinations,
+        array $pageLabels,
+        array $pagePresentationsByPage,
+        int $maxDepth,
+        int $level = 1,
+        array $seen = []
+    ): array {
+        if ($level > $maxDepth) {
+            return [];
+        }
+
+        $items = [];
+        $current = $this->referenceObjectNumber($firstItem);
+        while ($current !== null && !isset($seen[$current])) {
+            $seen[$current] = true;
+            $dict = $this->resolveDictionary($this->refValue($current), $objects);
+            if ($dict === null) {
+                break;
+            }
+
+            $title = $this->stringOrNameValue($this->resolveValue($dict['Title'] ?? null, $objects));
+            if ($title !== null && array_key_exists('A', $dict)) {
+                $seenActions = [];
+                $actions = $this->reviewActionsFromValue($dict['A'], $objects, $pageIndexes, $destinations, $seenActions);
+                if ($this->shouldSurfaceOutlineActionRows($actions)) {
+                    foreach ($actions as $action) {
+                        $row = [
+                            'outline_title' => $title,
+                            'outline_level' => $level,
+                            'outline_object' => $current,
+                        ] + $action;
+
+                        $page = $row['page'] ?? null;
+                        if (is_int($page)) {
+                            $row['page_label'] = $this->pageLabelForIndex($page, $pageLabels);
+                            $row = $this->withTargetPagePresentation($row, $pagePresentationsByPage);
+                        }
+
+                        $items[] = $row;
+                    }
+                }
+            }
+
+            if ($level < $maxDepth) {
+                foreach ($this->outlineActionReviewRows(
+                    $dict['First'] ?? null,
+                    $objects,
+                    $pageIndexes,
+                    $destinations,
+                    $pageLabels,
+                    $pagePresentationsByPage,
+                    $maxDepth,
+                    $level + 1,
+                    $seen
+                ) as $child) {
+                    $items[] = $child;
+                }
+            }
+
+            $current = $this->referenceObjectNumber($dict['Next'] ?? null);
+        }
+
+        return $items;
+    }
+
+    /**
+     * Plain local GoTo outline actions are already represented by outline
+     * destination rows; chained or non-local actions need a review-only row.
+     *
+     * @param list<array<string, mixed>> $actions
+     */
+    private function shouldSurfaceOutlineActionRows(array $actions): bool
+    {
+        foreach ($actions as $action) {
+            if (($action['chained'] ?? false) === true) {
+                return true;
+            }
+
+            if (($action['action_type'] ?? null) !== 'GoTo' || ($action['safety'] ?? null) !== 'local-destination') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

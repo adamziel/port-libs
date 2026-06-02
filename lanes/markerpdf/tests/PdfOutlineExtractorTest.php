@@ -199,6 +199,31 @@ $outlineNameTreeTransitionActionPdf = static function (): string {
         . "%%EOF";
 };
 
+$outlineActionTransitionNavigationPdf = static function (): string {
+    $pageOneContent = 'BT /F1 12 Tf 72 720 Td (Cover page stays visible) Tj ET';
+    $pageTwoContent = 'BT /F1 12 Tf 72 720 Td (Deck page stays visible) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R /Names << /Dests 8 0 R >> /PageLabels 20 0 R /PageMode /UseOutlines >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 30 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Dur 6 /Trans 16 0 R /AA << /O 15 0 R >> /Contents 31 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Count 2 >>\nendobj\n"
+        . "6 0 obj\n<< /Title (Deck Action) /Parent 5 0 R /A 12 0 R /Next 7 0 R >>\nendobj\n"
+        . "7 0 obj\n<< /Title (External Notes) /Parent 5 0 R /A << /S /URI /URI (javascript:alert\\(1\\)) >> >>\nendobj\n"
+        . "8 0 obj\n<< /Names [(DeckStart) 9 0 R] >>\nendobj\n"
+        . "9 0 obj\n<< /D [4 0 R /XYZ 72 640 0] >>\nendobj\n"
+        . "12 0 obj\n<< /S /GoTo /D /DeckStart /Next [13 0 R 14 0 R 14 0 R] >>\nendobj\n"
+        . "13 0 obj\n<< /S /URI /URI (https://example.com/deck-notes) >>\nendobj\n"
+        . "14 0 obj\n<< /S /JavaScript /JS (app.alert\\('hidden outline script'\\)) >>\nendobj\n"
+        . "15 0 obj\n<< /S /URI /URI (https://example.com/page-open) >>\nendobj\n"
+        . "16 0 obj\n<< /S /Push /D 1 /Di 0 >>\nendobj\n"
+        . "20 0 obj\n<< /Nums [0 << /S /D /P (Cover ) /St 1 >> 1 << /S /D /P (Deck ) /St 3 >>] >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($pageOneContent) . " >>\nstream\n{$pageOneContent}\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Length " . strlen($pageTwoContent) . " >>\nstream\n{$pageTwoContent}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'resolves PDF outline named destinations before WordPress TOC import' => static function (TestRunner $t) use ($namedDestinationPdf): void {
         $toc = (new PdfOutlineExtractor())->getPdfToc($namedDestinationPdf());
@@ -680,12 +705,61 @@ return [
         $t->true(!str_contains($text, 'https://example.com/deck-notes'));
         $t->true(!str_contains($text, 'javascript:alert'));
     },
+    'surfaces outline action chains as review-only navigation metadata' => static function (TestRunner $t) use ($outlineActionTransitionNavigationPdf): void {
+        $extractor = new PdfOutlineExtractor();
+        $pdf = $outlineActionTransitionNavigationPdf();
+        $metadata = $extractor->getNavigationReviewMetadata($pdf);
+
+        $t->same(['outline', 'outline_actions', 'page_presentations'], $metadata['source']);
+        $t->same(1, count($metadata['outline']));
+        $t->same('Deck Action', $metadata['outline'][0]['title']);
+        $t->same('Deck 3', $metadata['outline'][0]['page_label']);
+        $t->same('XYZ', $metadata['outline'][0]['view_mode']);
+        $t->same('Push', $metadata['outline'][0]['target_page_transition']['style']);
+        $t->same(['page_open'], array_column($metadata['outline'][0]['target_page_actions'], 'event_label'));
+
+        $actions = $metadata['outline_action_review_actions'];
+        $t->same(4, count($actions), 'outline action rows include the local target, hidden chained actions, and non-local sibling action.');
+        $t->same(['Deck Action', 'Deck Action', 'Deck Action', 'External Notes'], array_column($actions, 'outline_title'));
+        $t->same([1, 1, 1, 1], array_column($actions, 'outline_level'));
+        $t->same([6, 6, 6, 7], array_column($actions, 'outline_object'));
+        $t->same(['GoTo', 'URI', 'JavaScript', 'URI'], array_column($actions, 'action_type'));
+        $t->same(['local-destination', 'review-uri', 'blocked-javascript', 'blocked-unsafe-uri'], array_column($actions, 'safety'));
+        $t->same([false, false, false, false], array_column($actions, 'executes_on_import'));
+        $t->same([12, 13, 14, null], [
+            $actions[0]['action_object'] ?? null,
+            $actions[1]['action_object'] ?? null,
+            $actions[2]['action_object'] ?? null,
+            $actions[3]['action_object'] ?? null,
+        ]);
+        $t->same([null, true, true, null], [
+            $actions[0]['chained'] ?? null,
+            $actions[1]['chained'] ?? null,
+            $actions[2]['chained'] ?? null,
+            $actions[3]['chained'] ?? null,
+        ]);
+        $t->same('Deck 3', $actions[0]['page_label']);
+        $t->same('DeckStart', $actions[0]['destination']);
+        $t->same('Push', $actions[0]['target_page_transition']['style']);
+        $t->same(6.0, $actions[0]['target_display_duration']);
+        $t->same(['review-uri'], array_column($actions[0]['target_page_actions'], 'safety'));
+        $t->same('https://example.com/deck-notes', $actions[1]['uri']);
+        $t->same(false, $actions[3]['is_safe_uri']);
+
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+        $t->contains('Cover page stays visible', $text);
+        $t->contains('Deck page stays visible', $text);
+        $t->true(!str_contains($text, 'https://example.com/deck-notes'));
+        $t->true(!str_contains($text, 'hidden outline script'));
+        $t->true(!str_contains($text, 'javascript:alert'));
+    },
     'returns stable empty navigation review metadata without a PDF catalog' => static function (TestRunner $t): void {
         $metadata = (new PdfOutlineExtractor())->getNavigationReviewMetadata('%PDF-1.4 no catalog here');
 
         $t->same([], $metadata['source']);
         $t->same([], $metadata['outline']);
         $t->same([], $metadata['open_action_review_actions']);
+        $t->same([], $metadata['outline_action_review_actions']);
         $t->same([], $metadata['page_presentations']);
         $t->true(!array_key_exists('open_action_destination', $metadata));
     },
