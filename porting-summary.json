@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 10:13:07 UTC",
-    "sourceCommit": "d9606aec138e9306e76ab9632f42225807d654aa",
-    "sourceCommitShort": "d9606aec138e",
+    "generated": "2026-06-02 10:15:58 UTC",
+    "sourceCommit": "f19d986657cdf2776729bc4b1899e7d2d19ec4ee",
+    "sourceCommitShort": "f19d986657cd",
     "sourceBranch": "unknown",
-    "dashboardCommit": "d9606aec138e9306e76ab9632f42225807d654aa",
-    "dashboardCommitShort": "d9606aec138e",
+    "dashboardCommit": "f19d986657cdf2776729bc4b1899e7d2d19ec4ee",
+    "dashboardCommitShort": "f19d986657cd",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "315",
-            "coverage": "315 / 78 (403.8%)",
-            "mapPercent": "403.8%",
+            "mapped": "316",
+            "coverage": "316 / 78 (405.1%)",
+            "mapPercent": "405.1%",
             "unmapped": "0",
-            "php": "463 pass / 0 fail",
+            "php": "465 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Forced OCR merged table layout boundaries are accepted on markerPDF with full PHP evi...",
+            "currentWork": "Annotation destination and action review boundaries are accepted on markerPDF with fu...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "d9606ae"
+            "commit": "f19d986"
         },
         {
             "lane": "readability",
