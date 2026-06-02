@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 18:00:04 UTC",
-    "sourceCommit": "cd43ecb54ce4e0ef37913a6a5f1109cea41c3e3a",
-    "sourceCommitShort": "cd43ecb54ce4",
+    "generated": "2026-06-02 18:11:23 UTC",
+    "sourceCommit": "fc03440883c4644d0d54b62937c8db92d8f449c2",
+    "sourceCommitShort": "fc03440883c4",
     "sourceBranch": "unknown",
-    "dashboardCommit": "42c62e572a579c09938b37780ed6cb00caef91fd",
-    "dashboardCommitShort": "42c62e572a57",
+    "dashboardCommit": "aaab91a0b4fe4bbdbb1e339a62068d710f9af2ed",
+    "dashboardCommitShort": "aaab91a0b4fe",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "453",
-            "coverage": "453 / 78 (580.8%)",
-            "mapPercent": "580.8%",
+            "mapped": "461",
+            "coverage": "461 / 78 (591.0%)",
+            "mapPercent": "591.0%",
             "unmapped": "0",
-            "php": "621 pass / 0 fail",
+            "php": "633 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit cd43ecb5; accept...",
-            "currentWork": "MarkerPDF now reviews selected public-key crypt-filter recipient permissions and DSS...",
-            "nextTarget": "Score and conflict-review outline32, image37, table32, securi...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit fc034408; accept...",
+            "currentWork": "MarkerPDF now reviews XFA-backed AcroForm appearance states, widget rich-text resourc...",
+            "nextTarget": "Repair or reject xref33 token-stream regression, then score c...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "cd43ecb"
+            "commit": "fc03440"
         },
         {
             "lane": "readability",
