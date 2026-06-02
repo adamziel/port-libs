@@ -933,6 +933,8 @@ final class PdfAcroFormExtractor
             }
         }
 
+        $actionReview = $this->signatureWidgetActionReview($field, $widgets, $fieldActions, $widgetActionRows);
+
         return [
             'source' => 'acroform_xfa_signature_widget_review_boundary',
             'field_name' => $field['name'] ?? null,
@@ -998,9 +1000,13 @@ final class PdfAcroFormExtractor
             'lock_permission_label' => is_array($lock) ? ($lock['permission_label'] ?? null) : null,
             'field_locked_by_signed_signature' => (bool) ($lockState['effective_locked'] ?? false),
             'locked_by_signatures' => $lockState['locked_by_signatures'] ?? [],
-            'field_action_count' => count($fieldActions),
-            'widget_action_count' => count($widgetActionRows),
-            'action_count' => $this->uniqueActionReviewCount(array_merge($fieldActions, $widgetActionRows)),
+            'action_review' => $actionReview,
+            'field_action_count' => $actionReview['field_action_count'],
+            'widget_action_count' => $actionReview['widget_action_count'],
+            'action_count' => $actionReview['action_count'],
+            'action_types' => $actionReview['action_types'],
+            'action_triggers' => $actionReview['action_triggers'],
+            'action_safety_labels' => $actionReview['action_safety_labels'],
             'review_only' => true,
             'value_used_for_import' => false,
             'executes_action' => false,
@@ -1011,6 +1017,87 @@ final class PdfAcroFormExtractor
             'executes_signing' => false,
             'executes_xfa_javascript' => false,
             'imports_xfa_payload' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
+     * @param list<array<string, mixed>> $fieldActions
+     * @param list<array<string, mixed>> $widgetActions
+     * @return array<string, mixed>
+     */
+    private function signatureWidgetActionReview(array $field, array $widgets, array $fieldActions, array $widgetActions): array
+    {
+        $actions = array_merge($fieldActions, $widgetActions);
+        $chainReviews = [];
+        if (is_array($field['action_review'] ?? null)) {
+            $chainReviews[] = $field['action_review'];
+        }
+
+        foreach ($widgets as $widget) {
+            if (is_array($widget['action_review'] ?? null)) {
+                $chainReviews[] = $widget['action_review'];
+            }
+        }
+
+        return [
+            'source' => 'acroform_xfa_signature_widget_action_review_boundary',
+            'action_count' => $this->uniqueActionReviewCount($actions),
+            'action_review_row_count' => count($actions),
+            'field_action_count' => count($fieldActions),
+            'widget_action_count' => count($widgetActions),
+            'chained_action_count' => $this->actionCountWithFlag($actions, 'chained'),
+            'field_chained_action_count' => $this->actionCountWithFlag($fieldActions, 'chained'),
+            'widget_chained_action_count' => $this->actionCountWithFlag($widgetActions, 'chained'),
+            'action_types' => $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['action_type'] ?? null,
+                $actions
+            )),
+            'action_triggers' => $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['trigger'] ?? null,
+                $actions
+            )),
+            'action_trigger_labels' => $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['trigger_label'] ?? null,
+                $actions
+            )),
+            'action_sources' => $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['source'] ?? null,
+                $actions
+            )),
+            'action_source_objects' => $this->integerValuesFromRows($actions, 'source_object'),
+            'action_objects' => $this->integerValuesFromRows($actions, 'action_object'),
+            'action_safety_labels' => $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['safety'] ?? null,
+                $actions
+            )),
+            'action_targets' => $this->actionTargets($actions),
+            'action_target_schemes' => $this->actionTargetSchemes($actions),
+            'submit_targets' => $this->actionTargets($actions, ['SubmitForm']),
+            'unsafe_uri_targets' => $this->unsafeUriTargets($actions),
+            'form_action_field_names' => $this->actionFieldNames($actions, ['SubmitForm', 'ResetForm']),
+            'hide_field_names' => $this->actionFieldNames($actions, ['Hide']),
+            'javascript_action_count' => $this->actionCountWithType($actions, 'JavaScript'),
+            'submit_form_action_count' => $this->actionCountWithType($actions, 'SubmitForm'),
+            'reset_form_action_count' => $this->actionCountWithType($actions, 'ResetForm'),
+            'import_data_action_count' => $this->actionCountWithType($actions, 'ImportData'),
+            'hide_action_count' => $this->actionCountWithType($actions, 'Hide'),
+            'unsafe_uri_action_count' => $this->unsafeUriActionCount($actions),
+            'remote_goto_action_count' => $this->actionCountWithType($actions, 'GoToR'),
+            'action_chain_cycle_edges_blocked' => $this->sumActionReviewRows($chainReviews, 'cycle_edges_blocked'),
+            'action_chain_max_depth_edges_blocked' => $this->sumActionReviewRows($chainReviews, 'max_depth_edges_blocked'),
+            'blocked_cycle_action_objects' => $this->integerValuesFromActionReviews($chainReviews, 'blocked_cycle_action_objects'),
+            'blocked_max_depth_action_objects' => $this->integerValuesFromActionReviews($chainReviews, 'blocked_max_depth_action_objects'),
+            'review_only' => true,
+            'executes_action' => false,
+            'executes_javascript' => false,
+            'imports_form_data' => false,
+            'submits_form_data' => false,
+            'resets_form_values' => false,
+            'changes_widget_visibility' => false,
+            'executes_signature_validation' => false,
+            'executes_signing' => false,
+            'executes_xfa_javascript' => false,
         ];
     }
 
@@ -1029,6 +1116,154 @@ final class PdfAcroFormExtractor
         }
 
         return count($seen);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     */
+    private function actionCountWithFlag(array $actions, string $flag): int
+    {
+        return count(array_filter(
+            $actions,
+            static fn (array $action): bool => ($action[$flag] ?? false) === true
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @param list<string> $types
+     * @return list<string>
+     */
+    private function actionTargets(array $actions, array $types = []): array
+    {
+        $targets = [];
+        foreach ($actions as $action) {
+            $type = $action['action_type'] ?? null;
+            if ($types !== [] && (!is_string($type) || !in_array($type, $types, true))) {
+                continue;
+            }
+
+            foreach (['target', 'uri', 'file'] as $key) {
+                $target = $action[$key] ?? null;
+                if (is_string($target) && $target !== '' && !in_array($target, $targets, true)) {
+                    $targets[] = $target;
+                    break;
+                }
+            }
+        }
+
+        return $targets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @return list<string>
+     */
+    private function actionTargetSchemes(array $actions): array
+    {
+        return $this->uniqueScalarValues(array_map(
+            static fn (array $action): mixed => is_string($action['target_scheme'] ?? null) && $action['target_scheme'] !== ''
+                ? $action['target_scheme']
+                : null,
+            $actions
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @return list<string>
+     */
+    private function unsafeUriTargets(array $actions): array
+    {
+        $targets = [];
+        foreach ($actions as $action) {
+            if (($action['action_type'] ?? null) !== 'URI') {
+                continue;
+            }
+
+            $safe = $action['safe_uri'] ?? ($action['is_safe_uri'] ?? null);
+            if ($safe === true && ($action['safety'] ?? null) !== 'blocked-unsafe-uri') {
+                continue;
+            }
+
+            $target = $action['target'] ?? ($action['uri'] ?? null);
+            if (is_string($target) && $target !== '' && !in_array($target, $targets, true)) {
+                $targets[] = $target;
+            }
+        }
+
+        return $targets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     */
+    private function unsafeUriActionCount(array $actions): int
+    {
+        return count(array_filter(
+            $actions,
+            static fn (array $action): bool => ($action['action_type'] ?? null) === 'URI'
+                && (($action['safe_uri'] ?? ($action['is_safe_uri'] ?? null)) !== true
+                    || ($action['safety'] ?? null) === 'blocked-unsafe-uri')
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @param list<string> $types
+     * @return list<string>
+     */
+    private function actionFieldNames(array $actions, array $types): array
+    {
+        $names = [];
+        foreach ($actions as $action) {
+            $type = $action['action_type'] ?? null;
+            if (!is_string($type) || !in_array($type, $types, true)) {
+                continue;
+            }
+
+            foreach ($action['field_names'] ?? [] as $name) {
+                if (is_string($name) && $name !== '' && !in_array($name, $names, true)) {
+                    $names[] = $name;
+                }
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $reviews
+     */
+    private function sumActionReviewRows(array $reviews, string $key): int
+    {
+        $sum = 0;
+        foreach ($reviews as $review) {
+            $value = $review[$key] ?? null;
+            if (is_int($value)) {
+                $sum += $value;
+            }
+        }
+
+        return $sum;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $reviews
+     * @return list<int>
+     */
+    private function integerValuesFromActionReviews(array $reviews, string $key): array
+    {
+        $values = [];
+        foreach ($reviews as $review) {
+            foreach ($review[$key] ?? [] as $value) {
+                if (is_int($value) && !in_array($value, $values, true)) {
+                    $values[] = $value;
+                }
+            }
+        }
+
+        return $values;
     }
 
     /**
@@ -2248,6 +2483,9 @@ final class PdfAcroFormExtractor
             'byte_range' => $this->integerArrayValueAfterName($body, 'ByteRange'),
             'contents_present' => $contentsValue !== null,
             'contents_length_bytes' => $contentsValue === null ? null : $this->signatureContentsLength($contentsValue, $objects),
+            'contents_digest' => $contentsValue === null
+                ? $this->emptySignatureContentsDigest()
+                : $this->signatureContentsDigest($contentsValue, $objects),
             'reference_transforms' => $this->signatureReferenceTransforms($body, $objects, $fieldNamesByObject),
             'certifying_signature' => false,
         ];
@@ -5601,6 +5839,76 @@ final class PdfAcroFormExtractor
 
         if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1 && isset($objects[(int) $match[1]])) {
             return $this->signatureContentsLength(trim($objects[(int) $match[1]]), $objects);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{present: bool, bytes: int|null, sha1: string|null, sha256: string|null, raw_bytes_exposed: bool}
+     */
+    private function signatureContentsDigest(string $value, array $objects): array
+    {
+        $bytes = $this->signatureContentsBytes($value, $objects);
+        if ($bytes === null) {
+            return $this->emptySignatureContentsDigest();
+        }
+
+        return [
+            'present' => true,
+            'bytes' => strlen($bytes),
+            'sha1' => hash('sha1', $bytes),
+            'sha256' => hash('sha256', $bytes),
+            'raw_bytes_exposed' => false,
+        ];
+    }
+
+    /**
+     * @return array{present: bool, bytes: int|null, sha1: string|null, sha256: string|null, raw_bytes_exposed: bool}
+     */
+    private function emptySignatureContentsDigest(): array
+    {
+        return [
+            'present' => false,
+            'bytes' => null,
+            'sha1' => null,
+            'sha256' => null,
+            'raw_bytes_exposed' => false,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function signatureContentsBytes(string $value, array $objects): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if ($value[0] === '<' && substr($value, 0, 2) !== '<<') {
+            $end = $this->skipHexString($value, 0);
+            $hex = preg_replace('/\s+/', '', substr($value, 1, $end - 2)) ?? '';
+            if ($hex !== '' && preg_match('/^[\da-fA-F]+$/', $hex) !== 1) {
+                return null;
+            }
+            if (strlen($hex) % 2 === 1) {
+                $hex .= '0';
+            }
+
+            $bytes = hex2bin($hex);
+            return is_string($bytes) ? $bytes : null;
+        }
+
+        if ($value[0] === '(') {
+            $end = $this->skipLiteralString($value, 0);
+            return $this->decodeLiteralString(substr($value, 1, $end - 2));
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1 && isset($objects[(int) $match[1]])) {
+            return $this->signatureContentsBytes(trim($objects[(int) $match[1]]), $objects);
         }
 
         return null;

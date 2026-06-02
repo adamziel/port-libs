@@ -342,4 +342,61 @@ return [
         $t->same(false, str_contains($plainText, 'Article actual review text'));
         $t->same(false, str_contains($plainText, 'thread-9'));
     },
+    'merges page StructParents ParentTree rows with inherited Resources transition and labels for review' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf '
+            . '/BodyAlias /BodyProp BDC 72 700 Td (Body glyph noise) Tj EMC '
+            . '/DeckTitle << /MCID 0 >> BDC 72 720 Td (Deck heading visible) Tj EMC ET';
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 20 0 R /PageLabels << /Nums [0 << /P (deck-) /S /D /St 3 >>] >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 7 0 R >> /Properties << /BodyProp 8 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /StructParents 0 /Contents 5 0 R /Dur 8 /Trans 6 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /S /Dissolve /D 0.5 >>\nendobj\n"
+            . "7 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "8 0 obj\n<< /MCID 1 /ActualText (Inherited resource body) >>\nendobj\n"
+            . "20 0 obj\n<< /Type /StructTreeRoot /RoleMap 40 0 R /ParentTree 30 0 R /K [21 0 R 22 0 R] >>\nendobj\n"
+            . "21 0 obj\n<< /Type /StructElem /S /DeckTitle /P 20 0 R /K 0 >>\nendobj\n"
+            . "22 0 obj\n<< /Type /StructElem /S /BodyAlias /P 20 0 R /K 1 >>\nendobj\n"
+            . "30 0 obj\n<< /Nums [0 [21 0 R 22 0 R]] >>\nendobj\n"
+            . "40 0 obj\n<< /DeckTitle /H2 /BodyAlias /P >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $pages = (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(1, count($pages));
+        $page = $pages[0];
+        $t->same(0, $page['pnum']);
+        $t->same(3, $page['page_object']);
+        $t->same([
+            'source' => 'catalog_mark_info',
+            'marked' => true,
+        ], $page['mark_info']);
+
+        $presentation = $page['page_presentation'];
+        $t->same('deck-3', $presentation['page_label']);
+        $t->same(8.0, $presentation['display_duration']);
+        $t->same('Dissolve', $presentation['transition']['style']);
+        $t->same(0.5, $presentation['transition']['duration']);
+
+        $rows = $page['structure_marked_content'];
+        $t->same(2, count($rows));
+        $t->same(['page_structparents_parenttree_tagged_content', 'page_structparents_parenttree_tagged_content'], array_column($rows, 'source'));
+        $t->same([0, 1], array_column($rows, 'mcid'));
+        $t->same(['DeckTitle', 'BodyAlias'], array_column($rows, 'raw_role'));
+        $t->same(['H2', 'P'], array_column($rows, 'role'));
+        $t->same([true, true], array_column($rows, 'role_mapped'));
+        $t->same(['deck-3', 'deck-3'], array_column($rows, 'page_label'));
+        $t->same([['DeckTitle'], ['BodyAlias']], array_column($rows, 'content_tags'));
+        $t->same([true, true], array_column($rows, 'resources_resolved_for_tagged_text'));
+        $t->same(false, array_key_exists('text', $rows[0]));
+        $t->same(false, array_key_exists('text', $rows[1]));
+
+        $t->same("Deck heading visible\nInherited resource body", $plainText);
+        $t->same(['Deck heading visible', 'Inherited resource body'], $extractor->extractTextLines($pdf));
+        $t->same(['Deck heading visible', 'Inherited resource body'], array_column($extractor->extractTaggedContent($pdf), 'text'));
+        $t->same(false, str_contains($plainText, 'Body glyph noise'));
+        $t->same(false, str_contains($plainText, 'deck-3'));
+    },
 ];

@@ -515,7 +515,8 @@ final class PdfTextExtractor
             $segments = $this->markedContentSegmentsByMcid(
                 $expanded['stream'],
                 $objects[$pageObjectNumber],
-                $objects
+                $objects,
+                $this->pageMarkedContentPropertyDictionaries($pageObjectNumber, $objects)
             );
             if ($segments === []) {
                 continue;
@@ -819,7 +820,8 @@ final class PdfTextExtractor
                 $expanded['stream'],
                 $objects[$pageObjectNumber],
                 $objects,
-                $structureMcidOrderByPage[$pageObjectNumber] ?? []
+                $structureMcidOrderByPage[$pageObjectNumber] ?? [],
+                $this->pageMarkedContentPropertyDictionaries($pageObjectNumber, $objects)
             );
             if ($structureOrderedStream !== null) {
                 $expanded['stream'] = $structureOrderedStream;
@@ -1729,13 +1731,19 @@ final class PdfTextExtractor
      * @param list<int> $mcidOrder
      * @param array<int, string> $objects
      */
-    private function structureTreeReadingOrderedStream(string $stream, string $pageBody, array $objects, array $mcidOrder): ?string
+    private function structureTreeReadingOrderedStream(
+        string $stream,
+        string $pageBody,
+        array $objects,
+        array $mcidOrder,
+        ?array $properties = null
+    ): ?string
     {
         if ($mcidOrder === []) {
             return null;
         }
 
-        $segments = $this->markedContentSegmentsByMcid($stream, $pageBody, $objects);
+        $segments = $this->markedContentSegmentsByMcid($stream, $pageBody, $objects, $properties);
         if ($segments === []) {
             return null;
         }
@@ -1761,9 +1769,14 @@ final class PdfTextExtractor
      * @return array<int, list<list<string>>>
      * @param array<int, string> $objects
      */
-    private function markedContentSegmentsByMcid(string $stream, string $pageBody, array $objects): array
+    private function markedContentSegmentsByMcid(
+        string $stream,
+        string $pageBody,
+        array $objects,
+        ?array $properties = null
+    ): array
     {
-        $properties = $this->markedContentPropertyDictionaries($pageBody, $objects);
+        $properties ??= $this->markedContentPropertyDictionaries($pageBody, $objects);
         $segments = [];
         $activeSegments = [];
         $operands = [];
@@ -1970,6 +1983,15 @@ final class PdfTextExtractor
             return [];
         }
 
+        return $this->markedContentPropertyDictionariesFromResourceDictionary($resourceDictionary, $objects);
+    }
+
+    /**
+     * @return array<string, string>
+     * @param array<int, string> $objects
+     */
+    private function markedContentPropertyDictionariesFromResourceDictionary(string $resourceDictionary, array $objects): array
+    {
         $propertiesDictionary = $this->propertiesResourceDictionaryBody($resourceDictionary, $objects);
         if ($propertiesDictionary === null) {
             return [];
@@ -2440,6 +2462,27 @@ final class PdfTextExtractor
             }
 
             foreach ($this->markedContentPropertiesFromResourceDictionary($resourceDictionary, $objects) as $name => $property) {
+                $properties[$name] = $property;
+            }
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @return array<string, string>
+     * @param array<int, string> $objects
+     */
+    private function pageMarkedContentPropertyDictionaries(int $pageObjectNumber, array $objects): array
+    {
+        $properties = [];
+        foreach (array_reverse($this->pageObjectLineage($pageObjectNumber, $objects)) as $objectNumber) {
+            $resourceDictionary = $this->resourceDictionaryBody($objects[$objectNumber], $objects);
+            if ($resourceDictionary === null) {
+                continue;
+            }
+
+            foreach ($this->markedContentPropertyDictionariesFromResourceDictionary($resourceDictionary, $objects) as $name => $property) {
                 $properties[$name] = $property;
             }
         }

@@ -19,7 +19,7 @@ final class PdfSecurityPreflight
         $form = (new PdfAcroFormExtractor())->extractForm($pdfBytes);
         $documentSecurityStore = (new PdfDocumentSecurityStoreExtractor())->extract($pdfBytes);
         $encryption = is_array($metadata['encryption'] ?? null) ? $metadata['encryption'] : null;
-        $signatures = $this->signatureReviews($form['fields'] ?? [], $pdfBytes);
+        $signatures = $this->signatureReviews($form['fields'] ?? [], $pdfBytes, $documentSecurityStore);
         $encrypted = $encryption !== null;
         $hasDocumentSecurityStore = ($documentSecurityStore['present'] ?? false) === true;
         $signedSignatureCount = count(array_filter(
@@ -72,6 +72,8 @@ final class PdfSecurityPreflight
             'document_security_store_count' => $hasDocumentSecurityStore ? 1 : 0,
             'document_security_store' => $documentSecurityStore,
             'signatures' => $signatures,
+            'signature_security_review_count' => count($signatures),
+            'signature_security_reviews' => $this->signatureSecurityReviews($signatures),
             'raw_owner_user_keys_exposed' => false,
             'recipient_bytes_exposed' => false,
             'raw_signature_validation_bytes_exposed' => false,
@@ -268,9 +270,10 @@ final class PdfSecurityPreflight
 
     /**
      * @param list<array<string, mixed>> $fields
+     * @param array<string, mixed> $documentSecurityStore
      * @return list<array<string, mixed>>
      */
-    private function signatureReviews(array $fields, string $pdfBytes): array
+    private function signatureReviews(array $fields, string $pdfBytes, array $documentSecurityStore): array
     {
         $reviews = [];
         foreach ($fields as $field) {
@@ -284,6 +287,19 @@ final class PdfSecurityPreflight
             $lock = is_array($field['signature_lock'] ?? null) ? $field['signature_lock'] : [];
             $byteRange = $state['byte_range'] ?? ($signature['byte_range'] ?? null);
             $referenceTransforms = $this->signatureReferenceTransforms($signature);
+            $byteRangeBoundary = $this->byteRangeBoundary($byteRange, $pdfBytes);
+            $contentsDigest = is_array($signature['contents_digest'] ?? null)
+                ? $signature['contents_digest']
+                : $this->emptySignatureContentsDigest();
+            $securityReview = $this->signatureSecurityReview(
+                $field,
+                $signature,
+                $state,
+                $byteRangeBoundary,
+                $referenceTransforms,
+                $contentsDigest,
+                $documentSecurityStore
+            );
 
             $reviews[] = [
                 'field_name' => $field['name'] ?? null,
@@ -297,7 +313,8 @@ final class PdfSecurityPreflight
                 'certifying_signature' => (bool) ($state['certifying_signature'] ?? ($field['certifying_signature'] ?? false)),
                 'contents_present' => (bool) ($state['contents_present'] ?? ($signature['contents_present'] ?? false)),
                 'contents_length_bytes' => $state['contents_length_bytes'] ?? ($signature['contents_length_bytes'] ?? null),
-                'byte_range' => $this->byteRangeBoundary($byteRange, $pdfBytes),
+                'contents_digest' => $contentsDigest,
+                'byte_range' => $byteRangeBoundary,
                 'reference_transform_count' => count($referenceTransforms),
                 'reference_transform_methods' => $this->transformMethods($referenceTransforms),
                 'reference_transforms' => $referenceTransforms,
@@ -309,10 +326,261 @@ final class PdfSecurityPreflight
                 'executes_signature_validation' => false,
                 'executes_signing' => false,
                 'executes_action' => false,
+                'signature_security_review' => $securityReview,
             ];
         }
 
         return $reviews;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     * @return list<array<string, mixed>>
+     */
+    private function signatureSecurityReviews(array $signatures): array
+    {
+        $reviews = [];
+        foreach ($signatures as $signature) {
+            if (is_array($signature['signature_security_review'] ?? null)) {
+                $reviews[] = $signature['signature_security_review'];
+            }
+        }
+
+        return $reviews;
+    }
+
+    /**
+     * @param array<string, mixed> $field
+     * @param array<string, mixed> $signature
+     * @param array<string, mixed> $state
+     * @param array<string, mixed> $byteRange
+     * @param list<array<string, mixed>> $referenceTransforms
+     * @param array<string, mixed> $contentsDigest
+     * @param array<string, mixed> $documentSecurityStore
+     * @return array<string, mixed>
+     */
+    private function signatureSecurityReview(
+        array $field,
+        array $signature,
+        array $state,
+        array $byteRange,
+        array $referenceTransforms,
+        array $contentsDigest,
+        array $documentSecurityStore
+    ): array {
+        $docMdp = $this->docMdpTransform($referenceTransforms);
+        $dssMatch = $this->dssVriMatch($contentsDigest, $documentSecurityStore);
+        $certifying = (bool) ($state['certifying_signature'] ?? ($field['certifying_signature'] ?? false));
+
+        return [
+            'source' => 'byte_range_dss_doc_mdp_signature_review',
+            'field_name' => $field['name'] ?? null,
+            'field_object' => $field['object'] ?? null,
+            'signature_object' => $state['signature_object'] ?? ($signature['object'] ?? null),
+            'signed' => (bool) ($state['signed'] ?? false),
+            'filter' => $signature['filter'] ?? null,
+            'subfilter' => $signature['subfilter'] ?? null,
+            'byte_range_present' => (bool) ($byteRange['present'] ?? false),
+            'byte_range_valid' => (bool) ($byteRange['valid'] ?? false),
+            'byte_range_status' => $byteRange['status'] ?? null,
+            'byte_range_gap_count' => (int) ($byteRange['gap_count'] ?? 0),
+            'byte_range_covers_signature_contents' => (bool) ($byteRange['has_signature_contents_gap'] ?? false),
+            'contents_digest_present' => (bool) ($contentsDigest['present'] ?? false),
+            'contents_digest_bytes' => $contentsDigest['bytes'] ?? null,
+            'doc_mdp_present' => $docMdp !== null,
+            'certifying_signature' => $certifying,
+            'doc_mdp_permission_level' => $docMdp['permission_level'] ?? null,
+            'doc_mdp_permission_label' => $docMdp['permission_label'] ?? null,
+            'doc_mdp_allowed_changes' => $docMdp['allowed_changes'] ?? [],
+            'doc_mdp_transform_params_version' => $docMdp['transform_params_version'] ?? null,
+            'dss_present' => (bool) ($documentSecurityStore['present'] ?? false),
+            'dss_vri_match_status' => $dssMatch['status'],
+            'dss_vri_key' => $dssMatch['key'],
+            'dss_vri_validation_stream_count' => $dssMatch['validation_stream_count'],
+            'dss_vri_validation_hashes' => $dssMatch['validation_hashes'],
+            'dss_vri_timestamp_update' => $dssMatch['timestamp_update'],
+            'review_decision' => $this->signatureReviewDecision($byteRange, $docMdp, $dssMatch),
+            'cryptographic_signature_validated' => false,
+            'executes_signature_validation' => false,
+            'executes_revocation_check' => false,
+            'executes_trust_chain_validation' => false,
+            'executes_signing' => false,
+            'raw_signature_contents_exposed' => false,
+            'raw_validation_bytes_exposed' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $referenceTransforms
+     * @return array<string, mixed>|null
+     */
+    private function docMdpTransform(array $referenceTransforms): ?array
+    {
+        foreach ($referenceTransforms as $transform) {
+            if (($transform['transform_method'] ?? null) === 'DocMDP') {
+                return $transform;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{present: bool, bytes: int|null, sha1: string|null, sha256: string|null, raw_bytes_exposed: bool}
+     */
+    private function emptySignatureContentsDigest(): array
+    {
+        return [
+            'present' => false,
+            'bytes' => null,
+            'sha1' => null,
+            'sha256' => null,
+            'raw_bytes_exposed' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $contentsDigest
+     * @param array<string, mixed> $documentSecurityStore
+     * @return array{status: string, key: string|null, validation_stream_count: int, validation_hashes: array<string, mixed>, timestamp_update: string|null}
+     */
+    private function dssVriMatch(array $contentsDigest, array $documentSecurityStore): array
+    {
+        $empty = [
+            'status' => 'dss_absent',
+            'key' => null,
+            'validation_stream_count' => 0,
+            'validation_hashes' => [
+                'certificates' => [],
+                'ocsps' => [],
+                'crls' => [],
+                'timestamp_token' => null,
+            ],
+            'timestamp_update' => null,
+        ];
+
+        if (($documentSecurityStore['present'] ?? false) !== true) {
+            return $empty;
+        }
+        if (($contentsDigest['present'] ?? false) !== true) {
+            $empty['status'] = 'signature_contents_digest_unavailable';
+            return $empty;
+        }
+
+        $targets = [];
+        if (is_string($contentsDigest['sha1'] ?? null) && $contentsDigest['sha1'] !== '') {
+            $targets[strtoupper($contentsDigest['sha1'])] = 'matched_signature_contents_sha1';
+        }
+        if (is_string($contentsDigest['sha256'] ?? null) && $contentsDigest['sha256'] !== '') {
+            $targets[strtoupper($contentsDigest['sha256'])] = 'matched_signature_contents_sha256';
+        }
+
+        $vriRows = array_values(array_filter(
+            $documentSecurityStore['vri'] ?? [],
+            static fn (mixed $row): bool => is_array($row)
+        ));
+        if ($vriRows === []) {
+            $empty['status'] = 'dss_vri_absent';
+            return $empty;
+        }
+
+        foreach ($vriRows as $row) {
+            if (!is_string($row['key'] ?? null)) {
+                continue;
+            }
+
+            $normalized = strtoupper($row['key']);
+            if (!isset($targets[$normalized])) {
+                continue;
+            }
+
+            return [
+                'status' => $targets[$normalized],
+                'key' => $row['key'],
+                'validation_stream_count' => $this->dssVriValidationStreamCount($row),
+                'validation_hashes' => $this->dssVriValidationHashes($row),
+                'timestamp_update' => is_string($row['timestamp_update'] ?? null) ? $row['timestamp_update'] : null,
+            ];
+        }
+
+        $empty['status'] = 'dss_vri_not_matched';
+        return $empty;
+    }
+
+    /**
+     * @param array<string, mixed> $vri
+     */
+    private function dssVriValidationStreamCount(array $vri): int
+    {
+        $count = 0;
+        foreach (['certificates', 'ocsps', 'crls'] as $key) {
+            $count += count(array_filter(
+                $vri[$key] ?? [],
+                static fn (mixed $row): bool => is_array($row)
+            ));
+        }
+
+        return $count + (is_array($vri['timestamp_token'] ?? null) ? 1 : 0);
+    }
+
+    /**
+     * @param array<string, mixed> $vri
+     * @return array<string, mixed>
+     */
+    private function dssVriValidationHashes(array $vri): array
+    {
+        return [
+            'certificates' => $this->streamHashes($vri['certificates'] ?? []),
+            'ocsps' => $this->streamHashes($vri['ocsps'] ?? []),
+            'crls' => $this->streamHashes($vri['crls'] ?? []),
+            'timestamp_token' => is_array($vri['timestamp_token'] ?? null) && is_string($vri['timestamp_token']['sha256'] ?? null)
+                ? $vri['timestamp_token']['sha256']
+                : null,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function streamHashes(mixed $streams): array
+    {
+        if (!is_array($streams)) {
+            return [];
+        }
+
+        $hashes = [];
+        foreach ($streams as $stream) {
+            if (is_array($stream) && is_string($stream['sha256'] ?? null)) {
+                $hashes[] = $stream['sha256'];
+            }
+        }
+
+        return $hashes;
+    }
+
+    /**
+     * @param array<string, mixed> $byteRange
+     * @param array<string, mixed>|null $docMdp
+     * @param array{status: string, key: string|null, validation_stream_count: int, validation_hashes: array<string, mixed>, timestamp_update: string|null} $dssMatch
+     */
+    private function signatureReviewDecision(array $byteRange, ?array $docMdp, array $dssMatch): string
+    {
+        if (($byteRange['present'] ?? false) === true && ($byteRange['valid'] ?? false) !== true) {
+            return 'review_required_signature_boundary';
+        }
+
+        $matchedDss = str_starts_with($dssMatch['status'], 'matched_signature_contents_');
+        if ($docMdp !== null && $matchedDss) {
+            return 'review_required_certifying_signature_with_dss';
+        }
+        if ($docMdp !== null) {
+            return 'review_required_certifying_signature';
+        }
+        if ($matchedDss) {
+            return 'review_required_signature_with_dss';
+        }
+
+        return 'review_required_signature_metadata';
     }
 
     /**

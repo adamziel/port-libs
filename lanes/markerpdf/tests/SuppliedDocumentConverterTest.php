@@ -544,6 +544,102 @@ return [
             unlink($path);
         }
     },
+    'reviews OCR rowspan colspan continuation anchors through supplied table conversion' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-ocr-span-continuation-grid-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% OCR span continuation grid supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'OCR rowspan colspan continuation review', 'bbox' => [72.0, 48.0, 470.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Stale OCR rowspan table text should be replaced.', 'bbox' => [72.0, 176.0, 460.0, 196.0]],
+                ['text' => 'Reviewer note after continuation table.', 'bbox' => [72.0, 306.0, 480.0, 324.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 48.0, 470.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 430.0, 260.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 306.0, 480.0, 324.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 300.0, 32.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 35.0, 300.0, 60.0]],
+                    ['row_id' => 2, 'bbox' => [0.0, 85.0, 300.0, 110.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 100.0, 120.0]],
+                    ['col_id' => 1, 'bbox' => [105.0, 0.0, 195.0, 120.0]],
+                    ['col_id' => 2, 'bbox' => [205.0, 0.0, 300.0, 120.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_detector_cells' => [[
+                        ['bbox' => [5.0, 5.0, 295.0, 18.0], 'text' => null],
+                        ['bbox' => [30.0, 20.0, 270.0, 30.0], 'text' => null],
+                        ['bbox' => [5.0, 40.0, 90.0, 108.0], 'text' => null],
+                        ['bbox' => [120.0, 42.0, 180.0, 56.0], 'text' => null],
+                        ['bbox' => [210.0, 42.0, 250.0, 56.0], 'text' => null],
+                        ['bbox' => [120.0, 90.0, 180.0, 106.0], 'text' => null],
+                        ['bbox' => [210.0, 90.0, 290.0, 106.0], 'text' => null],
+                    ]],
+                    'table_ocr_text_lines' => [[
+                        'lines' => [
+                            ['text' => 'Inventory'],
+                            ['text' => 'continued'],
+                            ['text' => 'Media group'],
+                            ['text' => 'Images'],
+                            ['text' => '12'],
+                            ['text' => 'State'],
+                            ['text' => 'Needs review'],
+                        ],
+                    ]],
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                    'ocr_all_pages' => true,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $gridReview = $result['metadata']['table_spanning_grid_review'][0] ?? [];
+            $gridByPosition = [];
+            foreach (($gridReview['grid_cells'] ?? []) as $gridCell) {
+                $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+            }
+
+            $t->contains('# Ocr Rowspan Colspan Continuation Review', $result['text']);
+            $t->contains('Reviewer note after continuation table.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Stale OCR rowspan table text should be replaced.'));
+            $t->same(['layout', 'table-cell-routing', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same([true], $result['metadata']['table_needs_ocr']);
+            $t->same([7], $result['metadata']['table_cell_counts']);
+            $t->same('Inventory', $result['metadata']['table_assigned_cells'][0][0]['text']);
+            $t->same('continued', $result['metadata']['table_assigned_cells'][0][1]['text']);
+            $t->same([0, 1, 2], $result['metadata']['table_assigned_cells'][0][0]['col_ids']);
+            $t->same('Inventory continued', $gridReview['render_cells'][0]['text']);
+            $t->same('th', $gridReview['render_cells'][0]['tag']);
+            $t->same('colgroup', $gridReview['render_cells'][0]['scope']);
+            $t->same(2, $gridReview['render_cells'][0]['source_cell_count']);
+            $t->same(1, $gridReview['render_cells'][0]['continuation_count']);
+            $t->same(['Inventory', 'continued'], $gridReview['render_cells'][0]['text_parts']);
+            $t->same('continued', $gridReview['render_cells'][0]['continuation_cells'][0]['text']);
+            $t->same('anchor', $gridByPosition['0:0']['state']);
+            $t->same('Inventory continued', $gridByPosition['0:0']['text']);
+            $t->same('covered', $gridByPosition['0:1']['state']);
+            $t->same('Media group', $gridReview['render_cells'][1]['text']);
+            $t->same('rowgroup', $gridReview['render_cells'][1]['scope']);
+            $t->same('covered', $gridByPosition['2:0']['state']);
+            $t->same('Needs review', $gridByPosition['2:2']['text']);
+        } finally {
+            unlink($path);
+        }
+    },
     'routes upstream OCR prediction objects through forced table recognition' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-prediction-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% forced OCR table prediction supplied pipeline\n%%EOF");

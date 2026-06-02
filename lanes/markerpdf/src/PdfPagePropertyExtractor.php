@@ -158,80 +158,160 @@ final class PdfPagePropertyExtractor
     {
         $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdfBytes);
         $structureTree = $metadata['structure_tree'] ?? [];
-        if (!is_array($structureTree)) {
-            return [];
-        }
-
-        $elements = $structureTree['elements'] ?? [];
-        if (!is_array($elements)) {
-            return [];
-        }
 
         $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
         $rowsByPage = [];
-        foreach ($elements as $elementIndex => $element) {
-            if (!is_array($element)) {
+        if (is_array($structureTree)) {
+            $elements = $structureTree['elements'] ?? [];
+            if (is_array($elements)) {
+                foreach ($elements as $elementIndex => $element) {
+                    if (!is_array($element)) {
+                        continue;
+                    }
+
+                    $markedContent = $element['marked_content'] ?? [];
+                    if (!is_array($markedContent)) {
+                        continue;
+                    }
+
+                    foreach ($markedContent as $markedContentRow) {
+                        if (!is_array($markedContentRow)) {
+                            continue;
+                        }
+
+                        $pageObject = $markedContentRow['page_object'] ?? $element['page_object'] ?? null;
+                        $mcid = $markedContentRow['mcid'] ?? null;
+                        if (!is_int($pageObject) || !is_int($mcid)) {
+                            continue;
+                        }
+
+                        $row = [
+                            'source' => 'catalog_struct_tree_mcr',
+                            'structure_element_index' => (int) $elementIndex,
+                            'mcid' => $mcid,
+                            'page_object' => $pageObject,
+                            'review_only' => true,
+                            'visible_text_source' => false,
+                        ];
+
+                        foreach ([
+                            'object' => 'struct_object',
+                            'raw_role' => 'raw_role',
+                            'role' => 'role',
+                            'role_mapped' => 'role_mapped',
+                            'title' => 'title',
+                            'language' => 'language',
+                            'language_inherited' => 'language_inherited',
+                            'alternate_text' => 'alternate_text',
+                            'actual_text' => 'actual_text',
+                            'expansion_text' => 'expansion_text',
+                            'id' => 'id',
+                            'classes' => 'classes',
+                            'revision' => 'revision',
+                            'namespace' => 'namespace',
+                        ] as $sourceKey => $targetKey) {
+                            if (array_key_exists($sourceKey, $element)) {
+                                $row[$targetKey] = $element[$sourceKey];
+                            }
+                        }
+
+                        foreach (['page', 'page_number'] as $pageKey) {
+                            if (array_key_exists($pageKey, $markedContentRow)) {
+                                $row[$pageKey] = $markedContentRow[$pageKey];
+                            }
+                        }
+
+                        $pageIndex = $row['page'] ?? null;
+                        if (is_int($pageIndex)) {
+                            $row['page_label'] = $pageLabels[$pageIndex] ?? (string) ($pageIndex + 1);
+                        }
+
+                        $rowsByPage[$pageObject][] = $row;
+                    }
+                }
+            }
+        }
+
+        return $this->mergeStructureMarkedContentRows(
+            $rowsByPage,
+            $this->taggedContentReviewByPageObject($pdfBytes)
+        );
+    }
+
+    /**
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function taggedContentReviewByPageObject(string $pdfBytes): array
+    {
+        $extractor = new PdfTextExtractor();
+        $pageLabels = $extractor->extractPageLabels($pdfBytes);
+        $rowsByPage = [];
+
+        foreach ($extractor->extractTaggedContent($pdfBytes) as $taggedRow) {
+            $pageObject = $taggedRow['page_object_number'] ?? null;
+            $mcid = $taggedRow['mcid'] ?? null;
+            if (!is_int($pageObject) || !is_int($mcid)) {
                 continue;
             }
 
-            $markedContent = $element['marked_content'] ?? [];
-            if (!is_array($markedContent)) {
-                continue;
+            $row = [
+                'source' => 'page_structparents_parenttree_tagged_content',
+                'mcid' => $mcid,
+                'page_object' => $pageObject,
+                'review_only' => true,
+                'visible_text_source' => false,
+                'resources_resolved_for_tagged_text' => true,
+            ];
+
+            foreach ([
+                'page_index' => 'page',
+                'page_number' => 'page_number',
+                'raw_role' => 'raw_role',
+                'role' => 'role',
+                'role_mapped' => 'role_mapped',
+                'content_tags' => 'content_tags',
+            ] as $sourceKey => $targetKey) {
+                if (array_key_exists($sourceKey, $taggedRow)) {
+                    $row[$targetKey] = $taggedRow[$sourceKey];
+                }
             }
 
-            foreach ($markedContent as $markedContentRow) {
-                if (!is_array($markedContentRow)) {
+            $pageIndex = $taggedRow['page_index'] ?? null;
+            if (is_int($pageIndex)) {
+                $row['page_label'] = $pageLabels[$pageIndex] ?? (string) ($pageIndex + 1);
+            }
+
+            $rowsByPage[$pageObject][] = $row;
+        }
+
+        return $rowsByPage;
+    }
+
+    /**
+     * @param array<int, list<array<string, mixed>>> $rowsByPage
+     * @param array<int, list<array<string, mixed>>> $fallbackRowsByPage
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function mergeStructureMarkedContentRows(array $rowsByPage, array $fallbackRowsByPage): array
+    {
+        foreach ($fallbackRowsByPage as $pageObject => $fallbackRows) {
+            $rowsByPage[$pageObject] ??= [];
+            $knownMcids = [];
+            foreach ($rowsByPage[$pageObject] as $row) {
+                $mcid = $row['mcid'] ?? null;
+                if (is_int($mcid)) {
+                    $knownMcids[$mcid] = true;
+                }
+            }
+
+            foreach ($fallbackRows as $fallbackRow) {
+                $mcid = $fallbackRow['mcid'] ?? null;
+                if (!is_int($mcid) || isset($knownMcids[$mcid])) {
                     continue;
                 }
 
-                $pageObject = $markedContentRow['page_object'] ?? $element['page_object'] ?? null;
-                $mcid = $markedContentRow['mcid'] ?? null;
-                if (!is_int($pageObject) || !is_int($mcid)) {
-                    continue;
-                }
-
-                $row = [
-                    'source' => 'catalog_struct_tree_mcr',
-                    'structure_element_index' => (int) $elementIndex,
-                    'mcid' => $mcid,
-                    'page_object' => $pageObject,
-                    'review_only' => true,
-                    'visible_text_source' => false,
-                ];
-
-                foreach ([
-                    'object' => 'struct_object',
-                    'raw_role' => 'raw_role',
-                    'role' => 'role',
-                    'role_mapped' => 'role_mapped',
-                    'title' => 'title',
-                    'language' => 'language',
-                    'language_inherited' => 'language_inherited',
-                    'alternate_text' => 'alternate_text',
-                    'actual_text' => 'actual_text',
-                    'expansion_text' => 'expansion_text',
-                    'id' => 'id',
-                    'classes' => 'classes',
-                    'revision' => 'revision',
-                    'namespace' => 'namespace',
-                ] as $sourceKey => $targetKey) {
-                    if (array_key_exists($sourceKey, $element)) {
-                        $row[$targetKey] = $element[$sourceKey];
-                    }
-                }
-
-                foreach (['page', 'page_number'] as $pageKey) {
-                    if (array_key_exists($pageKey, $markedContentRow)) {
-                        $row[$pageKey] = $markedContentRow[$pageKey];
-                    }
-                }
-
-                $pageIndex = $row['page'] ?? null;
-                if (is_int($pageIndex)) {
-                    $row['page_label'] = $pageLabels[$pageIndex] ?? (string) ($pageIndex + 1);
-                }
-
-                $rowsByPage[$pageObject][] = $row;
+                $rowsByPage[$pageObject][] = $fallbackRow;
+                $knownMcids[$mcid] = true;
             }
         }
 

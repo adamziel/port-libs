@@ -522,6 +522,58 @@ return [
         $t->same('td', $gridByPosition['2:1']['tag']);
         $t->same('Review state', $gridByPosition['2:1']['text']);
     },
+    'folds OCR continuation covered anchors into rowspan colspan grid review' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $rows = [
+            ['row_id' => 0, 'bbox' => [0.0, 0.0, 300.0, 32.0]],
+            ['row_id' => 1, 'bbox' => [0.0, 35.0, 300.0, 60.0]],
+            ['row_id' => 2, 'bbox' => [0.0, 85.0, 300.0, 110.0]],
+        ];
+        $cols = [
+            ['col_id' => 0, 'bbox' => [0.0, 0.0, 100.0, 120.0]],
+            ['col_id' => 1, 'bbox' => [105.0, 0.0, 195.0, 120.0]],
+            ['col_id' => 2, 'bbox' => [205.0, 0.0, 300.0, 120.0]],
+        ];
+        $assigned = [
+            ['bbox' => [5.0, 5.0, 295.0, 18.0], 'text' => 'Inventory', 'row_ids' => [0], 'col_ids' => [0, 1, 2]],
+            ['bbox' => [30.0, 20.0, 270.0, 30.0], 'text' => 'continued', 'row_ids' => [0], 'col_ids' => [1, 2]],
+            ['bbox' => [5.0, 40.0, 90.0, 108.0], 'text' => 'Media group', 'row_ids' => [1, 2], 'col_ids' => [0]],
+            ['bbox' => [120.0, 42.0, 180.0, 56.0], 'text' => 'Images', 'row_ids' => [1], 'col_ids' => [1]],
+            ['bbox' => [210.0, 42.0, 250.0, 56.0], 'text' => '12', 'row_ids' => [1], 'col_ids' => [2]],
+            ['bbox' => [120.0, 90.0, 180.0, 106.0], 'text' => 'State', 'row_ids' => [2], 'col_ids' => [1]],
+            ['bbox' => [210.0, 90.0, 290.0, 106.0], 'text' => 'Needs review', 'row_ids' => [2], 'col_ids' => [2]],
+        ];
+        $review = $recognizer->spanningGridReview($assigned, $rows, $cols);
+        $gridByPosition = [];
+        foreach ($review['grid_cells'] as $gridCell) {
+            $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+        }
+
+        $markdown = $recognizer->markdownFormat($assigned);
+        $t->contains('Inventory', $markdown);
+        $t->contains('continued', $markdown);
+        $t->same('Inventory continued', $review['render_cells'][0]['text']);
+        $t->same([0, 1, 2], $review['render_cells'][0]['col_ids']);
+        $t->same([1, 3], [$review['render_cells'][0]['rowspan'], $review['render_cells'][0]['colspan']]);
+        $t->same('colgroup', $review['render_cells'][0]['scope']);
+        $t->same(2, $review['render_cells'][0]['source_cell_count']);
+        $t->same(1, $review['render_cells'][0]['continuation_count']);
+        $t->same(['Inventory', 'continued'], $review['render_cells'][0]['text_parts']);
+        $t->same('continued', $review['render_cells'][0]['continuation_cells'][0]['text']);
+        $t->same([0], $review['render_cells'][0]['continuation_cells'][0]['row_ids']);
+        $t->same([1, 2], $review['render_cells'][0]['continuation_cells'][0]['col_ids']);
+        $t->same([5.0, 5.0, 295.0, 30.0], $review['render_cells'][0]['cell_bbox']);
+        $t->same([5.0, 5.0, 295.0, 18.0], $review['render_cells'][0]['anchor_cell_bbox']);
+        $t->same('anchor', $gridByPosition['0:0']['state']);
+        $t->same('Inventory continued', $gridByPosition['0:0']['text']);
+        $t->same('covered', $gridByPosition['0:1']['state']);
+        $t->same(['row_id' => 0, 'col_id' => 0, 'render_cell_index' => 0], $gridByPosition['0:2']['covered_by']);
+        $t->same('Media group', $review['render_cells'][1]['text']);
+        $t->same('rowgroup', $review['render_cells'][1]['scope']);
+        $t->same([2, 1], [$review['render_cells'][1]['rowspan'], $review['render_cells'][1]['colspan']]);
+        $t->same('covered', $gridByPosition['2:0']['state']);
+        $t->same('Needs review', $gridByPosition['2:2']['text']);
+    },
     'applies supplied OCR text before row column assignment and markdown formatting' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $recognized = $recognizer->recognizeTables(

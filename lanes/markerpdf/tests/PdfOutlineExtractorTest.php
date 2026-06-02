@@ -744,7 +744,7 @@ return [
         $pdf = $navigationTaggedStructurePdf();
         $metadata = $extractor->getNavigationReviewMetadata($pdf);
 
-        $t->same(['outline', 'open_action', 'tagged_content'], $metadata['source']);
+        $t->same(['outline', 'open_action', 'tagged_content', 'page_review'], $metadata['source']);
         $t->same(1, count($metadata['outline']));
         $t->same('Accessible Chapter Target', $metadata['outline'][0]['title']);
         $t->same(1, $metadata['outline'][0]['page']);

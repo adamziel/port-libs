@@ -309,13 +309,14 @@ final class TableRecognizer
         $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
         $axisMetadata = $this->spanningGridAxisMetadata($rotated);
 
+        $cellGroups = $this->spanningGridAnchorGroups($cells);
         $rowIds = [];
         $colIds = [];
-        foreach ($cells as $cell) {
-            foreach ($this->nonNullSortedIds($cell['row_ids']) as $rowId) {
+        foreach ($cellGroups as $cellGroup) {
+            foreach ($cellGroup['row_ids'] as $rowId) {
                 $rowIds[$rowId] = $rowId;
             }
-            foreach ($this->nonNullSortedIds($cell['col_ids']) as $colId) {
+            foreach ($cellGroup['col_ids'] as $colId) {
                 $colIds[$colId] = $colId;
             }
         }
@@ -332,9 +333,9 @@ final class TableRecognizer
         $anchors = [];
         $covered = [];
 
-        foreach ($cells as $cell) {
-            $cellRowIds = $this->nonNullSortedIds($cell['row_ids']);
-            $cellColIds = $this->nonNullSortedIds($cell['col_ids']);
+        foreach ($cellGroups as $cellGroup) {
+            $cellRowIds = $cellGroup['row_ids'];
+            $cellColIds = $cellGroup['col_ids'];
             if ($cellRowIds === [] || $cellColIds === []) {
                 continue;
             }
@@ -346,14 +347,14 @@ final class TableRecognizer
             ];
             $renderIndex = count($renderCells);
             $entry = [
-                'text' => (string) $cell['text'],
+                'text' => $cellGroup['text'],
                 'row_ids' => $cellRowIds,
                 'col_ids' => $cellColIds,
                 'rowspan' => count($cellRowIds),
                 'colspan' => count($cellColIds),
                 'anchor' => $anchor,
                 'grid_cells' => $this->gridCellsForSpan($cellRowIds, $cellColIds),
-                'cell_bbox' => $cell['bbox'],
+                'cell_bbox' => $cellGroup['bbox'],
                 'tag' => $scope === null ? 'td' : 'th',
                 'scope' => $scope,
                 'header' => $scope !== null,
@@ -363,6 +364,14 @@ final class TableRecognizer
                 'row_axis' => $axisMetadata['row_axis'],
                 'col_axis' => $axisMetadata['col_axis'],
             ];
+
+            if (count($cellGroup['cells']) > 1) {
+                $entry['source_cell_count'] = count($cellGroup['cells']);
+                $entry['text_parts'] = $this->reviewTextParts($cellGroup['cells']);
+                $entry['anchor_cell_bbox'] = $cellGroup['cells'][0]['bbox'];
+                $entry['continuation_count'] = count($cellGroup['cells']) - 1;
+                $entry['continuation_cells'] = $this->reviewContinuationCells(array_slice($cellGroup['cells'], 1));
+            }
 
             $gridBbox = $this->gridBboxForSpan($cellRowIds, $cellColIds, $rowBboxes, $colBboxes, $rotated);
             if ($gridBbox !== null) {
@@ -1509,6 +1518,148 @@ final class TableRecognizer
         sort($out, SORT_NUMERIC);
 
         return $out;
+    }
+
+    /**
+     * Upstream tabled keeps only first-row/column anchors in Markdown/HTML,
+     * while SpanTableCell still carries row/column span occupancy. Keep OCR
+     * continuation cells visible in the WordPress span review grid when they
+     * share an anchor or land in a grid position already covered by a span.
+     *
+     * @param list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}> $cells
+     * @return list<array{cells: list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}>, row_ids: list<int>, col_ids: list<int>, text: string, bbox: list<float>}>
+     */
+    private function spanningGridAnchorGroups(array $cells): array
+    {
+        $groups = [];
+        $order = [];
+
+        foreach ($cells as $cell) {
+            $rowIds = $this->nonNullSortedIds($cell['row_ids']);
+            $colIds = $this->nonNullSortedIds($cell['col_ids']);
+            if ($rowIds === [] || $colIds === []) {
+                continue;
+            }
+
+            $anchorKey = $rowIds[0] . ':' . $colIds[0];
+            $key = $this->coveringSpanningGroupKey($groups, $rowIds[0], $colIds[0]) ?? $anchorKey;
+            if (!isset($groups[$key])) {
+                $groups[$key] = [
+                    'cells' => [],
+                    'row_ids' => [],
+                    'col_ids' => [],
+                    'text' => '',
+                    'bbox' => $cell['bbox'],
+                ];
+                $order[] = $key;
+            }
+
+            $groups[$key]['cells'][] = $cell;
+            $groups[$key]['row_ids'] = $this->mergeSortedIds($groups[$key]['row_ids'], $rowIds);
+            $groups[$key]['col_ids'] = $this->mergeSortedIds($groups[$key]['col_ids'], $colIds);
+            $groups[$key]['text'] = $this->combinedCellText($groups[$key]['cells']);
+            $groups[$key]['bbox'] = $this->mergedCellBbox($groups[$key]['cells']);
+        }
+
+        $out = [];
+        foreach ($order as $key) {
+            $out[] = $groups[$key];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<string, array{row_ids: list<int>, col_ids: list<int>}> $groups
+     */
+    private function coveringSpanningGroupKey(array $groups, int $rowId, int $colId): ?string
+    {
+        $anchorKey = $rowId . ':' . $colId;
+        foreach ($groups as $key => $group) {
+            if ($key === $anchorKey) {
+                continue;
+            }
+            if (in_array($rowId, $group['row_ids'], true) && in_array($colId, $group['col_ids'], true)) {
+                return $key;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<int> $left
+     * @param list<int> $right
+     * @return list<int>
+     */
+    private function mergeSortedIds(array $left, array $right): array
+    {
+        $ids = array_values(array_unique(array_merge($left, $right)));
+        sort($ids, SORT_NUMERIC);
+
+        return $ids;
+    }
+
+    /**
+     * @param list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}> $cells
+     */
+    private function combinedCellText(array $cells): string
+    {
+        $parts = $this->reviewTextParts($cells);
+
+        return implode(' ', $parts);
+    }
+
+    /**
+     * @param list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}> $cells
+     * @return list<string>
+     */
+    private function reviewTextParts(array $cells): array
+    {
+        $parts = [];
+        foreach ($cells as $cell) {
+            $text = trim((string) $cell['text']);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @param list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}> $cells
+     * @return list<array{text: string, row_ids: list<int>, col_ids: list<int>, bbox: list<float>}>
+     */
+    private function reviewContinuationCells(array $cells): array
+    {
+        $continuations = [];
+        foreach ($cells as $cell) {
+            $continuations[] = [
+                'text' => (string) $cell['text'],
+                'row_ids' => $this->nonNullSortedIds($cell['row_ids']),
+                'col_ids' => $this->nonNullSortedIds($cell['col_ids']),
+                'bbox' => $cell['bbox'],
+            ];
+        }
+
+        return $continuations;
+    }
+
+    /**
+     * @param list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}> $cells
+     * @return list<float>
+     */
+    private function mergedCellBbox(array $cells): array
+    {
+        $bboxes = array_column($cells, 'bbox');
+
+        return [
+            min(array_column($bboxes, 0)),
+            min(array_column($bboxes, 1)),
+            max(array_column($bboxes, 2)),
+            max(array_column($bboxes, 3)),
+        ];
     }
 
     /**
