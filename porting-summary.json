@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 10:00:19 UTC",
-    "sourceCommit": "9e84a9f26c7bddc3a95c061f57a6d25169cc11f4",
-    "sourceCommitShort": "9e84a9f26c7b",
+    "generated": "2026-06-02 10:06:54 UTC",
+    "sourceCommit": "0bb779083cbeec279709403b4f1b3fd3e1928dc7",
+    "sourceCommitShort": "0bb779083cbe",
     "sourceBranch": "unknown",
-    "dashboardCommit": "9e84a9f26526acd8cf298393973145d1fa378932",
-    "dashboardCommitShort": "9e84a9f26526",
+    "dashboardCommit": "0bb779083cbeec279709403b4f1b3fd3e1928dc7",
+    "dashboardCommitShort": "0bb779083cbe",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "313",
-            "coverage": "313 / 78 (401.3%)",
-            "mapPercent": "401.3%",
+            "mapped": "314",
+            "coverage": "314 / 78 (402.6%)",
+            "mapPercent": "402.6%",
             "unmapped": "0",
-            "php": "461 pass / 0 fail",
+            "php": "462 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Xref-stream invalid explicit offset boundaries are accepted on markerPDF with full PH...",
+            "currentWork": "Stream-filter chain recovery and DecodeParms boundary handling are accepted on marker...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "9e84a9f"
+            "commit": "0bb7790"
         },
         {
             "lane": "readability",
