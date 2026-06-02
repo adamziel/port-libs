@@ -230,6 +230,39 @@ $screenRenditionActionCurrentBasePdf = static function (): string {
         . "%%EOF";
 };
 
+$richMediaEmbeddedActionMediaPdf = static function (): string {
+    $pageContent = 'BT /F1 12 Tf 72 720 Td (Article Body) Tj ET';
+    $appearanceText = 'BT /F1 12 Tf 0 0 Td (Embedded Action Appearance Noise) Tj ET';
+    $mediaBytes = "MP4 bytes with (Embedded Action Media Payload Leak) Tj ET";
+    $scriptBytes = "app.alert('embedded action script leak')";
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 60 0 R >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 90 0 R >> >> /Annots [5 0 R] /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Annot /Subtype /RichMedia /Rect [72 500 360 650] /T (Embedded action player) /Contents (RichMediaExecute target instance requires review) /RichMediaContent 30 0 R /A 80 0 R /AA << /PV 81 0 R >> /AP << /N 6 0 R >> >>\nendobj\n"
+        . "6 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 90 0 R >> >> /Length " . strlen($appearanceText) . " >>\nstream\n{$appearanceText}\nendstream\nendobj\n"
+        . "30 0 obj\n<< /Type /RichMediaContent /Assets 35 0 R /Configurations [40 0 R] >>\nendobj\n"
+        . "35 0 obj\n<< /Names [(action-video.mp4) 31 0 R (controller.js) 32 0 R] >>\nendobj\n"
+        . "31 0 obj\n<< /Type /Filespec /F (action-video.mp4) /UF <FEFF0061006300740069006F006E002D0076006900640065006F002E006D00700034> /Desc (Current action video asset) /AFRelationship /Data /EF << /F 33 0 R >> >>\nendobj\n"
+        . "32 0 obj\n<< /Type /Filespec /F (controller.js) /EF << /F 34 0 R >> >>\nendobj\n"
+        . "33 0 obj\n<< /Type /EmbeddedFile /Subtype /video#2Fmp4 /Length " . strlen($mediaBytes) . " >>\nstream\n{$mediaBytes}\nendstream\nendobj\n"
+        . "34 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjavascript /Length " . strlen($scriptBytes) . " >>\nstream\n{$scriptBytes}\nendstream\nendobj\n"
+        . "40 0 obj\n<< /Type /RichMediaConfiguration /Subtype /Video /Name (Primary video configuration) /Instances [41 0 R 42 0 R] >>\nendobj\n"
+        . "41 0 obj\n<< /Type /RichMediaInstance /Subtype /Video /Asset 31 0 R /Params 43 0 R >>\nendobj\n"
+        . "42 0 obj\n<< /Type /RichMediaInstance /Subtype /Flash /Asset 32 0 R /Params << /Binding /Foreground /FlashVars (controller=1) >> >>\nendobj\n"
+        . "43 0 obj\n<< /Type /RichMediaParams /Binding /Foreground /FlashVars (src=action-video.mp4&autoplay=false) /Settings (quality=review) /CuePoints [(intro) 12 true] >>\nendobj\n"
+        . "50 0 obj\n<< /Type /Filespec /F (stale-media.mov) /EF << /F 51 0 R >> >>\nendobj\n"
+        . "51 0 obj\n<< /Type /EmbeddedFile /Length 44 >>\nstream\nBT (Stale RichMedia Payload Leak) Tj ET\nendstream\nendobj\n"
+        . "60 0 obj\n<< /Names [(stale-media.mov) 50 0 R] >>\nendobj\n"
+        . "80 0 obj\n<< /S /RichMediaExecute /TA 5 0 R /TI 41 0 R /C (cueChapter) /A [(intro) 12 true] /Next 82 0 R >>\nendobj\n"
+        . "81 0 obj\n<< /S /RichMediaExecute /AN 5 0 R /CMD << /C (legacyCue) /A (outro) >> >>\nendobj\n"
+        . "82 0 obj\n<< /S /JavaScript /JS (app.alert\\('embedded action blocked'\\)) >>\nendobj\n"
+        . "90 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts screen and rich media annotations as review-only metadata' => static function (TestRunner $t) use ($richMediaAnnotationPdf): void {
         $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($richMediaAnnotationPdf());
@@ -763,5 +796,71 @@ return [
         $t->true(!str_contains($plainText, 'Current Rendition Appearance Noise'));
         $t->true(!str_contains($plainText, 'Current Rendition Payload Leak'));
         $t->true(!str_contains($plainText, 'player.playOrResume'));
+    },
+    'reviews rich media execute target instances command arguments and embedded media without execution' => static function (TestRunner $t) use ($richMediaEmbeddedActionMediaPdf): void {
+        $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($richMediaEmbeddedActionMediaPdf());
+
+        $t->same(1, count($pages));
+        $t->same(0, $pages[0]['pnum']);
+        $t->same(3, $pages[0]['page_object']);
+        $t->same(1, count($pages[0]['annotations']));
+
+        $annotation = $pages[0]['annotations'][0];
+        $t->same('RichMedia', $annotation['subtype']);
+        $t->same(5, $annotation['annotation_object']);
+        $t->same('Embedded action player', $annotation['title']);
+        $t->same(['RichMediaExecute', 'JavaScript'], $annotation['action_types']);
+        $t->same(['action-video.mp4', 'controller.js'], $annotation['asset_names']);
+        $t->same(['action-video.mp4', 'controller.js'], $annotation['file_names']);
+        $t->true(!in_array('stale-media.mov', $annotation['file_names'], true));
+        $t->same(false, $annotation['executes_media']);
+        $t->same(false, $annotation['executes_javascript']);
+
+        $t->same(3, count($annotation['actions']));
+
+        $execute = $annotation['actions'][0];
+        $t->same('RichMediaExecute', $execute['action_type']);
+        $t->same('A', $execute['event']);
+        $t->same(5, $execute['target_annotation_object']);
+        $t->same(true, $execute['target_annotation_is_page_annotation']);
+        $t->same(41, $execute['target_instance_object']);
+        $t->same('cueChapter', $execute['command']);
+        $t->same(['intro', 12.0, true], $execute['command_arguments']);
+        $t->same('Video', $execute['target_instance']['subtype']);
+        $t->same('action-video.mp4', $execute['target_instance']['asset']['filename']);
+        $t->same('action-video.mp4', $execute['target_instance']['asset']['unicode_filename']);
+        $t->same('Current action video asset', $execute['target_instance']['asset']['description']);
+        $t->same('Data', $execute['target_instance']['asset']['relationship']);
+        $t->same(true, $execute['target_instance']['asset']['has_embedded_file']);
+        $t->same([33], $execute['target_instance']['asset']['embedded_file_objects']);
+        $t->same(['video/mp4'], $execute['target_instance']['asset']['mime_types']);
+        $t->same(43, $execute['target_instance']['params']['dictionary_object']);
+        $t->same('Foreground', $execute['target_instance']['params']['binding']);
+        $t->same('src=action-video.mp4&autoplay=false', $execute['target_instance']['params']['flash_vars']);
+        $t->same('quality=review', $execute['target_instance']['params']['settings']);
+        $t->same(['intro', 12.0, true], $execute['target_instance']['params']['cue_points']);
+        $t->same(false, $execute['executes_on_import']);
+        $t->same(false, $execute['executes_media']);
+        $t->same(false, $execute['executes_javascript']);
+
+        $script = $annotation['actions'][1];
+        $t->same('JavaScript', $script['action_type']);
+        $t->same(true, $script['chained']);
+        $t->same('blocked-javascript', $script['safety']);
+
+        $legacy = $annotation['actions'][2];
+        $t->same('PV', $legacy['event']);
+        $t->same('RichMediaExecute', $legacy['action_type']);
+        $t->same('legacyCue', $legacy['command']);
+        $t->same('outro', $legacy['command_arguments']);
+        $t->same(null, $legacy['target_instance'] ?? null);
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($richMediaEmbeddedActionMediaPdf());
+        $t->same(['Article Body'], (new PdfTextExtractor())->extractTextLines($richMediaEmbeddedActionMediaPdf()));
+        $t->true(!str_contains($plainText, 'Embedded Action Appearance Noise'));
+        $t->true(!str_contains($plainText, 'Embedded Action Media Payload Leak'));
+        $t->true(!str_contains($plainText, 'embedded action script leak'));
+        $t->true(!str_contains($plainText, 'embedded action blocked'));
+        $t->true(!str_contains($plainText, 'Stale RichMedia Payload Leak'));
     },
 ];

@@ -517,6 +517,21 @@ final class PdfRichMediaAnnotationExtractor
         }
 
         if ($actionType === 'RichMediaExecute') {
+            $targetInstance = $this->dictionaryFromTopLevelValue($actionBody, 'TI', $objects);
+            if ($targetInstance !== null) {
+                $bodies[] = $targetInstance['body'];
+
+                $asset = $this->dictionaryFromTopLevelValue($targetInstance['body'], 'Asset', $objects);
+                if ($asset !== null) {
+                    $bodies[] = $asset['body'];
+                }
+
+                $params = $this->dictionaryFromTopLevelValue($targetInstance['body'], 'Params', $objects);
+                if ($params !== null) {
+                    $bodies[] = $params['body'];
+                }
+            }
+
             $command = $this->dictionaryFromTopLevelValue($actionBody, 'CMD', $objects);
             if ($command !== null) {
                 $bodies[] = $command['body'];
@@ -812,7 +827,8 @@ final class PdfRichMediaAnnotationExtractor
         }
 
         if ($actionType === 'RichMediaExecute') {
-            $targetAnnotation = $this->objectReferenceValueAfterName($actionBody, 'AN');
+            $targetAnnotation = $this->objectReferenceValueAfterName($actionBody, 'AN')
+                ?? $this->objectReferenceValueAfterName($actionBody, 'TA');
             if ($targetAnnotation !== null) {
                 $row['target_annotation_object'] = $targetAnnotation;
                 $row['target_annotation_is_page_annotation'] = isset($pageAnnotationObjects[$targetAnnotation]);
@@ -824,6 +840,31 @@ final class PdfRichMediaAnnotationExtractor
                 if ($commandName !== null) {
                     $row['command'] = $commandName;
                 }
+
+                $arguments = $this->commandArgumentsFromValue($this->topLevelValueAfterName($command['body'], 'A'), $objects);
+                if ($arguments !== null) {
+                    $row['command_arguments'] = $arguments;
+                }
+            } else {
+                $commandName = $this->topLevelStringOrNameValueAfterName($actionBody, 'C', $objects);
+                if ($commandName !== null) {
+                    $row['command'] = $commandName;
+                }
+
+                $arguments = $this->commandArgumentsFromValue($this->topLevelValueAfterName($actionBody, 'A'), $objects);
+                if ($arguments !== null) {
+                    $row['command_arguments'] = $arguments;
+                }
+            }
+
+            $targetInstanceObject = $this->objectReferenceValueAfterName($actionBody, 'TI');
+            if ($targetInstanceObject !== null) {
+                $row['target_instance_object'] = $targetInstanceObject;
+            }
+
+            $targetInstance = $this->dictionaryFromTopLevelValue($actionBody, 'TI', $objects);
+            if ($targetInstance !== null) {
+                $row['target_instance'] = $this->richMediaInstanceDetailsFromRecord($targetInstance, $objects);
             }
         }
 
@@ -1203,6 +1244,76 @@ final class PdfRichMediaAnnotationExtractor
     }
 
     /**
+     * @param array{body: string, object: int|null} $instance
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function richMediaInstanceDetailsFromRecord(array $instance, array $objects): array
+    {
+        $details = [
+            'dictionary_object' => $instance['object'],
+        ];
+
+        $subtype = $this->topLevelNameValueAfterName($instance['body'], 'Subtype');
+        if ($subtype !== null && $subtype !== '') {
+            $details['subtype'] = $subtype;
+        }
+
+        $asset = $this->fileSpecDetailsFromTopLevel($instance['body'], 'Asset', $objects);
+        if ($asset !== null) {
+            $details['asset'] = $asset;
+        }
+
+        $params = $this->dictionaryFromTopLevelValue($instance['body'], 'Params', $objects);
+        if ($params !== null) {
+            $details['params'] = $this->richMediaParamsDetailsFromRecord($params, $objects);
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param array{body: string, object: int|null} $params
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function richMediaParamsDetailsFromRecord(array $params, array $objects): array
+    {
+        $details = [
+            'dictionary_object' => $params['object'],
+        ];
+
+        $binding = $this->topLevelNameValueAfterName($params['body'], 'Binding');
+        if ($binding !== null && $binding !== '') {
+            $details['binding'] = $binding;
+        }
+
+        $bindingMaterialName = $this->topLevelStringValueAfterName($params['body'], 'BindingMaterialName', $objects);
+        if ($bindingMaterialName !== null && $bindingMaterialName !== '') {
+            $details['binding_material_name'] = $bindingMaterialName;
+        }
+
+        $flashVars = $this->topLevelStringValueAfterName($params['body'], 'FlashVars', $objects);
+        if ($flashVars !== null && $flashVars !== '') {
+            $details['flash_vars'] = $flashVars;
+        }
+
+        $settings = $this->topLevelStringValueAfterName($params['body'], 'Settings', $objects);
+        if ($settings !== null && $settings !== '') {
+            $details['settings'] = $settings;
+        }
+
+        $cuePoints = $this->commandArgumentsFromValue($this->topLevelValueAfterName($params['body'], 'CuePoints'), $objects);
+        if (is_array($cuePoints)) {
+            $details['cue_points'] = $cuePoints;
+        } elseif ($cuePoints !== null) {
+            $details['cue_points'] = [$cuePoints];
+        }
+
+        return $details;
+    }
+
+    /**
      * @param array<int, string> $objects
      * @return array<string, mixed>|null
      */
@@ -1392,6 +1503,49 @@ final class PdfRichMediaAnnotationExtractor
         }
 
         return $details === [] ? null : $details;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function commandArgumentsFromValue(?string $value, array $objects): mixed
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $arrayValues = $this->arrayValuesFromPdfValue($value, $objects);
+        if ($arrayValues !== null) {
+            $arguments = [];
+            foreach ($arrayValues as $arrayValue) {
+                $argument = $this->scalarValueFromPdfValue($arrayValue, $objects);
+                if ($argument !== null) {
+                    $arguments[] = $argument;
+                }
+            }
+
+            return $arguments;
+        }
+
+        return $this->scalarValueFromPdfValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function scalarValueFromPdfValue(string $value, array $objects): mixed
+    {
+        $string = $this->pdfStringFromValue($value, $objects);
+        if ($string !== null) {
+            return $string;
+        }
+
+        $bool = $this->boolFromPdfValue($value, $objects);
+        if ($bool !== null) {
+            return $bool;
+        }
+
+        return $this->numberFromPdfValue($value, $objects);
     }
 
     /**
