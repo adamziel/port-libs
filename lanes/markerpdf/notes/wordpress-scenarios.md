@@ -254,6 +254,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-structure-boundary-import.php` maps Marker's supplied-document stage priority into a WordPress import path. It demonstrates a Table layout region containing nested Formula and Picture regions, then emits one Gutenberg table plus surrounding document blocks while suppressing duplicate supplied equation and image output without loading Python, pdftext, pypdfium, Surya, tabled, Texify, Torch, or external PDF tools.
 
+`examples/wordpress-pdf-dctdecode-filter-import.php` maps a native stream-filter safety boundary into a WordPress import path. It treats `/DCTDecode` and `/DCT` PDF streams as JPEG/image-only payloads, emits only the surrounding Gutenberg paragraphs, and excludes PDF-looking text operators embedded in raster bytes without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring parser, font, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
