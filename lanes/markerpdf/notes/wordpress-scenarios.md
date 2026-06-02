@@ -260,6 +260,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-page-labels-import.php` maps catalog `/PageLabels` number-tree metadata into a WordPress import path. It preserves labels such as `front-ii`, `Body 1`, and `App-AA` as page-break separator metadata while emitting each page's Gutenberg paragraph without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+`examples/wordpress-pdf-xmp-metadata-import.php` maps catalog XMP document metadata into a WordPress import path. It prefers XMP title, authors, description, keywords, and dates over trailer `/Info` fallback values, excludes metadata streams from visible paragraph extraction, and emits document review metadata without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring parser, font, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
