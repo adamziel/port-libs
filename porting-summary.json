@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 12:29:45 UTC",
-    "sourceCommit": "2ff5805929cbe1a05ddf399df5d2f4a7f5bc2f91",
-    "sourceCommitShort": "2ff5805929cb",
+    "generated": "2026-06-02 12:33:10 UTC",
+    "sourceCommit": "4d8a8f6d6b8bcfec9c6715176bd677d4c9c4e0ad",
+    "sourceCommitShort": "4d8a8f6d6b8b",
     "sourceBranch": "main",
-    "dashboardCommit": "2ff5805929cbe1a05ddf399df5d2f4a7f5bc2f91",
-    "dashboardCommitShort": "2ff5805929cb",
+    "dashboardCommit": "4d8a8f6d6b8bcfec9c6715176bd677d4c9c4e0ad",
+    "dashboardCommitShort": "4d8a8f6d6b8b",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "346",
-            "coverage": "346 / 78 (443.6%)",
-            "mapPercent": "443.6%",
+            "mapped": "347",
+            "coverage": "347 / 78 (444.9%)",
+            "mapPercent": "444.9%",
             "unmapped": "0",
-            "php": "498 pass / 0 fail",
+            "php": "499 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "AcroForm non-JavaScript field/widget action review boundary is integrated and full-la...",
+            "currentWork": "Associated Filespec indirect PieceInfo private-stream exclusion is integrated and ful...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "2ff5805"
+            "commit": "4d8a8f6"
         },
         {
             "lane": "readability",
