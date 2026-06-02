@@ -354,13 +354,17 @@ final class TableRecognizer
      * @param list<array<string, mixed>> $cells Assigned cells from assignRowsColumns().
      * @param list<array<string, mixed>> $rows Optional model row bands in table-image coordinates.
      * @param list<array<string, mixed>> $cols Optional model column bands in table-image coordinates.
+     * @param array{width?: int|float, height?: int|float}|list<int|float>|null $imageSize Optional table crop image size for boundary clipping.
      * @return list<array<string, mixed>>
      */
-    public function mergedCellGeometry(array $cells, array $rows = [], array $cols = []): array
+    public function mergedCellGeometry(array $cells, array $rows = [], array $cols = [], ?array $imageSize = null): array
     {
         $cells = $this->sortCells($this->normalizeAssignedCells($cells));
         $rows = $this->normalizeRowsOrCols($rows, 'row_id');
         $cols = $this->normalizeRowsOrCols($cols, 'col_id');
+        $geometryBands = $this->tableGridGeometryBoundary($rows, $cols, $imageSize);
+        $rows = $geometryBands['rows'];
+        $cols = $geometryBands['cols'];
         $rowBboxes = $this->bboxesById($rows, 'row_id');
         $colBboxes = $this->bboxesById($cols, 'col_id');
         $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
@@ -410,9 +414,10 @@ final class TableRecognizer
      * @param list<array<string, mixed>> $cells Assigned cells from assignRowsColumns().
      * @param list<array<string, mixed>> $rows Optional model row bands in table-image coordinates.
      * @param list<array<string, mixed>> $cols Optional model column bands in table-image coordinates.
-     * @return array{rows: list<int>, cols: list<int>, column_header_rows?: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>, accessibility_grid: array<string, mixed>}
+     * @param array{width?: int|float, height?: int|float}|list<int|float>|null $imageSize Optional table crop image size for boundary clipping.
+     * @return array{rows: list<int>, cols: list<int>, column_header_rows?: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>, accessibility_grid: array<string, mixed>, geometry_boundary_review?: array<string, mixed>}
      */
-    public function spanningGridReview(array $cells, array $rows = [], array $cols = []): array
+    public function spanningGridReview(array $cells, array $rows = [], array $cols = [], ?array $imageSize = null): array
     {
         $cells = $this->sortCells($this->normalizeAssignedCells($cells));
         if ($cells === []) {
@@ -421,6 +426,10 @@ final class TableRecognizer
 
         $rows = $this->normalizeRowsOrCols($rows, 'row_id');
         $cols = $this->normalizeRowsOrCols($cols, 'col_id');
+        $geometryBands = $this->tableGridGeometryBoundary($rows, $cols, $imageSize);
+        $rows = $geometryBands['rows'];
+        $cols = $geometryBands['cols'];
+        $geometryBoundaryReview = $geometryBands['review'];
         $rowBboxes = $this->bboxesById($rows, 'row_id');
         $colBboxes = $this->bboxesById($cols, 'col_id');
         $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
@@ -570,7 +579,7 @@ final class TableRecognizer
             }
         }
 
-        return [
+        $review = [
             'rows' => $rowIds,
             'cols' => $colIds,
             'column_header_rows' => $columnHeaderRowIds,
@@ -584,6 +593,11 @@ final class TableRecognizer
             'data_cells' => $headerReferences['data_cells'],
             'accessibility_grid' => $accessibilityGrid,
         ];
+        if ($geometryBoundaryReview !== null) {
+            $review['geometry_boundary_review'] = $geometryBoundaryReview;
+        }
+
+        return $review;
     }
 
     /**
@@ -597,13 +611,17 @@ final class TableRecognizer
      * @param list<array<string, mixed>> $assignedCells Assigned cells from assignRowsColumns().
      * @param list<array<string, mixed>> $rows Optional model row bands in table-image coordinates.
      * @param list<array<string, mixed>> $cols Optional model column bands in table-image coordinates.
+     * @param array{width?: int|float, height?: int|float}|list<int|float>|null $imageSize Optional table crop image size for boundary clipping.
      * @return list<array<string, mixed>>
      */
-    public function gridBorderConflictReview(array $conflicts, array $assignedCells, array $rows = [], array $cols = []): array
+    public function gridBorderConflictReview(array $conflicts, array $assignedCells, array $rows = [], array $cols = [], ?array $imageSize = null): array
     {
         $assignedCells = $this->normalizeAssignedCells($assignedCells);
         $rows = $this->normalizeRowsOrCols($rows, 'row_id');
         $cols = $this->normalizeRowsOrCols($cols, 'col_id');
+        $geometryBands = $this->tableGridGeometryBoundary($rows, $cols, $imageSize);
+        $rows = $geometryBands['rows'];
+        $cols = $geometryBands['cols'];
         $rowBboxes = $this->bboxesById($rows, 'row_id');
         $colBboxes = $this->bboxesById($cols, 'col_id');
         $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
@@ -2094,6 +2112,129 @@ final class TableRecognizer
     }
 
     /**
+     * Upstream tabled rows/columns are table-crop-local Bbox objects. When a
+     * supplied recognition bundle crosses that crop boundary, keep assignment
+     * behavior stable but bound review geometry before WordPress renders table
+     * inspector overlays.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @param list<array<string, mixed>> $cols
+     * @param array{width?: int|float, height?: int|float}|list<int|float>|null $imageSize
+     * @return array{rows: list<array<string, mixed>>, cols: list<array<string, mixed>>, review: array<string, mixed>|null}
+     */
+    private function tableGridGeometryBoundary(array $rows, array $cols, ?array $imageSize): array
+    {
+        if ($imageSize === null) {
+            return [
+                'rows' => $rows,
+                'cols' => $cols,
+                'review' => null,
+            ];
+        }
+
+        $size = $this->imageSize($imageSize);
+        $rowBoundary = $this->boundedGridBands($rows, 'row', 'row_id', $size);
+        $colBoundary = $this->boundedGridBands($cols, 'column', 'col_id', $size);
+        $reviewRows = array_merge($rowBoundary['review_rows'], $colBoundary['review_rows']);
+
+        return [
+            'rows' => $rowBoundary['bands'],
+            'cols' => $colBoundary['bands'],
+            'review' => [
+                'review_target' => 'table_grid_geometry_boundary',
+                'image_size' => $size,
+                'row_band_count' => count($rows),
+                'col_band_count' => count($cols),
+                'active_row_band_count' => count($rowBoundary['bands']),
+                'active_col_band_count' => count($colBoundary['bands']),
+                'clipped_band_count' => count(array_filter(
+                    $reviewRows,
+                    static fn (array $row): bool => ($row['status'] ?? null) === 'clipped_to_table_image'
+                )),
+                'excluded_band_count' => count(array_filter(
+                    $reviewRows,
+                    static fn (array $row): bool => isset($row['status']) && str_starts_with((string) $row['status'], 'excluded_')
+                )),
+                'row_bands' => $rowBoundary['review_rows'],
+                'col_bands' => $colBoundary['review_rows'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $bands
+     * @param array{width: int, height: int} $imageSize
+     * @return array{bands: list<array<string, mixed>>, review_rows: list<array<string, mixed>>}
+     */
+    private function boundedGridBands(array $bands, string $axis, string $idField, array $imageSize): array
+    {
+        $bounded = [];
+        $reviewRows = [];
+
+        foreach ($bands as $band) {
+            $id = (int) ($band[$idField] ?? count($reviewRows));
+            $originalBbox = $band['bbox'];
+            $clippedBbox = $this->clipBboxToImage($originalBbox, $imageSize);
+            $originalPositive = $this->positiveArea($originalBbox) > 0.0;
+            $clippedPositive = $this->positiveArea($clippedBbox) > 0.0;
+            $active = $originalPositive && $clippedPositive;
+            $status = 'within_table_image';
+
+            if (!$originalPositive) {
+                $status = 'excluded_non_positive_area';
+            } elseif (!$clippedPositive) {
+                $status = 'excluded_outside_table_image';
+            } elseif ($clippedBbox !== $originalBbox) {
+                $status = 'clipped_to_table_image';
+            }
+
+            $reviewRows[] = [
+                'axis' => $axis,
+                'id_field' => $idField,
+                'id' => $id,
+                'original_bbox' => $originalBbox,
+                'bounded_bbox' => $active ? $clippedBbox : null,
+                'clipped_bbox' => $clippedBbox,
+                'status' => $status,
+                'active' => $active,
+            ];
+
+            if (!$active) {
+                continue;
+            }
+
+            $band['bbox'] = $clippedBbox;
+            $band['width'] = $clippedBbox[2] - $clippedBbox[0];
+            $band['height'] = $clippedBbox[3] - $clippedBbox[1];
+            $band['area'] = $this->positiveArea($clippedBbox);
+            $bounded[] = $band;
+        }
+
+        return [
+            'bands' => $bounded,
+            'review_rows' => $reviewRows,
+        ];
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @param array{width: int, height: int} $imageSize
+     * @return list<float>
+     */
+    private function clipBboxToImage(array $bbox, array $imageSize): array
+    {
+        $width = (float) $imageSize['width'];
+        $height = (float) $imageSize['height'];
+
+        return [
+            max(0.0, min($width, $bbox[0])),
+            max(0.0, min($height, $bbox[1])),
+            max(0.0, min($width, $bbox[2])),
+            max(0.0, min($height, $bbox[3])),
+        ];
+    }
+
+    /**
      * @param list<array<string, mixed>> $items
      * @return array<int, list<float>>
      */
@@ -3337,6 +3478,14 @@ final class TableRecognizer
     private function area(array $bbox): float
     {
         return ($bbox[2] - $bbox[0]) * ($bbox[3] - $bbox[1]);
+    }
+
+    /**
+     * @param list<float> $bbox
+     */
+    private function positiveArea(array $bbox): float
+    {
+        return max(0.0, $bbox[2] - $bbox[0]) * max(0.0, $bbox[3] - $bbox[1]);
     }
 
     private function rowGap(array $row1, array $row2): float

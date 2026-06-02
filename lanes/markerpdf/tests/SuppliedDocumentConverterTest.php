@@ -1880,6 +1880,82 @@ return [
             unlink($path);
         }
     },
+    'clips supplied table grid geometry to rendered crop boundaries before WordPress review metadata' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-table-geometry-boundary-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% table geometry boundary supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'Table geometry boundary review', 'bbox' => [72.0, 48.0, 440.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Stale clipped table text should be replaced.', 'bbox' => [72.0, 176.0, 430.0, 196.0]],
+                ['text' => 'After clipped geometry review.', 'bbox' => [72.0, 276.0, 430.0, 294.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 48.0, 440.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 372.0, 230.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 276.0, 430.0, 294.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [-5.0, -4.0, 310.0, 28.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 40.0, 300.0, 68.0]],
+                    ['row_id' => 2, 'bbox' => [0.0, 130.0, 300.0, 150.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [-10.0, 0.0, 100.0, 140.0]],
+                    ['col_id' => 1, 'bbox' => [110.0, 0.0, 330.0, 140.0]],
+                    ['col_id' => 2, 'bbox' => [340.0, 0.0, 360.0, 80.0]],
+                ],
+                'cells' => [
+                    ['bbox' => [5.0, 4.0, 295.0, 20.0], 'text' => 'Header'],
+                    ['bbox' => [5.0, 44.0, 90.0, 62.0], 'text' => 'Images'],
+                    ['bbox' => [120.0, 44.0, 290.0, 62.0], 'text' => 'Ready'],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_text_lines' => [['blocks' => []]],
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $gridReview = $result['metadata']['table_spanning_grid_review'][0] ?? [];
+            $boundary = $gridReview['geometry_boundary_review'] ?? [];
+            $gridByPosition = [];
+            foreach (($gridReview['grid_cells'] ?? []) as $gridCell) {
+                if (is_array($gridCell)) {
+                    $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+                }
+            }
+
+            $t->contains('# Table Geometry Boundary Review', $result['text']);
+            $t->contains('| Header |       |', $result['text']);
+            $t->contains('| Images | Ready |', $result['text']);
+            $t->contains('After clipped geometry review.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Stale clipped table text should be replaced.'));
+            $t->same(['layout', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same('table_grid_geometry_boundary', $boundary['review_target'] ?? null);
+            $t->same(['width' => 300, 'height' => 80], $boundary['image_size'] ?? null);
+            $t->same(3, $boundary['clipped_band_count'] ?? null);
+            $t->same(2, $boundary['excluded_band_count'] ?? null);
+            $t->same([0.0, 0.0, 300.0, 28.0], $gridReview['render_cells'][0]['grid_bbox']);
+            $t->same([0.0, 40.0, 100.0, 68.0], $gridByPosition['1:0']['grid_bbox']);
+            $t->same([110.0, 40.0, 300.0, 68.0], $gridByPosition['1:1']['grid_bbox']);
+            $t->same('excluded_outside_table_image', $boundary['row_bands'][2]['status']);
+            $t->same('excluded_outside_table_image', $boundary['col_bands'][2]['status']);
+        } finally {
+            unlink($path);
+        }
+    },
     'converts a fuller multicolcnn supplied dictionary excerpt with upstream finalization metadata' => static function (TestRunner $t): void {
         $fixture = require __DIR__ . '/../fixtures/upstream-multicolcnn-supplied-document.php';
         $path = sys_get_temp_dir() . '/markerpdf-multicolcnn-supplied-' . bin2hex(random_bytes(4)) . '.pdf';

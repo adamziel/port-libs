@@ -1,0 +1,44 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\MarkerPDF\PdfTextExtractor;
+
+require_once __DIR__ . '/../src/PdfTextExtractor.php';
+
+$content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
+    . "BI BT /F1 12 Tf 72 704 Td (Stray BI Text Survives) Tj ET\n"
+    . "BT /F1 12 Tf 72 688 Td (After Tokenizer Boundary) Tj ET\n"
+    . "BI /W 1 /H 1 /CS /G /BPC 8 ID\n"
+    . "BT /F1 12 Tf 72 660 Td (Inline Image Payload Noise) Tj ET\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 672 Td (After Real Inline Image) Tj ET";
+
+$pdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+    . "%%EOF";
+
+$extractor = new PdfTextExtractor();
+$lines = $extractor->extractTextLines($pdf);
+$plainText = $extractor->extractPlainText($pdf);
+
+echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecialchars(json_encode([
+    'executes_python_or_models' => false,
+    'executes_external_pdf_tools' => false,
+    'native_boundary' => 'content tokenizer recovers malformed BI preambles while still excluding real BI ID EI inline image payloads before Gutenberg paragraphs',
+    'stray_bi_text_preserved' => str_contains($plainText, 'Stray BI Text Survives')
+        && str_contains($plainText, 'After Tokenizer Boundary'),
+    'real_inline_image_payload_excluded' => !str_contains($plainText, 'Inline Image Payload Noise'),
+    'visible_text_imported' => str_contains($plainText, 'Before Tokenizer Boundary')
+        && str_contains($plainText, 'After Real Inline Image'),
+], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
+
+foreach ($lines as $line) {
+    echo "<!-- wp:paragraph -->\n";
+    echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
+    echo "<!-- /wp:paragraph -->\n\n";
+}

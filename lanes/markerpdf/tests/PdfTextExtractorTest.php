@@ -2921,6 +2921,44 @@ return [
         $t->true(!str_contains($plainText, 'Parent Contents Leak'));
         $t->true(!str_contains($plainText, 'Orphan Stream Leak'));
     },
+    'uses effective inherited page resources for XObject forms without merging leaf overrides' => static function (TestRunner $t): void {
+        $inheritedPageContent = 'BT /Fparent 12 Tf 72 720 Td (Inherited Page Text) Tj ET '
+            . '/P /ParentActual BDC BT /Fparent 12 Tf 72 700 Td (Parent Glyph Noise) Tj ET EMC '
+            . 'q /ParentForm Do Q';
+        $leafOverrideContent = 'BT /Fpage 12 Tf 72 720 Td (Leaf Override Text) Tj ET '
+            . '/P /ParentActual BDC BT /Fpage 12 Tf 72 700 Td (Parent Actual Should Not Apply) Tj ET EMC '
+            . '/P /LocalActual BDC BT /Fpage 12 Tf 72 680 Td (Local Glyph Noise) Tj ET EMC '
+            . 'q /ParentForm Do Q';
+        $parentForm = 'BT /Fparent 12 Tf 12 12 Td (Inherited Form Text) Tj ET';
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 /Resources << /Font << /Fparent 6 0 R >> /XObject << /ParentForm 5 0 R >> /Properties << /ParentActual << /ActualText (Parent Actual Text) >> >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 7 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fpage 8 0 R >> /Properties << /LocalActual << /ActualText (Local Actual Text) >> >> >> /Contents 9 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /Fparent 6 0 R >> >> /Length " . strlen($parentForm) . " >>\nstream\n{$parentForm}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "7 0 obj\n<< /Length " . strlen($inheritedPageContent) . " >>\nstream\n{$inheritedPageContent}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($leafOverrideContent) . " >>\nstream\n{$leafOverrideContent}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same([
+            'Inherited Page Text',
+            'Parent Actual Text',
+            'Inherited Form Text',
+            'Leaf Override Text',
+            'Parent Actual Should Not Apply',
+            'Local Actual Text',
+        ], $extractor->extractTextLines($pdf));
+        $t->same(1, substr_count($plainText, 'Inherited Form Text'));
+        $t->contains('Parent Actual Text', $plainText);
+        $t->contains('Parent Actual Should Not Apply', $plainText);
+        $t->contains('Local Actual Text', $plainText);
+        $t->true(!str_contains($plainText, 'Parent Glyph Noise'));
+        $t->true(!str_contains($plainText, 'Local Glyph Noise'));
+        $t->true(!str_contains($plainText, 'ParentForm'));
+    },
     'keeps leaf Resources from inheriting ancestor font ToUnicode widths before WordPress text' => static function (TestRunner $t) use ($toUnicodeCMap): void {
         $ancestorCMap = $toUnicodeCMap([
             '41' => 'Ancestor',

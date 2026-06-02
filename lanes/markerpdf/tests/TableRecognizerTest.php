@@ -1235,6 +1235,60 @@ return [
         $t->same([0.0, 0.0, 300.0, 32.0], $review[0]['assigned_grid_cell']['grid_bbox']);
         $t->same(3, count($review[0]['assigned_grid_cell']['grid_cell_bboxes']));
     },
+    'clips table row and column band geometry to crop boundaries for WordPress grid review' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $rows = [
+            ['row_id' => 0, 'bbox' => [-5.0, -4.0, 310.0, 28.0]],
+            ['row_id' => 1, 'bbox' => [0.0, 40.0, 300.0, 68.0]],
+            ['row_id' => 2, 'bbox' => [0.0, 130.0, 300.0, 150.0]],
+        ];
+        $cols = [
+            ['col_id' => 0, 'bbox' => [-10.0, 0.0, 100.0, 140.0]],
+            ['col_id' => 1, 'bbox' => [110.0, 0.0, 330.0, 140.0]],
+            ['col_id' => 2, 'bbox' => [340.0, 0.0, 360.0, 80.0]],
+        ];
+        $assigned = [
+            ['bbox' => [5.0, 4.0, 295.0, 20.0], 'text' => 'Header', 'row_ids' => [0], 'col_ids' => [0, 1]],
+            ['bbox' => [5.0, 44.0, 90.0, 62.0], 'text' => 'Images', 'row_ids' => [1], 'col_ids' => [0]],
+            ['bbox' => [120.0, 44.0, 290.0, 62.0], 'text' => 'Ready', 'row_ids' => [1], 'col_ids' => [1]],
+            ['bbox' => [342.0, 132.0, 358.0, 148.0], 'text' => 'Outside', 'row_ids' => [2], 'col_ids' => [2]],
+        ];
+
+        $review = $recognizer->spanningGridReview($assigned, $rows, $cols, ['width' => 300, 'height' => 120]);
+        $gridByPosition = [];
+        foreach ($review['grid_cells'] as $gridCell) {
+            $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+        }
+        $boundary = $review['geometry_boundary_review'];
+
+        $t->same('table_grid_geometry_boundary', $boundary['review_target']);
+        $t->same(['width' => 300, 'height' => 120], $boundary['image_size']);
+        $t->same(3, $boundary['row_band_count']);
+        $t->same(3, $boundary['col_band_count']);
+        $t->same(2, $boundary['active_row_band_count']);
+        $t->same(2, $boundary['active_col_band_count']);
+        $t->same(3, $boundary['clipped_band_count']);
+        $t->same(2, $boundary['excluded_band_count']);
+        $t->same('clipped_to_table_image', $boundary['row_bands'][0]['status']);
+        $t->same([0.0, 0.0, 300.0, 28.0], $boundary['row_bands'][0]['bounded_bbox']);
+        $t->same('excluded_outside_table_image', $boundary['row_bands'][2]['status']);
+        $t->same(null, $boundary['row_bands'][2]['bounded_bbox']);
+        $t->same('clipped_to_table_image', $boundary['col_bands'][0]['status']);
+        $t->same([0.0, 0.0, 100.0, 120.0], $boundary['col_bands'][0]['bounded_bbox']);
+        $t->same('excluded_outside_table_image', $boundary['col_bands'][2]['status']);
+        $t->same([0.0, 0.0, 300.0, 28.0], $review['render_cells'][0]['grid_bbox']);
+        $t->same(
+            [
+                ['row_id' => 0, 'col_id' => 0, 'bbox' => [0.0, 0.0, 100.0, 28.0]],
+                ['row_id' => 0, 'col_id' => 1, 'bbox' => [110.0, 0.0, 300.0, 28.0]],
+            ],
+            $review['render_cells'][0]['grid_cell_bboxes']
+        );
+        $t->same([0.0, 40.0, 100.0, 68.0], $gridByPosition['1:0']['grid_bbox']);
+        $t->same([110.0, 40.0, 300.0, 68.0], $gridByPosition['1:1']['grid_bbox']);
+        $t->true(!isset($gridByPosition['2:2']['grid_bbox']));
+        $t->same('Outside', $gridByPosition['2:2']['text']);
+    },
     'links OCR border conflicts to spanning-grid render cells' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $rows = [

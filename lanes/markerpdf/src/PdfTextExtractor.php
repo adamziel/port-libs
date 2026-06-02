@@ -1661,9 +1661,11 @@ final class PdfTextExtractor
         ];
 
         if ($streams !== []) {
+            $resourceOwnerBody = $this->pageResourceDictionaryBody($pageObjectNumber, $objects)
+                ?? $objects[$pageObjectNumber];
             $expandedForms = $this->expandFormXObjectInvocations(
                 $expanded['stream'],
-                $objects[$pageObjectNumber],
+                $resourceOwnerBody,
                 $objects,
                 $fontObjectMaps,
                 $expanded['fontToUnicodeMaps'],
@@ -3400,19 +3402,12 @@ final class PdfTextExtractor
      */
     private function pageMarkedContentProperties(int $pageObjectNumber, array $objects): array
     {
-        $properties = [];
-        foreach (array_reverse($this->pageObjectLineage($pageObjectNumber, $objects)) as $objectNumber) {
-            $resourceDictionary = $this->resourceDictionaryBody($objects[$objectNumber], $objects);
-            if ($resourceDictionary === null) {
-                continue;
-            }
-
-            foreach ($this->markedContentPropertiesFromResourceDictionary($resourceDictionary, $objects) as $name => $property) {
-                $properties[$name] = $property;
-            }
+        $resourceDictionary = $this->pageResourceDictionaryBody($pageObjectNumber, $objects);
+        if ($resourceDictionary === null) {
+            return [];
         }
 
-        return $properties;
+        return $this->markedContentPropertiesFromResourceDictionary($resourceDictionary, $objects);
     }
 
     /**
@@ -3421,19 +3416,12 @@ final class PdfTextExtractor
      */
     private function pageMarkedContentPropertyDictionaries(int $pageObjectNumber, array $objects): array
     {
-        $properties = [];
-        foreach (array_reverse($this->pageObjectLineage($pageObjectNumber, $objects)) as $objectNumber) {
-            $resourceDictionary = $this->resourceDictionaryBody($objects[$objectNumber], $objects);
-            if ($resourceDictionary === null) {
-                continue;
-            }
-
-            foreach ($this->markedContentPropertyDictionariesFromResourceDictionary($resourceDictionary, $objects) as $name => $property) {
-                $properties[$name] = $property;
-            }
+        $resourceDictionary = $this->pageResourceDictionaryBody($pageObjectNumber, $objects);
+        if ($resourceDictionary === null) {
+            return [];
         }
 
-        return $properties;
+        return $this->markedContentPropertyDictionariesFromResourceDictionary($resourceDictionary, $objects);
     }
 
     /**
@@ -4126,18 +4114,16 @@ final class PdfTextExtractor
         array $objects,
         array $optionalContentStates
     ): array {
-        $properties = [];
-        foreach (array_reverse($this->pageObjectLineage($pageObjectNumber, $objects)) as $objectNumber) {
-            foreach ($this->optionalContentPropertyVisibilityMapForResourceOwnerBody(
-                $objects[$objectNumber],
-                $objects,
-                $optionalContentStates
-            ) as $name => $visible) {
-                $properties[$name] = $visible;
-            }
+        $resourceDictionary = $this->pageResourceDictionaryBody($pageObjectNumber, $objects);
+        if ($resourceDictionary === null) {
+            return [];
         }
 
-        return $properties;
+        return $this->optionalContentPropertyVisibilityMapForResourceOwnerBody(
+            $resourceDictionary,
+            $objects,
+            $optionalContentStates
+        );
     }
 
     /**
@@ -5917,7 +5903,10 @@ final class PdfTextExtractor
             }
 
             if (substr($value, $start, $index - $start) === 'BI') {
-                $this->skipInlineImage($value, $index);
+                $inlineImageEnd = $index;
+                if ($this->skipInlineImage($value, $inlineImageEnd)) {
+                    $index = $inlineImageEnd;
+                }
             }
         }
 
@@ -15088,8 +15077,11 @@ final class PdfTextExtractor
             }
             $token = substr($stream, $start, $index - $start);
             if ($token === 'BI') {
-                $this->skipInlineImage($stream, $index);
-                continue;
+                $inlineImageEnd = $index;
+                if ($this->skipInlineImage($stream, $inlineImageEnd)) {
+                    $index = $inlineImageEnd;
+                    continue;
+                }
             }
 
             $tokens[] = $token;
@@ -15098,14 +15090,13 @@ final class PdfTextExtractor
         return array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
     }
 
-    private function skipInlineImage(string $stream, int &$index): void
+    private function skipInlineImage(string $stream, int &$index): bool
     {
         $length = strlen($stream);
         $dictionary = $this->readInlineImageDictionary($stream, $index);
 
-        if ($dictionary === null) {
-            $index = $length;
-            return;
+        if ($dictionary === null || !$this->inlineImageDictionaryHasImageKeys($dictionary)) {
+            return false;
         }
 
         $this->consumeInlineImageDataPrefixWhitespace($stream, $index);
@@ -15115,14 +15106,14 @@ final class PdfTextExtractor
             $end = strpos($stream, 'EI', $index);
             if ($end === false) {
                 $index = $incompleteJpxFallbackEnd === null ? $length : $incompleteJpxFallbackEnd + 2;
-                return;
+                return true;
             }
 
             if ($this->inlineImageEndMarkerAt($stream, $end)) {
                 $candidate = $this->inlineImageDataCandidate($stream, $dataStart, $end);
                 if ($this->inlineImageCandidateMatchesDictionary($dictionary, $candidate)) {
                     $index = $end + 2;
-                    return;
+                    return true;
                 }
 
                 if ($this->inlineImageCandidateIsIncompleteJpx($dictionary, $candidate)) {
@@ -15135,7 +15126,10 @@ final class PdfTextExtractor
 
         if ($incompleteJpxFallbackEnd !== null) {
             $index = $incompleteJpxFallbackEnd + 2;
+            return true;
         }
+
+        return true;
     }
 
     private function readInlineImageDictionary(string $stream, int &$index): ?string
@@ -15159,7 +15153,7 @@ final class PdfTextExtractor
             }
 
             if (!str_starts_with($keyToken, '/')) {
-                continue;
+                return null;
             }
 
             $this->skipContentWhitespaceAndComments($stream, $index);
@@ -15173,9 +15167,10 @@ final class PdfTextExtractor
             }
 
             if ($valueToken === 'ID') {
-                return implode(' ', $entries);
+                return null;
             }
 
+            $valueToken = $this->readInlineImageIndirectReferenceValue($stream, $index, $valueToken);
             $key = $this->canonicalInlineImageKey($keyToken);
             $entries[] = $key . ' ' . $this->canonicalInlineImageValue($valueToken);
         }
@@ -15219,6 +15214,27 @@ final class PdfTextExtractor
         return $index === $start ? null : substr($stream, $start, $index - $start);
     }
 
+    private function readInlineImageIndirectReferenceValue(string $stream, int &$index, string $firstToken): string
+    {
+        if (preg_match('/^[+-]?\d+$/', $firstToken) !== 1) {
+            return $firstToken;
+        }
+
+        $referenceIndex = $index;
+        $generationToken = $this->readInlineImageToken($stream, $referenceIndex);
+        if ($generationToken === null || preg_match('/^[+-]?\d+$/', $generationToken) !== 1) {
+            return $firstToken;
+        }
+
+        $referenceToken = $this->readInlineImageToken($stream, $referenceIndex);
+        if ($referenceToken !== 'R') {
+            return $firstToken;
+        }
+
+        $index = $referenceIndex;
+        return $firstToken . ' ' . $generationToken . ' R';
+    }
+
     private function canonicalInlineImageKey(string $token): string
     {
         $name = $this->decodePdfName(substr($token, 1));
@@ -15244,6 +15260,14 @@ final class PdfTextExtractor
             },
             $token
         );
+    }
+
+    private function inlineImageDictionaryHasImageKeys(string $dictionary): bool
+    {
+        return preg_match(
+            '/\/(?:Width|Height|ColorSpace|BitsPerComponent|ImageMask|Filter|Decode|DecodeParms|Interpolate)(?=[\s\[\]()<>{}\/%]|$)/s',
+            $dictionary
+        ) === 1;
     }
 
     private function inlineImageDataCandidate(string $stream, int $dataStart, int $markerOffset): string

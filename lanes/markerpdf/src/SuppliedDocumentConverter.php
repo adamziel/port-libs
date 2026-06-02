@@ -222,11 +222,24 @@ final class SuppliedDocumentConverter
             }
             $recognition = $this->tableRecognizer->formatRecognizedTables($recognizedTables, $tablePlan['image_sizes']);
             $markdownTables = $recognition['markdown_tables'];
+            $tableCropImageSizes = $this->tableCropImageSizes($tablePlan);
             $metadata['table_plan'] = $this->tablePlanMetadata($tablePlan);
             $metadata['table_assigned_cells'] = $recognition['assigned_cells'];
-            $metadata['table_merged_cell_geometry'] = $this->mergedCellGeometryForTables($recognition['assigned_cells'], $recognizedTables);
-            $metadata['table_spanning_grid_review'] = $this->spanningGridReviewForTables($recognition['assigned_cells'], $recognizedTables);
-            $ocrGridBorderConflicts = $this->ocrGridBorderConflictsForTables($recognizedTables, $recognition['assigned_cells']);
+            $metadata['table_merged_cell_geometry'] = $this->mergedCellGeometryForTables(
+                $recognition['assigned_cells'],
+                $recognizedTables,
+                $tableCropImageSizes
+            );
+            $metadata['table_spanning_grid_review'] = $this->spanningGridReviewForTables(
+                $recognition['assigned_cells'],
+                $recognizedTables,
+                $tableCropImageSizes
+            );
+            $ocrGridBorderConflicts = $this->ocrGridBorderConflictsForTables(
+                $recognizedTables,
+                $recognition['assigned_cells'],
+                $tableCropImageSizes
+            );
             if ($ocrGridBorderConflicts !== []) {
                 $metadata['table_ocr_grid_border_conflicts'] = $ocrGridBorderConflicts;
             }
@@ -368,11 +381,52 @@ final class SuppliedDocumentConverter
     }
 
     /**
+     * @param array<string, mixed> $tablePlan
+     * @return list<array{width: int, height: int}>
+     */
+    private function tableCropImageSizes(array $tablePlan): array
+    {
+        $sizes = [];
+        $tableImages = isset($tablePlan['table_images']) && is_array($tablePlan['table_images'])
+            ? $tablePlan['table_images']
+            : [];
+
+        foreach ($tableImages as $index => $tableImage) {
+            if (is_array($tableImage)) {
+                $cropWidth = $tableImage['crop_width'] ?? null;
+                $cropHeight = $tableImage['crop_height'] ?? null;
+                if ((is_int($cropWidth) || is_float($cropWidth)) && (is_int($cropHeight) || is_float($cropHeight)) && $cropWidth > 0 && $cropHeight > 0) {
+                    $sizes[] = [
+                        'width' => (int) round($cropWidth),
+                        'height' => (int) round($cropHeight),
+                    ];
+                    continue;
+                }
+            }
+
+            $fallback = $tablePlan['image_sizes'][$index] ?? null;
+            if (is_array($fallback)) {
+                $width = $fallback['width'] ?? $fallback[0] ?? null;
+                $height = $fallback['height'] ?? $fallback[1] ?? null;
+                if ((is_int($width) || is_float($width)) && (is_int($height) || is_float($height)) && $width > 0 && $height > 0) {
+                    $sizes[] = [
+                        'width' => (int) round($width),
+                        'height' => (int) round($height),
+                    ];
+                }
+            }
+        }
+
+        return $sizes;
+    }
+
+    /**
      * @param list<list<array<string, mixed>>> $assignedTables
      * @param list<array<string, mixed>> $recognizedTables
+     * @param list<array{width?: int|float, height?: int|float}|list<int|float>> $imageSizes
      * @return list<list<array<string, mixed>>>
      */
-    private function mergedCellGeometryForTables(array $assignedTables, array $recognizedTables): array
+    private function mergedCellGeometryForTables(array $assignedTables, array $recognizedTables, array $imageSizes = []): array
     {
         $geometry = [];
         foreach ($assignedTables as $tableIndex => $assignedCells) {
@@ -384,7 +438,8 @@ final class SuppliedDocumentConverter
 
             $rows = isset($table['rows']) && is_array($table['rows']) ? $table['rows'] : [];
             $cols = isset($table['cols']) && is_array($table['cols']) ? $table['cols'] : [];
-            $geometry[] = $this->tableRecognizer->mergedCellGeometry($assignedCells, $rows, $cols);
+            $imageSize = isset($imageSizes[$tableIndex]) && is_array($imageSizes[$tableIndex]) ? $imageSizes[$tableIndex] : null;
+            $geometry[] = $this->tableRecognizer->mergedCellGeometry($assignedCells, $rows, $cols, $imageSize);
         }
 
         return $geometry;
@@ -393,9 +448,10 @@ final class SuppliedDocumentConverter
     /**
      * @param list<list<array<string, mixed>>> $assignedTables
      * @param list<array<string, mixed>> $recognizedTables
+     * @param list<array{width?: int|float, height?: int|float}|list<int|float>> $imageSizes
      * @return list<array<string, mixed>>
      */
-    private function spanningGridReviewForTables(array $assignedTables, array $recognizedTables): array
+    private function spanningGridReviewForTables(array $assignedTables, array $recognizedTables, array $imageSizes = []): array
     {
         $reviews = [];
         foreach ($assignedTables as $tableIndex => $assignedCells) {
@@ -407,7 +463,8 @@ final class SuppliedDocumentConverter
 
             $rows = isset($table['rows']) && is_array($table['rows']) ? $table['rows'] : [];
             $cols = isset($table['cols']) && is_array($table['cols']) ? $table['cols'] : [];
-            $reviews[] = $this->tableRecognizer->spanningGridReview($assignedCells, $rows, $cols);
+            $imageSize = isset($imageSizes[$tableIndex]) && is_array($imageSizes[$tableIndex]) ? $imageSizes[$tableIndex] : null;
+            $reviews[] = $this->tableRecognizer->spanningGridReview($assignedCells, $rows, $cols, $imageSize);
         }
 
         return $reviews;
@@ -416,9 +473,10 @@ final class SuppliedDocumentConverter
     /**
      * @param list<array<string, mixed>> $recognizedTables
      * @param list<list<array<string, mixed>>> $assignedTables
+     * @param list<array{width?: int|float, height?: int|float}|list<int|float>> $imageSizes
      * @return list<list<array<string, mixed>>>
      */
-    private function ocrGridBorderConflictsForTables(array $recognizedTables, array $assignedTables): array
+    private function ocrGridBorderConflictsForTables(array $recognizedTables, array $assignedTables, array $imageSizes = []): array
     {
         $conflicts = [];
         foreach ($recognizedTables as $tableIndex => $table) {
@@ -436,7 +494,8 @@ final class SuppliedDocumentConverter
                 : [];
             $rows = isset($table['rows']) && is_array($table['rows']) ? $table['rows'] : [];
             $cols = isset($table['cols']) && is_array($table['cols']) ? $table['cols'] : [];
-            $conflicts[] = $this->tableRecognizer->gridBorderConflictReview($tableConflicts, $assignedCells, $rows, $cols);
+            $imageSize = isset($imageSizes[$tableIndex]) && is_array($imageSizes[$tableIndex]) ? $imageSizes[$tableIndex] : null;
+            $conflicts[] = $this->tableRecognizer->gridBorderConflictReview($tableConflicts, $assignedCells, $rows, $cols, $imageSize);
         }
 
         $hasConflict = false;
