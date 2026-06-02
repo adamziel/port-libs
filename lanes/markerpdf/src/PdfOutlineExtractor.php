@@ -416,7 +416,7 @@ final class PdfOutlineExtractor
         $names = $this->resolveArray($node['Names'] ?? null, $objects);
         if ($names !== null) {
             for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
-                $name = $this->stringOrNameValue($names[$index]);
+                $name = $this->destinationNameValue($names[$index], $objects);
                 if ($name !== null) {
                     $destinations[$name] = $names[$index + 1];
                 }
@@ -1007,7 +1007,7 @@ final class PdfOutlineExtractor
     {
         if (array_key_exists('Dest', $outline)) {
             return [
-                'name' => $this->stringOrNameValue($outline['Dest']),
+                'name' => $this->destinationNameValue($outline['Dest'], $objects),
                 'value' => $outline['Dest'],
             ];
         }
@@ -1018,9 +1018,17 @@ final class PdfOutlineExtractor
         }
 
         return [
-            'name' => $this->stringOrNameValue($action['D']),
+            'name' => $this->destinationNameValue($action['D'], $objects),
             'value' => $action['D'],
         ];
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     */
+    private function destinationNameValue(mixed $value, array $objects): ?string
+    {
+        return $this->stringOrNameValue($this->resolveValue($value, $objects));
     }
 
     /**

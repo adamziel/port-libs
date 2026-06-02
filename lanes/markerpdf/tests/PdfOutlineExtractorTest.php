@@ -75,6 +75,26 @@ $destinationViewPdf = static function (): string {
         . "%%EOF";
 };
 
+$indirectNameTreeDestinationPdf = static function (): string {
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R /Names << /Dests 8 0 R >> /OpenAction 16 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Count 2 >>\nendobj\n"
+        . "6 0 obj\n<< /Title (Indirect Name) /Parent 5 0 R /Dest 12 0 R /Next 7 0 R >>\nendobj\n"
+        . "7 0 obj\n<< /Title (Indirect Action) /Parent 5 0 R /A << /S /GoTo /D 16 0 R >> >>\nendobj\n"
+        . "8 0 obj\n<< /Kids [9 0 R 10 0 R] >>\nendobj\n"
+        . "9 0 obj\n<< /Limits [(A) (M)] /Names [12 0 R 13 0 R] >>\nendobj\n"
+        . "10 0 obj\n<< /Limits [(N) (Z)] /Names [16 0 R 17 0 R] >>\nendobj\n"
+        . "12 0 obj\n<FEFF0049006E0064006900720065006300740020005200650076006900650077>\nendobj\n"
+        . "13 0 obj\n<< /D 14 0 R >>\nendobj\n"
+        . "14 0 obj\n[4 0 R /FitBH null]\nendobj\n"
+        . "16 0 obj\n(Page Four)\nendobj\n"
+        . "17 0 obj\n<< /D [3 0 R /FitR 10 20 300 740] >>\nendobj\n"
+        . "%%EOF";
+};
+
 $pagePresentationPdf = static function (): string {
     $pageOneContent = 'BT /F1 12 Tf 72 720 Td (Slide body stays visible) Tj ET';
     $pageTwoContent = 'BT /F1 12 Tf 72 720 Td (Second slide stays clean) Tj ET';
@@ -289,6 +309,32 @@ return [
         $t->same([], $toc[3]['view_position']);
         $t->same([], $toc[3]['view_parameters']);
         $t->same([], $extractor->getPdfTocWithDestinationViews('%PDF-1.4 no catalog here'));
+    },
+    'resolves indirect name-tree strings and destination dictionaries' => static function (TestRunner $t) use ($indirectNameTreeDestinationPdf): void {
+        $extractor = new PdfOutlineExtractor();
+        $pdf = $indirectNameTreeDestinationPdf();
+
+        $t->same(
+            [
+                ['title' => 'Indirect Name', 'level' => 1, 'page' => 1, 'destination' => 'Indirect Review'],
+                ['title' => 'Indirect Action', 'level' => 1, 'page' => 0, 'destination' => 'Page Four'],
+            ],
+            $extractor->getPdfToc($pdf)
+        );
+
+        $toc = $extractor->getPdfTocWithDestinationViews($pdf);
+        $t->same('FitBH', $toc[0]['view_mode']);
+        $t->same([null], $toc[0]['view_position']);
+        $t->same(['top' => null], $toc[0]['view_parameters']);
+        $t->same('FitR', $toc[1]['view_mode']);
+        $t->same([10.0, 20.0, 300.0, 740.0], $toc[1]['view_position']);
+        $t->same(['left' => 10.0, 'bottom' => 20.0, 'right' => 300.0, 'top' => 740.0], $toc[1]['view_parameters']);
+
+        $metadata = $extractor->getCatalogPageViewMetadata($pdf);
+        $t->same(['open_action'], $metadata['source']);
+        $t->same('Page Four', $metadata['open_action']['destination']);
+        $t->same(0, $metadata['open_action']['page']);
+        $t->same('FitR', $metadata['open_action']['view_mode']);
     },
     'extracts page transition duration and additional action review metadata' => static function (TestRunner $t) use ($pagePresentationPdf): void {
         $pages = (new PdfOutlineExtractor())->getPageTransitionActionMetadata($pagePresentationPdf());
