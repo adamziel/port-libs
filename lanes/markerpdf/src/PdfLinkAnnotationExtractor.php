@@ -15,6 +15,7 @@ final class PdfLinkAnnotationExtractor
     {
         $objects = $this->pdfObjects($pdfBytes);
         $actionReviewer = new PdfActionReviewExtractor($pdfBytes);
+        $structureReviewsByAnnotationObject = $this->annotationStructureReviewsByObject($pdfBytes);
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
         $pages = [];
 
@@ -23,7 +24,12 @@ final class PdfLinkAnnotationExtractor
                 continue;
             }
 
-            $links = $this->linksFromPageObject($objects[$pageObjectNumber], $objects, $actionReviewer);
+            $links = $this->linksFromPageObject(
+                $objects[$pageObjectNumber],
+                $objects,
+                $actionReviewer,
+                $structureReviewsByAnnotationObject
+            );
             if ($links === []) {
                 continue;
             }
@@ -93,6 +99,12 @@ final class PdfLinkAnnotationExtractor
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_executes_on_import'] = false;
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_actions_review'] = $link['actions'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_additional_actions_review'] = $link['additional_actions'];
+                        if (array_key_exists('struct_parent', $link)) {
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_struct_parent'] = $link['struct_parent'];
+                        }
+                        if (is_array($link['structure_parent'] ?? null)) {
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_structure_parent'] = $link['structure_parent'];
+                        }
 
                         if (is_string($link['uri'] ?? null) && ($link['is_safe_uri'] ?? false) === true) {
                             $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_uri'] = $link['uri'];
@@ -146,15 +158,26 @@ final class PdfLinkAnnotationExtractor
 
     /**
      * @param array<int, string> $objects
+     * @param array<int, array<string, mixed>> $structureReviewsByAnnotationObject
      * @return list<array<string, mixed>>
      */
-    private function linksFromPageObject(string $pageBody, array $objects, PdfActionReviewExtractor $actionReviewer): array
-    {
+    private function linksFromPageObject(
+        string $pageBody,
+        array $objects,
+        PdfActionReviewExtractor $actionReviewer,
+        array $structureReviewsByAnnotationObject
+    ): array {
         $annotationBodies = $this->annotationBodiesForPage($pageBody, $objects);
         $links = [];
 
         foreach ($annotationBodies as $annotation) {
-            $link = $this->linkFromAnnotationBody($annotation['body'], $objects, $actionReviewer, $annotation['object']);
+            $link = $this->linkFromAnnotationBody(
+                $annotation['body'],
+                $objects,
+                $actionReviewer,
+                $annotation['object'],
+                $structureReviewsByAnnotationObject
+            );
             if ($link !== null) {
                 $links[] = $link;
             }
@@ -273,13 +296,15 @@ final class PdfLinkAnnotationExtractor
 
     /**
      * @param array<int, string> $objects
+     * @param array<int, array<string, mixed>> $structureReviewsByAnnotationObject
      * @return array<string, mixed>|null
      */
     private function linkFromAnnotationBody(
         string $annotationBody,
         array $objects,
         PdfActionReviewExtractor $actionReviewer,
-        ?int $annotationObject
+        ?int $annotationObject,
+        array $structureReviewsByAnnotationObject
     ): ?array
     {
         $subtype = $this->annotationSubtype($annotationBody);
@@ -302,7 +327,7 @@ final class PdfLinkAnnotationExtractor
             return null;
         }
 
-        return $primary + [
+        $link = $primary + [
             'rect' => $rect,
             'annotation_object' => $annotationObject,
             'annotation_subtype' => $subtype,
@@ -311,6 +336,53 @@ final class PdfLinkAnnotationExtractor
             'additional_actions' => $review['additional_actions'],
             'executes_on_import' => false,
         ];
+
+        if ($annotationObject !== null && isset($structureReviewsByAnnotationObject[$annotationObject])) {
+            $link += $structureReviewsByAnnotationObject[$annotationObject];
+        }
+
+        return $link;
+    }
+
+    /**
+     * Reuses the general annotation extractor's singular /StructParent
+     * ParentTree review so promoted Link/Widget link rows keep tagged-PDF
+     * context without making structure text visible content.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function annotationStructureReviewsByObject(string $pdfBytes): array
+    {
+        $reviews = [];
+        foreach ((new PdfAnnotationExtractor())->extractPageAnnotations($pdfBytes) as $page) {
+            foreach (($page['annotations'] ?? []) as $annotation) {
+                if (!is_array($annotation)) {
+                    continue;
+                }
+
+                $object = $annotation['annotation_object'] ?? null;
+                $structureParent = $annotation['structure_parent'] ?? null;
+                if (!is_int($object) || !is_array($structureParent)) {
+                    continue;
+                }
+
+                $review = ['structure_parent' => $structureParent];
+                foreach ([
+                    'struct_parent',
+                    'struct_parent_source',
+                    'struct_parent_field_object',
+                    'struct_parent_field_chain',
+                ] as $key) {
+                    if (array_key_exists($key, $annotation)) {
+                        $review[$key] = $annotation[$key];
+                    }
+                }
+
+                $reviews[$object] = $review;
+            }
+        }
+
+        return $reviews;
     }
 
     private function annotationSubtype(string $annotationBody): ?string

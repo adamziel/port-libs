@@ -103,7 +103,7 @@ final class BatchConverter
 
     /**
      * @param array<string, array<string, mixed>> $metadataByFilename
-     * @return array{tasks: list<array<string, mixed>>, results: list<array<string, mixed>>, converted: int, skipped: int, errors: int}
+     * @return array{tasks: list<array<string, mixed>>, results: list<array<string, mixed>>, converted: int, skipped: int, errors: int, progress: array<string, mixed>}
      */
     public function processFolder(
         string $inputFolder,
@@ -114,7 +114,8 @@ final class BatchConverter
         ?int $maxFiles = null,
         array $metadataByFilename = [],
         ?int $minLength = null,
-        ?callable $textLength = null
+        ?callable $textLength = null,
+        ?callable $progressCallback = null
     ): array {
         $tasks = $this->planTasks(
             $inputFolder,
@@ -127,16 +128,98 @@ final class BatchConverter
         );
 
         $results = [];
-        foreach ($tasks as $task) {
-            $results[] = $this->processTask($task, $converter, $textLength);
+        $total = count($tasks);
+        foreach ($tasks as $index => $task) {
+            $result = $this->processTask($task, $converter, $textLength);
+            $results[] = $result;
+            if ($progressCallback !== null) {
+                $progressCallback($this->progressEvent($index + 1, $total, $task, $result, $results));
+            }
         }
+
+        return $this->folderSummary($tasks, $results);
+    }
+
+    /**
+     * Native boundary for convert.py's tqdm progress and markdown_exists resume behavior.
+     *
+     * Upstream convert.py builds all task tuples, wraps pool.imap(process_single_pdf, task_args)
+     * in tqdm(total=len(task_args), desc="Processing PDFs", unit="pdf"), and lets
+     * process_single_pdf return early when marker.output::markdown_exists is true.
+     * This method records the same queue/progress/resume decisions without launching
+     * Python, Torch multiprocessing, pdftext, pypdfium, models, or external PDF tools.
+     *
+     * @param array<string, array<string, mixed>> $metadataByFilename
+     * @return array{tasks: list<array<string, mixed>>, task_args: list<array<string, mixed>>, progress: array<string, mixed>, resume: array<string, mixed>, executes_python_or_models: false, executes_multiprocessing: false, executes_external_pdf_tools: false}
+     */
+    public function batchProgressResumePlan(
+        string $inputFolder,
+        string $outputFolder,
+        int $chunkIndex = 0,
+        int $numChunks = 1,
+        ?int $maxFiles = null,
+        array $metadataByFilename = [],
+        ?int $minLength = null
+    ): array {
+        $tasks = $this->planTasks(
+            $inputFolder,
+            $outputFolder,
+            $chunkIndex,
+            $numChunks,
+            $maxFiles,
+            $metadataByFilename,
+            $minLength
+        );
+
+        $taskArgs = [];
+        $statusByFilename = [];
+        $pendingTaskArgs = [];
+        $pendingFilenames = [];
+        $skippedExistingFilenames = [];
+
+        foreach ($tasks as $task) {
+            $taskArg = $this->taskArg($task);
+            $taskArgs[] = $taskArg;
+
+            $filename = basename($taskArg['filepath']);
+            if ($this->writer->markdownExists($taskArg['out_folder'], $filename)) {
+                $statusByFilename[$filename] = 'skipped-existing';
+                $skippedExistingFilenames[] = $filename;
+                continue;
+            }
+
+            $statusByFilename[$filename] = 'pending';
+            $pendingFilenames[] = $filename;
+            $pendingTaskArgs[] = $taskArg;
+        }
+
+        $total = count($tasks);
+        $initialCompleted = count($skippedExistingFilenames);
 
         return [
             'tasks' => $tasks,
-            'results' => $results,
-            'converted' => count(array_filter($results, static fn (array $result): bool => ($result['status'] ?? '') === 'converted')),
-            'skipped' => count(array_filter($results, static fn (array $result): bool => str_starts_with((string) ($result['status'] ?? ''), 'skipped'))),
-            'errors' => count(array_filter($results, static fn (array $result): bool => ($result['status'] ?? '') === 'error')),
+            'task_args' => $taskArgs,
+            'progress' => [
+                'description' => 'Processing PDFs',
+                'unit' => 'pdf',
+                'iterator' => $this->progressIterator(),
+                'total' => $total,
+                'initial_completed' => $initialCompleted,
+                'completed' => $initialCompleted,
+                'pending' => count($pendingTaskArgs),
+                'percent_complete' => $this->percentComplete($initialCompleted, $total),
+            ],
+            'resume' => [
+                'strategy' => 'markdown_exists',
+                'skips_existing_markdown' => true,
+                'status_by_filename' => $statusByFilename,
+                'skipped_existing_filenames' => $skippedExistingFilenames,
+                'pending_filenames' => $pendingFilenames,
+                'pending_task_args' => $pendingTaskArgs,
+            ],
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
         ];
     }
 
@@ -339,6 +422,119 @@ final class BatchConverter
             'traceback_available' => $traceback !== '',
             'review_only' => true,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $tasks
+     * @param list<array<string, mixed>> $results
+     * @return array{tasks: list<array<string, mixed>>, results: list<array<string, mixed>>, converted: int, skipped: int, errors: int, progress: array<string, mixed>}
+     */
+    private function folderSummary(array $tasks, array $results): array
+    {
+        $total = count($tasks);
+        $completed = count($results);
+        $converted = $this->convertedCount($results);
+        $skipped = $this->skippedCount($results);
+        $errors = $this->errorCount($results);
+
+        return [
+            'tasks' => $tasks,
+            'results' => $results,
+            'converted' => $converted,
+            'skipped' => $skipped,
+            'errors' => $errors,
+            'progress' => [
+                'description' => 'Processing PDFs',
+                'unit' => 'pdf',
+                'iterator' => $this->progressIterator(),
+                'total' => $total,
+                'completed' => $completed,
+                'pending' => max(0, $total - $completed),
+                'percent_complete' => $this->percentComplete($completed, $total),
+                'converted' => $converted,
+                'skipped' => $skipped,
+                'errors' => $errors,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $task
+     * @param array<string, mixed> $result
+     * @param list<array<string, mixed>> $results
+     * @return array<string, mixed>
+     */
+    private function progressEvent(int $completed, int $total, array $task, array $result, array $results): array
+    {
+        return [
+            'description' => 'Processing PDFs',
+            'unit' => 'pdf',
+            'filename' => basename((string) ($task['filepath'] ?? '')),
+            'filepath' => (string) ($task['filepath'] ?? ''),
+            'status' => (string) ($result['status'] ?? ''),
+            'completed' => $completed,
+            'total' => $total,
+            'pending' => max(0, $total - $completed),
+            'percent_complete' => $this->percentComplete($completed, $total),
+            'converted' => $this->convertedCount($results),
+            'skipped' => $this->skippedCount($results),
+            'errors' => $this->errorCount($results),
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param array{filepath: string, out_folder: string, metadata?: array<string, mixed>|null, min_length?: int|null} $task
+     * @return array{filepath: string, out_folder: string, metadata: array<string, mixed>|null, min_length: int|null}
+     */
+    private function taskArg(array $task): array
+    {
+        return [
+            'filepath' => $task['filepath'],
+            'out_folder' => $task['out_folder'],
+            'metadata' => $task['metadata'] ?? null,
+            'min_length' => $task['min_length'] ?? null,
+        ];
+    }
+
+    private function progressIterator(): string
+    {
+        return 'tqdm(pool.imap(process_single_pdf, task_args), total=len(task_args), desc="Processing PDFs", unit="pdf")';
+    }
+
+    private function percentComplete(int $completed, int $total): float
+    {
+        if ($total === 0) {
+            return 100.0;
+        }
+
+        return round(($completed / $total) * 100, 4);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $results
+     */
+    private function convertedCount(array $results): int
+    {
+        return count(array_filter($results, static fn (array $result): bool => ($result['status'] ?? '') === 'converted'));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $results
+     */
+    private function skippedCount(array $results): int
+    {
+        return count(array_filter($results, static fn (array $result): bool => str_starts_with((string) ($result['status'] ?? ''), 'skipped')));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $results
+     */
+    private function errorCount(array $results): int
+    {
+        return count(array_filter($results, static fn (array $result): bool => ($result['status'] ?? '') === 'error'));
     }
 
     /**

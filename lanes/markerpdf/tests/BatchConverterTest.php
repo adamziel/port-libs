@@ -223,4 +223,99 @@ return [
             $removeTree($output);
         }
     },
+    'plans convert.py tqdm progress and markdown_exists resume state before worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePdf): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['already.pdf', 'delta.pdf', 'gamma.pdf'] as $name) {
+                $writePdf($input . DIRECTORY_SEPARATOR . $name, 'Runtime batch ' . $name);
+            }
+
+            (new OutputWriter())->saveMarkdown(
+                $output,
+                'already.pdf',
+                '<!-- wp:paragraph --><p>Previously imported</p><!-- /wp:paragraph -->',
+                [],
+                ['title' => 'Previously Imported']
+            );
+
+            $plan = (new BatchConverter())->batchProgressResumePlan(
+                $input,
+                $output,
+                metadataByFilename: [
+                    'delta.pdf' => ['title' => 'Delta Import', 'languages' => ['English']],
+                ],
+                minLength: 120
+            );
+
+            $t->same('Processing PDFs', $plan['progress']['description']);
+            $t->same('pdf', $plan['progress']['unit']);
+            $t->same(3, $plan['progress']['total']);
+            $t->same(1, $plan['progress']['initial_completed']);
+            $t->same(2, $plan['progress']['pending']);
+            $t->same(33.3333, $plan['progress']['percent_complete']);
+            $t->same('tqdm(pool.imap(process_single_pdf, task_args), total=len(task_args), desc="Processing PDFs", unit="pdf")', $plan['progress']['iterator']);
+            $t->same(true, $plan['resume']['skips_existing_markdown']);
+            $t->same('skipped-existing', $plan['resume']['status_by_filename']['already.pdf']);
+            $t->same('pending', $plan['resume']['status_by_filename']['delta.pdf']);
+            $t->same(['delta.pdf', 'gamma.pdf'], $plan['resume']['pending_filenames']);
+            $t->same(['already.pdf'], $plan['resume']['skipped_existing_filenames']);
+            $t->same(['title' => 'Delta Import', 'languages' => ['English']], $plan['resume']['pending_task_args'][0]['metadata']);
+            $t->same(120, $plan['resume']['pending_task_args'][0]['min_length']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'emits per-file progress callbacks while preserving resume skips and summary counts' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePdf): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['already.pdf', 'convert.pdf', 'empty.pdf'] as $name) {
+                $writePdf($input . DIRECTORY_SEPARATOR . $name, 'Progress ' . $name);
+            }
+
+            (new OutputWriter())->saveMarkdown($output, 'already.pdf', 'old output', [], []);
+
+            $events = [];
+            $calls = 0;
+            $summary = (new BatchConverter())->processFolder(
+                $input,
+                $output,
+                static function (string $filepath) use (&$calls): array {
+                    $calls++;
+                    if (basename($filepath) === 'empty.pdf') {
+                        return ['', [], []];
+                    }
+
+                    return [
+                        'text' => '<!-- wp:paragraph --><p>Converted ' . basename($filepath) . '</p><!-- /wp:paragraph -->',
+                        'images' => [],
+                        'metadata' => ['source' => basename($filepath)],
+                    ];
+                },
+                progressCallback: static function (array $event) use (&$events): void {
+                    $events[] = $event;
+                }
+            );
+
+            $t->same(2, $calls);
+            $t->same(1, $summary['converted']);
+            $t->same(2, $summary['skipped']);
+            $t->same(0, $summary['errors']);
+            $t->same(3, $summary['progress']['completed']);
+            $t->same(100.0, $summary['progress']['percent_complete']);
+            $t->same(['already.pdf', 'convert.pdf', 'empty.pdf'], array_column($events, 'filename'));
+            $t->same(['skipped-existing', 'converted', 'skipped-empty-output'], array_column($events, 'status'));
+            $t->same(1, $events[0]['completed']);
+            $t->same(3, $events[2]['completed']);
+            $t->same(1, $events[2]['converted']);
+            $t->same(2, $events[2]['skipped']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
 ];

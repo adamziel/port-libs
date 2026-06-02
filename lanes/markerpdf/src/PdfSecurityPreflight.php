@@ -592,8 +592,11 @@ final class PdfSecurityPreflight
     ): array {
         $actions = [];
         $outline = new PdfOutlineExtractor();
+        $catalogObject = $this->catalogObjectNumber($pdfBytes);
         foreach ($outline->getOpenActionReviewActions($pdfBytes) as $action) {
-            $this->addDocumentActionReviewRow($actions, $action, 'catalog_open_action');
+            $this->addDocumentActionReviewRow($actions, $action, 'catalog_open_action', [
+                'catalog_object' => $catalogObject,
+            ]);
         }
 
         foreach ($outline->getPageTransitionActionMetadata($pdfBytes) as $page) {
@@ -1207,6 +1210,7 @@ final class PdfSecurityPreflight
             'page_label' => is_string($context['page_label'] ?? null) ? $context['page_label'] : null,
             'annotation_object' => $context['annotation_object'] ?? null,
             'annotation_subtype' => $context['annotation_subtype'] ?? null,
+            'catalog_object' => is_int($context['catalog_object'] ?? null) ? $context['catalog_object'] : null,
             'event' => $action['event'] ?? null,
             'event_label' => $action['event_label'] ?? null,
             'trigger' => is_string($action['trigger'] ?? null) ? $action['trigger'] : null,
@@ -1245,8 +1249,38 @@ final class PdfSecurityPreflight
             'executes_on_import' => false,
             'executes_action' => false,
         ];
+        $row['action_container_object'] = $this->documentActionContainerObject($row);
+        $row['action_container_source'] = $this->documentActionContainerSource($row);
 
         $actions[] = $row;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function documentActionContainerObject(array $row): ?int
+    {
+        foreach (['annotation_object', 'widget_object', 'field_object', 'page_object', 'catalog_object'] as $key) {
+            if (is_int($row[$key] ?? null)) {
+                return $row[$key];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function documentActionContainerSource(array $row): ?string
+    {
+        foreach (['annotation_object', 'widget_object', 'field_object', 'page_object', 'catalog_object'] as $key) {
+            if (is_int($row[$key] ?? null)) {
+                return $key;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1323,6 +1357,8 @@ final class PdfSecurityPreflight
         foreach ($actions as $index => $action) {
             $review = $this->documentActionByteRangeReview($action, $signatures, $objectSpans);
             $actions[$index]['action_object_span'] = $review['action_object_span'];
+            $actions[$index]['action_byte_range_review_object'] = $review['action_byte_range_review_object'];
+            $actions[$index]['action_byte_range_review_source'] = $review['action_byte_range_review_source'];
             $actions[$index]['signature_byte_range_coverage_status'] = $review['status'];
             $actions[$index]['covered_by_all_signature_byte_ranges'] = $review['covered_by_all_signature_byte_ranges'];
             $actions[$index]['outside_any_signature_byte_range'] = $review['outside_any_signature_byte_range'];
@@ -1340,6 +1376,8 @@ final class PdfSecurityPreflight
      * @param array<int, array{offset: int, end: int, length: int, generation: int}> $objectSpans
      * @return array{
      *     action_object_span: array{offset: int, end: int, length: int, generation: int}|null,
+     *     action_byte_range_review_object: int|null,
+     *     action_byte_range_review_source: string|null,
      *     status: string,
      *     covered_by_all_signature_byte_ranges: bool,
      *     outside_any_signature_byte_range: bool,
@@ -1351,9 +1389,14 @@ final class PdfSecurityPreflight
     private function documentActionByteRangeReview(array $action, array $signatures, array $objectSpans): array
     {
         $actionObject = is_int($action['action_object'] ?? null) ? $action['action_object'] : null;
-        if ($actionObject === null) {
+        $containerObject = is_int($action['action_container_object'] ?? null) ? $action['action_container_object'] : null;
+        $reviewObject = $actionObject ?? $containerObject;
+        $reviewSource = $actionObject !== null ? 'action_object' : ($reviewObject === null ? null : 'action_container_object');
+        if ($reviewObject === null) {
             return [
                 'action_object_span' => null,
+                'action_byte_range_review_object' => null,
+                'action_byte_range_review_source' => null,
                 'status' => 'action_object_unresolved',
                 'covered_by_all_signature_byte_ranges' => false,
                 'outside_any_signature_byte_range' => false,
@@ -1363,11 +1406,15 @@ final class PdfSecurityPreflight
             ];
         }
 
-        $span = $objectSpans[$actionObject] ?? null;
+        $span = $objectSpans[$reviewObject] ?? null;
         if ($span === null) {
             return [
                 'action_object_span' => null,
-                'status' => 'action_object_span_unresolved',
+                'action_byte_range_review_object' => $reviewObject,
+                'action_byte_range_review_source' => $reviewSource,
+                'status' => $reviewSource === 'action_container_object'
+                    ? 'action_container_object_span_unresolved'
+                    : 'action_object_span_unresolved',
                 'covered_by_all_signature_byte_ranges' => false,
                 'outside_any_signature_byte_range' => false,
                 'signed_coverage_count' => 0,
@@ -1416,6 +1463,8 @@ final class PdfSecurityPreflight
 
         return [
             'action_object_span' => $span,
+            'action_byte_range_review_object' => $reviewObject,
+            'action_byte_range_review_source' => $reviewSource,
             'status' => $status,
             'covered_by_all_signature_byte_ranges' => $reviewCount > 0 && $signedCoverageCount === $reviewCount,
             'outside_any_signature_byte_range' => $unsignedCoverageCount > 0,
@@ -1513,11 +1562,14 @@ final class PdfSecurityPreflight
     {
         $objects = [];
         foreach ($actions as $action) {
-            if (!$this->actionIsOutsideSignedRevision($action) || !is_int($action['action_object'] ?? null)) {
+            $reviewObject = is_int($action['action_byte_range_review_object'] ?? null)
+                ? $action['action_byte_range_review_object']
+                : (is_int($action['action_object'] ?? null) ? $action['action_object'] : null);
+            if (!$this->actionIsOutsideSignedRevision($action) || $reviewObject === null) {
                 continue;
             }
-            if (!in_array($action['action_object'], $objects, true)) {
-                $objects[] = $action['action_object'];
+            if (!in_array($reviewObject, $objects, true)) {
+                $objects[] = $reviewObject;
             }
         }
 
@@ -1573,6 +1625,22 @@ final class PdfSecurityPreflight
         }
 
         return $spans;
+    }
+
+    private function catalogObjectNumber(string $pdfBytes): ?int
+    {
+        $matchCount = preg_match_all('/(\d+)\s+\d+\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER);
+        if ($matchCount === false || $matchCount === 0) {
+            return null;
+        }
+
+        foreach ($matches as $match) {
+            if (preg_match('/\/Type\s*\/Catalog\b/', $match[2]) === 1) {
+                return (int) $match[1];
+            }
+        }
+
+        return null;
     }
 
     /**

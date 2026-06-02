@@ -196,6 +196,8 @@ final class PdfTextExtractor
      *     zero_width_index_entry_count: int,
      *     recovered_zero_width_member_count: int,
      *     ambiguous_zero_width_member_count: int,
+     *     nonzero_generation_reference_count: int,
+     *     compressed_generation_zero_boundary_count: int,
      *     strict_dependency_rejection_count: int,
      *     direct_xref_stream_owner_cycle_count: int,
      *     entries: list<array<string, mixed>>,
@@ -213,6 +215,8 @@ final class PdfTextExtractor
             'zero_width_index_entry_count' => 0,
             'recovered_zero_width_member_count' => 0,
             'ambiguous_zero_width_member_count' => 0,
+            'nonzero_generation_reference_count' => 0,
+            'compressed_generation_zero_boundary_count' => 0,
             'strict_dependency_rejection_count' => 0,
             'direct_xref_stream_owner_cycle_count' => 0,
             'entries' => [],
@@ -238,6 +242,8 @@ final class PdfTextExtractor
         $objects = $this->liveDirectObjects($definitions, $xrefEntries);
         $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
         $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
+        $objectOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
+        $nonzeroGenerationReferences = $this->nonZeroGenerationObjectReferences($objects);
 
         foreach ($xrefEntries as $objectNumber => $entry) {
             if (($entry['type'] ?? null) !== 2 || !isset($entry['objectStream'])) {
@@ -291,6 +297,20 @@ final class PdfTextExtractor
                 $review['strict_dependency_rejection_count']++;
             }
 
+            $referencedGenerations = array_map('intval', array_keys($nonzeroGenerationReferences[$objectNumber] ?? []));
+            sort($referencedGenerations, SORT_NUMERIC);
+            $selectedGeneration = $objectOwners[$objectNumber]['generation'] ?? null;
+            $generationPolicy = $this->objectStreamGenerationSelectionPolicy(
+                is_int($selectedGeneration) ? $selectedGeneration : null,
+                $referencedGenerations
+            );
+            if ($referencedGenerations !== []) {
+                $review['nonzero_generation_reference_count']++;
+            }
+            if ($generationPolicy === 'compressed_generation_zero_not_selected_for_nonzero_reference') {
+                $review['compressed_generation_zero_boundary_count']++;
+            }
+
             $review['entries'][] = [
                 'object_number' => $objectNumber,
                 'object_stream' => $objectStreamNumber,
@@ -302,6 +322,11 @@ final class PdfTextExtractor
                 'object_stream_member_count' => count($members),
                 'matching_header_object_number_count' => $matchingHeaderObjectNumberCount,
                 'duplicate_header_object_number' => $matchingHeaderObjectNumberCount > 1,
+                'compressed_member_generation' => 0,
+                'selected_object_generation' => $selectedGeneration,
+                'nonzero_referenced_generations' => $referencedGenerations,
+                'has_nonzero_generation_reference' => $referencedGenerations !== [],
+                'generation_boundary_policy' => $generationPolicy,
                 'strict_member_match' => $strictMemberMatch,
                 'recovered_by_object_number' => $recoveredByObjectNumber,
                 'ambiguous_zero_width_member' => $ambiguousZeroWidthMember,
@@ -4440,20 +4465,40 @@ final class PdfTextExtractor
      */
     private function pageTreeKidObjectNumbers(string $body, array $objects): array
     {
-        if (preg_match('/\/Kids\s*(?:(\d+)\s+\d+\s+R|\[)/s', $body, $match, PREG_OFFSET_CAPTURE) !== 1) {
+        if (preg_match('/\/Kids\s*(?:(\d+)\s+(\d+)\s+R|\[)/s', $body, $match, PREG_OFFSET_CAPTURE) !== 1) {
             return [];
         }
 
         if (($match[1][0] ?? '') !== '') {
             $objectNumber = (int) $match[1][0];
-            $arrayBody = isset($objects[$objectNumber]) ? $this->pdfArrayAtStart(trim($objects[$objectNumber])) : null;
-            return $arrayBody === null ? [] : $this->objectReferences($arrayBody);
+            $generation = (int) ($match[2][0] ?? 0);
+            $objectBody = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            $arrayBody = $objectBody === null ? null : $this->pdfArrayAtStart(trim($objectBody));
+            return $arrayBody === null ? [] : $this->pageTreeKidObjectReferences($arrayBody, $objects);
         }
 
         $offset = strpos($body, '[', $match[0][1]);
         $arrayBody = $offset === false ? null : $this->readPdfArrayAt($body, $offset);
 
-        return $arrayBody === null ? [] : $this->objectReferences($arrayBody);
+        return $arrayBody === null ? [] : $this->pageTreeKidObjectReferences($arrayBody, $objects);
+    }
+
+    /**
+     * @return list<int>
+     * @param array<int, string> $objects
+     */
+    private function pageTreeKidObjectReferences(string $arrayBody, array $objects): array
+    {
+        $objectNumbers = [];
+        foreach ($this->objectReferencePairs($arrayBody) as $reference) {
+            if ($this->indirectObjectBodyForReference($objects, $reference['objectNumber'], $reference['generation']) === null) {
+                continue;
+            }
+
+            $objectNumbers[] = $reference['objectNumber'];
+        }
+
+        return $objectNumbers;
     }
 
     private function isCatalogObject(string $body): bool
@@ -4579,6 +4624,26 @@ final class PdfTextExtractor
         }
 
         return array_map('intval', $matches[1]);
+    }
+
+    /**
+     * @return list<array{objectNumber: int, generation: int}>
+     */
+    private function objectReferencePairs(string $value): array
+    {
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+R\b/', $value, $matches, PREG_SET_ORDER)) {
+            return [];
+        }
+
+        $references = [];
+        foreach ($matches as $match) {
+            $references[] = [
+                'objectNumber' => (int) $match[1],
+                'generation' => (int) $match[2],
+            ];
+        }
+
+        return $references;
     }
 
     /**
@@ -10512,6 +10577,31 @@ final class PdfTextExtractor
         }
 
         return $indexIsExplicit ? 'explicit_member_index_mismatch' : 'recovered_by_header_object_number';
+    }
+
+    /**
+     * Object streams contain generation-zero indirect objects. A nonzero
+     * reference must be satisfied by a selected direct object generation or
+     * remain unresolved; it must not bind to the compressed generation-zero
+     * member merely because the object numbers match.
+     *
+     * @param list<int> $referencedGenerations
+     */
+    private function objectStreamGenerationSelectionPolicy(?int $selectedGeneration, array $referencedGenerations): string
+    {
+        if ($referencedGenerations === []) {
+            return 'compressed_generation_zero_member';
+        }
+
+        if ($selectedGeneration !== null && in_array($selectedGeneration, $referencedGenerations, true)) {
+            return 'direct_generation_reference_preserved';
+        }
+
+        if ($selectedGeneration === 0) {
+            return 'compressed_generation_zero_not_selected_for_nonzero_reference';
+        }
+
+        return 'nonzero_generation_reference_unresolved';
     }
 
     /**

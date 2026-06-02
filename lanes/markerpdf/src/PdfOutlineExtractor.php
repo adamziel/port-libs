@@ -1287,6 +1287,19 @@ final class PdfOutlineExtractor
         if (is_array($details['target_structure_roles'] ?? null)) {
             $context['destination_action_target_structure_roles'] = $details['target_structure_roles'];
         }
+        foreach ([
+            'thread_object',
+            'thread_index',
+            'thread_title',
+            'thread_destination_type',
+            'thread_bead_object',
+            'thread_bead_index',
+            'thread_bead_rect',
+        ] as $key) {
+            if (array_key_exists($key, $details)) {
+                $context['destination_action_target_' . $key] = $details[$key];
+            }
+        }
 
         return $context;
     }
@@ -1398,6 +1411,22 @@ final class PdfOutlineExtractor
         $seen[$identity] = true;
 
         $type = $this->nameValue($dict['S'] ?? null);
+        if ($type === 'Thread') {
+            $threadTarget = $this->threadActionTargetDetails($dict, $objects, $pageIndexes, false);
+            if ($threadTarget !== null && is_int($threadTarget['page'] ?? null)) {
+                return $this->destinationActionTargetContext(
+                    $this->withNavigationTargetMetadata(
+                        $this->threadActionDestinationDetails($threadTarget),
+                        $pageLabels,
+                        $pagePresentationsByPage,
+                        $articleBeadsByPage,
+                        $pageReviewsByPage,
+                        $taggedContentByPage
+                    )
+                );
+            }
+        }
+
         if (($type === null || $type === 'GoTo') && array_key_exists('D', $dict)) {
             $destinationName = $this->stringOrNameValue($this->resolveValue($dict['D'], $objects));
             $details = $this->destinationViewDetails(
@@ -2198,6 +2227,10 @@ final class PdfOutlineExtractor
             return $this->embeddedGoToActionReview($action, $objects);
         }
 
+        if ($type === 'Thread') {
+            return $this->threadActionReview($action, $objects, $pageIndexes);
+        }
+
         if ($type === 'URI') {
             $uri = $this->stringOrNameValue($this->resolveValue($action['URI'] ?? null, $objects));
             if ($uri === null || trim($uri) === '') {
@@ -2344,6 +2377,364 @@ final class PdfOutlineExtractor
         }
 
         return $row;
+    }
+
+    /**
+     * PDF Thread actions ask the viewer to enter article-thread mode at a
+     * selected bead. WordPress import records that target but never follows it.
+     *
+     * @param array<string, mixed> $action
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @return array<string, mixed>|null
+     */
+    private function threadActionReview(array $action, array $objects, array $pageIndexes): ?array
+    {
+        $file = $this->fileSpecValue($action['F'] ?? null, $objects);
+        $external = $file !== null;
+        $target = $this->threadActionTargetDetails($action, $objects, $pageIndexes, $external);
+        if ($target === null && !$external) {
+            return null;
+        }
+
+        $row = $this->reviewAction(
+            'Thread',
+            $external ? 'remote-thread-review' : 'article-thread-review',
+            is_int($target['page'] ?? null) ? $target['page'] : null,
+            is_string($target['thread_title'] ?? null) ? $target['thread_title'] : ($target['thread_destination'] ?? null),
+            null,
+            $file,
+            null,
+            null,
+            null
+        );
+
+        foreach ([
+            'thread_destination',
+            'thread_destination_type',
+            'thread_object',
+            'thread_index',
+            'thread_title',
+            'thread_bead_object',
+            'thread_bead_index',
+            'thread_bead_rect',
+            'thread_page_object',
+        ] as $key) {
+            if (is_array($target) && array_key_exists($key, $target)) {
+                $row[$key] = $target[$key];
+            }
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param array<string, mixed> $target
+     * @return array<string, mixed>
+     */
+    private function threadActionDestinationDetails(array $target): array
+    {
+        return [
+            'page' => $target['page'],
+            'destination' => is_string($target['thread_title'] ?? null) ? $target['thread_title'] : ($target['thread_destination'] ?? null),
+            'view_mode' => null,
+            'view_position' => [],
+            'view_parameters' => [],
+        ] + $target;
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @return array<string, mixed>|null
+     */
+    private function threadActionTargetDetails(array $action, array $objects, array $pageIndexes, bool $external): ?array
+    {
+        if (!array_key_exists('D', $action)) {
+            return null;
+        }
+
+        $destinationSummary = $this->threadDestinationSummary($action['D'], $objects);
+        if ($external) {
+            $details = $destinationSummary;
+            $beadSummary = $this->threadBeadSummary($action['B'] ?? null, $objects);
+            foreach ($beadSummary as $key => $value) {
+                $details[$key] = $value;
+            }
+
+            return $details;
+        }
+
+        $thread = $this->localArticleThreadFromDestination($action['D'], $objects, $pageIndexes);
+        if ($thread === null) {
+            return null;
+        }
+
+        $bead = $this->threadActionBead($action['B'] ?? null, $thread['beads'], $objects);
+        if ($bead === null) {
+            return null;
+        }
+
+        return $destinationSummary + [
+            'thread_object' => $thread['thread_object'],
+            'thread_index' => $thread['thread_index'],
+            'thread_title' => $thread['thread_title'],
+            'thread_bead_object' => $bead['bead_object'],
+            'thread_bead_index' => $bead['bead_index'],
+            'thread_bead_rect' => $bead['rect'],
+            'thread_page_object' => $bead['page_object'],
+            'page' => $bead['page'],
+        ];
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @return array<string, mixed>
+     */
+    private function threadDestinationSummary(mixed $value, array $objects): array
+    {
+        $objectNumber = $this->referenceObjectNumber($value);
+        if ($objectNumber !== null) {
+            return [
+                'thread_destination_type' => 'object',
+                'thread_destination' => (string) $objectNumber,
+            ];
+        }
+
+        $resolved = $this->resolveValue($value, $objects);
+        if (is_int($resolved) || is_float($resolved)) {
+            return [
+                'thread_destination_type' => 'index',
+                'thread_destination' => (string) ((int) $resolved),
+            ];
+        }
+
+        $title = $this->stringOrNameValue($resolved);
+        if ($title !== null && $title !== '') {
+            return [
+                'thread_destination_type' => 'title',
+                'thread_destination' => $title,
+            ];
+        }
+
+        if ($this->dictionaryItems($resolved) !== null) {
+            return [
+                'thread_destination_type' => 'dictionary',
+                'thread_destination' => null,
+            ];
+        }
+
+        return [
+            'thread_destination_type' => null,
+            'thread_destination' => null,
+        ];
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @return array<string, mixed>
+     */
+    private function threadBeadSummary(mixed $value, array $objects): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $objectNumber = $this->referenceObjectNumber($value);
+        if ($objectNumber !== null) {
+            return [
+                'thread_bead_object' => $objectNumber,
+            ];
+        }
+
+        $resolved = $this->resolveValue($value, $objects);
+        if (is_int($resolved) || is_float($resolved)) {
+            return [
+                'thread_bead_index' => (int) $resolved,
+            ];
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @return array{
+     *     thread_object: int|null,
+     *     thread_index: int|null,
+     *     thread_title: string|null,
+     *     beads: list<array<string, mixed>>
+     * }|null
+     */
+    private function localArticleThreadFromDestination(mixed $destination, array $objects, array $pageIndexes): ?array
+    {
+        $threads = $this->localArticleThreads($objects, $pageIndexes);
+        if ($threads === []) {
+            return null;
+        }
+
+        $objectNumber = $this->referenceObjectNumber($destination);
+        if ($objectNumber !== null) {
+            foreach ($threads as $thread) {
+                if (($thread['thread_object'] ?? null) === $objectNumber) {
+                    return $thread;
+                }
+            }
+        }
+
+        $resolved = $this->resolveValue($destination, $objects);
+        if (is_int($resolved) || is_float($resolved)) {
+            $index = (int) $resolved;
+            foreach ($threads as $thread) {
+                if (($thread['thread_index'] ?? null) === $index) {
+                    return $thread;
+                }
+            }
+        }
+
+        $title = $this->stringOrNameValue($resolved);
+        if ($title !== null && $title !== '') {
+            foreach ($threads as $thread) {
+                if (($thread['thread_title'] ?? null) === $title) {
+                    return $thread;
+                }
+            }
+        }
+
+        $dict = $this->dictionaryItems($resolved);
+        if ($dict !== null && $this->nameValue($dict['Type'] ?? null) === 'Thread') {
+            $title = $this->articleThreadTitle($dict, $objects);
+            $beads = $this->articleThreadBeads(
+                $dict,
+                $objectNumber,
+                -1,
+                $title,
+                $objects,
+                $pageIndexes,
+                $this->defaultPageLabels($pageIndexes)
+            );
+            if ($beads !== []) {
+                return [
+                    'thread_object' => $objectNumber,
+                    'thread_index' => null,
+                    'thread_title' => $title,
+                    'beads' => $beads,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @return list<array{
+     *     thread_object: int|null,
+     *     thread_index: int,
+     *     thread_title: string|null,
+     *     beads: list<array<string, mixed>>
+     * }>
+     */
+    private function localArticleThreads(array $objects, array $pageIndexes): array
+    {
+        $catalog = $this->catalogDictionary($objects);
+        if ($catalog === null || !array_key_exists('Threads', $catalog)) {
+            return [];
+        }
+
+        $threadValues = $this->resolveArray($catalog['Threads'], $objects);
+        if ($threadValues === null) {
+            $threadValues = $this->resolveDictionary($catalog['Threads'], $objects) === null
+                ? []
+                : [$catalog['Threads']];
+        }
+
+        $threads = [];
+        $pageLabels = $this->defaultPageLabels($pageIndexes);
+        foreach ($threadValues as $threadIndex => $threadValue) {
+            $thread = $this->resolveDictionary($threadValue, $objects);
+            if ($thread === null) {
+                continue;
+            }
+
+            $threadObject = $this->referenceObjectNumber($threadValue);
+            $title = $this->articleThreadTitle($thread, $objects);
+            $beads = $this->articleThreadBeads(
+                $thread,
+                $threadObject,
+                (int) $threadIndex,
+                $title,
+                $objects,
+                $pageIndexes,
+                $pageLabels
+            );
+            if ($beads === []) {
+                continue;
+            }
+
+            $threads[] = [
+                'thread_object' => $threadObject,
+                'thread_index' => (int) $threadIndex,
+                'thread_title' => $title,
+                'beads' => $beads,
+            ];
+        }
+
+        return $threads;
+    }
+
+    /**
+     * @param array<int, int> $pageIndexes
+     * @return list<string>
+     */
+    private function defaultPageLabels(array $pageIndexes): array
+    {
+        $count = $pageIndexes === [] ? 0 : max($pageIndexes) + 1;
+        $labels = [];
+        for ($index = 0; $index < $count; $index++) {
+            $labels[] = (string) ($index + 1);
+        }
+
+        return $labels;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $beads
+     * @return array<string, mixed>|null
+     */
+    private function threadActionBead(mixed $value, array $beads, array $objects): ?array
+    {
+        if ($beads === []) {
+            return null;
+        }
+
+        if ($value === null) {
+            return $beads[0];
+        }
+
+        $objectNumber = $this->referenceObjectNumber($value);
+        if ($objectNumber !== null) {
+            foreach ($beads as $bead) {
+                if (($bead['bead_object'] ?? null) === $objectNumber) {
+                    return $bead;
+                }
+            }
+        }
+
+        $resolved = $this->resolveValue($value, $objects);
+        if (is_int($resolved) || is_float($resolved)) {
+            $index = (int) $resolved;
+            foreach ($beads as $bead) {
+                if (($bead['bead_index'] ?? null) === $index) {
+                    return $bead;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
