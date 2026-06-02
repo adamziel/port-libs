@@ -90,10 +90,11 @@ final class LayoutOrderer
             $maxPosition = 0;
 
             foreach ($blocks as $blockIndex => $block) {
+                $blockBbox = $this->blockBboxForOrdering($page, $block);
                 foreach ($orderBoxes as $orderBox) {
                     $position = (int) ($orderBox['position'] ?? 0);
                     $orderBbox = $this->rescaleOrderBbox($page, $this->bbox($orderBox));
-                    $intersection = $this->intersectionPct($this->bbox($block), $orderBbox);
+                    $intersection = $this->intersectionPct($blockBbox, $orderBbox);
 
                     if (!isset($blockPositions[$blockIndex]) || $intersection > $blockPositions[$blockIndex][0]) {
                         $blockPositions[$blockIndex] = [$intersection, $position];
@@ -116,7 +117,7 @@ final class LayoutOrderer
             ksort($blockGroups, SORT_NUMERIC);
             $newBlocks = [];
             foreach ($blockGroups as $blockGroup) {
-                array_push($newBlocks, ...$this->sortBlockGroup($blockGroup));
+                array_push($newBlocks, ...$this->sortBlockGroupForPage($page, $blockGroup));
             }
 
             $pages[$pageIndex]['blocks'] = $this->pinHeadersAndFooters($newBlocks);
@@ -131,9 +132,33 @@ final class LayoutOrderer
      */
     public function sortBlockGroup(array $blocks, float $tolerance = 1.25): array
     {
+        return $this->sortBlockGroupByBbox($blocks, $tolerance, fn (array $block): array => $this->bbox($block));
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     * @param list<array<string, mixed>> $blocks
+     * @return list<array<string, mixed>>
+     */
+    private function sortBlockGroupForPage(array $page, array $blocks, float $tolerance = 1.25): array
+    {
+        return $this->sortBlockGroupByBbox(
+            $blocks,
+            $tolerance,
+            fn (array $block): array => $this->blockBboxForOrdering($page, $block)
+        );
+    }
+
+    /**
+     * @param list<array<string, mixed>> $blocks
+     * @param callable(array<string, mixed>): list<float> $bboxForBlock
+     * @return list<array<string, mixed>>
+     */
+    private function sortBlockGroupByBbox(array $blocks, float $tolerance, callable $bboxForBlock): array
+    {
         $groups = [];
         foreach ($blocks as $index => $block) {
-            $bbox = $this->bbox($block);
+            $bbox = $bboxForBlock($block);
             $sortKey = $tolerance > 0.0 ? round($bbox[1] / $tolerance) * $tolerance : $bbox[1];
             $key = (string) $sortKey;
             if (!isset($groups[$key])) {
@@ -324,13 +349,13 @@ final class LayoutOrderer
     private function bbox(array $block): array
     {
         if (isset($block['bbox']) && is_array($block['bbox']) && count($block['bbox']) === 4) {
-            return array_map(static fn (float|int $value): float => (float) $value, array_values($block['bbox']));
+            return $this->normalizeRect(array_map(static fn (float|int $value): float => (float) $value, array_values($block['bbox'])));
         }
 
         $lineBoxes = [];
         foreach (($block['lines'] ?? []) as $line) {
             if (is_array($line) && isset($line['bbox']) && is_array($line['bbox']) && count($line['bbox']) === 4) {
-                $lineBoxes[] = array_map(static fn (float|int $value): float => (float) $value, array_values($line['bbox']));
+                $lineBoxes[] = $this->normalizeRect(array_map(static fn (float|int $value): float => (float) $value, array_values($line['bbox'])));
             }
         }
 
@@ -344,6 +369,117 @@ final class LayoutOrderer
             max(array_column($lineBoxes, 2)),
             max(array_column($lineBoxes, 3)),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     * @param array<string, mixed> $block
+     * @return list<float>
+     */
+    private function blockBboxForOrdering(array $page, array $block): array
+    {
+        $bbox = $this->bbox($block);
+        if (!$this->usesPdfPageUserSpaceBlockBbox($page, $block)) {
+            return $bbox;
+        }
+
+        $pageBbox = $this->bboxValue($page['pdf_page_bbox'] ?? $page['page_bbox'] ?? null);
+        if ($pageBbox === null) {
+            return $bbox;
+        }
+
+        $rotation = $this->normalizedRotation((int) round((float) ($block['page_rotation'] ?? $page['rotation'] ?? 0)));
+        $userUnit = $this->positiveNumber($block['page_user_unit'] ?? $page['page_user_unit'] ?? $page['user_unit'] ?? null) ?? 1.0;
+
+        return $this->pageRectToPdftextDisplayRect($bbox, $pageBbox, $rotation, $userUnit);
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     * @param array<string, mixed> $block
+     */
+    private function usesPdfPageUserSpaceBlockBbox(array $page, array $block): bool
+    {
+        $coordinateSpace = $block['bbox_coordinate_space']
+            ?? $block['block_bbox_coordinate_space']
+            ?? $page['block_bbox_coordinate_space']
+            ?? null;
+
+        return in_array($coordinateSpace, ['pdf_page_user_space', 'pdf_page_space', 'page_user_space'], true);
+    }
+
+    /**
+     * @param list<float> $rect
+     * @param list<float> $pageBbox
+     * @return list<float>
+     */
+    private function pageRectToPdftextDisplayRect(array $rect, array $pageBbox, int $rotation, float $userUnit): array
+    {
+        $pageBox = $this->normalizeRect($pageBbox);
+        $sourceRect = $this->normalizeRect($rect);
+        $width = $pageBox[2] - $pageBox[0];
+        $height = $pageBox[3] - $pageBox[1];
+
+        if ($width == 0.0 || $height == 0.0) {
+            return $sourceRect;
+        }
+
+        $x1 = $sourceRect[0] - $pageBox[0];
+        $y1 = $sourceRect[1] - $pageBox[1];
+        $x2 = $sourceRect[2] - $pageBox[0];
+        $y2 = $sourceRect[3] - $pageBox[1];
+
+        $mapped = $this->normalizeRect(match ($this->normalizedRotation($rotation)) {
+            90 => [$y1, $x1, $y2, $x2],
+            180 => [$width - $x2, $y1, $width - $x1, $y2],
+            270 => [$height - $y2, $width - $x2, $height - $y1, $width - $x1],
+            default => [$x1, $height - $y2, $x2, $height - $y1],
+        });
+
+        if (abs($userUnit - 1.0) <= 0.000001) {
+            return $mapped;
+        }
+
+        return [
+            $mapped[0] * $userUnit,
+            $mapped[1] * $userUnit,
+            $mapped[2] * $userUnit,
+            $mapped[3] * $userUnit,
+        ];
+    }
+
+    /**
+     * @param list<float> $rect
+     * @return list<float>
+     */
+    private function normalizeRect(array $rect): array
+    {
+        return [
+            min($rect[0], $rect[2]),
+            min($rect[1], $rect[3]),
+            max($rect[0], $rect[2]),
+            max($rect[1], $rect[3]),
+        ];
+    }
+
+    private function normalizedRotation(int $rotation): int
+    {
+        $rotation %= 360;
+        if ($rotation < 0) {
+            $rotation += 360;
+        }
+
+        return in_array($rotation, [0, 90, 180, 270], true) ? $rotation : 0;
+    }
+
+    private function positiveNumber(mixed $value): ?float
+    {
+        if (!is_int($value) && !is_float($value)) {
+            return null;
+        }
+
+        $number = (float) $value;
+        return $number > 0.0 ? $number : null;
     }
 
     /**

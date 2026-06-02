@@ -157,6 +157,89 @@ return [
             [120.0, 200.0, 560.0, 480.0]
         ));
     },
+    'maps rotated PDF page-space block bboxes before reading-order matching' => static function (TestRunner $t): void {
+        $orderer = new LayoutOrderer();
+        $processor = new MarkdownPostProcessor();
+        $rotatedNinety = [
+            [
+                'bbox' => [0.0, 0.0, 200.0, 160.0],
+                'rotation' => 90,
+                'pdf_page_bbox' => [20.0, 40.0, 180.0, 240.0],
+                'block_bbox_coordinate_space' => 'pdf_page_user_space',
+                'order' => [
+                    'image_bbox' => [0.0, 0.0, 200.0, 160.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [20.0, 10.0, 40.0, 130.0]],
+                        ['position' => 2, 'bbox' => [110.0, 10.0, 130.0, 130.0]],
+                    ],
+                ],
+                'blocks' => [
+                    [
+                        'type' => 'Text',
+                        'bbox' => [30.0, 150.0, 150.0, 170.0],
+                        'lines' => [
+                            ['text' => 'Right display column', 'bbox' => [30.0, 150.0, 150.0, 170.0]],
+                        ],
+                    ],
+                    [
+                        'type' => 'Text',
+                        'bbox' => [30.0, 60.0, 150.0, 80.0],
+                        'lines' => [
+                            ['text' => 'Left display column', 'bbox' => [30.0, 60.0, 150.0, 80.0]],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        $rotatedTwoSeventy = [
+            [
+                'bbox' => [0.0, 0.0, 300.0, 200.0],
+                'rotation' => 270,
+                'pdf_page_bbox' => [0.0, 0.0, 200.0, 300.0],
+                'order' => [
+                    'image_bbox' => [0.0, 0.0, 300.0, 200.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [40.0, 20.0, 60.0, 160.0]],
+                        ['position' => 2, 'bbox' => [180.0, 20.0, 200.0, 160.0]],
+                    ],
+                ],
+                'blocks' => [
+                    [
+                        'type' => 'Text',
+                        'bbox_coordinate_space' => 'pdf_page_user_space',
+                        'bbox' => [40.0, 100.0, 180.0, 120.0],
+                        'lines' => [
+                            ['text' => 'Right 270 display column', 'bbox' => [40.0, 100.0, 180.0, 120.0]],
+                        ],
+                    ],
+                    [
+                        'type' => 'Text',
+                        'bbox_coordinate_space' => 'pdf_page_user_space',
+                        'bbox' => [40.0, 240.0, 180.0, 260.0],
+                        'lines' => [
+                            ['text' => 'Left 270 display column', 'bbox' => [40.0, 240.0, 180.0, 260.0]],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $sortedNinety = $orderer->sortBlocksInReadingOrder($rotatedNinety);
+        $sortedTwoSeventy = $orderer->sortBlocksInReadingOrder($rotatedTwoSeventy);
+        $mergedNinety = $processor->mergeBlocks($sortedNinety);
+        $mergedTwoSeventy = $processor->mergeBlocks($sortedTwoSeventy);
+
+        $t->same(['Left display column', 'Right display column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['text'],
+            $sortedNinety[0]['blocks']
+        ));
+        $t->same('Left display column Right display column', $mergedNinety[0]['text']);
+        $t->same(['Left 270 display column', 'Right 270 display column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['text'],
+            $sortedTwoSeventy[0]['blocks']
+        ));
+        $t->same('Left 270 display column Right 270 display column', $mergedTwoSeventy[0]['text']);
+    },
     'preserves two-column WordPress import reading order before markdown block merge' => static function (TestRunner $t): void {
         $orderer = new LayoutOrderer();
         $processor = new MarkdownPostProcessor();
