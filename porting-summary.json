@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 20:49:44 UTC",
-    "sourceCommit": "81944fe15cf173c95f63adfcb9bd93448822abb6",
-    "sourceCommitShort": "81944fe15cf1",
+    "generated": "2026-06-02 20:54:31 UTC",
+    "sourceCommit": "0c84b5b463e486380744fe494475a11b6604e967",
+    "sourceCommitShort": "0c84b5b463e4",
     "sourceBranch": "unknown",
-    "dashboardCommit": "81944fe15cf173c95f63adfcb9bd93448822abb6",
-    "dashboardCommitShort": "81944fe15cf1",
+    "dashboardCommit": "0c84b5b463e486380744fe494475a11b6604e967",
+    "dashboardCommitShort": "0c84b5b463e4",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "569",
-            "coverage": "569 / 78 (729.5%)",
-            "mapPercent": "729.5%",
+            "mapped": "570",
+            "coverage": "570 / 78 (730.8%)",
+            "mapPercent": "730.8%",
             "unmapped": "0",
-            "php": "810 pass / 0 fail",
+            "php": "811 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: accepted form45/font48/table46...",
-            "currentWork": "MarkerPDF now preserves field-level AcroForm SubmitForm/ResetForm resource reviews, T...",
-            "nextTarget": "Continue the two-stage conveyor: maintain 10-11 independent m...",
+            "audit": "2026-06-02 UTC supervisor integration: accepted meta48 markerPDF curr...",
+            "currentWork": "MarkerPDF now preserves PDF/A associated EmbeddedFiles name-tree metadata with root a...",
+            "nextTarget": "Score newest parser/xref rebase handoffs, continue small clea...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "81944fe"
+            "commit": "0c84b5b"
         },
         {
             "lane": "readability",
