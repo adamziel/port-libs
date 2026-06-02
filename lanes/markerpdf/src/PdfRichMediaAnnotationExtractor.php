@@ -942,7 +942,122 @@ final class PdfRichMediaAnnotationExtractor
             'name' => $this->topLevelStringValueAfterName($rendition['body'], 'N', $objects),
             'file_names' => $this->fileNamesFromBodies($bodies),
             'media_clip' => $clip === null ? null : $this->mediaClipDetailsFromRecord($clip, $objects),
+            'play_parameters' => $this->mediaParametersFromTopLevelValue($rendition['body'], 'P', $objects),
+            'screen_parameters' => $this->mediaParametersFromTopLevelValue($rendition['body'], 'SP', $objects),
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function mediaParametersFromTopLevelValue(string $body, string $name, array $objects): ?array
+    {
+        $parameters = $this->dictionaryFromTopLevelValue($body, $name, $objects);
+        if ($parameters === null) {
+            return null;
+        }
+
+        return [
+            'dictionary_object' => $parameters['object'],
+            'must_honor' => $this->mediaReviewDictionaryFromTopLevel($parameters['body'], 'MH', $objects),
+            'best_effort' => $this->mediaReviewDictionaryFromTopLevel($parameters['body'], 'BE', $objects),
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function mediaReviewDictionaryFromTopLevel(string $body, string $name, array $objects): ?array
+    {
+        $record = $this->dictionaryFromTopLevelValue($body, $name, $objects);
+        return $record === null ? null : $this->mediaReviewDictionaryFromRecord($record, $objects);
+    }
+
+    /**
+     * @param array{body: string, object: int|null} $record
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function mediaReviewDictionaryFromRecord(array $record, array $objects): array
+    {
+        $keys = [];
+        $booleans = [];
+        $numbers = [];
+        $names = [];
+        $strings = [];
+        $stringArrays = [];
+        $numberArrays = [];
+
+        foreach ($this->topLevelDictionaryEntries($record['body']) as $entry) {
+            $key = $entry['name'];
+            $value = $entry['value'];
+            $keys[] = $key;
+
+            $string = $this->pdfStringFromValue($value, $objects);
+            if ($string !== null) {
+                $strings[$key] = $string;
+                continue;
+            }
+
+            $name = $this->nameFromPdfValue($value, $objects);
+            if ($name !== null) {
+                $names[$key] = $name;
+                continue;
+            }
+
+            $bool = $this->boolFromPdfValue($value, $objects);
+            if ($bool !== null) {
+                $booleans[$key] = $bool;
+                continue;
+            }
+
+            $number = $this->numberFromPdfValue($value, $objects);
+            if ($number !== null) {
+                $numbers[$key] = $number;
+                continue;
+            }
+
+            $arrayBody = $this->arrayBodyFromPdfValue($value, $objects);
+            if ($arrayBody !== null) {
+                $arrayStrings = $this->stringsInValue($arrayBody);
+                if ($arrayStrings !== []) {
+                    $stringArrays[$key] = $arrayStrings;
+                }
+
+                $arrayNumbers = $this->numbersFromPdfArray($arrayBody);
+                if ($arrayNumbers !== []) {
+                    $numberArrays[$key] = $arrayNumbers;
+                }
+            }
+        }
+
+        $details = [
+            'dictionary_object' => $record['object'],
+            'keys' => $keys,
+        ];
+
+        if ($booleans !== []) {
+            $details['booleans'] = $booleans;
+        }
+        if ($numbers !== []) {
+            $details['numbers'] = $numbers;
+        }
+        if ($names !== []) {
+            $details['names'] = $names;
+        }
+        if ($strings !== []) {
+            $details['strings'] = $strings;
+        }
+        if ($stringArrays !== []) {
+            $details['string_arrays'] = $stringArrays;
+        }
+        if ($numberArrays !== []) {
+            $details['number_arrays'] = $numberArrays;
+        }
+
+        return $details;
     }
 
     /**

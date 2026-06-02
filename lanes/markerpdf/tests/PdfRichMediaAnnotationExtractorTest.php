@@ -127,6 +127,32 @@ $movieSoundRenditionPopupPdf = static function (): string {
         . "%%EOF";
 };
 
+$screenRenditionPlaybackPolicyPdf = static function (): string {
+    $pageContent = 'BT /F1 12 Tf 72 720 Td (Article Body) Tj ET';
+    $screenAppearance = 'BT /F1 12 Tf 0 0 Td (Playback Policy Noise) Tj ET';
+    $mediaBytes = "MP3 bytes with (Leaked Playback Payload) Tj ET";
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Annots [5 0 R] /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Annot /Subtype /Screen /Rect [72 500 360 650] /T (Screen training audio) /Contents (Playback settings require review) /A 10 0 R /AP << /N 6 0 R >> >>\nendobj\n"
+        . "6 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 30 0 R >> >> /Length " . strlen($screenAppearance) . " >>\nstream\n{$screenAppearance}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /S /Rendition /OP 0 /AN 5 0 R /R 11 0 R >>\nendobj\n"
+        . "11 0 obj\n<< /S /MR /N (Policy rendition) /C 12 0 R /P 15 0 R /SP 18 0 R >>\nendobj\n"
+        . "12 0 obj\n<< /S /MCD /N (Policy audio clip) /D 13 0 R /CT (audio/mpeg) /Alt [(en-US) (Training narration)] >>\nendobj\n"
+        . "13 0 obj\n<< /Type /Filespec /F (training-audio.mp3) /EF << /F 14 0 R >> >>\nendobj\n"
+        . "14 0 obj\n<< /Type /EmbeddedFile /Subtype /audio#2Fmpeg /Length " . strlen($mediaBytes) . " >>\nstream\n{$mediaBytes}\nendstream\nendobj\n"
+        . "15 0 obj\n<< /MH 16 0 R /BE << /C false /V 0.4 /Mode /Once /T (Best effort playback) /Dur [0 15] >> >>\nendobj\n"
+        . "16 0 obj\n<< /C true /V .85 /R false /T (Must honor playback) /Lang (en-US) >>\nendobj\n"
+        . "18 0 obj\n<< /MH 19 0 R /BE 20 0 R >>\nendobj\n"
+        . "19 0 obj\n<< /W /Window /O 0.9 /Title (Floating review player) >>\nendobj\n"
+        . "20 0 obj\n<< /W /FullScreen /O 0.5 /C false >>\nendobj\n"
+        . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts screen and rich media annotations as review-only metadata' => static function (TestRunner $t) use ($richMediaAnnotationPdf): void {
         $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($richMediaAnnotationPdf());
@@ -421,5 +447,62 @@ return [
         $t->true(!str_contains($plainText, 'Sound Action Payload Noise'));
         $t->true(!str_contains($plainText, 'Movie popup stays metadata'));
         $t->true(!str_contains($plainText, 'Sound popup stays metadata'));
+    },
+    'reviews screen rendition play and screen parameter dictionaries without executing media' => static function (TestRunner $t) use ($screenRenditionPlaybackPolicyPdf): void {
+        $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($screenRenditionPlaybackPolicyPdf());
+
+        $t->same(1, count($pages));
+        $t->same(['Screen'], array_column($pages[0]['annotations'], 'subtype'));
+
+        $screen = $pages[0]['annotations'][0];
+        $t->same('Screen training audio', $screen['title']);
+        $t->same(['Rendition'], $screen['action_types']);
+        $t->same(['training-audio.mp3'], $screen['file_names']);
+        $t->same(false, $screen['executes_media']);
+
+        $action = $screen['actions'][0];
+        $t->same('Rendition', $action['action_type']);
+        $t->same('media-rendition-review', $action['safety']);
+        $t->same(5, $action['target_annotation_object']);
+        $t->same(11, $action['rendition']['dictionary_object']);
+        $t->same('Policy rendition', $action['rendition']['name']);
+        $t->same('audio/mpeg', $action['rendition']['media_clip']['content_type']);
+        $t->same('training-audio.mp3', $action['rendition']['media_clip']['file']);
+        $t->same(['en-US', 'Training narration'], $action['rendition']['media_clip']['alternate_text']);
+
+        $play = $action['rendition']['play_parameters'];
+        $t->same(15, $play['dictionary_object']);
+        $t->same(16, $play['must_honor']['dictionary_object']);
+        $t->same(['C', 'V', 'R', 'T', 'Lang'], $play['must_honor']['keys']);
+        $t->same(['C' => true, 'R' => false], $play['must_honor']['booleans']);
+        $t->same(['V' => 0.85], $play['must_honor']['numbers']);
+        $t->same(['T' => 'Must honor playback', 'Lang' => 'en-US'], $play['must_honor']['strings']);
+        $t->same(null, $play['must_honor']['names'] ?? null);
+        $t->same(null, $play['must_honor']['number_arrays'] ?? null);
+        $t->same(null, $play['best_effort']['dictionary_object']);
+        $t->same(['C', 'V', 'Mode', 'T', 'Dur'], $play['best_effort']['keys']);
+        $t->same(['C' => false], $play['best_effort']['booleans']);
+        $t->same(['V' => 0.4], $play['best_effort']['numbers']);
+        $t->same(['Mode' => 'Once'], $play['best_effort']['names']);
+        $t->same(['T' => 'Best effort playback'], $play['best_effort']['strings']);
+        $t->same(['Dur' => [0.0, 15.0]], $play['best_effort']['number_arrays']);
+
+        $screenParameters = $action['rendition']['screen_parameters'];
+        $t->same(18, $screenParameters['dictionary_object']);
+        $t->same(19, $screenParameters['must_honor']['dictionary_object']);
+        $t->same(['W', 'O', 'Title'], $screenParameters['must_honor']['keys']);
+        $t->same(['W' => 'Window'], $screenParameters['must_honor']['names']);
+        $t->same(['O' => 0.9], $screenParameters['must_honor']['numbers']);
+        $t->same(['Title' => 'Floating review player'], $screenParameters['must_honor']['strings']);
+        $t->same(20, $screenParameters['best_effort']['dictionary_object']);
+        $t->same(['W', 'O', 'C'], $screenParameters['best_effort']['keys']);
+        $t->same(['W' => 'FullScreen'], $screenParameters['best_effort']['names']);
+        $t->same(['O' => 0.5], $screenParameters['best_effort']['numbers']);
+        $t->same(['C' => false], $screenParameters['best_effort']['booleans']);
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($screenRenditionPlaybackPolicyPdf());
+        $t->same(['Article Body'], (new PdfTextExtractor())->extractTextLines($screenRenditionPlaybackPolicyPdf()));
+        $t->true(!str_contains($plainText, 'Playback Policy Noise'));
+        $t->true(!str_contains($plainText, 'Leaked Playback Payload'));
     },
 ];
