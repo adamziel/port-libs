@@ -1079,6 +1079,62 @@ return [
         $t->contains('| Images  | Ready  |', $formatted['markdown_tables'][0]);
         $t->same([], $recognized[0]['ocr_grid_border_conflicts'] ?? []);
     },
+    'preserves OCR text by geometry when recognition returns reordered structure cells' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $rows = [
+            ['row_id' => 0, 'bbox' => [0.0, 0.0, 200.0, 30.0]],
+            ['row_id' => 1, 'bbox' => [0.0, 38.0, 200.0, 70.0]],
+        ];
+        $cols = [
+            ['col_id' => 0, 'bbox' => [0.0, 0.0, 96.0, 72.0]],
+            ['col_id' => 1, 'bbox' => [98.0, 0.0, 200.0, 72.0]],
+        ];
+        $recognized = $recognizer->recognizeTables(
+            [[
+                ['bbox' => [0.0, 0.0, 90.0, 24.0], 'text' => ''],
+                ['bbox' => [100.0, 0.0, 190.0, 24.0], 'text' => ''],
+                ['bbox' => [0.0, 40.0, 90.0, 64.0], 'text' => ''],
+                ['bbox' => [100.0, 40.0, 190.0, 64.0], 'text' => ''],
+            ]],
+            [true],
+            [[
+                'rows' => $rows,
+                'cols' => $cols,
+                'cells' => [
+                    ['bbox' => [100.0, 0.0, 190.0, 24.0], 'text' => null],
+                    ['bbox' => [0.0, 0.0, 90.0, 24.0], 'text' => null],
+                    ['bbox' => [100.0, 40.0, 190.0, 64.0], 'text' => null],
+                    ['bbox' => [0.0, 40.0, 90.0, 64.0], 'text' => null],
+                ],
+            ]],
+            [[
+                'text_lines' => [
+                    ['text' => 'Feature', 'bbox' => [2.0, 4.0, 88.0, 20.0]],
+                    ['text' => 'Status', 'bbox' => [102.0, 4.0, 188.0, 20.0]],
+                    ['text' => 'Imported', 'bbox' => [2.0, 44.0, 88.0, 60.0]],
+                    ['text' => 'Ready', 'bbox' => [102.0, 44.0, 188.0, 60.0]],
+                ],
+            ]]
+        );
+        $formatted = $recognizer->formatRecognizedTables($recognized, [['width' => 200, 'height' => 72]]);
+        $assigned = $formatted['assigned_cells'][0];
+        $byText = [];
+        foreach ($assigned as $cell) {
+            $byText[$cell['text']] = $cell;
+        }
+
+        $t->same(['Status', 'Feature', 'Ready', 'Imported'], array_column($recognized[0]['cells'], 'text'));
+        $t->same([0], $byText['Feature']['row_ids']);
+        $t->same([0], $byText['Feature']['col_ids']);
+        $t->same([0], $byText['Status']['row_ids']);
+        $t->same([1], $byText['Status']['col_ids']);
+        $t->same([1], $byText['Imported']['row_ids']);
+        $t->same([0], $byText['Imported']['col_ids']);
+        $t->same([1], $byText['Ready']['row_ids']);
+        $t->same([1], $byText['Ready']['col_ids']);
+        $t->contains('| Feature  | Status |', $formatted['markdown_tables'][0]);
+        $t->contains('| Imported | Ready  |', $formatted['markdown_tables'][0]);
+    },
     'labels OCR grid-border conflicts with assigned table row and column ids' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $recognized = $recognizer->recognizeTables(

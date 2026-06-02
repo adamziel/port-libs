@@ -1521,6 +1521,82 @@ return [
             unlink($path);
         }
     },
+    'preserves forced OCR text when supplied table structure cells are reordered' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-table-ocr-structure-assignment-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% table OCR structure assignment supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'OCR structure assignment matrix', 'bbox' => [72.0, 48.0, 440.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Stale OCR structure table text should be replaced.', 'bbox' => [72.0, 178.0, 460.0, 196.0]],
+                ['text' => 'After OCR structure table.', 'bbox' => [72.0, 276.0, 430.0, 294.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 48.0, 440.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 430.0, 230.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 276.0, 430.0, 294.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 200.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 38.0, 200.0, 70.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 96.0, 72.0]],
+                    ['col_id' => 1, 'bbox' => [98.0, 0.0, 200.0, 72.0]],
+                ],
+                'cells' => [
+                    ['bbox' => [100.0, 0.0, 190.0, 24.0], 'text' => null],
+                    ['bbox' => [0.0, 0.0, 90.0, 24.0], 'text' => null],
+                    ['bbox' => [100.0, 40.0, 190.0, 64.0], 'text' => null],
+                    ['bbox' => [0.0, 40.0, 90.0, 64.0], 'text' => null],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_detector_cells' => [[
+                        ['bbox' => [0.0, 0.0, 90.0, 24.0], 'text' => null],
+                        ['bbox' => [100.0, 0.0, 190.0, 24.0], 'text' => null],
+                        ['bbox' => [0.0, 40.0, 90.0, 64.0], 'text' => null],
+                        ['bbox' => [100.0, 40.0, 190.0, 64.0], 'text' => null],
+                    ]],
+                    'table_ocr_text_lines' => [[
+                        'text_lines' => [
+                            ['text' => 'Feature', 'bbox' => [2.0, 4.0, 88.0, 20.0]],
+                            ['text' => 'Status', 'bbox' => [102.0, 4.0, 188.0, 20.0]],
+                            ['text' => 'Imported', 'bbox' => [2.0, 44.0, 88.0, 60.0]],
+                            ['text' => 'Ready', 'bbox' => [102.0, 44.0, 188.0, 60.0]],
+                        ],
+                    ]],
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                    'ocr_all_pages' => true,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $t->contains('# Ocr Structure Assignment Matrix', $result['text']);
+            $t->contains('| Feature  | Status |', $result['text']);
+            $t->contains('| Imported | Ready  |', $result['text']);
+            $t->contains('After OCR structure table.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Stale OCR structure table text should be replaced.'));
+            $t->same(['layout', 'table-cell-routing', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same([true], $result['metadata']['table_needs_ocr']);
+            $t->same([4], $result['metadata']['table_cell_counts']);
+            $t->same(['Status', 'Feature', 'Ready', 'Imported'], array_column($result['metadata']['table_assigned_cells'][0], 'text'));
+            $t->same([0], $result['metadata']['table_assigned_cells'][0][1]['col_ids']);
+            $t->same([1], $result['metadata']['table_assigned_cells'][0][0]['col_ids']);
+        } finally {
+            unlink($path);
+        }
+    },
     'uses pdftext table-line structures when recognition output needs cells' => static function (TestRunner $t) use ($pdftextPage, $pdfTextChars, $pdfTextLine): void {
         $path = sys_get_temp_dir() . '/markerpdf-table-textline-structure-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% table text-line structure supplied pipeline\n%%EOF");

@@ -266,6 +266,15 @@ final class PdfEmbeddedFileExtractor
                 $file['provenance_review'] = $provenance;
             }
 
+            $associatedProvenance = $this->associatedFileProvenanceReview($file);
+            if ($associatedProvenance !== []) {
+                if (!isset($file['provenance_review'])) {
+                    $file['provenance_review'] = $associatedProvenance;
+                } else {
+                    $file['associated_file_provenance_review'] = $associatedProvenance;
+                }
+            }
+
             return $file;
         }
 
@@ -405,6 +414,62 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $payload;
+    }
+
+    /**
+     * Associated FileSpec relationship/checksum state is review metadata for
+     * importers. The payload bytes may be returned by this low-level extractor,
+     * but this summary only carries hashes, sizes, and checksum match state.
+     *
+     * @param array<string, mixed> $file
+     * @return array<string, mixed>
+     */
+    private function associatedFileProvenanceReview(array $file): array
+    {
+        $source = $file['source'] ?? null;
+        $relationship = $file['relationship'] ?? null;
+        $isAssociated = ($file['associated_file'] ?? false) === true
+            || (is_string($source) && str_contains($source, 'associated'))
+            || (is_string($relationship) && $relationship !== '');
+        if (!$isAssociated) {
+            return [];
+        }
+
+        $sources = [];
+        $metadata = [
+            'source' => 'associated_file_provenance',
+            'review_only' => true,
+            'payload_included' => false,
+            'payload_content_returned' => array_key_exists('content', $file),
+        ];
+
+        if (is_string($relationship) && $relationship !== '') {
+            $metadata['relationship'] = $relationship;
+            $metadata['relationship_role'] = self::ASSOCIATED_FILE_RELATIONSHIP_ROLES[$relationship] ?? 'unrecognized';
+            $metadata['relationship_status'] = array_key_exists($relationship, self::ASSOCIATED_FILE_RELATIONSHIP_ROLES)
+                ? 'standard_pdf_associated_file_relationship'
+                : 'unrecognized_pdf_associated_file_relationship';
+            $sources[] = 'filespec_afrelationship';
+        } else {
+            $metadata['relationship_status'] = 'missing_pdf_associated_file_relationship';
+        }
+
+        $payload = $this->embeddedPayloadProvenance($file);
+        if ($payload !== []) {
+            $metadata['payload'] = $payload;
+            $sources[] = 'embedded_file_payload_hash';
+            if (array_key_exists('checksum', $payload) || array_key_exists('computed_checksum', $payload)) {
+                $sources[] = 'embedded_file_params_checksum';
+            }
+        }
+
+        if ($sources === []) {
+            return [];
+        }
+
+        $metadata['sources'] = $sources;
+
+        return $metadata;
     }
 
     /**

@@ -139,13 +139,8 @@ final class TableRecognizer
 
             $result = $suppliedTableResults[$idx];
             $resultCells = isset($result['cells']) && is_array($result['cells'])
-                ? $this->normalizeCells(array_values($result['cells']))
+                ? $this->mergeRecognizedCellText($this->normalizeCells(array_values($result['cells'])), $cells)
                 : $cells;
-            foreach ($resultCells as $cellIndex => $cell) {
-                if (($cell['text'] ?? null) === null && isset($cells[$cellIndex])) {
-                    $resultCells[$cellIndex]['text'] = $cells[$cellIndex]['text'] ?? '';
-                }
-            }
 
             $recognizedTable = [
                 'cells' => $resultCells,
@@ -161,6 +156,117 @@ final class TableRecognizer
         }
 
         return $recognized;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $resultCells
+     * @param list<array<string, mixed>> $sourceCells
+     * @return list<array<string, mixed>>
+     */
+    private function mergeRecognizedCellText(array $resultCells, array $sourceCells): array
+    {
+        if ($sourceCells === []) {
+            return $resultCells;
+        }
+
+        $usedSourceIndexes = [];
+        foreach ($resultCells as $cellIndex => &$resultCell) {
+            if (trim((string) ($resultCell['text'] ?? '')) !== '') {
+                continue;
+            }
+
+            $sourceIndexes = $this->sourceCellIndexesForResultCell($resultCell, $sourceCells, $usedSourceIndexes);
+            if ($sourceIndexes === [] && isset($sourceCells[$cellIndex]) && !isset($usedSourceIndexes[$cellIndex])) {
+                $sourceText = trim((string) ($sourceCells[$cellIndex]['text'] ?? ''));
+                if ($sourceText !== '') {
+                    $sourceIndexes = [$cellIndex];
+                }
+            }
+
+            if ($sourceIndexes === []) {
+                continue;
+            }
+
+            $text = $this->combinedSourceCellText($sourceCells, $sourceIndexes);
+            if ($text === '') {
+                continue;
+            }
+
+            $resultCell['text'] = $text;
+            foreach ($sourceIndexes as $sourceIndex) {
+                $usedSourceIndexes[$sourceIndex] = true;
+            }
+        }
+        unset($resultCell);
+
+        return $resultCells;
+    }
+
+    /**
+     * @param array<string, mixed> $resultCell
+     * @param list<array<string, mixed>> $sourceCells
+     * @param array<int, true> $usedSourceIndexes
+     * @return list<int>
+     */
+    private function sourceCellIndexesForResultCell(array $resultCell, array $sourceCells, array $usedSourceIndexes): array
+    {
+        $resultBbox = $this->nullableBbox($resultCell['bbox'] ?? null);
+        if ($resultBbox === null) {
+            return [];
+        }
+
+        $indexes = [];
+        foreach ($sourceCells as $sourceIndex => $sourceCell) {
+            if (isset($usedSourceIndexes[$sourceIndex]) || trim((string) ($sourceCell['text'] ?? '')) === '') {
+                continue;
+            }
+
+            $sourceBbox = $this->nullableBbox($sourceCell['bbox'] ?? null);
+            if ($sourceBbox === null) {
+                continue;
+            }
+            if ($this->sourceCellMatchesResultCell($sourceBbox, $resultBbox)) {
+                $indexes[] = $sourceIndex;
+            }
+        }
+
+        return $indexes;
+    }
+
+    /**
+     * @param list<float> $sourceBbox
+     * @param list<float> $resultBbox
+     */
+    private function sourceCellMatchesResultCell(array $sourceBbox, array $resultBbox, float $threshold = 0.5): bool
+    {
+        return $this->intersectionPct($sourceBbox, $resultBbox) >= $threshold
+            || $this->intersectionPct($resultBbox, $sourceBbox) >= $threshold
+            || $this->bboxCenterInside($sourceBbox, $resultBbox)
+            || $this->bboxCenterInside($resultBbox, $sourceBbox);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sourceCells
+     * @param list<int> $sourceIndexes
+     */
+    private function combinedSourceCellText(array $sourceCells, array $sourceIndexes): string
+    {
+        $selected = [];
+        foreach ($sourceIndexes as $sourceIndex) {
+            if (isset($sourceCells[$sourceIndex])) {
+                $selected[] = $sourceCells[$sourceIndex];
+            }
+        }
+
+        $parts = [];
+        foreach ($this->sortTextCells($selected) as $sourceCell) {
+            $text = $this->normalizeOcrFragmentText((string) ($sourceCell['text'] ?? ''));
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return implode(' ', $parts);
     }
 
     /**

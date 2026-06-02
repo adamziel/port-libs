@@ -6233,6 +6233,9 @@ final class PdfTextExtractor
     {
         $encodingFallback = $this->fontEncodingMap($body, $objects);
         $cidEncodingMap = $this->fontCidEncodingMap($body, $objects, $namedCMapBodies);
+        $type3CMapWordSpacing = $this->isType3FontBody($body)
+            && $cidEncodingMap !== null
+            && $cidEncodingMap['cidMap'] !== [];
         $widthMetrics = $this->fontWidthMetrics($body, $objects);
         $descriptorInfo = $this->fontDescriptorInfo($body, $objects);
         $type3CharProcMap = $this->type3CharProcUnicodeMap($body, $objects, $cidEncodingMap);
@@ -6283,6 +6286,9 @@ final class PdfTextExtractor
         }
 
         $cmap = $this->withFontCidEncodingMap($cmap, $cidEncodingMap);
+        if ($type3CMapWordSpacing) {
+            $cmap['wordSpacingUsesCidMap'] = true;
+        }
         $cmap = $this->withFontWidthMetrics($cmap, $widthMetrics, $this->fontWritingMode($body, $cmap, $cidEncodingMap, $objects));
         return $this->withFontDescriptorInfo($cmap, $descriptorInfo);
     }
@@ -15039,12 +15045,22 @@ final class PdfTextExtractor
 
         $spaces = 0;
         foreach ($sourceKeys as $key) {
-            if (hexdec($key) === 0x20) {
+            if ($this->sourceKeyUsesWordSpacing($key, $toUnicodeMap)) {
                 $spaces++;
             }
         }
 
         return $spaces;
+    }
+
+    private function sourceKeyUsesWordSpacing(string $sourceKey, array $toUnicodeMap): bool
+    {
+        if (hexdec($sourceKey) === 0x20) {
+            return true;
+        }
+
+        return ($toUnicodeMap['wordSpacingUsesCidMap'] ?? false) === true
+            && $this->cidForWidthSourceKey($sourceKey, $toUnicodeMap) === 0x20;
     }
 
     private function hasSourceBoundaryDataForGlyphAdvance(array $toUnicodeMap): bool
