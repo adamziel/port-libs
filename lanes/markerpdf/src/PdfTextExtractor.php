@@ -549,9 +549,7 @@ final class PdfTextExtractor
         if ($pageObjectNumbers !== []) {
             $fontObjectMaps = $this->fontObjectMaps($objects);
             $pageStreams = $this->pageContentStreamsWithFontMaps($objects, $pageObjectNumbers, $fontObjectMaps);
-            if ($pageStreams !== []) {
-                return $pageStreams;
-            }
+            return $pageStreams;
         }
 
         $fontToUnicodeMaps = $this->fontToUnicodeMaps($pdfBytes);
@@ -3937,7 +3935,7 @@ final class PdfTextExtractor
      */
     private function pageContentObjectNumbers(string $pageBody, array $objects): array
     {
-        $value = $this->pdfValueAfterName($pageBody, 'Contents');
+        $value = $this->topLevelPdfValueAfterName($pageBody, 'Contents');
         return $value === null ? [] : $this->pageContentObjectNumbersFromValue($value, $objects, []);
     }
 
@@ -6303,45 +6301,102 @@ final class PdfTextExtractor
             return null;
         }
 
+        return $this->pdfValueAtOffset($body, $offset);
+    }
+
+    private function topLevelPdfValueAfterName(string $body, string $name): ?string
+    {
+        $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        $offset = 0;
+        $length = strlen($dictionary);
+
+        while ($offset < $length) {
+            $this->skipContentWhitespaceAndComments($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($dictionary[$offset] !== '/') {
+                $nextOffset = $this->skipPdfValueAt($dictionary, $offset);
+                $offset = $nextOffset > $offset ? $nextOffset : $offset + 1;
+                continue;
+            }
+
+            $keyStart = $offset + 1;
+            $keyEnd = $keyStart;
+            while ($keyEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $dictionary[$keyEnd])) {
+                $keyEnd++;
+            }
+
+            if ($keyEnd === $keyStart) {
+                $offset++;
+                continue;
+            }
+
+            $key = $this->decodePdfName(substr($dictionary, $keyStart, $keyEnd - $keyStart));
+            $valueOffset = $keyEnd;
+            $this->skipContentWhitespaceAndComments($dictionary, $valueOffset);
+            if ($valueOffset >= $length) {
+                return null;
+            }
+
+            if ($key === $name) {
+                return $this->pdfValueAtOffset($dictionary, $valueOffset);
+            }
+
+            $nextOffset = $this->skipPdfValueAt($dictionary, $valueOffset);
+            $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
+        }
+
+        return null;
+    }
+
+    private function skipPdfValueAt(string $body, int $offset): int
+    {
+        $length = strlen($body);
+        if ($offset < 0 || $offset >= $length) {
+            return $length;
+        }
+
         if ($body[$offset] === '[') {
             $array = $this->readPdfArrayAt($body, $offset);
-            return $array === null ? null : '[' . $array . ']';
+            return $array === null ? $offset + 1 : $offset + strlen($array) + 2;
         }
 
         if (substr($body, $offset, 2) === '<<') {
             $end = $this->pdfDictionaryEndOffset($body, $offset);
-            return $end === null ? null : substr($body, $offset, $end - $offset + 1);
+            return $end === null ? $offset + 2 : $end + 1;
         }
 
         if ($body[$offset] === '(') {
             $end = $this->skipPdfLiteralStringAt($body, $offset);
-            return $end === null ? null : substr($body, $offset, $end - $offset + 1);
+            return $end === null ? $offset + 1 : $end + 1;
         }
 
         if ($body[$offset] === '<') {
             $end = strpos($body, '>', $offset + 1);
-            return $end === false ? null : substr($body, $offset, $end - $offset + 1);
+            return $end === false ? $length : $end + 1;
         }
 
         if (preg_match('/\G\d+\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
-            return $match[0];
+            return $offset + strlen($match[0]);
         }
 
         if ($body[$offset] === '/') {
             $end = $offset + 1;
-            while ($end < strlen($body) && !str_contains(" \t\r\n\f[]()<>{}/%", $body[$end])) {
+            while ($end < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $body[$end])) {
                 $end++;
             }
 
-            return substr($body, $offset, $end - $offset);
+            return $end;
         }
 
         $end = $offset;
-        while ($end < strlen($body) && !ctype_space($body[$end]) && !str_contains('[]()<>{}/%', $body[$end])) {
+        while ($end < $length && !ctype_space($body[$end]) && !str_contains('[]()<>{}/%', $body[$end])) {
             $end++;
         }
 
-        return $end === $offset ? null : substr($body, $offset, $end - $offset);
+        return $end === $offset ? $offset + 1 : $end;
     }
 
     /**

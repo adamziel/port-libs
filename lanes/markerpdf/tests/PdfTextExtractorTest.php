@@ -2710,6 +2710,45 @@ return [
         $t->same("Indirect Array Page One\nIndirect Array Page Two\nShared Resource Still Active\n", $extractor->naiveGetText($pdf));
         $t->true(!str_contains($plainText, 'Indirect Contents fallback leak'));
     },
+    'keeps page tree Contents non-inheritable while preserving inherited Resources' => static function (TestRunner $t) use ($toUnicodeCMap): void {
+        $parentLeak = 'BT /F1 12 Tf 72 720 Td (Parent Contents Leak) Tj ET';
+        $orphanLeak = 'BT /F1 12 Tf 72 720 Td (Orphan Stream Leak) Tj ET';
+        $blankLeafPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 6 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($parentLeak) . " >>\nstream\n{$parentLeak}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($orphanLeak) . " >>\nstream\n{$orphanLeak}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $t->same([], $extractor->extractTextLines($blankLeafPdf));
+        $t->same([], $extractor->extractTextRuns($blankLeafPdf));
+        $t->same('', $extractor->extractPlainText($blankLeafPdf));
+        $t->same('', $extractor->naiveGetText($blankLeafPdf));
+
+        $cmap = $toUnicodeCMap([
+            '41' => 'Child Page Uses Inherited Resources',
+        ]);
+        $childPage = 'BT /F1 12 Tf 72 720 Td <41> Tj ET';
+        $resourcePdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 6 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($parentLeak) . " >>\nstream\n{$parentLeak}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($childPage) . " >>\nstream\n{$childPage}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /InheritedFont /Encoding /Identity-H /ToUnicode 7 0 R >>\nendobj\n"
+            . "7 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Length " . strlen($orphanLeak) . " >>\nstream\n{$orphanLeak}\nendstream\nendobj\n%%EOF";
+        $plainText = $extractor->extractPlainText($resourcePdf);
+
+        $t->same(['Child Page Uses Inherited Resources'], $extractor->extractTextLines($resourcePdf));
+        $t->same(['Child Page Uses Inherited Resources'], $extractor->extractTextRuns($resourcePdf));
+        $t->same('Child Page Uses Inherited Resources', $plainText);
+        $t->same("Child Page Uses Inherited Resources\n", $extractor->naiveGetText($resourcePdf));
+        $t->true(!str_contains($plainText, 'Parent Contents Leak'));
+        $t->true(!str_contains($plainText, 'Orphan Stream Leak'));
+    },
     'extracts catalog PageLabels number tree for WordPress page boundaries' => static function (TestRunner $t): void {
         $contents = [
             10 => 'BT /F1 12 Tf 72 720 Td (Preface imported) Tj ET',
