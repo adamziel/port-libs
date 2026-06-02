@@ -158,7 +158,7 @@ final class PdfMarkupAnnotationExtractor
 
     /**
      * @param array<int, string> $objects
-     * @param array{bbox: list<float>, rotation: int, display_bbox: list<float>} $pageGeometry
+     * @param array{bbox: list<float>, rotation: int, user_unit: float, display_bbox: list<float>} $pageGeometry
      * @return list<array<string, mixed>>
      */
     private function markupsFromPageObject(
@@ -183,7 +183,7 @@ final class PdfMarkupAnnotationExtractor
     /**
      * @return array<string, mixed>|null
      * @param array<int, string> $objects
-     * @param array{bbox: list<float>, rotation: int, display_bbox: list<float>} $pageGeometry
+     * @param array{bbox: list<float>, rotation: int, user_unit: float, display_bbox: list<float>} $pageGeometry
      */
     private function markupFromAnnotationBody(
         string $annotationBody,
@@ -219,6 +219,7 @@ final class PdfMarkupAnnotationExtractor
             'pdftext_rect' => $this->pageRectToPdftextRect($rect, $pageGeometry),
             'page_bbox' => $pageGeometry['bbox'],
             'page_rotation' => $pageGeometry['rotation'],
+            'page_user_unit' => $pageGeometry['user_unit'],
             'display_page_bbox' => $pageGeometry['display_bbox'],
             'contents' => $this->stringAfterName($annotationBody, 'Contents'),
             'author' => $this->stringAfterName($annotationBody, 'T'),
@@ -630,7 +631,7 @@ final class PdfMarkupAnnotationExtractor
 
     /**
      * @param list<float> $rect
-     * @param array{bbox: list<float>, rotation: int, display_bbox: list<float>} $pageGeometry
+     * @param array{bbox: list<float>, rotation: int, user_unit: float, display_bbox: list<float>} $pageGeometry
      * @return list<float>
      */
     private function pageRectToPdftextRect(array $rect, array $pageGeometry): array
@@ -646,12 +647,24 @@ final class PdfMarkupAnnotationExtractor
         $x2 = $rect[2] - $left;
         $y2 = $rect[3] - $bottom;
 
-        return $this->normalizeRect(match ($this->normalizedRotation($pageGeometry['rotation'])) {
+        $mapped = $this->normalizeRect(match ($this->normalizedRotation($pageGeometry['rotation'])) {
             90 => [$y1, $x1, $y2, $x2],
             180 => [$width - $x2, $y1, $width - $x1, $y2],
             270 => [$height - $y2, $width - $x2, $height - $y1, $width - $x1],
             default => [$x1, $height - $y2, $x2, $height - $y1],
         });
+
+        $userUnit = (float) ($pageGeometry['user_unit'] ?? 1.0);
+        if (abs($userUnit - 1.0) <= 0.000001) {
+            return $mapped;
+        }
+
+        return [
+            $mapped[0] * $userUnit,
+            $mapped[1] * $userUnit,
+            $mapped[2] * $userUnit,
+            $mapped[3] * $userUnit,
+        ];
     }
 
     /**
@@ -924,7 +937,7 @@ final class PdfMarkupAnnotationExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{bbox: list<float>, rotation: int, display_bbox: list<float>}
+     * @return array{bbox: list<float>, rotation: int, user_unit: float, display_bbox: list<float>}
      */
     private function pageGeometry(int $pageObjectNumber, array $objects): array
     {
@@ -940,10 +953,16 @@ final class PdfMarkupAnnotationExtractor
             $rotation = $inherited['rotation'] ?? 0;
         }
 
+        $userUnit = $this->numberValueAfterName($pageBody, 'UserUnit', $objects);
+        if ($userUnit === null || $userUnit <= 0.0) {
+            $userUnit = 1.0;
+        }
+
         return [
             'bbox' => $bbox,
             'rotation' => $rotation,
-            'display_bbox' => $this->displayPageBbox($bbox, $rotation),
+            'user_unit' => $userUnit,
+            'display_bbox' => $this->displayPageBbox($bbox, $rotation, $userUnit),
         ];
     }
 
@@ -1099,10 +1118,10 @@ final class PdfMarkupAnnotationExtractor
      * @param list<float> $bbox
      * @return list<float>
      */
-    private function displayPageBbox(array $bbox, int $rotation): array
+    private function displayPageBbox(array $bbox, int $rotation, float $userUnit = 1.0): array
     {
-        $width = $this->rectWidth($bbox);
-        $height = $this->rectHeight($bbox);
+        $width = $this->rectWidth($bbox) * $userUnit;
+        $height = $this->rectHeight($bbox) * $userUnit;
         if (in_array($this->normalizedRotation($rotation), [90, 270], true)) {
             [$width, $height] = [$height, $width];
         }

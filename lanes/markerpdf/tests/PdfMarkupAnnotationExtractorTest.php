@@ -107,6 +107,37 @@ $rotatedSuppliedPages = static function (): array {
     ];
 };
 
+$userUnitRotatedMarkupPdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 400 600] /CropBox [10 20 170 220] /Rotate 90 /UserUnit 5 /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /UserUnit 9 0 R /Annots [7 0 R] >>\nendobj\n"
+        . "7 0 obj\n<< /Type /Annot /Subtype /Highlight /Rect [30 150 110 170] /QuadPoints [30 170 110 170 30 150 110 150] /Contents (userunit rotated crop highlight) /T (Geometry QA) /C [0.2 0.6 1] >>\nendobj\n"
+        . "9 0 obj\n2\nendobj\n"
+        . "%%EOF";
+};
+
+$userUnitRotatedSuppliedPages = static function (): array {
+    return [
+        [
+            'pnum' => 0,
+            'bbox' => [0.0, 0.0, 400.0, 320.0],
+            'rotation' => 90,
+            'blocks' => [[
+                'type' => 'Text',
+                'bbox' => [260.0, 40.0, 300.0, 200.0],
+                'lines' => [[
+                    'bbox' => [260.0, 40.0, 300.0, 200.0],
+                    'spans' => [
+                        ['text' => 'Scaled review', 'bbox' => [260.0, 40.0, 300.0, 200.0], 'font' => 'Helvetica'],
+                        ['text' => 'unscaled decoy', 'bbox' => [130.0, 20.0, 150.0, 100.0], 'font' => 'Helvetica'],
+                    ],
+                ]],
+            ]],
+        ],
+    ];
+};
+
 $markupActionDestinationPdf = static function (): string {
     return "%PDF-1.7\n"
         . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /Dests 11 0 R >> >>\nendobj\n"
@@ -273,6 +304,30 @@ return [
         $t->same([180.0, 120.0, 200.0, 180.0], $secondReview['quad_rect']);
         $t->same('marker_pdftext_display', $secondReview['quad_rect_coordinate_space']);
         $t->true(!isset($pages[1]['blocks'][0]['lines'][0]['spans'][1]['review_annotations']), 'raw 270 page-space decoy span is not annotated on a rotated pdftext page.');
+    },
+    'scales rotated QuadPoints by page local UserUnit before applying supplied pdftext spans' => static function (TestRunner $t) use ($userUnitRotatedMarkupPdf, $userUnitRotatedSuppliedPages): void {
+        $extractor = new PdfMarkupAnnotationExtractor();
+        $markups = $extractor->extractPageMarkups($userUnitRotatedMarkupPdf());
+
+        $t->same(1, count($markups));
+        $markup = $markups[0]['markups'][0];
+        $t->same(90, $markup['page_rotation']);
+        $t->same(2.0, $markup['page_user_unit']);
+        $t->same([10.0, 20.0, 170.0, 220.0], $markup['page_bbox']);
+        $t->same([0.0, 0.0, 400.0, 320.0], $markup['display_page_bbox']);
+        $t->same([[30.0, 150.0, 110.0, 170.0]], $markup['quad_rects']);
+        $t->same([[260.0, 40.0, 300.0, 200.0]], $markup['pdftext_quad_rects']);
+
+        $pages = $extractor->applyMarkupsToPages($userUnitRotatedSuppliedPages(), $userUnitRotatedMarkupPdf());
+        $review = $pages[0]['blocks'][0]['lines'][0]['spans'][0]['review_annotations'][0];
+
+        $t->same('Highlight', $review['subtype']);
+        $t->same('userunit rotated crop highlight', $review['contents']);
+        $t->same([260.0, 40.0, 300.0, 200.0], $review['quad_rect']);
+        $t->same('marker_pdftext_display', $review['quad_rect_coordinate_space']);
+        $t->same([30.0, 150.0, 110.0, 170.0], $review['page_quad_rect']);
+        $t->same([260.0, 40.0, 300.0, 200.0], $review['pdftext_quad_rect']);
+        $t->true(!isset($pages[0]['blocks'][0]['lines'][0]['spans'][1]['review_annotations']), 'unscaled page-space decoy is not annotated on a UserUnit-scaled pdftext page.');
     },
     'keeps pages without text-markup annotations unchanged' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [<< /Type /Annot /Subtype /Text /Rect [72 700 160 718] /Contents (sticky note) >>] >>\nendobj\n%%EOF";
