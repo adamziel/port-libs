@@ -231,6 +231,60 @@ return [
         $t->same(15, $previewFile['embedded_file_object']);
         $t->same($previewText, $previewFile['content']);
     },
+    'carries portfolio collection metadata and checksum boundaries on catalog associated files' => static function (TestRunner $t): void {
+        $sourceXml = '<wp-export><post id="108"/></wp-export>';
+        $previewJson = '{"preview":"stale-checksum"}';
+        $sourceChecksum = strtoupper(hash('md5', $sourceXml));
+        $staleChecksum = str_repeat('0f', 16);
+
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageMode /UseAttachments /Collection 5 0 R /AF [10 0 R 20 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "5 0 obj\n<< /Type /Collection /View /T /D (source.xml) /Schema << /Subject << /Subtype /S /N (Subject) /O 1 /V true >> /Checksum << /Subtype /S /N (Checksum state) /O 2 >> >> /Sort << /S [/Subject /Checksum] /A [true false] >> >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (source.xml) /Desc (Original WordPress export) /AFRelationship /Source /CI 30 0 R /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourceXml) . " /CheckSum <{$sourceChecksum}> /ModDate (D:20260602092000Z) >> /Length " . strlen($sourceXml) . " >>\nstream\n{$sourceXml}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /Filespec /F (preview.json) /Desc (Generated preview payload) /AFRelationship /Alternative /CI << /Subject (Preview JSON) /Checksum << /Type /CollectionSubitem /D (stale) /P (checksum: ) >> >> /EF << /F 21 0 R >> >>\nendobj\n"
+            . "21 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjson /Params << /Size " . strlen($previewJson) . " /CheckSum <{$staleChecksum}> >> /Length " . strlen($previewJson) . " >>\nstream\n{$previewJson}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /Subject (WordPress Export) /Checksum << /Type /CollectionSubitem /D (verified) /P (checksum: ) >> >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+
+        $t->same(2, count($files));
+
+        $source = $files[0];
+        $t->same('catalog_associated_files', $source['source']);
+        $t->same(true, $source['associated_file']);
+        $t->same(0, $source['associated_file_index']);
+        $t->same('source.xml', $source['filename']);
+        $t->same('Source', $source['relationship']);
+        $t->same('catalog_collection', $source['portfolio']['source']);
+        $t->same('Collection', $source['portfolio']['type']);
+        $t->same('T', $source['portfolio']['view']);
+        $t->same('source.xml', $source['portfolio']['default_document']);
+        $t->same('Subject', $source['portfolio']['schema']['Subject']['label']);
+        $t->same('Checksum state', $source['portfolio']['schema']['Checksum']['label']);
+        $t->same(['Subject', 'Checksum'], $source['portfolio']['sort']['keys']);
+        $t->same([true, false], $source['portfolio']['sort']['ascending']);
+        $t->same('WordPress Export', $source['portfolio_item']['Subject']);
+        $t->same('verified', $source['portfolio_item']['Checksum']['value']);
+        $t->same('checksum: ', $source['portfolio_item']['Checksum']['prefix']);
+        $t->same(strtolower($sourceChecksum), $source['checksum']);
+        $t->same(hash('md5', $sourceXml), $source['computed_checksum']);
+        $t->same(true, $source['checksum_matches']);
+        $t->same('D:20260602092000Z', $source['modified_at']);
+
+        $preview = $files[1];
+        $t->same('preview.json', $preview['filename']);
+        $t->same('Alternative', $preview['relationship']);
+        $t->same($source['portfolio'], $preview['portfolio']);
+        $t->same('Preview JSON', $preview['portfolio_item']['Subject']);
+        $t->same('stale', $preview['portfolio_item']['Checksum']['value']);
+        $t->same('checksum: ', $preview['portfolio_item']['Checksum']['prefix']);
+        $t->same($staleChecksum, $preview['checksum']);
+        $t->same(hash('md5', $previewJson), $preview['computed_checksum']);
+        $t->same(false, $preview['checksum_matches']);
+    },
     'extracts PDF portfolio collection item and PieceInfo metadata from EmbeddedFiles name trees' => static function (TestRunner $t): void {
         $exportXml = '<wp-export><post id="42"/></wp-export>';
         $notes = 'Portfolio review notes';

@@ -30,7 +30,7 @@ final class PdfEmbeddedFileExtractor
             }
         }
 
-        $this->collectAssociatedFiles($this->dictionaryRawValue($catalog, 'AF'), $objects, $files, $catalogPieceInfo);
+        $this->collectAssociatedFiles($this->dictionaryRawValue($catalog, 'AF'), $objects, $files, $portfolioMetadata, $catalogPieceInfo);
 
         return $this->dedupeEmbeddedFiles($files);
     }
@@ -98,16 +98,30 @@ final class PdfEmbeddedFileExtractor
     /**
      * @param array<int, string> $objects
      * @param list<array<string, mixed>> $files
+     * @param array<string, mixed> $portfolioMetadata
      * @param array<string, mixed> $catalogPieceInfo
      */
-    private function collectAssociatedFiles(?string $arrayValue, array $objects, array &$files, array $catalogPieceInfo = []): void
+    private function collectAssociatedFiles(
+        ?string $arrayValue,
+        array $objects,
+        array &$files,
+        array $portfolioMetadata = [],
+        array $catalogPieceInfo = []
+    ): void
     {
         if ($arrayValue === null) {
             return;
         }
 
         foreach ($this->arrayItemsFromValue($arrayValue, $objects) as $index => $fileSpecValue) {
-            $file = $this->embeddedFileFromFileSpecValue($fileSpecValue, null, $objects, 'catalog_associated_files', [], $catalogPieceInfo);
+            $file = $this->embeddedFileFromFileSpecValue(
+                $fileSpecValue,
+                null,
+                $objects,
+                'catalog_associated_files',
+                $portfolioMetadata,
+                $catalogPieceInfo
+            );
             if ($file === null) {
                 continue;
             }
