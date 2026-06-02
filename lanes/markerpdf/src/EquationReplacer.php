@@ -13,11 +13,17 @@ final class EquationReplacer
 
     private LayoutOrderer $layout;
     private MarkerSettings $settings;
+    private DocumentStructureBoundary $boundaries;
 
-    public function __construct(?LayoutOrderer $layout = null, ?MarkerSettings $settings = null)
+    public function __construct(
+        ?LayoutOrderer $layout = null,
+        ?MarkerSettings $settings = null,
+        ?DocumentStructureBoundary $boundaries = null
+    )
     {
         $this->layout = $layout ?? new LayoutOrderer();
         $this->settings = $settings ?? new MarkerSettings();
+        $this->boundaries = $boundaries ?? new DocumentStructureBoundary($this->layout);
     }
 
     /**
@@ -35,7 +41,7 @@ final class EquationReplacer
         ));
         $page['blocks'] = $blocks;
 
-        $equationRegions = $this->equationRegions($page);
+        $equationRegions = $this->equationRegions($page, $intersectionThreshold);
         $linesToRemove = [];
         $equationLines = [];
         $insertPoints = [];
@@ -386,36 +392,13 @@ final class EquationReplacer
      * @param array<string, mixed> $page
      * @return list<list<float>>
      */
-    private function equationRegions(array $page): array
+    private function equationRegions(array $page, float $intersectionThreshold): array
     {
-        $boxes = [];
-        $layout = $page['layout'] ?? [];
-        if (is_array($layout) && isset($layout['bboxes']) && is_array($layout['bboxes'])) {
-            $boxes = $layout['bboxes'];
-        } elseif (isset($page['layout_boxes']) && is_array($page['layout_boxes'])) {
-            $boxes = $page['layout_boxes'];
-        }
-
-        $layoutImageBbox = is_array($layout) ? $this->bbox($layout['image_bbox'] ?? null) : null;
-        $pageBbox = $this->bbox($page['bbox'] ?? null);
-        $regions = [];
-
-        foreach ($boxes as $box) {
-            if (!is_array($box) || ($box['label'] ?? '') !== 'Formula') {
-                continue;
-            }
-
-            $bbox = $this->bbox($box['bbox'] ?? null);
-            if ($bbox === null) {
-                continue;
-            }
-
-            $regions[] = $layoutImageBbox !== null && $pageBbox !== null
-                ? $this->layout->rescaleBbox($layoutImageBbox, $pageBbox, $bbox)
-                : $bbox;
-        }
-
-        return $regions;
+        return $this->boundaries->rejectContainedRegions(
+            $this->boundaries->layoutRegions($page, ['Formula']),
+            $this->boundaries->layoutRegions($page, ['Table']),
+            $intersectionThreshold
+        );
     }
 
     /**

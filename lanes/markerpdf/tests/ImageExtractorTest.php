@@ -74,6 +74,19 @@ return [
             $blocks
         );
     },
+    'keeps image regions inside table and formula layout boundaries out of image insertion' => static function (TestRunner $t) use ($imagePage): void {
+        $page = $imagePage();
+        $page['layout']['bboxes'][] = ['label' => 'Table', 'bbox' => [100.0, 180.0, 590.0, 460.0]];
+        $page['layout']['bboxes'][] = ['label' => 'Formula', 'bbox' => [680.0, 180.0, 1140.0, 460.0]];
+
+        $extractor = new ImageExtractor();
+        $withImages = $extractor->insertImagePlaceholders($page, ['table-image', 'formula-image']);
+
+        $t->same([], $extractor->findImageBlocks($page));
+        $t->same([], $withImages['images']);
+        $t->same('Rasterized chart placeholder', $withImages['blocks'][0]['lines'][0]['spans'][0]['text']);
+        $t->same('Second image placeholder', $withImages['blocks'][1]['lines'][0]['spans'][0]['text']);
+    },
     'inserts upstream markdown image spans and clears intersecting text lines' => static function (TestRunner $t) use ($imagePage): void {
         $page = (new ImageExtractor())->insertImagePlaceholders($imagePage(), ['figure-bytes', 'picture-bytes']);
 

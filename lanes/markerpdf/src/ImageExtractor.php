@@ -7,10 +7,12 @@ namespace PortLibs\MarkerPDF;
 final class ImageExtractor
 {
     private LayoutOrderer $layout;
+    private DocumentStructureBoundary $boundaries;
 
-    public function __construct(?LayoutOrderer $layout = null)
+    public function __construct(?LayoutOrderer $layout = null, ?DocumentStructureBoundary $boundaries = null)
     {
         $this->layout = $layout ?? new LayoutOrderer();
+        $this->boundaries = $boundaries ?? new DocumentStructureBoundary($this->layout);
     }
 
     /**
@@ -153,7 +155,7 @@ final class ImageExtractor
             $page['blocks'] ?? [],
             static fn (mixed $block): bool => is_array($block)
         ));
-        $imageRegions = $this->imageRegions($page);
+        $imageRegions = $this->imageRegions($page, $intersectionThreshold);
         $insertPoints = [];
 
         foreach ($imageRegions as $regionIndex => $region) {
@@ -200,40 +202,16 @@ final class ImageExtractor
      * @param array<string, mixed> $page
      * @return list<list<float>>
      */
-    private function imageRegions(array $page): array
+    private function imageRegions(array $page, float $intersectionThreshold): array
     {
-        $boxes = [];
-        $layout = $page['layout'] ?? [];
-        if (is_array($layout) && isset($layout['bboxes']) && is_array($layout['bboxes'])) {
-            $boxes = $layout['bboxes'];
-        } elseif (isset($page['layout_boxes']) && is_array($page['layout_boxes'])) {
-            $boxes = $page['layout_boxes'];
-        }
-
-        $layoutImageBbox = is_array($layout) ? ($this->bbox($layout['image_bbox'] ?? null) ?? null) : null;
-        $pageBbox = $this->bbox($page['bbox'] ?? null);
-        $regions = [];
-
-        foreach ($boxes as $box) {
-            if (!is_array($box)) {
-                continue;
-            }
-            $label = (string) ($box['label'] ?? '');
-            if (!in_array($label, ['Figure', 'Picture'], true)) {
-                continue;
-            }
-
-            $bbox = $this->bbox($box['bbox'] ?? null);
-            if ($bbox === null) {
-                continue;
-            }
-
-            $regions[] = $layoutImageBbox !== null && $pageBbox !== null
-                ? $this->layout->rescaleBbox($layoutImageBbox, $pageBbox, $bbox)
-                : $bbox;
-        }
-
-        return $regions;
+        return $this->boundaries->rejectContainedRegions(
+            $this->boundaries->layoutRegions($page, ['Figure', 'Picture']),
+            [
+                ...$this->boundaries->layoutRegions($page, ['Table']),
+                ...$this->boundaries->layoutRegions($page, ['Formula']),
+            ],
+            $intersectionThreshold
+        );
     }
 
     /**

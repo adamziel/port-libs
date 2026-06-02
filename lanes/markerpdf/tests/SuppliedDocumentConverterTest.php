@@ -410,6 +410,73 @@ return [
             unlink($path);
         }
     },
+    'preserves upstream table boundaries before nested equation and image regions' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-structure-boundary-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% structure boundary supplied fixture\n%%EOF");
+
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'Structure import', 'bbox' => [72.0, 60.0, 360.0, 78.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Raw table formula image text', 'bbox' => [72.0, 160.0, 420.0, 178.0]],
+                ['text' => 'After structure.', 'bbox' => [72.0, 260.0, 420.0, 278.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 60.0, 360.0, 78.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 420.0, 210.0]],
+                    ['label' => 'Formula', 'bbox' => [80.0, 158.0, 230.0, 182.0]],
+                    ['label' => 'Picture', 'bbox' => [260.0, 158.0, 420.0, 200.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 260.0, 420.0, 278.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 300.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 30.0, 300.0, 60.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 150.0, 60.0]],
+                    ['col_id' => 1, 'bbox' => [150.0, 0.0, 300.0, 60.0]],
+                ],
+                'cells' => [
+                    ['bbox' => [0.0, 0.0, 140.0, 25.0], 'text' => 'Metric'],
+                    ['bbox' => [150.0, 0.0, 290.0, 25.0], 'text' => 'Value'],
+                    ['bbox' => [0.0, 30.0, 140.0, 55.0], 'text' => 'Equation'],
+                    ['bbox' => [150.0, 30.0, 290.0, 55.0], 'text' => 'E=mc^2'],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_text_lines' => [['blocks' => []]],
+                    'equation_predictions' => ['$$E=mc^2$$'],
+                    'image_payloads' => [['PNG-CHART-BYTES']],
+                ]
+            );
+
+            $t->contains('# Structure Import', $result['text']);
+            $t->contains('| Metric   | Value  |', $result['text']);
+            $t->contains('| Equation | E=mc^2 |', $result['text']);
+            $t->contains('After structure.', $result['text']);
+            $t->true(!str_contains($result['text'], '$$E=mc^2$$'));
+            $t->true(!str_contains($result['text'], '![0_image_0.png](0_image_0.png)'));
+            $t->true(!str_contains($result['text'], 'Raw table formula image text'));
+            $t->same([], $result['images']);
+            $t->same(['layout', 'table-recognition', 'table-formatting', 'equation-recognition', 'image-extraction'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['block_stats']['table']);
+            $t->same(1, $result['metadata']['inserted_tables']);
+            $t->same(['successful_ocr' => 0, 'unsuccessful_ocr' => 0, 'equations' => 0], $result['metadata']['block_stats']['equations']);
+            $t->same(0, $result['metadata']['block_stats']['images']);
+        } finally {
+            unlink($path);
+        }
+    },
     'short-circuits supplied documents with no extracted blocks like convert_single_pdf' => static function (TestRunner $t): void {
         $path = sys_get_temp_dir() . '/markerpdf-empty-supplied-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% empty supplied dictionary fixture\n%%EOF");

@@ -48,6 +48,18 @@ return [
         );
         $t->same(['Before equation.', 'After equation.'], array_column($found['page']['blocks'][0]['lines'], 'prelim_text'));
     },
+    'keeps formula regions inside upstream table layout boundaries out of equation replacement' => static function (TestRunner $t) use ($equationPage): void {
+        $page = $equationPage();
+        array_unshift($page['layout']['bboxes'], ['label' => 'Table', 'bbox' => [100.0, 180.0, 580.0, 260.0]]);
+
+        $found = (new EquationReplacer())->findEquationBlocks($page);
+
+        $t->same([], $found['equations']);
+        $t->same(
+            ['Before equation.', 'E = m c^2', 'After equation.'],
+            array_column($found['page']['blocks'][0]['lines'], 'prelim_text')
+        );
+    },
     'inserts accepted latex blocks by splitting the original text block' => static function (TestRunner $t) use ($equationPage): void {
         $replacer = new EquationReplacer();
         $found = $replacer->findEquationBlocks($equationPage());
