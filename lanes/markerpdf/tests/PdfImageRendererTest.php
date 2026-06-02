@@ -620,4 +620,57 @@ return [
         $t->same(false, $defaultRgbPlan['needs_cmyk_to_rgb']);
         $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->dctDecodeSampleToRgb([0, 255, 255], $defaultCmykPlan));
     },
+    'applies DCTDecode CMYK Decode arrays before WordPress RGB image preview' => static function (TestRunner $t) use ($dctJpeg): void {
+        $renderer = new PdfImageRenderer();
+        $plan = $renderer->dctDecodeImageColorPlan(
+            '<< /Filter /DCTDecode /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Decode [1 0 0 1 0 1 0 1] >>',
+            $dctJpeg(null)
+        );
+
+        $t->true(array_key_exists('image_decode', $plan));
+        $t->same([
+            'ranges' => [
+                ['min' => 1.0, 'max' => 0.0],
+                ['min' => 0.0, 'max' => 1.0],
+                ['min' => 0.0, 'max' => 1.0],
+                ['min' => 0.0, 'max' => 1.0],
+            ],
+            'component_count' => 4,
+            'expected_components' => 4,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [0],
+            'source' => 'explicit',
+        ], $plan['image_decode']);
+        $t->same(true, $plan['image_decode_applied_before_rgb']);
+        $t->same(false, $plan['image_decode_component_mismatch']);
+        $t->same(['red' => 0, 'green' => 255, 'blue' => 255], $renderer->dctDecodeSampleToRgb([0, 0, 0, 0], $plan));
+        $t->same([
+            'render_rgb_preview_from_cmyk',
+            'image_decode_applied_before_rgb_conversion',
+            'image_decode_inverts_components_before_rgb',
+        ], $plan['notes']);
+
+        $indirectPlan = $renderer->dctDecodeImageColorPlan(
+            '<< /Filter /DCTDecode /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Decode 71 0 R /DecodeParms << /ColorTransform 0 >> >>',
+            $dctJpeg(2),
+            [71 => '[1 0 0 1 0 1 0 1]']
+        );
+
+        $t->same(2, $indirectPlan['adobe_app14_transform']);
+        $t->same(2, $indirectPlan['effective_color_transform']);
+        $t->same(true, $indirectPlan['uses_ycck_transform']);
+        $t->same(true, $indirectPlan['image_decode_applied_before_rgb']);
+        $t->same(['red' => 1, 'green' => 0, 'blue' => 0], $renderer->dctDecodeSampleToRgb([76, 85, 255, 0], $indirectPlan));
+
+        $mismatch = $renderer->dctDecodeImageColorPlan(
+            '<< /Filter /DCTDecode /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Decode [1 0 0 1] >>',
+            $dctJpeg(null)
+        );
+
+        $t->same(false, $mismatch['image_decode_applied_before_rgb']);
+        $t->same(true, $mismatch['image_decode_component_mismatch']);
+        $t->contains('image_decode_component_mismatch', implode(',', $mismatch['notes']));
+        $t->same(['red' => 255, 'green' => 255, 'blue' => 255], $renderer->dctDecodeSampleToRgb([0, 0, 0, 0], $mismatch));
+    },
 ];

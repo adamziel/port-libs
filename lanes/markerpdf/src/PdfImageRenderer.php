@@ -109,9 +109,10 @@ final class PdfImageRenderer
      * RGB. This keeps the same RGB preview target while making CMYK/YCCK DCT
      * decisions deterministic without rasterizing the whole JPEG stream.
      *
-     * @return array{filter: string, source_color_space: string, components: int|null, bits_per_component: int, adobe_app14_transform: int|null, decode_parms_color_transform: int|null, effective_color_transform: int|null, adobe_marker_overrides_decode_parms: bool, needs_cmyk_to_rgb: bool, uses_ycck_transform: bool, output_color_mode: string, notes: list<string>}
+     * @param array<int, string> $objects
+     * @return array{filter: string, source_color_space: string, components: int|null, bits_per_component: int, adobe_app14_transform: int|null, decode_parms_color_transform: int|null, effective_color_transform: int|null, adobe_marker_overrides_decode_parms: bool, needs_cmyk_to_rgb: bool, uses_ycck_transform: bool, image_decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null, image_decode_applied_before_rgb: bool, image_decode_component_mismatch: bool, output_color_mode: string, notes: list<string>}
      */
-    public function dctDecodeImageColorPlan(string $imageDictionary, string $jpegBytes): array
+    public function dctDecodeImageColorPlan(string $imageDictionary, string $jpegBytes, array $objects = []): array
     {
         $colorSpace = $this->imageColorSpace($imageDictionary) ?? 'DeviceRGB';
         $components = $this->jpegComponentCount($jpegBytes) ?? $this->componentCountForColorSpace($colorSpace);
@@ -119,6 +120,9 @@ final class PdfImageRenderer
         $decodeParmsTransform = $this->dctDecodeParmsColorTransform($imageDictionary);
         $effectiveTransform = $adobeTransform ?? $decodeParmsTransform ?? ($components === 3 ? 1 : 0);
         $needsCmykToRgb = $colorSpace === 'DeviceCMYK' || $components === 4;
+        $imageDecode = $this->imageDecodeDetails($imageDictionary, $objects, $components);
+        $imageDecodeValid = $imageDecode !== null && $imageDecode['valid_for_components'];
+        $imageDecodeMismatch = $imageDecode !== null && !$imageDecode['valid_for_components'];
         $notes = [];
 
         if ($adobeTransform !== null && $decodeParmsTransform !== null) {
@@ -129,6 +133,14 @@ final class PdfImageRenderer
         }
         if ($needsCmykToRgb && $effectiveTransform !== null && $effectiveTransform !== 0) {
             $notes[] = 'apply_ycck_to_cmyk_before_rgb';
+        }
+        if ($imageDecodeValid) {
+            $notes[] = 'image_decode_applied_before_rgb_conversion';
+            if ($imageDecode['inverted_components'] !== []) {
+                $notes[] = 'image_decode_inverts_components_before_rgb';
+            }
+        } elseif ($imageDecodeMismatch) {
+            $notes[] = 'image_decode_component_mismatch';
         }
 
         return [
@@ -142,6 +154,9 @@ final class PdfImageRenderer
             'adobe_marker_overrides_decode_parms' => $adobeTransform !== null && $decodeParmsTransform !== null,
             'needs_cmyk_to_rgb' => $needsCmykToRgb,
             'uses_ycck_transform' => $needsCmykToRgb && $effectiveTransform !== null && $effectiveTransform !== 0,
+            'image_decode' => $imageDecode,
+            'image_decode_applied_before_rgb' => $imageDecodeValid,
+            'image_decode_component_mismatch' => $imageDecodeMismatch,
             'output_color_mode' => 'RGB',
             'notes' => $notes,
         ];
@@ -153,7 +168,7 @@ final class PdfImageRenderer
      * expected as Y, Cb, Cr, K and are first converted to CMYK.
      *
      * @param list<int|float> $sample
-     * @param array{uses_ycck_transform?: bool, adobe_app14_transform?: int|null} $plan
+     * @param array{uses_ycck_transform?: bool, adobe_app14_transform?: int|null, bits_per_component?: int, image_decode?: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null} $plan
      * @return array{red: int, green: int, blue: int}
      */
     public function dctDecodeSampleToRgb(array $sample, array $plan = []): array
@@ -168,6 +183,8 @@ final class PdfImageRenderer
         } elseif (($plan['adobe_app14_transform'] ?? null) === 0) {
             $values = array_map(static fn (int $value): int => 255 - $value, $values);
         }
+
+        $values = $this->applyDctImageDecode($values, $plan);
 
         return $this->cmykToRgb($values);
     }
@@ -2146,6 +2163,27 @@ final class PdfImageRenderer
             'green' => $this->byteValue((255 - $magenta) * $blackFactor),
             'blue' => $this->byteValue((255 - $yellow) * $blackFactor),
         ];
+    }
+
+    /**
+     * @param list<int> $values
+     * @param array{bits_per_component?: int, image_decode?: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null} $plan
+     * @return list<int>
+     */
+    private function applyDctImageDecode(array $values, array $plan): array
+    {
+        $decode = $plan['image_decode'] ?? null;
+        if (!is_array($decode) || ($decode['valid_for_components'] ?? false) !== true) {
+            return $values;
+        }
+
+        $decoded = $this->imageSampleDecodeValues(
+            $values,
+            $decode,
+            max(1, (int) ($plan['bits_per_component'] ?? 8))
+        );
+
+        return array_map(fn (float $value): int => $this->byteValue($value * 255), $decoded);
     }
 
     private function byteValue(int|float $value): int
