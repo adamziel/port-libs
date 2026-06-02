@@ -458,6 +458,9 @@ final class SQLiteSelectPredicate
 
             return $matched === null ? null : ($negate ? !$matched : $matched);
         }
+        if (self::expressionIsColumnReference($predicate['left'] ?? null) || self::expressionIsColumnReference($predicate['right'] ?? null)) {
+            throw new \InvalidArgumentException("SQLite SELECT {$operator} predicate requires an application-defined callback for column residual evaluation");
+        }
 
         $comparison = self::compareValues($left, $right, false, self::predicateCollations($predicate) ?? self::predicateCollation($predicate));
 

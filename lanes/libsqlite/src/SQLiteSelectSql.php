@@ -1212,7 +1212,8 @@ final class SQLiteSelectSql
         }
 
         $rows ??= [];
-        if (self::compoundUsesDistinctSetOrder($compound['operators'])) {
+        $hasFinalOrderBy = isset($compound['orderBy']) && is_array($compound['orderBy']) && $compound['orderBy'] !== [];
+        if (self::compoundUsesDistinctSetOrder($compound['operators'], $hasFinalOrderBy)) {
             $setOrderBy = [];
             $collations = $setCollations;
             foreach ($columns ?? [] as $column) {
@@ -1237,15 +1238,19 @@ final class SQLiteSelectSql
     /**
      * @param list<mixed> $operators
      */
-    private static function compoundUsesDistinctSetOrder(array $operators): bool
+    private static function compoundUsesDistinctSetOrder(array $operators, bool $hasFinalOrderBy = false): bool
     {
+        $hasUnionAll = false;
+        $hasDistinctSet = false;
         foreach ($operators as $operator) {
-            if (strtoupper((string) $operator) !== 'UNION ALL') {
-                return true;
+            if (strtoupper((string) $operator) === 'UNION ALL') {
+                $hasUnionAll = true;
+                continue;
             }
+            $hasDistinctSet = true;
         }
 
-        return false;
+        return $hasDistinctSet && (!$hasFinalOrderBy || !$hasUnionAll);
     }
 
     /**

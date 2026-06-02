@@ -261,7 +261,7 @@ final class SQLiteSelectResult
             return [];
         }
         if ($rightColumns === []) {
-            $rightColumns = [];
+            throw new \InvalidArgumentException('SQLite LEFT JOIN needs right-side column names for NULL extension');
         }
 
         $nullRight = [];

@@ -142,8 +142,10 @@ final class SQLiteSelectCompound
             $key = self::rowKey($row, $columns, $collations);
             if (!isset($seen[$key])) {
                 $order[] = $key;
+                $seen[$key] = $row;
+                continue;
             }
-            $seen[$key] = $row;
+            $seen[$key] = self::preferredDuplicateRow($seen[$key], $row, $columns);
         }
 
         $result = [];
@@ -152,6 +154,25 @@ final class SQLiteSelectCompound
         }
 
         return $result;
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $candidate
+     * @param list<string> $columns
+     * @return array<string,mixed>
+     */
+    private static function preferredDuplicateRow(array $current, array $candidate, array $columns): array
+    {
+        foreach ($columns as $column) {
+            $left = $current[$column] ?? null;
+            $right = $candidate[$column] ?? null;
+            if (is_bool($left) && (is_int($right) || is_float($right))) {
+                return $current;
+            }
+        }
+
+        return $candidate;
     }
 
     /**

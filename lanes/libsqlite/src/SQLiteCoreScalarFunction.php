@@ -1211,6 +1211,10 @@ final class SQLiteCoreScalarFunction
 
         $state = self::parseDateTimeState($timeValue, $modifiers);
         if ($state === null) {
+            if ($modifiers === [] && self::isGuardedMalformedDateTimeValue($timeValue)) {
+                throw new \InvalidArgumentException("SQLite {$functionName}() time-value must be a Julian day number or ISO-8601 date/time string");
+            }
+
             return null;
         }
         $instant = $state['instant'];
@@ -1346,6 +1350,24 @@ final class SQLiteCoreScalarFunction
         }
 
         return preg_match('/(?:Z|[+-]\d{2}:\d{2})\z/i', $text) === 1;
+    }
+
+    private static function isGuardedMalformedDateTimeValue(mixed $value): bool
+    {
+        if ($value instanceof SQLiteBlobValue) {
+            $value = $value->bytes;
+        }
+        if (!is_string($value)) {
+            return false;
+        }
+
+        $text = trim($value);
+        if ($text === '') {
+            return false;
+        }
+
+        return preg_match('/[A-Za-z]/', $text) === 1
+            && preg_match('/\d|:/', $text) !== 1;
     }
 
     /**

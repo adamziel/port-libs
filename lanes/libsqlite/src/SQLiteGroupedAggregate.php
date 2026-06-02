@@ -41,8 +41,6 @@ final class SQLiteGroupedAggregate
             }
         }
 
-        $groups = self::sortGroupsByKey($groups, $groupColumns, $groupCollations);
-
         $summaries = [];
         foreach ($groups as $group) {
             $values = $group['values'];
