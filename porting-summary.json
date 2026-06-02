@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 21:07:56 UTC",
-    "sourceCommit": "2ddd510f4318c518223f7fd2f60ae164a9a1606b",
-    "sourceCommitShort": "2ddd510f4318",
+    "generated": "2026-06-02 21:17:11 UTC",
+    "sourceCommit": "5469aca57af55ee60353214c4c880d2b745d1ec8",
+    "sourceCommitShort": "5469aca57af5",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2ddd510f4318c518223f7fd2f60ae164a9a1606b",
-    "dashboardCommitShort": "2ddd510f4318",
+    "dashboardCommit": "5469aca57af55ee60353214c4c880d2b745d1ec8",
+    "dashboardCommitShort": "5469aca57af5",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "579",
-            "coverage": "579 / 78 (742.3%)",
-            "mapPercent": "742.3%",
+            "mapped": "587",
+            "coverage": "587 / 78 (752.6%)",
+            "mapPercent": "752.6%",
             "unmapped": "0",
-            "php": "825 pass / 0 fail",
+            "php": "837 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: accepted outline47/outline46-r...",
-            "currentWork": "MarkerPDF now preserves structured outline destination action context, outline name-t...",
-            "nextTarget": "Score newest active-worker handoffs and rebase source-conflic...",
+            "audit": "2026-06-02 UTC supervisor speedup integration: accepted table47/parse...",
+            "currentWork": "MarkerPDF now adds rowspanned OCR table caption/header accessibility review, current...",
+            "nextTarget": "Rebase deferred outline49 only if its action-structure/page-l...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "2ddd510"
+            "commit": "5469aca"
         },
         {
             "lane": "readability",
