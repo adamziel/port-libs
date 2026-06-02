@@ -1398,6 +1398,7 @@ final class PdfTextExtractor
             }
 
             $encodingFallback = $this->fontEncodingMap($body);
+            $widthMetrics = $this->fontWidthMetrics($body, $objects);
             $cmap = null;
             if (preg_match('/\/ToUnicode\s+(\d+)\s+\d+\s+R\b/', $body, $match)) {
                 $cmapObjectNumber = (int) $match[1];
@@ -1411,6 +1412,7 @@ final class PdfTextExtractor
             }
 
             if ($cmap !== null && ($cmap['map'] !== [] || $cmap['codeSpaceRanges'] !== [])) {
+                $cmap = $this->withFontWidthMetrics($cmap, $widthMetrics);
                 $fontObjectMaps[$objectNumber] = $cmap;
             }
         }
@@ -1530,6 +1532,150 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return array{widths: array<int, float>, defaultWidth: float|null}
+     * @param array<int, string> $objects
+     */
+    private function fontWidthMetrics(string $fontBody, array $objects): array
+    {
+        $widths = [];
+        $defaultWidth = null;
+        $hasWidthArray = false;
+
+        foreach ([$fontBody, ...$this->descendantFontBodies($fontBody, $objects)] as $body) {
+            $widthArray = $this->pdfArrayValueAfterName($body, 'W');
+            if ($widthArray !== null) {
+                $hasWidthArray = true;
+                foreach ($this->cidWidthsFromWArray($widthArray) as $cid => $width) {
+                    $widths[$cid] = $width;
+                }
+            }
+
+            $bodyDefaultWidth = $this->pdfNumberValueAfterName($body, 'DW');
+            if ($bodyDefaultWidth !== null) {
+                $defaultWidth = $bodyDefaultWidth;
+            }
+        }
+
+        if ($hasWidthArray && $defaultWidth === null) {
+            $defaultWidth = 1000.0;
+        }
+
+        return [
+            'widths' => $widths,
+            'defaultWidth' => $defaultWidth,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     * @param array<int, string> $objects
+     */
+    private function descendantFontBodies(string $fontBody, array $objects): array
+    {
+        $descendantFonts = $this->pdfArrayValueAfterName($fontBody, 'DescendantFonts');
+        if ($descendantFonts === null) {
+            return [];
+        }
+
+        $bodies = [];
+        foreach ($this->objectReferences($descendantFonts) as $objectNumber) {
+            if (isset($objects[$objectNumber])) {
+                $bodies[] = $objects[$objectNumber];
+            }
+        }
+
+        $offset = 0;
+        while (($offset = strpos($descendantFonts, '<<', $offset)) !== false) {
+            $dictionary = $this->readPdfDictionaryAt($descendantFonts, $offset);
+            $dictionaryEnd = $this->pdfDictionaryEndOffset($descendantFonts, $offset);
+            if ($dictionary === null || $dictionaryEnd === null) {
+                break;
+            }
+            $bodies[] = $dictionary;
+            $offset = $dictionaryEnd + 1;
+        }
+
+        return $bodies;
+    }
+
+    /**
+     * @return array<int, float>
+     */
+    private function cidWidthsFromWArray(string $arrayBody): array
+    {
+        $tokens = $this->contentTokens($arrayBody);
+        $widths = [];
+
+        for ($index = 0, $count = count($tokens); $index < $count;) {
+            $firstCid = $this->integerToken($tokens[$index] ?? '');
+            if ($firstCid === null) {
+                $index++;
+                continue;
+            }
+            $index++;
+
+            $next = $tokens[$index] ?? null;
+            if ($next === null) {
+                break;
+            }
+
+            if (str_starts_with(trim($next), '[')) {
+                foreach ($this->integersFromPdfArray(substr(trim($next), 1, -1)) as $offset => $width) {
+                    $cid = $firstCid + $offset;
+                    if ($cid >= 0 && $cid <= 0xffff) {
+                        $widths[$cid] = (float) $width;
+                    }
+                }
+                $index++;
+                continue;
+            }
+
+            $lastCid = $this->integerToken($next);
+            $width = $this->integerToken($tokens[$index + 1] ?? '');
+            if ($lastCid === null || $width === null) {
+                continue;
+            }
+
+            $index += 2;
+            if ($firstCid < 0 || $lastCid < $firstCid) {
+                continue;
+            }
+
+            for ($cid = $firstCid, $limit = min($lastCid, 0xffff); $cid <= $limit; $cid++) {
+                $widths[$cid] = (float) $width;
+            }
+        }
+
+        return $widths;
+    }
+
+    private function integerToken(string $token): ?int
+    {
+        if (preg_match('/^[+-]?\d+$/', $token) !== 1) {
+            return null;
+        }
+
+        return (int) $token;
+    }
+
+    /**
+     * @param array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>} $map
+     * @param array{widths: array<int, float>, defaultWidth: float|null} $metrics
+     * @return array<string, mixed>
+     */
+    private function withFontWidthMetrics(array $map, array $metrics): array
+    {
+        if ($metrics['widths'] === [] && $metrics['defaultWidth'] === null) {
+            return $map;
+        }
+
+        $map['cidWidths'] = $metrics['widths'];
+        $map['cidDefaultWidth'] = $metrics['defaultWidth'];
+
+        return $map;
+    }
+
+    /**
      * @param array<int, string> $objects
      */
     private function fontResourceDictionaryBody(string $resourceDictionary, array $objects): ?string
@@ -1623,6 +1769,16 @@ final class PdfTextExtractor
         }
 
         return $this->readPdfArrayAt($body, $offset);
+    }
+
+    private function pdfNumberValueAfterName(string $body, string $name): ?float
+    {
+        $offset = $this->nameValueOffset($body, $name);
+        if ($offset === null || preg_match('/\G([+-]?(?:\d+(?:\.\d*)?|\.\d+))/s', $body, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        return (float) $match[1];
     }
 
     private function objectReferenceValueAfterName(string $body, string $name): ?int
@@ -3202,15 +3358,18 @@ final class PdfTextExtractor
         ?float $fontSize,
         float $characterSpacing,
         float $wordSpacing,
-        float $horizontalScale
+        float $horizontalScale,
+        ?array $glyphWidths = null
     ): ?float {
         if ($currentTextEndX === null || $decoded === '') {
             return $currentTextEndX;
         }
 
         $fontSize ??= 12.0;
-        $characters = $this->length($decoded);
-        $baseAdvance = $characters * $fontSize * self::SIMPLE_TEXT_ADVANCE_RATIO;
+        $characters = $glyphWidths !== null && $glyphWidths !== [] ? count($glyphWidths) : $this->length($decoded);
+        $baseAdvance = $glyphWidths !== null && $glyphWidths !== []
+            ? (array_sum($glyphWidths) / 1000.0) * $fontSize
+            : $characters * $fontSize * self::SIMPLE_TEXT_ADVANCE_RATIO;
         $spacingAdvance = (max(0, $characters - 1) * $characterSpacing) + (substr_count($decoded, ' ') * $wordSpacing);
         $scale = $horizontalScale / 100.0;
 
@@ -3238,7 +3397,8 @@ final class PdfTextExtractor
                 $fontSize,
                 $characterSpacing,
                 $wordSpacing,
-                $horizontalScale
+                $horizontalScale,
+                $this->glyphWidthsForTextOperand($operand, $toUnicodeMap)
             );
         }
 
@@ -3251,7 +3411,8 @@ final class PdfTextExtractor
                     $fontSize,
                     $characterSpacing,
                     $wordSpacing,
-                    $horizontalScale
+                    $horizontalScale,
+                    $this->glyphWidthsForTextOperand((string) $element['value'], $toUnicodeMap)
                 );
                 continue;
             }
@@ -3260,6 +3421,88 @@ final class PdfTextExtractor
         }
 
         return $endX;
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function glyphWidthsForTextOperand(string $operand, ?array $toUnicodeMap): ?array
+    {
+        if ($toUnicodeMap === null) {
+            return null;
+        }
+
+        $cidWidths = $toUnicodeMap['cidWidths'] ?? [];
+        $defaultWidth = $toUnicodeMap['cidDefaultWidth'] ?? null;
+        if ((!is_array($cidWidths) || $cidWidths === []) && $defaultWidth === null) {
+            return null;
+        }
+
+        $hex = $this->textOperandSourceHex($operand);
+        if ($hex === '') {
+            return [];
+        }
+
+        $widths = [];
+        foreach ($this->textOperandSourceKeys($hex, $toUnicodeMap) as $key) {
+            $cid = hexdec($key);
+            if (is_array($cidWidths) && array_key_exists($cid, $cidWidths)) {
+                $widths[] = (float) $cidWidths[$cid];
+                continue;
+            }
+            $widths[] = (float) ($defaultWidth ?? 500.0);
+        }
+
+        return $widths;
+    }
+
+    private function textOperandSourceHex(string $operand): string
+    {
+        $operand = trim($operand);
+        if (str_starts_with($operand, '<')) {
+            return $this->normalizeHexKey(trim($operand, '<>'));
+        }
+
+        if (str_starts_with($operand, '(')) {
+            return bin2hex($this->decodeLiteralString(substr($operand, 1, -1)));
+        }
+
+        return '';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function textOperandSourceKeys(string $hex, array $toUnicodeMap): array
+    {
+        $normalized = $this->normalizeHexKey($hex);
+        if ($normalized === '') {
+            return [];
+        }
+
+        $mappings = $toUnicodeMap['map'] ?? [];
+        $keyLengths = is_array($mappings)
+            ? array_values(array_unique(array_map('strlen', array_keys($mappings))))
+            : [];
+        rsort($keyLengths, SORT_NUMERIC);
+
+        $keys = [];
+        $offset = 0;
+        $length = strlen($normalized);
+        while ($offset < $length) {
+            $sourceLength = $this->toUnicodeSourceLength(
+                $keyLengths,
+                $length - $offset,
+                $toUnicodeMap['codeSpaceRanges'] ?? [],
+                is_array($mappings) ? $mappings : [],
+                $normalized,
+                $offset
+            );
+            $keys[] = substr($normalized, $offset, $sourceLength);
+            $offset += $sourceLength;
+        }
+
+        return $keys;
     }
 
     private function adjustTextEndX(?float $currentTextEndX, float $adjustment, ?float $fontSize, float $horizontalScale): ?float
