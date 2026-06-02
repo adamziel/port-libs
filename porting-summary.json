@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 15:55:07 UTC",
-    "sourceCommit": "4c4db07494a2bad16530f00f6246f22c536c864f",
-    "sourceCommitShort": "4c4db07494a2",
+    "generated": "2026-06-02 16:00:17 UTC",
+    "sourceCommit": "22ed2ed08f11d800754d49665a54a240ea4f21c8",
+    "sourceCommitShort": "22ed2ed08f11",
     "sourceBranch": "main",
-    "dashboardCommit": "4c4db07494a2bad16530f00f6246f22c536c864f",
-    "dashboardCommitShort": "4c4db07494a2",
+    "dashboardCommit": "22ed2ed08f11d800754d49665a54a240ea4f21c8",
+    "dashboardCommitShort": "22ed2ed08f11",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "379",
-            "coverage": "379 / 78 (485.9%)",
-            "mapPercent": "485.9%",
+            "mapped": "380",
+            "coverage": "380 / 78 (487.2%)",
+            "mapPercent": "487.2%",
             "unmapped": "0",
-            "php": "532 pass / 0 fail",
+            "php": "533 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 4c4db0749; full...",
-            "currentWork": "PdfTextExtractor now expands xref-selected object streams iteratively so compressed h...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 22ed2ed08; full...",
+            "currentWork": "PdfTextExtractor now honors declared direct stream lengths while scanning object boun...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "4c4db07"
+            "commit": "22ed2ed"
         },
         {
             "lane": "readability",
