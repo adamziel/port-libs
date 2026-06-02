@@ -563,6 +563,11 @@ final class SuppliedDocumentConverter
                 'header_text' => (string) ($dataCell['header_text'] ?? ''),
                 'caption_id' => $captionId,
             ];
+            foreach (['column_header_physical_axis', 'row_header_physical_axis'] as $field) {
+                if (isset($dataCell[$field]) && is_scalar($dataCell[$field])) {
+                    $entry[$field] = (string) $dataCell[$field];
+                }
+            }
             $dataCellHeaders[] = $entry;
         }
 
@@ -571,6 +576,10 @@ final class SuppliedDocumentConverter
             'table_id' => $tableId,
             'caption_id' => $captionId,
             'section_id' => $sectionId,
+            'rotated' => ($gridReview['rotated'] ?? false) === true,
+            'orientation' => (string) ($gridReview['orientation'] ?? 'normal'),
+            'row_axis' => (string) ($gridReview['row_axis'] ?? 'y'),
+            'col_axis' => (string) ($gridReview['col_axis'] ?? 'x'),
             'caption_text' => $captionText,
             'caption_position' => $caption['position'] ?? null,
             'section_text' => $sectionText,
@@ -683,7 +692,7 @@ final class SuppliedDocumentConverter
 
         $dataCellHeaders = [];
         foreach ($dataCells as $dataCell) {
-            $dataCellHeaders[] = [
+            $entry = [
                 'render_cell_index' => (int) ($dataCell['render_cell_index'] ?? 0),
                 'text' => (string) ($dataCell['text'] ?? ''),
                 'row_ids' => $this->integerValues($dataCell['row_ids'] ?? []),
@@ -696,6 +705,12 @@ final class SuppliedDocumentConverter
                 'header_text' => (string) ($dataCell['header_text'] ?? ''),
                 'caption_id' => $captionId,
             ];
+            foreach (['column_header_physical_axis', 'row_header_physical_axis'] as $field) {
+                if (isset($dataCell[$field]) && is_scalar($dataCell[$field])) {
+                    $entry[$field] = (string) $dataCell[$field];
+                }
+            }
+            $dataCellHeaders[] = $entry;
         }
 
         return [
@@ -706,6 +721,7 @@ final class SuppliedDocumentConverter
             'caption_bound' => $captionId !== null,
             'rows' => $this->integerValues($gridReview['rows'] ?? []),
             'cols' => $this->integerValues($gridReview['cols'] ?? []),
+            'rotated' => ($gridReview['rotated'] ?? false) === true,
             'orientation' => (string) ($gridReview['orientation'] ?? 'normal'),
             'row_axis' => (string) ($gridReview['row_axis'] ?? 'y'),
             'col_axis' => (string) ($gridReview['col_axis'] ?? 'x'),
@@ -814,6 +830,10 @@ final class SuppliedDocumentConverter
             'table_index' => $tableIndex,
             'rows' => isset($gridReview['rows']) && is_array($gridReview['rows']) ? array_values($gridReview['rows']) : [],
             'cols' => isset($gridReview['cols']) && is_array($gridReview['cols']) ? array_values($gridReview['cols']) : [],
+            'rotated' => ($gridReview['rotated'] ?? false) === true,
+            'orientation' => (string) ($gridReview['orientation'] ?? 'normal'),
+            'row_axis' => (string) ($gridReview['row_axis'] ?? 'y'),
+            'col_axis' => (string) ($gridReview['col_axis'] ?? 'x'),
             'render_cell_count' => count($renderCells),
             'header_cell_count' => count($headerCells),
             'data_cell_count' => count($dataCells),

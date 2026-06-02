@@ -557,6 +557,121 @@ final class MarkerServerAdapter
         ];
     }
 
+    /**
+     * Native review boundary for marker_server.py upload conversions whose
+     * remote/local response contains marker.postprocessors.markdown page
+     * separators. The review payload records the upload route, forwarded form
+     * fields, request/poll shape, temporary-file cleanup, and page marker
+     * summary without retaining uploaded PDF bytes or API-key headers.
+     *
+     * @param array{filename?: string, content_type?: string, bytes?: string, content?: string, data?: string} $upload
+     * @param array<string, mixed> $params
+     * @param array<string, mixed> $serverResponse
+     * @param list<array<string, mixed>> $requests
+     * @return array<string, mixed>
+     */
+    public function serverUploadPaginationReview(
+        array $upload,
+        array $params,
+        array $serverResponse,
+        array $requests = [],
+        string $uploadDirectory = self::DEFAULT_UPLOAD_DIRECTORY,
+        bool $local = false
+    ): array {
+        if (($upload['content_type'] ?? null) !== 'application/pdf') {
+            throw new InvalidArgumentException('Only PDF files are allowed.');
+        }
+        if (($serverResponse['success'] ?? null) !== true) {
+            throw new InvalidArgumentException('Marker server upload pagination review requires a successful response.');
+        }
+
+        $filename = basename((string) ($upload['filename'] ?? 'upload.pdf'));
+        if ($filename === '' || $filename === '.' || $filename === '..') {
+            throw new InvalidArgumentException('Uploaded PDF must include a filename.');
+        }
+
+        $uploadBytes = $this->uploadBytes($upload);
+        $normalized = $this->normalizeParams($params);
+        $routePlan = $this->uploadRoutePlan($params, $uploadDirectory, $local);
+        $markdown = $this->serverResponseMarkdown($serverResponse);
+        if ($markdown === null) {
+            throw new InvalidArgumentException('Marker server upload pagination review requires markdown text.');
+        }
+
+        $pagination = $this->serverOutputPaginationPlan($markdown, $normalized['paginate']);
+        $metadata = $serverResponse['metadata'] ?? [];
+        if (!is_array($metadata)) {
+            throw new InvalidArgumentException('Marker server upload pagination review metadata must be an object when provided.');
+        }
+        $metadataKeys = array_values(array_filter(array_keys($metadata), 'is_string'));
+        sort($metadataKeys, SORT_STRING);
+
+        $uploadPath = rtrim((string) $routePlan['upload_directory'], '/\\') . DIRECTORY_SEPARATOR . $filename;
+
+        return [
+            'schema' => 'markerpdf.server_upload_pagination_review.v1',
+            'source' => 'sddai/markerPDF marker_server.py::convert_pdf_upload + convert_pdf_from_upload + marker.postprocessors.markdown::get_full_text',
+            'endpoint' => $routePlan['endpoint'],
+            'method' => $routePlan['method'],
+            'selected_route' => $routePlan['selected_route'],
+            'upload' => [
+                'filename' => $filename,
+                'content_type' => 'application/pdf',
+                'byte_length' => strlen($uploadBytes),
+                'sha256' => hash('sha256', $uploadBytes),
+                'raw_bytes_excluded' => true,
+                'temporary_path' => $uploadPath,
+                'temporary_upload_exists' => is_file($uploadPath),
+                'upload_removed' => !is_file($uploadPath),
+            ],
+            'form_params' => [
+                'max_pages' => $normalized['max_pages'],
+                'langs' => $normalized['langs'],
+                'force_ocr' => $normalized['force_ocr'],
+                'paginate' => $normalized['paginate'],
+                'extract_images' => $normalized['extract_images'],
+            ],
+            'route_plan' => [
+                'remote_fields' => $routePlan['remote_route']['forwards_multipart_fields'],
+                'remote_values' => $routePlan['remote_route']['multipart_field_values'],
+                'local_uses_uploaded_filepath' => $routePlan['local_route']['uses_uploaded_filepath'],
+                'local_applies_direct_marker_option_guard' => $routePlan['local_route']['applies_direct_marker_option_guard'],
+                'cleanup' => $routePlan['cleanup'],
+            ],
+            'request_trace' => $this->serverUploadRequestTrace($requests),
+            'response' => [
+                'success' => true,
+                'status' => isset($serverResponse['status']) && is_scalar($serverResponse['status'])
+                    ? (string) $serverResponse['status']
+                    : null,
+                'markdown_sha256' => hash('sha256', $markdown),
+                'markdown_byte_length' => strlen($markdown),
+                'metadata_keys' => $metadataKeys,
+                'has_server_output_pagination_metadata' => isset($metadata['server_output_pagination'])
+                    && is_array($metadata['server_output_pagination']),
+                'image_count' => isset($serverResponse['images']) && is_array($serverResponse['images'])
+                    ? count($serverResponse['images'])
+                    : 0,
+                'markdown_contains_uploaded_pdf_bytes' => $uploadBytes !== '' && str_contains($markdown, $uploadBytes),
+            ],
+            'pagination' => $this->serverOutputPaginationSummary($pagination) + [
+                'page_segment_text' => array_map(
+                    static fn (array $segment): string => $segment['text'],
+                    $pagination['page_segments']
+                ),
+            ],
+            'default_server_upload_removes_temp_file' => true,
+            'excludes_uploaded_pdf_bytes' => true,
+            'excludes_api_key_headers' => true,
+            'review_only' => true,
+            'executes_fastapi' => false,
+            'executes_uvicorn' => false,
+            'executes_live_http' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
     private function optionalInt(mixed $value, string $name): ?int
     {
         if ($value === null || $value === '') {
@@ -896,5 +1011,80 @@ final class MarkerServerAdapter
         }
 
         return true;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $requests
+     * @return array<string, mixed>
+     */
+    private function serverUploadRequestTrace(array $requests): array
+    {
+        $methods = [];
+        $post = null;
+        $pollUrls = [];
+        foreach ($requests as $request) {
+            if (!is_array($request)) {
+                continue;
+            }
+
+            $method = isset($request['method']) && is_scalar($request['method'])
+                ? strtoupper((string) $request['method'])
+                : '';
+            if ($method !== '') {
+                $methods[] = $method;
+            }
+
+            if ($method === 'POST' && $post === null) {
+                $post = $this->serverUploadPostRequestSummary($request);
+            } elseif ($method === 'GET' && isset($request['url']) && is_scalar($request['url'])) {
+                $pollUrls[] = (string) $request['url'];
+            }
+        }
+
+        return [
+            'request_count' => count($requests),
+            'methods' => $methods,
+            'post_count' => count(array_filter($methods, static fn (string $method): bool => $method === 'POST')),
+            'poll_count' => count(array_filter($methods, static fn (string $method): bool => $method === 'GET')),
+            'post' => $post,
+            'poll_urls' => $pollUrls,
+            'headers_excluded' => true,
+            'api_key_excluded' => true,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     * @return array<string, mixed>
+     */
+    private function serverUploadPostRequestSummary(array $request): array
+    {
+        $files = [];
+        if (isset($request['request']) && is_array($request['request']) && isset($request['request']['files']) && is_array($request['request']['files'])) {
+            $files = $request['request']['files'];
+        } elseif (isset($request['files']) && is_array($request['files'])) {
+            $files = $request['files'];
+        }
+
+        $file = isset($files['file']) && is_array($files['file']) ? $files['file'] : [];
+        $bytes = isset($file['bytes']) && is_string($file['bytes']) ? $file['bytes'] : '';
+
+        return [
+            'url' => isset($request['url']) && is_scalar($request['url']) ? (string) $request['url'] : null,
+            'file' => [
+                'filename' => isset($file['filename']) && is_scalar($file['filename']) ? (string) $file['filename'] : null,
+                'content_type' => isset($file['content_type']) && is_scalar($file['content_type']) ? (string) $file['content_type'] : null,
+                'byte_length' => strlen($bytes),
+                'sha256' => $bytes !== '' ? hash('sha256', $bytes) : null,
+                'raw_bytes_excluded' => true,
+            ],
+            'fields' => [
+                'max_pages' => $files['max_pages'] ?? null,
+                'langs' => $files['langs'] ?? null,
+                'force_ocr' => $files['force_ocr'] ?? null,
+                'paginate' => $files['paginate'] ?? null,
+                'extract_images' => $files['extract_images'] ?? null,
+            ],
+        ];
     }
 }

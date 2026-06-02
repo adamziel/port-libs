@@ -1298,6 +1298,193 @@ final class PdfImageRenderer
     }
 
     /**
+     * Maps supplied decoded JPEG2000 color samples through PDF image Decode
+     * and a current grayscale SMask before the Marker RGB output handoff.
+     *
+     * The JPX codestream remains review-only because this port has no native
+     * JPEG2000 raster backend. The supplied samples model the bounded output of
+     * PDFium/a future JPX decoder in the image color space, then this method
+     * applies the PDF-side color Decode and alpha composition rules.
+     *
+     * @param list<list<int|float>> $suppliedSamples
+     * @param array<int|string, mixed> $objects
+     * @param array<string, mixed> $documentMetadata Pass PdfMetadataExtractor output or its `pdfa` subarray.
+     * @return array<string, mixed>
+     */
+    public function jpeg2000ColorSpaceSoftMaskOutputPreviewRows(
+        string $imageObject,
+        array $suppliedSamples,
+        array $objects = [],
+        int $maxPixels = 16,
+        array $documentMetadata = []
+    ): array {
+        if ($maxPixels < 1) {
+            throw new InvalidArgumentException('JPEG2000 color-space output preview requires at least one preview pixel.');
+        }
+
+        $dictionary = $this->streamDictionaryFromValue($imageObject) ?? trim($imageObject);
+        $plan = $this->imageColorSpaceSoftMaskPlan($dictionary, $objects);
+        if (!in_array('JPXDecode', $plan['image_filters'], true)) {
+            throw new InvalidArgumentException('JPEG2000 color-space output preview requires a JPXDecode image stream.');
+        }
+        if (is_array($plan['image_mask'] ?? null) && ($plan['image_mask']['present'] ?? false) === true) {
+            throw new InvalidArgumentException('JPEG2000 color-space output preview does not accept /ImageMask streams.');
+        }
+
+        $sourceColorSpace = (string) ($plan['source_color_space'] ?? '');
+        $components = $plan['components'] ?? null;
+        if (!in_array($sourceColorSpace, ['DeviceRGB', 'DeviceGray'], true)) {
+            throw new InvalidArgumentException('JPEG2000 color-space output preview currently requires DeviceRGB or DeviceGray samples.');
+        }
+        if (!is_int($components) || !in_array($components, [1, 3], true)) {
+            throw new InvalidArgumentException('JPEG2000 color-space output preview requires one or three color components.');
+        }
+
+        $softMask = $plan['soft_mask'] ?? null;
+        if (!is_array($softMask) || ($softMask['present'] ?? false) !== true) {
+            throw new InvalidArgumentException('JPEG2000 color-space output preview requires an external /SMask image.');
+        }
+        if (($plan['soft_mask_applied_before_rgb'] ?? false) !== true) {
+            throw new InvalidArgumentException('JPEG2000 color-space output preview requires a grayscale soft-mask image.');
+        }
+
+        $width = $this->integerNameValue($dictionary, 'Width');
+        $height = $this->integerNameValue($dictionary, 'Height');
+        $bitsPerComponent = max(1, (int) ($plan['bits_per_component'] ?? 8));
+        if (!is_int($width) || !is_int($height) || $width < 1 || $height < 1) {
+            throw new InvalidArgumentException('JPEG2000 color-space output preview requires positive Width and Height.');
+        }
+        if (is_int($softMask['width'] ?? null) && $softMask['width'] !== $width) {
+            throw new InvalidArgumentException('JPEG2000 color-space output soft-mask width must match the image width.');
+        }
+        if (is_int($softMask['height'] ?? null) && $softMask['height'] !== $height) {
+            throw new InvalidArgumentException('JPEG2000 color-space output soft-mask height must match the image height.');
+        }
+
+        $expectedPixelCount = $width * $height;
+        $imageStream = $this->decodedImageStreamPreviewBoundary($dictionary, $imageObject, $objects);
+        $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
+        if ($imageStreamMeta['preview_only_filters'] === []) {
+            throw new InvalidArgumentException('JPEG2000 color-space output preview requires the image stream to remain review-only.');
+        }
+
+        $softMaskStream = $this->decodedSoftMaskStreamPreviewBoundary($dictionary, $objects);
+        if ($softMaskStream === null || ($softMaskStream['decoded_with_current_filters'] ?? false) !== true || !is_string($softMaskStream['decoded_bytes'] ?? null)) {
+            throw new InvalidArgumentException('JPEG2000 color-space output preview requires a natively decoded current soft-mask stream.');
+        }
+        $softMaskStreamMeta = $this->streamBoundaryPublicMetadata($softMaskStream);
+        $softMaskSamples = $this->packedImagePixelSamples(
+            $softMaskStream['decoded_bytes'],
+            1,
+            max(1, (int) ($softMask['bits_per_component'] ?? 8)),
+            $expectedPixelCount
+        );
+
+        $completeImageSamples = count($suppliedSamples) >= $expectedPixelCount;
+        $limit = min($maxPixels, $expectedPixelCount, count($suppliedSamples), count($softMaskSamples['pixels']));
+        $pixels = [];
+        for ($index = 0; $index < $limit; $index++) {
+            $values = array_values($suppliedSamples[$index]);
+            if (count($values) !== $components) {
+                throw new InvalidArgumentException('JPEG2000 supplied color samples must match the image component count.');
+            }
+            foreach ($values as $value) {
+                if (!is_int($value) && !is_float($value)) {
+                    throw new InvalidArgumentException('JPEG2000 supplied color sample values must be numeric.');
+                }
+            }
+
+            $rawSample = array_map(static fn (int|float $value): float => (float) $value, $values);
+            if ($sourceColorSpace === 'DeviceRGB') {
+                $decodedComponents = $this->jpeg2000DeviceRgbOutputComponents($rawSample, $plan, $bitsPerComponent);
+            } else {
+                $grayPreview = $this->deviceGraySamplePreview($rawSample[0], $plan);
+                $decodedComponents = $grayPreview['rgb_components'];
+            }
+
+            $softMaskSample = $softMaskSamples['pixels'][$index][0];
+            $alphaPreview = $this->softMaskAlphaPreview($softMaskSample, $plan, 'JPEG2000 output');
+            $pixels[] = [
+                'pixel_index' => $index,
+                'x' => $index % $width,
+                'y' => intdiv($index, $width),
+                'raw_sample' => $rawSample,
+                'decoded_components' => $decodedComponents,
+                'soft_mask_sample' => $softMaskSample,
+                'soft_mask_alpha' => $alphaPreview['alpha'],
+                'soft_mask_alpha_before_transfer' => $alphaPreview['alpha_before_transfer'],
+                'soft_mask_transfer_applied' => $alphaPreview['transfer_applied'],
+                'output_rgba' => $this->rgbOutputPreviewComponents($decodedComponents, $alphaPreview['alpha']),
+            ];
+        }
+
+        $streamNotes = [
+            'jpeg2000_image_stream_review_only_before_rgb_conversion',
+            'jpeg2000_supplied_colorspace_samples_before_output_preview',
+            $softMaskStreamMeta['filters'] === []
+                ? 'soft_mask_stream_unfiltered_samples_before_output_preview'
+                : 'soft_mask_stream_filters_decoded_before_output_preview',
+        ];
+        if (!$completeImageSamples) {
+            $streamNotes[] = 'jpeg2000_supplied_sample_data_incomplete';
+        }
+        if (!$softMaskSamples['complete']) {
+            $streamNotes[] = 'jpeg2000_soft_mask_sample_data_incomplete';
+        }
+
+        $pdfa = $this->pdfaOutputIntentReviewMetadata($documentMetadata);
+        $colorManagement = $this->imagePdfaColorManagementReview($plan, $pdfa);
+        $notes = array_merge(
+            $plan['notes'] ?? [],
+            [
+                'jpeg2000_colorspace_smask_output_rows_currentbase',
+                'jpeg2000_supplied_samples_previewed_without_native_raster_decode',
+                'jpeg2000_soft_mask_alpha_composed_to_rgb_output',
+            ],
+            $streamNotes
+        );
+        if ($pdfa['present']) {
+            $notes[] = 'jpeg2000_output_preserves_pdfa_output_intent_context';
+            $notes[] = $colorManagement['pdfa_output_intent_applies_to_rgb_preview']
+                ? 'jpeg2000_output_uses_pdfa_profile_for_device_color_space'
+                : 'jpeg2000_output_preserves_pdfa_profile_as_review_context';
+        }
+
+        return [
+            'source_color_space' => $sourceColorSpace,
+            'color_space_resource_name' => $plan['color_space_resource_name'] ?? null,
+            'color_space_resource_value' => $plan['color_space_resource_value'] ?? null,
+            'color_space_resource_source' => $plan['color_space_resource_source'] ?? null,
+            'color_space_resolved_from_resources' => ($plan['color_space_resolved_from_resources'] ?? false) === true,
+            'width' => $width,
+            'height' => $height,
+            'components_per_pixel' => $components,
+            'bits_per_component' => $bitsPerComponent,
+            'expected_pixel_count' => $expectedPixelCount,
+            'preview_pixel_count' => count($pixels),
+            'review_only_image_stream' => true,
+            'native_jpx_raster_decode' => false,
+            'uses_supplied_jpx_samples' => true,
+            'complete_image_sample_data' => $completeImageSamples,
+            'complete_soft_mask_sample_data' => $softMaskSamples['complete'],
+            'image_filter_boundary' => $plan['image_filter_boundary'],
+            'image_stream' => $imageStreamMeta,
+            'soft_mask_stream' => $softMaskStreamMeta,
+            'soft_mask' => $softMask,
+            'soft_mask_filter_boundary' => $plan['soft_mask_filter_boundary'],
+            'image_decode' => $plan['image_decode'],
+            'pdfa_output_intent' => $pdfa,
+            'color_management' => $colorManagement,
+            'pdfa_output_intent_applies_before_rgb' => $colorManagement['pdfa_output_intent_applies_to_rgb_preview'],
+            'pixels' => $pixels,
+            'stream_notes' => $streamNotes,
+            'notes' => array_values(array_unique($notes)),
+            'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+            'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'soft_mask_composited_to_rgb_preview'),
+        ];
+    }
+
+    /**
      * Maps supplied decoded JPEG2000 inline-image samples through ColorKey
      * transparency and Decode metadata without claiming native JPX raster
      * support.
@@ -2403,6 +2590,29 @@ final class PdfImageRenderer
             'blue' => $this->normalizedPreviewByte($decodedComponents[2]),
             'alpha' => max(0.0, min(1.0, $alpha)),
         ];
+    }
+
+    /**
+     * @param list<float> $sample
+     * @param array<string, mixed> $imagePlan
+     * @return list<float>
+     */
+    private function jpeg2000DeviceRgbOutputComponents(array $sample, array $imagePlan, int $bitsPerComponent): array
+    {
+        if (count($sample) !== 3) {
+            throw new InvalidArgumentException('JPEG2000 DeviceRGB output samples must contain exactly three components.');
+        }
+
+        $decode = $imagePlan['image_decode'] ?? null;
+        if (is_array($decode)) {
+            if (($decode['valid_for_components'] ?? false) !== true) {
+                throw new InvalidArgumentException('JPEG2000 DeviceRGB Decode array must match three components.');
+            }
+
+            return $this->imageSampleDecodeValues($sample, $decode, $bitsPerComponent);
+        }
+
+        return $this->defaultRgbDecodeComponents($sample, $bitsPerComponent);
     }
 
     private function normalizedPreviewByte(int|float $value): int

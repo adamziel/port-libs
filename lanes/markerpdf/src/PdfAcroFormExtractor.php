@@ -3300,14 +3300,18 @@ final class PdfAcroFormExtractor
         $name = $currentFullName;
         $value = $password ? null : $this->valueFromEffective($effective, 'V', $objects);
         $defaultValue = $password ? null : $this->valueFromEffective($effective, 'DV', $objects);
-        $options = $fieldType === 'Ch' ? $this->optionsFromEffective($effective, $objects) : [];
+        $options = in_array($fieldType, ['Btn', 'Ch'], true) ? $this->optionsFromEffective($effective, $objects) : [];
         $widgets = $this->widgetsForField($widgetRefs, $objects, $defaultAppearance, $effective, $pageIndexes, $pageWidgets, $fieldNamesByObject);
+        $widgets = $this->widgetsWithButtonExportOptions($widgets, $fieldType, $options);
         $widgets = $this->widgetsWithCurrentValueState($widgets, $fieldType, $flags, $value);
         $fieldHierarchy = $this->fieldHierarchyBoundary($currentHierarchyPath, $effective, $inherited, $objectNumber, $password);
         $valueState = $this->fieldValueState($fieldType, $flags, $effective, $password, $value, $defaultValue, $options, $widgets, $objects);
         $valueState['hierarchy_boundary'] = $this->fieldHierarchyValueState($fieldHierarchy);
         $widgetCurrentBaseReview = $fieldType === 'Btn'
             ? $this->widgetCurrentBaseReviewForField($objectNumber, $name, $valueState, $widgets)
+            : null;
+        $buttonExportReview = $fieldType === 'Btn' && $options !== []
+            ? $this->buttonExportReviewForField($objectNumber, $name, $valueState, $options, $widgets)
             : null;
 
         $actionReview = $this->actionsWithReviewFromDictionary($body, $objects, $fieldNamesByObject, 'field', $objectNumber);
@@ -3335,11 +3339,17 @@ final class PdfAcroFormExtractor
         if ($widgetCurrentBaseReview !== null) {
             $field['widget_current_base_review'] = $widgetCurrentBaseReview;
         }
+        if ($buttonExportReview !== null) {
+            $field['button_export_review'] = $buttonExportReview;
+        }
         if (isset($valueState['rich_text_review']) && is_array($valueState['rich_text_review'])) {
             $field['rich_text_review'] = $valueState['rich_text_review'];
         }
         if ($fieldType === 'Ch') {
             $field['options'] = $options;
+        }
+        if ($fieldType === 'Btn' && $options !== []) {
+            $field['button_export_options'] = $options;
         }
         if ($fieldType === 'Sig') {
             $field['signature'] = isset($effective['V'])
@@ -4332,6 +4342,7 @@ final class PdfAcroFormExtractor
                 static fn (array $widget): bool => ($widget['checked'] ?? false) === true
             ));
             $currentBaseStates = $this->widgetCurrentBaseStateRows($widgets);
+            $hasButtonExportOptions = $options !== [];
             $appearanceValues = [];
             foreach ($checkedWidgets as $widget) {
                 $exportValue = $widget['export_value'] ?? $widget['appearance_state'] ?? null;
@@ -4346,6 +4357,15 @@ final class PdfAcroFormExtractor
                 $effectiveCurrent = count($appearanceValues) === 1 ? $appearanceValues[0] : $appearanceValues;
                 $stateSource = 'widget_appearance_state';
             }
+            $selectedExportValues = $hasButtonExportOptions
+                ? $this->buttonSelectedExportValues($widgets, $hasCurrent)
+                : [];
+            $effectiveExportValue = $selectedExportValues === []
+                ? null
+                : (count($selectedExportValues) === 1 ? $selectedExportValues[0] : $selectedExportValues);
+            $exportValueSource = $effectiveExportValue === null
+                ? null
+                : $this->buttonExportValueSourceForSelection($widgets, $hasCurrent);
 
             $state += [
                 'button_kind' => $this->buttonKind($flags),
@@ -4354,6 +4374,11 @@ final class PdfAcroFormExtractor
                 'effective_current_state' => $password ? null : $effectiveCurrent,
                 'state_source' => $stateSource,
                 'on_values' => $this->buttonOnValues($widgets),
+                'export_values' => $hasButtonExportOptions ? $this->buttonExportValues($widgets) : [],
+                'selected_export_values' => $selectedExportValues,
+                'effective_export_value' => $password ? null : $effectiveExportValue,
+                'export_value_source' => $password ? null : $exportValueSource,
+                'export_option_count' => $hasButtonExportOptions ? count($options) : 0,
                 'checked_widget_count' => count($checkedWidgets),
                 'widget_state_consistent' => $this->widgetsConsistentWithFieldValue($widgets),
                 'widget_current_base_states' => $currentBaseStates,
@@ -4514,6 +4539,30 @@ final class PdfAcroFormExtractor
 
     /**
      * @param list<array<string, mixed>> $widgets
+     * @param list<array{export: string, label: string}> $options
+     * @return list<array<string, mixed>>
+     */
+    private function widgetsWithButtonExportOptions(array $widgets, ?string $fieldType, array $options): array
+    {
+        if ($fieldType !== 'Btn' || $options === []) {
+            return $widgets;
+        }
+
+        foreach ($widgets as $index => $widget) {
+            if (!isset($options[$index])) {
+                continue;
+            }
+
+            $widgets[$index]['export_option_index'] = $index;
+            $widgets[$index]['export_option_export'] = $options[$index]['export'];
+            $widgets[$index]['export_option_label'] = $options[$index]['label'];
+        }
+
+        return $widgets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
      * @return list<array<string, mixed>>
      */
     private function widgetsWithCurrentValueState(array $widgets, ?string $fieldType, int $flags, mixed $fieldValue): array
@@ -4532,12 +4581,14 @@ final class PdfAcroFormExtractor
                 && $appearanceState !== 'Off'
                 && $appearanceStateValid === true;
             $exportValue = $this->widgetExportValue($widget);
-            $selectedByField = $exportValue !== null && in_array($exportValue, $fieldValues, true);
+            $exportValueSource = $this->widgetExportValueSource($widget, $exportValue);
+            $selectedByField = $this->widgetSelectedByFieldValue($widget, $fieldValues, $exportValue, $onStates);
             $stateMatchesFieldValue = $fieldValue === null || $exportValue === null
                 ? ($appearanceStateValid === false ? false : null)
                 : ($appearanceStateValid === false ? false : ($checked ? $selectedByField : !$selectedByField));
             $widgets[$index]['checked'] = $checked;
             $widgets[$index]['export_value'] = $exportValue;
+            $widgets[$index]['export_value_source'] = $exportValueSource;
             $widgets[$index]['selected_by_field_value'] = $selectedByField;
             $widgets[$index]['state_matches_field_value'] = $stateMatchesFieldValue;
             $widgets[$index]['appearance_state_valid'] = $appearanceStateValid;
@@ -4563,6 +4614,11 @@ final class PdfAcroFormExtractor
      */
     private function widgetExportValue(array $widget): ?string
     {
+        $optionExport = $widget['export_option_export'] ?? null;
+        if (is_string($optionExport) && $optionExport !== '') {
+            return $optionExport;
+        }
+
         $appearanceState = $widget['appearance_state'] ?? null;
         $states = $this->widgetOnAppearanceStates($widget);
 
@@ -4575,6 +4631,48 @@ final class PdfAcroFormExtractor
         }
 
         return is_string($appearanceState) && $appearanceState !== 'Off' ? $appearanceState : null;
+    }
+
+    /**
+     * @param array<string, mixed> $widget
+     */
+    private function widgetExportValueSource(array $widget, ?string $exportValue): ?string
+    {
+        $optionExport = $widget['export_option_export'] ?? null;
+        if (is_string($optionExport) && $optionExport !== '' && $optionExport === $exportValue) {
+            return 'button_opt';
+        }
+
+        return $exportValue === null ? null : 'appearance_state';
+    }
+
+    /**
+     * @param array<string, mixed> $widget
+     * @param list<string> $fieldValues
+     * @param list<string> $onStates
+     */
+    private function widgetSelectedByFieldValue(array $widget, array $fieldValues, ?string $exportValue, array $onStates): bool
+    {
+        if ($fieldValues === []) {
+            return false;
+        }
+
+        if ($exportValue !== null && in_array($exportValue, $fieldValues, true)) {
+            return true;
+        }
+
+        $appearanceState = $widget['appearance_state'] ?? null;
+        if (is_string($appearanceState) && $appearanceState !== 'Off' && in_array($appearanceState, $fieldValues, true)) {
+            return true;
+        }
+
+        foreach ($onStates as $onState) {
+            if (in_array($onState, $fieldValues, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -4628,6 +4726,7 @@ final class PdfAcroFormExtractor
         array $onStates
     ): array {
         $appearanceState = $widget['appearance_state'] ?? null;
+        $fieldValues = $this->valueList($fieldValue);
         $normalAppearance = is_array($widget['normal_appearance'] ?? null) ? $widget['normal_appearance'] : null;
         $staleAppearanceState = $appearanceStateValid === false
             || ($normalAppearance !== null && ($normalAppearance['stale_appearance_state'] ?? false) === true);
@@ -4651,6 +4750,13 @@ final class PdfAcroFormExtractor
             )),
             'on_states' => $onStates,
             'export_value' => $exportValue,
+            'export_value_source' => $widget['export_value_source'] ?? $this->widgetExportValueSource($widget, $exportValue),
+            'export_option_index' => $widget['export_option_index'] ?? null,
+            'export_option_label' => $widget['export_option_label'] ?? null,
+            'field_value_matches_appearance_state' => is_string($appearanceState)
+                && $appearanceState !== 'Off'
+                && in_array($appearanceState, $fieldValues, true),
+            'field_value_matches_export_value' => $exportValue !== null && in_array($exportValue, $fieldValues, true),
             'checked_by_widget_appearance' => $checked,
             'selected_by_field_value' => $selectedByField,
             'state_matches_field_value' => $stateMatchesFieldValue,
@@ -4722,6 +4828,133 @@ final class PdfAcroFormExtractor
             'executes_appearance_streams' => false,
             'renders_appearances' => false,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $valueState
+     * @param list<array{export: string, label: string}> $options
+     * @param list<array<string, mixed>> $widgets
+     * @return array<string, mixed>
+     */
+    private function buttonExportReviewForField(int $fieldObject, string $fieldName, array $valueState, array $options, array $widgets): array
+    {
+        $selectedExportValues = $this->stringListValue($valueState['selected_export_values'] ?? []);
+        $exportValue = $valueState['effective_export_value'] ?? null;
+
+        return [
+            'source' => 'acroform_widget_appearance_export_currentbase',
+            'field_object' => $fieldObject,
+            'field_name' => $fieldName,
+            'button_kind' => $valueState['button_kind'] ?? null,
+            'field_current_state' => $valueState['current_state'] ?? null,
+            'field_current_source' => $valueState['current_source'] ?? null,
+            'effective_current_state' => $valueState['effective_current_state'] ?? null,
+            'state_source' => $valueState['state_source'] ?? null,
+            'effective_export_value' => $exportValue,
+            'export_value_source' => $valueState['export_value_source'] ?? null,
+            'option_count' => count($options),
+            'option_export_values' => $this->uniqueStrings(array_map(
+                static fn (array $option): string => $option['export'],
+                $options
+            )),
+            'option_labels' => $this->uniqueStrings(array_map(
+                static fn (array $option): string => $option['label'],
+                $options
+            )),
+            'widget_count' => count($widgets),
+            'widget_export_values' => $this->buttonExportValues($widgets),
+            'widget_export_value_sources' => $this->uniqueStrings(array_values(array_filter(array_map(
+                static fn (array $widget): ?string => is_string($widget['export_value_source'] ?? null) ? $widget['export_value_source'] : null,
+                $widgets
+            )))),
+            'selected_export_values' => $selectedExportValues,
+            'checked_export_values' => $this->buttonCheckedExportValues($widgets),
+            'appearance_on_values' => $this->buttonOnValues($widgets),
+            'checked_widget_count' => $valueState['checked_widget_count'] ?? 0,
+            'state_consistent' => $valueState['widget_state_consistent'] ?? null,
+            'field_value_authoritative' => ($valueState['has_current_value'] ?? false) === true,
+            'uses_button_opt_for_export' => in_array('button_opt', $this->uniqueStrings(array_values(array_filter(array_map(
+                static fn (array $widget): ?string => is_string($widget['export_value_source'] ?? null) ? $widget['export_value_source'] : null,
+                $widgets
+            )))), true),
+            'export_value_used_for_submit_review' => $exportValue !== null && $exportValue !== [],
+            'appearance_value_used_for_import' => false,
+            'export_value_used_for_import' => false,
+            'appearance_payload_text_exposed' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+            'executes_form_actions' => false,
+            'executes_javascript' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
+     * @return list<string>
+     */
+    private function buttonExportValues(array $widgets): array
+    {
+        return $this->uniqueStrings(array_values(array_filter(array_map(
+            static fn (array $widget): ?string => is_string($widget['export_value'] ?? null) ? $widget['export_value'] : null,
+            $widgets
+        ))));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
+     * @return list<string>
+     */
+    private function buttonCheckedExportValues(array $widgets): array
+    {
+        return $this->uniqueStrings(array_values(array_filter(array_map(
+            static fn (array $widget): ?string => ($widget['checked'] ?? false) === true && is_string($widget['export_value'] ?? null)
+                ? $widget['export_value']
+                : null,
+            $widgets
+        ))));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
+     * @return list<string>
+     */
+    private function buttonSelectedExportValues(array $widgets, bool $hasCurrent): array
+    {
+        return $this->uniqueStrings(array_values(array_filter(array_map(
+            static function (array $widget) use ($hasCurrent): ?string {
+                $selected = $hasCurrent
+                    ? (($widget['selected_by_field_value'] ?? false) === true)
+                    : (($widget['checked'] ?? false) === true);
+
+                return $selected && is_string($widget['export_value'] ?? null) ? $widget['export_value'] : null;
+            },
+            $widgets
+        ))));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
+     */
+    private function buttonExportValueSourceForSelection(array $widgets, bool $hasCurrent): ?string
+    {
+        $sources = [];
+        foreach ($widgets as $widget) {
+            $selected = $hasCurrent
+                ? (($widget['selected_by_field_value'] ?? false) === true)
+                : (($widget['checked'] ?? false) === true);
+            if (!$selected || !is_string($widget['export_value_source'] ?? null)) {
+                continue;
+            }
+
+            $sources[] = $widget['export_value_source'];
+        }
+
+        $sources = $this->uniqueStrings($sources);
+        if (in_array('button_opt', $sources, true)) {
+            return 'button_opt';
+        }
+
+        return $sources[0] ?? null;
     }
 
     /**
@@ -5590,8 +5823,12 @@ final class PdfAcroFormExtractor
                 'display_value' => $state['display_value'] ?? null,
                 'effective_current' => $state['effective_current_state'] ?? ($state['current'] ?? ($field['value'] ?? null)),
                 'current_source' => $state['state_source'] ?? ($state['current_source'] ?? null),
+                'effective_export_value' => $state['effective_export_value'] ?? null,
+                'export_value_source' => $state['export_value_source'] ?? null,
                 'button_kind' => $state['button_kind'] ?? null,
                 'options' => $field['options'] ?? [],
+                'button_export_options' => $field['button_export_options'] ?? [],
+                'button_export_review' => is_array($field['button_export_review'] ?? null) ? $field['button_export_review'] : null,
                 'choice_values' => $state['choice_values'] ?? [],
                 'default_choice_values' => $state['default_choice_values'] ?? [],
                 'selected_options' => $state['selected_options'] ?? [],
@@ -5934,6 +6171,15 @@ final class PdfAcroFormExtractor
         }
 
         if (($row['field_type'] ?? null) === 'Btn') {
+            $exportValue = $row['effective_export_value'] ?? null;
+            if ($exportValue !== null && $exportValue !== []) {
+                return [
+                    'has_value' => true,
+                    'value' => $exportValue,
+                    'source' => (string) ($row['export_value_source'] ?? 'button_export_value'),
+                ];
+            }
+
             $value = $row['effective_current'] ?? null;
             return [
                 'has_value' => $value !== null,
@@ -5984,6 +6230,14 @@ final class PdfAcroFormExtractor
             'default' => $row['default'] ?? null,
             'display_value' => $row['display_value'] ?? null,
         ];
+
+        if (($row['field_type'] ?? null) === 'Btn') {
+            $base['effective_export_value'] = $row['effective_export_value'] ?? null;
+            $base['export_value_source'] = $row['export_value_source'] ?? null;
+            if (is_array($row['button_export_review'] ?? null)) {
+                $base['button_export_review'] = $row['button_export_review'];
+            }
+        }
 
         $appearanceResourceReview = $this->appearanceResourceReviewForFieldRow($row);
         if ($appearanceResourceReview !== null) {

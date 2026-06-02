@@ -686,6 +686,11 @@ final class PdfSecurityPreflight
         $postSignatureActionCount = $this->postSignatureActionCount($actions);
         $unsafeActionCount = count(array_filter($actions, fn (array $action): bool => $this->isUnsafeDocumentAction($action)));
         $targetAssociatedFiles = $this->uniqueDestinationActionTargetAssociatedFiles($actions);
+        $permissionDssActionChainReview = $this->permissionDssActionChainReview(
+            $actions,
+            $dssCertificateReview,
+            $signaturePermissionTransformReview
+        );
 
         return [
             'source' => 'pdf_document_action_security_review',
@@ -785,6 +790,15 @@ final class PdfSecurityPreflight
                 'dss_vri_signature_match_count' => (int) $dssCertificateReview['matched_signature_count'],
                 'signature_permission_transform_count' => (int) $signaturePermissionTransformReview['transform_count'],
                 'signature_permission_transform_methods' => $signaturePermissionTransformReview['methods'],
+                'post_signature_action_count' => (int) $permissionDssActionChainReview['post_signature_action_count'],
+                'unsigned_action_byte_range_count' => (int) $permissionDssActionChainReview['unsigned_action_byte_range_count'],
+                'post_signature_unsafe_action_count' => (int) $permissionDssActionChainReview['post_signature_unsafe_action_count'],
+                'post_signature_action_objects' => $permissionDssActionChainReview['post_signature_action_objects'],
+                'action_byte_range_statuses' => $permissionDssActionChainReview['action_byte_range_statuses'],
+                'post_signature_action_types' => $permissionDssActionChainReview['post_signature_action_types'],
+                'post_signature_safety_labels' => $permissionDssActionChainReview['post_signature_safety_labels'],
+                'post_signature_actions_granted_by_permissions' => false,
+                'dss_validation_grants_action_execution' => false,
                 'action_file_spec_count' => (int) $actionFileSpecSecurityReview['file_spec_count'],
                 'action_embedded_file_count' => (int) $actionFileSpecSecurityReview['embedded_file_count'],
                 'action_embedded_file_objects' => $actionFileSpecSecurityReview['embedded_file_objects'],
@@ -798,6 +812,7 @@ final class PdfSecurityPreflight
                 'executes_trust_chain_validation' => false,
                 'executes_rights_enforcement' => false,
             ],
+            'permission_dss_action_chain_review' => $permissionDssActionChainReview,
             'acroform_action_field_names' => $this->uniqueNestedStringColumn($actions, 'action_field_names'),
             'signed_locked_field_permission_labels' => $this->uniqueNestedStringColumn($actions, 'permission_labels'),
             'signed_locked_by_signatures' => $this->uniqueNestedStringColumn($actions, 'locked_by_signatures'),
@@ -1334,6 +1349,60 @@ final class PdfSecurityPreflight
         }
 
         return $actions;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @return array<string, mixed>
+     */
+    private function permissionDssActionChainReview(
+        array $actions,
+        array $dssCertificateReview,
+        array $signaturePermissionTransformReview
+    ): array {
+        $postSignatureActions = array_values(array_filter(
+            $actions,
+            fn (array $action): bool => $this->actionIsOutsideSignedRevision($action)
+        ));
+        $permissionTransformCount = (int) ($signaturePermissionTransformReview['transform_count'] ?? 0);
+        $dssCertificateCount = (int) ($dssCertificateReview['certificate_count'] ?? 0);
+        $postSignatureUnsafeActionCount = count(array_filter(
+            $postSignatureActions,
+            fn (array $action): bool => $this->isUnsafeDocumentAction($action)
+        ));
+
+        return [
+            'source' => 'permission_dss_action_chain_review',
+            'present' => $postSignatureActions !== [] && ($dssCertificateCount > 0 || $permissionTransformCount > 0),
+            'action_count' => count($actions),
+            'post_signature_action_count' => count($postSignatureActions),
+            'post_signature_unsafe_action_count' => $postSignatureUnsafeActionCount,
+            'unsigned_action_byte_range_count' => count(array_filter(
+                $postSignatureActions,
+                static fn (array $action): bool => ($action['outside_any_signature_byte_range'] ?? false) === true
+            )),
+            'post_signature_action_objects' => $this->postSignatureActionObjects($postSignatureActions),
+            'post_signature_action_types' => $this->uniqueStringColumn($postSignatureActions, 'action_type'),
+            'post_signature_safety_labels' => $this->uniqueStringColumn($postSignatureActions, 'safety'),
+            'action_byte_range_statuses' => $this->uniqueStringColumn($postSignatureActions, 'signature_byte_range_coverage_status'),
+            'dss_present' => $dssCertificateCount > 0,
+            'dss_certificate_count' => $dssCertificateCount,
+            'dss_certificate_hashes' => $dssCertificateReview['certificate_hashes'] ?? [],
+            'dss_vri_signature_match_count' => (int) ($dssCertificateReview['matched_signature_count'] ?? 0),
+            'signature_permission_transform_count' => $permissionTransformCount,
+            'signature_permission_transform_methods' => $signaturePermissionTransformReview['methods'] ?? [],
+            'field_mdp_action_labels' => $signaturePermissionTransformReview['field_mdp_action_labels'] ?? [],
+            'field_mdp_field_names' => $signaturePermissionTransformReview['field_mdp_field_names'] ?? [],
+            'usage_right_categories' => $signaturePermissionTransformReview['usage_right_categories'] ?? [],
+            'review_only' => true,
+            'post_signature_actions_granted_by_permissions' => false,
+            'dss_validation_grants_action_execution' => false,
+            'executes_pdf_actions' => false,
+            'executes_signature_validation' => false,
+            'executes_revocation_check' => false,
+            'executes_trust_chain_validation' => false,
+            'executes_rights_enforcement' => false,
+        ];
     }
 
     /**

@@ -9077,6 +9077,16 @@ final class PdfTextExtractor
             ];
         }
 
+        if ($this->isPredefinedUcs2CMapName($encodingName)) {
+            return [
+                'map' => [],
+                'codeSpaceRanges' => [
+                    ['start' => 0, 'end' => 0xffff, 'width' => 4],
+                ],
+                'writingMode' => str_ends_with($encodingName, '-V') ? 1 : 0,
+            ];
+        }
+
         return match ($encodingName) {
             'WinAnsiEncoding' => $this->codepointEncodingMap([
                 0x80 => 0x20ac,
@@ -9415,6 +9425,11 @@ final class PdfTextExtractor
             ]),
             default => null,
         };
+    }
+
+    private function isPredefinedUcs2CMapName(string $encodingName): bool
+    {
+        return preg_match('/^Uni[A-Za-z0-9-]*-UCS2(?:-[A-Za-z0-9]+)*-[HV]$/', $encodingName) === 1;
     }
 
     /**
@@ -12809,10 +12824,12 @@ final class PdfTextExtractor
                 $fieldTwo = $this->xrefFieldValue($decoded, $fieldOffset, $widths[1]);
                 $fieldThree = $this->xrefFieldValue($decoded, $fieldOffset, $widths[2]);
                 $objectNumber = $startObject + $index;
+                $generation = $fieldThree;
                 if ($type === 1 && $widths[1] > 0 && $definitions !== null) {
                     $offsetOwner = $this->directObjectDefinitionAtOffset($definitions, $fieldTwo);
                     if ($offsetOwner !== null) {
                         $objectNumber = $offsetOwner['objectNumber'];
+                        $generation = $offsetOwner['generation'];
                     }
                 }
 
@@ -12824,7 +12841,7 @@ final class PdfTextExtractor
                 if ($type === 0) {
                     $entries[$objectNumber] = [
                         'type' => 0,
-                        'generation' => $fieldThree,
+                        'generation' => $generation,
                         'offset' => $fieldTwo,
                         'offsetIsExplicit' => $widths[1] > 0,
                     ];
@@ -12832,7 +12849,7 @@ final class PdfTextExtractor
                     $entries[$objectNumber] = [
                         'type' => 1,
                         'offset' => $fieldTwo,
-                        'generation' => $fieldThree,
+                        'generation' => $generation,
                         'offsetIsExplicit' => $widths[1] > 0,
                     ];
                 } elseif ($type === 2 && $fieldTwo > 0) {
@@ -14754,10 +14771,11 @@ final class PdfTextExtractor
 
         $this->consumeInlineImageDataPrefixWhitespace($stream, $index);
         $dataStart = $index;
+        $incompleteJpxFallbackEnd = null;
         while ($index < $length) {
             $end = strpos($stream, 'EI', $index);
             if ($end === false) {
-                $index = $length;
+                $index = $incompleteJpxFallbackEnd === null ? $length : $incompleteJpxFallbackEnd + 2;
                 return;
             }
 
@@ -14767,9 +14785,17 @@ final class PdfTextExtractor
                     $index = $end + 2;
                     return;
                 }
+
+                if ($this->inlineImageCandidateIsIncompleteJpx($dictionary, $candidate)) {
+                    $incompleteJpxFallbackEnd = $end;
+                }
             }
 
             $index = $end + 2;
+        }
+
+        if ($incompleteJpxFallbackEnd !== null) {
+            $index = $incompleteJpxFallbackEnd + 2;
         }
     }
 
@@ -14923,6 +14949,16 @@ final class PdfTextExtractor
 
         $expectedLength = $this->inlineImageExpectedDecodedLength($dictionary);
         return $expectedLength === null || strlen($decoded) === $expectedLength;
+    }
+
+    private function inlineImageCandidateIsIncompleteJpx(string $dictionary, string $candidate): bool
+    {
+        $filters = $this->streamFilters($dictionary, []);
+        if ($filters === null || !$this->inlineImageUsesJpxDecode($filters)) {
+            return false;
+        }
+
+        return $this->inlineJpxCandidateState($candidate) === 'incomplete';
     }
 
     /**

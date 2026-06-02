@@ -68,6 +68,9 @@ final class PdfMetadataExtractor
 
     private const NS_DC = 'http://purl.org/dc/elements/1.1/';
     private const NS_PDF = 'http://ns.adobe.com/pdf/1.3/';
+    private const NS_PDFA_EXTENSION = 'http://www.aiim.org/pdfa/ns/extension/';
+    private const NS_PDFA_PROPERTY = 'http://www.aiim.org/pdfa/ns/property#';
+    private const NS_PDFA_SCHEMA = 'http://www.aiim.org/pdfa/ns/schema#';
     private const NS_RDF = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
     private const NS_XMP = 'http://ns.adobe.com/xap/1.0/';
     private const NS_XML = 'http://www.w3.org/XML/1998/namespace';
@@ -4356,6 +4359,11 @@ final class PdfMetadataExtractor
             $result['keywords'] = array_values($keywords);
         }
 
+        $pdfaExtensionSchemas = $xmp['pdfa_extension_schemas'] ?? null;
+        if (is_array($pdfaExtensionSchemas) && $pdfaExtensionSchemas !== []) {
+            $result['pdfa_extension_schemas'] = array_values($pdfaExtensionSchemas);
+        }
+
         foreach (['language', 'mark_info', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'associated_files', 'embedded_files', 'document_name_trees', 'structure_tree', 'document_destinations', 'document_security_store'] as $field) {
             if (array_key_exists($field, $catalog)) {
                 $result[$field] = $catalog[$field];
@@ -4373,9 +4381,201 @@ final class PdfMetadataExtractor
             if ($pdfaAssociatedFiles !== []) {
                 $result['pdfa_associated_files'] = $pdfaAssociatedFiles;
             }
+            $pdfaXmpAssociatedSchema = $this->pdfaXmpAssociatedSchemaMetadata(
+                $result['pdfa_extension_schemas'] ?? [],
+                $result['pdfa_associated_name_tree'] ?? [],
+                $result['pdfa_associated_files'] ?? []
+            );
+            if ($pdfaXmpAssociatedSchema !== []) {
+                $result['pdfa_xmp_associated_schema'] = $pdfaXmpAssociatedSchema;
+            }
         }
 
         return $result;
+    }
+
+    /**
+     * Root XMP can declare PDF/A extension schemas while the concrete schema
+     * payload is supplied as an associated FileSpec in a catalog name tree.
+     * Correlate those review surfaces without loading schema payload bytes into
+     * document metadata or visible WordPress content.
+     *
+     * @param mixed $schemas
+     * @param mixed ...$associatedSummaries
+     * @return array<string, mixed>
+     */
+    private function pdfaXmpAssociatedSchemaMetadata(mixed $schemas, mixed ...$associatedSummaries): array
+    {
+        if (!is_array($schemas) || $schemas === []) {
+            return [];
+        }
+
+        $schemaRows = [];
+        foreach ($schemas as $schema) {
+            if (is_array($schema) && $schema !== []) {
+                $schemaRows[] = $schema;
+            }
+        }
+        if ($schemaRows === []) {
+            return [];
+        }
+
+        $schemaFiles = [];
+        foreach ($associatedSummaries as $summary) {
+            foreach ($this->pdfaAssociatedSchemaFileRows($summary) as $file) {
+                $schemaFiles[] = $file;
+            }
+        }
+        if ($schemaFiles === []) {
+            return [];
+        }
+
+        $schemaNames = [];
+        $schemaNamespaces = [];
+        $schemaPrefixes = [];
+        $propertyNames = [];
+        foreach ($schemaRows as $schema) {
+            $schemaName = $schema['schema'] ?? null;
+            if (is_string($schemaName) && $schemaName !== '') {
+                $schemaNames[] = $schemaName;
+            }
+
+            $schemaNamespace = $schema['namespace_uri'] ?? null;
+            if (is_string($schemaNamespace) && $schemaNamespace !== '') {
+                $schemaNamespaces[] = $schemaNamespace;
+            }
+
+            $schemaPrefix = $schema['prefix'] ?? null;
+            if (is_string($schemaPrefix) && $schemaPrefix !== '') {
+                $schemaPrefixes[] = $schemaPrefix;
+            }
+
+            $properties = $schema['properties'] ?? null;
+            if (!is_array($properties)) {
+                continue;
+            }
+            foreach ($properties as $property) {
+                if (!is_array($property)) {
+                    continue;
+                }
+                $name = $property['name'] ?? null;
+                if (is_string($name) && $name !== '') {
+                    $propertyNames[] = $name;
+                }
+            }
+        }
+
+        $fileNames = [];
+        $fileSources = [];
+        foreach ($schemaFiles as $file) {
+            $fileName = $file['name_tree_name'] ?? $file['filename'] ?? $file['name'] ?? null;
+            if (is_string($fileName) && $fileName !== '') {
+                $fileNames[] = $fileName;
+            }
+
+            $source = $file['source'] ?? null;
+            if (is_string($source) && $source !== '') {
+                $fileSources[] = $source;
+            }
+        }
+
+        return [
+            'source' => 'pdfa_xmp_associated_schema',
+            'review_only' => true,
+            'payload_included' => false,
+            'xmp_schema_count' => count($schemaRows),
+            'xmp_schema_names' => $this->uniqueStrings($schemaNames),
+            'xmp_schema_namespaces' => $this->uniqueStrings($schemaNamespaces),
+            'xmp_schema_prefixes' => $this->uniqueStrings($schemaPrefixes),
+            'xmp_schema_property_names' => $this->uniqueStrings($propertyNames),
+            'associated_schema_file_count' => count($schemaFiles),
+            'associated_schema_file_names' => $this->uniqueStrings($fileNames),
+            'associated_schema_file_sources' => $this->uniqueStrings($fileSources),
+            'schemas' => $schemaRows,
+            'associated_schema_files' => $schemaFiles,
+        ];
+    }
+
+    /**
+     * @param mixed $summary
+     * @return list<array<string, mixed>>
+     */
+    private function pdfaAssociatedSchemaFileRows(mixed $summary): array
+    {
+        if (!is_array($summary)) {
+            return [];
+        }
+
+        $entries = $summary['entries'] ?? null;
+        if (!is_array($entries)) {
+            return [];
+        }
+
+        $files = [];
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $relationship = $entry['relationship'] ?? null;
+            $relationshipRole = $entry['relationship_role'] ?? null;
+            if ($relationship !== 'Schema' && $relationshipRole !== 'schema_definition') {
+                continue;
+            }
+
+            $file = [
+                'source' => $entry['source'] ?? null,
+                'review_only' => true,
+                'payload_included' => false,
+                'relationship' => $relationship,
+                'relationship_role' => $relationshipRole,
+            ];
+
+            foreach ([
+                'name_tree_name',
+                'filename',
+                'name',
+                'description',
+                'mime_type',
+                'ef_key',
+            ] as $key) {
+                $value = $entry[$key] ?? null;
+                if (is_string($value) && $value !== '') {
+                    $file[$key] = $value;
+                }
+            }
+
+            foreach ([
+                'index',
+                'name_tree_index',
+                'associated_file_index',
+                'file_spec_object',
+                'embedded_file_object',
+            ] as $key) {
+                $value = $entry[$key] ?? null;
+                if (is_int($value)) {
+                    $file[$key] = $value;
+                }
+            }
+
+            foreach ([
+                'payload',
+                'xmp_metadata',
+                'piece_info_xmp_metadata',
+                'attachment_pdfa_output_intents',
+                'related_files',
+                'provenance_sources',
+            ] as $key) {
+                $value = $entry[$key] ?? null;
+                if (is_array($value) && $value !== []) {
+                    $file[$key] = $value;
+                }
+            }
+
+            $files[] = $file;
+        }
+
+        return $files;
     }
 
     /**
@@ -4725,7 +4925,174 @@ final class PdfMetadataExtractor
             $metadata['keywords'] = $keywords;
         }
 
+        $pdfaExtensionSchemas = $this->xmpPdfaExtensionSchemas($document);
+        if ($pdfaExtensionSchemas !== []) {
+            $metadata['pdfa_extension_schemas'] = $pdfaExtensionSchemas;
+        }
+
         return $metadata;
+    }
+
+    /**
+     * PDF/A extension schemas in root XMP are document metadata. Keep them as
+     * structured review rows so schema declarations can be correlated with
+     * associated /Schema FileSpec attachments without exposing raw XMP bytes.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function xmpPdfaExtensionSchemas(DOMDocument $document): array
+    {
+        $schemas = [];
+        foreach ($document->getElementsByTagNameNS(self::NS_PDFA_EXTENSION, 'schemas') as $schemasElement) {
+            if (!$schemasElement instanceof DOMElement) {
+                continue;
+            }
+
+            foreach ($this->xmpRdfCollectionItems($schemasElement) as $schemaItem) {
+                $schema = $this->xmpPdfaExtensionSchemaRow($schemaItem);
+                if ($schema !== []) {
+                    $schemas[] = $schema;
+                }
+            }
+        }
+
+        return $schemas;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function xmpPdfaExtensionSchemaRow(DOMElement $schemaItem): array
+    {
+        $row = [
+            'source' => 'xmp_pdfa_extension_schema',
+            'review_only' => true,
+            'payload_included' => false,
+        ];
+
+        foreach ([
+            'schema' => [self::NS_PDFA_SCHEMA, 'schema'],
+            'namespace_uri' => [self::NS_PDFA_SCHEMA, 'namespaceURI'],
+            'prefix' => [self::NS_PDFA_SCHEMA, 'prefix'],
+        ] as $key => $spec) {
+            [$namespace, $localName] = $spec;
+            $value = $this->xmpElementValue($schemaItem, $namespace, $localName);
+            if ($value !== null && $value !== '') {
+                $row[$key] = $value;
+            }
+        }
+
+        $properties = [];
+        foreach ($this->xmpChildElements($schemaItem, self::NS_PDFA_SCHEMA, 'property') as $propertyElement) {
+            foreach ($this->xmpRdfCollectionItems($propertyElement) as $propertyItem) {
+                $property = $this->xmpPdfaExtensionPropertyRow($propertyItem);
+                if ($property !== []) {
+                    $properties[] = $property;
+                }
+            }
+        }
+
+        if ($properties !== []) {
+            $propertyNames = [];
+            foreach ($properties as $property) {
+                $name = $property['name'] ?? null;
+                if (is_string($name) && $name !== '') {
+                    $propertyNames[] = $name;
+                }
+            }
+
+            $row['property_count'] = count($properties);
+            $row['property_names'] = $this->uniqueStrings($propertyNames);
+            $row['properties'] = $properties;
+        } else {
+            $row['property_count'] = 0;
+            $row['property_names'] = [];
+        }
+
+        return count($row) > 5 ? $row : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function xmpPdfaExtensionPropertyRow(DOMElement $propertyItem): array
+    {
+        $row = [];
+        foreach ([
+            'name' => [self::NS_PDFA_PROPERTY, 'name'],
+            'value_type' => [self::NS_PDFA_PROPERTY, 'valueType'],
+            'category' => [self::NS_PDFA_PROPERTY, 'category'],
+            'description' => [self::NS_PDFA_PROPERTY, 'description'],
+        ] as $key => $spec) {
+            [$namespace, $localName] = $spec;
+            $value = $this->xmpElementValue($propertyItem, $namespace, $localName);
+            if ($value !== null && $value !== '') {
+                $row[$key] = $value;
+            }
+        }
+
+        return $row;
+    }
+
+    private function xmpElementValue(DOMElement $element, string $namespace, string $localName): ?string
+    {
+        if ($element->hasAttributeNS($namespace, $localName)) {
+            return $this->cleanText($element->getAttributeNS($namespace, $localName));
+        }
+
+        foreach ($this->xmpChildElements($element, $namespace, $localName) as $child) {
+            $value = $this->cleanText($child->textContent);
+            if ($value !== null) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<DOMElement>
+     */
+    private function xmpChildElements(DOMElement $element, ?string $namespace = null, ?string $localName = null): array
+    {
+        $children = [];
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof DOMElement) {
+                continue;
+            }
+            if ($namespace !== null && $child->namespaceURI !== $namespace) {
+                continue;
+            }
+            if ($localName !== null && $child->localName !== $localName) {
+                continue;
+            }
+
+            $children[] = $child;
+        }
+
+        return $children;
+    }
+
+    /**
+     * @return list<DOMElement>
+     */
+    private function xmpRdfCollectionItems(DOMElement $element): array
+    {
+        $directItems = $this->xmpChildElements($element, self::NS_RDF, 'li');
+        if ($directItems !== []) {
+            return $directItems;
+        }
+
+        foreach (['Bag', 'Seq', 'Alt'] as $containerName) {
+            foreach ($this->xmpChildElements($element, self::NS_RDF, $containerName) as $container) {
+                $items = $this->xmpChildElements($container, self::NS_RDF, 'li');
+                if ($items !== []) {
+                    return $items;
+                }
+            }
+        }
+
+        return [];
     }
 
     private function looksLikeXmlPacket(string $xml): bool
@@ -6889,6 +7256,13 @@ final class PdfMetadataExtractor
             $fieldNames[] = 'keywords';
         }
 
+        $pdfaExtensionSchemas = is_array($parsed['pdfa_extension_schemas'] ?? null)
+            ? array_values($parsed['pdfa_extension_schemas'])
+            : [];
+        if ($pdfaExtensionSchemas !== []) {
+            $fieldNames[] = 'pdfa_extension_schemas';
+        }
+
         $datesUtc = [];
         foreach (['created_at', 'modified_at', 'metadata_date'] as $field) {
             $value = $parsed[$field] ?? null;
@@ -6922,6 +7296,20 @@ final class PdfMetadataExtractor
         }
         if ($datesUtc !== []) {
             $summary['dates_utc'] = $datesUtc;
+        }
+        if ($pdfaExtensionSchemas !== []) {
+            $namespaces = [];
+            foreach ($pdfaExtensionSchemas as $schema) {
+                if (!is_array($schema)) {
+                    continue;
+                }
+                $namespace = $schema['namespace_uri'] ?? null;
+                if (is_string($namespace) && $namespace !== '') {
+                    $namespaces[] = $namespace;
+                }
+            }
+            $summary['pdfa_extension_schema_count'] = count($pdfaExtensionSchemas);
+            $summary['pdfa_extension_schema_namespaces'] = $this->uniqueStrings($namespaces);
         }
 
         return $summary;

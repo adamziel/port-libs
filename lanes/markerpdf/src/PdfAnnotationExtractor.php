@@ -88,6 +88,7 @@ final class PdfAnnotationExtractor
         $actionReviewer = new PdfActionReviewExtractor($pdfBytes);
         $actionTargetContext = $this->annotationActionTargetContext($pdfBytes);
         $structureParentReviewByKey = $this->annotationStructureParentReviewByKey($pdfBytes, $objects);
+        $structureReviewByAnnotationObject = $this->annotationStructTreeReviewByAnnotationObject($pdfBytes, $objects);
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
         $pages = [];
 
@@ -118,6 +119,7 @@ final class PdfAnnotationExtractor
                     $actionReviewer,
                     $threadReview['rows_by_object'],
                     $structureParentReviewByKey,
+                    $structureReviewByAnnotationObject,
                     $actionTargetContext
                 );
             }
@@ -155,6 +157,7 @@ final class PdfAnnotationExtractor
         PdfActionReviewExtractor $actionReviewer,
         array $threadRowsByObject = [],
         array $structureParentReviewByKey = [],
+        array $structureReviewByAnnotationObject = [],
         array $actionTargetContext = []
     ): array
     {
@@ -177,6 +180,10 @@ final class PdfAnnotationExtractor
         if ($inheritedStructParent !== null) {
             $structParent = $inheritedStructParent['key'];
         }
+        $structTreeReview = $record['object'] === null
+            ? null
+            : ($structureReviewByAnnotationObject[$record['object']] ?? null);
+        $structureParent = null;
 
         $row = [
             'subtype' => $subtype,
@@ -198,6 +205,7 @@ final class PdfAnnotationExtractor
 
         if ($structParent !== null) {
             $row['struct_parent'] = $structParent;
+            $parentTreeReviewExists = array_key_exists($structParent, $structureParentReviewByKey);
             $structureParent = $this->structureParentReviewForAnnotation(
                 $structureParentReviewByKey[$structParent] ?? [
                     'source' => 'annotation_struct_parent_parent_tree',
@@ -208,6 +216,21 @@ final class PdfAnnotationExtractor
                 ],
                 $record['object']
             );
+            if (
+                is_array($structTreeReview)
+                && (
+                    !$parentTreeReviewExists
+                    || ($structureParent['current_annotation_object_ref_matched'] ?? false) !== true
+                )
+            ) {
+                $structTreeReview['source'] = 'annotation_struct_tree_objr_parent_tree_fallback';
+                $structTreeReview['key'] = $structParent;
+                $structTreeReview['struct_parent'] = $structParent;
+                if (!$parentTreeReviewExists) {
+                    $structTreeReview['parent_tree_key_missing'] = true;
+                }
+                $structureParent = $this->structureParentReviewForAnnotation($structTreeReview, $record['object']);
+            }
             if ($inheritedStructParent !== null) {
                 $row['struct_parent_source'] = $inheritedStructParent['source'];
                 $row['struct_parent_field_object'] = $inheritedStructParent['field_object'];
@@ -216,7 +239,15 @@ final class PdfAnnotationExtractor
                 $structureParent['field_object'] = $inheritedStructParent['field_object'];
                 $structureParent['field_chain'] = $inheritedStructParent['field_chain'];
             }
+        } elseif (is_array($structTreeReview)) {
+            $structureParent = $this->structureParentReviewForAnnotation($structTreeReview, $record['object']);
+        }
+
+        if ($structureParent !== null) {
             $row['structure_parent'] = $structureParent;
+        }
+
+        if ($structureParent !== null && $structParent !== null) {
             $row['actions'] = PdfActionReviewExtractor::actionsWithAnnotationStructureParentContext(
                 $row['actions'],
                 $record['object'],
@@ -388,6 +419,59 @@ final class PdfAnnotationExtractor
         }
 
         return $reviewByKey;
+    }
+
+    /**
+     * Some tagged PDFs expose annotation associations through StructElem `/K`
+     * object-reference dictionaries even when the annotation `/StructParent`
+     * key or ParentTree number-tree row is missing. Keep that as review
+     * metadata for current page annotations without making StructElem strings
+     * visible document text.
+     *
+     * @param array<int, string> $objects
+     * @return array<int, array<string, mixed>>
+     */
+    private function annotationStructTreeReviewByAnnotationObject(string $pdfBytes, array $objects): array
+    {
+        $elementsByObject = $this->structureElementsByObject($pdfBytes);
+        if ($elementsByObject === []) {
+            return [];
+        }
+
+        $reviews = [];
+        foreach ($elementsByObject as $structObject => $metadata) {
+            $dictionary = $this->dictionaryObjectBody($objects[$structObject] ?? '');
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $annotationObjects = $this->structureAnnotationObjectsFromKidValue(
+                $this->dictionaryRawValue($dictionary, 'K'),
+                $objects
+            );
+            if ($annotationObjects === []) {
+                continue;
+            }
+
+            $row = [
+                'source' => 'annotation_struct_tree_objr',
+                'entry_count' => 1,
+                'review_only' => true,
+                'visible_text_source' => false,
+            ];
+            $this->copyStructureElementMetadata($row, $metadata);
+            $row['struct_object'] = $structObject;
+            $row['annotation_objects'] = $annotationObjects;
+            $row['object_reference_count'] = count($annotationObjects);
+
+            foreach ($annotationObjects as $annotationObject) {
+                if (!isset($reviews[$annotationObject])) {
+                    $reviews[$annotationObject] = $row;
+                }
+            }
+        }
+
+        return $reviews;
     }
 
     /**
