@@ -144,6 +144,11 @@ final class OutputWriter
                 $imageDataUriCount,
                 $includeRuntimePreviewHtml
             ),
+            'markdown_table_image_artifact' => $this->markdownTableImageArtifact(
+                $markdownText,
+                $imageArtifacts,
+                $includeRuntimePreviewHtml
+            ),
             'executes_streamlit' => false,
             'executes_pdfium' => false,
             'executes_python_or_models' => false,
@@ -404,6 +409,255 @@ final class OutputWriter
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
         ];
+    }
+
+    /**
+     * Native review boundary for tabled Markdown tables that carry Marker image references.
+     *
+     * Upstream table recognition formats cells as GitHub-style pipe Markdown, then
+     * marker.output persists the full Markdown string and marker_app globally embeds
+     * any referenced image artifacts in the runtime preview. This manifest keeps
+     * table-cell image references reviewable without rewriting table Markdown into
+     * WordPress HTML or executing Streamlit/PDFium/model code.
+     *
+     * @param list<array<string, mixed>> $imageArtifacts
+     * @return array<string, mixed>
+     */
+    private function markdownTableImageArtifact(
+        string $markdown,
+        array $imageArtifacts,
+        bool $includeRuntimePreviewHtml
+    ): array {
+        $artifactByFilename = [];
+        foreach ($imageArtifacts as $artifact) {
+            $artifactByFilename[(string) $artifact['filename']] = $artifact;
+        }
+
+        $lines = preg_split('/\R/', $markdown) ?: [];
+        $tables = [];
+        $references = [];
+        $tableIndex = 0;
+
+        for ($lineIndex = 0, $lineCount = count($lines); $lineIndex < $lineCount - 1; $lineIndex++) {
+            $headerLine = (string) $lines[$lineIndex];
+            $separatorLine = (string) $lines[$lineIndex + 1];
+            if (!$this->isMarkdownTableHeader($headerLine, $separatorLine)) {
+                continue;
+            }
+
+            $headerCells = $this->splitMarkdownTableRow($headerLine);
+            $rows = [
+                [
+                    'type' => 'header',
+                    'line_index' => $lineIndex,
+                    'cells' => $headerCells,
+                ],
+            ];
+
+            $cursor = $lineIndex + 2;
+            while ($cursor < $lineCount && $this->isMarkdownTableRow((string) $lines[$cursor])) {
+                $rows[] = [
+                    'type' => 'data',
+                    'line_index' => $cursor,
+                    'cells' => $this->splitMarkdownTableRow((string) $lines[$cursor]),
+                ];
+                $cursor++;
+            }
+
+            $tableReferenceStart = count($references);
+            $dataRowIndex = 0;
+            foreach ($rows as $rowOffset => $row) {
+                $rowType = (string) $row['type'];
+                $currentDataRowIndex = $rowType === 'data' ? $dataRowIndex : null;
+                if ($rowType === 'data') {
+                    $dataRowIndex++;
+                }
+
+                foreach ($row['cells'] as $columnIndex => $cellText) {
+                    foreach ($this->markdownImageReferencesInText($cellText) as $imageReference) {
+                        $target = $imageReference['target'];
+                        $artifact = $artifactByFilename[$target] ?? null;
+                        $references[] = [
+                            'table_index' => $tableIndex,
+                            'line_index' => (int) $row['line_index'],
+                            'row_index' => $rowOffset,
+                            'row_type' => $rowType,
+                            'data_row_index' => $currentDataRowIndex,
+                            'column_index' => $columnIndex,
+                            'column_heading' => $headerCells[$columnIndex] ?? null,
+                            'alt' => $imageReference['alt'],
+                            'target' => $target,
+                            'title' => $imageReference['title'],
+                            'embedded_as_persisted_image' => $artifact !== null,
+                            'missing_persisted_image' => $artifact === null,
+                            'artifact_filename' => $artifact !== null ? (string) $artifact['filename'] : null,
+                            'source_filename' => $artifact !== null ? (string) $artifact['source_filename'] : null,
+                            'artifact_sha256' => $artifact !== null ? (string) $artifact['sha256'] : null,
+                            'runtime_preview_embeddable' => $artifact !== null,
+                        ];
+                    }
+                }
+            }
+
+            $tableReferences = array_slice($references, $tableReferenceStart);
+            $embeddedCount = count(array_filter(
+                $tableReferences,
+                static fn (array $reference): bool => ($reference['embedded_as_persisted_image'] ?? false) === true
+            ));
+            $missingCount = count($tableReferences) - $embeddedCount;
+
+            $tables[] = [
+                'table_index' => $tableIndex,
+                'start_line_index' => $lineIndex,
+                'header' => $headerCells,
+                'column_count' => count($headerCells),
+                'row_count' => count($rows),
+                'data_row_count' => max(0, count($rows) - 1),
+                'image_reference_count' => count($tableReferences),
+                'embedded_image_reference_count' => $embeddedCount,
+                'missing_image_reference_count' => $missingCount,
+            ];
+
+            $tableIndex++;
+            $lineIndex = $cursor - 1;
+        }
+
+        $tableTargets = array_map(static fn (array $reference): string => (string) $reference['target'], $references);
+        $embeddedTargets = array_values(array_map(
+            static fn (array $reference): string => (string) $reference['target'],
+            array_filter($references, static fn (array $reference): bool => ($reference['embedded_as_persisted_image'] ?? false) === true)
+        ));
+        $missingTargets = array_values(array_map(
+            static fn (array $reference): string => (string) $reference['target'],
+            array_filter($references, static fn (array $reference): bool => ($reference['missing_persisted_image'] ?? false) === true)
+        ));
+        $tableTargetCounts = $this->valueCounts($tableTargets);
+        $embeddedTargetCounts = $this->valueCounts($embeddedTargets);
+        $missingTargetCounts = $this->valueCounts($missingTargets);
+        $artifactFilenames = array_map(
+            static fn (array $artifact): string => (string) $artifact['filename'],
+            $imageArtifacts
+        );
+        $unreferencedTableArtifacts = array_values(array_filter(
+            $artifactFilenames,
+            static fn (string $filename): bool => !isset($tableTargetCounts[$filename])
+        ));
+
+        return [
+            'source' => 'marker_output_markdown_table_image_artifact',
+            'upstream_boundary' => 'marker.output.save_markdown + tabled.formats.markdown.markdown_format + marker_app.markdown_insert_images',
+            'table_count' => count($tables),
+            'table_row_count' => array_sum(array_map(static fn (array $table): int => (int) $table['row_count'], $tables)),
+            'table_data_row_count' => array_sum(array_map(static fn (array $table): int => (int) $table['data_row_count'], $tables)),
+            'table_image_reference_count' => count($references),
+            'embedded_table_image_reference_count' => count($embeddedTargets),
+            'missing_table_image_reference_count' => count($missingTargets),
+            'table_preview_complete' => $missingTargets === [],
+            'preview_html_requested' => $includeRuntimePreviewHtml,
+            'expected_runtime_preview_table_data_uri_count' => $includeRuntimePreviewHtml ? count($embeddedTargets) : null,
+            'target_reference_counts' => $tableTargetCounts,
+            'embedded_reference_counts' => $embeddedTargetCounts,
+            'missing_reference_counts' => $missingTargetCounts,
+            'unique_table_image_targets' => array_keys($tableTargetCounts),
+            'missing_table_image_targets' => array_keys($missingTargetCounts),
+            'unreferenced_table_image_artifacts' => $unreferencedTableArtifacts,
+            'tables' => $tables,
+            'references' => $references,
+            'executes_streamlit' => false,
+            'executes_pdfium' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    private function isMarkdownTableHeader(string $headerLine, string $separatorLine): bool
+    {
+        if (!$this->isMarkdownTableRow($headerLine)) {
+            return false;
+        }
+
+        $cells = $this->splitMarkdownTableRow($separatorLine);
+        if (count($cells) < 2) {
+            return false;
+        }
+
+        foreach ($cells as $cell) {
+            if (preg_match('/^:?-{3,}:?$/', trim($cell)) !== 1) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isMarkdownTableRow(string $line): bool
+    {
+        if (!str_contains($line, '|')) {
+            return false;
+        }
+
+        return count($this->splitMarkdownTableRow($line)) >= 2;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitMarkdownTableRow(string $line): array
+    {
+        $line = trim($line);
+        if (str_starts_with($line, '|')) {
+            $line = substr($line, 1);
+        }
+        if (str_ends_with($line, '|')) {
+            $line = substr($line, 0, -1);
+        }
+
+        $cells = [];
+        $cell = '';
+        $escaped = false;
+        $length = strlen($line);
+        for ($index = 0; $index < $length; $index++) {
+            $char = $line[$index];
+            if ($char === '|' && !$escaped) {
+                $cells[] = trim($cell);
+                $cell = '';
+                continue;
+            }
+
+            $cell .= $char;
+            $escaped = $char === '\\' && !$escaped;
+            if ($char !== '\\') {
+                $escaped = false;
+            }
+        }
+        $cells[] = trim($cell);
+
+        return $cells;
+    }
+
+    /**
+     * @return list<array{alt: string, target: string, title: string|null}>
+     */
+    private function markdownImageReferencesInText(string $text): array
+    {
+        preg_match_all(
+            '/!\[(?P<alt>[^\]]+)\]\((?P<target>[^\)"\s]+)\s*(?P<title>[^\)]*)\)/',
+            $text,
+            $matches,
+            PREG_SET_ORDER
+        );
+
+        $references = [];
+        foreach ($matches as $match) {
+            $title = trim((string) ($match['title'] ?? ''));
+            $references[] = [
+                'alt' => (string) $match['alt'],
+                'target' => (string) $match['target'],
+                'title' => $title !== '' ? $title : null,
+            ];
+        }
+
+        return $references;
     }
 
     /**
