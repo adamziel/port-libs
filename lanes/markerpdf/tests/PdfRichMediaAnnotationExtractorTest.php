@@ -55,6 +55,27 @@ $soundMovieAnnotationPdf = static function (): string {
         . "%%EOF";
 };
 
+$richMediaActionPopupPdf = static function (): string {
+    $pageContent = 'BT /F1 12 Tf 72 720 Td (Article Body) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 20 0 R >> >> /Annots [5 0 R 7 0 R] /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Annot /Subtype /RichMedia /Rect [72 520 320 700] /T (Training player) /Contents (Embedded player requires review) /RichMediaContent 18 0 R /A 12 0 R /AA << /PV [13 0 R 14 0 R] /PI 16 0 R >> >>\nendobj\n"
+        . "7 0 obj\n<< /Type /Annot /Subtype /Popup /Parent 5 0 R /Rect [200 540 380 620] /Open true /Contents (Reviewer popup stays metadata) >>\nendobj\n"
+        . "12 0 obj\n<< /S /RichMediaExecute /AN 5 0 R /CMD << /C (playVideo) >> /Next [13 0 R 15 0 R] >>\nendobj\n"
+        . "13 0 obj\n<< /S /JavaScript /JS (app.alert\\('blocked media script'\\)) >>\nendobj\n"
+        . "14 0 obj\n<< /S /URI /URI (https://cdn.example.com/training.mp4) /Next 15 0 R >>\nendobj\n"
+        . "15 0 obj\n<< /S /Launch /F (helper.exe) /Win << /F (setup.exe) /O (open) >> /NewWindow true >>\nendobj\n"
+        . "16 0 obj\n<< /S /URI /URI (javascript:alert\\(1\\)) /Next 16 0 R >>\nendobj\n"
+        . "18 0 obj\n<< /RichMediaContent << /Assets << /Names [(training.mp4) 19 0 R] >> >> >>\nendobj\n"
+        . "19 0 obj\n<< /Type /Filespec /F (training.mp4) >>\nendobj\n"
+        . "20 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts screen and rich media annotations as review-only metadata' => static function (TestRunner $t) use ($richMediaAnnotationPdf): void {
         $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($richMediaAnnotationPdf());
@@ -84,6 +105,88 @@ return [
         $t->same(['intro-video.mp4'], $richMedia['file_names']);
         $t->same(false, $richMedia['executes_media']);
         $t->same(false, $richMedia['executes_javascript']);
+    },
+    'reviews rich media annotation popups and chained action boundaries without executing them' => static function (TestRunner $t) use ($richMediaActionPopupPdf): void {
+        $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($richMediaActionPopupPdf());
+
+        $t->same(1, count($pages));
+        $t->same(1, count($pages[0]['annotations']), 'reverse-linked Popup annotation is nested, not emitted as a media annotation.');
+
+        $annotation = $pages[0]['annotations'][0];
+        $t->same('RichMedia', $annotation['subtype']);
+        $t->same(5, $annotation['annotation_object']);
+        $t->same([72.0, 520.0, 320.0, 700.0], $annotation['rect']);
+        $t->same('Training player', $annotation['title']);
+        $t->same('Embedded player requires review', $annotation['contents']);
+        $t->same(['training.mp4'], $annotation['asset_names']);
+        $t->same(['training.mp4', 'helper.exe', 'setup.exe'], $annotation['file_names']);
+        $t->same(true, $annotation['requires_review']);
+        $t->same(false, $annotation['executes_media']);
+        $t->same(false, $annotation['executes_javascript']);
+        $t->same(true, $annotation['has_rich_media_content']);
+
+        $popup = $annotation['popup'];
+        $t->same(7, $popup['object']);
+        $t->same([200.0, 540.0, 380.0, 620.0], $popup['rect']);
+        $t->same(true, $popup['open']);
+        $t->same(5, $popup['parent_object']);
+        $t->same('Reviewer popup stays metadata', $popup['contents']);
+
+        $t->same(['RichMediaExecute', 'JavaScript', 'Launch', 'URI'], $annotation['action_types']);
+        $t->same(['https://cdn.example.com/training.mp4', 'javascript:alert(1)'], $annotation['action_uris']);
+        $t->same(7, count($annotation['actions']));
+
+        $execute = $annotation['actions'][0];
+        $t->same('annotation_action', $execute['source']);
+        $t->same('A', $execute['event']);
+        $t->same('annotation_activation', $execute['event_label']);
+        $t->same('RichMediaExecute', $execute['action_type']);
+        $t->same(12, $execute['action_object']);
+        $t->same('rich-media-execute-review', $execute['safety']);
+        $t->same(5, $execute['target_annotation_object']);
+        $t->same('playVideo', $execute['command']);
+        $t->same(false, $execute['executes_on_import']);
+        $t->same(false, $execute['executes_media']);
+
+        $script = $annotation['actions'][1];
+        $t->same('JavaScript', $script['action_type']);
+        $t->same(13, $script['action_object']);
+        $t->same(true, $script['chained']);
+        $t->same(1, $script['chain_index']);
+        $t->same('blocked-javascript', $script['safety']);
+        $t->same("app.alert('blocked media script')", $script['script_preview']);
+        $t->same(hash('sha256', "app.alert('blocked media script')"), $script['script_sha256']);
+        $t->same(false, $script['executes_javascript']);
+
+        $launch = $annotation['actions'][2];
+        $t->same('Launch', $launch['action_type']);
+        $t->same('blocked-launch', $launch['safety']);
+        $t->same('helper.exe', $launch['file']);
+        $t->same('open', $launch['operation']);
+        $t->same(true, $launch['new_window']);
+        $t->same(true, $launch['chained']);
+
+        $visible = $annotation['actions'][4];
+        $t->same('URI', $visible['action_type']);
+        $t->same('PV', $visible['event']);
+        $t->same('annotation_page_visible', $visible['event_label']);
+        $t->same('https://cdn.example.com/training.mp4', $visible['uri']);
+        $t->same(true, $visible['is_safe_uri']);
+        $t->same('review-uri', $visible['safety']);
+
+        $hidden = $annotation['actions'][6];
+        $t->same('PI', $hidden['event']);
+        $t->same('annotation_page_invisible', $hidden['event_label']);
+        $t->same('javascript:alert(1)', $hidden['uri']);
+        $t->same(false, $hidden['is_safe_uri']);
+        $t->same('blocked-unsafe-uri', $hidden['safety']);
+        $t->same(1, $annotation['action_chain_safety']['cycle_edges_blocked']);
+        $t->same(0, $annotation['action_chain_safety']['max_depth_edges_blocked']);
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($richMediaActionPopupPdf());
+        $t->same(['Article Body'], (new PdfTextExtractor())->extractTextLines($richMediaActionPopupPdf()));
+        $t->true(!str_contains($plainText, 'Reviewer popup stays metadata'));
+        $t->true(!str_contains($plainText, 'blocked media script'));
     },
     'keeps rich media and screen appearances out of native text extraction' => static function (TestRunner $t) use ($richMediaAnnotationPdf): void {
         $extractor = new PdfTextExtractor();

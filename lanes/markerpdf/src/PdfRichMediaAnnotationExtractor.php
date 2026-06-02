@@ -6,6 +6,8 @@ namespace PortLibs\MarkerPDF;
 
 final class PdfRichMediaAnnotationExtractor
 {
+    private const MAX_ACTION_CHAIN_DEPTH = 20;
+
     private const REVIEW_SUBTYPES = [
         '3D' => true,
         'Movie' => true,
@@ -33,9 +35,11 @@ final class PdfRichMediaAnnotationExtractor
                 continue;
             }
 
+            $records = $this->annotationBodiesForPage($objects[$pageObjectNumber], $objects);
+            $reversePopups = $this->popupRecordsByParentObject($records);
             $annotations = [];
-            foreach ($this->annotationBodiesForPage($objects[$pageObjectNumber], $objects) as $annotation) {
-                $review = $this->reviewAnnotationFromBody($annotation['body'], $objects, $annotation['object']);
+            foreach ($records as $annotation) {
+                $review = $this->reviewAnnotationFromBody($annotation['body'], $objects, $annotation['object'], $reversePopups);
                 if ($review !== null) {
                     $annotations[] = $review;
                 }
@@ -137,16 +141,42 @@ final class PdfRichMediaAnnotationExtractor
     }
 
     /**
+     * @param list<array{body: string, object: int|null}> $records
+     * @return array<int, array{body: string, object: int|null}>
+     */
+    private function popupRecordsByParentObject(array $records): array
+    {
+        $popups = [];
+        foreach ($records as $record) {
+            if ($this->nameValueAfterName($record['body'], 'Subtype') !== 'Popup') {
+                continue;
+            }
+
+            $parentObject = $this->objectReferenceValueAfterName($record['body'], 'Parent');
+            if ($parentObject === null || isset($popups[$parentObject])) {
+                continue;
+            }
+
+            $popups[$parentObject] = $record;
+        }
+
+        return $popups;
+    }
+
+    /**
      * @param array<int, string> $objects
+     * @param array<int, array{body: string, object: int|null}> $reversePopups
      * @return array<string, mixed>|null
      */
-    private function reviewAnnotationFromBody(string $annotationBody, array $objects, ?int $annotationObject): ?array
+    private function reviewAnnotationFromBody(string $annotationBody, array $objects, ?int $annotationObject, array $reversePopups): ?array
     {
         $subtype = $this->nameValueAfterName($annotationBody, 'Subtype');
         if ($subtype === null || !isset(self::REVIEW_SUBTYPES[$subtype])) {
             return null;
         }
 
+        $chainSafety = $this->emptyActionChainSafety();
+        $actions = $this->actionReviewRowsFromAnnotation($annotationBody, $objects, $chainSafety);
         $actionDictionaries = $this->actionDictionaries($annotationBody, $objects);
         $contextBodies = $this->dedupeStrings(array_merge(
             [$annotationBody],
@@ -155,12 +185,13 @@ final class PdfRichMediaAnnotationExtractor
             ...array_map(fn (string $body): array => $this->referencedDictionaryBodies($body, $objects, 2), $actionDictionaries)
         ));
         $actionTypes = $this->dedupeStrings(array_values(array_filter(
-            array_map(fn (string $body): ?string => $this->nameValueAfterName($body, 'S'), $actionDictionaries),
+            array_map(static fn (array $action): ?string => $action['action_type'] ?? null, $actions),
             static fn (?string $value): bool => $value !== null && $value !== ''
         )));
-        $actionUris = $this->dedupeStrings(array_merge(
-            ...array_map(fn (string $body): array => $this->stringsAfterName($body, 'URI'), $actionDictionaries)
-        ));
+        $actionUris = $this->dedupeStrings(array_values(array_filter(
+            array_map(static fn (array $action): ?string => $action['uri'] ?? null, $actions),
+            static fn (?string $value): bool => $value !== null && $value !== ''
+        )));
         $assetNames = $this->assetNamesFromBodies($contextBodies);
         $fileNames = $this->fileNamesFromBodies($contextBodies);
 
@@ -173,16 +204,359 @@ final class PdfRichMediaAnnotationExtractor
             'alternate_text' => $this->stringAfterName($annotationBody, 'Alt'),
             'action_types' => $actionTypes,
             'action_uris' => $actionUris,
+            'actions' => $actions,
+            'action_chain_safety' => $chainSafety,
             'asset_names' => $assetNames,
             'file_names' => $fileNames,
             'movie' => $this->movieDetailsFromAnnotation($annotationBody, $objects),
             'sound' => $this->soundDetailsFromAnnotation($annotationBody, $objects),
+            'popup' => $this->popupFromAnnotation($annotationBody, $objects, $annotationObject, $reversePopups),
             'has_appearance' => $this->valueAfterName($annotationBody, 'AP') !== null,
             'has_rich_media_content' => $this->valueAfterName($annotationBody, 'RichMediaContent') !== null,
             'requires_review' => true,
             'executes_media' => false,
             'executes_javascript' => false,
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, array{body: string, object: int|null}> $reversePopups
+     * @return array<string, mixed>|null
+     */
+    private function popupFromAnnotation(string $annotationBody, array $objects, ?int $annotationObject, array $reversePopups): ?array
+    {
+        $record = null;
+        $popup = $this->valueAfterName($annotationBody, 'Popup');
+        if ($popup !== null) {
+            $record = $this->resolvedDictionaryFromValue($popup, $objects);
+        }
+
+        if ($record === null && $annotationObject !== null) {
+            $record = $reversePopups[$annotationObject] ?? null;
+        }
+
+        if ($record === null) {
+            return null;
+        }
+
+        return [
+            'object' => $record['object'],
+            'rect' => $this->rectFromAnnotation($record['body']),
+            'open' => $this->boolValueAfterName($record['body'], 'Open', $objects),
+            'parent_object' => $this->objectReferenceValueAfterName($record['body'], 'Parent'),
+            'contents' => $this->stringAfterName($record['body'], 'Contents'),
+        ];
+    }
+
+    /**
+     * @return array{max_depth: int, cycle_edges_blocked: int, max_depth_edges_blocked: int}
+     */
+    private function emptyActionChainSafety(): array
+    {
+        return [
+            'max_depth' => self::MAX_ACTION_CHAIN_DEPTH,
+            'cycle_edges_blocked' => 0,
+            'max_depth_edges_blocked' => 0,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array{max_depth: int, cycle_edges_blocked: int, max_depth_edges_blocked: int} $chainSafety
+     * @return list<array<string, mixed>>
+     */
+    private function actionReviewRowsFromAnnotation(string $annotationBody, array $objects, array &$chainSafety): array
+    {
+        $actions = [];
+        $seen = [];
+
+        $action = $this->topLevelValueAfterName($annotationBody, 'A');
+        if ($action !== null) {
+            $this->appendActionReviewRowsFromValue(
+                $action,
+                $objects,
+                ['source' => 'annotation_action', 'event' => 'A'],
+                $actions,
+                $seen,
+                $chainSafety
+            );
+        }
+
+        $additionalActions = $this->topLevelValueAfterName($annotationBody, 'AA');
+        if ($additionalActions === null) {
+            return $actions;
+        }
+
+        $dictionary = $this->resolvedDictionaryFromValue($additionalActions, $objects);
+        if ($dictionary === null) {
+            return $actions;
+        }
+
+        foreach ($this->topLevelDictionaryEntries($dictionary['body']) as $entry) {
+            $this->appendActionReviewRowsFromValue(
+                $entry['value'],
+                $objects,
+                ['source' => 'annotation_additional_action', 'event' => $entry['name']],
+                $actions,
+                $seen,
+                $chainSafety
+            );
+        }
+
+        return $actions;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, mixed> $context
+     * @param list<array<string, mixed>> $actions
+     * @param array<string, true> $seen
+     * @param array{max_depth: int, cycle_edges_blocked: int, max_depth_edges_blocked: int} $chainSafety
+     * @param array<string, true> $chainPath
+     */
+    private function appendActionReviewRowsFromValue(
+        string $value,
+        array $objects,
+        array $context,
+        array &$actions,
+        array &$seen,
+        array &$chainSafety,
+        int $chainIndex = 0,
+        array $chainPath = []
+    ): void {
+        if ($chainIndex > self::MAX_ACTION_CHAIN_DEPTH) {
+            $chainSafety['max_depth_edges_blocked']++;
+            return;
+        }
+
+        $arrayValues = $this->arrayValuesFromPdfValue($value, $objects);
+        if ($arrayValues !== null) {
+            foreach ($arrayValues as $arrayValue) {
+                $this->appendActionReviewRowsFromValue($arrayValue, $objects, $context, $actions, $seen, $chainSafety, $chainIndex, $chainPath);
+            }
+
+            return;
+        }
+
+        $record = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($record === null) {
+            return;
+        }
+
+        $visitKey = $record['object'] === null ? 'inline:' . hash('sha256', $record['body']) : 'object:' . $record['object'];
+        if (isset($chainPath[$visitKey])) {
+            $chainSafety['cycle_edges_blocked']++;
+            return;
+        }
+        $chainPath[$visitKey] = true;
+
+        $identity = hash('sha256', serialize([$context, $chainIndex, $visitKey]));
+        if (!isset($seen[$identity])) {
+            $seen[$identity] = true;
+            $review = $this->actionReviewRowFromBody($record['body'], $objects, $record['object'], $context, $chainIndex);
+            if ($review !== null) {
+                $actions[] = $review;
+            }
+        }
+
+        $next = $this->topLevelValueAfterName($record['body'], 'Next');
+        if ($next !== null) {
+            $this->appendActionReviewRowsFromValue($next, $objects, $context, $actions, $seen, $chainSafety, $chainIndex + 1, $chainPath);
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>|null
+     */
+    private function actionReviewRowFromBody(string $actionBody, array $objects, ?int $actionObject, array $context, int $chainIndex): ?array
+    {
+        $actionType = $this->topLevelNameValueAfterName($actionBody, 'S');
+        if ($actionType === null || $actionType === '') {
+            return null;
+        }
+
+        $row = [
+            'source' => $context['source'] ?? 'annotation_action',
+            'event' => $context['event'] ?? null,
+            'event_label' => $this->actionEventLabel($context['event'] ?? null),
+            'action_type' => $actionType,
+            'action_object' => $actionObject,
+            'chain_index' => $chainIndex,
+            'chained' => $chainIndex > 0,
+            'safety' => $this->actionSafety($actionType, $actionBody, $objects),
+            'executes_on_import' => false,
+            'executes_media' => false,
+            'executes_javascript' => false,
+        ];
+
+        if ($actionType === 'URI') {
+            $uri = $this->topLevelStringValueAfterName($actionBody, 'URI', $objects);
+            if ($uri !== null) {
+                $row['uri'] = $uri;
+                $row['is_safe_uri'] = $this->isSafeUri($uri);
+            }
+        }
+
+        if ($actionType === 'Launch') {
+            $file = $this->fileSpecValueFromTopLevel($actionBody, 'F', $objects);
+            $win = $this->dictionaryFromTopLevelValue($actionBody, 'Win', $objects);
+            if ($file === null && $win !== null) {
+                $file = $this->fileSpecValueFromTopLevel($win['body'], 'F', $objects);
+            }
+            if ($file !== null) {
+                $row['file'] = $file;
+            }
+            if ($win !== null) {
+                $operation = $this->topLevelStringOrNameValueAfterName($win['body'], 'O', $objects);
+                if ($operation !== null) {
+                    $row['operation'] = $operation;
+                }
+            }
+            $newWindow = $this->topLevelBoolValueAfterName($actionBody, 'NewWindow', $objects);
+            if ($newWindow !== null) {
+                $row['new_window'] = $newWindow;
+            }
+        }
+
+        if ($actionType === 'GoToR') {
+            $file = $this->fileSpecValueFromTopLevel($actionBody, 'F', $objects);
+            if ($file !== null) {
+                $row['file'] = $file;
+            }
+            $destination = $this->topLevelStringOrNameValueAfterName($actionBody, 'D', $objects);
+            if ($destination !== null) {
+                $row['destination'] = $destination;
+            }
+            $newWindow = $this->topLevelBoolValueAfterName($actionBody, 'NewWindow', $objects);
+            if ($newWindow !== null) {
+                $row['new_window'] = $newWindow;
+            }
+        }
+
+        if ($actionType === 'GoTo') {
+            $destination = $this->topLevelStringOrNameValueAfterName($actionBody, 'D', $objects);
+            if ($destination !== null) {
+                $row['destination'] = $destination;
+            }
+        }
+
+        if ($actionType === 'Rendition') {
+            $operation = $this->topLevelNumberValueAfterName($actionBody, 'OP', $objects);
+            if ($operation !== null) {
+                $row['operation'] = (int) $operation;
+            }
+            $rendition = $this->dictionaryFromTopLevelValue($actionBody, 'R', $objects);
+            if ($rendition !== null) {
+                $bodies = $this->dedupeStrings(array_merge(
+                    [$rendition['body']],
+                    $this->referencedDictionaryBodies($rendition['body'], $objects, 2)
+                ));
+                $row['file_names'] = $this->fileNamesFromBodies($bodies);
+            }
+        }
+
+        if ($actionType === 'RichMediaExecute') {
+            $targetAnnotation = $this->objectReferenceValueAfterName($actionBody, 'AN');
+            if ($targetAnnotation !== null) {
+                $row['target_annotation_object'] = $targetAnnotation;
+            }
+
+            $command = $this->dictionaryFromTopLevelValue($actionBody, 'CMD', $objects);
+            if ($command !== null) {
+                $commandName = $this->topLevelStringOrNameValueAfterName($command['body'], 'C', $objects);
+                if ($commandName !== null) {
+                    $row['command'] = $commandName;
+                }
+            }
+        }
+
+        if ($actionType === 'JavaScript') {
+            $script = $this->topLevelStringValueAfterName($actionBody, 'JS', $objects);
+            if ($script !== null) {
+                $preview = $this->actionScriptPreview($script, 160);
+                $row['script_preview'] = $preview['preview'];
+                $row['script_truncated'] = $preview['truncated'];
+                $row['script_sha256'] = hash('sha256', $script);
+                $row['script_bytes'] = strlen($script);
+            }
+        }
+
+        return $row;
+    }
+
+    private function actionSafety(string $actionType, string $actionBody, array $objects): string
+    {
+        if ($actionType === 'JavaScript') {
+            return 'blocked-javascript';
+        }
+
+        if ($actionType === 'Launch') {
+            return 'blocked-launch';
+        }
+
+        if ($actionType === 'URI') {
+            $uri = $this->topLevelStringValueAfterName($actionBody, 'URI', $objects);
+            return $uri !== null && $this->isSafeUri($uri) ? 'review-uri' : 'blocked-unsafe-uri';
+        }
+
+        return match ($actionType) {
+            'Rendition' => 'media-rendition-review',
+            'RichMediaExecute' => 'rich-media-execute-review',
+            'Movie' => 'movie-action-review',
+            'Sound' => 'sound-action-review',
+            'GoToR' => 'remote-document-review',
+            'GoTo' => 'local-destination',
+            default => 'unsupported-action-review',
+        };
+    }
+
+    private function actionEventLabel(?string $event): ?string
+    {
+        return match ($event) {
+            'A' => 'annotation_activation',
+            'E' => 'annotation_cursor_enter',
+            'X' => 'annotation_cursor_exit',
+            'D' => 'annotation_mouse_down',
+            'U' => 'annotation_mouse_up',
+            'Fo' => 'annotation_focus',
+            'Bl' => 'annotation_blur',
+            'PO' => 'annotation_page_open',
+            'PC' => 'annotation_page_close',
+            'PV' => 'annotation_page_visible',
+            'PI' => 'annotation_page_invisible',
+            default => $event === null ? null : 'annotation_additional_action',
+        };
+    }
+
+    /**
+     * @return array{preview: string, truncated: bool}
+     */
+    private function actionScriptPreview(string $script, int $previewBytes): array
+    {
+        $normalized = trim(preg_replace('/[\x00-\x1f\x7f]+/', ' ', $script) ?? $script);
+        $limit = max(16, $previewBytes);
+        if (strlen($normalized) <= $limit) {
+            return ['preview' => $normalized, 'truncated' => false];
+        }
+
+        return ['preview' => substr($normalized, 0, $limit) . '...', 'truncated' => true];
+    }
+
+    private function isSafeUri(string $uri): bool
+    {
+        $uri = trim($uri);
+        if ($uri === '') {
+            return false;
+        }
+
+        if (preg_match('/^[a-z][a-z0-9+.-]*:/i', $uri, $match) === 1) {
+            return in_array(strtolower(rtrim($match[0], ':')), ['http', 'https', 'mailto', 'ftp'], true);
+        }
+
+        return !str_starts_with(ltrim(strtolower($uri)), 'javascript:');
     }
 
     /**
@@ -296,6 +670,268 @@ final class PdfRichMediaAnnotationExtractor
             'compression' => $this->nameValueAfterName($sound['body'], 'CO'),
             'payload_length' => $this->intValueAfterName($sound['body'], 'Length', $objects),
         ];
+    }
+
+    /**
+     * @return list<string>|null
+     * @param array<int, string> $objects
+     */
+    private function arrayValuesFromPdfValue(string $value, array $objects): ?array
+    {
+        $value = trim($value);
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            $value = trim($objects[$objectNumber] ?? '');
+        }
+
+        if (!str_starts_with($value, '[')) {
+            return null;
+        }
+
+        $arrayBody = $this->arrayBodyFromValue($value);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $values = [];
+        for ($offset = 0, $length = strlen($arrayBody); $offset < $length;) {
+            $this->skipWhitespaceAndComments($arrayBody, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $endOffset = null;
+            $item = $this->readPdfValueAtOffset($arrayBody, $offset, $endOffset);
+            if ($item === null || $endOffset === null || $endOffset <= $offset) {
+                $offset++;
+                continue;
+            }
+
+            $values[] = $item;
+            $offset = $endOffset;
+        }
+
+        return $values;
+    }
+
+    private function topLevelValueAfterName(string $body, string $name): ?string
+    {
+        foreach ($this->topLevelDictionaryEntries($body) as $entry) {
+            if ($entry['name'] === $name) {
+                return $entry['value'];
+            }
+        }
+
+        return null;
+    }
+
+    private function topLevelNameValueAfterName(string $body, string $name): ?string
+    {
+        $value = $this->topLevelValueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+        return preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $value, $match) === 1 ? $this->decodePdfName($match[1]) : null;
+    }
+
+    private function topLevelStringValueAfterName(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->topLevelValueAfterName($body, $name);
+        return $value === null ? null : $this->pdfStringFromValue($value, $objects);
+    }
+
+    private function topLevelStringOrNameValueAfterName(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->topLevelValueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->pdfStringFromValue($value, $objects) ?? $this->nameFromPdfValue($value, $objects);
+    }
+
+    private function topLevelNumberValueAfterName(string $body, string $name, array $objects): ?float
+    {
+        $value = $this->topLevelValueAfterName($body, $name);
+        return $value === null ? null : $this->numberFromPdfValue($value, $objects);
+    }
+
+    private function topLevelBoolValueAfterName(string $body, string $name, array $objects): ?bool
+    {
+        $value = $this->topLevelValueAfterName($body, $name);
+        return $value === null ? null : $this->boolFromPdfValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{body: string, object: int|null}|null
+     */
+    private function dictionaryFromTopLevelValue(string $body, string $name, array $objects): ?array
+    {
+        $value = $this->topLevelValueAfterName($body, $name);
+        return $value === null ? null : $this->resolvedDictionaryFromValue($value, $objects);
+    }
+
+    private function fileSpecValueFromTopLevel(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->topLevelValueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $dictionary = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($dictionary !== null) {
+            return $this->topLevelStringValueAfterName($dictionary['body'], 'UF', $objects)
+                ?? $this->topLevelStringValueAfterName($dictionary['body'], 'F', $objects);
+        }
+
+        return $this->pdfStringFromValue($value, $objects);
+    }
+
+    private function pdfStringFromValue(string $value, array $objects): ?string
+    {
+        $value = trim($value);
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            return isset($objects[$objectNumber]) ? $this->pdfStringFromValue($objects[$objectNumber], $objects) : null;
+        }
+
+        $decoded = $this->stringAtOffset($value, 0);
+        return $decoded['text'] ?? null;
+    }
+
+    private function nameFromPdfValue(string $value, array $objects): ?string
+    {
+        $value = trim($value);
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            return isset($objects[$objectNumber]) ? $this->nameFromPdfValue($objects[$objectNumber], $objects) : null;
+        }
+
+        return preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $value, $match) === 1 ? $this->decodePdfName($match[1]) : null;
+    }
+
+    /**
+     * @return list<array{name: string, value: string}>
+     */
+    private function topLevelDictionaryEntries(string $body): array
+    {
+        $entries = [];
+        for ($offset = 0, $length = strlen($body); $offset < $length;) {
+            $this->skipWhitespaceAndComments($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($body[$offset] !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $nameStart = ++$offset;
+            while ($offset < $length && !$this->isDelimiter($body[$offset])) {
+                $offset++;
+            }
+
+            $name = $this->decodePdfName(substr($body, $nameStart, $offset - $nameStart));
+            $endOffset = null;
+            $value = $this->readPdfValueAtOffset($body, $offset, $endOffset);
+            if ($value === null || $endOffset === null) {
+                continue;
+            }
+
+            $entries[] = ['name' => $name, 'value' => $value];
+            $offset = $endOffset;
+        }
+
+        return $entries;
+    }
+
+    private function readPdfValueAtOffset(string $body, int $offset, ?int &$endOffset = null): ?string
+    {
+        $this->skipWhitespaceAndComments($body, $offset);
+        if ($offset >= strlen($body)) {
+            return null;
+        }
+
+        if ($body[$offset] === '[') {
+            $this->readPdfArrayAt($body, $offset, $endOffset);
+            return $endOffset === null ? null : substr($body, $offset, $endOffset - $offset);
+        }
+
+        if (substr($body, $offset, 2) === '<<') {
+            $this->readPdfDictionaryAt($body, $offset, $endOffset);
+            return $endOffset === null ? null : substr($body, $offset, $endOffset - $offset);
+        }
+
+        if ($body[$offset] === '(') {
+            $endOffset = $this->skipLiteralString($body, $offset);
+            return substr($body, $offset, $endOffset - $offset);
+        }
+
+        if ($body[$offset] === '<') {
+            $endOffset = $this->skipHexString($body, $offset);
+            return substr($body, $offset, $endOffset - $offset);
+        }
+
+        if (preg_match('/\G\d+\s+\d+\s+R\b/s', $body, $ref, 0, $offset) === 1) {
+            $endOffset = $offset + strlen($ref[0]);
+            return $ref[0];
+        }
+
+        if ($body[$offset] === '/') {
+            $end = $offset + 1;
+            while ($end < strlen($body) && !$this->isDelimiter($body[$end])) {
+                $end++;
+            }
+
+            $endOffset = $end;
+            return substr($body, $offset, $end - $offset);
+        }
+
+        $end = $offset;
+        while ($end < strlen($body) && !$this->isDelimiter($body[$end])) {
+            $end++;
+        }
+
+        $endOffset = $end;
+        return substr($body, $offset, max(0, $end - $offset));
+    }
+
+    private function skipWhitespaceAndComments(string $value, int &$offset): void
+    {
+        for ($length = strlen($value); $offset < $length;) {
+            if (ctype_space($value[$offset])) {
+                $offset++;
+                continue;
+            }
+
+            if ($value[$offset] === '%') {
+                while ($offset < $length && $value[$offset] !== "\n" && $value[$offset] !== "\r") {
+                    $offset++;
+                }
+                continue;
+            }
+
+            break;
+        }
+    }
+
+    private function isDelimiter(string $char): bool
+    {
+        return ctype_space($char) || str_contains('[]()<>{}/%', $char);
+    }
+
+    private function objectReferenceValueAfterName(string $body, string $name): ?int
+    {
+        $value = $this->topLevelValueAfterName($body, $name) ?? $this->valueAfterName($body, $name);
+        if ($value === null || preg_match('/^(\d+)\s+\d+\s+R\b/', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        return (int) $match[1];
     }
 
     /**
