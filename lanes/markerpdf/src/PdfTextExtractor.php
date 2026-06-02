@@ -7570,6 +7570,7 @@ final class PdfTextExtractor
 
     private function pdfObjectEndOffset(string $pdfBytes, int $offset): ?int
     {
+        $objectBodyStart = $offset;
         $index = $offset;
         $length = strlen($pdfBytes);
         while ($index < $length) {
@@ -7607,6 +7608,15 @@ final class PdfTextExtractor
                     $streamStart++;
                 }
 
+                $declaredEnd = $this->directObjectStreamDeclaredEnd($pdfBytes, $objectBodyStart, $index, $streamStart);
+                if ($declaredEnd !== null) {
+                    $streamEnd = $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd);
+                    if ($streamEnd !== null && $streamEnd >= $declaredEnd) {
+                        $index = $streamEnd + strlen('endstream');
+                        continue;
+                    }
+                }
+
                 $streamEnd = $this->endstreamTerminatorOffset($pdfBytes, $streamStart, null);
                 if ($streamEnd !== null) {
                     $index = $streamEnd + strlen('endstream');
@@ -7622,6 +7632,38 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    private function directObjectStreamDeclaredEnd(
+        string $pdfBytes,
+        int $objectBodyStart,
+        int $streamKeywordOffset,
+        int $streamStart
+    ): ?int {
+        $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $objectBodyStart);
+        $dictionaryEndOffset = $dictionaryOffset;
+        $dict = $this->readPdfDictionaryTokenAt($pdfBytes, $dictionaryEndOffset);
+        if ($dict === null || $this->skipPdfWhitespace($pdfBytes, $dictionaryEndOffset) !== $streamKeywordOffset) {
+            return null;
+        }
+
+        $lengthOffset = $this->topLevelNameValueOffset($dict, 'Length');
+        if ($lengthOffset === null) {
+            return null;
+        }
+
+        $lengthOffset = $this->skipPdfWhitespace($dict, $lengthOffset);
+        if (preg_match('/\G([+-]?\d+)/s', $dict, $match, 0, $lengthOffset) !== 1) {
+            return null;
+        }
+
+        $length = (int) $match[1];
+        if ($length < 0) {
+            return null;
+        }
+
+        $declaredEnd = $streamStart + $length;
+        return $declaredEnd <= strlen($pdfBytes) ? $declaredEnd : null;
     }
 
     private function pdfKeywordAt(string $value, int $offset, string $keyword): bool
