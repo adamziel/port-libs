@@ -8,6 +8,21 @@ final class PdfActionReviewExtractor
 {
     private const MAX_ACTION_CHAIN_DEPTH = 20;
 
+    private const SUBMIT_FORM_FLAG_NAMES = [
+        2 => 'include_no_value_fields',
+        3 => 'html_format',
+        4 => 'get_method',
+        5 => 'submit_coordinates',
+        6 => 'xfdf_format',
+        7 => 'include_append_saves',
+        8 => 'include_annotations',
+        9 => 'submit_pdf',
+        10 => 'canonical_format',
+        11 => 'exclude_non_user_annotations',
+        12 => 'exclude_f_key',
+        14 => 'embed_form',
+    ];
+
     private const ANNOTATION_ACTION_EVENT_LABELS = [
         'E' => 'cursor_enter',
         'X' => 'cursor_exit',
@@ -361,8 +376,24 @@ final class PdfActionReviewExtractor
             $row += [
                 'target' => $file,
                 'target_scheme' => $this->uriScheme($file),
-                'submit_format' => $this->hasFlagBit($flags, 3) ? 'html' : 'fdf',
+                'submit_format' => $this->submitFormatFromFlags($flags),
+                'requested_submit_format' => $this->submitFormatFromFlags($flags),
                 'include_no_value_fields' => $this->hasFlagBit($flags, 2),
+                'html_format_requested' => $this->hasFlagBit($flags, 3),
+                'get_method_requested' => $this->hasFlagBit($flags, 4),
+                'submit_coordinates_requested' => $this->hasFlagBit($flags, 5),
+                'xfdf_requested' => $this->hasFlagBit($flags, 6),
+                'include_append_saves_requested' => $this->hasFlagBit($flags, 7),
+                'include_annotations_requested' => $this->hasFlagBit($flags, 8),
+                'submit_pdf_requested' => $this->hasFlagBit($flags, 9),
+                'canonical_format_requested' => $this->hasFlagBit($flags, 10),
+                'exclude_non_user_annotations_requested' => $this->hasFlagBit($flags, 11),
+                'exclude_f_key_requested' => $this->hasFlagBit($flags, 12),
+                'embed_form_requested' => $this->hasFlagBit($flags, 14),
+                'submits_pdf_on_import' => false,
+                'embeds_form_on_import' => false,
+                'includes_annotations_on_import' => false,
+                'uses_get_method_on_import' => false,
                 'default_excludes_no_export' => true,
             ];
         } else {
@@ -636,15 +667,31 @@ final class PdfActionReviewExtractor
         }
 
         if ($actionType === 'SubmitForm') {
-            if ($this->hasFlagBit($flags, 2)) {
-                $names[] = 'include_no_value_fields';
-            }
-            if ($this->hasFlagBit($flags, 3)) {
-                $names[] = 'html_format';
+            foreach (self::SUBMIT_FORM_FLAG_NAMES as $bit => $name) {
+                if ($this->hasFlagBit($flags, $bit)) {
+                    $names[] = $name;
+                }
             }
         }
 
         return $names;
+    }
+
+    private function submitFormatFromFlags(int $flags): string
+    {
+        if ($this->hasFlagBit($flags, 9)) {
+            return 'pdf';
+        }
+
+        if ($this->hasFlagBit($flags, 6)) {
+            return 'xfdf';
+        }
+
+        if ($this->hasFlagBit($flags, 3)) {
+            return 'html';
+        }
+
+        return 'fdf';
     }
 
     private function hasFlagBit(int $flags, int $oneBasedBit): bool

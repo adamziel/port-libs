@@ -7046,6 +7046,163 @@ final class PdfTextExtractor
             && $y <= $rectangle[3] + 0.000001;
     }
 
+    /**
+     * @param list<string> $operands
+     * @param list<float>|null $clipRectangle
+     * @param list<float>|null $currentPathRectangle
+     * @param list<float> $currentTransformationMatrix
+     */
+    private function applyClipPathStateOperator(
+        string $operator,
+        array $operands,
+        ?array &$clipRectangle,
+        ?array &$currentPathRectangle,
+        array &$currentTransformationMatrix
+    ): bool {
+        if ($operator === 'cm') {
+            $matrix = $this->contentMatrixOperand($operands);
+            if ($matrix !== null) {
+                $currentTransformationMatrix = $this->pdfMatrixMultiply($currentTransformationMatrix, $matrix);
+            }
+
+            return true;
+        }
+
+        if ($operator === 're') {
+            $rectangle = $this->rectanglePathOperand($operands, $currentTransformationMatrix);
+            if ($rectangle !== null) {
+                $currentPathRectangle = $this->pdfRectangleUnion($currentPathRectangle, $rectangle);
+            }
+
+            return true;
+        }
+
+        if ($operator === 'W' || $operator === 'W*') {
+            if ($currentPathRectangle !== null) {
+                $clipRectangle = $this->pdfRectangleIntersection($clipRectangle, $currentPathRectangle);
+            }
+
+            return true;
+        }
+
+        if ($this->pathOperatorClearsCurrentPath($operator)) {
+            $currentPathRectangle = null;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $operands
+     * @param list<float> $matrix
+     * @return list<float>|null
+     */
+    private function rectanglePathOperand(array $operands, array $matrix): ?array
+    {
+        if (count($operands) < 4) {
+            return null;
+        }
+
+        $numbers = [];
+        foreach (array_slice($operands, -4) as $operand) {
+            $number = $this->numericOperand($operand);
+            if ($number === null) {
+                return null;
+            }
+            $numbers[] = $number;
+        }
+
+        [$x, $y, $width, $height] = $numbers;
+        if (abs($width) < 0.000001 || abs($height) < 0.000001) {
+            return null;
+        }
+
+        $points = [
+            $this->pdfMatrixTransformPoint($matrix, $x, $y),
+            $this->pdfMatrixTransformPoint($matrix, $x + $width, $y),
+            $this->pdfMatrixTransformPoint($matrix, $x, $y + $height),
+            $this->pdfMatrixTransformPoint($matrix, $x + $width, $y + $height),
+        ];
+        $xs = array_column($points, 0);
+        $ys = array_column($points, 1);
+
+        return [
+            min($xs),
+            min($ys),
+            max($xs),
+            max($ys),
+        ];
+    }
+
+    /**
+     * @param list<float> $matrix
+     * @return array{0: float, 1: float}
+     */
+    private function pdfMatrixTransformPoint(array $matrix, float $x, float $y): array
+    {
+        return [
+            ($matrix[0] * $x) + ($matrix[2] * $y) + $matrix[4],
+            ($matrix[1] * $x) + ($matrix[3] * $y) + $matrix[5],
+        ];
+    }
+
+    /**
+     * @param list<float>|null $left
+     * @param list<float> $right
+     * @return list<float>
+     */
+    private function pdfRectangleUnion(?array $left, array $right): array
+    {
+        if ($left === null) {
+            return $right;
+        }
+
+        return [
+            min($left[0], $right[0]),
+            min($left[1], $right[1]),
+            max($left[2], $right[2]),
+            max($left[3], $right[3]),
+        ];
+    }
+
+    /**
+     * @param list<float>|null $clip
+     * @param list<float> $path
+     * @return list<float>
+     */
+    private function pdfRectangleIntersection(?array $clip, array $path): array
+    {
+        if ($clip === null) {
+            return $path;
+        }
+
+        return [
+            max($clip[0], $path[0]),
+            max($clip[1], $path[1]),
+            min($clip[2], $path[2]),
+            min($clip[3], $path[3]),
+        ];
+    }
+
+    /**
+     * @param list<float>|null $clipRectangle
+     */
+    private function textPositionInsideActiveClip(?float $x, ?float $y, ?array $clipRectangle): bool
+    {
+        if ($clipRectangle === null) {
+            return true;
+        }
+
+        return $this->pdfPointInsideRectangle($x ?? 0.0, $y ?? 0.0, $clipRectangle);
+    }
+
+    private function pathOperatorClearsCurrentPath(string $operator): bool
+    {
+        return in_array($operator, ['n', 'S', 's', 'f', 'F', 'f*', 'B', 'B*', 'b', 'b*'], true);
+    }
+
     private function pdfNumberValueAfterName(string $body, string $name): ?float
     {
         $offset = $this->nameValueOffset($body, $name);
@@ -11158,12 +11315,28 @@ final class PdfTextExtractor
         $textRenderingMode = 0;
         $textStateStack = [];
         $markedContentStack = [];
+        $currentTextLeading = null;
+        $currentTextX = null;
+        $currentTextY = null;
+        $currentTransformationMatrix = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+        $clipRectangle = null;
+        $currentPathRectangle = null;
+        $clipStateStack = [];
         foreach ($this->contentTokens($stream) as $token) {
             if ($this->isTextShowingOperator($token)) {
+                if ($token === "'" || $token === '"') {
+                    $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
+                }
+
                 $operand = $this->textShowingOperand($token, $operands);
                 if ($operand !== null) {
                     $replacementIndex = $this->activeMarkedContentReplacementIndex($markedContentStack);
-                    if (!$this->isVisibleTextRenderingMode($textRenderingMode)) {
+                    $insideActiveClip = $this->textPositionInsideActiveClip($currentTextX, $currentTextY, $clipRectangle);
+                    if (!$insideActiveClip) {
+                        if ($replacementIndex !== null) {
+                            $markedContentStack[$replacementIndex]['emitted'] = true;
+                        }
+                    } elseif (!$this->isVisibleTextRenderingMode($textRenderingMode)) {
                         if ($replacementIndex !== null) {
                             $markedContentStack[$replacementIndex]['emitted'] = true;
                         }
@@ -11183,7 +11356,13 @@ final class PdfTextExtractor
             if ($token === 'q') {
                 $textStateStack[] = [
                     'fontResource' => $currentFontResource,
+                    'textLeading' => $currentTextLeading,
                     'textRenderingMode' => $textRenderingMode,
+                ];
+                $clipStateStack[] = [
+                    'clipRectangle' => $clipRectangle,
+                    'currentPathRectangle' => $currentPathRectangle,
+                    'currentTransformationMatrix' => $currentTransformationMatrix,
                 ];
                 $operands = [];
                 continue;
@@ -11193,7 +11372,14 @@ final class PdfTextExtractor
                 $state = array_pop($textStateStack);
                 if (is_array($state)) {
                     $currentFontResource = $state['fontResource'];
+                    $currentTextLeading = $state['textLeading'];
                     $textRenderingMode = $state['textRenderingMode'];
+                }
+                $clipState = array_pop($clipStateStack);
+                if (is_array($clipState)) {
+                    $clipRectangle = $clipState['clipRectangle'];
+                    $currentPathRectangle = $clipState['currentPathRectangle'];
+                    $currentTransformationMatrix = $clipState['currentTransformationMatrix'];
                 }
                 $operands = [];
                 continue;
@@ -11205,8 +11391,54 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($token === 'TL') {
+                $currentTextLeading = $this->textLeadingOperand($operands) ?? $currentTextLeading;
+                $operands = [];
+                continue;
+            }
+
             if ($token === 'Tr') {
                 $textRenderingMode = $this->textRenderingModeOperand($operands) ?? $textRenderingMode;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Td' || $token === 'TD') {
+                if ($token === 'TD') {
+                    $moveY = $this->textMoveOperandY($operands);
+                    if ($moveY !== null) {
+                        $currentTextLeading = -$moveY;
+                    }
+                }
+                $currentTextX = $this->textMoveX($operands, $currentTextX);
+                $currentTextY = $this->textMoveY($operands, $currentTextY);
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tm') {
+                $currentTextX = $this->textMatrixX($operands);
+                $currentTextY = $this->textMatrixY($operands);
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'T*') {
+                $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BT') {
+                $currentTextX = 0.0;
+                $currentTextY = 0.0;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'ET') {
+                $currentTextX = null;
+                $currentTextY = null;
                 $operands = [];
                 continue;
             }
@@ -11243,6 +11475,17 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($this->applyClipPathStateOperator(
+                $token,
+                $operands,
+                $clipRectangle,
+                $currentPathRectangle,
+                $currentTransformationMatrix
+            )) {
+                $operands = [];
+                continue;
+            }
+
             if ($this->isOperator($token)) {
                 $operands = [];
                 continue;
@@ -11270,22 +11513,35 @@ final class PdfTextExtractor
         $operands = [];
         $currentFontResource = null;
         $currentFontSize = 12.0;
+        $currentTextX = null;
         $currentTextY = null;
+        $currentTextLeading = null;
         $spanId = 0;
         $textRenderingMode = 0;
         $textStateStack = [];
         $markedContentStack = [];
+        $currentTransformationMatrix = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+        $clipRectangle = null;
+        $currentPathRectangle = null;
+        $clipStateStack = [];
 
         foreach ($this->contentTokens($stream) as $token) {
             if ($this->isTextShowingOperator($token)) {
                 if ($token === "'" || $token === '"') {
                     $this->pushSpanLine($lines, $spans);
+                    $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
                 }
 
                 $operand = $this->textShowingOperand($token, $operands);
                 if ($operand !== null) {
                     $replacementIndex = $this->activeMarkedContentReplacementIndex($markedContentStack);
-                    if (!$this->isVisibleTextRenderingMode($textRenderingMode)) {
+                    $insideActiveClip = $this->textPositionInsideActiveClip($currentTextX, $currentTextY, $clipRectangle);
+                    if (!$insideActiveClip) {
+                        $decoded = '';
+                        if ($replacementIndex !== null) {
+                            $markedContentStack[$replacementIndex]['emitted'] = true;
+                        }
+                    } elseif (!$this->isVisibleTextRenderingMode($textRenderingMode)) {
                         $decoded = '';
                         if ($replacementIndex !== null) {
                             $markedContentStack[$replacementIndex]['emitted'] = true;
@@ -11357,7 +11613,13 @@ final class PdfTextExtractor
                 $textStateStack[] = [
                     'fontResource' => $currentFontResource,
                     'fontSize' => $currentFontSize,
+                    'textLeading' => $currentTextLeading,
                     'textRenderingMode' => $textRenderingMode,
+                ];
+                $clipStateStack[] = [
+                    'clipRectangle' => $clipRectangle,
+                    'currentPathRectangle' => $currentPathRectangle,
+                    'currentTransformationMatrix' => $currentTransformationMatrix,
                 ];
                 $operands = [];
                 continue;
@@ -11368,7 +11630,14 @@ final class PdfTextExtractor
                 if (is_array($state)) {
                     $currentFontResource = $state['fontResource'];
                     $currentFontSize = $state['fontSize'];
+                    $currentTextLeading = $state['textLeading'];
                     $textRenderingMode = $state['textRenderingMode'];
+                }
+                $clipState = array_pop($clipStateStack);
+                if (is_array($clipState)) {
+                    $clipRectangle = $clipState['clipRectangle'];
+                    $currentPathRectangle = $clipState['currentPathRectangle'];
+                    $currentTransformationMatrix = $clipState['currentTransformationMatrix'];
                 }
                 $operands = [];
                 continue;
@@ -11381,6 +11650,12 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($token === 'TL') {
+                $currentTextLeading = $this->textLeadingOperand($operands) ?? $currentTextLeading;
+                $operands = [];
+                continue;
+            }
+
             if ($token === 'Tr') {
                 $textRenderingMode = $this->textRenderingModeOperand($operands) ?? $textRenderingMode;
                 $operands = [];
@@ -11388,9 +11663,16 @@ final class PdfTextExtractor
             }
 
             if ($token === 'Td' || $token === 'TD') {
+                if ($token === 'TD') {
+                    $moveY = $this->textMoveOperandY($operands);
+                    if ($moveY !== null) {
+                        $currentTextLeading = -$moveY;
+                    }
+                }
                 if ($this->textMoveBreaksLine($operands)) {
                     $this->pushSpanLine($lines, $spans);
                 }
+                $currentTextX = $this->textMoveX($operands, $currentTextX);
                 $currentTextY = $this->textMoveY($operands, $currentTextY);
                 $operands = [];
                 continue;
@@ -11401,6 +11683,7 @@ final class PdfTextExtractor
                 if ($matrixY !== null && $currentTextY !== null && abs($matrixY - $currentTextY) > 0.000001) {
                     $this->pushSpanLine($lines, $spans);
                 }
+                $currentTextX = $this->textMatrixX($operands);
                 $currentTextY = $matrixY;
                 $operands = [];
                 continue;
@@ -11408,12 +11691,30 @@ final class PdfTextExtractor
 
             if ($token === 'T*' || $token === 'ET') {
                 $this->pushSpanLine($lines, $spans);
+                if ($token === 'T*') {
+                    $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
+                } else {
+                    $currentTextX = null;
+                    $currentTextY = null;
+                }
                 $operands = [];
                 continue;
             }
 
             if ($token === 'BT') {
+                $currentTextX = 0.0;
                 $currentTextY = null;
+                $operands = [];
+                continue;
+            }
+
+            if ($this->applyClipPathStateOperator(
+                $token,
+                $operands,
+                $clipRectangle,
+                $currentPathRectangle,
+                $currentTransformationMatrix
+            )) {
                 $operands = [];
                 continue;
             }
@@ -11586,6 +11887,10 @@ final class PdfTextExtractor
         $textRenderingMode = 0;
         $textStateStack = [];
         $markedContentStack = [];
+        $currentTransformationMatrix = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+        $clipRectangle = null;
+        $currentPathRectangle = null;
+        $clipStateStack = [];
 
         foreach ($this->contentTokens($stream) as $token) {
             if ($this->isTextShowingOperator($token)) {
@@ -11606,7 +11911,13 @@ final class PdfTextExtractor
                 if ($operand !== null) {
                     $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
                     $replacementIndex = $this->activeMarkedContentReplacementIndex($markedContentStack);
-                    if (!$this->isVisibleTextRenderingMode($textRenderingMode)) {
+                    $insideActiveClip = $this->textPositionInsideActiveClip($currentTextX, $currentTextY, $clipRectangle);
+                    if (!$insideActiveClip) {
+                        $decoded = '';
+                        if ($replacementIndex !== null) {
+                            $markedContentStack[$replacementIndex]['emitted'] = true;
+                        }
+                    } elseif (!$this->isVisibleTextRenderingMode($textRenderingMode)) {
                         $decoded = '';
                         if ($replacementIndex !== null) {
                             $markedContentStack[$replacementIndex]['emitted'] = true;
@@ -11619,7 +11930,7 @@ final class PdfTextExtractor
                     } else {
                         $decoded = $this->decodeTextOperand($operand, $toUnicodeMap);
                     }
-                    if ($this->isVisibleTextRenderingMode($textRenderingMode)) {
+                    if ($insideActiveClip && $this->isVisibleTextRenderingMode($textRenderingMode)) {
                         $this->appendPositionedText($currentLine, $decoded, $pendingPositionWordGap);
                     } else {
                         $pendingPositionWordGap = false;
@@ -11691,6 +12002,11 @@ final class PdfTextExtractor
                     'horizontalScale' => $horizontalScale,
                     'textRenderingMode' => $textRenderingMode,
                 ];
+                $clipStateStack[] = [
+                    'clipRectangle' => $clipRectangle,
+                    'currentPathRectangle' => $currentPathRectangle,
+                    'currentTransformationMatrix' => $currentTransformationMatrix,
+                ];
                 $operands = [];
                 continue;
             }
@@ -11705,6 +12021,12 @@ final class PdfTextExtractor
                     $wordSpacing = $state['wordSpacing'];
                     $horizontalScale = $state['horizontalScale'];
                     $textRenderingMode = $state['textRenderingMode'];
+                }
+                $clipState = array_pop($clipStateStack);
+                if (is_array($clipState)) {
+                    $clipRectangle = $clipState['clipRectangle'];
+                    $currentPathRectangle = $clipState['currentPathRectangle'];
+                    $currentTransformationMatrix = $clipState['currentTransformationMatrix'];
                 }
                 $operands = [];
                 continue;
@@ -11821,6 +12143,17 @@ final class PdfTextExtractor
                 $currentTextEndY = null;
                 $currentTextMatrixHorizontalScale = 1.0;
                 $pendingPositionWordGap = false;
+                $operands = [];
+                continue;
+            }
+
+            if ($this->applyClipPathStateOperator(
+                $token,
+                $operands,
+                $clipRectangle,
+                $currentPathRectangle,
+                $currentTransformationMatrix
+            )) {
                 $operands = [];
                 continue;
             }
@@ -12303,12 +12636,16 @@ final class PdfTextExtractor
     {
         $start = $index;
         $length = strlen($stream);
-        $index++;
+        $depth = 0;
 
         while ($index < $length) {
             $char = $stream[$index];
             if ($char === '(') {
                 $this->readLiteralToken($stream, $index);
+                continue;
+            }
+            if ($char === '<' && $index + 1 < $length && $stream[$index + 1] === '<') {
+                $this->readDictionaryToken($stream, $index);
                 continue;
             }
             if ($char === '<' && ($index + 1 >= $length || $stream[$index + 1] !== '<')) {
@@ -12319,9 +12656,18 @@ final class PdfTextExtractor
                 $this->skipPdfComment($stream, $index);
                 continue;
             }
-            if ($char === ']') {
+            if ($char === '[') {
+                $depth++;
                 $index++;
-                break;
+                continue;
+            }
+            if ($char === ']') {
+                $depth--;
+                $index++;
+                if ($depth <= 0) {
+                    break;
+                }
+                continue;
             }
             $index++;
         }

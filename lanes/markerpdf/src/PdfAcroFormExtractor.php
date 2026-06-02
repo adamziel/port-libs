@@ -79,6 +79,21 @@ final class PdfAcroFormExtractor
         6 => 'icon_only',
     ];
 
+    private const SUBMIT_FORM_FLAG_NAMES = [
+        2 => 'include_no_value_fields',
+        3 => 'html_format',
+        4 => 'get_method',
+        5 => 'submit_coordinates',
+        6 => 'xfdf_format',
+        7 => 'include_append_saves',
+        8 => 'include_annotations',
+        9 => 'submit_pdf',
+        10 => 'canonical_format',
+        11 => 'exclude_non_user_annotations',
+        12 => 'exclude_f_key',
+        14 => 'embed_form',
+    ];
+
     private const MAX_ACTION_CHAIN_DEPTH = 8;
 
     /**
@@ -4706,6 +4721,8 @@ final class PdfAcroFormExtractor
                 'default_choice_values' => $state['default_choice_values'] ?? [],
                 'selected_options' => $state['selected_options'] ?? [],
                 'rich_text_review' => $richTextReview,
+                'default_appearance' => is_array($field['default_appearance'] ?? null) ? $field['default_appearance'] : null,
+                'widgets' => $this->arrayRows($field['widgets'] ?? []),
             ];
         }
 
@@ -4768,6 +4785,18 @@ final class PdfAcroFormExtractor
             'source' => 'acroform_choice_richtext_submit_reset_review_boundary',
             'action_type' => 'SubmitForm',
             'fields_mode' => $action['fields_mode'] ?? 'all_exportable',
+            'requested_submit_format' => $action['requested_submit_format'] ?? ($action['submit_format'] ?? 'fdf'),
+            'html_format_requested' => (bool) ($action['html_format_requested'] ?? (($action['submit_format'] ?? null) === 'html')),
+            'xfdf_requested' => (bool) ($action['xfdf_requested'] ?? false),
+            'submit_pdf_requested' => (bool) ($action['submit_pdf_requested'] ?? false),
+            'get_method_requested' => (bool) ($action['get_method_requested'] ?? false),
+            'submit_coordinates_requested' => (bool) ($action['submit_coordinates_requested'] ?? false),
+            'include_append_saves_requested' => (bool) ($action['include_append_saves_requested'] ?? false),
+            'include_annotations_requested' => (bool) ($action['include_annotations_requested'] ?? false),
+            'canonical_format_requested' => (bool) ($action['canonical_format_requested'] ?? false),
+            'exclude_non_user_annotations_requested' => (bool) ($action['exclude_non_user_annotations_requested'] ?? false),
+            'exclude_f_key_requested' => (bool) ($action['exclude_f_key_requested'] ?? false),
+            'embed_form_requested' => (bool) ($action['embed_form_requested'] ?? false),
             'candidate_field_count' => count($candidateRows),
             'included_field_count' => count(array_filter($rows, static fn (array $row): bool => ($row['submit_included'] ?? false) === true)),
             'excluded_field_count' => count(array_filter($rows, static fn (array $row): bool => ($row['submit_included'] ?? false) !== true)),
@@ -4780,6 +4809,10 @@ final class PdfAcroFormExtractor
             'field_rows' => $rows,
             'uses_plain_value_for_rich_text' => true,
             'exports_rich_text_html' => false,
+            'submits_pdf_on_import' => false,
+            'embeds_form_on_import' => false,
+            'includes_annotations_on_import' => false,
+            'uses_get_method_on_import' => false,
             'executes_action' => false,
             'executes_javascript' => false,
             'imports_form_data' => false,
@@ -4813,6 +4846,8 @@ final class PdfAcroFormExtractor
             'source' => 'acroform_choice_richtext_submit_reset_review_boundary',
             'action_type' => 'ResetForm',
             'fields_mode' => $action['fields_mode'] ?? 'all',
+            'resets_resources_on_import' => false,
+            'renders_default_resources_on_import' => false,
             'reset_field_count' => count($rows),
             'reset_field_names' => $this->fieldNamesFromRows($rows),
             'default_value_field_names' => $this->fieldNamesFromRows(array_filter($rows, static fn (array $row): bool => ($row['reset_value_source'] ?? null) === 'default_value')),
@@ -4907,7 +4942,7 @@ final class PdfAcroFormExtractor
      */
     private function fieldReviewBaseRow(array $row): array
     {
-        return [
+        $base = [
             'field_object' => $row['object'] ?? null,
             'field_name' => $row['name'] ?? null,
             'field_type' => $row['field_type'] ?? null,
@@ -4919,6 +4954,73 @@ final class PdfAcroFormExtractor
             'current' => $row['current'] ?? null,
             'default' => $row['default'] ?? null,
             'display_value' => $row['display_value'] ?? null,
+        ];
+
+        $appearanceResourceReview = $this->appearanceResourceReviewForFieldRow($row);
+        if ($appearanceResourceReview !== null) {
+            $base['appearance_resource_review'] = $appearanceResourceReview;
+        }
+
+        return $base;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function appearanceResourceReviewForFieldRow(array $row): ?array
+    {
+        $appearance = is_array($row['default_appearance'] ?? null) ? $row['default_appearance'] : null;
+        $widgets = $this->arrayRows($row['widgets'] ?? []);
+        $widgetAppearances = [];
+        foreach ($widgets as $widget) {
+            $widgetAppearance = is_array($widget['default_appearance'] ?? null) ? $widget['default_appearance'] : null;
+            if ($widgetAppearance === null) {
+                continue;
+            }
+
+            $widgetAppearances[] = [
+                'widget_object' => $widget['object'] ?? null,
+                'source' => $widgetAppearance['source'] ?? null,
+                'source_object' => $widgetAppearance['source_object'] ?? null,
+                'font_resource' => $widgetAppearance['font_resource'] ?? null,
+                'font_resource_resolved' => (bool) ($widgetAppearance['font_resource_resolved'] ?? false),
+                'font_resource_object' => $widgetAppearance['font_resource_object'] ?? null,
+                'font_resource_base_font' => $widgetAppearance['font_resource_base_font'] ?? null,
+                'font_resource_encoding' => $widgetAppearance['font_resource_encoding'] ?? null,
+                'default_resource_source' => $widgetAppearance['default_resource_source'] ?? null,
+                'default_resource_source_object' => $widgetAppearance['default_resource_source_object'] ?? null,
+                'renders_appearance' => false,
+                'executes_appearance_streams' => false,
+            ];
+        }
+
+        if ($appearance === null && $widgetAppearances === []) {
+            return null;
+        }
+
+        return [
+            'source' => 'acroform_submit_reset_resource_review_boundary',
+            'field_appearance_source' => $appearance['source'] ?? null,
+            'field_appearance_source_object' => $appearance['source_object'] ?? null,
+            'font_resource' => $appearance['font_resource'] ?? null,
+            'font_resource_resolved' => (bool) ($appearance['font_resource_resolved'] ?? false),
+            'font_resource_object' => $appearance['font_resource_object'] ?? null,
+            'font_resource_base_font' => $appearance['font_resource_base_font'] ?? null,
+            'font_resource_subtype' => $appearance['font_resource_subtype'] ?? null,
+            'font_resource_encoding' => $appearance['font_resource_encoding'] ?? null,
+            'font_descriptor_object' => $appearance['font_descriptor_object'] ?? null,
+            'font_descriptor_name' => $appearance['font_descriptor_name'] ?? null,
+            'font_descriptor_flags' => $appearance['font_descriptor_flags'] ?? null,
+            'font_weight' => $appearance['font_weight'] ?? null,
+            'default_resource_source' => $appearance['default_resource_source'] ?? null,
+            'default_resource_source_object' => $appearance['default_resource_source_object'] ?? null,
+            'widget_appearance_count' => count($widgetAppearances),
+            'widget_appearances' => $widgetAppearances,
+            'uses_default_resources_for_import' => false,
+            'uses_default_resources_for_submit' => false,
+            'uses_default_resources_for_reset' => false,
+            'renders_appearances' => false,
+            'executes_appearance_streams' => false,
         ];
     }
 
@@ -5295,8 +5397,24 @@ final class PdfAcroFormExtractor
             $metadata += [
                 'target' => $target,
                 'target_scheme' => $target === null ? null : $this->uriScheme($target),
-                'submit_format' => $this->hasFlagBit($flags, 3) ? 'html' : 'fdf',
+                'submit_format' => $this->submitFormatFromFlags($flags),
+                'requested_submit_format' => $this->submitFormatFromFlags($flags),
                 'include_no_value_fields' => $this->hasFlagBit($flags, 2),
+                'html_format_requested' => $this->hasFlagBit($flags, 3),
+                'get_method_requested' => $this->hasFlagBit($flags, 4),
+                'submit_coordinates_requested' => $this->hasFlagBit($flags, 5),
+                'xfdf_requested' => $this->hasFlagBit($flags, 6),
+                'include_append_saves_requested' => $this->hasFlagBit($flags, 7),
+                'include_annotations_requested' => $this->hasFlagBit($flags, 8),
+                'submit_pdf_requested' => $this->hasFlagBit($flags, 9),
+                'canonical_format_requested' => $this->hasFlagBit($flags, 10),
+                'exclude_non_user_annotations_requested' => $this->hasFlagBit($flags, 11),
+                'exclude_f_key_requested' => $this->hasFlagBit($flags, 12),
+                'embed_form_requested' => $this->hasFlagBit($flags, 14),
+                'submits_pdf_on_import' => false,
+                'embeds_form_on_import' => false,
+                'includes_annotations_on_import' => false,
+                'uses_get_method_on_import' => false,
                 'default_excludes_no_export' => true,
             ];
         } else {
@@ -5820,15 +5938,31 @@ final class PdfAcroFormExtractor
         }
 
         if ($actionType === 'SubmitForm') {
-            if ($this->hasFlagBit($flags, 2)) {
-                $names[] = 'include_no_value_fields';
-            }
-            if ($this->hasFlagBit($flags, 3)) {
-                $names[] = 'html_format';
+            foreach (self::SUBMIT_FORM_FLAG_NAMES as $bit => $name) {
+                if ($this->hasFlagBit($flags, $bit)) {
+                    $names[] = $name;
+                }
             }
         }
 
         return $names;
+    }
+
+    private function submitFormatFromFlags(int $flags): string
+    {
+        if ($this->hasFlagBit($flags, 9)) {
+            return 'pdf';
+        }
+
+        if ($this->hasFlagBit($flags, 6)) {
+            return 'xfdf';
+        }
+
+        if ($this->hasFlagBit($flags, 3)) {
+            return 'html';
+        }
+
+        return 'fdf';
     }
 
     private function actionTriggerLabel(string $trigger): string
