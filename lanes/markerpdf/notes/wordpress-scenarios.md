@@ -258,6 +258,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-ccitt-fax-filter-import.php` maps a native stream-filter safety boundary into a WordPress import path. It treats `/CCITTFaxDecode` and `/CCF` PDF streams as fax/image-only payloads, emits only the surrounding Gutenberg paragraphs, and excludes fake text operators embedded in scanner bytes without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+`examples/wordpress-pdf-page-labels-import.php` maps catalog `/PageLabels` number-tree metadata into a WordPress import path. It preserves labels such as `front-ii`, `Body 1`, and `App-AA` as page-break separator metadata while emitting each page's Gutenberg paragraph without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring parser, font, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
