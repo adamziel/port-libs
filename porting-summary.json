@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 04:39:41 UTC",
-    "sourceCommit": "1e4269e2e300c40157d9ebb5a63944b667ee8f11",
-    "sourceCommitShort": "1e4269e2e300",
+    "generated": "2026-06-02 04:46:36 UTC",
+    "sourceCommit": "aa78284a3906d0d8739bbe6086732c63eeadece8",
+    "sourceCommitShort": "aa78284a3906",
     "sourceBranch": "unknown",
-    "dashboardCommit": "1e4269e2e300c40157d9ebb5a63944b667ee8f11",
-    "dashboardCommitShort": "1e4269e2e300",
+    "dashboardCommit": "aa78284a3906d0d8739bbe6086732c63eeadece8",
+    "dashboardCommitShort": "aa78284a3906",
     "averageProgressPercent": "91.0",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "239",
-            "coverage": "239 / 78 (306.4%)",
-            "mapPercent": "306.4%",
+            "mapped": "240",
+            "coverage": "240 / 78 (307.7%)",
+            "mapPercent": "307.7%",
             "unmapped": "0",
-            "php": "382 pass / 0 fail",
+            "php": "383 pass / 0 fail",
             "phase": "reduced PDF extraction parity: page /Contents, indirect page-tree /Ki...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
             "currentWork": "PdfTextExtractor carries page-specific font maps through catalog-ordered page /Conten...",
             "nextTarget": "Continue bounded markerPDF/PDF extraction work on current bas...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "1e4269e"
+            "commit": "aa78284"
         },
         {
             "lane": "readability",
