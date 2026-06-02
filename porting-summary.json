@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 22:05:22 UTC",
-    "sourceCommit": "aab5375a5836fba6a25baff51016a308e01b765c",
-    "sourceCommitShort": "aab5375a5836",
+    "generated": "2026-06-02 22:11:40 UTC",
+    "sourceCommit": "bbc3f09a03052a5b53bc0e9585686e7ca678a29c",
+    "sourceCommitShort": "bbc3f09a0305",
     "sourceBranch": "unknown",
-    "dashboardCommit": "aab5375a5836fba6a25baff51016a308e01b765c",
-    "dashboardCommitShort": "aab5375a5836",
+    "dashboardCommit": "bbc3f09a03052a5b53bc0e9585686e7ca678a29c",
+    "dashboardCommitShort": "bbc3f09a0305",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "629",
-            "coverage": "629 / 78 (806.4%)",
-            "mapPercent": "806.4%",
+            "mapped": "631",
+            "coverage": "631 / 78 (809.0%)",
+            "mapPercent": "809.0%",
             "unmapped": "0",
-            "php": "892 pass / 0 fail",
+            "php": "895 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor font/parser/runtime/outline/page/xref integ...",
-            "currentWork": "MarkerPDF now maps Type0/Type3 CMap source-space word grouping, exact-generation xref...",
-            "nextTarget": "Keep 10-11 markerPDF lanes active with larger independent bun...",
+            "audit": "2026-06-02 UTC supervisor image/layout integration: accepted image69...",
+            "currentWork": "MarkerPDF now maps a unified image-rendering color-space/soft-mask transfer bundle an...",
+            "nextTarget": "Speed up markerPDF by keeping 10-11 visible lanes on independ...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "aab5375"
+            "commit": "bbc3f09"
         },
         {
             "lane": "readability",
