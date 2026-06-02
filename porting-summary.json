@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 17:37:22 UTC",
-    "sourceCommit": "baedcb710781dc5b8b841f14b9ff3a56127c74cf",
-    "sourceCommitShort": "baedcb710781",
+    "generated": "2026-06-02 17:46:33 UTC",
+    "sourceCommit": "ca9f9f40b6161b368928261174d497ac5e8e7d834",
+    "sourceCommitShort": "ca9f9f40b616",
     "sourceBranch": "unknown",
-    "dashboardCommit": "baedcb710781dc5b8b841f14b9ff3a56127c74cf",
-    "dashboardCommitShort": "baedcb710781",
+    "dashboardCommit": "ca9f9f40bf81c362822553c0929a3219b5eb0d89",
+    "dashboardCommitShort": "ca9f9f40bf81",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "442",
-            "coverage": "442 / 78 (566.7%)",
-            "mapPercent": "566.7%",
+            "mapped": "443",
+            "coverage": "443 / 78 (567.9%)",
+            "mapPercent": "567.9%",
             "unmapped": "0",
-            "php": "609 pass / 0 fail",
+            "php": "610 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit baedcb71; accept...",
-            "currentWork": "MarkerPDF now adds signed XFA widget action review, OCR rowspan/colspan continuation...",
-            "nextTarget": "Score newer current-base markerPDF handoffs from table32/secu...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit ca9f9f40; accept...",
+            "currentWork": "MarkerPDF now keeps StructTree /AF FileSpec provenance on page MCID review rows while...",
+            "nextTarget": "Score current-base markerPDF handoffs from font34/table32/sec...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "baedcb7"
+            "commit": "ca9f9f40b6161b3..."
         },
         {
             "lane": "readability",
