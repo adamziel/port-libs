@@ -24,6 +24,7 @@ final class PdfMetadataExtractor
      *     source: list<string>,
      *     xmp: array<string, mixed>,
      *     info: array<string, string>,
+     *     catalog?: array<string, mixed>,
      *     output_intents: list<array<string, mixed>>,
      *     trailer_ids?: array<string, mixed>,
      *     document_fingerprint?: string,
@@ -37,18 +38,23 @@ final class PdfMetadataExtractor
      *     created_at?: string,
      *     modified_at?: string,
      *     metadata_date?: string,
+     *     language?: string,
+     *     page_layout?: string,
+     *     page_mode?: string,
+     *     viewer_preferences?: array<string, mixed>,
      *     pdfa?: array{has_output_intent: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>}
      * }
      */
     public function extractDocumentMetadata(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
+        $catalog = $this->extractCatalogReviewMetadata($pdfBytes, $objects);
         $xmp = $this->extractXmpMetadata($pdfBytes, $objects);
         $info = $this->extractInfoMetadata($pdfBytes, $objects);
         $outputIntents = $this->extractOutputIntentMetadata($pdfBytes, $objects);
         $trailerIds = $this->extractTrailerIdMetadata($pdfBytes);
 
-        return $this->mergedMetadata($xmp, $info, $outputIntents, $trailerIds);
+        return $this->mergedMetadata($xmp, $info, $outputIntents, $catalog, $trailerIds);
     }
 
     /**
@@ -300,13 +306,52 @@ final class PdfMetadataExtractor
     }
 
     /**
+     * Native metadata boundary for PDF Catalog review fields that influence
+     * document presentation but should not execute actions or override OCR.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function extractCatalogReviewMetadata(string $pdfBytes, array $objects): array
+    {
+        $catalog = $this->catalogObjectBody($pdfBytes, $objects);
+        if ($catalog === null) {
+            return [];
+        }
+
+        $metadata = [];
+        $language = $this->dictionaryStringValue($catalog, 'Lang');
+        if ($language !== null) {
+            $metadata['language'] = $language;
+        }
+
+        foreach ([
+            'PageLayout' => 'page_layout',
+            'PageMode' => 'page_mode',
+        ] as $pdfName => $key) {
+            $value = $this->dictionaryStringValue($catalog, $pdfName);
+            if ($value !== null) {
+                $metadata[$key] = $value;
+            }
+        }
+
+        $viewerPreferences = $this->extractViewerPreferences($catalog, $objects);
+        if ($viewerPreferences !== []) {
+            $metadata['viewer_preferences'] = $viewerPreferences;
+        }
+
+        return $metadata;
+    }
+
+    /**
      * @param array<string, mixed> $xmp
      * @param array<string, string> $info
      * @param list<array<string, mixed>> $outputIntents
+     * @param array<string, mixed> $catalog
      * @param array<string, mixed> $trailerIds
      * @return array<string, mixed>
      */
-    private function mergedMetadata(array $xmp, array $info, array $outputIntents, array $trailerIds): array
+    private function mergedMetadata(array $xmp, array $info, array $outputIntents, array $catalog, array $trailerIds): array
     {
         $result = [
             'source' => [],
@@ -320,6 +365,10 @@ final class PdfMetadataExtractor
         }
         if ($info !== []) {
             $result['source'][] = 'info';
+        }
+        if ($catalog !== []) {
+            $result['source'][] = 'catalog';
+            $result['catalog'] = $catalog;
         }
         if ($outputIntents !== []) {
             $result['source'][] = 'output_intents';
@@ -349,6 +398,12 @@ final class PdfMetadataExtractor
         $keywords = $xmp['keywords'] ?? $this->keywordsFromInfo($info);
         if (is_array($keywords) && $keywords !== []) {
             $result['keywords'] = array_values($keywords);
+        }
+
+        foreach (['language', 'page_layout', 'page_mode', 'viewer_preferences'] as $field) {
+            if (array_key_exists($field, $catalog)) {
+                $result[$field] = $catalog[$field];
+            }
         }
 
         $pdfa = $this->pdfaOutputIntentSummary($outputIntents);
@@ -886,6 +941,89 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function extractViewerPreferences(string $catalog, array $objects): array
+    {
+        $dictionary = $this->viewerPreferencesDictionary($catalog, $objects);
+        if ($dictionary === null) {
+            return [];
+        }
+
+        $preferences = [];
+        foreach ([
+            'HideToolbar' => 'hide_toolbar',
+            'HideMenubar' => 'hide_menubar',
+            'HideWindowUI' => 'hide_window_ui',
+            'FitWindow' => 'fit_window',
+            'CenterWindow' => 'center_window',
+            'DisplayDocTitle' => 'display_doc_title',
+            'PickTrayByPDFSize' => 'pick_tray_by_pdf_size',
+        ] as $pdfName => $key) {
+            $value = $this->dictionaryBooleanValue($dictionary, $pdfName);
+            if ($value !== null) {
+                $preferences[$key] = $value;
+            }
+        }
+
+        foreach ([
+            'NonFullScreenPageMode' => 'non_full_screen_page_mode',
+            'Direction' => 'direction',
+            'ViewArea' => 'view_area',
+            'ViewClip' => 'view_clip',
+            'PrintArea' => 'print_area',
+            'PrintClip' => 'print_clip',
+            'PrintScaling' => 'print_scaling',
+            'Duplex' => 'duplex',
+        ] as $pdfName => $key) {
+            $value = $this->dictionaryStringValue($dictionary, $pdfName);
+            if ($value !== null) {
+                $preferences[$key] = $value;
+            }
+        }
+
+        $printPageRange = $this->dictionaryIntegerArrayValue($dictionary, 'PrintPageRange');
+        if ($printPageRange !== []) {
+            $preferences['print_page_range'] = $printPageRange;
+        }
+
+        $enforced = $this->dictionaryNameArrayValue($dictionary, 'Enforce');
+        if ($enforced !== []) {
+            $preferences['enforce'] = $enforced;
+        }
+
+        $numCopies = $this->dictionaryIntegerValue($dictionary, 'NumCopies');
+        if ($numCopies !== null) {
+            $preferences['num_copies'] = $numCopies;
+        }
+
+        return $preferences;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function viewerPreferencesDictionary(string $catalog, array $objects): ?string
+    {
+        $value = $this->dictionaryRawValue($catalog, 'ViewerPreferences');
+        if ($value === null) {
+            return null;
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        if ($resolved === '') {
+            return null;
+        }
+
+        if (str_starts_with($resolved, '<<')) {
+            return $this->readPdfDictionaryAt($resolved, 0);
+        }
+
+        return $this->dictionaryObjectBody($resolved);
+    }
+
+    /**
+     * @param array<int, string> $objects
      */
     private function resolvePdfValue(string $value, array $objects): ?string
     {
@@ -1026,6 +1164,63 @@ final class PdfMetadataExtractor
         }
 
         return (int) trim($value);
+    }
+
+    private function dictionaryBooleanValue(string $dictionary, string $key): ?bool
+    {
+        $value = $this->dictionaryRawValue($dictionary, $key);
+        if ($value === null) {
+            return null;
+        }
+
+        return match (trim($value)) {
+            'true' => true,
+            'false' => false,
+            default => null,
+        };
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function dictionaryIntegerArrayValue(string $dictionary, string $key): array
+    {
+        $value = $this->dictionaryRawValue($dictionary, $key);
+        if ($value === null) {
+            return [];
+        }
+
+        $body = $this->arrayBody(trim($value));
+        if ($body === null) {
+            return [];
+        }
+
+        preg_match_all('/-?\d+/', $body, $matches);
+        return array_map('intval', $matches[0]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function dictionaryNameArrayValue(string $dictionary, string $key): array
+    {
+        $value = $this->dictionaryRawValue($dictionary, $key);
+        if ($value === null) {
+            return [];
+        }
+
+        $body = $this->arrayBody(trim($value));
+        if ($body === null) {
+            return [];
+        }
+
+        preg_match_all('/\/([^\s\[\]()<>{}\/%]+)/', $body, $matches);
+        $names = [];
+        foreach ($matches[1] as $name) {
+            $names[] = $this->decodePdfName($name);
+        }
+
+        return $this->uniqueStrings($names);
     }
 
     private function decodeAsciiHexStream(string $stream): ?string

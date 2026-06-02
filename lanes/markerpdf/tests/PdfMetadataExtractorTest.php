@@ -70,6 +70,18 @@ $pdfWithOutputIntent = static function (): array {
     return [$pdf, $profileBytes];
 };
 
+$pdfWithCatalogReview = static function (string $catalogExtras, string $bodyText, string $extraObjects = ''): string {
+    $pageContent = "BT /F1 12 Tf 72 720 Td ({$bodyText}) Tj ET";
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R{$catalogExtras} >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . $extraObjects
+        . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+};
+
 return [
     'extracts catalog XMP metadata before WordPress import review' => static function (TestRunner $t) use ($xmpPacket, $pdfWithMetadata): void {
         $info = '<< /Title (Legacy Title) /Author (Legacy Author) /Keywords (legacy,hidden) /Creator (Legacy Tool) /Producer (Legacy Producer) >>';
@@ -183,5 +195,72 @@ return [
             'profile_sha256' => [hash('sha256', $profileBytes)],
         ], $metadata['pdfa']);
         $t->true(!str_contains($text, 'ICC profile bytes'));
+    },
+    'extracts catalog language and indirect viewer preferences for WordPress review' => static function (TestRunner $t) use ($pdfWithCatalogReview): void {
+        $lang = strtoupper(bin2hex("\xfe\xff\x00e\x00s\x00-\x00M\x00X"));
+        $viewerPreferences = "7 0 obj\n"
+            . "<< /HideToolbar true /HideMenubar false /HideWindowUI true /FitWindow true /CenterWindow false /DisplayDocTitle true"
+            . " /NonFullScreenPageMode /UseOC /Direction /R2L /ViewArea /CropBox /ViewClip /BleedBox /PrintArea /TrimBox /PrintClip /ArtBox"
+            . " /PrintScaling /None /Duplex /DuplexFlipLongEdge /PickTrayByPDFSize true /PrintPageRange [1 2 5 6] /NumCopies 3 /Enforce [ /PrintScaling /Duplex ] >>\n"
+            . "endobj\n";
+        $pdf = $pdfWithCatalogReview(
+            " /Lang <{$lang}> /PageLayout /TwoPageRight /PageMode /UseOutlines /ViewerPreferences 7 0 R",
+            'Catalog Language Import',
+            $viewerPreferences
+        );
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+
+        $t->same(['catalog'], $metadata['source']);
+        $t->same('es-MX', $metadata['language']);
+        $t->same('es-MX', $metadata['catalog']['language']);
+        $t->true(!isset($metadata['languages']));
+        $t->same('TwoPageRight', $metadata['page_layout']);
+        $t->same('UseOutlines', $metadata['page_mode']);
+        $t->same([
+            'hide_toolbar' => true,
+            'hide_menubar' => false,
+            'hide_window_ui' => true,
+            'fit_window' => true,
+            'center_window' => false,
+            'display_doc_title' => true,
+            'pick_tray_by_pdf_size' => true,
+            'non_full_screen_page_mode' => 'UseOC',
+            'direction' => 'R2L',
+            'view_area' => 'CropBox',
+            'view_clip' => 'BleedBox',
+            'print_area' => 'TrimBox',
+            'print_clip' => 'ArtBox',
+            'print_scaling' => 'None',
+            'duplex' => 'DuplexFlipLongEdge',
+            'print_page_range' => [1, 2, 5, 6],
+            'enforce' => ['PrintScaling', 'Duplex'],
+            'num_copies' => 3,
+        ], $metadata['viewer_preferences']);
+        $t->same($metadata['viewer_preferences'], $metadata['catalog']['viewer_preferences']);
+        $t->same('Catalog Language Import', $text);
+        $t->true(!str_contains($text, 'HideToolbar'));
+    },
+    'extracts direct viewer preferences and escaped preference names' => static function (TestRunner $t) use ($pdfWithCatalogReview): void {
+        $pdf = $pdfWithCatalogReview(
+            ' /Lang (en-US) /PageLayout /SinglePage /PageMode /FullScreen'
+            . ' /ViewerPreferences << /DisplayDocTitle false /Direction /L2R /PrintScaling /AppDefault /Enforce [ /Print#53caling ] >>',
+            'Direct Viewer Preferences'
+        );
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+
+        $t->same(['catalog'], $metadata['source']);
+        $t->same('en-US', $metadata['language']);
+        $t->same('SinglePage', $metadata['page_layout']);
+        $t->same('FullScreen', $metadata['page_mode']);
+        $t->same([
+            'display_doc_title' => false,
+            'direction' => 'L2R',
+            'print_scaling' => 'AppDefault',
+            'enforce' => ['PrintScaling'],
+        ], $metadata['viewer_preferences']);
+        $t->same('Direct Viewer Preferences', (new PdfTextExtractor())->extractPlainText($pdf));
     },
 ];
