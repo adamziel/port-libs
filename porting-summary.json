@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 14:00:37 UTC",
-    "sourceCommit": "6a7180975586c61630da5c55fcdfd697f72405ff",
-    "sourceCommitShort": "6a7180975586",
+    "generated": "2026-06-02 14:05:08 UTC",
+    "sourceCommit": "15f6e0376971c9098e61d51e783415865a08eab8",
+    "sourceCommitShort": "15f6e0376971",
     "sourceBranch": "main",
-    "dashboardCommit": "6a7180975586c61630da5c55fcdfd697f72405ff",
-    "dashboardCommitShort": "6a7180975586",
+    "dashboardCommit": "15f6e0376971c9098e61d51e783415865a08eab8",
+    "dashboardCommitShort": "15f6e0376971",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "362",
-            "coverage": "362 / 78 (464.1%)",
-            "mapPercent": "464.1%",
+            "mapped": "363",
+            "coverage": "363 / 78 (465.4%)",
+            "mapPercent": "465.4%",
             "unmapped": "0",
-            "php": "514 pass / 0 fail",
+            "php": "515 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 6a718097; full m...",
-            "currentWork": "Current-page Widget annotation appearance/action review metadata is integrated and fu...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 15f6e037; full m...",
+            "currentWork": "Hybrid xref object-stream generation repair is integrated and full-lane green; contin...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "6a71809"
+            "commit": "15f6e03"
         },
         {
             "lane": "readability",
