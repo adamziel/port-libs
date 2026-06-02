@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 22:27:13 UTC",
-    "sourceCommit": "85bbc43a6d55d7b33a6584d8d0e1e09f55b5ed76",
-    "sourceCommitShort": "85bbc43a6d55",
+    "generated": "2026-06-02 22:35:25 UTC",
+    "sourceCommit": "ac0df369db7114e7542da41c48069d66570737f3",
+    "sourceCommitShort": "ac0df369db71",
     "sourceBranch": "unknown",
-    "dashboardCommit": "85bbc43a6d55d7b33a6584d8d0e1e09f55b5ed76",
-    "dashboardCommitShort": "85bbc43a6d55",
+    "dashboardCommit": "ac0df369db7114e7542da41c48069d66570737f3",
+    "dashboardCommitShort": "ac0df369db71",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "644",
-            "coverage": "644 / 78 (825.6%)",
-            "mapPercent": "825.6%",
+            "mapped": "648",
+            "coverage": "648 / 78 (830.8%)",
+            "mapPercent": "830.8%",
             "unmapped": "0",
-            "php": "915 pass / 0 fail",
+            "php": "921 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor layout/runtime/metadata/parser integration:...",
-            "currentWork": "MarkerPDF now maps layout ordered OCR table page-review sections, marker server uploa...",
+            "audit": "2026-06-02 UTC supervisor security/parser/image/form integration: acc...",
+            "currentWork": "MarkerPDF now maps AcroForm DSS action attachment security review, xref-stream compre...",
             "nextTarget": "Keep 10-11 visible markerPDF lanes active; next score newly r...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "85bbc43"
+            "commit": "ac0df36"
         },
         {
             "lane": "readability",
