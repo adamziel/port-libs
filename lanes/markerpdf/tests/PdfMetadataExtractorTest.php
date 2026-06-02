@@ -877,6 +877,98 @@ return [
         $t->true(!str_contains($text, '<wp-export>'));
         $t->true(!str_contains($text, 'metadata-schema'));
     },
+    'reviews catalog language OutputIntent and associated FileSpec metadata without Portfolio collection' => static function (TestRunner $t) use ($xmpPacket): void {
+        $rootProfile = 'Root catalog ICC profile bytes';
+        $associatedProfile = 'Associated catalog ICC bytes must stay attachment-local';
+        $sourcePayload = '<wp-export><post id="1715"/></wp-export>';
+        $previewPayload = 'Rendered associated preview bytes';
+        $sourceChecksum = strtoupper(hash('md5', $sourcePayload));
+        $fileXmp = gzcompress($xmpPacket([
+            'title' => 'Catalog AF XMP Title',
+            'description' => 'Catalog associated-file XMP stays local',
+        ]));
+        $rootProfileStream = gzcompress($rootProfile);
+        $associatedProfileStream = gzcompress($associatedProfile);
+        if (!is_string($fileXmp) || !is_string($rootProfileStream) || !is_string($associatedProfileStream)) {
+            throw new RuntimeException('Unable to compress catalog associated-file metadata fixture.');
+        }
+
+        $fileLang = strtoupper(bin2hex("\xfe\xff\x00e\x00s\x00-\x00M\x00X"));
+        $content = 'BT /F1 12 Tf 72 720 Td (Catalog Associated Metadata Body) Tj ET';
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /OutputIntents [9 0 R] /AF [10 0 R << /Type /Filespec /F (preview.pdf) /Desc (Rendered PDF alternative) /AFRelationship /Alternative /Lang (fr-CA) /OutputIntents [13 0 R] /EF << /F 15 0 R >> >> 99 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($fileXmp) . " >>\nstream\n{$fileXmp}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($rootProfileStream) . " >>\nstream\n{$rootProfileStream}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($associatedProfileStream) . " >>\nstream\n{$associatedProfileStream}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Root catalog sRGB) /Info (Root PDF/A profile) /DestOutputProfile 7 0 R >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (legacy-source.xml) /UF (source-unicode.xml) /Desc (Original WordPress export) /AFRelationship /Source /Lang <{$fileLang}> /Metadata 5 0 R /OutputIntents [13 0 R] /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " /CheckSum <{$sourceChecksum}> /ModDate (D:20260602165500Z) >> /Length " . strlen($sourcePayload) . " >>\nstream\n{$sourcePayload}\nendstream\nendobj\n"
+            . "13 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Associated catalog sRGB) /Info (Nested associated PDF/A) /DestOutputProfile 8 0 R >>\nendobj\n"
+            . "15 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fpdf /Length " . strlen($previewPayload) . " >>\nstream\n{$previewPayload}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+        $associatedFiles = $metadata['catalog']['associated_files'] ?? [];
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['catalog', 'output_intents'], $metadata['source']);
+        $t->same('en-US', $metadata['language']);
+        $t->same('en-US', $metadata['catalog']['language']);
+        $t->same('Catalog Associated Metadata Body', $text);
+        $t->same(1, count($metadata['output_intents']));
+        $t->same('Root catalog sRGB', $metadata['output_intents'][0]['output_condition_identifier']);
+        $t->same([
+            'has_output_intent' => true,
+            'output_condition_identifiers' => ['Root catalog sRGB'],
+            'profile_sha256' => [hash('sha256', $rootProfile)],
+        ], $metadata['pdfa']);
+        $t->same($associatedFiles, $metadata['associated_files']);
+        $t->same(2, count($associatedFiles));
+
+        $source = $associatedFiles[0];
+        $t->same('catalog_associated_files', $source['source']);
+        $t->same(true, $source['associated_file']);
+        $t->same(0, $source['associated_file_index']);
+        $t->same('source-unicode.xml', $source['filename']);
+        $t->same('legacy-source.xml', $source['platform_filename']);
+        $t->same('Original WordPress export', $source['description']);
+        $t->same('Source', $source['relationship']);
+        $t->same('es-MX', $source['language']);
+        $t->same('text/xml', $source['mime_type']);
+        $t->same(10, $source['file_spec_object']);
+        $t->same(11, $source['embedded_file_object']);
+        $t->same(strlen($sourcePayload), $source['declared_size']);
+        $t->same(true, $source['checksum_matches']);
+        $t->same(hash('sha256', $sourcePayload), $source['content_sha256']);
+        $t->same('D:20260602165500Z', $source['modified_at']);
+        $t->same('Metadata', $source['metadata_review']['Type']);
+        $t->same('XML', $source['metadata_review']['Subtype']);
+        $t->same('Associated catalog sRGB', $source['output_intents_review'][0]['OutputConditionIdentifier']);
+        $t->true(!array_key_exists('content', $source));
+
+        $preview = $associatedFiles[1];
+        $t->same('preview.pdf', $preview['filename']);
+        $t->same('Rendered PDF alternative', $preview['description']);
+        $t->same('Alternative', $preview['relationship']);
+        $t->same('fr-CA', $preview['language']);
+        $t->same('application/pdf', $preview['mime_type']);
+        $t->same(null, $preview['file_spec_object']);
+        $t->same(15, $preview['embedded_file_object']);
+        $t->same(strlen($previewPayload), $preview['size']);
+        $t->same('Associated catalog sRGB', $preview['output_intents_review'][0]['OutputConditionIdentifier']);
+        $t->true(!array_key_exists('content', $preview));
+
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Catalog AF XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $sourcePayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $previewPayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $associatedProfile));
+        $t->true(!str_contains($text, '<wp-export>'));
+        $t->true(!str_contains($text, 'Associated catalog ICC bytes'));
+    },
     'extracts catalog language and indirect viewer preferences for WordPress review' => static function (TestRunner $t) use ($pdfWithCatalogReview): void {
         $lang = strtoupper(bin2hex("\xfe\xff\x00e\x00s\x00-\x00M\x00X"));
         $viewerPreferences = "7 0 obj\n"
@@ -1123,6 +1215,70 @@ return [
         $t->true($encryption['review_only']);
         $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
         $t->true(is_string($encoded) && !str_contains($encoded, 'DEADBEEF') && !str_contains($encoded, 'CAFEFEED'));
+    },
+    'summarizes Standard revision six authentication and permission digest inputs without validating passwords' => static function (TestRunner $t): void {
+        $encryptedContent = 'BT /F1 12 Tf 72 720 Td (R6 encrypted auth material should not import) Tj ET';
+        $ownerValidation = str_repeat('O', 48);
+        $userValidation = str_repeat('U', 48);
+        $ownerEncryptionKey = str_repeat('E', 32);
+        $userEncryptionKey = str_repeat('K', 32);
+        $permissionDigest = str_repeat('P', 16);
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($encryptedContent) . " >>\nstream\n{$encryptedContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Filter /Standard /V 5 /R 6 /Length 256"
+            . " /O <" . strtoupper(bin2hex($ownerValidation)) . ">"
+            . " /U <" . strtoupper(bin2hex($userValidation)) . ">"
+            . " /OE <" . strtoupper(bin2hex($ownerEncryptionKey)) . ">"
+            . " /UE <" . strtoupper(bin2hex($userEncryptionKey)) . ">"
+            . " /P -44 /EncryptMetadata true"
+            . " /CF << /StdCF << /CFM /AESV3 /AuthEvent /DocOpen /Length 32 >> >>"
+            . " /StmF /StdCF /StrF /StdCF /Perms <" . strtoupper(bin2hex($permissionDigest)) . "> >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $review = $metadata['encryption']['standard_authentication_review'];
+        $entries = $review['entries'];
+        $digest = $review['permission_digest'];
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same('', (new PdfTextExtractor())->extractPlainText($pdf));
+        $t->same('Standard', $review['handler']);
+        $t->same(6, $review['revision']);
+        $t->same('standard_handler_revision_6', $review['revision_label']);
+        $t->same('aes_256', $review['algorithm']);
+        $t->same(256, $review['key_length_bits']);
+        $t->same(['DocOpen'], $review['auth_events']);
+        $t->same(['O' => 48, 'U' => 48, 'OE' => 32, 'UE' => 32, 'Perms' => 16], $review['expected_lengths']);
+        $t->same(['owner_validation', 'user_validation', 'owner_encryption_key', 'user_encryption_key'], $review['credential_entries_present']);
+
+        $t->same(48, $entries['owner_validation']['bytes']);
+        $t->same(hash('sha256', $ownerValidation), $entries['owner_validation']['sha256']);
+        $t->same('authentication_entry_digest_review', $entries['owner_validation']['status']);
+        $t->same(48, $entries['user_validation']['bytes']);
+        $t->same(hash('sha256', $userValidation), $entries['user_validation']['sha256']);
+        $t->same(32, $entries['owner_encryption_key']['bytes']);
+        $t->same(hash('sha256', $ownerEncryptionKey), $entries['owner_encryption_key']['sha256']);
+        $t->same(32, $entries['user_encryption_key']['bytes']);
+        $t->same(hash('sha256', $userEncryptionKey), $entries['user_encryption_key']['sha256']);
+
+        $t->true($digest['present']);
+        $t->same(16, $digest['bytes']);
+        $t->same(hash('sha256', $permissionDigest), $digest['sha256']);
+        $t->same('permission_digest_ciphertext_review', $digest['status']);
+        $t->same(false, $digest['permissions_authenticated']);
+        $t->same(false, $review['credential_material_exposed']);
+        $t->same(false, $review['password_validation_performed']);
+        $t->same(false, $review['permissions_authenticated']);
+        $t->same(false, $review['executes_decryption']);
+        $t->same(false, $review['executes_permission_enforcement']);
+        $t->true(is_string($encoded)
+            && !str_contains($encoded, $ownerValidation)
+            && !str_contains($encoded, $userValidation)
+            && !str_contains($encoded, strtoupper(bin2hex($ownerValidation)))
+            && !str_contains($encoded, strtoupper(bin2hex($userValidation))));
     },
     'summarizes public-key recipient envelopes without exposing recipient bytes' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Public-key encrypted cleartext leak) Tj ET';

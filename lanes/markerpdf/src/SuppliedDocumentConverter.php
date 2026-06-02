@@ -332,12 +332,7 @@ final class SuppliedDocumentConverter
         foreach ($assignedTables as $tableIndex => $assignedCells) {
             $table = $recognizedTables[$tableIndex] ?? [];
             if (!is_array($table)) {
-                $reviews[] = [
-                    'rows' => [],
-                    'cols' => [],
-                    'render_cells' => [],
-                    'grid_cells' => [],
-                ];
+                $reviews[] = $this->tableRecognizer->spanningGridReview([], [], []);
                 continue;
             }
 

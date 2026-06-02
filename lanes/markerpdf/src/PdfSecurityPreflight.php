@@ -59,6 +59,9 @@ final class PdfSecurityPreflight
             'permission_handler_review' => is_array($permissionPreflight['permission_handler_review'] ?? null)
                 ? $permissionPreflight['permission_handler_review']
                 : [],
+            'standard_authentication_review' => is_array($permissionPreflight['standard_authentication_review'] ?? null)
+                ? $permissionPreflight['standard_authentication_review']
+                : [],
             'signature_flags' => $form['signature_flags'] ?? [],
             'signature_field_count' => count($signatures),
             'signed_signature_count' => $signedSignatureCount,
@@ -119,6 +122,9 @@ final class PdfSecurityPreflight
         $publicKeyRecipientReview = is_array($encryption['public_key_recipient_review'] ?? null)
             ? $encryption['public_key_recipient_review']
             : [];
+        $standardAuthenticationReview = is_array($encryption['standard_authentication_review'] ?? null)
+            ? $encryption['standard_authentication_review']
+            : [];
         $recipientPermissionsDeclared = (int) ($publicKeyRecipientReview['recipient_count'] ?? 0) > 0;
         $permissionBitsReliable = $handlerSupported && $permissionWellFormed === true;
         $copyAllowed = $declared && $handlerSupported ? in_array('copy_or_extract', $allowed, true) : null;
@@ -169,6 +175,7 @@ final class PdfSecurityPreflight
             'permission_bits_reliable' => $permissionBitsReliable,
             'permission_word_well_formed' => $handlerSupported ? $permissionWellFormed : null,
             'permission_handler_review' => $handlerReview,
+            'standard_authentication_review' => $standardAuthenticationReview,
             'public_key_recipient_review' => $publicKeyRecipientReview,
             'requires_password_for_content_extraction' => (bool) ($encryption['requires_password_for_content_extraction'] ?? true),
             'decryption_performed' => false,
@@ -199,6 +206,12 @@ final class PdfSecurityPreflight
             : [];
         $publicKeyRecipientCount = (int) ($publicKeyRecipientReview['recipient_count'] ?? 0);
         $recipientPermissionsDeclared = $publicKeyRecipientCount > 0;
+        $standardAuthenticationReview = is_array($encryption['standard_authentication_review'] ?? null)
+            ? $encryption['standard_authentication_review']
+            : [];
+        $permissionDigest = is_array($standardAuthenticationReview['permission_digest'] ?? null)
+            ? $standardAuthenticationReview['permission_digest']
+            : [];
 
         if (!$declared && $recipientPermissionsDeclared) {
             $status = 'public_key_recipient_permissions_undecoded_review';
@@ -232,6 +245,14 @@ final class PdfSecurityPreflight
             'permission_word_well_formed' => $reviewWellFormed,
             'permission_word_status' => $permissions['permission_word_status'] ?? null,
             'reserved_bits' => $reservedBits,
+            'standard_authentication_present' => $standardAuthenticationReview !== [],
+            'standard_authentication_revision' => $standardAuthenticationReview['revision'] ?? null,
+            'standard_authentication_auth_events' => $standardAuthenticationReview['auth_events'] ?? [],
+            'standard_authentication_credential_entries' => $standardAuthenticationReview['credential_entries_present'] ?? [],
+            'standard_permission_digest_present' => (bool) ($permissionDigest['present'] ?? false),
+            'standard_permission_digest_status' => $permissionDigest['status'] ?? null,
+            'password_validation_performed' => false,
+            'permissions_authenticated' => false,
             'public_key_recipient_count' => $publicKeyRecipientCount,
             'public_key_recipient_permission_decode_status' => $publicKeyRecipientReview['permission_decode_status'] ?? null,
             'public_key_recipient_source_policy' => $publicKeyRecipientReview['recipient_source_policy'] ?? null,
@@ -567,6 +588,9 @@ final class PdfSecurityPreflight
         $publicKeyRecipientReview = is_array($encryption['public_key_recipient_review'] ?? null)
             ? $encryption['public_key_recipient_review']
             : [];
+        $standardAuthenticationReview = is_array($encryption['standard_authentication_review'] ?? null)
+            ? $encryption['standard_authentication_review']
+            : [];
 
         return [
             'is_encrypted' => true,
@@ -592,6 +616,7 @@ final class PdfSecurityPreflight
             'permission_bits_reliable' => $standardHandler && $permissions !== [] && $permissionWellFormed === true,
             'reserved_bit_violations' => $reservedViolations,
             'perms_hash_present' => isset($encryption['perms']['sha256']),
+            'standard_authentication_review' => $standardAuthenticationReview,
             'public_key_recipient_count' => (int) ($publicKeyRecipientReview['recipient_count'] ?? 0),
             'public_key_recipient_permission_decode_status' => $publicKeyRecipientReview['permission_decode_status'] ?? null,
             'public_key_recipient_review' => $publicKeyRecipientReview,

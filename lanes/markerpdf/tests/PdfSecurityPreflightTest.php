@@ -120,6 +120,32 @@ $encryptedPdfWithUnsupportedHandlerPermissions = static function (): string {
         . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
 };
 
+$encryptedPdfWithStandardDigestAuthenticationReview = static function (): array {
+    $content = 'BT /F1 12 Tf 72 720 Td (Standard auth material encrypted leak) Tj ET';
+    $ownerValidation = str_repeat('O', 48);
+    $userValidation = str_repeat('U', 48);
+    $ownerEncryptionKey = str_repeat('E', 32);
+    $userEncryptionKey = str_repeat('K', 32);
+    $permissionDigest = str_repeat('P', 16);
+
+    $pdf = "%PDF-2.0\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Filter /Standard /V 5 /R 6 /Length 256"
+        . " /O <" . strtoupper(bin2hex($ownerValidation)) . ">"
+        . " /U <" . strtoupper(bin2hex($userValidation)) . ">"
+        . " /OE <" . strtoupper(bin2hex($ownerEncryptionKey)) . ">"
+        . " /UE <" . strtoupper(bin2hex($userEncryptionKey)) . ">"
+        . " /P -44 /EncryptMetadata true"
+        . " /CF << /StdCF << /CFM /AESV3 /AuthEvent /DocOpen /Length 32 >> >>"
+        . " /StmF /StdCF /StrF /StdCF /Perms <" . strtoupper(bin2hex($permissionDigest)) . "> >>\nendobj\n"
+        . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
+
+    return [$pdf, $ownerValidation, $userValidation, $ownerEncryptionKey, $userEncryptionKey, $permissionDigest];
+};
+
 $signedPdfWithReferenceTransforms = static function (): string {
     $content = 'BT /F1 12 Tf 72 720 Td (Signed transform review content) Tj ET';
     $signatureContentsHex = str_repeat('A', 96);
@@ -527,6 +553,66 @@ return [
         $t->same(false, $report['executes_decryption']);
         $t->same(false, $report['executes_external_pdf_tools']);
         $t->true(is_string($encoded) && !str_contains($encoded, 'Unsupported handler encrypted leak') && !str_contains($encoded, '0011223344556677'));
+    },
+    'reviews Standard permission digest and authentication entries without validating passwords' => static function (TestRunner $t) use ($encryptedPdfWithStandardDigestAuthenticationReview): void {
+        [$pdf, $ownerValidation, $userValidation, $ownerEncryptionKey, $userEncryptionKey, $permissionDigest] = $encryptedPdfWithStandardDigestAuthenticationReview();
+        $report = (new PdfSecurityPreflight())->analyze($pdf);
+        $permission = $report['permission_preflight'];
+        $handler = $report['permission_handler_review'];
+        $auth = $report['standard_authentication_review'];
+        $entries = $auth['entries'];
+        $digest = $auth['permission_digest'];
+        $encoded = json_encode($report, JSON_UNESCAPED_SLASHES);
+
+        $t->same('', (new PdfTextExtractor())->extractPlainText($pdf));
+        $t->same('block_encrypted_content_review_security_metadata', $report['import_decision']);
+        $t->same(['encrypted_document', 'encrypted_text_extraction_blocked', 'copy_or_extract_allowed_but_decryption_required'], $report['review_reasons']);
+        $t->same('Standard', $report['encryption']['filter']);
+        $t->same('standard_handler_revision_6', $report['encryption']['revision_label']);
+        $t->same('FFFFFFD4', $report['encryption']['permission_hex']);
+        $t->same(true, $report['encryption']['copy_or_extract_allowed']);
+        $t->same(true, $report['encryption']['perms_hash_present']);
+
+        $t->same('copy_extract_allowed_after_decryption', $permission['policy']);
+        $t->same('blocked_until_decryption_password_available', $permission['content_extraction_boundary']);
+        $t->same($auth, $permission['standard_authentication_review']);
+        $t->same('well_formed_standard_permissions', $handler['status']);
+        $t->same(true, $handler['standard_authentication_present']);
+        $t->same(6, $handler['standard_authentication_revision']);
+        $t->same(['DocOpen'], $handler['standard_authentication_auth_events']);
+        $t->same(['owner_validation', 'user_validation', 'owner_encryption_key', 'user_encryption_key'], $handler['standard_authentication_credential_entries']);
+        $t->same(true, $handler['standard_permission_digest_present']);
+        $t->same('permission_digest_ciphertext_review', $handler['standard_permission_digest_status']);
+        $t->same(false, $handler['password_validation_performed']);
+        $t->same(false, $handler['permissions_authenticated']);
+
+        $t->same('standard_security_handler_authentication_review', $auth['source']);
+        $t->same(['O' => 48, 'U' => 48, 'OE' => 32, 'UE' => 32, 'Perms' => 16], $auth['expected_lengths']);
+        $t->same(48, $entries['owner_validation']['bytes']);
+        $t->same(hash('sha256', $ownerValidation), $entries['owner_validation']['sha256']);
+        $t->same(48, $entries['user_validation']['bytes']);
+        $t->same(hash('sha256', $userValidation), $entries['user_validation']['sha256']);
+        $t->same(32, $entries['owner_encryption_key']['bytes']);
+        $t->same(hash('sha256', $ownerEncryptionKey), $entries['owner_encryption_key']['sha256']);
+        $t->same(32, $entries['user_encryption_key']['bytes']);
+        $t->same(hash('sha256', $userEncryptionKey), $entries['user_encryption_key']['sha256']);
+        $t->same(16, $digest['bytes']);
+        $t->same(hash('sha256', $permissionDigest), $digest['sha256']);
+        $t->same(false, $auth['credential_material_exposed']);
+        $t->same(false, $auth['raw_owner_user_keys_exposed']);
+        $t->same(false, $auth['raw_file_encryption_keys_exposed']);
+        $t->same(false, $auth['password_validation_performed']);
+        $t->same(false, $auth['permissions_authenticated']);
+        $t->same(false, $auth['executes_decryption']);
+        $t->same(false, $auth['executes_permission_enforcement']);
+        $t->same(false, $report['executes_decryption']);
+        $t->same(false, $report['executes_external_pdf_tools']);
+        $t->true(is_string($encoded)
+            && !str_contains($encoded, 'Standard auth material encrypted leak')
+            && !str_contains($encoded, $ownerValidation)
+            && !str_contains($encoded, $userValidation)
+            && !str_contains($encoded, strtoupper(bin2hex($ownerValidation)))
+            && !str_contains($encoded, strtoupper(bin2hex($permissionDigest))));
     },
     'summarizes FieldMDP and usage-rights signature reference transforms without enforcing signatures' => static function (TestRunner $t) use ($signedPdfWithReferenceTransforms): void {
         $pdf = $signedPdfWithReferenceTransforms();

@@ -31,6 +31,8 @@ final class PdfPagePropertyExtractor
             ? $this->structureUserPropertiesByPageObject($catalog, $objects)
             : [];
         $pagePresentationsByObject = $this->pagePresentationMetadataByPageObject($pdfBytes);
+        $articleBeadsByObject = $this->articleThreadBeadsByPageObject($pdfBytes);
+        $structureMarkedContentByObject = $this->structureMarkedContentByPageObject($pdfBytes);
 
         $pages = [];
         foreach ($pageObjectNumbers as $pnum => $pageObjectNumber) {
@@ -42,7 +44,9 @@ final class PdfPagePropertyExtractor
             $pieceInfo = $this->pieceInfoMetadata($this->dictionaryRawValue($pageBody, 'PieceInfo'), $objects);
             $associatedFiles = $this->pageAssociatedFilesMetadata($this->dictionaryRawValue($pageBody, 'AF'), $objects);
             $userProperties = $userPropertiesByPage[$pageObjectNumber] ?? [];
-            if ($pieceInfo === [] && $associatedFiles === [] && $userProperties === []) {
+            $articleBeads = $articleBeadsByObject[$pageObjectNumber] ?? [];
+            $structureMarkedContent = $structureMarkedContentByObject[$pageObjectNumber] ?? [];
+            if ($pieceInfo === [] && $associatedFiles === [] && $userProperties === [] && $articleBeads === [] && $structureMarkedContent === []) {
                 continue;
             }
             $pagePresentation = $pagePresentationsByObject[$pageObjectNumber] ?? null;
@@ -68,6 +72,18 @@ final class PdfPagePropertyExtractor
                 $page['page_presentation'] = $pagePresentation;
             }
 
+            if ($articleBeads !== []) {
+                $page['article_thread_beads'] = $articleBeads;
+                $titles = $this->articleThreadTitlesFromBeads($articleBeads);
+                if ($titles !== []) {
+                    $page['article_thread_titles'] = $titles;
+                }
+            }
+
+            if ($structureMarkedContent !== []) {
+                $page['structure_marked_content'] = $structureMarkedContent;
+            }
+
             if ($userProperties !== []) {
                 $page['mark_info_user_properties'] = $markInfoUserProperties;
                 $page['user_properties'] = array_values($userProperties);
@@ -77,6 +93,149 @@ final class PdfPagePropertyExtractor
         }
 
         return $pages;
+    }
+
+    /**
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function articleThreadBeadsByPageObject(string $pdfBytes): array
+    {
+        $navigation = (new PdfOutlineExtractor())->getNavigationReviewMetadata($pdfBytes, false);
+        $threads = $navigation['article_threads'] ?? [];
+        if (!is_array($threads)) {
+            return [];
+        }
+
+        $beadsByPage = [];
+        foreach ($threads as $thread) {
+            if (!is_array($thread)) {
+                continue;
+            }
+
+            $beads = $thread['beads'] ?? [];
+            if (!is_array($beads)) {
+                continue;
+            }
+
+            foreach ($beads as $bead) {
+                if (!is_array($bead)) {
+                    continue;
+                }
+
+                $pageObject = $bead['page_object'] ?? null;
+                if (!is_int($pageObject)) {
+                    continue;
+                }
+
+                $beadsByPage[$pageObject][] = ['source' => 'catalog_article_threads'] + $bead;
+            }
+        }
+
+        return $beadsByPage;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $beads
+     * @return list<string>
+     */
+    private function articleThreadTitlesFromBeads(array $beads): array
+    {
+        $titles = [];
+        foreach ($beads as $bead) {
+            $title = $bead['thread_title'] ?? null;
+            if (is_string($title) && $title !== '') {
+                $titles[$title] = $title;
+            }
+        }
+
+        return array_values($titles);
+    }
+
+    /**
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function structureMarkedContentByPageObject(string $pdfBytes): array
+    {
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdfBytes);
+        $structureTree = $metadata['structure_tree'] ?? [];
+        if (!is_array($structureTree)) {
+            return [];
+        }
+
+        $elements = $structureTree['elements'] ?? [];
+        if (!is_array($elements)) {
+            return [];
+        }
+
+        $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
+        $rowsByPage = [];
+        foreach ($elements as $elementIndex => $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $markedContent = $element['marked_content'] ?? [];
+            if (!is_array($markedContent)) {
+                continue;
+            }
+
+            foreach ($markedContent as $markedContentRow) {
+                if (!is_array($markedContentRow)) {
+                    continue;
+                }
+
+                $pageObject = $markedContentRow['page_object'] ?? $element['page_object'] ?? null;
+                $mcid = $markedContentRow['mcid'] ?? null;
+                if (!is_int($pageObject) || !is_int($mcid)) {
+                    continue;
+                }
+
+                $row = [
+                    'source' => 'catalog_struct_tree_mcr',
+                    'structure_element_index' => (int) $elementIndex,
+                    'mcid' => $mcid,
+                    'page_object' => $pageObject,
+                    'review_only' => true,
+                    'visible_text_source' => false,
+                ];
+
+                foreach ([
+                    'object' => 'struct_object',
+                    'raw_role' => 'raw_role',
+                    'role' => 'role',
+                    'role_mapped' => 'role_mapped',
+                    'title' => 'title',
+                    'language' => 'language',
+                    'language_inherited' => 'language_inherited',
+                    'alternate_text' => 'alternate_text',
+                    'actual_text' => 'actual_text',
+                    'expansion_text' => 'expansion_text',
+                    'id' => 'id',
+                    'classes' => 'classes',
+                    'revision' => 'revision',
+                    'namespace' => 'namespace',
+                ] as $sourceKey => $targetKey) {
+                    if (array_key_exists($sourceKey, $element)) {
+                        $row[$targetKey] = $element[$sourceKey];
+                    }
+                }
+
+                foreach (['page', 'page_number'] as $pageKey) {
+                    if (array_key_exists($pageKey, $markedContentRow)) {
+                        $row[$pageKey] = $markedContentRow[$pageKey];
+                    }
+                }
+
+                $pageIndex = $row['page'] ?? null;
+                if (is_int($pageIndex)) {
+                    $row['page_label'] = $pageLabels[$pageIndex] ?? (string) ($pageIndex + 1);
+                }
+
+                $rowsByPage[$pageObject][] = $row;
+            }
+        }
+
+        return $rowsByPage;
     }
 
     /**

@@ -726,6 +726,135 @@ return [
         $t->contains('color_key_mask_component_mismatch', implode(',', $mismatch['notes']));
         $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->colorKeyMaskSamplePreview([0, 128, 240, 255], $mismatch));
     },
+    'plans soft-mask transfer functions over Indexed transparency groups before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $groupPayload = "q /Im1 Do Q\n";
+        $objects = [
+            91 => "<< /Type /XObject /Subtype /Form /BBox [0 0 48 24] /Group << /S /Transparency /CS [/Indexed /DeviceRGB 2 92 0 R] /I true /K false >> /Length " . strlen($groupPayload) . " >>\nstream\n{$groupPayload}endstream",
+            92 => '<0000004080C0FFFFFF>',
+            95 => '<< /FunctionType 2 /Domain [0 1] /Range [0 1] /C0 [1] /C1 [0] /N 1 >>',
+            96 => '<< /Type /Mask /S /Luminosity /G 91 0 R /BC [2] /TR 95 0 R >>',
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 2 /Height 1 /ColorSpace [/Indexed /DeviceRGB 2 92 0 R] /BitsPerComponent 2 /SMask 96 0 R >>',
+            $objects
+        );
+
+        $t->same('Indexed', $plan['source_color_space']);
+        $t->same(true, $plan['uses_indexed_color_space']);
+        $t->same([
+            'ranges' => [
+                ['min' => 0.0, 'max' => 2.0],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [],
+            'source' => 'default-indexed',
+        ], $plan['image_decode']);
+        $t->same([
+            'present' => true,
+            'subtype' => 'Luminosity',
+            'width' => null,
+            'height' => null,
+            'color_space' => 'Indexed',
+            'components' => 1,
+            'bits_per_component' => null,
+            'decode' => null,
+            'opacity_for_zero' => null,
+            'opacity_for_max' => null,
+            'decode_inverted' => false,
+            'decode_component_mismatch' => false,
+            'matte' => null,
+            'interpolate' => null,
+        ], $plan['soft_mask']);
+        $t->same([
+            'present' => true,
+            'subtype' => 'Luminosity',
+            'source_object' => 96,
+            'group_object' => 91,
+            'group_subtype' => 'Form',
+            'group_bbox' => [0.0, 0.0, 48.0, 24.0],
+            'group_color_space' => 'Indexed',
+            'group_components' => 1,
+            'group_is_isolated' => true,
+            'group_is_knockout' => false,
+            'uses_indexed_color_space' => true,
+            'indexed_color_space' => [
+                'base_color_space' => 'DeviceRGB',
+                'base_components' => 3,
+                'base_uses_icc_profile' => false,
+                'base_icc_profile' => null,
+                'high_value' => 2,
+                'lookup_source' => 'hex_string',
+                'lookup_length' => 9,
+                'expected_lookup_length' => 9,
+                'lookup_length_matches' => true,
+                'lookup_entry_count' => 3,
+                'lookup_preview_hex' => '0000004080C0FFFFFF',
+                'lookup_bytes' => [0, 0, 0, 64, 128, 192, 255, 255, 255],
+            ],
+            'backdrop_color' => [2.0],
+            'backdrop_component_count' => 1,
+            'backdrop_matches_group_components' => true,
+            'transfer_function' => [
+                'present' => true,
+                'source' => 'object_ref',
+                'object' => 95,
+                'name' => null,
+                'function_type' => 2,
+                'domain' => [0.0, 1.0],
+                'range' => [0.0, 1.0],
+                'c0' => [1.0],
+                'c1' => [0.0],
+                'exponent' => 1.0,
+                'output_components' => 1,
+                'sample_supported' => true,
+                'preview_mode' => 'type2_exponential',
+            ],
+            'review_only' => true,
+        ], $plan['soft_mask_group']);
+        $t->same($plan['soft_mask_group']['transfer_function'], $plan['soft_mask_transfer_function']);
+        $t->same(true, $plan['soft_mask_transfer_function_applied_before_rgb']);
+        $t->same(false, $plan['soft_mask_applied_before_rgb']);
+        $t->same('soft_mask_review_only_rgb_preview', $plan['alpha_output_mode']);
+        $t->same(0.75, $renderer->softMaskTransferSampleOpacity(0.25, $plan['soft_mask_transfer_function']));
+        $t->same(0.0, $renderer->softMaskTransferSampleOpacity(1.0, $plan['soft_mask_transfer_function']));
+        $t->same([1.0, 1.0, 1.0], $renderer->indexedSamplePreview(3, $plan)['base_components']);
+        $t->same([
+            'indexed_color_space_palette_before_rgb_conversion',
+            'image_decode_applied_before_rgb_conversion',
+            'soft_mask_dictionary_review_before_rgb_conversion',
+            'soft_mask_luminosity_group_review_before_rgb_conversion',
+            'soft_mask_group_indexed_color_space_review_before_rgb_conversion',
+            'soft_mask_transfer_function_applied_before_rgb_conversion',
+        ], $plan['notes']);
+
+        $identity = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask << /S /Alpha /G 91 0 R >> >>',
+            $objects
+        );
+
+        $t->same([
+            'present' => false,
+            'source' => 'default',
+            'object' => null,
+            'name' => 'Identity',
+            'function_type' => null,
+            'domain' => [0.0, 1.0],
+            'range' => [0.0, 1.0],
+            'c0' => [],
+            'c1' => [],
+            'exponent' => null,
+            'output_components' => 1,
+            'sample_supported' => true,
+            'preview_mode' => 'identity',
+        ], $identity['soft_mask_transfer_function']);
+        $t->same(0.4, $renderer->softMaskTransferSampleOpacity(0.4, $identity['soft_mask_transfer_function']));
+        $t->throws(InvalidArgumentException::class, static fn (): float => $renderer->softMaskTransferSampleOpacity(0.5, ['sample_supported' => false]));
+    },
     'plans Separation and DeviceN alternate color spaces with CCITT preview filters before RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $objects = [

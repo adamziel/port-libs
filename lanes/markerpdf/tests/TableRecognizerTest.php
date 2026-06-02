@@ -71,6 +71,29 @@ $discontiguousSpanResult = static function (): array {
     ];
 };
 
+$rotatedSpanResult = static function (): array {
+    return [
+        'rows' => [
+            ['row_id' => 0, 'bbox' => [0.0, 0.0, 25.0, 240.0]],
+            ['row_id' => 1, 'bbox' => [35.0, 0.0, 60.0, 240.0]],
+            ['row_id' => 2, 'bbox' => [85.0, 0.0, 110.0, 240.0]],
+        ],
+        'cols' => [
+            ['col_id' => 0, 'bbox' => [0.0, 0.0, 120.0, 70.0]],
+            ['col_id' => 1, 'bbox' => [0.0, 90.0, 120.0, 150.0]],
+            ['col_id' => 2, 'bbox' => [0.0, 170.0, 120.0, 240.0]],
+        ],
+        'cells' => [
+            ['bbox' => [3.0, 5.0, 22.0, 235.0], 'text' => 'Rotated inventory'],
+            ['bbox' => [36.0, 5.0, 108.0, 65.0], 'text' => 'Media group'],
+            ['bbox' => [38.0, 95.0, 58.0, 145.0], 'text' => 'Image count'],
+            ['bbox' => [38.0, 175.0, 58.0, 235.0], 'text' => '12'],
+            ['bbox' => [88.0, 95.0, 108.0, 150.0], 'text' => 'Review state'],
+            ['bbox' => [88.0, 175.0, 108.0, 230.0], 'text' => 'Needs review'],
+        ],
+    ];
+};
+
 $tablePage = static function (): array {
     return [
         'pnum' => 2,
@@ -467,6 +490,37 @@ return [
         $t->same('td', $gridByPosition['1:1']['tag']);
         $t->same(null, $gridByPosition['1:1']['scope']);
         $t->same('Image count', $gridByPosition['1:1']['text']);
+    },
+    'preserves rotated rowspan header grid axes for WordPress table review' => static function (TestRunner $t) use ($rotatedSpanResult): void {
+        $recognizer = new TableRecognizer();
+        $result = $rotatedSpanResult();
+        $assigned = $recognizer->assignRowsColumns($result, ['width' => 120, 'height' => 240]);
+        $review = $recognizer->spanningGridReview($assigned, $result['rows'], $result['cols']);
+        $gridByPosition = [];
+        foreach ($review['grid_cells'] as $gridCell) {
+            $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+        }
+
+        $t->same(true, $review['rotated']);
+        $t->same('rotated', $review['orientation']);
+        $t->same('x', $review['row_axis']);
+        $t->same('y', $review['col_axis']);
+        $t->same([0, 1, 2], $assigned[0]['col_ids']);
+        $t->same([1, 2], $assigned[1]['row_ids']);
+        $t->same('Rotated inventory', $review['render_cells'][0]['text']);
+        $t->same('th', $review['render_cells'][0]['tag']);
+        $t->same('colgroup', $review['render_cells'][0]['scope']);
+        $t->same(true, $review['render_cells'][0]['rotated']);
+        $t->same([0.0, 0.0, 25.0, 240.0], $review['render_cells'][0]['grid_bbox']);
+        $t->same('Media group', $review['render_cells'][1]['text']);
+        $t->same('rowgroup', $review['render_cells'][1]['scope']);
+        $t->same([2, 1], [$review['render_cells'][1]['rowspan'], $review['render_cells'][1]['colspan']]);
+        $t->same([35.0, 0.0, 110.0, 70.0], $review['render_cells'][1]['grid_bbox']);
+        $t->same('covered', $gridByPosition['0:2']['state']);
+        $t->same(['row_id' => 0, 'col_id' => 0, 'render_cell_index' => 0], $gridByPosition['0:1']['covered_by']);
+        $t->same('covered', $gridByPosition['2:0']['state']);
+        $t->same('td', $gridByPosition['2:1']['tag']);
+        $t->same('Review state', $gridByPosition['2:1']['text']);
     },
     'applies supplied OCR text before row column assignment and markdown formatting' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();

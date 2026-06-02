@@ -293,18 +293,13 @@ final class TableRecognizer
      * @param list<array<string, mixed>> $cells Assigned cells from assignRowsColumns().
      * @param list<array<string, mixed>> $rows Optional model row bands in table-image coordinates.
      * @param list<array<string, mixed>> $cols Optional model column bands in table-image coordinates.
-     * @return array{rows: list<int>, cols: list<int>, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>}
+     * @return array{rows: list<int>, cols: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>}
      */
     public function spanningGridReview(array $cells, array $rows = [], array $cols = []): array
     {
         $cells = $this->sortCells($this->normalizeAssignedCells($cells));
         if ($cells === []) {
-            return [
-                'rows' => [],
-                'cols' => [],
-                'render_cells' => [],
-                'grid_cells' => [],
-            ];
+            return $this->emptySpanningGridReview();
         }
 
         $rows = $this->normalizeRowsOrCols($rows, 'row_id');
@@ -312,6 +307,7 @@ final class TableRecognizer
         $rowBboxes = $this->bboxesById($rows, 'row_id');
         $colBboxes = $this->bboxesById($cols, 'col_id');
         $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
+        $axisMetadata = $this->spanningGridAxisMetadata($rotated);
 
         $rowIds = [];
         $colIds = [];
@@ -327,12 +323,7 @@ final class TableRecognizer
         sort($colIds, SORT_NUMERIC);
 
         if ($rowIds === [] || $colIds === []) {
-            return [
-                'rows' => [],
-                'cols' => [],
-                'render_cells' => [],
-                'grid_cells' => [],
-            ];
+            return $this->emptySpanningGridReview($rotated);
         }
 
         $topRowId = $rowIds[0];
@@ -367,6 +358,10 @@ final class TableRecognizer
                 'scope' => $scope,
                 'header' => $scope !== null,
                 'header_role' => $this->headerRoleForScope($scope),
+                'rotated' => $rotated,
+                'orientation' => $axisMetadata['orientation'],
+                'row_axis' => $axisMetadata['row_axis'],
+                'col_axis' => $axisMetadata['col_axis'],
             ];
 
             $gridBbox = $this->gridBboxForSpan($cellRowIds, $cellColIds, $rowBboxes, $colBboxes, $rotated);
@@ -424,6 +419,10 @@ final class TableRecognizer
         return [
             'rows' => $rowIds,
             'cols' => $colIds,
+            'rotated' => $rotated,
+            'orientation' => $axisMetadata['orientation'],
+            'row_axis' => $axisMetadata['row_axis'],
+            'col_axis' => $axisMetadata['col_axis'],
             'render_cells' => $renderCells,
             'grid_cells' => $gridCells,
         ];
@@ -1527,6 +1526,37 @@ final class TableRecognizer
         }
 
         return null;
+    }
+
+    /**
+     * @return array{rows: list<int>, cols: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>}
+     */
+    private function emptySpanningGridReview(bool $rotated = false): array
+    {
+        $axisMetadata = $this->spanningGridAxisMetadata($rotated);
+
+        return [
+            'rows' => [],
+            'cols' => [],
+            'rotated' => $rotated,
+            'orientation' => $axisMetadata['orientation'],
+            'row_axis' => $axisMetadata['row_axis'],
+            'col_axis' => $axisMetadata['col_axis'],
+            'render_cells' => [],
+            'grid_cells' => [],
+        ];
+    }
+
+    /**
+     * @return array{orientation: string, row_axis: string, col_axis: string}
+     */
+    private function spanningGridAxisMetadata(bool $rotated): array
+    {
+        return [
+            'orientation' => $rotated ? 'rotated' : 'normal',
+            'row_axis' => $rotated ? 'x' : 'y',
+            'col_axis' => $rotated ? 'y' : 'x',
+        ];
     }
 
     private function headerRoleForScope(?string $scope): ?string

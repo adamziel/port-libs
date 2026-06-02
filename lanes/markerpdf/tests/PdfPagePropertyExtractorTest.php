@@ -271,4 +271,75 @@ return [
         $t->same(false, str_contains($plainText, '<wp-export>'));
         $t->same(false, str_contains($plainText, 'edited-after-checksum'));
     },
+    'composes page PieceInfo with article thread beads and StructTree MCR review metadata' => static function (TestRunner $t): void {
+        $firstPageContent = 'BT /F1 12 Tf '
+            . '/Article << /MCID 0 >> BDC 72 720 Td (Article heading visible) Tj EMC '
+            . '/Article << /MCID 1 >> BDC 72 680 Td (Article body visible) Tj EMC ET';
+        $secondPageContent = 'BT /F1 12 Tf /Aside << /MCID 0 >> BDC 72 720 Td (Related article visible) Tj EMC ET';
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Threads [20 0 R] /MarkInfo << /Marked true >> /StructTreeRoot 40 0 R /PageLabels << /Nums [0 << /P (A-) /S /D /St 9 >> 1 << /P (B-) /S /D /St 10 >>] >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 30 0 R /PieceInfo << /WPArticle << /LastModified (D:20260602165500Z) /Private << /ThreadId (thread-9) /ReviewStage /mcr-check /NeedsReview true >> >> >> >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 31 0 R >>\nendobj\n"
+            . "20 0 obj\n<< /Type /Thread /F 21 0 R /I << /Title (Editorial Article Thread) >> >>\nendobj\n"
+            . "21 0 obj\n<< /Type /Bead /T 20 0 R /P 3 0 R /R [60 700 260 740] /N 22 0 R /V 23 0 R >>\nendobj\n"
+            . "22 0 obj\n<< /Type /Bead /T 20 0 R /P 3 0 R /R [60 660 260 699] /N 23 0 R /V 21 0 R >>\nendobj\n"
+            . "23 0 obj\n<< /Type /Bead /T 20 0 R /P 4 0 R /R [60 700 260 740] /N 21 0 R /V 22 0 R >>\nendobj\n"
+            . "30 0 obj\n<< /Length " . strlen($firstPageContent) . " >>\nstream\n{$firstPageContent}\nendstream\nendobj\n"
+            . "31 0 obj\n<< /Length " . strlen($secondPageContent) . " >>\nstream\n{$secondPageContent}\nendstream\nendobj\n"
+            . "40 0 obj\n<< /Type /StructTreeRoot /RoleMap << /Art /Article /Aside /P >> /K [41 0 R 42 0 R] >>\nendobj\n"
+            . "41 0 obj\n<< /Type /StructElem /S /Art /Pg 3 0 R /Lang (en-US) /T (Thread article section) /Alt (Article alternate review text) /ActualText (Article actual review text) /ID (article-9) /C [/feature /review] /K [<< /Type /MCR /Pg 3 0 R /MCID 0 >> << /Type /MCR /Pg 3 0 R /MCID 1 >>] >>\nendobj\n"
+            . "42 0 obj\n<< /Type /StructElem /S /Aside /Pg 4 0 R /T (Related aside) /K << /Type /MCR /Pg 4 0 R /MCID 0 >> >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $pages = (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+
+        $t->same(2, count($pages));
+
+        $first = $pages[0];
+        $t->same(0, $first['pnum']);
+        $t->same(3, $first['page_object']);
+        $t->same('D:20260602165500Z', $first['piece_info']['WPArticle']['last_modified']);
+        $t->same('thread-9', $first['piece_info']['WPArticle']['private']['ThreadId']);
+        $t->same('mcr-check', $first['piece_info']['WPArticle']['private']['ReviewStage']);
+        $t->same(true, $first['piece_info']['WPArticle']['private']['NeedsReview']);
+        $t->same(['Editorial Article Thread'], $first['article_thread_titles']);
+        $t->same([21, 22], array_column($first['article_thread_beads'], 'bead_object'));
+        $t->same(['A-9', 'A-9'], array_column($first['article_thread_beads'], 'page_label'));
+        $t->same([22, 23], array_column($first['article_thread_beads'], 'next_bead_object'));
+        $t->same([23, 21], array_column($first['article_thread_beads'], 'previous_bead_object'));
+
+        $mcrRows = $first['structure_marked_content'];
+        $t->same(2, count($mcrRows));
+        $t->same([0, 1], array_column($mcrRows, 'mcid'));
+        $t->same([41, 41], array_column($mcrRows, 'struct_object'));
+        $t->same(['Art', 'Art'], array_column($mcrRows, 'raw_role'));
+        $t->same(['Article', 'Article'], array_column($mcrRows, 'role'));
+        $t->same([true, true], array_column($mcrRows, 'role_mapped'));
+        $t->same(['A-9', 'A-9'], array_column($mcrRows, 'page_label'));
+        $t->same('Thread article section', $mcrRows[0]['title']);
+        $t->same('Article alternate review text', $mcrRows[0]['alternate_text']);
+        $t->same('Article actual review text', $mcrRows[0]['actual_text']);
+        $t->same(['feature', 'review'], $mcrRows[0]['classes']);
+
+        $second = $pages[1];
+        $t->same(1, $second['pnum']);
+        $t->same(4, $second['page_object']);
+        $t->same(false, array_key_exists('piece_info', $second));
+        $t->same([23], array_column($second['article_thread_beads'], 'bead_object'));
+        $t->same('B-10', $second['article_thread_beads'][0]['page_label']);
+        $t->same([0], array_column($second['structure_marked_content'], 'mcid'));
+        $t->same('P', $second['structure_marked_content'][0]['role']);
+        $t->same('Related aside', $second['structure_marked_content'][0]['title']);
+
+        $t->contains('Article heading visible', $plainText);
+        $t->contains('Article body visible', $plainText);
+        $t->contains('Related article visible', $plainText);
+        $t->same(false, str_contains($plainText, 'Editorial Article Thread'));
+        $t->same(false, str_contains($plainText, 'Thread article section'));
+        $t->same(false, str_contains($plainText, 'Article alternate review text'));
+        $t->same(false, str_contains($plainText, 'Article actual review text'));
+        $t->same(false, str_contains($plainText, 'thread-9'));
+    },
 ];

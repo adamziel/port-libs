@@ -297,6 +297,49 @@ final class PdfImageRenderer
     }
 
     /**
+     * Applies a bounded soft-mask transfer function sample. PDF transfer
+     * functions accept one alpha/luminosity input and produce one mask value;
+     * unsupported function families remain review-only metadata.
+     *
+     * @param array{sample_supported?: bool, preview_mode?: string, name?: string|null, function_type?: int|null, domain?: list<float>, range?: list<float>, c0?: list<float>, c1?: list<float>, exponent?: float|null} $transferFunction
+     */
+    public function softMaskTransferSampleOpacity(int|float $sample, array $transferFunction): float
+    {
+        if (($transferFunction['sample_supported'] ?? false) !== true) {
+            throw new InvalidArgumentException('Soft-mask transfer function is review-only for sample preview.');
+        }
+
+        $input = max(0.0, min(1.0, (float) $sample));
+        $domain = $transferFunction['domain'] ?? [];
+        if (count($domain) >= 2) {
+            $domainMin = min((float) $domain[0], (float) $domain[1]);
+            $domainMax = max((float) $domain[0], (float) $domain[1]);
+            $input = max($domainMin, min($domainMax, $input));
+        }
+
+        if (($transferFunction['preview_mode'] ?? null) === 'identity' || ($transferFunction['name'] ?? null) === 'Identity') {
+            return max(0.0, min(1.0, $input));
+        }
+
+        if (($transferFunction['function_type'] ?? null) !== 2) {
+            throw new InvalidArgumentException('Only Identity and FunctionType 2 soft-mask transfer samples are supported.');
+        }
+
+        $c0 = $transferFunction['c0'][0] ?? 0.0;
+        $c1 = $transferFunction['c1'][0] ?? 1.0;
+        $exponent = $transferFunction['exponent'] ?? 1.0;
+        $value = (float) $c0 + (pow($input, (float) $exponent) * ((float) $c1 - (float) $c0));
+        $range = $transferFunction['range'] ?? [];
+        if (count($range) >= 2) {
+            $rangeMin = min((float) $range[0], (float) $range[1]);
+            $rangeMax = max((float) $range[0], (float) $range[1]);
+            $value = max($rangeMin, min($rangeMax, $value));
+        }
+
+        return max(0.0, min(1.0, $value));
+    }
+
+    /**
      * Native metadata boundary for PDF image ColorSpace and soft-mask handling.
      *
      * Upstream rasterizes through pypdfium/PIL and always returns an RGB image.
@@ -322,6 +365,8 @@ final class PdfImageRenderer
      *     indexed_color_space: array{base_color_space: string|null, base_components: int|null, base_uses_icc_profile: bool, base_icc_profile: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null, high_value: int|null, lookup_source: string|null, lookup_length: int|null, expected_lookup_length: int|null, lookup_length_matches: bool, lookup_entry_count: int|null, lookup_preview_hex: string, lookup_bytes: list<int>}|null,
      *     soft_mask: array{present: bool, subtype: string|null, width: int|null, height: int|null, color_space: string|null, components: int|null, bits_per_component: int|null, decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null, opacity_for_zero: float|null, opacity_for_max: float|null, decode_inverted: bool, decode_component_mismatch: bool, matte: list<float>|null, interpolate: bool|null}|null,
      *     soft_mask_filter_boundary: array{present: bool, source_object: int|null, filters: list<string>, preview_only_filters: list<string>, unsupported_filters: list<string>, raw_length: int|null, decoded_length: int|null, decoded_sha256: string|null, decoded_preview_hex: string|null, decoded_sample_bytes: list<int>, decoded_with_current_filters: bool, decode_failed: bool, uses_current_object_map: bool}|null,
+     *     soft_mask_group: array<string, mixed>|null,
+     *     soft_mask_transfer_function: array<string, mixed>|null,
      *     soft_mask_is_grayscale: bool|null,
      *     soft_mask_color_space_supported: bool|null,
      *     soft_mask_matte: array{component_count: int, expected_components: int|null, matches_image_components: bool}|null,
@@ -336,6 +381,7 @@ final class PdfImageRenderer
      *     soft_mask_applied_before_rgb: bool,
      *     soft_mask_decode_applied_before_rgb: bool,
      *     soft_mask_decode_component_mismatch: bool,
+     *     soft_mask_transfer_function_applied_before_rgb: bool,
      *     matte_unblending_required: bool,
      *     output_color_mode: string,
      *     alpha_output_mode: string,
@@ -392,6 +438,8 @@ final class PdfImageRenderer
         $colorKeyMaskMismatch = $colorKeyMask !== null && !$colorKeyMask['valid_for_components'];
         $softMask = $this->imageSoftMaskDetails($imageDictionary, $objects);
         $softMaskPresent = $softMask !== null && $softMask['present'] === true;
+        $softMaskGroup = $this->imageSoftMaskGroupDetails($imageDictionary, $objects);
+        $softMaskTransferFunction = is_array($softMaskGroup) ? ($softMaskGroup['transfer_function'] ?? null) : null;
         $softMaskFilterBoundary = $softMask !== null ? $this->imageSoftMaskFilterBoundary($imageDictionary, $objects) : null;
         $softMaskIsGrayscale = $softMaskPresent ? $this->softMaskIsGrayscale($softMask) : null;
         $softMaskComposable = $softMaskPresent && $softMaskIsGrayscale === true;
@@ -454,7 +502,21 @@ final class PdfImageRenderer
                 $notes[] = 'image_mask_decode_inverts_stencil';
             }
         }
-        if ($softMaskPresent) {
+        if ($softMaskPresent && $softMaskGroup !== null) {
+            $notes[] = 'soft_mask_dictionary_review_before_rgb_conversion';
+            $subtype = strtolower((string) ($softMaskGroup['subtype'] ?? ''));
+            if ($subtype === 'alpha' || $subtype === 'luminosity') {
+                $notes[] = 'soft_mask_' . $subtype . '_group_review_before_rgb_conversion';
+            }
+            if (($softMaskGroup['uses_indexed_color_space'] ?? false) === true) {
+                $notes[] = 'soft_mask_group_indexed_color_space_review_before_rgb_conversion';
+            }
+            if (is_array($softMaskTransferFunction)) {
+                $notes[] = ($softMaskTransferFunction['sample_supported'] ?? false) === true
+                    ? 'soft_mask_transfer_function_applied_before_rgb_conversion'
+                    : 'soft_mask_transfer_function_review_only';
+            }
+        } elseif ($softMaskPresent) {
             if ($softMaskComposable) {
                 $notes[] = 'soft_mask_applied_before_rgb_conversion';
             } else {
@@ -516,6 +578,8 @@ final class PdfImageRenderer
             'image_mask_applied_before_rgb' => $imageMaskPresent,
             'soft_mask' => $softMask,
             'soft_mask_filter_boundary' => $softMaskFilterBoundary,
+            'soft_mask_group' => $softMaskGroup,
+            'soft_mask_transfer_function' => $softMaskTransferFunction,
             'soft_mask_is_grayscale' => $softMaskIsGrayscale,
             'soft_mask_color_space_supported' => $softMaskIsGrayscale,
             'soft_mask_matte' => $softMaskMatte,
@@ -526,6 +590,8 @@ final class PdfImageRenderer
                 && ($softMask['decode']['valid_for_components'] ?? false) === true,
             'soft_mask_decode_component_mismatch' => $softMaskPresent
                 && (($softMask['decode_component_mismatch'] ?? false) === true),
+            'soft_mask_transfer_function_applied_before_rgb' => is_array($softMaskTransferFunction)
+                && ($softMaskTransferFunction['sample_supported'] ?? false) === true,
             'matte_unblending_required' => $matteUnblendingRequired,
             'output_color_mode' => 'RGB',
             'alpha_output_mode' => $softMaskComposable
@@ -1750,6 +1816,27 @@ final class PdfImageRenderer
         }
 
         $maskDictionary = trim($this->resolvePdfValue($value, $objects));
+        if ($this->isSoftMaskTransparencyDictionary($maskDictionary)) {
+            $groupDetails = $this->imageSoftMaskGroupDetails($dictionary, $objects);
+
+            return [
+                'present' => true,
+                'subtype' => $this->dictionaryNameValue($maskDictionary, 'S'),
+                'width' => null,
+                'height' => null,
+                'color_space' => is_array($groupDetails) ? ($groupDetails['group_color_space'] ?? null) : null,
+                'components' => is_array($groupDetails) ? ($groupDetails['group_components'] ?? null) : null,
+                'bits_per_component' => null,
+                'decode' => null,
+                'opacity_for_zero' => null,
+                'opacity_for_max' => null,
+                'decode_inverted' => false,
+                'decode_component_mismatch' => false,
+                'matte' => null,
+                'interpolate' => null,
+            ];
+        }
+
         $colorSpace = $this->imageColorSpaceDetails($maskDictionary, $objects);
         $bitsPerComponent = $this->imageBitsPerComponent($maskDictionary);
         $decode = $this->imageDecodeDetails($maskDictionary, $objects, $colorSpace['components'], true);
@@ -1779,6 +1866,159 @@ final class PdfImageRenderer
             'decode_component_mismatch' => $decode !== null && !$decode['valid_for_components'],
             'matte' => $matte === [] ? null : $matte,
             'interpolate' => $this->booleanNameValue($maskDictionary, 'Interpolate'),
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{
+     *     present: true,
+     *     subtype: string|null,
+     *     source_object: int|null,
+     *     group_object: int|null,
+     *     group_subtype: string|null,
+     *     group_bbox: list<float>,
+     *     group_color_space: string|null,
+     *     group_components: int|null,
+     *     group_is_isolated: bool|null,
+     *     group_is_knockout: bool|null,
+     *     uses_indexed_color_space: bool,
+     *     indexed_color_space: array<string, mixed>|null,
+     *     backdrop_color: list<float>,
+     *     backdrop_component_count: int,
+     *     backdrop_matches_group_components: bool,
+     *     transfer_function: array<string, mixed>,
+     *     review_only: true
+     * }|null
+     */
+    private function imageSoftMaskGroupDetails(string $dictionary, array $objects): ?array
+    {
+        $value = $this->extractPdfNameValue($dictionary, 'SMask');
+        if ($value === null || $this->pdfNameValue($value) === 'None') {
+            return null;
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects));
+        if (!$this->isSoftMaskTransparencyDictionary($resolved)) {
+            return null;
+        }
+
+        $sourceObject = $this->objectReferenceNumber($value);
+        $groupValue = $this->extractPdfNameValue($resolved, 'G');
+        $groupObject = $groupValue === null ? null : $this->objectReferenceNumber($groupValue);
+        $groupResolved = $groupValue === null ? '' : trim($this->resolvePdfValue($groupValue, $objects));
+        $groupDictionary = $this->streamDictionaryFromValue($groupResolved) ?? $groupResolved;
+        $groupAttributesValue = $this->extractPdfNameValue($groupDictionary, 'Group');
+        $groupAttributes = $groupAttributesValue === null ? '' : trim($this->resolvePdfValue($groupAttributesValue, $objects));
+        $groupColorSpaceValue = $groupAttributes === '' ? null : $this->extractPdfNameValue($groupAttributes, 'CS');
+        $groupColorSpace = $groupColorSpaceValue === null
+            ? null
+            : $this->colorSpaceDetailsFromValue($groupColorSpaceValue, $objects);
+        $groupComponents = is_array($groupColorSpace) ? $groupColorSpace['components'] : null;
+        $backdropColor = $this->numericArrayNameValue($resolved, 'BC', $objects);
+
+        return [
+            'present' => true,
+            'subtype' => $this->dictionaryNameValue($resolved, 'S'),
+            'source_object' => $sourceObject,
+            'group_object' => $groupObject,
+            'group_subtype' => $this->dictionaryNameValue($groupDictionary, 'Subtype'),
+            'group_bbox' => $this->numericArrayNameValue($groupDictionary, 'BBox', $objects),
+            'group_color_space' => is_array($groupColorSpace) ? $groupColorSpace['source_color_space'] : null,
+            'group_components' => $groupComponents,
+            'group_is_isolated' => $groupAttributes === '' ? null : $this->booleanNameValue($groupAttributes, 'I'),
+            'group_is_knockout' => $groupAttributes === '' ? null : $this->booleanNameValue($groupAttributes, 'K'),
+            'uses_indexed_color_space' => is_array($groupColorSpace) && ($groupColorSpace['uses_indexed_color_space'] ?? false) === true,
+            'indexed_color_space' => is_array($groupColorSpace) ? ($groupColorSpace['indexed_color_space'] ?? null) : null,
+            'backdrop_color' => $backdropColor,
+            'backdrop_component_count' => count($backdropColor),
+            'backdrop_matches_group_components' => is_int($groupComponents) && count($backdropColor) === $groupComponents,
+            'transfer_function' => $this->softMaskTransferFunctionDetails(
+                $this->extractPdfNameValue($resolved, 'TR'),
+                $objects
+            ),
+            'review_only' => true,
+        ];
+    }
+
+    private function isSoftMaskTransparencyDictionary(string $dictionary): bool
+    {
+        $subtype = $this->dictionaryNameValue($dictionary, 'S');
+
+        return $this->extractPdfNameValue($dictionary, 'G') !== null
+            && ($subtype === 'Alpha' || $subtype === 'Luminosity' || $this->dictionaryNameValue($dictionary, 'Type') === 'Mask');
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function softMaskTransferFunctionDetails(?string $value, array $objects): array
+    {
+        if ($value === null) {
+            return [
+                'present' => false,
+                'source' => 'default',
+                'object' => null,
+                'name' => 'Identity',
+                'function_type' => null,
+                'domain' => [0.0, 1.0],
+                'range' => [0.0, 1.0],
+                'c0' => [],
+                'c1' => [],
+                'exponent' => null,
+                'output_components' => 1,
+                'sample_supported' => true,
+                'preview_mode' => 'identity',
+            ];
+        }
+
+        $name = $this->pdfNameValue($value);
+        if ($name !== null) {
+            return [
+                'present' => true,
+                'source' => $this->pdfValueSource($value),
+                'object' => null,
+                'name' => $name,
+                'function_type' => null,
+                'domain' => [0.0, 1.0],
+                'range' => [0.0, 1.0],
+                'c0' => [],
+                'c1' => [],
+                'exponent' => null,
+                'output_components' => $name === 'Identity' ? 1 : null,
+                'sample_supported' => $name === 'Identity',
+                'preview_mode' => $name === 'Identity' ? 'identity' : 'review_only',
+            ];
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects));
+        $functionDictionary = $this->streamDictionaryFromValue($resolved) ?? $resolved;
+        $functionType = $this->integerNameValue($functionDictionary, 'FunctionType');
+        $c0 = $this->numericArrayNameValue($functionDictionary, 'C0', $objects);
+        $c1 = $this->numericArrayNameValue($functionDictionary, 'C1', $objects);
+        $outputComponents = max(count($c0), count($c1));
+        if ($outputComponents === 0) {
+            $range = $this->numericArrayNameValue($functionDictionary, 'Range', $objects);
+            $outputComponents = count($range) >= 2 ? intdiv(count($range), 2) : null;
+        }
+        $exponent = $this->floatNameValue($functionDictionary, 'N');
+        $sampleSupported = $functionType === 2 && $exponent !== null && $outputComponents === 1;
+
+        return [
+            'present' => true,
+            'source' => $this->pdfValueSource($value),
+            'object' => $this->objectReferenceNumber($value),
+            'name' => null,
+            'function_type' => $functionType,
+            'domain' => $this->numericArrayNameValue($functionDictionary, 'Domain', $objects),
+            'range' => $this->numericArrayNameValue($functionDictionary, 'Range', $objects),
+            'c0' => $c0,
+            'c1' => $c1,
+            'exponent' => $exponent,
+            'output_components' => $outputComponents,
+            'sample_supported' => $sampleSupported,
+            'preview_mode' => $sampleSupported ? 'type2_exponential' : 'review_only',
         ];
     }
 
@@ -2326,6 +2566,21 @@ final class PdfImageRenderer
         }
 
         return array_map(static fn (string $number): float => (float) $number, $matches[0]);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
+     * @return list<float>
+     */
+    private function numericArrayNameValue(string $dictionary, string $name, array $objects, array $seenObjects = []): array
+    {
+        $value = $this->extractPdfNameValue($dictionary, $name);
+        if ($value === null) {
+            return [];
+        }
+
+        return $this->numericArrayValue($this->resolvePdfValue($value, $objects, $seenObjects));
     }
 
     /**

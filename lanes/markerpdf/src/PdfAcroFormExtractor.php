@@ -115,6 +115,7 @@ final class PdfAcroFormExtractor
             }
         }
 
+        $fields = $this->annotateSubmitResetActionValueReviews($fields);
         $fields = $this->markCertifyingSignatureFields($fields, $permissions);
         $fields = $this->annotateCalculationAndSignatureState($fields, $calculationOrder, $signatureFlags);
         if ($xfaPackets !== []) {
@@ -1590,7 +1591,7 @@ final class PdfAcroFormExtractor
         $widgets = $this->widgetsForField($widgetRefs, $objects, $defaultAppearance, $effective, $pageIndexes, $pageWidgets, $fieldNamesByObject);
         $widgets = $this->widgetsWithCurrentValueState($widgets, $fieldType, $flags, $value);
         $fieldHierarchy = $this->fieldHierarchyBoundary($currentHierarchyPath, $effective, $inherited, $objectNumber, $password);
-        $valueState = $this->fieldValueState($fieldType, $flags, $effective, $password, $value, $defaultValue, $options, $widgets);
+        $valueState = $this->fieldValueState($fieldType, $flags, $effective, $password, $value, $defaultValue, $options, $widgets, $objects);
         $valueState['hierarchy_boundary'] = $this->fieldHierarchyValueState($fieldHierarchy);
 
         $actionReview = $this->actionsWithReviewFromDictionary($body, $objects, $fieldNamesByObject, 'field', $objectNumber);
@@ -1615,6 +1616,9 @@ final class PdfAcroFormExtractor
             'widgets' => $widgets,
         ];
 
+        if (isset($valueState['rich_text_review']) && is_array($valueState['rich_text_review'])) {
+            $field['rich_text_review'] = $valueState['rich_text_review'];
+        }
         if ($fieldType === 'Ch') {
             $field['options'] = $options;
         }
@@ -1642,7 +1646,7 @@ final class PdfAcroFormExtractor
         $inheritedAttributes = [];
         $localAttributes = [];
         $localValueAttributes = [];
-        foreach (['FT', 'Ff', 'V', 'DV', 'DA', 'DR', 'Q', 'Opt', 'I'] as $name) {
+        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DA', 'DR', 'Q', 'Opt', 'I'] as $name) {
             if (!isset($effective[$name])) {
                 continue;
             }
@@ -1655,7 +1659,7 @@ final class PdfAcroFormExtractor
             ];
             if ($sourceObject === $terminalObject) {
                 $localAttributes[] = $name;
-                if (in_array($name, ['V', 'DV'], true)) {
+                if (in_array($name, ['V', 'DV', 'RV'], true)) {
                     $localValueAttributes[] = $name;
                 }
                 continue;
@@ -2319,7 +2323,7 @@ final class PdfAcroFormExtractor
     private function mergeFieldAttributes(string $body, array $inherited, int $objectNumber): array
     {
         $effective = $inherited;
-        foreach (['FT', 'Ff', 'V', 'DV', 'DA', 'DR', 'Q', 'Opt', 'I'] as $name) {
+        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DA', 'DR', 'Q', 'Opt', 'I'] as $name) {
             $value = $this->valueAfterName($body, $name);
             if ($value === null) {
                 continue;
@@ -2422,7 +2426,8 @@ final class PdfAcroFormExtractor
         mixed $value,
         mixed $defaultValue,
         array $options,
-        array $widgets
+        array $widgets,
+        array $objects
     ): array {
         $hasCurrent = isset($effective['V']);
         $hasDefault = isset($effective['DV']);
@@ -2453,6 +2458,11 @@ final class PdfAcroFormExtractor
                 'selected_options' => $this->selectedChoiceOptions($value, $options, $selectedIndices),
                 'unmatched_values' => $this->unmatchedChoiceValues($value, $options),
             ];
+        }
+
+        $richTextReview = $this->richTextReviewFromEffective($effective, $objects, $fieldType, $flags, $password, $value);
+        if ($richTextReview !== null) {
+            $state['rich_text_review'] = $richTextReview;
         }
 
         if ($fieldType === 'Btn') {
@@ -2496,6 +2506,78 @@ final class PdfAcroFormExtractor
         }
 
         return $state;
+    }
+
+    /**
+     * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
+     * @return array<string, mixed>|null
+     */
+    private function richTextReviewFromEffective(
+        array $effective,
+        array $objects,
+        ?string $fieldType,
+        int $flags,
+        bool $password,
+        mixed $plainValue
+    ): ?array {
+        $hasRichTextFlag = $fieldType === 'Tx' && $this->hasFlagBit($flags, 26);
+        if (!isset($effective['RV']) && !$hasRichTextFlag) {
+            return null;
+        }
+
+        $richText = isset($effective['RV']) && !$password
+            ? $this->valueFromEffective($effective, 'RV', $objects)
+            : null;
+        $richTextString = $this->displayValue($richText);
+        $plainPreview = $richTextString === null ? null : $this->plainTextFromRichText($richTextString);
+        $richPreview = $richTextString === null ? null : $this->boundedPreview($richTextString, 180);
+
+        return [
+            'source' => 'acroform_rich_text_value_review_boundary',
+            'field_type' => $fieldType,
+            'rich_text_flag' => $hasRichTextFlag,
+            'has_rich_text_value' => $richTextString !== null,
+            'rich_text_source' => $effective['RV']['source'] ?? null,
+            'rich_text_source_object' => $effective['RV']['source_object'] ?? null,
+            'plain_value' => $password ? null : $this->displayValue($plainValue),
+            'plain_value_used_for_import' => !$password && $plainValue !== null,
+            'rich_text_preview' => $richPreview === null ? null : $richPreview['preview'],
+            'rich_text_truncated' => $richPreview['truncated'] ?? false,
+            'rich_text_bytes' => $richTextString === null ? 0 : strlen($richTextString),
+            'rich_text_sha256' => $richTextString === null ? null : hash('sha256', $richTextString),
+            'rich_text_plain_preview' => $plainPreview,
+            'rich_text_used_for_import' => false,
+            'rich_text_used_for_submit' => false,
+            'rich_text_used_for_reset' => false,
+            'payload_text_exposed' => false,
+            'imports_rich_text_html' => false,
+            'executes_rich_text_javascript' => false,
+            'executes_form_actions' => false,
+        ];
+    }
+
+    private function plainTextFromRichText(string $richText): string
+    {
+        $text = preg_replace('/<\?(?:.|\R)*?\?>|<!\[CDATA\[|]]>/s', ' ', $richText) ?? $richText;
+        $text = preg_replace('/<[^>]+>/', ' ', $text) ?? $text;
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_XML1, 'UTF-8');
+        $text = trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+
+        return $this->boundedPreview($text, 180)['preview'];
+    }
+
+    /**
+     * @return array{preview: string, truncated: bool}
+     */
+    private function boundedPreview(string $value, int $limit): array
+    {
+        $normalized = trim(preg_replace('/[\x00-\x1f\x7f]+/', ' ', $value) ?? $value);
+        $limit = max(16, $limit);
+        if (strlen($normalized) <= $limit) {
+            return ['preview' => $normalized, 'truncated' => false];
+        }
+
+        return ['preview' => substr($normalized, 0, $limit) . '...', 'truncated' => true];
     }
 
     private function buttonKind(int $flags): string
@@ -3304,6 +3386,323 @@ final class PdfAcroFormExtractor
 
             $this->collectFieldNamesByObject($kidRef, $objects, $currentNameParts, $names, $seen);
         }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fields
+     * @return list<array<string, mixed>>
+     */
+    private function annotateSubmitResetActionValueReviews(array $fields): array
+    {
+        $fieldRows = $this->formActionFieldRows($fields);
+        foreach ($fields as $fieldIndex => $field) {
+            foreach (($field['actions'] ?? []) as $actionIndex => $action) {
+                if (is_array($action)) {
+                    $fields[$fieldIndex]['actions'][$actionIndex] = $this->actionWithSubmitResetFieldValueReview($action, $fieldRows);
+                }
+            }
+
+            foreach (($field['widgets'] ?? []) as $widgetIndex => $widget) {
+                if (!is_array($widget)) {
+                    continue;
+                }
+
+                foreach (($widget['actions'] ?? []) as $actionIndex => $action) {
+                    if (is_array($action)) {
+                        $fields[$fieldIndex]['widgets'][$widgetIndex]['actions'][$actionIndex] = $this->actionWithSubmitResetFieldValueReview($action, $fieldRows);
+                    }
+                }
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fields
+     * @return list<array<string, mixed>>
+     */
+    private function formActionFieldRows(array $fields): array
+    {
+        $rows = [];
+        foreach ($fields as $field) {
+            $state = is_array($field['value_state'] ?? null) ? $field['value_state'] : [];
+            $richTextReview = is_array($field['rich_text_review'] ?? null)
+                ? $field['rich_text_review']
+                : (is_array($state['rich_text_review'] ?? null) ? $state['rich_text_review'] : null);
+            $rows[] = [
+                'object' => $field['object'] ?? null,
+                'name' => $field['name'] ?? null,
+                'field_type' => $field['field_type'] ?? null,
+                'field_type_label' => $field['field_type_label'] ?? null,
+                'flags' => $field['flags'] ?? 0,
+                'flag_names' => $field['flag_names'] ?? [],
+                'no_export' => in_array('no_export', $field['flag_names'] ?? [], true),
+                'value_redacted' => (bool) ($field['value_redacted'] ?? false),
+                'has_current_value' => (bool) ($state['has_current_value'] ?? false),
+                'has_default_value' => (bool) ($state['has_default_value'] ?? false),
+                'current' => $state['current'] ?? ($field['value'] ?? null),
+                'default' => $state['default'] ?? ($field['default_value'] ?? null),
+                'display_value' => $state['display_value'] ?? null,
+                'effective_current' => $state['effective_current_state'] ?? ($state['current'] ?? ($field['value'] ?? null)),
+                'current_source' => $state['state_source'] ?? ($state['current_source'] ?? null),
+                'button_kind' => $state['button_kind'] ?? null,
+                'options' => $field['options'] ?? [],
+                'choice_values' => $state['choice_values'] ?? [],
+                'default_choice_values' => $state['default_choice_values'] ?? [],
+                'selected_options' => $state['selected_options'] ?? [],
+                'rich_text_review' => $richTextReview,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fieldRows
+     * @return array<string, mixed>
+     */
+    private function actionWithSubmitResetFieldValueReview(array $action, array $fieldRows): array
+    {
+        $actionType = $action['action_type'] ?? null;
+        if ($actionType === 'SubmitForm') {
+            $action['field_value_review'] = $this->submitFormFieldValueReview($action, $fieldRows);
+        } elseif ($actionType === 'ResetForm') {
+            $action['field_value_review'] = $this->resetFormFieldValueReview($action, $fieldRows);
+        }
+
+        return $action;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fieldRows
+     * @return array<string, mixed>
+     */
+    private function submitFormFieldValueReview(array $action, array $fieldRows): array
+    {
+        $candidateRows = $this->actionCandidateFieldRows($action, $fieldRows, 'all_exportable');
+        $includeNoValue = (bool) ($action['include_no_value_fields'] ?? false);
+        $rows = [];
+        foreach ($candidateRows as $row) {
+            $submitValue = $this->submitValueForFieldRow($row);
+            $included = true;
+            $omitReason = null;
+            if (($row['button_kind'] ?? null) === 'push_button') {
+                $included = false;
+                $omitReason = 'push_button';
+            } elseif (($row['no_export'] ?? false) === true) {
+                $included = false;
+                $omitReason = 'no_export';
+            } elseif ($submitValue['has_value'] === false && !$includeNoValue) {
+                $included = false;
+                $omitReason = 'no_value';
+            }
+
+            $rows[] = $this->fieldReviewBaseRow($row) + [
+                'selected_by_action' => true,
+                'submit_included' => $included,
+                'omit_reason' => $omitReason,
+                'submit_value' => $included ? $submitValue['value'] : null,
+                'submit_value_source' => $included ? $submitValue['source'] : null,
+                'choice_review' => $this->choiceReviewForFieldRow($row, $row['current'] ?? null),
+                'rich_text_review' => $row['rich_text_review'] ?? null,
+                'rich_text_included' => false,
+            ];
+        }
+
+        return [
+            'source' => 'acroform_choice_richtext_submit_reset_review_boundary',
+            'action_type' => 'SubmitForm',
+            'fields_mode' => $action['fields_mode'] ?? 'all_exportable',
+            'candidate_field_count' => count($candidateRows),
+            'included_field_count' => count(array_filter($rows, static fn (array $row): bool => ($row['submit_included'] ?? false) === true)),
+            'excluded_field_count' => count(array_filter($rows, static fn (array $row): bool => ($row['submit_included'] ?? false) !== true)),
+            'submitted_field_names' => $this->fieldNamesFromRows(array_filter($rows, static fn (array $row): bool => ($row['submit_included'] ?? false) === true)),
+            'no_export_excluded_field_names' => $this->fieldNamesFromRows(array_filter($rows, static fn (array $row): bool => ($row['omit_reason'] ?? null) === 'no_export')),
+            'no_value_excluded_field_names' => $this->fieldNamesFromRows(array_filter($rows, static fn (array $row): bool => ($row['omit_reason'] ?? null) === 'no_value')),
+            'push_button_excluded_field_names' => $this->fieldNamesFromRows(array_filter($rows, static fn (array $row): bool => ($row['omit_reason'] ?? null) === 'push_button')),
+            'choice_field_names' => $this->fieldNamesFromRows(array_filter($rows, static fn (array $row): bool => ($row['field_type'] ?? null) === 'Ch')),
+            'rich_text_field_names' => $this->fieldNamesFromRows(array_filter($rows, static fn (array $row): bool => is_array($row['rich_text_review'] ?? null))),
+            'field_rows' => $rows,
+            'uses_plain_value_for_rich_text' => true,
+            'exports_rich_text_html' => false,
+            'executes_action' => false,
+            'executes_javascript' => false,
+            'imports_form_data' => false,
+            'payload_text_exposed' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fieldRows
+     * @return array<string, mixed>
+     */
+    private function resetFormFieldValueReview(array $action, array $fieldRows): array
+    {
+        $candidateRows = $this->actionCandidateFieldRows($action, $fieldRows, 'all');
+        $rows = [];
+        foreach ($candidateRows as $row) {
+            $reset = $this->resetValueForFieldRow($row);
+            $rows[] = $this->fieldReviewBaseRow($row) + [
+                'selected_by_action' => true,
+                'reset_applies' => true,
+                'reset_value' => $reset['value'],
+                'reset_value_source' => $reset['source'],
+                'reset_display_value' => $this->displayValue($reset['value']),
+                'choice_review' => $this->choiceReviewForFieldRow($row, $reset['value']),
+                'rich_text_review' => $row['rich_text_review'] ?? null,
+                'rich_text_restored' => false,
+            ];
+        }
+
+        return [
+            'source' => 'acroform_choice_richtext_submit_reset_review_boundary',
+            'action_type' => 'ResetForm',
+            'fields_mode' => $action['fields_mode'] ?? 'all',
+            'reset_field_count' => count($rows),
+            'reset_field_names' => $this->fieldNamesFromRows($rows),
+            'default_value_field_names' => $this->fieldNamesFromRows(array_filter($rows, static fn (array $row): bool => ($row['reset_value_source'] ?? null) === 'default_value')),
+            'cleared_field_names' => $this->fieldNamesFromRows(array_filter($rows, static fn (array $row): bool => in_array($row['reset_value_source'] ?? null, ['cleared_to_null', 'cleared_to_off'], true))),
+            'choice_field_names' => $this->fieldNamesFromRows(array_filter($rows, static fn (array $row): bool => ($row['field_type'] ?? null) === 'Ch')),
+            'rich_text_field_names' => $this->fieldNamesFromRows(array_filter($rows, static fn (array $row): bool => is_array($row['rich_text_review'] ?? null))),
+            'field_rows' => $rows,
+            'restores_rich_text_html' => false,
+            'executes_action' => false,
+            'executes_javascript' => false,
+            'payload_text_exposed' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fieldRows
+     * @return list<array<string, mixed>>
+     */
+    private function actionCandidateFieldRows(array $action, array $fieldRows, string $defaultMode): array
+    {
+        $mode = (string) ($action['fields_mode'] ?? $defaultMode);
+        $fieldObjects = array_values(array_filter(
+            $action['field_objects'] ?? [],
+            static fn (mixed $object): bool => is_int($object)
+        ));
+        $fieldNames = array_values(array_filter(
+            $action['field_names'] ?? [],
+            static fn (mixed $name): bool => is_string($name) && $name !== ''
+        ));
+
+        $rows = [];
+        foreach ($fieldRows as $row) {
+            $listed = (is_int($row['object'] ?? null) && in_array($row['object'], $fieldObjects, true))
+                || (is_string($row['name'] ?? null) && in_array($row['name'], $fieldNames, true));
+            $selected = match ($mode) {
+                'include' => $listed,
+                'exclude' => !$listed,
+                default => true,
+            };
+            if ($selected) {
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array{has_value: bool, value: mixed, source: string|null}
+     */
+    private function submitValueForFieldRow(array $row): array
+    {
+        if (($row['value_redacted'] ?? false) === true) {
+            return ['has_value' => false, 'value' => null, 'source' => 'redacted'];
+        }
+
+        if (($row['field_type'] ?? null) === 'Btn') {
+            $value = $row['effective_current'] ?? null;
+            return [
+                'has_value' => $value !== null,
+                'value' => $value,
+                'source' => $value === null ? null : (string) ($row['current_source'] ?? 'button_state'),
+            ];
+        }
+
+        $hasValue = ($row['has_current_value'] ?? false) === true && ($row['current'] ?? null) !== null;
+        return [
+            'has_value' => $hasValue,
+            'value' => $hasValue ? $row['current'] : null,
+            'source' => $hasValue ? (string) ($row['current_source'] ?? 'current_value') : null,
+        ];
+    }
+
+    /**
+     * @return array{value: mixed, source: string}
+     */
+    private function resetValueForFieldRow(array $row): array
+    {
+        if (($row['has_default_value'] ?? false) === true) {
+            return ['value' => $row['default'] ?? null, 'source' => 'default_value'];
+        }
+
+        if (($row['field_type'] ?? null) === 'Btn') {
+            return ['value' => 'Off', 'source' => 'cleared_to_off'];
+        }
+
+        return ['value' => null, 'source' => 'cleared_to_null'];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fieldReviewBaseRow(array $row): array
+    {
+        return [
+            'field_object' => $row['object'] ?? null,
+            'field_name' => $row['name'] ?? null,
+            'field_type' => $row['field_type'] ?? null,
+            'field_type_label' => $row['field_type_label'] ?? null,
+            'flags' => $row['flags'] ?? 0,
+            'flag_names' => $row['flag_names'] ?? [],
+            'no_export' => (bool) ($row['no_export'] ?? false),
+            'value_redacted' => (bool) ($row['value_redacted'] ?? false),
+            'current' => $row['current'] ?? null,
+            'default' => $row['default'] ?? null,
+            'display_value' => $row['display_value'] ?? null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function choiceReviewForFieldRow(array $row, mixed $value): ?array
+    {
+        if (($row['field_type'] ?? null) !== 'Ch') {
+            return null;
+        }
+
+        $options = is_array($row['options'] ?? null) ? $row['options'] : [];
+        $selectedIndices = $this->selectedChoiceIndices($value, $options, []);
+
+        return [
+            'choice_values' => $this->valueList($value),
+            'selected_indices' => $selectedIndices,
+            'selected_options' => $this->selectedChoiceOptions($value, $options, $selectedIndices),
+            'unmatched_values' => $this->unmatchedChoiceValues($value, $options),
+        ];
+    }
+
+    /**
+     * @param iterable<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private function fieldNamesFromRows(iterable $rows): array
+    {
+        $names = [];
+        foreach ($rows as $row) {
+            $name = $row['field_name'] ?? ($row['name'] ?? null);
+            if (is_string($name) && $name !== '' && !in_array($name, $names, true)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
     }
 
     /**

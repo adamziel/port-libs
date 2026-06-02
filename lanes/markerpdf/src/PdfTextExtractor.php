@@ -11505,6 +11505,7 @@ final class PdfTextExtractor
 
         $cidDisplacements = $toUnicodeMap['cidVerticalDisplacements'] ?? [];
         $defaultDisplacement = $toUnicodeMap['cidDefaultVerticalDisplacement'] ?? -1000.0;
+        $cidSet = $toUnicodeMap['cidSet'] ?? null;
 
         $hex = $this->textOperandSourceHex($operand);
         if ($hex === '') {
@@ -11514,9 +11515,17 @@ final class PdfTextExtractor
         $displacements = [];
         foreach ($this->textOperandSourceKeysForFontWidths($hex, $toUnicodeMap) as $key) {
             $cid = $this->cidForWidthSourceKey($key, $toUnicodeMap);
-            $displacements[] = is_array($cidDisplacements) && array_key_exists($cid, $cidDisplacements)
-                ? (float) $cidDisplacements[$cid]
-                : (float) $defaultDisplacement;
+            if (is_array($cidDisplacements) && array_key_exists($cid, $cidDisplacements)) {
+                $displacements[] = (float) $cidDisplacements[$cid];
+                continue;
+            }
+
+            if (is_array($cidSet) && !isset($cidSet[$cid])) {
+                $displacements[] = $defaultDisplacement < 0 ? -500.0 : 500.0;
+                continue;
+            }
+
+            $displacements[] = (float) $defaultDisplacement;
         }
 
         return $displacements;

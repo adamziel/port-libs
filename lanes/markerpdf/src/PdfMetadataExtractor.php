@@ -144,6 +144,7 @@ final class PdfMetadataExtractor
      *     page_mode?: string,
      *     viewer_preferences?: array<string, mixed>,
      *     collection?: array<string, mixed>,
+     *     associated_files?: list<array<string, mixed>>,
      *     structure_tree?: array<string, mixed>,
      *     document_destinations?: array<string, mixed>,
      *     pdfa?: array{has_output_intent: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>}
@@ -564,6 +565,16 @@ final class PdfMetadataExtractor
             $metadata['collection'] = $collection;
         }
 
+        if ($collection === []) {
+            $associatedFiles = $this->catalogAssociatedFilesMetadata(
+                $this->dictionaryTopLevelRawValue($catalog, 'AF'),
+                $objects
+            );
+            if ($associatedFiles !== []) {
+                $metadata['associated_files'] = $associatedFiles;
+            }
+        }
+
         $documentDestinations = $this->documentDestinationMetadata($catalog, $objects);
         if ($documentDestinations !== []) {
             $metadata['document_destinations'] = $documentDestinations;
@@ -688,6 +699,113 @@ final class PdfMetadataExtractor
         }
 
         return $metadata;
+    }
+
+    /**
+     * Catalog /AF entries can describe document-associated source files,
+     * alternatives, schemas, or supplements without a Portfolio /Collection.
+     * Keep FileSpec-local XMP and OutputIntents as review dictionaries only.
+     *
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function catalogAssociatedFilesMetadata(?string $associatedFilesValue, array $objects): array
+    {
+        if ($associatedFilesValue === null) {
+            return [];
+        }
+
+        $files = [];
+        foreach ($this->arrayItemsFromValue($associatedFilesValue, $objects) as $index => $fileSpecValue) {
+            $file = $this->catalogAssociatedFileFromValue($fileSpecValue, $index, $objects);
+            if ($file !== null) {
+                $files[] = $file;
+            }
+        }
+
+        return $files;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function catalogAssociatedFileFromValue(string $value, int $index, array $objects): ?array
+    {
+        $fileSpec = $this->resolveDictionaryFromValue($value, $objects);
+        if ($fileSpec === null) {
+            return null;
+        }
+
+        $body = $fileSpec['body'];
+        $ef = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($body, 'EF'), $objects);
+        if ($ef === null) {
+            return null;
+        }
+
+        $unicodeFilename = $this->dictionaryStringValue($body, 'UF');
+        $platformFilename = $this->firstDictionaryString($body, ['F', 'DOS', 'Unix', 'Mac']);
+        $filename = $unicodeFilename ?? $platformFilename ?? 'embedded-file';
+        $file = [
+            'source' => 'catalog_associated_files',
+            'associated_file' => true,
+            'associated_file_index' => $index,
+            'name' => $filename,
+            'filename' => $filename,
+            'file_spec_object' => $fileSpec['object'],
+        ];
+
+        if ($unicodeFilename !== null && $unicodeFilename !== '') {
+            $file['unicode_filename'] = $unicodeFilename;
+        }
+        if ($platformFilename !== null && $platformFilename !== '' && $platformFilename !== $filename) {
+            $file['platform_filename'] = $platformFilename;
+        }
+
+        foreach ([
+            'description' => $this->dictionaryStringValue($body, 'Desc'),
+            'relationship' => $this->dictionaryNameValue($body, 'AFRelationship', $objects),
+            'language' => $this->dictionaryStringValue($body, 'Lang'),
+        ] as $key => $metadataValue) {
+            if (is_string($metadataValue) && $metadataValue !== '') {
+                $file[$key] = $metadataValue;
+            }
+        }
+
+        $streamMetadata = null;
+        foreach ($this->embeddedFileKeys($unicodeFilename !== null) as $efKey) {
+            $streamValue = $this->dictionaryTopLevelRawValue($ef['body'], $efKey);
+            if ($streamValue === null) {
+                continue;
+            }
+
+            $streamMetadata = $this->embeddedFileStreamReviewMetadata($streamValue, $objects);
+            if ($streamMetadata === null) {
+                continue;
+            }
+
+            $file['ef_key'] = $efKey;
+            foreach ($streamMetadata as $key => $metadataValue) {
+                $file[$key] = $metadataValue;
+            }
+            break;
+        }
+
+        if ($streamMetadata === null) {
+            return null;
+        }
+
+        $metadataReview = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($body, 'Metadata'), $objects);
+        if (is_array($metadataReview) && $metadataReview !== []) {
+            $file['metadata_review'] = $metadataReview;
+        }
+
+        $outputIntentReview = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($body, 'OutputIntents'), $objects);
+        if (is_array($outputIntentReview) && $outputIntentReview !== []) {
+            $file['output_intents_review'] = $outputIntentReview;
+        }
+
+        return $file;
     }
 
     /**
@@ -2144,14 +2262,19 @@ final class PdfMetadataExtractor
             $metadata['public_key_recipient_review'] = $publicKeyRecipientReview;
         }
 
+        $perms = $this->encryptedPermissionValidationMetadata($dictionary, $objects);
+        if ($perms !== null) {
+            $metadata['perms'] = $perms;
+        }
+
         $permissionValue = $this->dictionaryIntegerValue($dictionary, 'P');
         if ($permissionValue !== null) {
             $metadata['standard_permissions'] = $this->standardPermissionMetadata($permissionValue, $revision);
         }
 
-        $perms = $this->encryptedPermissionValidationMetadata($dictionary, $objects);
-        if ($perms !== null) {
-            $metadata['perms'] = $perms;
+        $authReview = $this->standardAuthenticationReview($dictionary, $objects, $cryptFilters, $metadata, $perms);
+        if ($authReview !== []) {
+            $metadata['standard_authentication_review'] = $authReview;
         }
 
         return $metadata;
@@ -2452,6 +2575,220 @@ final class PdfMetadataExtractor
     }
 
     /**
+     * Standard security-handler authentication entries are password-derived
+     * validation/encryption-key material. Keep them review-only: expose length
+     * and digest fingerprints for fixture parity, never raw bytes, and never
+     * validate passwords or authenticate the encrypted permissions string.
+     *
+     * @param array<int, string> $objects
+     * @param array<string, array<string, mixed>> $cryptFilters
+     * @param array<string, mixed> $metadata
+     * @param array{bytes: int, sha256: string}|null $perms
+     * @return array<string, mixed>
+     */
+    private function standardAuthenticationReview(
+        string $dictionary,
+        array $objects,
+        array $cryptFilters,
+        array $metadata,
+        ?array $perms
+    ): array {
+        if (($metadata['filter'] ?? null) !== 'Standard') {
+            return [];
+        }
+
+        $revision = is_int($metadata['revision'] ?? null) ? $metadata['revision'] : null;
+        $expectedLengths = $this->standardAuthenticationExpectedLengths($revision);
+        $entries = [];
+        foreach ([
+            'O' => ['key' => 'owner_validation', 'label' => 'owner_password_validation'],
+            'U' => ['key' => 'user_validation', 'label' => 'user_password_validation'],
+            'OE' => ['key' => 'owner_encryption_key', 'label' => 'owner_file_key_encryption'],
+            'UE' => ['key' => 'user_encryption_key', 'label' => 'user_file_key_encryption'],
+        ] as $pdfName => $definition) {
+            $entries[$definition['key']] = $this->standardAuthenticationEntryMetadata(
+                $dictionary,
+                $objects,
+                $pdfName,
+                $definition['label'],
+                $expectedLengths[$pdfName] ?? null,
+                $this->standardAuthenticationEntryRequired($pdfName, $revision)
+            );
+        }
+
+        $permissionDigest = [
+            'source' => 'standard_permissions_validation_ciphertext',
+            'present' => $perms !== null,
+            'bytes' => $perms['bytes'] ?? null,
+            'sha256' => $perms['sha256'] ?? null,
+            'expected_bytes' => $expectedLengths['Perms'] ?? null,
+            'length_valid' => $perms !== null && isset($expectedLengths['Perms'])
+                ? $perms['bytes'] === $expectedLengths['Perms']
+                : ($perms === null ? null : true),
+            'status' => $this->standardPermissionDigestStatus($perms, $expectedLengths['Perms'] ?? null, $revision),
+            'raw_bytes_exposed' => false,
+            'permissions_authenticated' => false,
+        ];
+
+        $credentialEntriesPresent = [];
+        foreach ($entries as $key => $entry) {
+            if (($entry['present'] ?? false) === true) {
+                $credentialEntriesPresent[] = $key;
+            }
+        }
+
+        return [
+            'source' => 'standard_security_handler_authentication_review',
+            'handler' => 'Standard',
+            'revision' => $revision,
+            'revision_label' => $metadata['revision_label'] ?? null,
+            'algorithm' => $metadata['algorithm'] ?? null,
+            'key_length_bits' => $metadata['key_length_bits'] ?? null,
+            'auth_events' => $this->standardAuthenticationAuthEvents($cryptFilters),
+            'expected_lengths' => $expectedLengths,
+            'entries' => $entries,
+            'permission_digest' => $permissionDigest,
+            'credential_entries_present' => $credentialEntriesPresent,
+            'credential_material_exposed' => false,
+            'raw_owner_user_keys_exposed' => false,
+            'raw_file_encryption_keys_exposed' => false,
+            'password_validation_performed' => false,
+            'owner_password_validated' => false,
+            'user_password_validated' => false,
+            'permissions_authenticated' => false,
+            'decryption_performed' => false,
+            'executes_decryption' => false,
+            'executes_permission_enforcement' => false,
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function standardAuthenticationExpectedLengths(?int $revision): array
+    {
+        if ($revision === null) {
+            return [];
+        }
+
+        if ($revision >= 5) {
+            return [
+                'O' => 48,
+                'U' => 48,
+                'OE' => 32,
+                'UE' => 32,
+                'Perms' => 16,
+            ];
+        }
+
+        if ($revision >= 2) {
+            return [
+                'O' => 32,
+                'U' => 32,
+            ];
+        }
+
+        return [];
+    }
+
+    private function standardAuthenticationEntryRequired(string $pdfName, ?int $revision): bool
+    {
+        if ($revision === null) {
+            return false;
+        }
+
+        return match ($pdfName) {
+            'O', 'U' => $revision >= 2,
+            'OE', 'UE' => $revision >= 5,
+            default => false,
+        };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function standardAuthenticationEntryMetadata(
+        string $dictionary,
+        array $objects,
+        string $pdfName,
+        string $purpose,
+        ?int $expectedBytes,
+        bool $required
+    ): array {
+        $value = $this->dictionaryRawValue($dictionary, $pdfName);
+        $bytes = $value === null ? null : $this->pdfStringBytesFromValue($value, $objects);
+        $length = $bytes === null ? null : strlen($bytes);
+        $lengthValid = $length !== null && $expectedBytes !== null ? $length === $expectedBytes : ($length === null ? null : true);
+
+        return [
+            'pdf_name' => $pdfName,
+            'purpose' => $purpose,
+            'required_for_revision' => $required,
+            'present' => $value !== null,
+            'bytes_resolved' => $bytes !== null,
+            'bytes' => $length,
+            'expected_bytes' => $expectedBytes,
+            'length_valid' => $lengthValid,
+            'sha256' => $bytes === null ? null : hash('sha256', $bytes),
+            'status' => $this->standardAuthenticationEntryStatus($value !== null, $bytes !== null, $lengthValid, $required),
+            'raw_bytes_exposed' => false,
+            'validated' => false,
+        ];
+    }
+
+    private function standardAuthenticationEntryStatus(bool $present, bool $resolved, ?bool $lengthValid, bool $required): string
+    {
+        if (!$present) {
+            return $required ? 'required_authentication_entry_missing' : 'authentication_entry_absent';
+        }
+        if (!$resolved) {
+            return 'authentication_entry_unresolved';
+        }
+        if ($lengthValid === false) {
+            return 'authentication_entry_length_mismatch_review';
+        }
+
+        return 'authentication_entry_digest_review';
+    }
+
+    /**
+     * @param array{bytes: int, sha256: string}|null $perms
+     */
+    private function standardPermissionDigestStatus(?array $perms, ?int $expectedBytes, ?int $revision): string
+    {
+        if ($perms === null) {
+            return $revision !== null && $revision >= 5
+                ? 'required_permission_digest_missing'
+                : 'permission_digest_absent_for_legacy_revision';
+        }
+
+        if ($expectedBytes !== null && $perms['bytes'] !== $expectedBytes) {
+            return 'permission_digest_length_mismatch_review';
+        }
+
+        return 'permission_digest_ciphertext_review';
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $cryptFilters
+     * @return list<string>
+     */
+    private function standardAuthenticationAuthEvents(array $cryptFilters): array
+    {
+        $events = [];
+        foreach ($cryptFilters as $filter) {
+            $event = $filter['auth_event'] ?? null;
+            if (is_string($event)) {
+                $events[] = $event;
+            }
+        }
+
+        return $this->uniqueStrings($events);
+    }
+
+    /**
      * Public-key security handlers place recipient-specific permissions inside
      * PKCS#7 envelopes. This lane can inventory envelopes, but it does not parse
      * CMS, expose certificate bytes, or decide recipient access rights.
@@ -2732,7 +3069,7 @@ final class PdfMetadataExtractor
             $result['keywords'] = array_values($keywords);
         }
 
-        foreach (['language', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'structure_tree', 'document_destinations'] as $field) {
+        foreach (['language', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'associated_files', 'structure_tree', 'document_destinations'] as $field) {
             if (array_key_exists($field, $catalog)) {
                 $result[$field] = $catalog[$field];
             }

@@ -33,7 +33,7 @@ return [
     'attaches article thread bead navigation metadata to outline and open-action targets' => static function (TestRunner $t) use ($outlineArticleThreadBeadNavigationPdf): void {
         $metadata = (new PdfOutlineExtractor())->getNavigationReviewMetadata($outlineArticleThreadBeadNavigationPdf());
 
-        $t->same(['outline', 'open_action', 'article_threads'], $metadata['source']);
+        $t->same(['outline', 'open_action', 'article_threads', 'page_review'], $metadata['source']);
         $t->same(1, count($metadata['article_threads']));
         $thread = $metadata['article_threads'][0];
         $t->same(0, $thread['thread_index']);
