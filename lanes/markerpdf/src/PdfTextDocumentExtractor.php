@@ -27,7 +27,7 @@ final class PdfTextDocumentExtractor
      * @return array{
      *     pages: list<array<string, mixed>>,
      *     toc: list<array<string, mixed>>,
-     *     metadata: array{pdf_toc: list<array<string, mixed>>, pages: int, start_page: int, max_pages: int},
+     *     metadata: array{pdf_toc: list<array<string, mixed>>, pages: int, start_page: int, max_pages: int, pdftext_options: array<string, mixed>},
      *     page_range: list<int>
      * }
      */
@@ -35,7 +35,9 @@ final class PdfTextDocumentExtractor
         array $pdftextPages,
         ?int $maxPages = null,
         ?int $startPage = null,
-        array $toc = []
+        array $toc = [],
+        bool $flattenPdf = false,
+        ?int $workers = null
     ): array {
         $totalPages = count($pdftextPages);
         $startPage ??= 0;
@@ -46,6 +48,10 @@ final class PdfTextDocumentExtractor
 
         if ($maxPages !== null && $maxPages < 0) {
             throw new InvalidArgumentException('max_pages must be zero or greater.');
+        }
+
+        if ($workers !== null && $workers < 1) {
+            throw new InvalidArgumentException('pdftext workers must be at least one when supplied.');
         }
 
         $pageCount = $totalPages - $startPage;
@@ -72,6 +78,12 @@ final class PdfTextDocumentExtractor
                 'pages' => count($pages),
                 'start_page' => $startPage,
                 'max_pages' => $pageCount,
+                'pdftext_options' => array_filter([
+                    'page_range' => $pageRange,
+                    'keep_chars' => false,
+                    'flatten_pdf' => $flattenPdf,
+                    'workers' => $workers,
+                ], static fn (mixed $value): bool => $value !== null),
             ],
             'page_range' => $pageRange,
         ];

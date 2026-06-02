@@ -101,6 +101,80 @@ return [
         $t->same('Kept', $page['blocks'][0]['lines'][0]['spans'][0]['text']);
         $t->same('3_1', $page['blocks'][0]['lines'][0]['spans'][0]['span_id']);
     },
+    'normalizes real pdftext dictionary font nulls and span metadata' => static function (TestRunner $t): void {
+        $page = (new PdfTextBlockConverter())->pdftextFormatToPage([
+            'page' => 4,
+            'bbox' => [0.0, 0.0, 200.0, 300.0],
+            'rotation' => 270,
+            'blocks' => [[
+                'lines' => [[
+                    'bbox' => [20.0, 30.0, 180.0, 44.0],
+                    'spans' => [[
+                        'text' => "Dictionary core\r\n",
+                        'bbox' => [20.0, 30.0, 180.0, 44.0],
+                        'font' => ['name' => null, 'flags' => (1 << 6) | (1 << 18), 'weight' => 700, 'size' => 12.5],
+                        'rotation' => 270,
+                        'char_start_idx' => 31,
+                        'char_end_idx' => 46,
+                        'chars' => [['c' => 'D', 'bbox' => [20.0, 30.0, 26.0, 44.0]]],
+                    ]],
+                ]],
+            ]],
+        ], 0);
+
+        $span = $page['blocks'][0]['lines'][0]['spans'][0];
+        $t->same([0.0, 0.0, 300.0, 200.0], $page['bbox']);
+        $t->same('Dictionary core', $span['text']);
+        $t->same('None_italic_bold', $span['font']);
+        $t->same(700.0, $span['font_weight']);
+        $t->same(12.5, $span['font_size']);
+        $t->same(270, $span['rotation']);
+        $t->same(31, $span['char_start_idx']);
+        $t->same(46, $span['char_end_idx']);
+        $t->same([['c' => 'D', 'bbox' => [20.0, 30.0, 26.0, 44.0]]], $span['chars']);
+        $t->same($page['char_blocks'][0]['lines'][0]['spans'][0]['chars'], $span['chars']);
+    },
+    'rejects malformed pdftext dictionaries at the core boundary' => static function (TestRunner $t): void {
+        $converter = new PdfTextBlockConverter();
+
+        $t->throws(InvalidArgumentException::class, static fn () => $converter->pdftextFormatToPage([
+            'page' => 0,
+            'bbox' => [0.0, 0.0, 200.0],
+            'rotation' => 0,
+            'blocks' => [],
+        ], 0));
+
+        $t->throws(InvalidArgumentException::class, static fn () => $converter->pdftextFormatToPage([
+            'page' => 0,
+            'bbox' => [0.0, 0.0, 200.0, 200.0],
+            'rotation' => 0,
+            'blocks' => [[
+                'lines' => [[
+                    'bbox' => [20.0, 30.0, 120.0, 44.0],
+                    'spans' => [[
+                        'text' => 'Missing font',
+                        'bbox' => [20.0, 30.0, 120.0, 44.0],
+                    ]],
+                ]],
+            ]],
+        ], 0));
+
+        $t->throws(InvalidArgumentException::class, static fn () => $converter->pdftextFormatToPage([
+            'page' => 0,
+            'bbox' => [0.0, 0.0, 200.0, 200.0],
+            'rotation' => 0,
+            'blocks' => [[
+                'lines' => [[
+                    'bbox' => [20.0, 30.0, 120.0, 44.0],
+                    'spans' => [[
+                        'text' => 'Bad span bbox',
+                        'bbox' => [20.0, 'top', 120.0, 44.0],
+                        'font' => ['name' => 'Bad', 'flags' => null, 'weight' => 400, 'size' => 9],
+                    ]],
+                ]],
+            ]],
+        ], 0));
+    },
     'renders converted pdftext page spans as WordPress blocks' => static function (TestRunner $t) use ($pdftextPage): void {
         $page = (new PdfTextBlockConverter())->pdftextFormatToPage($pdftextPage(), 0);
         $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans([$page]));

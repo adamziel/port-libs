@@ -1,0 +1,66 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\MarkerPDF\MarkdownPostProcessor;
+use PortLibs\MarkerPDF\PdfTextDocumentExtractor;
+
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+$page = [
+    'page' => 6,
+    'bbox' => [0.0, 0.0, 612.0, 792.0],
+    'rotation' => 0,
+    'blocks' => [[
+        'lines' => [
+            [
+                'bbox' => [72.0, 96.0, 420.0, 110.0],
+                'spans' => [[
+                    'text' => "Shared-hosting dictionary\r\n",
+                    'bbox' => [72.0, 96.0, 250.0, 110.0],
+                    'font' => ['name' => null, 'flags' => (1 << 5), 'weight' => 400, 'size' => 11.0],
+                    'char_start_idx' => 0,
+                    'char_end_idx' => 26,
+                ]],
+            ],
+            [
+                'bbox' => [72.0, 122.0, 500.0, 136.0],
+                'spans' => [[
+                    'text' => "keeps supplied pdftext char offsets reviewable.",
+                    'bbox' => [72.0, 122.0, 500.0, 136.0],
+                    'font' => ['name' => 'Helvetica', 'flags' => null, 'weight' => 400, 'size' => 10.0],
+                    'char_start_idx' => 27,
+                    'char_end_idx' => 73,
+                ]],
+            ],
+        ],
+    ]],
+];
+
+$document = (new PdfTextDocumentExtractor())->getTextBlocks(
+    [$page],
+    maxPages: 1,
+    startPage: 0,
+    toc: [['title' => 'Dictionary core', 'level' => 1, 'page_index' => 6]],
+    flattenPdf: true,
+    workers: 2
+);
+
+$processor = new MarkdownPostProcessor();
+$blocks = $processor->mergeBlocks($processor->mergeSpans($document['pages']));
+$firstSpan = $document['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+
+echo '<!-- markerpdf:pdftext-dictionary-core ' . htmlspecialchars(json_encode([
+    'support_component' => 'pdf-text-dictionary-core',
+    'executes_python_pdftext' => false,
+    'pdftext_options' => $document['metadata']['pdftext_options'],
+    'font' => $firstSpan['font'],
+    'char_start_idx' => $firstSpan['char_start_idx'],
+    'char_end_idx' => $firstSpan['char_end_idx'],
+], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n\n";
+
+foreach ($blocks as $block) {
+    echo '<!-- wp:paragraph {"metadata":{"markerpdfPage":' . (int) $block['pnum'] . '}} -->' . "\n";
+    echo '<p>' . htmlspecialchars($block['text'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
+    echo "<!-- /wp:paragraph -->\n\n";
+}

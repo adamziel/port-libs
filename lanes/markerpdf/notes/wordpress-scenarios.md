@@ -136,6 +136,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdftext-page-range-import.php` maps Marker's upstream `get_text_blocks` page-range boundary into a partial WordPress import path. It selects only the requested pages from supplied pdftext dictionaries, preserves page metadata and TOC review comments, and emits Gutenberg paragraph blocks without loading pdftext, pypdfium, or Surya.
 
+`examples/wordpress-pdftext-dictionary-core-import.php` maps a stricter `marker/pdf/extract_text.py` dictionary-output boundary into the WordPress import path. It validates supplied pdftext page dictionaries, preserves font metadata, `char_start_idx`, `char_end_idx`, `chars`, rotation, and selected-range `pdftext_options`, then emits a Gutenberg paragraph without loading Python pdftext, pypdfium, or model workers.
+
 `examples/wordpress-text-length-preflight.php` maps Marker's upstream `get_length_of_text` boundary into a WordPress import queue preflight. It records the native naive text, trimmed text length, min-length threshold, and whether the PDF should enter the heavier conversion queue.
 
 `examples/wordpress-page-inspection-preflight.php` maps Marker's upstream Page helper properties into a WordPress review preflight. It records nonblank line/span counts, font-size and line-height distributions, and the upstream `prelim_text` page view as block metadata before content is sent to editorial review.
@@ -248,4 +250,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Choose the next bounded markerPDF text extraction gap, or activate/reuse the existing `pdf-text-dictionary-core` gate only if broader searchable PDF dictionary output becomes the accepted next rich behavior. Keep OCR/model, table geometry, outlines/metadata, benchmark/archive, and runtime preflight work out of these accepted parser-hardening slices.
+Choose the next bounded markerPDF/PDF extraction gap on current base, favoring parser, font, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

@@ -66,11 +66,34 @@ return [
         $t->same([0, 1], $result['page_range']);
         $t->same(2, $result['metadata']['pages']);
     },
+    'records pdftext dictionary output options for the selected page range' => static function (TestRunner $t) use ($pdftextPage): void {
+        $result = (new PdfTextDocumentExtractor())->getTextBlocks(
+            [
+                $pdftextPage(3, 'Skipped front matter'),
+                $pdftextPage(4, 'Dictionary core boundary'),
+                $pdftextPage(5, 'Deferred appendix'),
+            ],
+            maxPages: 1,
+            startPage: 1,
+            flattenPdf: true,
+            workers: 2
+        );
+
+        $t->same([1], $result['page_range']);
+        $t->same([
+            'page_range' => [1],
+            'keep_chars' => false,
+            'flatten_pdf' => true,
+            'workers' => 2,
+        ], $result['metadata']['pdftext_options']);
+        $t->same(4, $result['pages'][0]['pnum']);
+    },
     'rejects out of range page slices before WordPress import' => static function (TestRunner $t) use ($pdftextPage): void {
         $extractor = new PdfTextDocumentExtractor();
 
         $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$pdftextPage(0, 'Only page')], startPage: 1));
         $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$pdftextPage(0, 'Only page')], maxPages: -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$pdftextPage(0, 'Only page')], workers: 0));
     },
     'feeds selected pdftext pages into Gutenberg-ready paragraph text' => static function (TestRunner $t) use ($pdftextPage): void {
         $result = (new PdfTextDocumentExtractor())->getTextBlocks(
