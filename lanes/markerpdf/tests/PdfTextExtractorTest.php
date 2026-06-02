@@ -1433,6 +1433,46 @@ return [
         $t->true(!str_contains($plainText, "\nB\n"));
         $t->true(!str_contains($plainText, "\nC\n"));
     },
+    'honors optional content group layer visibility before WordPress text extraction' => static function (TestRunner $t): void {
+        $pageContent = 'BT /F1 12 Tf 72 720 Td (Base Visible Text) Tj ET '
+            . '/OC /LayerOff BDC BT /F1 12 Tf 72 704 Td (Hidden Layer Text) Tj ET q /VisibleForm Do Q EMC '
+            . '/OC /LayerOn BDC BT /F1 12 Tf 72 688 Td (Layer Visible Text) Tj ET q /HiddenForm Do Q EMC '
+            . 'q /VisibleForm Do Q q /HiddenForm Do Q';
+        $visibleForm = 'BT /F1 12 Tf 12 24 Td (Visible Form Text) Tj ET';
+        $hiddenForm = 'BT /F1 12 Tf 12 24 Td (Hidden Form Text) Tj ET';
+        $visibleAnnotation = 'BT /F1 12 Tf 0 0 Td (Visible Annotation Text) Tj ET';
+        $hiddenAnnotation = 'BT /F1 12 Tf 0 0 Td (Hidden Annotation Text) Tj ET';
+        $pdf = "%PDF-1.5\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [20 0 R 21 0 R] /D << /BaseState /OFF /ON [20 0 R] /Order [20 0 R 21 0 R] >> >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> /Properties << /LayerOn 20 0 R /LayerOff 21 0 R >> /XObject << /VisibleForm 8 0 R /HiddenForm 9 0 R >> >> /Annots [10 0 R 11 0 R] /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /XObject /Subtype /Form /OC 20 0 R /Resources << /Font << /F1 4 0 R >> >> /Length " . strlen($visibleForm) . " >>\nstream\n{$visibleForm}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /XObject /Subtype /Form /OC 21 0 R /Resources << /Font << /F1 4 0 R >> >> /Length " . strlen($hiddenForm) . " >>\nstream\n{$hiddenForm}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Annot /Subtype /Widget /OC 20 0 R /AP << /N 12 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /Annot /Subtype /Widget /OC 21 0 R /AP << /N 13 0 R >> >>\nendobj\n"
+            . "12 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 4 0 R >> >> /Length " . strlen($visibleAnnotation) . " >>\nstream\n{$visibleAnnotation}\nendstream\nendobj\n"
+            . "13 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 4 0 R >> >> /Length " . strlen($hiddenAnnotation) . " >>\nstream\n{$hiddenAnnotation}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /OCG /Name (Visible Import Layer) >>\nendobj\n"
+            . "21 0 obj\n<< /Type /OCG /Name (Hidden Review Layer) >>\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Base Visible Text',
+            'Layer Visible Text',
+            'Visible Form Text',
+            'Visible Annotation Text',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Hidden Layer Text'));
+        $t->true(!str_contains($plainText, 'Hidden Form Text'));
+        $t->true(!str_contains($plainText, 'Hidden Annotation Text'));
+    },
     'skips Image XObject streams in fallback before WordPress text extraction' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Visible Text) Tj ET';
         $imageBytes = 'BT /F1 12 Tf 72 720 Td (Raster Image Noise) Tj ET';

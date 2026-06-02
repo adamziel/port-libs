@@ -358,20 +358,30 @@ final class PdfTextExtractor
     {
         $pages = [];
         $structureMcidOrderByPage = $this->structureTreeMcidOrderByPage($objects);
+        $optionalContentStates = $this->optionalContentVisibilityStates($objects);
         foreach ($pageObjectNumbers as $pageObjectNumber) {
             if (!isset($objects[$pageObjectNumber])) {
                 continue;
             }
 
             $streams = [];
+            $optionalContentProperties = $this->pageOptionalContentPropertyVisibilityMap(
+                $pageObjectNumber,
+                $objects,
+                $optionalContentStates
+            );
             foreach ($this->pageContentObjectNumbers($objects[$pageObjectNumber]) as $contentObjectNumber) {
                 if (!isset($objects[$contentObjectNumber])) {
                     continue;
                 }
 
+                if (!$this->optionalContentObjectVisible($objects[$contentObjectNumber], $objects, $optionalContentStates)) {
+                    continue;
+                }
+
                 $decoded = $this->decodeStreamObject($objects[$contentObjectNumber], $objects);
                 if ($decoded !== null) {
-                    $streams[] = $decoded;
+                    $streams[] = $this->filterOptionalContentMarkedBlocks($decoded, $optionalContentProperties);
                 }
             }
 
@@ -388,7 +398,8 @@ final class PdfTextExtractor
                     $objects[$pageObjectNumber],
                     $objects,
                     $fontObjectMaps,
-                    $expanded['fontToUnicodeMaps']
+                    $expanded['fontToUnicodeMaps'],
+                    $optionalContentStates
                 );
                 $expanded['stream'] = $expandedForms['stream'];
                 $expanded['fontToUnicodeMaps'] = $expandedForms['fontToUnicodeMaps'];
@@ -405,7 +416,8 @@ final class PdfTextExtractor
                 $objects[$pageObjectNumber],
                 $objects,
                 $fontObjectMaps,
-                $expanded['fontToUnicodeMaps']
+                $expanded['fontToUnicodeMaps'],
+                $optionalContentStates
             ) as $appearance) {
                 $expanded['stream'] = trim($expanded['stream']) === ''
                     ? $appearance['stream']
@@ -800,6 +812,7 @@ final class PdfTextExtractor
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
      * @param array<int, true> $activeFormObjectNumbers
+     * @param array<int, bool> $optionalContentStates
      * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>}
      */
     private function expandFormXObjectInvocations(
@@ -808,6 +821,7 @@ final class PdfTextExtractor
         array $objects,
         array $fontObjectMaps,
         array $fontToUnicodeMaps,
+        array $optionalContentStates = [],
         array $activeFormObjectNumbers = []
     ): array {
         if (!str_contains($content, 'Do')) {
@@ -840,6 +854,11 @@ final class PdfTextExtractor
                         continue;
                     }
 
+                    if (!$this->optionalContentObjectVisible($objects[$objectNumber], $objects, $optionalContentStates)) {
+                        $operands = [];
+                        continue;
+                    }
+
                     $form = $this->decodedFormXObject($objects, $objectNumber);
                     if ($form !== null) {
                         $nextActiveForms = $activeFormObjectNumbers;
@@ -852,12 +871,21 @@ final class PdfTextExtractor
                             $expandedFontToUnicodeMaps[$alias] = $map;
                         }
 
+                        $formStream = $this->filterOptionalContentMarkedBlocks(
+                            $form['stream'],
+                            $this->optionalContentPropertyVisibilityMapForResourceOwnerBody(
+                                $form['body'],
+                                $objects,
+                                $optionalContentStates
+                            )
+                        );
                         $expandedForm = $this->expandFormXObjectInvocations(
-                            $this->rewriteFontResourceOperands($form['stream'], $fontAliases),
+                            $this->rewriteFontResourceOperands($formStream, $fontAliases),
                             $form['body'],
                             $objects,
                             $fontObjectMaps,
                             $expandedFontToUnicodeMaps,
+                            $optionalContentStates,
                             $nextActiveForms
                         );
                         $expanded[] = $expandedForm['stream'];
@@ -1040,17 +1068,23 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
+     * @param array<int, bool> $optionalContentStates
      */
     private function annotationAppearanceStreamsWithFontMaps(
         string $pageBody,
         array $objects,
         array $fontObjectMaps,
-        array $fontToUnicodeMaps
+        array $fontToUnicodeMaps,
+        array $optionalContentStates = []
     ): array {
         $appearances = [];
         $currentFontToUnicodeMaps = $fontToUnicodeMaps;
 
         foreach ($this->annotationBodiesForPage($pageBody, $objects) as $annotation) {
+            if (!$this->optionalContentObjectVisible($annotation['body'], $objects, $optionalContentStates)) {
+                continue;
+            }
+
             $appearanceObjectNumber = $this->normalAppearanceObjectNumber($annotation['body'], $objects);
             if ($appearanceObjectNumber === null) {
                 continue;
@@ -1060,7 +1094,8 @@ final class PdfTextExtractor
                 $appearanceObjectNumber,
                 $objects,
                 $fontObjectMaps,
-                $currentFontToUnicodeMaps
+                $currentFontToUnicodeMaps,
+                $optionalContentStates
             );
             if ($appearance === null) {
                 continue;
@@ -1267,14 +1302,20 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
+     * @param array<int, bool> $optionalContentStates
      */
     private function decodedAppearanceStreamWithFontMaps(
         int $appearanceObjectNumber,
         array $objects,
         array $fontObjectMaps,
-        array $fontToUnicodeMaps
+        array $fontToUnicodeMaps,
+        array $optionalContentStates = []
     ): ?array {
         if (!isset($objects[$appearanceObjectNumber]) || preg_match('/\/Subtype\s*\/Form\b/', $objects[$appearanceObjectNumber]) !== 1) {
+            return null;
+        }
+
+        if (!$this->optionalContentObjectVisible($objects[$appearanceObjectNumber], $objects, $optionalContentStates)) {
             return null;
         }
 
@@ -1291,13 +1332,509 @@ final class PdfTextExtractor
             $expandedFontToUnicodeMaps[$alias] = $map;
         }
 
+        $decoded = $this->filterOptionalContentMarkedBlocks(
+            $decoded,
+            $this->optionalContentPropertyVisibilityMapForResourceOwnerBody(
+                $objects[$appearanceObjectNumber],
+                $objects,
+                $optionalContentStates
+            )
+        );
+
         return $this->expandFormXObjectInvocations(
             $this->rewriteFontResourceOperands($decoded, $fontAliases),
             $objects[$appearanceObjectNumber],
             $objects,
             $fontObjectMaps,
-            $expandedFontToUnicodeMaps
+            $expandedFontToUnicodeMaps,
+            $optionalContentStates
         );
+    }
+
+    /**
+     * Native boundary for PDFium-style default-view optional content checks.
+     *
+     * @return array<int, bool>
+     * @param array<int, string> $objects
+     */
+    private function optionalContentVisibilityStates(array $objects): array
+    {
+        $ocProperties = $this->optionalContentPropertiesDictionaryBody($objects);
+        if ($ocProperties === null) {
+            return [];
+        }
+
+        $ocgArray = $this->pdfArrayValueAfterNameResolved($ocProperties, 'OCGs', $objects);
+        if ($ocgArray === null) {
+            return [];
+        }
+
+        $states = [];
+        foreach ($this->objectReferences($ocgArray) as $objectNumber) {
+            $states[$objectNumber] = true;
+        }
+
+        if ($states === []) {
+            return [];
+        }
+
+        $defaultConfig = $this->pdfDictionaryValueAfterNameResolved($ocProperties, 'D', $objects);
+        if ($defaultConfig === null) {
+            return $states;
+        }
+
+        $baseState = $this->pdfNameValueAfterName($defaultConfig, 'BaseState') ?? 'ON';
+        $baseVisible = $baseState !== 'OFF';
+        foreach (array_keys($states) as $objectNumber) {
+            $states[$objectNumber] = $baseVisible;
+        }
+
+        foreach ($this->optionalContentObjectNumbersAfterName($defaultConfig, 'ON', $objects) as $objectNumber) {
+            if (array_key_exists($objectNumber, $states)) {
+                $states[$objectNumber] = true;
+            }
+        }
+
+        foreach ($this->optionalContentObjectNumbersAfterName($defaultConfig, 'OFF', $objects) as $objectNumber) {
+            if (array_key_exists($objectNumber, $states)) {
+                $states[$objectNumber] = false;
+            }
+        }
+
+        return $states;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function optionalContentPropertiesDictionaryBody(array $objects): ?string
+    {
+        $catalog = $this->catalogObjectBody($objects);
+        if ($catalog === null) {
+            return null;
+        }
+
+        $value = $this->pdfValueAfterName($catalog, 'OCProperties');
+        return $value === null ? null : $this->pdfDictionaryFromValue($value, $objects);
+    }
+
+    /**
+     * @return list<int>
+     * @param array<int, string> $objects
+     */
+    private function optionalContentObjectNumbersAfterName(string $dictionary, string $name, array $objects): array
+    {
+        $arrayBody = $this->pdfArrayValueAfterNameResolved($dictionary, $name, $objects);
+        return $arrayBody === null ? [] : $this->objectReferences($arrayBody);
+    }
+
+    /**
+     * @return array<string, bool>
+     * @param array<int, string> $objects
+     * @param array<int, bool> $optionalContentStates
+     */
+    private function pageOptionalContentPropertyVisibilityMap(
+        int $pageObjectNumber,
+        array $objects,
+        array $optionalContentStates
+    ): array {
+        $properties = [];
+        foreach (array_reverse($this->pageObjectLineage($pageObjectNumber, $objects)) as $objectNumber) {
+            foreach ($this->optionalContentPropertyVisibilityMapForResourceOwnerBody(
+                $objects[$objectNumber],
+                $objects,
+                $optionalContentStates
+            ) as $name => $visible) {
+                $properties[$name] = $visible;
+            }
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @return array<string, bool>
+     * @param array<int, string> $objects
+     * @param array<int, bool> $optionalContentStates
+     */
+    private function optionalContentPropertyVisibilityMapForResourceOwnerBody(
+        string $resourceOwnerBody,
+        array $objects,
+        array $optionalContentStates
+    ): array {
+        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $propertiesDictionary = $this->propertiesResourceDictionaryBody($resourceDictionary, $objects);
+        if ($propertiesDictionary === null) {
+            return [];
+        }
+
+        $properties = [];
+        $offset = 0;
+        while (preg_match('/\/([^\s\[\]()<>{}\/%]+)/s', $propertiesDictionary, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $name = $this->decodePdfName($match[1][0]);
+            $valueOffset = $this->skipPdfWhitespace($propertiesDictionary, $match[0][1] + strlen($match[0][0]));
+            if ($valueOffset >= strlen($propertiesDictionary)) {
+                break;
+            }
+
+            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $propertiesDictionary, $referenceMatch, 0, $valueOffset) === 1) {
+                $properties[$name] = $this->optionalContentReferenceVisible(
+                    (int) $referenceMatch[1],
+                    $objects,
+                    $optionalContentStates
+                );
+                $offset = $valueOffset + strlen($referenceMatch[0]);
+                continue;
+            }
+
+            if (substr($propertiesDictionary, $valueOffset, 2) === '<<') {
+                $dictionaryOffset = $valueOffset;
+                $dictionary = $this->readPdfDictionaryTokenAt($propertiesDictionary, $dictionaryOffset);
+                if ($dictionary !== null) {
+                    $properties[$name] = $this->optionalContentDictionaryVisible(
+                        $dictionary,
+                        $objects,
+                        $optionalContentStates
+                    );
+                    $offset = $dictionaryOffset;
+                    continue;
+                }
+            }
+
+            $offset = $valueOffset + 1;
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @param array<string, bool> $propertyVisibility
+     */
+    private function filterOptionalContentMarkedBlocks(string $content, array $propertyVisibility): string
+    {
+        if ($propertyVisibility === [] || !str_contains($content, 'BDC')) {
+            return $content;
+        }
+
+        $filtered = [];
+        $operands = [];
+        $hiddenDepth = 0;
+
+        foreach ($this->contentTokens($content) as $token) {
+            if ($token === 'BDC') {
+                $hidden = $hiddenDepth > 0 || $this->markedOptionalContentIsHidden($operands, $propertyVisibility);
+                if ($hidden) {
+                    $hiddenDepth++;
+                    $operands = [];
+                    continue;
+                }
+
+                foreach ($operands as $operand) {
+                    $filtered[] = $operand;
+                }
+                $filtered[] = $token;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BMC') {
+                if ($hiddenDepth > 0) {
+                    $hiddenDepth++;
+                    $operands = [];
+                    continue;
+                }
+
+                foreach ($operands as $operand) {
+                    $filtered[] = $operand;
+                }
+                $filtered[] = $token;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'EMC') {
+                if ($hiddenDepth > 0) {
+                    $hiddenDepth--;
+                    $operands = [];
+                    continue;
+                }
+
+                foreach ($operands as $operand) {
+                    $filtered[] = $operand;
+                }
+                $filtered[] = $token;
+                $operands = [];
+                continue;
+            }
+
+            if ($hiddenDepth > 0) {
+                if ($this->isOperator($token)) {
+                    $operands = [];
+                    continue;
+                }
+
+                $operands[] = $token;
+                continue;
+            }
+
+            if ($this->isOperator($token)) {
+                foreach ($operands as $operand) {
+                    $filtered[] = $operand;
+                }
+                $filtered[] = $token;
+                $operands = [];
+                continue;
+            }
+
+            $operands[] = $token;
+        }
+
+        if ($hiddenDepth === 0) {
+            foreach ($operands as $operand) {
+                $filtered[] = $operand;
+            }
+        }
+
+        return implode(' ', $filtered);
+    }
+
+    /**
+     * @param list<string> $operands
+     * @param array<string, bool> $propertyVisibility
+     */
+    private function markedOptionalContentIsHidden(array $operands, array $propertyVisibility): bool
+    {
+        if (count($operands) < 2) {
+            return false;
+        }
+
+        $tagOperand = $operands[count($operands) - 2];
+        $propertyOperand = $operands[count($operands) - 1];
+        if (!str_starts_with($tagOperand, '/') || $this->decodePdfName(substr($tagOperand, 1)) !== 'OC') {
+            return false;
+        }
+
+        if (!str_starts_with($propertyOperand, '/')) {
+            return false;
+        }
+
+        $propertyName = $this->decodePdfName(substr($propertyOperand, 1));
+        return isset($propertyVisibility[$propertyName]) && !$propertyVisibility[$propertyName];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, bool> $optionalContentStates
+     */
+    private function optionalContentObjectVisible(string $objectBody, array $objects, array $optionalContentStates): bool
+    {
+        $trimmed = trim($objectBody);
+        $dictionary = str_starts_with($trimmed, '<<')
+            ? ($this->dictionaryObjectBody($objectBody) ?? $objectBody)
+            : $objectBody;
+        $optionalContent = $this->pdfValueAfterName($dictionary, 'OC');
+        return $optionalContent === null
+            || $this->optionalContentValueVisible($optionalContent, $objects, $optionalContentStates);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, bool> $optionalContentStates
+     */
+    private function optionalContentValueVisible(string $value, array $objects, array $optionalContentStates): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return true;
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
+            return $this->optionalContentReferenceVisible((int) $match[1], $objects, $optionalContentStates);
+        }
+
+        if (str_starts_with($value, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($value, 0);
+            return $dictionary === null
+                || $this->optionalContentDictionaryVisible($dictionary, $objects, $optionalContentStates);
+        }
+
+        if (str_starts_with($value, '[')) {
+            $values = $this->optionalContentVisibilityValuesFromValue($value, $objects, $optionalContentStates);
+            return $values === [] || in_array(true, $values, true);
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, bool> $optionalContentStates
+     */
+    private function optionalContentReferenceVisible(int $objectNumber, array $objects, array $optionalContentStates): bool
+    {
+        if (!isset($objects[$objectNumber])) {
+            return true;
+        }
+
+        $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+        if ($dictionary === null) {
+            return true;
+        }
+
+        return $this->optionalContentDictionaryVisible($dictionary, $objects, $optionalContentStates, $objectNumber);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, bool> $optionalContentStates
+     */
+    private function optionalContentDictionaryVisible(
+        string $dictionary,
+        array $objects,
+        array $optionalContentStates,
+        ?int $objectNumber = null
+    ): bool {
+        $type = $this->pdfNameValueAfterName($dictionary, 'Type') ?? 'OCG';
+        if ($type === 'OCMD') {
+            return $this->optionalContentMembershipVisible($dictionary, $objects, $optionalContentStates);
+        }
+
+        if ($type !== 'OCG') {
+            return true;
+        }
+
+        $usage = $this->pdfDictionaryValueAfterNameResolved($dictionary, 'Usage', $objects);
+        $view = $usage === null ? null : $this->pdfDictionaryValueAfterNameResolved($usage, 'View', $objects);
+        $viewState = $view === null ? null : $this->pdfNameValueAfterName($view, 'ViewState');
+        if ($viewState === 'OFF') {
+            return false;
+        }
+        if ($viewState === 'ON') {
+            return true;
+        }
+
+        return $objectNumber === null || !array_key_exists($objectNumber, $optionalContentStates)
+            ? true
+            : $optionalContentStates[$objectNumber];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, bool> $optionalContentStates
+     */
+    private function optionalContentMembershipVisible(
+        string $dictionary,
+        array $objects,
+        array $optionalContentStates
+    ): bool {
+        $ocgs = $this->pdfValueAfterName($dictionary, 'OCGs');
+        if ($ocgs === null) {
+            return true;
+        }
+
+        $values = $this->optionalContentVisibilityValuesFromValue($ocgs, $objects, $optionalContentStates);
+        if ($values === []) {
+            return true;
+        }
+
+        $policy = $this->pdfNameValueAfterName($dictionary, 'P') ?? 'AnyOn';
+        return match ($policy) {
+            'AllOn' => !in_array(false, $values, true),
+            'AnyOff' => in_array(false, $values, true),
+            'AllOff' => !in_array(true, $values, true),
+            default => in_array(true, $values, true),
+        };
+    }
+
+    /**
+     * @return list<bool>
+     * @param array<int, string> $objects
+     * @param array<int, bool> $optionalContentStates
+     */
+    private function optionalContentVisibilityValuesFromValue(
+        string $value,
+        array $objects,
+        array $optionalContentStates
+    ): array {
+        $value = trim($value);
+        if ($value === '') {
+            return [];
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
+            return [$this->optionalContentReferenceVisible((int) $match[1], $objects, $optionalContentStates)];
+        }
+
+        if (str_starts_with($value, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($value, 0);
+            return $dictionary === null ? [] : [$this->optionalContentDictionaryVisible($dictionary, $objects, $optionalContentStates)];
+        }
+
+        $arrayBody = $this->pdfArrayFromValue($value, $objects);
+        if ($arrayBody === null) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($this->objectReferences($arrayBody) as $objectNumber) {
+            $values[] = $this->optionalContentReferenceVisible($objectNumber, $objects, $optionalContentStates);
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfArrayValueAfterNameResolved(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->pdfValueAfterName($body, $name);
+        return $value === null ? null : $this->pdfArrayFromValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfDictionaryValueAfterNameResolved(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->pdfValueAfterName($body, $name);
+        return $value === null ? null : $this->pdfDictionaryFromValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfArrayFromValue(string $value, array $objects): ?string
+    {
+        $value = trim($value);
+        if (str_starts_with($value, '[')) {
+            return $this->pdfArrayAtStart($value);
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) !== 1) {
+            return null;
+        }
+
+        $objectNumber = (int) $match[1];
+        return isset($objects[$objectNumber]) ? $this->pdfArrayAtStart(trim($objects[$objectNumber])) : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfDictionaryFromValue(string $value, array $objects): ?string
+    {
+        $value = trim($value);
+        if (str_starts_with($value, '<<')) {
+            return $this->readPdfDictionaryAt($value, 0);
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) !== 1) {
+            return null;
+        }
+
+        $objectNumber = (int) $match[1];
+        return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
     }
 
     private function isStreamObject(string $objectBody): bool
