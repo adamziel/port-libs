@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 00:21:40 UTC",
-    "sourceCommit": "494b5c68807021a580c29cb627dcc49c17d3c7f8",
-    "sourceCommitShort": "494b5c688070",
+    "generated": "2026-06-02 00:27:48 UTC",
+    "sourceCommit": "16d80812f1fc74b7d541c6f80d98945b4be0e50c",
+    "sourceCommitShort": "16d80812f1fc",
     "sourceBranch": "main",
-    "dashboardCommit": "494b5c68807021a580c29cb627dcc49c17d3c7f8",
-    "dashboardCommitShort": "494b5c688070",
+    "dashboardCommit": "16d80812f1fc74b7d541c6f80d98945b4be0e50c",
+    "dashboardCommitShort": "16d80812f1fc",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,289,274 pass / 9 fail",
+            "php": "6,290,277 pass / 9 fail",
             "phase": "current-base root/window failure reduction accepted by supervisor; br...",
             "audit": "2026-06-01 21:15 UTC supervisor integration: source commit c3bf2f17bb...",
-            "currentWork": "Window1 collated aggregate dynamic corpus coverage and root-gate mixed bind/update-li...",
+            "currentWork": "Real upstream WAL restart race dynamic corpus coverage is accepted on current base, a...",
             "nextTarget": "Continue reducing the 9 broad libsqlite failures with current...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: current SQLite...",
-            "commit": "4485bb6"
+            "commit": "16d8081"
         },
         {
             "lane": "lightningcss",
@@ -45,13 +45,13 @@
             "coverage": "2,439 / 3,532 (69.1%)",
             "mapPercent": "69.1%",
             "unmapped": "1,093",
-            "php": "9,262 pass / 0 fail",
+            "php": "9,273 pass / 0 fail",
             "phase": "wrap-up source parity plus runner-evidence consolidation; full Rust/N...",
             "audit": "2026-06-01 isolated worker on base 4891303774c9ca404591d2f3a4d35bc9e1...",
-            "currentWork": "SourceMap VLQ/offset, CSSOM SVG paint/image-rendering fallback, and CSS Modules local...",
+            "currentWork": "Grid-template area-bearing CSSOM read/write/remove parity and escaped CSS Modules @va...",
             "nextTarget": "Install or vendor the missing upstream runner dependencies in...",
             "remainingGate": "Full upstream runner closure is partial: bounded Rust media test and...",
-            "commit": "4485bb6"
+            "commit": "16d8081"
         },
         {
             "lane": "gitoxide",
@@ -68,13 +68,13 @@
             "coverage": "1,820 / 2,886 (63.1%)",
             "mapPercent": "63.1%",
             "unmapped": "1,066",
-            "php": "11,058 pass / 0 fail",
+            "php": "11,093 pass / 0 fail",
             "phase": "wrap-up PHP parity and runner-evidence consolidation; full Cargo work...",
             "audit": "2026-06-01 20:36 UTC supervisor integration: source commit e5958190df...",
-            "currentWork": "Cargo target materialization is accepted on current base: the native materializer can...",
+            "currentWork": "Reference transaction held-lock precedence and tree-merge no-merge-base diff3 fixture...",
             "nextTarget": "Run the CargoTargetMaterializer against the sparse upstream c...",
             "remainingGate": "Cargo workspace blocked by sparse target files",
-            "commit": "a37af33"
+            "commit": "16d8081"
         },
         {
             "lane": "markerpdf",
