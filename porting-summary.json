@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 09:52:07 UTC",
-    "sourceCommit": "d201446625b898e43cc4871608ab8946fe96498c",
-    "sourceCommitShort": "d201446625b8",
+    "generated": "2026-06-02 09:57:25 UTC",
+    "sourceCommit": "89b6b00665ce5c10ac5be4870467b3a7485e14f6",
+    "sourceCommitShort": "89b6b00665ce",
     "sourceBranch": "unknown",
-    "dashboardCommit": "d201446625b898e43cc4871608ab8946fe96498c",
-    "dashboardCommitShort": "d201446625b8",
+    "dashboardCommit": "89b6b00660d33bdff431ca9a406eaad24a033b5a",
+    "dashboardCommitShort": "89b6b00660d3",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "311",
-            "coverage": "311 / 78 (398.7%)",
-            "mapPercent": "398.7%",
+            "mapped": "312",
+            "coverage": "312 / 78 (400.0%)",
+            "mapPercent": "400.0%",
             "unmapped": "0",
-            "php": "459 pass / 0 fail",
+            "php": "460 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Movie, Sound, and Rendition annotation popup boundaries are accepted on markerPDF wit...",
+            "currentWork": "CMap source glyph advance boundaries are accepted on markerPDF with full PHP evidence.",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "d201446"
+            "commit": "89b6b00"
         },
         {
             "lane": "readability",
