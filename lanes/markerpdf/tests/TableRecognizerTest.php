@@ -744,6 +744,47 @@ return [
         $t->same('covered', $gridByPosition['0:1']['state']);
         $t->same('Needs review', $gridByPosition['2:2']['text']);
     },
+    'preserves detector grid order when OCR bboxes straddle cell borders' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $recognized = $recognizer->recognizeTables(
+            [[
+                ['bbox' => [0.0, 0.0, 90.0, 24.0], 'text' => ''],
+                ['bbox' => [100.0, 0.0, 190.0, 24.0], 'text' => ''],
+                ['bbox' => [0.0, 40.0, 90.0, 64.0], 'text' => ''],
+                ['bbox' => [100.0, 40.0, 190.0, 64.0], 'text' => ''],
+            ]],
+            [true],
+            [[
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 200.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 38.0, 200.0, 70.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 96.0, 72.0]],
+                    ['col_id' => 1, 'bbox' => [98.0, 0.0, 200.0, 72.0]],
+                ],
+            ]],
+            [[
+                'lines' => [
+                    ['text' => 'Feature', 'bbox' => [0.0, 0.0, 190.0, 24.0]],
+                    ['text' => 'Status', 'bbox' => [0.0, 0.0, 190.0, 24.0]],
+                    ['text' => 'Images', 'bbox' => [0.0, 40.0, 190.0, 64.0]],
+                    ['text' => 'Ready', 'bbox' => [0.0, 40.0, 190.0, 64.0]],
+                ],
+            ]]
+        );
+        $formatted = $recognizer->formatRecognizedTables($recognized, [['width' => 200, 'height' => 72]]);
+        $conflicts = $recognized[0]['ocr_grid_border_conflicts'] ?? [];
+
+        $t->same('source_order_grid_border', $recognized[0]['ocr_text_assignment'] ?? null);
+        $t->same(['Feature', 'Status', 'Images', 'Ready'], array_column($recognized[0]['cells'], 'text'));
+        $t->same(4, count($conflicts));
+        $t->same([0, 1], $conflicts[0]['candidate_cell_indexes']);
+        $t->same(0, $conflicts[0]['assigned_cell_index']);
+        $t->same(3, $conflicts[3]['assigned_cell_index']);
+        $t->same(true, $conflicts[0]['spans_grid_border']);
+        $t->contains('| Images  | Ready  |', $formatted['markdown_tables'][0]);
+    },
     'falls back to heuristic row layout when model rows and columns leave most cells unassigned' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $assigned = $recognizer->assignRowsColumns(

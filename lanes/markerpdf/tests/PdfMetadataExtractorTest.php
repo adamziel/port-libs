@@ -969,6 +969,147 @@ return [
         $t->true(!str_contains($text, '<wp-export>'));
         $t->true(!str_contains($text, 'Associated catalog ICC bytes'));
     },
+    'uses current xref-selected catalog metadata OutputIntents and associated files' => static function (TestRunner $t) use ($xmpPacket): void {
+        $currentRootProfile = 'Current xref-selected root ICC bytes';
+        $currentAssociatedProfile = 'Current xref-selected associated ICC bytes';
+        $currentSourcePayload = '<wp-export><post id="1735"/></wp-export>';
+        $currentPreviewPayload = 'Current xref-selected preview bytes';
+        $staleRootProfile = 'Stale catalog ICC bytes must not win';
+        $staleAssociatedProfile = 'Stale associated ICC bytes must not win';
+        $staleSourcePayload = '<wp-export><post id="stale"/></wp-export>';
+        $stalePreviewPayload = 'Stale associated preview bytes';
+        $currentSourceChecksum = strtoupper(hash('md5', $currentSourcePayload));
+
+        $currentRootXmp = gzcompress($xmpPacket([
+            'title' => 'Current XRef Catalog Title',
+            'description' => 'Current xref-selected document XMP wins',
+        ]));
+        $currentAssociatedXmp = gzcompress($xmpPacket([
+            'title' => 'Current Associated XMP Title',
+            'description' => 'Current xref-selected FileSpec XMP stays local',
+        ]));
+        $currentRootProfileStream = gzcompress($currentRootProfile);
+        $currentAssociatedProfileStream = gzcompress($currentAssociatedProfile);
+        $staleRootXmp = gzcompress($xmpPacket([
+            'title' => 'Stale Catalog XMP Title',
+            'description' => 'Stale catalog XMP must not win',
+        ]));
+        $staleAssociatedXmp = gzcompress($xmpPacket([
+            'title' => 'Stale Associated XMP Title',
+            'description' => 'Stale FileSpec XMP must not win',
+        ]));
+        $staleRootProfileStream = gzcompress($staleRootProfile);
+        $staleAssociatedProfileStream = gzcompress($staleAssociatedProfile);
+        if (
+            !is_string($currentRootXmp)
+            || !is_string($currentAssociatedXmp)
+            || !is_string($currentRootProfileStream)
+            || !is_string($currentAssociatedProfileStream)
+            || !is_string($staleRootXmp)
+            || !is_string($staleAssociatedXmp)
+            || !is_string($staleRootProfileStream)
+            || !is_string($staleAssociatedProfileStream)
+        ) {
+            throw new RuntimeException('Unable to compress current-base metadata fixture streams.');
+        }
+
+        $content = 'BT /F1 12 Tf 72 720 Td (Current XRef Associated Metadata Body) Tj ET';
+        $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale Associated Metadata Body) Tj ET';
+        $pdf = "%PDF-2.0\n";
+        $offsets = [];
+        $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): void {
+            $offsets[$objectNumber] = strlen($pdf);
+            $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+        };
+
+        $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Metadata 5 0 R /OutputIntents [9 0 R] /AF [10 0 R << /Type /Filespec /F (current-preview.pdf) /Desc (Current rendered PDF preview) /AFRelationship /Alternative /OutputIntents [13 0 R] /EF << /F 15 0 R >> >>] >>');
+        $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+        $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>');
+        $addObject(4, 0, "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream");
+        $addObject(5, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($currentRootXmp) . " >>\nstream\n{$currentRootXmp}\nendstream");
+        $addObject(6, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($currentAssociatedXmp) . " >>\nstream\n{$currentAssociatedXmp}\nendstream");
+        $addObject(7, 0, '<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length ' . strlen($currentRootProfileStream) . " >>\nstream\n{$currentRootProfileStream}\nendstream");
+        $addObject(8, 0, '<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length ' . strlen($currentAssociatedProfileStream) . " >>\nstream\n{$currentAssociatedProfileStream}\nendstream");
+        $addObject(9, 0, '<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Current Root sRGB) /Info (Current root PDF/A profile) /DestOutputProfile 7 0 R >>');
+        $addObject(10, 0, '<< /Type /Filespec /F (legacy-current-source.xml) /UF (current-source.xml) /Desc (Current WordPress export) /AFRelationship /Source /Lang (es-MX) /Metadata 6 0 R /OutputIntents [13 0 R] /EF << /F 11 0 R >> >>');
+        $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size ' . strlen($currentSourcePayload) . ' /CheckSum <' . $currentSourceChecksum . "> >> /Length " . strlen($currentSourcePayload) . " >>\nstream\n{$currentSourcePayload}\nendstream");
+        $addObject(13, 0, '<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Current Associated sRGB) /Info (Current associated PDF/A profile) /DestOutputProfile 8 0 R >>');
+        $addObject(14, 0, '<< /Title (Current Info Title) /Author (Current Metadata Author) /Producer (Current Metadata Producer) >>');
+        $addObject(15, 0, '<< /Type /EmbeddedFile /Subtype /application#2Fpdf /Length ' . strlen($currentPreviewPayload) . " >>\nstream\n{$currentPreviewPayload}\nendstream");
+
+        $xrefOffset = strlen($pdf);
+        $rows = '';
+        for ($objectNumber = 0; $objectNumber < 17; $objectNumber++) {
+            if ($objectNumber === 0 || !isset($offsets[$objectNumber]) && $objectNumber !== 16) {
+                $rows .= pack('CNn', 0, 0, $objectNumber === 0 ? 65535 : 0);
+                continue;
+            }
+
+            $rows .= pack('CNn', 1, $objectNumber === 16 ? $xrefOffset : $offsets[$objectNumber], 0);
+        }
+        $compressedXref = gzcompress($rows);
+        if (!is_string($compressedXref)) {
+            throw new RuntimeException('Unable to compress current-base metadata xref stream.');
+        }
+
+        $pdf .= "16 0 obj\n"
+            . '<< /Type /XRef /Size 17 /Root 1 0 R /Info 14 0 R /ID [(Current\040XRef\040Permanent) (Current\040XRef\040Changing)] /W [1 4 2] /Filter /FlateDecode /Length ' . strlen($compressedXref) . " >>\n"
+            . "stream\n{$compressedXref}\nendstream\nendobj\n"
+            . "startxref\n{$xrefOffset}\n%%EOF\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Metadata 5 0 R /OutputIntents [9 0 R] /AF [10 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($staleRootXmp) . " >>\nstream\n{$staleRootXmp}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($staleAssociatedXmp) . " >>\nstream\n{$staleAssociatedXmp}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($staleRootProfileStream) . " >>\nstream\n{$staleRootProfileStream}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($staleAssociatedProfileStream) . " >>\nstream\n{$staleAssociatedProfileStream}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Stale Root sRGB) /Info (Stale root PDF/A profile) /DestOutputProfile 7 0 R >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (stale-source.xml) /Desc (Stale WordPress export) /AFRelationship /Source /Metadata 6 0 R /OutputIntents [13 0 R] /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length " . strlen($staleSourcePayload) . " >>\nstream\n{$staleSourcePayload}\nendstream\nendobj\n"
+            . "13 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Stale Associated sRGB) /Info (Stale associated PDF/A profile) /DestOutputProfile 8 0 R >>\nendobj\n"
+            . "14 0 obj\n<< /Title (Stale Info Title) /Author (Stale Metadata Author) /Producer (Stale Metadata Producer) >>\nendobj\n"
+            . "15 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fpdf /Length " . strlen($stalePreviewPayload) . " >>\nstream\n{$stalePreviewPayload}\nendstream\nendobj\n";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+        $associatedFiles = $metadata['associated_files'] ?? [];
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['xmp', 'info', 'catalog', 'output_intents', 'trailer_id'], $metadata['source']);
+        $t->same('Current XRef Catalog Title', $metadata['title']);
+        $t->same('Current xref-selected document XMP wins', $metadata['description']);
+        $t->same(['Ada Editor', 'Data Liberation Team'], $metadata['authors']);
+        $t->same('Current Info Title', $metadata['info']['Title']);
+        $t->same('Current Metadata Author', $metadata['info']['Author']);
+        $t->same('Current Metadata Producer', $metadata['info']['Producer']);
+        $t->same('LibreOffice PDF', $metadata['producer']);
+        $t->same('en-US', $metadata['language']);
+        $t->same(['Current Root sRGB'], $metadata['pdfa']['output_condition_identifiers']);
+        $t->same([hash('sha256', $currentRootProfile)], $metadata['pdfa']['profile_sha256']);
+        $t->same(2, count($associatedFiles));
+        $t->same('current-source.xml', $associatedFiles[0]['filename']);
+        $t->same('legacy-current-source.xml', $associatedFiles[0]['platform_filename']);
+        $t->same('Current WordPress export', $associatedFiles[0]['description']);
+        $t->same('es-MX', $associatedFiles[0]['language']);
+        $t->same(true, $associatedFiles[0]['checksum_matches']);
+        $t->same(hash('sha256', $currentSourcePayload), $associatedFiles[0]['content_sha256']);
+        $t->same('Metadata', $associatedFiles[0]['metadata_review']['Type']);
+        $t->same('Current Associated sRGB', $associatedFiles[0]['output_intents_review'][0]['OutputConditionIdentifier']);
+        $t->same('current-preview.pdf', $associatedFiles[1]['filename']);
+        $t->same('Current rendered PDF preview', $associatedFiles[1]['description']);
+        $t->same('Current Associated sRGB', $associatedFiles[1]['output_intents_review'][0]['OutputConditionIdentifier']);
+        $t->same('Current XRef Associated Metadata Body', $text);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Stale Catalog XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Stale Info Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Stale Root sRGB'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Stale Associated sRGB'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $staleSourcePayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $stalePreviewPayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $staleRootProfile));
+        $t->true(is_string($encoded) && !str_contains($encoded, $staleAssociatedProfile));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Current Associated XMP Title'));
+        $t->true(!str_contains($text, 'Stale Associated Metadata Body'));
+        $t->true(!str_contains($text, '<wp-export>'));
+    },
     'extracts catalog language and indirect viewer preferences for WordPress review' => static function (TestRunner $t) use ($pdfWithCatalogReview): void {
         $lang = strtoupper(bin2hex("\xfe\xff\x00e\x00s\x00-\x00M\x00X"));
         $viewerPreferences = "7 0 obj\n"

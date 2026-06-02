@@ -20,6 +20,7 @@ final class PdfSecurityPreflight
         $documentSecurityStore = (new PdfDocumentSecurityStoreExtractor())->extract($pdfBytes);
         $encryption = is_array($metadata['encryption'] ?? null) ? $metadata['encryption'] : null;
         $signatures = $this->signatureReviews($form['fields'] ?? [], $pdfBytes, $documentSecurityStore);
+        $documentActionReview = $this->documentActionSecurityReview($pdfBytes, $signatures);
         $encrypted = $encryption !== null;
         $hasDocumentSecurityStore = ($documentSecurityStore['present'] ?? false) === true;
         $signedSignatureCount = count(array_filter(
@@ -41,7 +42,8 @@ final class PdfSecurityPreflight
             $referenceTransformCount,
             $lockedFieldNames,
             $permissionPreflight,
-            $hasDocumentSecurityStore
+            $hasDocumentSecurityStore,
+            $documentActionReview
         );
 
         return [
@@ -51,9 +53,9 @@ final class PdfSecurityPreflight
             'content_extraction_allowed' => !$encrypted,
             'text_extraction_policy' => $encrypted ? 'blocked_without_decryption' : 'native_text_allowed',
             'form_value_import_policy' => $encrypted ? 'review_only_encrypted' : 'native_review_metadata',
-            'import_decision' => $this->importDecision($encrypted, $invalidByteRangeCount, $signedSignatureCount, $hasDocumentSecurityStore),
+            'import_decision' => $this->importDecision($encrypted, $invalidByteRangeCount, $signedSignatureCount, $hasDocumentSecurityStore, $documentActionReview),
             'review_reasons' => $reviewReasons,
-            'blocked_operations' => $this->blockedOperations($encrypted, $signatures, $hasDocumentSecurityStore),
+            'blocked_operations' => $this->blockedOperations($encrypted, $signatures, $hasDocumentSecurityStore, $documentActionReview),
             'encryption' => $this->encryptionReview($encryption),
             'permission_preflight' => $permissionPreflight,
             'permission_handler_review' => is_array($permissionPreflight['permission_handler_review'] ?? null)
@@ -74,6 +76,11 @@ final class PdfSecurityPreflight
             'signatures' => $signatures,
             'signature_security_review_count' => count($signatures),
             'signature_security_reviews' => $this->signatureSecurityReviews($signatures),
+            'document_action_security_review' => $documentActionReview,
+            'document_action_review_count' => (int) $documentActionReview['action_count'],
+            'unsafe_document_action_count' => (int) $documentActionReview['unsafe_action_count'],
+            'launch_action_count' => (int) $documentActionReview['launch_action_count'],
+            'unsafe_uri_action_count' => (int) $documentActionReview['unsafe_uri_action_count'],
             'raw_owner_user_keys_exposed' => false,
             'recipient_bytes_exposed' => false,
             'raw_signature_validation_bytes_exposed' => false,
@@ -83,6 +90,7 @@ final class PdfSecurityPreflight
             'executes_trust_chain_validation' => false,
             'executes_signing' => false,
             'executes_javascript' => false,
+            'executes_pdf_actions' => false,
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
         ];
@@ -357,6 +365,224 @@ final class PdfSecurityPreflight
         }
 
         return $reviews;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     * @return array<string, mixed>
+     */
+    private function documentActionSecurityReview(string $pdfBytes, array $signatures): array
+    {
+        $actions = [];
+        $outline = new PdfOutlineExtractor();
+        foreach ($outline->getOpenActionReviewActions($pdfBytes) as $action) {
+            $this->addDocumentActionReviewRow($actions, $action, 'catalog_open_action');
+        }
+
+        foreach ($outline->getPageTransitionActionMetadata($pdfBytes) as $page) {
+            $pageContext = [
+                'pnum' => $page['pnum'] ?? null,
+                'page_object' => $page['page_object'] ?? null,
+                'page_label' => $page['page_label'] ?? null,
+            ];
+            foreach ($page['actions'] ?? [] as $action) {
+                if (is_array($action)) {
+                    $this->addDocumentActionReviewRow($actions, $action, 'page_additional_action', $pageContext);
+                }
+            }
+        }
+
+        foreach ((new PdfAnnotationExtractor())->extractPageAnnotations($pdfBytes) as $page) {
+            $pageContext = [
+                'pnum' => $page['pnum'] ?? null,
+                'page_object' => $page['page_object'] ?? null,
+            ];
+            foreach ($page['annotations'] ?? [] as $annotation) {
+                if (!is_array($annotation)) {
+                    continue;
+                }
+
+                $annotationContext = $pageContext + [
+                    'annotation_object' => $annotation['annotation_object'] ?? null,
+                    'annotation_subtype' => $annotation['subtype'] ?? null,
+                ];
+
+                foreach ($annotation['actions'] ?? [] as $action) {
+                    if (is_array($action)) {
+                        $this->addDocumentActionReviewRow($actions, $action, 'page_annotation_action', $annotationContext);
+                    }
+                }
+
+                foreach ($annotation['additional_actions'] ?? [] as $action) {
+                    if (is_array($action)) {
+                        $this->addDocumentActionReviewRow($actions, $action, 'page_annotation_additional_action', $annotationContext);
+                    }
+                }
+            }
+        }
+
+        return [
+            'source' => 'pdf_document_action_security_review',
+            'present' => $actions !== [],
+            'action_count' => count($actions),
+            'open_action_count' => $this->documentActionCountBySource($actions, 'catalog_open_action'),
+            'annotation_action_count' => $this->documentActionCountBySources($actions, ['page_annotation_action', 'page_annotation_additional_action']),
+            'page_additional_action_count' => $this->documentActionCountBySource($actions, 'page_additional_action'),
+            'launch_action_count' => $this->documentActionCountByType($actions, 'Launch'),
+            'uri_action_count' => $this->documentActionCountByType($actions, 'URI'),
+            'safe_uri_action_count' => count(array_filter(
+                $actions,
+                static fn (array $action): bool => ($action['action_type'] ?? null) === 'URI'
+                    && (($action['safety'] ?? null) === 'review-uri' || ($action['is_safe_uri'] ?? null) === true)
+            )),
+            'unsafe_uri_action_count' => count(array_filter(
+                $actions,
+                static fn (array $action): bool => ($action['action_type'] ?? null) === 'URI'
+                    && ($action['safety'] ?? null) === 'blocked-unsafe-uri'
+            )),
+            'unsafe_action_count' => count(array_filter($actions, fn (array $action): bool => $this->isUnsafeDocumentAction($action))),
+            'action_types' => $this->uniqueStringColumn($actions, 'action_type'),
+            'safety_labels' => $this->uniqueStringColumn($actions, 'safety'),
+            'certifying_signature_count' => count(array_filter(
+                $signatures,
+                static fn (array $signature): bool => ($signature['certifying_signature'] ?? false) === true
+            )),
+            'certifying_permission_labels' => $this->certifyingPermissionLabels($signatures),
+            'signature_reference_transform_methods' => $this->referenceTransformMethods($signatures),
+            'actions' => $actions,
+            'all_actions_review_only' => true,
+            'executes_actions_on_import' => false,
+            'executes_javascript' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @param array<string, mixed> $action
+     * @param array<string, mixed> $context
+     */
+    private function addDocumentActionReviewRow(array &$actions, array $action, string $source, array $context = []): void
+    {
+        $row = [
+            'source' => $source,
+            'pnum' => $context['pnum'] ?? null,
+            'page_object' => $context['page_object'] ?? null,
+            'page_label' => is_string($context['page_label'] ?? null) ? $context['page_label'] : null,
+            'annotation_object' => $context['annotation_object'] ?? null,
+            'annotation_subtype' => $context['annotation_subtype'] ?? null,
+            'event' => $action['event'] ?? null,
+            'event_label' => $action['event_label'] ?? null,
+            'action_type' => is_string($action['action_type'] ?? null) ? $action['action_type'] : null,
+            'safety' => is_string($action['safety'] ?? null) ? $action['safety'] : null,
+            'action_object' => is_int($action['action_object'] ?? null) ? $action['action_object'] : null,
+            'uri' => is_string($action['uri'] ?? null) ? $action['uri'] : null,
+            'file' => is_string($action['file'] ?? null) ? $action['file'] : null,
+            'operation' => is_string($action['operation'] ?? null) ? $action['operation'] : null,
+            'destination' => is_string($action['destination'] ?? null) ? $action['destination'] : null,
+            'destination_page' => is_int($action['destination_page'] ?? null) ? $action['destination_page'] : null,
+            'page' => is_int($action['page'] ?? null) ? $action['page'] : null,
+            'new_window' => is_bool($action['new_window'] ?? null) ? $action['new_window'] : null,
+            'is_safe_uri' => is_bool($action['is_safe_uri'] ?? null) ? $action['is_safe_uri'] : null,
+            'chained' => is_bool($action['chained'] ?? null) ? $action['chained'] : false,
+            'chain_index' => is_int($action['chain_index'] ?? null) ? $action['chain_index'] : null,
+            'review_only' => true,
+            'executes_on_import' => false,
+            'executes_action' => false,
+        ];
+
+        $actions[] = $row;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     */
+    private function documentActionCountBySource(array $actions, string $source): int
+    {
+        return count(array_filter(
+            $actions,
+            static fn (array $action): bool => ($action['source'] ?? null) === $source
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @param list<string> $sources
+     */
+    private function documentActionCountBySources(array $actions, array $sources): int
+    {
+        return count(array_filter(
+            $actions,
+            static fn (array $action): bool => in_array($action['source'] ?? null, $sources, true)
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     */
+    private function documentActionCountByType(array $actions, string $type): int
+    {
+        return count(array_filter(
+            $actions,
+            static fn (array $action): bool => ($action['action_type'] ?? null) === $type
+        ));
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     */
+    private function isUnsafeDocumentAction(array $action): bool
+    {
+        $safety = $action['safety'] ?? null;
+        $type = $action['action_type'] ?? null;
+
+        return in_array($safety, ['blocked-launch', 'launch-action-review', 'blocked-javascript', 'blocked-unsafe-uri'], true)
+            || in_array($type, ['Launch', 'JavaScript'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private function uniqueStringColumn(array $rows, string $key): array
+    {
+        $values = [];
+        foreach ($rows as $row) {
+            if (!is_string($row[$key] ?? null) || in_array($row[$key], $values, true)) {
+                continue;
+            }
+
+            $values[] = $row[$key];
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     * @return list<string>
+     */
+    private function certifyingPermissionLabels(array $signatures): array
+    {
+        $labels = [];
+        foreach ($signatures as $signature) {
+            if (($signature['certifying_signature'] ?? false) !== true) {
+                continue;
+            }
+
+            foreach ($signature['reference_transforms'] ?? [] as $transform) {
+                if (
+                    is_array($transform)
+                    && ($transform['transform_method'] ?? null) === 'DocMDP'
+                    && is_string($transform['permission_label'] ?? null)
+                    && !in_array($transform['permission_label'], $labels, true)
+                ) {
+                    $labels[] = $transform['permission_label'];
+                }
+            }
+        }
+
+        return $labels;
     }
 
     /**
@@ -942,7 +1168,8 @@ final class PdfSecurityPreflight
         int $referenceTransformCount,
         array $lockedFieldNames,
         array $permissionPreflight,
-        bool $hasDocumentSecurityStore
+        bool $hasDocumentSecurityStore,
+        array $documentActionReview
     ): array
     {
         $reasons = [];
@@ -980,11 +1207,26 @@ final class PdfSecurityPreflight
         if ($hasDocumentSecurityStore) {
             $reasons[] = 'document_security_store_present';
         }
+        if ((int) ($documentActionReview['unsafe_action_count'] ?? 0) > 0) {
+            $reasons[] = 'unsafe_pdf_actions_present';
+        }
+        if ((int) ($documentActionReview['launch_action_count'] ?? 0) > 0) {
+            $reasons[] = 'launch_actions_present';
+        }
+        if ((int) ($documentActionReview['unsafe_uri_action_count'] ?? 0) > 0) {
+            $reasons[] = 'unsafe_uri_actions_present';
+        }
 
         return $reasons;
     }
 
-    private function importDecision(bool $encrypted, int $invalidByteRangeCount, int $signedSignatureCount, bool $hasDocumentSecurityStore): string
+    private function importDecision(
+        bool $encrypted,
+        int $invalidByteRangeCount,
+        int $signedSignatureCount,
+        bool $hasDocumentSecurityStore,
+        array $documentActionReview
+    ): string
     {
         if ($encrypted) {
             return 'block_encrypted_content_review_security_metadata';
@@ -998,6 +1240,9 @@ final class PdfSecurityPreflight
         if ($hasDocumentSecurityStore) {
             return 'review_required_signature_metadata';
         }
+        if ((int) ($documentActionReview['unsafe_action_count'] ?? 0) > 0) {
+            return 'review_required_pdf_action_security';
+        }
 
         return 'allow_native_import';
     }
@@ -1006,7 +1251,7 @@ final class PdfSecurityPreflight
      * @param list<array<string, mixed>> $signatures
      * @return list<string>
      */
-    private function blockedOperations(bool $encrypted, array $signatures, bool $hasDocumentSecurityStore): array
+    private function blockedOperations(bool $encrypted, array $signatures, bool $hasDocumentSecurityStore, array $documentActionReview): array
     {
         $blocked = [];
         if ($encrypted) {
@@ -1020,6 +1265,9 @@ final class PdfSecurityPreflight
         if ($hasDocumentSecurityStore) {
             $blocked[] = 'revocation_check';
             $blocked[] = 'trust_chain_validation';
+        }
+        if ((int) ($documentActionReview['unsafe_action_count'] ?? 0) > 0) {
+            $blocked[] = 'pdf_action_execution';
         }
 
         return $blocked;

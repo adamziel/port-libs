@@ -218,6 +218,10 @@ final class SuppliedDocumentConverter
             $metadata['table_assigned_cells'] = $recognition['assigned_cells'];
             $metadata['table_merged_cell_geometry'] = $this->mergedCellGeometryForTables($recognition['assigned_cells'], $recognizedTables);
             $metadata['table_spanning_grid_review'] = $this->spanningGridReviewForTables($recognition['assigned_cells'], $recognizedTables);
+            $ocrGridBorderConflicts = $this->ocrGridBorderConflictsForTables($recognizedTables);
+            if ($ocrGridBorderConflicts !== []) {
+                $metadata['table_ocr_grid_border_conflicts'] = $ocrGridBorderConflicts;
+            }
             $metadata['supplied_boundaries'][] = 'table-recognition';
         }
 
@@ -342,6 +346,36 @@ final class SuppliedDocumentConverter
         }
 
         return $reviews;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $recognizedTables
+     * @return list<list<array<string, mixed>>>
+     */
+    private function ocrGridBorderConflictsForTables(array $recognizedTables): array
+    {
+        $conflicts = [];
+        foreach ($recognizedTables as $table) {
+            if (!is_array($table) || !isset($table['ocr_grid_border_conflicts']) || !is_array($table['ocr_grid_border_conflicts'])) {
+                $conflicts[] = [];
+                continue;
+            }
+
+            $conflicts[] = array_values(array_filter(
+                $table['ocr_grid_border_conflicts'],
+                static fn (mixed $item): bool => is_array($item)
+            ));
+        }
+
+        $hasConflict = false;
+        foreach ($conflicts as $tableConflicts) {
+            if ($tableConflicts !== []) {
+                $hasConflict = true;
+                break;
+            }
+        }
+
+        return $hasConflict ? $conflicts : [];
     }
 
     /**

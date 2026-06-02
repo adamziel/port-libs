@@ -97,26 +97,42 @@ final class PdfOutlineExtractor
         foreach ($pageObjectNumbers as $index => $objectNumber) {
             $pageIndexes[$objectNumber] = $index;
         }
+        $destinations = $this->destinationMap($catalog, $objects);
 
-        $resolved = $this->resolveValue($catalog['OpenAction'], $objects);
-        $dict = $this->dictionaryItems($resolved);
-        if ($dict !== null && array_key_exists('S', $dict)) {
+        $destinationAction = $this->destinationActionReviewValue($catalog['OpenAction'], $objects, $destinations);
+        if ($destinationAction !== null) {
             $seen = [];
-
-            return $this->reviewActionsFromValue(
-                $catalog['OpenAction'],
+            $actions = $this->reviewActionsFromValue(
+                $destinationAction['value'],
                 $objects,
                 $pageIndexes,
-                $this->destinationMap($catalog, $objects),
+                $destinations,
                 $seen
             );
+            if ($actions !== []) {
+                if ($destinationAction['destination_name'] !== null) {
+                    foreach ($actions as &$action) {
+                        $action['destination_action_name'] = $destinationAction['destination_name'];
+                        if (
+                            ($action['action_type'] ?? null) === 'GoTo'
+                            && ($action['safety'] ?? null) === 'local-destination'
+                            && ($action['destination'] ?? null) === null
+                        ) {
+                            $action['destination'] = $destinationAction['destination_name'];
+                        }
+                    }
+                    unset($action);
+                }
+
+                return $actions;
+            }
         }
 
         $action = $this->openActionReviewAction(
             $catalog['OpenAction'],
             $objects,
             $pageIndexes,
-            $this->destinationMap($catalog, $objects)
+            $destinations
         );
 
         return $action === null ? [] : [$action];
@@ -393,8 +409,16 @@ final class PdfOutlineExtractor
             $openActionReviews = $this->getOpenActionReviewActions($pdfBytes);
             if ($openActionReviews !== []) {
                 $metadata['source'][] = 'open_action';
+                $openActionDestinationContext = $this->destinationActionTargetContextFromReviewRows(
+                    $openActionReviews,
+                    $pageLabels,
+                    $pagePresentationsByPage,
+                    $articleBeadsByPage,
+                    $pageReviewsByPage,
+                    $taggedContentByPage
+                );
                 foreach ($openActionReviews as $openActionReview) {
-                    $metadata['open_action_review_actions'][] = $this->withNavigationTargetMetadata(
+                    $row = $this->withNavigationTargetMetadata(
                         $openActionReview,
                         $pageLabels,
                         $pagePresentationsByPage,
@@ -402,6 +426,13 @@ final class PdfOutlineExtractor
                         $pageReviewsByPage,
                         $taggedContentByPage
                     );
+                    if (is_string($row['destination_action_name'] ?? null)) {
+                        foreach ($openActionDestinationContext as $key => $value) {
+                            $row[$key] = $value;
+                        }
+                    }
+
+                    $metadata['open_action_review_actions'][] = $row;
                 }
             }
         }
@@ -1112,6 +1143,43 @@ final class PdfOutlineExtractor
         }
 
         return $context;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @param list<string> $pageLabels
+     * @param array<int, array<string, mixed>> $pagePresentationsByPage
+     * @param array<int, list<array<string, mixed>>> $articleBeadsByPage
+     * @param array<int, array<string, mixed>> $pageReviewsByPage
+     * @param array<int, list<array<string, mixed>>> $taggedContentByPage
+     * @return array<string, mixed>
+     */
+    private function destinationActionTargetContextFromReviewRows(
+        array $actions,
+        array $pageLabels,
+        array $pagePresentationsByPage,
+        array $articleBeadsByPage,
+        array $pageReviewsByPage,
+        array $taggedContentByPage
+    ): array {
+        foreach ($actions as $action) {
+            if (!is_int($action['page'] ?? null)) {
+                continue;
+            }
+
+            return $this->destinationActionTargetContext(
+                $this->withNavigationTargetMetadata(
+                    $action,
+                    $pageLabels,
+                    $pagePresentationsByPage,
+                    $articleBeadsByPage,
+                    $pageReviewsByPage,
+                    $taggedContentByPage
+                )
+            );
+        }
+
+        return [];
     }
 
     /**

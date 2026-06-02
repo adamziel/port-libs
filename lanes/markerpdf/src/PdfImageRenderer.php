@@ -635,6 +635,8 @@ final class PdfImageRenderer
         $plan = $this->imageColorSpaceSoftMaskPlan($canonical, $objects);
         $filters = $plan['image_filters'];
         $previewOnlyFilters = $plan['image_filter_boundary']['preview_only_filters'];
+        $softMask = is_array($plan['soft_mask'] ?? null) ? $plan['soft_mask'] : null;
+        $softMaskBoundary = is_array($plan['soft_mask_filter_boundary'] ?? null) ? $plan['soft_mask_filter_boundary'] : null;
 
         $plan['inline_image'] = [
             'present' => true,
@@ -647,6 +649,11 @@ final class PdfImageRenderer
             'excluded_from_visible_text' => true,
             'review_only_filters' => $previewOnlyFilters,
             'native_raster_decode' => $previewOnlyFilters === [],
+            'soft_mask_present' => $softMask !== null && ($softMask['present'] ?? false) === true,
+            'soft_mask_source_object' => $softMaskBoundary['source_object'] ?? null,
+            'soft_mask_uses_current_object_map' => $softMaskBoundary['uses_current_object_map'] ?? null,
+            'soft_mask_decoded_with_current_filters' => $softMaskBoundary['decoded_with_current_filters'] ?? null,
+            'soft_mask_decode_applied_before_rgb' => ($plan['soft_mask_decode_applied_before_rgb'] ?? false) === true,
         ];
         $plan['inline_image_abbreviations_expanded'] = $plan['inline_image']['uses_abbreviations'];
         $plan['inline_image_payload_excluded_from_text'] = true;
@@ -655,6 +662,16 @@ final class PdfImageRenderer
         $plan['notes'][] = 'inline_image_payload_excluded_from_visible_text';
         if (in_array('JBIG2Decode', $filters, true)) {
             $plan['notes'][] = 'inline_jbig2_image_filter_review_only';
+        }
+        if (in_array('JPXDecode', $filters, true)) {
+            $plan['notes'][] = 'inline_jpx_image_filter_review_only';
+        }
+        if (
+            ($plan['inline_image']['soft_mask_present'] ?? false) === true
+            && ($plan['inline_image']['soft_mask_uses_current_object_map'] ?? false) === true
+            && ($plan['inline_image']['soft_mask_decoded_with_current_filters'] ?? false) === true
+        ) {
+            $plan['notes'][] = 'inline_image_soft_mask_decoded_from_current_object';
         }
 
         return $plan;

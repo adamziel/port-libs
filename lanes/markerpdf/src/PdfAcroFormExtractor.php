@@ -899,6 +899,10 @@ final class PdfAcroFormExtractor
         $primaryWidget = $pageWidgets[0] ?? ($widgets[0] ?? null);
         $normalAppearance = is_array($primaryWidget['normal_appearance'] ?? null) ? $primaryWidget['normal_appearance'] : null;
         $selectedAppearance = is_array($normalAppearance['selected_appearance'] ?? null) ? $normalAppearance['selected_appearance'] : null;
+        $rolloverAppearance = is_array($primaryWidget['rollover_appearance'] ?? null) ? $primaryWidget['rollover_appearance'] : null;
+        $rolloverSelectedAppearance = is_array($rolloverAppearance['selected_appearance'] ?? null) ? $rolloverAppearance['selected_appearance'] : null;
+        $downAppearance = is_array($primaryWidget['down_appearance'] ?? null) ? $primaryWidget['down_appearance'] : null;
+        $downSelectedAppearance = is_array($downAppearance['selected_appearance'] ?? null) ? $downAppearance['selected_appearance'] : null;
         $signature = is_array($field['signature'] ?? null) ? $field['signature'] : [];
         $signatureState = is_array($field['signature_state'] ?? null) ? $field['signature_state'] : [];
         $xfaBoundary = is_array($field['xfa_boundary'] ?? null) ? $field['xfa_boundary'] : [];
@@ -967,6 +971,18 @@ final class PdfAcroFormExtractor
             'selected_appearance_decoded_sha256' => is_array($selectedAppearance) ? ($selectedAppearance['decoded_sha256'] ?? null) : null,
             'appearance_value_used_for_import' => false,
             'appearance_payload_text_exposed' => false,
+            'rollover_appearance_type' => is_array($rolloverAppearance) ? ($rolloverAppearance['appearance_type'] ?? null) : null,
+            'rollover_selected_appearance_state' => is_array($rolloverAppearance) ? ($rolloverAppearance['selected_state'] ?? null) : null,
+            'rollover_selected_appearance_object' => is_array($rolloverSelectedAppearance) ? ($rolloverSelectedAppearance['object'] ?? null) : null,
+            'rollover_selected_appearance_decoded_sha256' => is_array($rolloverSelectedAppearance) ? ($rolloverSelectedAppearance['decoded_sha256'] ?? null) : null,
+            'rollover_state_matches_appearance' => is_array($rolloverAppearance) ? ($rolloverAppearance['state_matches_appearance'] ?? null) : null,
+            'down_appearance_type' => is_array($downAppearance) ? ($downAppearance['appearance_type'] ?? null) : null,
+            'down_selected_appearance_state' => is_array($downAppearance) ? ($downAppearance['selected_state'] ?? null) : null,
+            'down_selected_appearance_object' => is_array($downSelectedAppearance) ? ($downSelectedAppearance['object'] ?? null) : null,
+            'down_selected_appearance_decoded_sha256' => is_array($downSelectedAppearance) ? ($downSelectedAppearance['decoded_sha256'] ?? null) : null,
+            'down_state_matches_appearance' => is_array($downAppearance) ? ($downAppearance['state_matches_appearance'] ?? null) : null,
+            'interactive_appearance_value_used_for_import' => false,
+            'interactive_appearance_payload_text_exposed' => false,
             'has_signature_dictionary' => (bool) ($signatureState['has_signature_dictionary'] ?? false),
             'signed' => (bool) ($signatureState['signed'] ?? false),
             'signature_object' => $signatureState['signature_object'] ?? ($signature['object'] ?? null),
@@ -1903,7 +1919,7 @@ final class PdfAcroFormExtractor
         $inheritedAttributes = [];
         $localAttributes = [];
         $localValueAttributes = [];
-        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DA', 'DR', 'Q', 'Opt', 'I'] as $name) {
+        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I'] as $name) {
             if (!isset($effective[$name])) {
                 continue;
             }
@@ -1916,7 +1932,7 @@ final class PdfAcroFormExtractor
             ];
             if ($sourceObject === $terminalObject) {
                 $localAttributes[] = $name;
-                if (in_array($name, ['V', 'DV', 'RV'], true)) {
+                if (in_array($name, ['V', 'DV', 'RV', 'DS'], true)) {
                     $localValueAttributes[] = $name;
                 }
                 continue;
@@ -2722,7 +2738,7 @@ final class PdfAcroFormExtractor
     private function mergeFieldAttributes(string $body, array $inherited, int $objectNumber): array
     {
         $effective = $inherited;
-        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DA', 'DR', 'Q', 'Opt', 'I'] as $name) {
+        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I'] as $name) {
             $value = $this->valueAfterName($body, $name);
             if ($value === null) {
                 continue;
@@ -2930,6 +2946,11 @@ final class PdfAcroFormExtractor
         $richTextString = $this->displayValue($richText);
         $plainPreview = $richTextString === null ? null : $this->plainTextFromRichText($richTextString);
         $richPreview = $richTextString === null ? null : $this->boundedPreview($richTextString, 180);
+        $defaultStyle = isset($effective['DS']) && !$password
+            ? $this->valueFromEffective($effective, 'DS', $objects)
+            : null;
+        $defaultStyleString = $this->displayValue($defaultStyle);
+        $defaultStylePreview = $defaultStyleString === null ? null : $this->boundedPreview($defaultStyleString, 180);
 
         return [
             'source' => 'acroform_rich_text_value_review_boundary',
@@ -2938,6 +2959,16 @@ final class PdfAcroFormExtractor
             'has_rich_text_value' => $richTextString !== null,
             'rich_text_source' => $effective['RV']['source'] ?? null,
             'rich_text_source_object' => $effective['RV']['source_object'] ?? null,
+            'has_default_style' => $defaultStyleString !== null,
+            'default_style_source' => $effective['DS']['source'] ?? null,
+            'default_style_source_object' => $effective['DS']['source_object'] ?? null,
+            'default_style_preview' => $defaultStylePreview === null ? null : $defaultStylePreview['preview'],
+            'default_style_truncated' => $defaultStylePreview['truncated'] ?? false,
+            'default_style_bytes' => $defaultStyleString === null ? 0 : strlen($defaultStyleString),
+            'default_style_sha256' => $defaultStyleString === null ? null : hash('sha256', $defaultStyleString),
+            'default_style_used_for_import' => false,
+            'default_style_used_for_submit' => false,
+            'default_style_exposed_as_css' => false,
             'plain_value' => $password ? null : $this->displayValue($plainValue),
             'plain_value_used_for_import' => !$password && $plainValue !== null,
             'rich_text_preview' => $richPreview === null ? null : $richPreview['preview'],
@@ -3649,10 +3680,12 @@ final class PdfAcroFormExtractor
                 ? $pageIndexes[$pageObject]
                 : ($pageWidgets[$widgetRef]['page_index'] ?? null);
             $annotationFlags = $this->numberValueAfterName($body, 'F');
-            $widgetAppearance = $this->widgetDefaultAppearance($body, $fieldDefaultAppearance, $effective, $objects);
+            $widgetAppearance = $this->widgetDefaultAppearance($body, $fieldDefaultAppearance, $effective, $objects, $widgetRef);
             $referencedFromPageAnnots = isset($pageWidgets[$widgetRef]);
             $appearanceState = $this->pdfNameValueAfterName($body, 'AS');
             $normalAppearance = $this->normalAppearanceReview($body, $objects, $appearanceState);
+            $rolloverAppearance = $this->interactiveAppearanceReview($body, $objects, $appearanceState, 'R', 'rollover');
+            $downAppearance = $this->interactiveAppearanceReview($body, $objects, $appearanceState, 'D', 'down');
 
             $actionReview = $this->actionsWithReviewFromDictionary($body, $objects, $fieldNamesByObject, 'widget', $widgetRef);
 
@@ -3673,6 +3706,8 @@ final class PdfAcroFormExtractor
                 'appearance_state' => $appearanceState,
                 'appearance_states' => is_array($normalAppearance) ? $normalAppearance['available_states'] : [],
                 'normal_appearance' => $normalAppearance,
+                'rollover_appearance' => $rolloverAppearance,
+                'down_appearance' => $downAppearance,
                 'default_appearance' => $widgetAppearance,
                 'actions' => $actionReview['actions'],
                 'action_review' => $actionReview['review'],
@@ -4915,7 +4950,7 @@ final class PdfAcroFormExtractor
      * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
      * @return array<string, mixed>|null
      */
-    private function widgetDefaultAppearance(string $widgetBody, ?array $fieldDefaultAppearance, array $effective, array $objects): ?array
+    private function widgetDefaultAppearance(string $widgetBody, ?array $fieldDefaultAppearance, array $effective, array $objects, int $widgetObject): ?array
     {
         $raw = $this->pdfStringValueAfterName($widgetBody, 'DA', []);
         if ($raw === null || $raw === '') {
@@ -4926,7 +4961,7 @@ final class PdfAcroFormExtractor
         $appearance = $this->defaultAppearanceWithResourceReview($appearance, $effective, $objects);
         $appearance['raw'] = $raw;
         $appearance['source'] = 'widget';
-        $appearance['source_object'] = null;
+        $appearance['source_object'] = $widgetObject;
 
         return $appearance;
     }
@@ -5158,6 +5193,105 @@ final class PdfAcroFormExtractor
             'selected_appearance' => $selectedValue === null
                 ? null
                 : $this->appearanceStreamReviewFromValue($selectedValue, $objects, $appearanceState, 'normal_state'),
+            'state_matches_appearance' => $appearanceState === null ? null : $selectedValue !== null,
+            'stale_appearance_state' => $appearanceState !== null && $selectedValue === null,
+            'appearance_value_used_for_import' => false,
+            'payload_text_exposed' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+            'executes_action' => false,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     * @param array<int, string> $objects
+     */
+    private function interactiveAppearanceReview(
+        string $widgetBody,
+        array $objects,
+        ?string $appearanceState,
+        string $appearanceKey,
+        string $appearanceMode
+    ): ?array {
+        $apValue = $this->valueAfterName($widgetBody, 'AP');
+        if ($apValue === null) {
+            return null;
+        }
+
+        $ap = $this->resolvedDictionaryFromValue($apValue, $objects);
+        if ($ap === null) {
+            return null;
+        }
+
+        $appearanceValue = $this->valueAfterName($ap['body'], $appearanceKey);
+        if ($appearanceValue === null) {
+            return null;
+        }
+
+        if ($this->valueReferencesStreamObject($appearanceValue, $objects)) {
+            return [
+                'source' => 'widget_appearance_dictionary',
+                'appearance_dictionary_object' => $ap['object'],
+                'appearance_mode' => $appearanceMode,
+                'appearance_key' => $appearanceKey,
+                'appearance_type' => 'direct_stream',
+                'appearance_state' => $appearanceState,
+                'available_states' => [],
+                'selected_state' => null,
+                'selected_appearance' => $this->appearanceStreamReviewFromValue($appearanceValue, $objects, null, $appearanceMode . '_direct'),
+                'state_matches_appearance' => null,
+                'stale_appearance_state' => null,
+                'appearance_value_used_for_import' => false,
+                'payload_text_exposed' => false,
+                'executes_appearance_streams' => false,
+                'renders_appearances' => false,
+                'executes_action' => false,
+            ];
+        }
+
+        $appearanceDictionary = $this->resolvedDictionaryFromValue($appearanceValue, $objects);
+        if ($appearanceDictionary === null) {
+            return [
+                'source' => 'widget_appearance_dictionary',
+                'appearance_dictionary_object' => $ap['object'],
+                'appearance_mode' => $appearanceMode,
+                'appearance_key' => $appearanceKey,
+                'appearance_type' => 'unresolved',
+                'appearance_state' => $appearanceState,
+                'available_states' => [],
+                'selected_state' => null,
+                'selected_appearance' => null,
+                'state_matches_appearance' => null,
+                'stale_appearance_state' => null,
+                'appearance_value_used_for_import' => false,
+                'payload_text_exposed' => false,
+                'executes_appearance_streams' => false,
+                'renders_appearances' => false,
+                'executes_action' => false,
+            ];
+        }
+
+        $entries = $this->dictionaryNameValueMap($appearanceDictionary['body']);
+        $availableStates = array_keys($entries);
+        $selectedValue = null;
+        if ($appearanceState !== null && array_key_exists($appearanceState, $entries)) {
+            $selectedValue = $entries[$appearanceState];
+        }
+
+        return [
+            'source' => 'widget_appearance_dictionary',
+            'appearance_dictionary_object' => $ap['object'],
+            'appearance_dictionary_object_for_mode' => $appearanceDictionary['object'],
+            'appearance_mode' => $appearanceMode,
+            'appearance_key' => $appearanceKey,
+            'appearance_type' => 'state_dictionary',
+            'appearance_state' => $appearanceState,
+            'available_states' => $availableStates,
+            'selected_state' => $selectedValue === null ? null : $appearanceState,
+            'selected_appearance' => $selectedValue === null
+                ? null
+                : $this->appearanceStreamReviewFromValue($selectedValue, $objects, $appearanceState, $appearanceMode . '_state'),
             'state_matches_appearance' => $appearanceState === null ? null : $selectedValue !== null,
             'stale_appearance_state' => $appearanceState !== null && $selectedValue === null,
             'appearance_value_used_for_import' => false,

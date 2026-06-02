@@ -109,7 +109,7 @@ final class TableRecognizer
      * @param list<bool> $needsOcr
      * @param list<array<string, mixed>> $suppliedTableResults
      * @param array<int, list<string|array{text?: string, bbox?: list<int|float>}>|array{text_lines?: list<string|array{text?: string, bbox?: list<int|float>}>, lines?: list<string|array{text?: string, bbox?: list<int|float>}>}> $suppliedOcrTextLines
-     * @return list<array{cells: list<array<string, mixed>>, rows: list<array<string, mixed>>, cols: list<array<string, mixed>>}>
+     * @return list<array{cells: list<array<string, mixed>>, rows: list<array<string, mixed>>, cols: list<array<string, mixed>>, ocr_text_assignment?: string, ocr_grid_border_conflicts?: list<array<string, mixed>>}>
      */
     public function recognizeTables(
         array $tableCells,
@@ -125,11 +125,16 @@ final class TableRecognizer
         $recognized = [];
         for ($idx = 0; $idx < $count; $idx++) {
             $cells = $this->normalizeCells($tableCells[$idx]);
+            $ocrApplication = [
+                'assignment_mode' => 'none',
+                'grid_border_conflicts' => [],
+            ];
             if ($needsOcr[$idx]) {
                 if (!array_key_exists($idx, $suppliedOcrTextLines)) {
                     throw new InvalidArgumentException('Missing supplied OCR text lines for table index ' . $idx . '.');
                 }
-                $cells = $this->applyOcrText($cells, $suppliedOcrTextLines[$idx]);
+                $ocrApplication = $this->applyOcrText($cells, $suppliedOcrTextLines[$idx]);
+                $cells = $ocrApplication['cells'];
             }
 
             $result = $suppliedTableResults[$idx];
@@ -142,11 +147,17 @@ final class TableRecognizer
                 }
             }
 
-            $recognized[] = [
+            $recognizedTable = [
                 'cells' => $resultCells,
                 'rows' => $this->normalizeRowsOrCols($result['rows'] ?? [], 'row_id'),
                 'cols' => $this->normalizeRowsOrCols($result['cols'] ?? [], 'col_id'),
             ];
+            if ($ocrApplication['grid_border_conflicts'] !== []) {
+                $recognizedTable['ocr_text_assignment'] = $ocrApplication['assignment_mode'];
+                $recognizedTable['ocr_grid_border_conflicts'] = $ocrApplication['grid_border_conflicts'];
+            }
+
+            $recognized[] = $recognizedTable;
         }
 
         return $recognized;
@@ -473,15 +484,48 @@ final class TableRecognizer
     /**
      * @param list<array<string, mixed>> $cells
      * @param list<string|array{text?: string, bbox?: list<int|float>}> $ocrTextLines
-     * @return list<array<string, mixed>>
+     * @return array{cells: list<array<string, mixed>>, assignment_mode: string, grid_border_conflicts: list<array<string, mixed>>}
      */
     private function applyOcrText(array $cells, array $ocrTextLines): array
     {
         $ocrLines = $this->ocrTextLineItems($ocrTextLines);
         if ($this->ocrTextLinesHaveBboxes($ocrLines)) {
-            return $this->applyOcrTextByBbox($cells, $ocrLines);
+            $borderConflicts = $this->ocrGridBorderConflicts($cells, $ocrLines);
+            if ($borderConflicts !== [] && count($ocrLines) === count($cells)) {
+                foreach ($borderConflicts as &$conflict) {
+                    $conflict['assignment_mode'] = 'source_order_grid_border';
+                    $conflict['assigned_cell_index'] = $conflict['ocr_index'];
+                }
+                unset($conflict);
+
+                return [
+                    'cells' => $this->applyOcrTextByOrder($cells, $ocrLines),
+                    'assignment_mode' => 'source_order_grid_border',
+                    'grid_border_conflicts' => $borderConflicts,
+                ];
+            }
+
+            return [
+                'cells' => $this->applyOcrTextByBbox($cells, $ocrLines),
+                'assignment_mode' => 'bbox',
+                'grid_border_conflicts' => $borderConflicts,
+            ];
         }
 
+        return [
+            'cells' => $this->applyOcrTextByOrder($cells, $ocrLines),
+            'assignment_mode' => 'source_order',
+            'grid_border_conflicts' => [],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     * @param list<string|array{text?: string, bbox?: list<int|float>}> $ocrLines
+     * @return list<array<string, mixed>>
+     */
+    private function applyOcrTextByOrder(array $cells, array $ocrLines): array
+    {
         foreach ($ocrLines as $idx => $ocrLine) {
             if (!isset($cells[$idx])) {
                 break;
@@ -490,6 +534,59 @@ final class TableRecognizer
         }
 
         return $cells;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     * @param list<string|array{text?: string, bbox?: list<int|float>}> $ocrTextLines
+     * @return list<array<string, mixed>>
+     */
+    private function ocrGridBorderConflicts(array $cells, array $ocrTextLines, float $minOverlap = 0.15): array
+    {
+        $conflicts = [];
+        foreach ($ocrTextLines as $ocrIndex => $ocrLine) {
+            if (!is_array($ocrLine)) {
+                continue;
+            }
+
+            $bbox = $this->nullableBbox($ocrLine['bbox'] ?? null);
+            if ($bbox === null) {
+                continue;
+            }
+
+            $candidates = [];
+            foreach ($cells as $cellIndex => $cell) {
+                $cellBbox = $this->nullableBbox($cell['bbox'] ?? null);
+                if ($cellBbox === null) {
+                    continue;
+                }
+
+                $overlap = $this->intersectionPct($bbox, $cellBbox);
+                if ($overlap >= $minOverlap) {
+                    $candidates[] = [
+                        'cell_index' => $cellIndex,
+                        'overlap' => round($overlap, 4),
+                        'cell_bbox' => $cellBbox,
+                    ];
+                }
+            }
+
+            if (count($candidates) <= 1) {
+                continue;
+            }
+
+            $conflicts[] = [
+                'ocr_index' => $ocrIndex,
+                'text' => $this->normalizeOcrFragmentText($this->ocrTextLineText($ocrLine)),
+                'bbox' => $bbox,
+                'spans_grid_border' => true,
+                'candidate_cell_indexes' => array_column($candidates, 'cell_index'),
+                'candidate_overlaps' => array_column($candidates, 'overlap'),
+                'candidate_cell_bboxes' => array_column($candidates, 'cell_bbox'),
+            ];
+        }
+
+        return $conflicts;
     }
 
     /**

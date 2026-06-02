@@ -8031,6 +8031,7 @@ final class PdfTextExtractor
         foreach ($linearizedHintObjectStreamMemberNumbers as $objectNumber) {
             unset($objects[$objectNumber]);
         }
+        $objects = $this->withRepairedDirectStreamObjects($pdfBytes, $objects, $definitions, $xrefEntries);
         ksort($objects, SORT_NUMERIC);
 
         $rootObjectNumber = $this->trailerRootObjectNumberFromStartxrefChain($pdfBytes, $definitions);
@@ -8039,6 +8040,93 @@ final class PdfTextExtractor
         }
 
         return $objects;
+    }
+
+    /**
+     * Initial object scanning can only resolve direct stream boundaries with
+     * operands available at that point. Once object streams are expanded,
+     * selected direct streams may gain indirect /Length, /Filter, or
+     * /DecodeParms helpers; rebuild those bodies from the original bytes before
+     * page text extraction so compressed payload decoys do not own the object.
+     *
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
+     * @return array<int, string>
+     */
+    private function withRepairedDirectStreamObjects(
+        string $pdfBytes,
+        array $objects,
+        array $definitions,
+        array $xrefEntries
+    ): array {
+        $repaired = $objects;
+        foreach ($this->liveDirectObjectDefinitionsInFileOrder($definitions, $xrefEntries) as $definition) {
+            $objectNumber = $definition['objectNumber'];
+            if (!isset($repaired[$objectNumber]) || $repaired[$objectNumber] !== $definition['body']) {
+                continue;
+            }
+
+            $body = $this->repairedDirectStreamObjectBody($pdfBytes, $definition, $repaired);
+            if ($body !== null && $body !== $definition['body']) {
+                $repaired[$objectNumber] = $body;
+            }
+        }
+
+        ksort($repaired, SORT_NUMERIC);
+
+        return $repaired;
+    }
+
+    /**
+     * @param array{objectNumber: int, generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string} $definition
+     * @param array<int, string> $objects
+     */
+    private function repairedDirectStreamObjectBody(string $pdfBytes, array $definition, array $objects): ?string
+    {
+        $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $definition['bodyStart']);
+        $dictionaryEndOffset = $dictionaryOffset;
+        $dict = $this->readPdfDictionaryTokenAt($pdfBytes, $dictionaryEndOffset);
+        if ($dict === null) {
+            return null;
+        }
+
+        $streamKeywordOffset = $this->skipPdfWhitespace($pdfBytes, $dictionaryEndOffset);
+        if (!$this->pdfKeywordAt($pdfBytes, $streamKeywordOffset, 'stream')) {
+            return null;
+        }
+
+        $streamStart = $streamKeywordOffset + strlen('stream');
+        if (substr($pdfBytes, $streamStart, 2) === "\r\n") {
+            $streamStart += 2;
+        } elseif (($pdfBytes[$streamStart] ?? '') === "\n" || ($pdfBytes[$streamStart] ?? '') === "\r") {
+            $streamStart++;
+        }
+
+        $declaredLength = $this->streamLength($dict, $objects);
+        $streamEnd = null;
+        if ($declaredLength !== null && $declaredLength >= 0) {
+            $declaredEnd = $streamStart + $declaredLength;
+            if ($declaredEnd <= strlen($pdfBytes)) {
+                $streamEnd = $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd);
+            }
+        }
+
+        $streamEnd ??= $this->filteredEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, $objects);
+        if ($streamEnd === null) {
+            return null;
+        }
+
+        $bodyEnd = $streamEnd + strlen('endstream');
+        if ($bodyEnd <= $definition['bodyStart'] || $bodyEnd > strlen($pdfBytes)) {
+            return null;
+        }
+
+        if ($bodyEnd <= $definition['bodyEnd']) {
+            return null;
+        }
+
+        return substr($pdfBytes, $definition['bodyStart'], $bodyEnd - $definition['bodyStart']);
     }
 
     /**
@@ -11405,6 +11493,13 @@ final class PdfTextExtractor
             return true;
         }
 
+        if (
+            $this->inlineImageUsesJpxDecode($filters)
+            && $this->inlineJpxCandidateState($candidate) === 'incomplete'
+        ) {
+            return false;
+        }
+
         if (!$this->hasVerifiableInlineImageFilter($filters)) {
             return true;
         }
@@ -11416,6 +11511,41 @@ final class PdfTextExtractor
 
         $expectedLength = $this->inlineImageExpectedDecodedLength($dictionary);
         return $expectedLength === null || strlen($decoded) === $expectedLength;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function inlineImageUsesJpxDecode(array $filters): bool
+    {
+        foreach ($filters as $filter) {
+            if ($filter === 'JPXDecode') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * JPXDecode image data is preview-only in this native port, but raw JPEG
+     * 2000 payloads still expose enough framing to reject delimiter-looking
+     * `EI` bytes before the codestream EOC marker.
+     */
+    private function inlineJpxCandidateState(string $candidate): string
+    {
+        $bytes = rtrim($candidate, "\x00\t\n\f\r ");
+        if ($bytes === '') {
+            return 'unknown';
+        }
+
+        $isRawCodestream = str_starts_with($bytes, "\xff\x4f");
+        $isJp2File = str_starts_with($bytes, "\x00\x00\x00\x0cjP  \r\n\x87\n");
+        if (!$isRawCodestream && !$isJp2File) {
+            return 'unknown';
+        }
+
+        return str_contains($bytes, "\xff\xd9") ? 'complete' : 'incomplete';
     }
 
     /**
